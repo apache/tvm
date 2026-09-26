@@ -51,18 +51,6 @@ ffi::Map<ffi::String, ffi::Any> UpdateWebGPUAttrs(ffi::Map<ffi::String, ffi::Any
   return target;
 }
 
-void RegisterTargetKind() {
-  namespace refl = tvm::ffi::reflection;
-
-  TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
-      .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
-      .add_attr_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(32768))
-      .add_attr_option<bool>("supports_subgroups", refl::DefaultValue(false))
-      .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
-      .set_target_canonicalizer(UpdateWebGPUAttrs)
-      .set_default_keys({"webgpu", "gpu"});
-}
-
 }  // namespace webgpu
 }  // namespace backend
 
@@ -75,7 +63,18 @@ void RegisterWebGPUIntrinRules();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::webgpu::RegisterTargetKind();
+  using namespace tvm;
+  using namespace tvm::backend::webgpu;
+  namespace refl = tvm::ffi::reflection;
+
+  TargetKindDef("webgpu")
+      .set_default_device_type(kDLWebGPU)
+      .def_option<int64_t>("max_num_threads", refl::DefaultValue(256))
+      .def_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(32768))
+      .def_option<bool>("supports_subgroups", refl::DefaultValue(false))
+      .def_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
+      .set_target_canonicalizer(UpdateWebGPUAttrs)
+      .set_default_keys({"webgpu", "gpu"});
   tvm::codegen::intrin::RegisterWebGPUIntrinRules();
   tvm::codegen::RegisterWebGPUCodegen();
 }

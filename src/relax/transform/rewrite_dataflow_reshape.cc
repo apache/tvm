@@ -88,7 +88,7 @@ class DataflowReshapeRewriter : public ExprMutator {
 
     // We bring the calls of reshape PrimFunc back to calls of high-level
     // relax.reshape op, which will be lowered to calls of the ExternFunc
-    // vm.builtin.reshape in the VMBuiltinLower pass.
+    // vm.builtin.reshape in the LowerRuntimeBuiltin pass.
 
     auto prim_fn =
         mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::PrimFunc>();

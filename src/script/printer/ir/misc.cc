@@ -16,11 +16,46 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/container/shape.h>
+#include <tvm/runtime/tensor.h>
+
 #include "./utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<DataTypeImm>(
+      "", [](DataTypeImm n, AccessPath p, IRDocsifier d) -> Doc {
+        return TIR(d, "dtype")->Call({LiteralDoc::DataType(n->value, p->Attr("value"))});
+      });
+  IRDocsifier::vtable().set_dispatch<DataTypeImm>(
+      "ir", [](DataTypeImm n, AccessPath p, IRDocsifier d) -> Doc {
+        return IR(d, "dtype")->Call({LiteralDoc::DataType(n->value, p->Attr("value"))});
+      });
+  IRDocsifier::vtable().set_dispatch<GenericConst>(
+      "", [](GenericConst n, AccessPath p, IRDocsifier d) -> Doc {
+        if (auto dtype = n->value.as<DLDataType>()) {
+          return TIR(d, "dtype")->Call({LiteralDoc::DataType(*dtype, p->Attr("value"))});
+        }
+        if (n->value.as<runtime::Tensor>()) {
+          // Tensor-valued constants are Relax constants and keep the Relax spelling.
+          return IRDocsifier::vtable()("relax", n, p, d);
+        }
+        return d->AddMetadata(n);
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<GenericConst>(
+      "ir", [](GenericConst n, AccessPath p, IRDocsifier d) -> Doc {
+        if (auto dtype = n->value.as<DLDataType>()) {
+          return IR(d, "dtype")->Call({LiteralDoc::DataType(*dtype, p->Attr("value"))});
+        }
+        return IRDocsifier::vtable()("", n, p, d);
+      });
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<ffi::Array<Any>>(  //
@@ -62,6 +97,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           vs.push_back(d->AsDoc<ExprDoc>(items[i].second, p->MapItem(items[i].first)));
         }
         return DictDoc(ks, vs);
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<ffi::Shape>(
+      "", [](ffi::Shape n, AccessPath n_p, IRDocsifier d) -> Doc {
+        int s = n.size();
+        ffi::Array<ExprDoc> results;
+        results.reserve(s);
+        for (int i = 0; i < s; ++i) {
+          results.push_back(d->AsDoc<ExprDoc>(IntImm::Int32(n[i]), n_p->ArrayItem(i)));
+        }
+        return TupleDoc(results);
       });
 }
 

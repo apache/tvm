@@ -19,7 +19,7 @@
 """Namespace for Tensor Expression Language"""
 
 # expose all operators in tvm tirx.op
-from tvm.tirx import any, all, min_value, max_value, trace
+from tvm.tirx import any, all, min_value, max_value
 from tvm.tirx import exp, erf, tanh, sigmoid, log, tan, cos, sin, sqrt, rsqrt, floor, ceil
 from tvm.tirx import sinh, cosh, log2, log10
 from tvm.tirx import asin, asinh, acos, acosh, atan, atanh

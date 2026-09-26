@@ -27,32 +27,28 @@ def _apply_substitute(mod):
     """Apply substitute transform to replace the first parameter with 16."""
     func = mod["main"]
     vmap = {func.params[0]: T.int32(16)}
-    new_func = (
-        tvm.tirx.PrimFunc(
-            params=[],
-            body=tvm_ffi.structural_map(
-                func.body,
-                (tvm.tirx.Var, lambda var: vmap.get(var, var)),
-                order="post",
-            ),
-        )
-        .with_attr("global_symbol", func.attrs["global_symbol"])
-        .with_attr("s_tir", True)
-    )
+    new_func = tvm.tirx.PrimFunc(
+        params=[],
+        body=tvm_ffi.structural_map(
+            func.body,
+            (tvm.tirx.Var, lambda var: vmap.get(var, var)),
+            order="post",
+        ),
+    ).with_attr("global_symbol", func.attrs["global_symbol"])
     return tvm.IRModule.from_expr(new_func)
 
 
 def test_basic_substitute():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             for i in range(n):
                 T.evaluate(i)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             for i in range(16):
                 T.evaluate(i)
@@ -64,14 +60,14 @@ def test_basic_substitute():
 def test_substitute_allocate():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             A = T.alloc_buffer((n,), "float32")
             T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             A = T.alloc_buffer((16,), "float32")
             T.evaluate(A.data)
@@ -83,7 +79,7 @@ def test_substitute_allocate():
 def test_substitute_buffer_load():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             A = T.alloc_buffer((n,), "float32")
             for i in range(n):
@@ -91,7 +87,7 @@ def test_substitute_buffer_load():
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             A = T.alloc_buffer((16,), "float32")
             for i in range(16):
@@ -104,14 +100,14 @@ def test_substitute_buffer_load():
 def test_substitute_decl_buffer():
     @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             A = T.alloc_buffer((n,), "float32")
             T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             A = T.alloc_buffer((16,), "float32")
             T.evaluate(A.data)

@@ -1703,8 +1703,10 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(TransformLayoutTraits);
-TVM_REGISTER_INST_KIND_TRAITS(TransformBlockLayoutTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<TransformLayoutTraits>();
+  RegisterInstructionKind<TransformBlockLayoutTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

@@ -22,6 +22,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -30,200 +31,193 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    @Ts.prim_func
+    def main(A: T.Buffer((1024, 1024), 'float32'), B: T.Buffer((1024, 1024), 'float32'), C: T.Buffer((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-
 @tvm.script.ir_module
 class ParallelizeVectorizeUnroll:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    @Ts.prim_func
+    def main(A: T.Buffer((1024, 1024), 'float32'), B: T.Buffer((1024, 1024), 'float32'), C: T.Buffer((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
-        with T.sblock("root"):
-            T.reads([])
-            T.writes([])
-            T.sblock_attr({"meta_schedule.parallel": 128, "meta_schedule.vectorize": 16, "meta_schedule.unroll_explicit": 2})
+
+        with Ts.sblock("root"):
+            Ts.reads([])
+            Ts.writes([])
+            Ts.sblock_attr({"meta_schedule.parallel": 128, "meta_schedule.vectorize": 16, "meta_schedule.unroll_explicit": 2})
             for i, j, k in T.grid(1024, 1024, 1024):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = 0.0
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-
 
 # from tvm.script import tirx as T
 @tvm.script.ir_module
 class PureSpatial:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(placeholder: T.Buffer((1, 13, 13, 3, 85), "float32"), placeholder_1: T.Buffer((1, 26, 26, 3, 85), "float32"), placeholder_2: T.Buffer((1, 52, 52, 3, 85), "float32"), T_expand_dims: T.Buffer((1, 80, 10647), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        T_strided_slice_with_axes = T.sblock_alloc_buffer([1, 52, 52, 3, 1], dtype="float32")
-        T_sigmoid = T.sblock_alloc_buffer([1, 52, 52, 3, 1], dtype="float32")
-        T_strided_slice_with_axes_1 = T.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")
-        T_sigmoid_1 = T.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")
-        T_multiply = T.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")
-        T_reshape = T.sblock_alloc_buffer([8112, 80], dtype="float32")
-        T_strided_slice_with_axes_2 = T.sblock_alloc_buffer([1, 26, 26, 3, 1], dtype="float32")
-        T_sigmoid_2 = T.sblock_alloc_buffer([1, 26, 26, 3, 1], dtype="float32")
-        T_strided_slice_with_axes_3 = T.sblock_alloc_buffer([1, 26, 26, 3, 80], dtype="float32")
-        T_sigmoid_3 = T.sblock_alloc_buffer([1, 26, 26, 3, 80], dtype="float32")
-        T_multiply_1 = T.sblock_alloc_buffer([1, 26, 26, 3, 80], dtype="float32")
-        T_reshape_1 = T.sblock_alloc_buffer([2028, 80], dtype="float32")
-        T_strided_slice_with_axes_4 = T.sblock_alloc_buffer([1, 13, 13, 3, 1], dtype="float32")
-        T_sigmoid_4 = T.sblock_alloc_buffer([1, 13, 13, 3, 1], dtype="float32")
-        T_strided_slice_with_axes_5 = T.sblock_alloc_buffer([1, 13, 13, 3, 80], dtype="float32")
-        T_sigmoid_5 = T.sblock_alloc_buffer([1, 13, 13, 3, 80], dtype="float32")
-        T_multiply_2 = T.sblock_alloc_buffer([1, 13, 13, 3, 80], dtype="float32")
-        T_reshape_2 = T.sblock_alloc_buffer([507, 80], dtype="float32")
-        T_concat = T.sblock_alloc_buffer([10647, 80], dtype="float32")
-        T_transpose = T.sblock_alloc_buffer([80, 10647], dtype="float32")
+        T_strided_slice_with_axes = Ts.sblock_alloc_buffer([1, 52, 52, 3, 1], dtype="float32")
+        T_sigmoid = Ts.sblock_alloc_buffer([1, 52, 52, 3, 1], dtype="float32")
+        T_strided_slice_with_axes_1 = Ts.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")
+        T_sigmoid_1 = Ts.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")
+        T_multiply = Ts.sblock_alloc_buffer([1, 52, 52, 3, 80], dtype="float32")
+        T_reshape = Ts.sblock_alloc_buffer([8112, 80], dtype="float32")
+        T_strided_slice_with_axes_2 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 1], dtype="float32")
+        T_sigmoid_2 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 1], dtype="float32")
+        T_strided_slice_with_axes_3 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 80], dtype="float32")
+        T_sigmoid_3 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 80], dtype="float32")
+        T_multiply_1 = Ts.sblock_alloc_buffer([1, 26, 26, 3, 80], dtype="float32")
+        T_reshape_1 = Ts.sblock_alloc_buffer([2028, 80], dtype="float32")
+        T_strided_slice_with_axes_4 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 1], dtype="float32")
+        T_sigmoid_4 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 1], dtype="float32")
+        T_strided_slice_with_axes_5 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 80], dtype="float32")
+        T_sigmoid_5 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 80], dtype="float32")
+        T_multiply_2 = Ts.sblock_alloc_buffer([1, 13, 13, 3, 80], dtype="float32")
+        T_reshape_2 = Ts.sblock_alloc_buffer([507, 80], dtype="float32")
+        T_concat = Ts.sblock_alloc_buffer([10647, 80], dtype="float32")
+        T_transpose = Ts.sblock_alloc_buffer([80, 10647], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 1):
-            with T.sblock("T_strided_slice_with_axes"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)])
-                T.writes(T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_strided_slice_with_axes"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)])
+                Ts.writes(T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4])
                 T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4] = placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)]
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 1):
-            with T.sblock("T_sigmoid"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4])
-                T.writes(T_sigmoid[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_sigmoid"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4])
+                Ts.writes(T_sigmoid[ax0, ax1, ax2, ax3, ax4])
                 T_sigmoid[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 80):
-            with T.sblock("T_strided_slice_with_axes_1"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)])
-                T.writes(T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_strided_slice_with_axes_1"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)])
+                Ts.writes(T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4])
                 T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4] = placeholder_2[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)]
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 80):
-            with T.sblock("T_sigmoid_1"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4])
-                T.writes(T_sigmoid_1[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_sigmoid_1"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4])
+                Ts.writes(T_sigmoid_1[ax0, ax1, ax2, ax3, ax4])
                 T_sigmoid_1[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 80):
-            with T.sblock("T_multiply"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(T_sigmoid[ax0, ax1, ax2, ax3, 0], T_sigmoid_1[ax0, ax1, ax2, ax3, ax4])
-                T.writes(T_multiply[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_multiply"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(T_sigmoid[ax0, ax1, ax2, ax3, 0], T_sigmoid_1[ax0, ax1, ax2, ax3, ax4])
+                Ts.writes(T_multiply[ax0, ax1, ax2, ax3, ax4])
                 T_multiply[ax0, ax1, ax2, ax3, ax4] = T_sigmoid[ax0, ax1, ax2, ax3, 0] * T_sigmoid_1[ax0, ax1, ax2, ax3, ax4]
         for i0, i1 in T.grid(8112, 80):
-            with T.sblock("T_reshape"):
-                ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                T.reads(T_multiply[0, (ax1 // 80 + ax0) % 8112 // 156, (ax1 // 80 + ax0) % 156 // 3, (ax1 // 80 + ax0) % 3, ax1 % 80])
-                T.writes(T_reshape[ax0, ax1])
+            with Ts.sblock("T_reshape"):
+                ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                Ts.reads(T_multiply[0, (ax1 // 80 + ax0) % 8112 // 156, (ax1 // 80 + ax0) % 156 // 3, (ax1 // 80 + ax0) % 3, ax1 % 80])
+                Ts.writes(T_reshape[ax0, ax1])
                 T_reshape[ax0, ax1] = T_multiply[0, (ax1 // 80 + ax0) % 8112 // 156, (ax1 // 80 + ax0) % 156 // 3, (ax1 // 80 + ax0) % 3, ax1 % 80]
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 1):
-            with T.sblock("T_strided_slice_with_axes_2"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)])
-                T.writes(T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_strided_slice_with_axes_2"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)])
+                Ts.writes(T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4])
                 T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4] = placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)]
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 1):
-            with T.sblock("T_sigmoid_2"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4])
-                T.writes(T_sigmoid_2[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_sigmoid_2"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4])
+                Ts.writes(T_sigmoid_2[ax0, ax1, ax2, ax3, ax4])
                 T_sigmoid_2[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 80):
-            with T.sblock("T_strided_slice_with_axes_3"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)])
-                T.writes(T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_strided_slice_with_axes_3"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)])
+                Ts.writes(T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4])
                 T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4] = placeholder_1[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)]
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 80):
-            with T.sblock("T_sigmoid_3"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4])
-                T.writes(T_sigmoid_3[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_sigmoid_3"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4])
+                Ts.writes(T_sigmoid_3[ax0, ax1, ax2, ax3, ax4])
                 T_sigmoid_3[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 80):
-            with T.sblock("T_multiply_1"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(T_sigmoid_2[ax0, ax1, ax2, ax3, 0], T_sigmoid_3[ax0, ax1, ax2, ax3, ax4])
-                T.writes(T_multiply_1[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_multiply_1"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(T_sigmoid_2[ax0, ax1, ax2, ax3, 0], T_sigmoid_3[ax0, ax1, ax2, ax3, ax4])
+                Ts.writes(T_multiply_1[ax0, ax1, ax2, ax3, ax4])
                 T_multiply_1[ax0, ax1, ax2, ax3, ax4] = T_sigmoid_2[ax0, ax1, ax2, ax3, 0] * T_sigmoid_3[ax0, ax1, ax2, ax3, ax4]
         for i0, i1 in T.grid(2028, 80):
-            with T.sblock("T_reshape_1"):
-                ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                T.reads(T_multiply_1[0, (ax1 // 80 + ax0) % 2028 // 78, (ax1 // 80 + ax0) % 78 // 3, (ax1 // 80 + ax0) % 3, ax1 % 80])
-                T.writes(T_reshape_1[ax0, ax1])
+            with Ts.sblock("T_reshape_1"):
+                ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                Ts.reads(T_multiply_1[0, (ax1 // 80 + ax0) % 2028 // 78, (ax1 // 80 + ax0) % 78 // 3, (ax1 // 80 + ax0) % 3, ax1 % 80])
+                Ts.writes(T_reshape_1[ax0, ax1])
                 T_reshape_1[ax0, ax1] = T_multiply_1[0, (ax1 // 80 + ax0) % 2028 // 78, (ax1 // 80 + ax0) % 78 // 3, (ax1 // 80 + ax0) % 3, ax1 % 80]
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 1):
-            with T.sblock("T_strided_slice_with_axes_4"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)])
-                T.writes(T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_strided_slice_with_axes_4"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)])
+                Ts.writes(T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4])
                 T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4] = placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(4)]
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 1):
-            with T.sblock("T_sigmoid_4"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4])
-                T.writes(T_sigmoid_4[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_sigmoid_4"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4])
+                Ts.writes(T_sigmoid_4[ax0, ax1, ax2, ax3, ax4])
                 T_sigmoid_4[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 80):
-            with T.sblock("T_strided_slice_with_axes_5"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)])
-                T.writes(T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_strided_slice_with_axes_5"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)])
+                Ts.writes(T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4])
                 T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4] = placeholder[ax0, ax1, ax2, ax3, T.cast(ax4, "int64") + T.int64(5)]
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 80):
-            with T.sblock("T_sigmoid_5"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4])
-                T.writes(T_sigmoid_5[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_sigmoid_5"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4])
+                Ts.writes(T_sigmoid_5[ax0, ax1, ax2, ax3, ax4])
                 T_sigmoid_5[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4], dtype="float32")
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 80):
-            with T.sblock("T_multiply_2"):
-                ax0, ax1, ax2, ax3, ax4 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                T.reads(T_sigmoid_4[ax0, ax1, ax2, ax3, 0], T_sigmoid_5[ax0, ax1, ax2, ax3, ax4])
-                T.writes(T_multiply_2[ax0, ax1, ax2, ax3, ax4])
+            with Ts.sblock("T_multiply_2"):
+                ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                Ts.reads(T_sigmoid_4[ax0, ax1, ax2, ax3, 0], T_sigmoid_5[ax0, ax1, ax2, ax3, ax4])
+                Ts.writes(T_multiply_2[ax0, ax1, ax2, ax3, ax4])
                 T_multiply_2[ax0, ax1, ax2, ax3, ax4] = T_sigmoid_4[ax0, ax1, ax2, ax3, 0] * T_sigmoid_5[ax0, ax1, ax2, ax3, ax4]
         for i0, i1 in T.grid(507, 80):
-            with T.sblock("T_reshape_2"):
-                ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                T.reads(T_multiply_2[0, (ax1 // 80 + ax0) % 507 // 39, (ax1 // 80 + ax0) % 39 // 3, (ax1 // 80 + ax0) % 3, ax1 % 80])
-                T.writes(T_reshape_2[ax0, ax1])
+            with Ts.sblock("T_reshape_2"):
+                ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                Ts.reads(T_multiply_2[0, (ax1 // 80 + ax0) % 507 // 39, (ax1 // 80 + ax0) % 39 // 3, (ax1 // 80 + ax0) % 3, ax1 % 80])
+                Ts.writes(T_reshape_2[ax0, ax1])
                 T_reshape_2[ax0, ax1] = T_multiply_2[0, (ax1 // 80 + ax0) % 507 // 39, (ax1 // 80 + ax0) % 39 // 3, (ax1 // 80 + ax0) % 3, ax1 % 80]
         for i0, i1 in T.grid(10647, 80):
-            with T.sblock("T_concat"):
-                ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                T.reads(T_reshape[ax0 - 2535, ax1], T_reshape_1[ax0 - 507, ax1], T_reshape_2[ax0, ax1])
-                T.writes(T_concat[ax0, ax1])
+            with Ts.sblock("T_concat"):
+                ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                Ts.reads(T_reshape[ax0 - 2535, ax1], T_reshape_1[ax0 - 507, ax1], T_reshape_2[ax0, ax1])
+                Ts.writes(T_concat[ax0, ax1])
                 T_concat[ax0, ax1] = T.if_then_else(2535 <= ax0, T_reshape[ax0 - 2535, ax1], T.if_then_else(507 <= ax0, T_reshape_1[ax0 - 507, ax1], T_reshape_2[ax0, ax1], dtype="float32"), dtype="float32")
         for i0, i1 in T.grid(80, 10647):
-            with T.sblock("T_transpose"):
-                ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                T.reads(T_concat[ax1, ax0])
-                T.writes(T_transpose[ax0, ax1])
+            with Ts.sblock("T_transpose"):
+                ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                Ts.reads(T_concat[ax1, ax0])
+                Ts.writes(T_transpose[ax0, ax1])
                 T_transpose[ax0, ax1] = T_concat[ax1, ax0]
         for i0, i1, i2 in T.grid(1, 80, 10647):
-            with T.sblock("T_expand_dims"):
-                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
-                T.reads(T_transpose[ax1, ax2])
-                T.writes(T_expand_dims[ax0, ax1, ax2])
+            with Ts.sblock("T_expand_dims"):
+                ax0, ax1, ax2 = Ts.axis.remap("SSS", [i0, i1, i2])
+                Ts.reads(T_transpose[ax1, ax2])
+                Ts.writes(T_expand_dims[ax0, ax1, ax2])
                 T_expand_dims[ax0, ax1, ax2] = T_transpose[ax1, ax2]
-
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on
 
 
 def test_parallel_vectorize_unroll():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def Matmul_0(
         A: T.Buffer((1024, 1024), "float32"),
         B: T.Buffer((1024, 1024), "float32"),
@@ -232,10 +226,10 @@ def test_parallel_vectorize_unroll():
         # function attr dict
         T.func_attr({"global_symbol": "main"})
         # body
-        with T.sblock("root"):
-            T.reads()
-            T.writes()
-            T.sblock_attr(
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes()
+            Ts.sblock_attr(
                 {
                     "meta_schedule.parallel": 512,
                     "meta_schedule.unroll_explicit": 16,
@@ -243,11 +237,11 @@ def test_parallel_vectorize_unroll():
                 }
             )
             for i, j, k in T.grid(1024, 1024, 1024):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    T.reads(A[vi, vk], B[vk, vj])
-                    T.writes(C[vi, vj])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    Ts.reads(A[vi, vk], B[vk, vj])
+                    Ts.writes(C[vi, vj])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 

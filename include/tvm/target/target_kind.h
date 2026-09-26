@@ -24,14 +24,12 @@
 #ifndef TVM_TARGET_TARGET_KIND_H_
 #define TVM_TARGET_TARGET_KIND_H_
 
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/attr_registry_map.h>
 #include <tvm/ir/config_schema.h>
 #include <tvm/runtime/base.h>
 
-#include <memory>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -49,9 +47,6 @@ using FTargetCanonicalizer =
     ffi::TypedFunction<ffi::Map<ffi::String, ffi::Any>(ffi::Map<ffi::String, ffi::Any>)>;
 
 class TargetInternal;
-
-template <typename>
-class TargetKindAttrMap;
 
 /*! \brief Target kind, specifies the kind of the target */
 class TargetKindNode : public ffi::Object {
@@ -79,20 +74,10 @@ class TargetKindNode : public ffi::Object {
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("target.TargetKind", TargetKindNode, ffi::Object);
 
  private:
-  /*! \brief Return the index stored in attr registry */
-  uint32_t AttrRegistryIndex() const { return index_; }
-  /*! \brief Return the name stored in attr registry */
-  ffi::String AttrRegistryName() const { return name; }
   /*! \brief ConfigSchema for validating and resolving target attributes */
   ir::ConfigSchema schema_;
-  /*! \brief Index used for internal lookup of attribute registry */
-  uint32_t index_;
-
-  template <typename, typename>
-  friend class AttrRegistry;
-  template <typename>
-  friend class AttrRegistryMapContainerMap;
-  friend class TargetKindRegEntry;
+  friend class TargetKindRegistry;
+  friend class TargetKindDef;
   friend class TargetInternal;
 };
 
@@ -106,13 +91,10 @@ class TargetKind : public ffi::ObjectRef {
   explicit TargetKind(ffi::ObjectPtr<TargetKindNode> data) : ffi::ObjectRef(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  /*! \brief Get the attribute map given the attribute name */
-  template <typename ValueType>
-  static inline TargetKindAttrMap<ValueType> GetAttrMap(const ffi::String& attr_name);
   /*!
    * \brief Retrieve the TargetKind given its name
    * \param target_kind_name Name of the target kind
-   * \return The TargetKind requested
+   * \return The canonical kind, or nullopt when the name is unknown.
    */
   TVM_DLL static ffi::Optional<TargetKind> Get(const ffi::String& target_kind_name);
   /*! \brief Mutable access to the container class  */
@@ -121,24 +103,7 @@ class TargetKind : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TargetKind, ffi::ObjectRef, TargetKindNode);
 
  private:
-  TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(
-      const ffi::String& attr_name);
-  friend class TargetKindRegEntry;
   friend class TargetInternal;
-};
-
-/*!
- * \brief ffi::Map<TargetKind, ValueType> used to store meta-information about TargetKind
- * \tparam ValueType The type of the value stored in map
- */
-template <typename ValueType>
-class TargetKindAttrMap : public AttrRegistryMap<TargetKind, ValueType> {
- public:
-  using TParent = AttrRegistryMap<TargetKind, ValueType>;
-  using TParent::count;
-  using TParent::get;
-  using TParent::operator[];
-  explicit TargetKindAttrMap(const AttrRegistryMapContainerMap<TargetKind>& map) : TParent(map) {}
 };
 
 /*! \brief Value used with --runtime in target specs to indicate the C++ runtime. */
@@ -148,171 +113,111 @@ static constexpr const char* kTvmRuntimeCpp = "c++";
 static constexpr const char* kTvmRuntimeCrt = "c";
 
 /*!
- * \brief Helper structure to register TargetKind
- * \sa TVM_REGISTER_TARGET_KIND
+ * \brief Process-wide registry of canonical target kinds, keyed by name.
  */
-class TargetKindRegEntry {
+class TargetKindRegistry {
  public:
   /*!
-   * \brief Register additional attributes to target_kind.
-   * \param attr_name The name of the attribute.
-   * \param value The value to be set.
-   * \param plevel The priority level of this attribute,
-   *  an higher priority level attribute
-   *  will replace lower priority level attribute.
-   *  Must be bigger than 0.
-   *
-   *  Cannot set with same plevel twice in the code.
-   *
-   * \tparam ValueType The type of the value to be set.
+   * \brief Access the process-wide registry.
+   * \return The singleton registry.
    */
-  template <typename ValueType>
-  inline TargetKindRegEntry& set_attr(const ffi::String& attr_name, const ValueType& value,
-                                      int plevel = 10);
+  TVM_DLL static TargetKindRegistry* Global();
   /*!
-   * \brief Set DLPack's device_type the target
-   * \param device_type Device type
+   * \brief Register a name or return its existing canonical kind.
+   * \param name Target kind name.
+   * \return The canonical target kind for name. Standard target options are
+   * declared when the name is first registered.
    */
-  inline TargetKindRegEntry& set_default_device_type(int device_type);
+  TVM_DLL TargetKind RegisterOrGet(const ffi::String& name);
   /*!
-   * \brief Set DLPack's device_type the target
-   * \param keys The default keys
+   * \brief Look up a registered kind.
+   * \param name Target kind name.
+   * \return The canonical kind, or nullopt when name is unknown.
    */
-  inline TargetKindRegEntry& set_default_keys(std::vector<ffi::String> keys);
+  TVM_DLL ffi::Optional<TargetKind> Get(const ffi::String& name);
   /*!
-   * \brief Set the canonicalizer function applied upon target creation.
-   * \param canonicalizer The target canonicalizer function.
+   * \brief List registered kind names.
+   * \return Names of all registered target kinds.
    */
-  inline TargetKindRegEntry& set_target_canonicalizer(FTargetCanonicalizer canonicalizer);
+  TVM_DLL ffi::Array<ffi::String> ListTargetKinds();
   /*!
-   * \brief Register a valid configuration option and its ValueType for validation
-   * \param key The configuration key
-   * \param traits Optional traits (e.g. refl::DefaultValue, doc string, or raw default value)
-   * \tparam ValueType The value type to be registered
-   * \tparam Traits Optional trait types
+   * \brief List declared option names and types for a kind.
+   * \param kind Registered target kind.
+   * \return Map from option name to type string.
+   */
+  TVM_DLL ffi::Map<ffi::String, ffi::String> ListTargetKindOptions(const TargetKind& kind);
+
+ private:
+  ffi::Map<ffi::String, TargetKind> kinds_;
+};
+
+/*!
+ * \brief Temporary fluent builder for registering a target kind.
+ *
+ * The registry retains the canonical kind after this builder is destroyed.
+ * Group related definitions inside TVM_FFI_STATIC_INIT_BLOCK():
+ * \code
+ * TVM_FFI_STATIC_INIT_BLOCK() {
+ *   TargetKindDef("llvm")
+ *       .set_default_device_type(kDLCPU)
+ *       .set_default_keys({"cpu"})
+ *       .def_option<ffi::String>("mcpu");
+ * }
+ * \endcode
+ */
+class TargetKindDef {
+ public:
+  /*!
+   * \brief Register or retrieve the canonical kind with this name.
+   * \param name Target kind name.
+   */
+  explicit TargetKindDef(const ffi::String& name)
+      : kind_(TargetKindRegistry::Global()->RegisterOrGet(name)) {}
+  /*!
+   * \brief Set the default DLPack device type.
+   * \param device_type DLPack device type.
+   * \return This builder for chaining.
+   */
+  TargetKindDef& set_default_device_type(int device_type) {
+    kind_->default_device_type = device_type;
+    return *this;
+  }
+  /*!
+   * \brief Set default target keys.
+   * \param keys Default keys in priority order.
+   * \return This builder for chaining.
+   */
+  TargetKindDef& set_default_keys(std::vector<ffi::String> keys) {
+    kind_->default_keys = keys;
+    return *this;
+  }
+  /*!
+   * \brief Set the canonicalizer used when constructing targets of this kind.
+   * \param canonicalizer Function from a validated config map to its canonical form.
+   * \return This builder for chaining. Also updates the kind's ConfigSchema.
+   */
+  TargetKindDef& set_target_canonicalizer(FTargetCanonicalizer canonicalizer) {
+    kind_->target_canonicalizer = canonicalizer;
+    kind_->schema_.set_canonicalizer(canonicalizer);
+    return *this;
+  }
+  /*!
+   * \brief Declare a typed target option in the kind's ConfigSchema.
+   * \tparam ValueType Canonical option value type.
+   * \tparam Traits Optional metadata or validator trait types.
+   * \param key Option name.
+   * \param traits Optional traits such as a default value or validator.
+   * \return This builder for chaining. Duplicate option names raise ValueError.
    */
   template <typename ValueType, typename... Traits>
-  inline TargetKindRegEntry& add_attr_option(const ffi::String& key, Traits&&... traits);
-  /*! \brief Set name of the TargetKind to be the same as registry if it is empty */
-  inline TargetKindRegEntry& set_name();
-  /*!
-   * \brief List all the entry names in the registry.
-   * \return The entry names.
-   */
-  TVM_DLL static ffi::Array<ffi::String> ListTargetKinds();
-  /*!
-   * \brief Get all supported option names and types for a given Target kind.
-   * \return Map of option name to type
-   */
-  TVM_DLL static ffi::Map<ffi::String, ffi::String> ListTargetKindOptions(const TargetKind& kind);
-
-  /*!
-   * \brief Register or get a new entry.
-   * \param target_kind_name The name of the TargetKind.
-   * \return the corresponding entry.
-   */
-  TVM_DLL static TargetKindRegEntry& RegisterOrGet(const ffi::String& target_kind_name);
+  TargetKindDef& def_option(const ffi::String& key, Traits&&... traits) {
+    kind_->schema_.def_option<ValueType>(key, std::forward<Traits>(traits)...);
+    return *this;
+  }
 
  private:
   TargetKind kind_;
-  ffi::String name;
-
-  /*! \brief private constructor */
-  explicit TargetKindRegEntry(uint32_t reg_index) : kind_(ffi::make_object<TargetKindNode>()) {
-    kind_->index_ = reg_index;
-  }
-  /*!
-   * \brief update the attribute TargetKindAttrMap
-   * \param key The name of the attribute
-   * \param value The value to be set
-   * \param plevel The priority level
-   */
-  TVM_DLL void UpdateAttr(const ffi::String& key, ffi::Any value, int plevel);
-  template <typename, typename>
-  friend class AttrRegistry;
-  friend class TargetKind;
 };
-
-template <typename ValueType>
-inline TargetKindAttrMap<ValueType> TargetKind::GetAttrMap(const ffi::String& attr_name) {
-  return TargetKindAttrMap<ValueType>(GetAttrMapContainer(attr_name));
-}
-
-template <typename ValueType>
-inline TargetKindRegEntry& TargetKindRegEntry::set_attr(const ffi::String& attr_name,
-                                                        const ValueType& value, int plevel) {
-  TVM_FFI_ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  ffi::Any rv;
-  rv = value;
-  UpdateAttr(attr_name, rv, plevel);
-  return *this;
-}
-
-inline TargetKindRegEntry& TargetKindRegEntry::set_default_device_type(int device_type) {
-  kind_->default_device_type = device_type;
-  return *this;
-}
-
-inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<ffi::String> keys) {
-  kind_->default_keys = keys;
-  return *this;
-}
-
-inline TargetKindRegEntry& TargetKindRegEntry::set_target_canonicalizer(
-    FTargetCanonicalizer canonicalizer) {
-  kind_->target_canonicalizer = canonicalizer;
-  kind_->schema_.set_canonicalizer(canonicalizer);
-  return *this;
-}
-
-template <typename ValueType, typename... Traits>
-inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const ffi::String& key,
-                                                               Traits&&... traits) {
-  kind_->schema_.def_option<ValueType>(key, std::forward<Traits>(traits)...);
-  return *this;
-}
-
-inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
-  if (kind_->name.empty()) {
-    kind_->name = name;
-  }
-  return *this;
-}
-
-#define TVM_TARGET_KIND_REGISTER_VAR_DEF \
-  [[maybe_unused]] static ::tvm::TargetKindRegEntry& __make_##TargetKind
-
-/*!
- * \def TVM_REGISTER_TARGET_KIND
- * \brief Register a new target kind, or set attribute of the corresponding target kind.
- *
- * \param TargetKindName The name of target kind
- * \param DeviceType The DLDeviceType of the target kind
- *
- * \code
- *
- *  TVM_REGISTER_TARGET_KIND("llvm")
- *  .set_attr<TPreCodegenPass>("TPreCodegenPass", a-pre-codegen-pass)
- *  .add_attr_option<Bool>("system_lib")
- *  .add_attr_option<ffi::String>("mtriple")
- *  .add_attr_option<ffi::String>("mattr");
- *
- * \endcode
- */
-#define TVM_REGISTER_TARGET_KIND(TargetKindName, DeviceType)          \
-  TVM_FFI_STR_CONCAT(TVM_TARGET_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::TargetKindRegEntry::RegisterOrGet(TargetKindName)        \
-          .set_name()                                                 \
-          .set_default_device_type(DeviceType)                        \
-          .add_attr_option<ffi::String>("kind")                       \
-          .add_attr_option<ffi::Array<ffi::String>>("keys")           \
-          .add_attr_option<ffi::String>("tag")                        \
-          .add_attr_option<ffi::String>("device")                     \
-          .add_attr_option<ffi::String>("model")                      \
-          .add_attr_option<ffi::Array<ffi::String>>("libs")           \
-          .add_attr_option<Target>("host")                            \
-          .add_attr_option<int64_t>("from_device")                    \
-          .add_attr_option<int64_t>("target_device_type")
 
 }  // namespace tvm
 

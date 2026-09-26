@@ -27,7 +27,7 @@ namespace printer {
 static bool HasDefaultExternFuncType(const relax::ExternFunc& n) {
   const auto* ty = n->ty.as<relax::FuncTypeNode>();
   if (ty == nullptr || ty->params.has_value() || ty->purity ||
-      !ty->ret->IsInstance<relax::AnyTypeNode>()) {
+      !ty->ret->IsInstance<AnyTypeNode>()) {
     return false;
   }
   return true;
@@ -75,6 +75,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           if (param->ty.as<PrimTypeNode>()) {
             prim_params.insert(param.get());
           }
+        }
+        if (!prim_params.empty()) {
+          d->ir_usage.insert("future_annotations");
         }
         // Step 1. Print params
         ffi::Array<AssignDoc> params;
@@ -130,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         // Step 6. Print body
         ffi::Array<StmtDoc> body = PrintSeqExpr(n->body, n_p->Attr("body"), d, /*use_ret=*/true);
         (*f)->stmts.insert((*f)->stmts.end(), body.begin(), body.end());
-        auto type_var_docs = DefineTypeVarDocs(type_vars, ffi::GetRef<Frame>((*f).get()), d);
+        auto type_var_docs = DefineTypeVarDocs(type_vars, d);
         return WrapFunctionDocWithTypeVars(
             d, FunctionDoc(func_name, params, {decorator}, ret_type, (*f)->stmts), type_var_docs);
       });
@@ -148,8 +151,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::FunctionNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ExternFuncNode, ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<relax::FunctionNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::ExternFuncNode>(ReprPrintRelax);
+}
 
 }  // namespace printer
 }  // namespace script

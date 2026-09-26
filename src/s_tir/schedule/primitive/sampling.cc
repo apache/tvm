@@ -581,10 +581,12 @@ struct SampleComputeLocationTraits : public UnpackedInstTraits<SampleComputeLoca
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(SampleCategoricalTraits);
-TVM_REGISTER_INST_KIND_TRAITS(SamplePerfectTileTraits);
-TVM_REGISTER_INST_KIND_TRAITS(SamplePartitionedTileTraits);
-TVM_REGISTER_INST_KIND_TRAITS(SampleComputeLocationTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<SampleCategoricalTraits>();
+  RegisterInstructionKind<SamplePerfectTileTraits>();
+  RegisterInstructionKind<SamplePartitionedTileTraits>();
+  RegisterInstructionKind<SampleComputeLocationTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

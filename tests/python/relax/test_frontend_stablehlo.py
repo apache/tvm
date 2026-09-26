@@ -19,7 +19,7 @@ pytest.importorskip("jax", reason="jax not available")
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F841
+# ruff: noqa: E501
 
 # pylint: disable=c-extension-no-member
 
@@ -183,17 +183,18 @@ def test_add_dynamic():
 
     mod = from_stablehlo(add_dyn)
 
+    n_0 = T.dynamic("n_0")
+    n_1 = T.dynamic("n_1")
+    n_2 = T.dynamic("n_2")
+    n_3 = T.dynamic("n_3")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            arg0: R.Tensor(("n_0", "n_1"), dtype="float32"),
-            arg1: R.Tensor(("n_2", "n_3"), dtype="float32"),
+            arg0: R.Tensor((n_0, n_1), dtype="float32"),
+            arg1: R.Tensor((n_2, n_3), dtype="float32"),
         ) -> R.Tensor(dtype="float32", ndim=2):
-            n_0 = T.int64()
-            n_1 = T.int64()
-            n_2 = T.int64()
-            n_3 = T.int64()
             with R.dataflow():
                 lv: R.Tensor(dtype="float32", ndim=2) = R.add(arg0, arg1)
                 gv: R.Tensor(dtype="float32", ndim=2) = lv

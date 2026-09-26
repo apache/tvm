@@ -126,37 +126,40 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
 
     from tvm.script import ir as I
     from tvm.script import tirx as T
+    from tvm.script import s_tir as Ts
     from tvm.script import relax as R
 
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
-        def linear(x: T.handle, w: T.handle, b: T.handle, z: T.handle):
-            M, N, K = T.int64(), T.int64(), T.int64()
-            X = T.match_buffer(x, (M, K), "float32")
-            W = T.match_buffer(w, (K, N), "float32")
-            B = T.match_buffer(b, (N,), "float32")
-            Z = T.match_buffer(z, (M, N), "float32")
+        M, N, K = T.int64(), T.int64(), T.int64()
+        @Ts.prim_func(private=True)
+        def linear(X: T.Buffer((M, K), 'float32'), W: T.Buffer((K, N), 'float32'), B: T.Buffer((N,), 'float32'), Z: T.Buffer((M, N), 'float32')):
+
+
+
+
+
             Y = T.alloc_buffer((M, N), "float32")
             for i, j, k in T.grid(M, N, K):
-                with T.sblock("Y"):
-                    v_i, v_j, v_k = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("Y"):
+                    v_i, v_j, v_k = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         Y[v_i, v_j] = T.float32(0.0)
                     Y[v_i, v_j] = Y[v_i, v_j] + X[v_i, v_k] * W[v_k, v_j]
             for i, j in T.grid(M, N):
-                with T.sblock("Z"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
+                with Ts.sblock("Z"):
+                    v_i, v_j = Ts.axis.remap("SS", [i, j])
                     Z[v_i, v_j] = Y[v_i, v_j] + B[v_j]
 
-        @T.prim_func(private=True)
-        def relu(x: T.handle, y: T.handle):
-            M, N = T.int64(), T.int64()
-            X = T.match_buffer(x, (M, N), "float32")
-            Y = T.match_buffer(y, (M, N), "float32")
+        M, N = T.int64(), T.int64()
+        @Ts.prim_func(private=True)
+        def relu(X: T.Buffer((M, N), 'float32'), Y: T.Buffer((M, N), 'float32')):
+
+
+
             for i, j in T.grid(M, N):
-                with T.sblock("Y"):
-                    v_i, v_j = T.axis.remap("SS", [i, j])
+                with Ts.sblock("Y"):
+                    v_i, v_j = Ts.axis.remap("SS", [i, j])
                     Y[v_i, v_j] = T.max(X[v_i, v_j], T.float32(0.0))
 
         @R.function

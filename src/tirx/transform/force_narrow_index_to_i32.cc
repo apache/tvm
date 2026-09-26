@@ -23,71 +23,33 @@
  * \note This pass is not used in default cases.
  */
 
+#include "force_narrow_index_to_i32.h"
+
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/op.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
-
-#include "../ir/data_type_rewriter.h"
 
 namespace tvm {
 namespace tirx {
-using namespace tvm::prim;
 
-class Int32DTypeNarrower : public IndexDataTypeNormalizer {
+class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer> {
  public:
-  using IndexDataTypeNormalizer::Mutate;
-  using IndexDataTypeNormalizer::Mutate_;
   static PrimFunc RewriteDataType(PrimFunc func) {
-    // Check if the integer parameter buffers have dtype other than int32.
-    for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>();
-          buffer && buffer.value()->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
-          buffer.value()->dtype.bits() > 32) {
-        TVM_FFI_THROW(InternalError) << "The buffer parameter " << buffer.value() << " has dtype "
-                                     << buffer.value()->dtype << ". The function is " << func;
-      }
+    // The TIRX normalizer does not rewrite S-TIR block iterators, regions, or match buffers, so
+    // narrowing a function that still contains blocks would leave their index types inconsistent.
+    if (ContainsNode<s_tir::SBlockRealizeNode>(func->body)) {
+      TVM_FFI_THROW(ValueError)
+          << "tirx.transform.ForceNarrowIndexToInt32 requires a function without S-TIR blocks. "
+          << "Use s_tir.transform.ForceNarrowIndexToInt32 before block lowering.";
     }
-
+    CheckBufferParams(func);
     auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
     return narrower->Rewrite(func);
   }
 
- public:
-  explicit Int32DTypeNarrower(PrimFunc func)
-      : IndexDataTypeNormalizer(PrimType::Int(32)), func_(std::move(func)) {}
-
- private:
-  bool ShouldClampShiftAmounts() const final { return true; }
-
-  UnchangedOr<PrimExpr> Mutate_(const IntImmNode* op, InplaceMode inplace_mode) final {
-    // ignore the enabled condition and always rewrite i64
-    if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {
-      TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
-      return IntImm::Int32(op->value);
-    }
-    return ffi::Unchanged();
-  }
-
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    auto result = IndexDataTypeNormalizer::Mutate_(op, inplace_mode);
-    auto alloc =
-        std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<AllocBuffer>();
-    const BufferVar& buf = alloc->buffer;
-    // Scalar assignments in TVMScript use local scalar storage.  Keep its explicit
-    // dtype (e.g. an int64 opaque call result) and cast at narrowed index uses.
-    // IsScalar checks the scalar layout contract, not merely the allocation size.
-    bool is_local_scalar = buf.scope() == "local" && buf.IsScalar();
-    if (!is_local_scalar && buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
-        buf->dtype.bits() > 32) {
-      TVM_FFI_THROW(InternalError)
-          << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
-          << ". The function is " << func_;
-    }
-    return alloc;
-  }
-
-  PrimFunc func_;
+  explicit Int32DTypeNarrower(PrimFunc func) : Int32DTypeNarrowerBase(std::move(func)) {}
 };
 
 PrimFunc ForceNarrowIndexToInt32(PrimFunc func) {

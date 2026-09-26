@@ -21,16 +21,18 @@ import os
 import tvm
 from tvm import relax, te
 from tvm.contrib import tvmjs
+from tvm.script import ir as I
 from tvm.script import relax as R
 
 
 def prepare_relax_lib(base_path):
     pipeline = relax.get_pipeline()
+    n = I.dynamic("n")
 
     @tvm.script.ir_module
     class Mod:
         @R.function
-        def main(x: R.Tensor(["n"], "float32"), y: R.Tensor(["n"], "float32")):
+        def main(x: R.Tensor([n], "float32"), y: R.Tensor([n], "float32")):
             lv0 = R.add(x, y)
             return lv0
 
@@ -53,7 +55,7 @@ def prepare_tir_lib(base_path):
         te.create_prim_func([A, B]).with_attr("global_symbol", "add_one")
     ).with_attr("system_lib_prefix", "")
 
-    fadd = tvm.build(mod, target)
+    fadd = tvm.tirx.build(mod, target)
     wasm_path = os.path.join(base_path, "test_addone.wasm")
     fadd.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
 

@@ -75,15 +75,21 @@ round):
 
 .. code-block:: python
 
-    s_layout = TileLayout(S[(32, 32)]); full = (slice(0, 32), slice(0, 32))
+    s_layout = TileLayout(S[(32, 32)])
+    full = (slice(0, 32), slice(0, 32))
+
 
     @Tx.prim_func
-    def unary_op(A_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (32, 32), "float32", layout=s_layout)
-        Tx.device_entry(); Tx.cta_id([1]); Tx.warp_id([8]); Tx.lane_id([32]); Tx.thread_id([256])
+    def unary_op(A: Tx.Buffer((32, 32), "float32", layout=s_layout)):
+
+        Tx.device_entry()
+        Tx.cta_id([1])
+        Tx.warp_id([8])
+        Tx.lane_id([32])
+        Tx.thread_id([256])
         A_smem = Tx.alloc_buffer((32, 32), "float32", scope="shared", layout=s_layout)
         Tx.tile.cta.copy(A_smem[full], A[full])
-        Tx.tile.cta.sqrt(A_smem[full], A_smem[full])   # elementwise smem dispatch
+        Tx.tile.cta.sqrt(A_smem[full], A_smem[full])  # elementwise smem dispatch
         Tx.tile.cta.copy(A[full], A_smem[full])
 
 Algorithm

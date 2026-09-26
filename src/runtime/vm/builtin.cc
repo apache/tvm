@@ -473,6 +473,12 @@ void ClearPyFuncRegistry() { py_func_registry.clear(); }
 void RegisterPyFunc(const std::string& name, ffi::Function func) { py_func_registry[name] = func; }
 
 /*!
+ * \brief Unregister a Python function registered with RegisterPyFunc
+ * \param name The function name
+ */
+void UnregisterPyFunc(const std::string& name) { py_func_registry.erase(name); }
+
+/*!
  * \brief Get a registered Python function
  * \param name The function name
  * \return The Python function
@@ -522,6 +528,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def_packed("vm.builtin.call_py_func", CallPyFunc)
       .def("vm.builtin.register_py_func", RegisterPyFunc)
+      .def("vm.builtin.unregister_py_func", UnregisterPyFunc)
       .def("vm.builtin.get_py_func", GetPyFunc)
       .def("vm.builtin.clear_py_func_registry", ClearPyFuncRegistry);
 }
@@ -739,65 +746,3 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
-
-//-------------------------------------------------
-// AnyList C runtime API: keep in relax for now.
-//--------------------------------------------------
-extern "C" {
-/*!
- * \brief Backend function to get anylist item and set into Packed Func call arg stack.
- *
- * \param anylist The handle to the anylist, backed by ffi::Any*
- * \param int The index.
- * \param args The args stack.
- * \param arg_offset The offset of argument.
- * \return 0 when no error is thrown, -1 when failure happens
- */
-TVM_RUNTIME_DLL int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMFFIAny* args,
-                                                  int arg_offset);
-/*!
- * \brief Backend function to get anylist item and set into Packed Func call arg stack.
- *
- * \param anylist The handle to the anylist, backed by ffi::Any*
- * \param int The index.
- */
-TVM_RUNTIME_DLL int TVMBackendAnyListResetItem(void* anylist, int index);
-
-/*!
- * \brief Backend function to set anylist item by moving from packed func return.
- *
- * \param anylist The handle to the anylist, backed by ffi::Any*
- * \param int The index.
- * \param args The args stack.
- * \param type_codes The type codes stack.
- * \param arg_offset The offset of argument.
- * \return 0 when no error is thrown, -1 when failure happens.
- */
-TVM_RUNTIME_DLL int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMFFIAny* args,
-                                                          int ret_offset);
-
-int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMFFIAny* args, int arg_offset) {
-  using namespace tvm::runtime;
-  TVM_FFI_SAFE_CALL_BEGIN();
-  auto* list = static_cast<TVMFFIAny*>(anylist);
-  args[arg_offset] = list[index];
-  TVM_FFI_SAFE_CALL_END();
-}
-
-int TVMBackendAnyListResetItem(void* anylist, int index) {
-  using namespace tvm::runtime;
-  TVM_FFI_SAFE_CALL_BEGIN();
-  auto* list = static_cast<tvm::ffi::Any*>(anylist);
-  list[index] = nullptr;
-  TVM_FFI_SAFE_CALL_END();
-}
-
-int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMFFIAny* args,
-                                          int ret_offset) {
-  using namespace tvm::runtime;
-  TVM_FFI_SAFE_CALL_BEGIN();
-  auto* list = static_cast<tvm::ffi::Any*>(anylist);
-  list[index] = tvm::ffi::details::AnyUnsafe::MoveTVMFFIAnyToAny(&args[ret_offset]);
-  TVM_FFI_SAFE_CALL_END();
-}
-}  // extern "C"

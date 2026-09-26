@@ -20,6 +20,7 @@
 import enum
 
 from tvm.ir import Call
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from ... import op
@@ -54,7 +55,7 @@ class TVMStructFieldKind(enum.IntEnum):
 
 @register_legalize("relax.inspect.tensor_stride_i")
 def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def _get_tensor_stride_i(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
         T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
         assert T.int64(0) <= axis, "Specified axis may not be negative"
@@ -96,7 +97,7 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.inspect.tensor_byte_offset")
 def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def _get_tensor_byte_offset(dlpack_handle: T.handle) -> T.int64:
         T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
         byte_offset: T.let[T.uint64] = T.tvm_struct_get(
@@ -110,7 +111,7 @@ def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.inspect.tensor_elem_offset")
 def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def _get_tensor_elem_offset(dlpack_handle: T.handle) -> T.int64:
         T.func_attr({"tirx.is_host_func": True, "tirx.is_scheduled": True})
         byte_offset: T.let[T.uint64] = T.tvm_struct_get(

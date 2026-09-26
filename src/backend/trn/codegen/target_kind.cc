@@ -29,20 +29,6 @@
 
 namespace tvm {
 
-namespace backend {
-namespace trn {
-
-void RegisterTargetKind() {
-  TVM_REGISTER_TARGET_KIND("trn", kDLTrn)
-      .add_attr_option<int64_t>("partition_size", 128)
-      .add_attr_option<int64_t>("max_sbuf_size_per_partition", 196608)
-      .add_attr_option<int64_t>("max_psum_size_per_partition", 16384)
-      .add_attr_option<int64_t>("num-cores");
-}
-
-}  // namespace trn
-}  // namespace backend
-
 namespace codegen {
 void RegisterTRNCodegen();
 }  // namespace codegen
@@ -55,7 +41,13 @@ void RegisterTRNTransforms();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::trn::RegisterTargetKind();
+  using namespace tvm;
+  TargetKindDef("trn")
+      .set_default_device_type(kDLTrn)
+      .def_option<int64_t>("partition_size", 128)
+      .def_option<int64_t>("max_sbuf_size_per_partition", 196608)
+      .def_option<int64_t>("max_psum_size_per_partition", 16384)
+      .def_option<int64_t>("num-cores");
   tvm::codegen::RegisterTRNCodegen();
   tvm::tirx::transform::RegisterTRNTransforms();
 }

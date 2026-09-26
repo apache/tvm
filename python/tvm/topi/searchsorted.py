@@ -18,7 +18,7 @@
 """searchsorted operator"""
 
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 from . import te, utils
 from .math import cast
@@ -40,11 +40,11 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
     """
     lo_buf = T.decl_buffer([1], out_dtype, scope="local")
     hi_buf = T.decl_buffer([1], out_dtype, scope="local")
-    lo = T.buffer_proxy(lo_buf)
-    hi = T.buffer_proxy(hi_buf)
+    lo = lo_buf
+    hi = hi_buf
 
-    lo[0] = cast(0, out_dtype)
-    hi[0] = cast(search_range, out_dtype)
+    T.buffer_store(lo, cast(0, out_dtype), T.buffer_indices(lo, 0))
+    T.buffer_store(hi, cast(search_range, out_dtype), T.buffer_indices(hi, 0))
 
     # Reference: pytorch/aten/src/ATen/native/cuda/Bucketization.cu
     def condition(current_val, target_val):
@@ -52,15 +52,21 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
             return current_val <= target_val
         return current_val < target_val
 
-    with T.While(lo[0] < hi[0]):
-        mid = lo[0] + (hi[0] - lo[0] >> 1)
-        with T.If(condition(sorted_sequence[sequence_offset + mid], value)):
-            with T.Then():
-                lo[0] = mid + 1
-            with T.Else():
-                hi[0] = mid
+    with T.while_(lo[T.buffer_indices(lo, 0)] < hi[T.buffer_indices(hi, 0)]):
+        mid = lo[T.buffer_indices(lo, 0)] + (
+            hi[T.buffer_indices(hi, 0)] - lo[T.buffer_indices(lo, 0)] >> 1
+        )
+        with T.if_(
+            condition(
+                sorted_sequence[T.buffer_indices(sorted_sequence, sequence_offset + mid)], value
+            )
+        ):
+            with T.then_():
+                T.buffer_store(lo, mid + 1, T.buffer_indices(lo, 0))
+            with T.else_():
+                T.buffer_store(hi, mid, T.buffer_indices(hi, 0))
 
-    return lo[0]
+    return lo[T.buffer_indices(lo, 0)]
 
 
 def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
@@ -102,10 +108,6 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
             num_search = utils.prod(values_shape)
             search_range = sorted_sequence_shape[-1]
 
-            sorted_sequence = T.buffer_proxy(sorted_sequence)
-            values = T.buffer_proxy(values)
-            indices = T.buffer_proxy(indices)
-
             with T.parallel(0, num_search) as i:
                 if len(sorted_sequence_shape) == 1:
                     sequence_offset = 0
@@ -113,13 +115,17 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
                     sequence_id = i // values_shape[-1]
                     sequence_offset = sequence_id * search_range
 
-                indices[i] = binary_search(
-                    sequence_offset,
-                    search_range,
-                    sorted_sequence,
-                    values[i],
-                    right,
-                    out_dtype,
+                T.buffer_store(
+                    indices,
+                    binary_search(
+                        sequence_offset,
+                        search_range,
+                        sorted_sequence,
+                        values[T.buffer_indices(values, i)],
+                        right,
+                        out_dtype,
+                    ),
+                    T.buffer_indices(indices, i),
                 )
 
             return ib.get()

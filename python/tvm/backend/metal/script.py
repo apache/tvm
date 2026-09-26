@@ -21,7 +21,7 @@ from __future__ import annotations
 from tvm.backend.metal import op as _metal_op
 from tvm.tirx import is_buffer_var
 from tvm.tirx import op as _tir_op
-from tvm.tirx.script.builder.ir import _op_wrapper
+from tvm.tirx.script.ir_builder.op import _op_wrapper
 
 
 class MetalNamespace:

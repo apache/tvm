@@ -26,7 +26,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -44,10 +43,6 @@ namespace tirx {
 using namespace tvm::prim;
 
 namespace {
-
-using SubscriptSlice = ffi::Array<ffi::Variant<
-    ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
-    PrimExpr>>;
 
 /*!
  * \brief Whether an integer literal can be represented exactly by `ty`.
@@ -659,68 +654,6 @@ TVMFFIAny BufferStoreMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   return ffi::Unchanged().CopyToTVMFFIAny();
 }
 
-ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Span span) {
-  TensorRegion source = value.as_or_throw<TensorRegion>();
-  TVM_FFI_CHECK_LE(slice.size(), source->region.size(), IndexError)
-      << "Too many indices for a " << source->region.size() << "-dimensional buffer region";
-
-  bool all_points = slice.size() == source->region.size();
-  for (const auto& item : slice) {
-    if (auto descriptor = item.as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
-                                             ffi::Optional<PrimExpr>>>()) {
-      all_points = false;
-      ffi::Optional<PrimExpr> step = descriptor.value().get<2>();
-      TVM_FFI_CHECK(!step.has_value() || is_one(step.value()), ValueError)
-          << "TensorRegion slices with a non-unit step are not supported";
-    }
-  }
-
-  if (all_points) {
-    ffi::Array<PrimExpr> indices;
-    indices.reserve(slice.size());
-    for (size_t i = 0; i < slice.size(); ++i) {
-      indices.push_back(source->region[i]->min + slice[i].as<PrimExpr>().value());
-    }
-    return BufferLoad(source->source.as_or_throw<BufferVar>(), indices, span);
-  }
-
-  sym::Analyzer analyzer;
-  ffi::Array<Range> region;
-  region.reserve(source->region.size());
-  for (size_t i = 0; i < slice.size(); ++i) {
-    const Range& old_range = source->region[i];
-    if (auto point = slice[i].as<PrimExpr>()) {
-      PrimExpr new_min = old_range->min + point.value();
-      region.push_back(Range::FromMinExtent(new_min, IntImm(point.value().ty(), 1)));
-    } else {
-      auto descriptor = slice[i]
-                            .as<ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>,
-                                           ffi::Optional<PrimExpr>>>()
-                            .value();
-      PrimExpr start = descriptor.get<0>().value_or(IntImm(old_range->extent.ty(), 0));
-      PrimExpr stop = descriptor.get<1>().value_or(old_range->extent);
-      region.push_back(
-          Range::FromMinExtent(old_range->min + start, analyzer->Simplify(stop - start)));
-    }
-  }
-  for (size_t i = slice.size(); i < source->region.size(); ++i) {
-    region.push_back(source->region[i]);
-  }
-  return BufferRegion(source->source.as_or_throw<BufferVar>(), region, span);
-}
-
-TVMFFIAny BufferRegionTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-TVMFFIAny BufferRegionTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-TVMFFIAny BufferRegionTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
 TVMFFIAny ScopeIdDefStmtVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const ScopeIdDefStmtNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ScopeIdDefStmtNode>(value);
@@ -1273,59 +1206,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.BufferStore",
                         [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                            Span span) { return BufferStore(buffer, value, indices, span); });
-}
-
-// TensorRegion
-BufferRegionType::BufferRegionType() : Type(ffi::UnsafeInit{}) {
-  static ffi::ObjectPtr<BufferRegionTypeNode> singleton = ffi::make_object<BufferRegionTypeNode>();
-  data_ = singleton;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  BufferRegionTypeNode::RegisterReflection();
-  refl::TypeAttrDef<BufferRegionTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BufferRegionTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferRegionTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&BufferRegionTypeMaybeInplaceMutate))
-      .def("__subscript_expr_realize__", RealizeBufferRegionSubscript);
-
-  refl::GlobalDef().def("tirx.BufferRegionType", []() { return BufferRegionType(); });
-}
-
-TensorRegion BufferRegion(BufferVar buffer, ffi::Array<Range> region, Span span) {
-  TVM_FFI_ICHECK_EQ(buffer->shape.size(), region.size())
-      << "Buffer rank and region dimension mismatch";
-  return TensorRegion(std::move(buffer), std::move(region), BufferRegionType(), std::move(span));
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.BufferRegion", [](BufferVar buffer, ffi::Array<Range> region) {
-    return BufferRegion(buffer, region);
-  });
-}
-
-TensorRegion FullBufferRegion(BufferVar buffer) {
-  ffi::Array<Range> region;
-  for (PrimExpr extent : buffer->shape) {
-    region.push_back(Range::FromMinExtent(0, extent));
-  }
-  return BufferRegion(buffer, region);
-}
-
-TensorRegion BufferRegionFromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices) {
-  ffi::Array<Range> region;
-  for (const PrimExpr& index : indices) {
-    if (const prim::RampNode* ramp_index = index.as<prim::RampNode>()) {
-      region.push_back(
-          Range::FromMinExtent(ramp_index->base, ramp_index->stride * ramp_index->lanes));
-    } else {
-      region.push_back(Range::FromMinExtent(index, MakeConst(index.ty(), 1)));
-    }
-  }
-  return BufferRegion(buffer, region);
 }
 
 // ScopeIdDefStmt

@@ -30,28 +30,39 @@ import tvm
 from tvm.relax.relax_to_pyfunc_converter import RelaxToPyFuncConverter
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
+
+n_symbolic_add = T.dynamic("n")
+batch_symbolic_matmul = T.dynamic("batch")
+m = T.dynamic("m")
+k = T.dynamic("k")
+n_symbolic_matmul = T.dynamic("n")
+batch_symbolic_expand_dims = T.dynamic("batch")
+seq_len = T.dynamic("seq_len")
 
 
 @I.ir_module
 class ComprehensiveTestModule:
     """Test module covering all converter features."""
 
-    @T.prim_func(s_tir=True)
-    def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
+    @Ts.prim_func
+    def add_tir(
+        x: T.Buffer((5,), "float32"), y: T.Buffer((5,), "float32"), out: T.Buffer((5,), "float32")
+    ):
         """TIR function for addition."""
-        x = T.match_buffer(var_x, (5,), "float32")
-        y = T.match_buffer(var_y, (5,), "float32")
-        out = T.match_buffer(var_out, (5,), "float32")
+
         for i in range(5):
             out[i] = x[i] + y[i]
 
-    @T.prim_func(s_tir=True)
-    def mul_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
+    @Ts.prim_func
+    def mul_tir(
+        x: T.Buffer((3, 4), "float32"),
+        y: T.Buffer((3, 4), "float32"),
+        out: T.Buffer((3, 4), "float32"),
+    ):
         """TIR function for multiplication."""
-        x = T.match_buffer(var_x, (3, 4), "float32")
-        y = T.match_buffer(var_y, (3, 4), "float32")
-        out = T.match_buffer(var_out, (3, 4), "float32")
+
         for i in range(3):
             for j in range(4):
                 out[i, j] = x[i, j] * y[i, j]
@@ -90,21 +101,22 @@ class ComprehensiveTestModule:
         return R.nn.relu(tir_result)
 
     @R.function
-    def symbolic_add(x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")) -> R.Tensor(
-        ("n",), "float32"
-    ):
+    def symbolic_add(
+        x: R.Tensor((n_symbolic_add,), "float32"), y: R.Tensor((n_symbolic_add,), "float32")
+    ) -> R.Tensor((n_symbolic_add,), "float32"):
         return R.add(x, y)
 
     @R.function
     def symbolic_matmul(
-        x: R.Tensor(("batch", "m", "k"), "float32"), y: R.Tensor(("batch", "k", "n"), "float32")
-    ) -> R.Tensor(("batch", "m", "n"), "float32"):
+        x: R.Tensor((batch_symbolic_matmul, m, k), "float32"),
+        y: R.Tensor((batch_symbolic_matmul, k, n_symbolic_matmul), "float32"),
+    ) -> R.Tensor((batch_symbolic_matmul, m, n_symbolic_matmul), "float32"):
         return R.matmul(x, y)
 
     @R.function
-    def symbolic_expand_dims(x: R.Tensor(("batch", "seq_len"), "float32")) -> R.Tensor(
-        ("batch", "seq_len", 1), "float32"
-    ):
+    def symbolic_expand_dims(
+        x: R.Tensor((batch_symbolic_expand_dims, seq_len), "float32"),
+    ) -> R.Tensor((batch_symbolic_expand_dims, seq_len, 1), "float32"):
         return R.expand_dims(x, axis=2)
 
     @R.function
@@ -220,13 +232,13 @@ class TestRelaxToPyFuncConverter:
         x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
         y = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5], dtype=torch.float32)
 
-        result = converted_ir_mod.pyfuncs["simple_add"](x, y)
+        result = converted_ir_mod.__pyfuncs__["simple_add"](x, y)
         expected = torch.add(x, y)
         assert torch.allclose(result, expected)
 
         # Test with_relu
         x_neg = torch.tensor([-2.0, -1.0, 0.0, 1.0, 2.0], dtype=torch.float32)
-        result = converted_ir_mod.pyfuncs["with_relu"](x_neg)
+        result = converted_ir_mod.__pyfuncs__["with_relu"](x_neg)
         expected = torch.nn.functional.relu(x_neg)
         assert torch.allclose(result, expected)
 
@@ -237,7 +249,7 @@ class TestRelaxToPyFuncConverter:
         x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
         y = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5], dtype=torch.float32)
 
-        result = converted_ir_mod.pyfuncs["with_call_tir"](x, y)
+        result = converted_ir_mod.__pyfuncs__["with_call_tir"](x, y)
         expected = torch.add(x, y)
         assert torch.allclose(result, expected)
         assert result.shape == expected.shape
@@ -248,7 +260,7 @@ class TestRelaxToPyFuncConverter:
 
         x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
 
-        result = converted_ir_mod.pyfuncs["with_call_dps_packed"](x)
+        result = converted_ir_mod.__pyfuncs__["with_call_dps_packed"](x)
         expected = x
         assert torch.allclose(result, expected)
 
@@ -259,7 +271,7 @@ class TestRelaxToPyFuncConverter:
         x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
         y = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5], dtype=torch.float32)
 
-        result = converted_ir_mod.pyfuncs["complex_function"](x, y)
+        result = converted_ir_mod.__pyfuncs__["complex_function"](x, y)
 
         # Expected: relu(add(relu(add(x, y)), y))
         step1 = torch.add(x, y)
@@ -278,21 +290,21 @@ class TestRelaxToPyFuncConverter:
         # Test symbolic_add
         x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
         y = torch.tensor([0.1, 0.2, 0.3], dtype=torch.float32)
-        result = converted_ir_mod.pyfuncs["symbolic_add"](x, y)
+        result = converted_ir_mod.__pyfuncs__["symbolic_add"](x, y)
         expected = torch.add(x, y)
         assert torch.allclose(result, expected)
 
         # Test symbolic_matmul
         x = torch.randn(2, 3, 4, dtype=torch.float32)  # (batch=2, m=3, k=4)
         y = torch.randn(2, 4, 5, dtype=torch.float32)  # (batch=2, k=4, n=5)
-        result = converted_ir_mod.pyfuncs["symbolic_matmul"](x, y)
+        result = converted_ir_mod.__pyfuncs__["symbolic_matmul"](x, y)
         expected = torch.matmul(x, y)
         assert torch.allclose(result, expected)
         assert result.shape == (2, 3, 5)
 
         # Test symbolic_expand_dims
         x = torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)
-        result = converted_ir_mod.pyfuncs["symbolic_expand_dims"](x)
+        result = converted_ir_mod.__pyfuncs__["symbolic_expand_dims"](x)
         expected = torch.unsqueeze(x, dim=2)
         assert torch.allclose(result, expected)
         assert result.shape == (2, 2, 1)
@@ -309,7 +321,7 @@ class TestRelaxToPyFuncConverter:
             [[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8], [0.9, 1.0, 1.1, 1.2]], dtype=torch.float32
         )
 
-        result = converted_ir_mod.pyfuncs["multi_ops"](x, y)
+        result = converted_ir_mod.__pyfuncs__["multi_ops"](x, y)
 
         # Expected: maximum(power(multiply(add(x, y), y), 2), x)
         step1 = torch.add(x, y)
@@ -325,7 +337,7 @@ class TestRelaxToPyFuncConverter:
 
         x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
 
-        result = converted_ir_mod.pyfuncs["reduction_ops"](x)
+        result = converted_ir_mod.__pyfuncs__["reduction_ops"](x)
 
         # Expected: sum(x) + mean(x) + max(x)
         expected = torch.sum(x) + torch.mean(x) + torch.max(x)
@@ -340,7 +352,7 @@ class TestRelaxToPyFuncConverter:
         x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
         y = torch.tensor([1.0, 2.5, 3.0, 4.5, 5.0], dtype=torch.float32)
 
-        result = converted_ir_mod.pyfuncs["comparison_ops"](x, y)
+        result = converted_ir_mod.__pyfuncs__["comparison_ops"](x, y)
 
         # Expected: logical_and(equal(x, y), greater(x, y))
         eq_val = torch.eq(x, y)
@@ -391,7 +403,7 @@ class TestRelaxToPyFuncConverter:
         x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
 
         with pytest.raises(ValueError, match="Expected 2 arguments"):
-            converted_ir_mod.pyfuncs["simple_add"](x)  # Missing second argument
+            converted_ir_mod.__pyfuncs__["simple_add"](x)  # Missing second argument
 
         # Test with incompatible shapes - this should raise a RuntimeError
         x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
@@ -399,18 +411,18 @@ class TestRelaxToPyFuncConverter:
 
         # This should raise a RuntimeError because shapes don't match
         with pytest.raises(RuntimeError, match="The size of tensor a"):
-            converted_ir_mod.pyfuncs["simple_add"](x, y)
+            converted_ir_mod.__pyfuncs__["simple_add"](x, y)
 
     def test_conversion_metadata(self):
         """Test that conversion preserves metadata correctly."""
         converted_ir_mod = self.converter.convert(["simple_add"])
 
         # Check that pyfuncs attribute exists
-        assert hasattr(converted_ir_mod, "pyfuncs")
-        assert "simple_add" in converted_ir_mod.pyfuncs
+        assert hasattr(converted_ir_mod, "__pyfuncs__")
+        assert "simple_add" in converted_ir_mod.__pyfuncs__
 
         # Check function metadata
-        pyfunc = converted_ir_mod.pyfuncs["simple_add"]
+        pyfunc = converted_ir_mod.__pyfuncs__["simple_add"]
         assert hasattr(pyfunc, "__name__")
         assert hasattr(pyfunc, "__doc__")
         assert pyfunc.__name__ == "simple_add"
@@ -437,20 +449,20 @@ class TestRelaxToPyFuncConverter:
 
         # Test reshape
         x1 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
-        result1 = converted_ir_mod.pyfuncs["test_reshape"](x1)
+        result1 = converted_ir_mod.__pyfuncs__["test_reshape"](x1)
         expected1 = torch.reshape(x1, (6,))
         assert torch.allclose(result1, expected1), "Reshape operation failed"
 
         # Test permute_dims
         x2 = torch.randn(2, 3, 4)
-        result2 = converted_ir_mod.pyfuncs["test_permute_dims"](x2)
+        result2 = converted_ir_mod.__pyfuncs__["test_permute_dims"](x2)
         expected2 = torch.permute(x2, (2, 0, 1))
         assert torch.allclose(result2, expected2), "Permute_dims operation failed"
 
         # Test concat
         x3 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
         y3 = torch.tensor([[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]], dtype=torch.float32)
-        result3 = converted_ir_mod.pyfuncs["test_concat"](x3, y3)
+        result3 = converted_ir_mod.__pyfuncs__["test_concat"](x3, y3)
         expected3 = torch.cat([x3, y3], dim=0)
         assert torch.allclose(result3, expected3), "Concat operation failed"
 
@@ -459,7 +471,7 @@ class TestRelaxToPyFuncConverter:
             [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0], [10.0, 11.0, 12.0]],
             dtype=torch.float32,
         )
-        result4 = converted_ir_mod.pyfuncs["test_split"](x4)
+        result4 = converted_ir_mod.__pyfuncs__["test_split"](x4)
         expected4 = torch.split(x4, 2, dim=0)
         assert len(result4) == len(expected4), "Split operation failed - wrong number of tensors"
         for r, e in zip(result4, expected4):
@@ -468,7 +480,7 @@ class TestRelaxToPyFuncConverter:
         # Test stack
         x5 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
         y5 = torch.tensor([[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]], dtype=torch.float32)
-        result5 = converted_ir_mod.pyfuncs["test_stack"](x5, y5)
+        result5 = converted_ir_mod.__pyfuncs__["test_stack"](x5, y5)
         expected5 = torch.stack([x5, y5], dim=1)
         assert torch.allclose(result5, expected5), "Stack operation failed"
 
@@ -478,49 +490,49 @@ class TestRelaxToPyFuncConverter:
             dtype=torch.float32,
         )
         indices = torch.tensor([0, 2], dtype=torch.int64)
-        result6 = converted_ir_mod.pyfuncs["test_take"](x6, indices)
+        result6 = converted_ir_mod.__pyfuncs__["test_take"](x6, indices)
         expected6 = x6[indices]
         assert torch.allclose(result6, expected6), "Take operation failed"
 
         # Test flip
         x7 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
-        result7 = converted_ir_mod.pyfuncs["test_flip"](x7)
+        result7 = converted_ir_mod.__pyfuncs__["test_flip"](x7)
         expected7 = torch.flip(x7, dims=[1])
         assert torch.allclose(result7, expected7), "Flip operation failed"
 
         # Test tile
         x8 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
-        result8 = converted_ir_mod.pyfuncs["test_tile"](x8)
+        result8 = converted_ir_mod.__pyfuncs__["test_tile"](x8)
         expected8 = torch.tile(x8, (2, 2))
         assert torch.allclose(result8, expected8), "Tile operation failed"
 
         # Test repeat
         x9 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
-        result9 = converted_ir_mod.pyfuncs["test_repeat"](x9)
+        result9 = converted_ir_mod.__pyfuncs__["test_repeat"](x9)
         expected9 = torch.repeat_interleave(x9, repeats=2, dim=0)
         assert torch.allclose(result9, expected9), "Repeat operation failed"
 
         # Test expand_dims
         x10 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
-        result10 = converted_ir_mod.pyfuncs["test_expand_dims"](x10)
+        result10 = converted_ir_mod.__pyfuncs__["test_expand_dims"](x10)
         expected10 = torch.unsqueeze(x10, dim=2)
         assert torch.allclose(result10, expected10), "Expand_dims operation failed"
 
         # Test squeeze
         x11 = torch.tensor([[[1.0], [2.0], [3.0]], [[4.0], [5.0], [6.0]]], dtype=torch.float32)
-        result11 = converted_ir_mod.pyfuncs["test_squeeze"](x11)
+        result11 = converted_ir_mod.__pyfuncs__["test_squeeze"](x11)
         expected11 = torch.squeeze(x11, dim=2)
         assert torch.allclose(result11, expected11), "Squeeze operation failed"
 
         # Test sum with axis
         x12 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
-        result12 = converted_ir_mod.pyfuncs["test_sum_with_axis"](x12)
+        result12 = converted_ir_mod.__pyfuncs__["test_sum_with_axis"](x12)
         expected12 = torch.sum(x12, dim=0)
         assert torch.allclose(result12, expected12), "Sum with axis operation failed"
 
         # Test max with axis
         x13 = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
-        result13 = converted_ir_mod.pyfuncs["test_max_with_axis"](x13)
+        result13 = converted_ir_mod.__pyfuncs__["test_max_with_axis"](x13)
         expected13 = torch.max(x13, dim=0)[0]  # torch.max returns (values, indices)
         assert torch.allclose(result13, expected13), "Max with axis operation failed"
 
@@ -670,28 +682,28 @@ class TestExtendedOperators:
         x = torch.tensor([-2.0, -1.0, 0.0, 1.0, 2.0], dtype=torch.float32)
 
         # Test abs
-        result = converted_ir_mod.pyfuncs["test_abs"](x)
+        result = converted_ir_mod.__pyfuncs__["test_abs"](x)
         expected = torch.abs(x)
         assert torch.allclose(result, expected)
 
         # Test negative
-        result = converted_ir_mod.pyfuncs["test_neg"](x)
+        result = converted_ir_mod.__pyfuncs__["test_neg"](x)
         expected = torch.neg(x)
         assert torch.allclose(result, expected)
 
         # Test exp
-        result = converted_ir_mod.pyfuncs["test_exp"](x)
+        result = converted_ir_mod.__pyfuncs__["test_exp"](x)
         expected = torch.exp(x)
         assert torch.allclose(result, expected)
 
         # Test log (with positive values)
         x_pos = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
-        result = converted_ir_mod.pyfuncs["test_log"](x_pos)
+        result = converted_ir_mod.__pyfuncs__["test_log"](x_pos)
         expected = torch.log(x_pos)
         assert torch.allclose(result, expected)
 
         # Test sqrt
-        result = converted_ir_mod.pyfuncs["test_sqrt"](x_pos)
+        result = converted_ir_mod.__pyfuncs__["test_sqrt"](x_pos)
         expected = torch.sqrt(x_pos)
         assert torch.allclose(result, expected)
 
@@ -704,22 +716,22 @@ class TestExtendedOperators:
         x = torch.tensor([0.0, 0.5, 1.0, 1.5, 2.0], dtype=torch.float32)
 
         # Test sin
-        result = converted_ir_mod.pyfuncs["test_sin"](x)
+        result = converted_ir_mod.__pyfuncs__["test_sin"](x)
         expected = torch.sin(x)
         assert torch.allclose(result, expected)
 
         # Test cos
-        result = converted_ir_mod.pyfuncs["test_cos"](x)
+        result = converted_ir_mod.__pyfuncs__["test_cos"](x)
         expected = torch.cos(x)
         assert torch.allclose(result, expected)
 
         # Test tanh
-        result = converted_ir_mod.pyfuncs["test_tanh"](x)
+        result = converted_ir_mod.__pyfuncs__["test_tanh"](x)
         expected = torch.tanh(x)
         assert torch.allclose(result, expected)
 
         # Test sigmoid
-        result = converted_ir_mod.pyfuncs["test_sigmoid"](x)
+        result = converted_ir_mod.__pyfuncs__["test_sigmoid"](x)
         expected = torch.sigmoid(x)
         assert torch.allclose(result, expected)
 
@@ -731,12 +743,12 @@ class TestExtendedOperators:
         y = torch.tensor([2.0, 2.0, 2.0, 2.0, 2.0], dtype=torch.float32)
 
         # Test less
-        result = converted_ir_mod.pyfuncs["test_less"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_less"](x, y)
         expected = torch.lt(x, y)
         assert torch.equal(result, expected)
 
         # Test not equal
-        result = converted_ir_mod.pyfuncs["test_not_equal"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_not_equal"](x, y)
         expected = torch.ne(x, y)
         assert torch.equal(result, expected)
 
@@ -757,32 +769,32 @@ class TestExtendedOperators:
         y = torch.tensor([2.0, 2.0, 2.0, 2.0, 2.0], dtype=torch.float32)
 
         # Test multiply
-        result = converted_ir_mod.pyfuncs["test_multiply"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_multiply"](x, y)
         expected = torch.mul(x, y)
         assert torch.allclose(result, expected)
 
         # Test divide
-        result = converted_ir_mod.pyfuncs["test_divide"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_divide"](x, y)
         expected = torch.div(x, y)
         assert torch.allclose(result, expected)
 
         # Test power
-        result = converted_ir_mod.pyfuncs["test_power"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_power"](x, y)
         expected = torch.pow(x, y)
         assert torch.allclose(result, expected)
 
         # Test maximum
-        result = converted_ir_mod.pyfuncs["test_maximum"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_maximum"](x, y)
         expected = torch.maximum(x, y)
         assert torch.allclose(result, expected)
 
         # Test minimum
-        result = converted_ir_mod.pyfuncs["test_minimum"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_minimum"](x, y)
         expected = torch.minimum(x, y)
         assert torch.allclose(result, expected)
 
         # Test subtract
-        result = converted_ir_mod.pyfuncs["test_subtract"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_subtract"](x, y)
         expected = torch.sub(x, y)
         assert torch.allclose(result, expected)
 
@@ -793,7 +805,7 @@ class TestExtendedOperators:
         x = torch.tensor([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]], dtype=torch.float32)
 
         # Test transpose
-        result = converted_ir_mod.pyfuncs["test_transpose_2d"](x)
+        result = converted_ir_mod.__pyfuncs__["test_transpose_2d"](x)
         expected = torch.transpose(x, 0, 1)
         assert torch.allclose(result, expected)
         assert result.shape == (4, 2)
@@ -805,13 +817,13 @@ class TestExtendedOperators:
         x = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=torch.float32)
 
         # Test mean
-        result = converted_ir_mod.pyfuncs["test_mean_axis"](x)
+        result = converted_ir_mod.__pyfuncs__["test_mean_axis"](x)
         expected = torch.mean(x, dim=0)
         assert torch.allclose(result, expected)
         assert result.shape == (3,)
 
         # Test min
-        result = converted_ir_mod.pyfuncs["test_min_axis"](x)
+        result = converted_ir_mod.__pyfuncs__["test_min_axis"](x)
         expected = torch.min(x, dim=0)[0]
         assert torch.allclose(result, expected)
         assert result.shape == (3,)
@@ -827,17 +839,17 @@ class TestExtendedOperators:
         )
 
         # Test gelu
-        result = converted_ir_mod.pyfuncs["test_gelu_nn"](x[0])
+        result = converted_ir_mod.__pyfuncs__["test_gelu_nn"](x[0])
         expected = F.gelu(x[0])
         assert torch.allclose(result, expected)
 
         # Test softmax
-        result = converted_ir_mod.pyfuncs["test_softmax_nn"](x)
+        result = converted_ir_mod.__pyfuncs__["test_softmax_nn"](x)
         expected = F.softmax(x, dim=1)
         assert torch.allclose(result, expected)
 
         # Test log_softmax
-        result = converted_ir_mod.pyfuncs["test_log_softmax_nn"](x)
+        result = converted_ir_mod.__pyfuncs__["test_log_softmax_nn"](x)
         expected = F.log_softmax(x, dim=1)
         assert torch.allclose(result, expected)
 
@@ -848,14 +860,14 @@ class TestExtendedOperators:
         x = torch.tensor([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]], dtype=torch.float32)
 
         # Test tile with different dimensions
-        result = converted_ir_mod.pyfuncs["test_tile_dims"](x)
+        result = converted_ir_mod.__pyfuncs__["test_tile_dims"](x)
         expected = torch.tile(x, (2, 3))
         assert torch.allclose(result, expected)
         assert result.shape == (4, 12)
 
         # Test repeat with different parameters
         x_1d = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
-        result = converted_ir_mod.pyfuncs["test_repeat_axis"](x_1d)
+        result = converted_ir_mod.__pyfuncs__["test_repeat_axis"](x_1d)
         expected = torch.repeat_interleave(x_1d, repeats=2, dim=0)
         assert torch.allclose(result, expected)
         assert result.shape == (6,)
@@ -869,11 +881,12 @@ class TestDLPackAndTupleSupport:
 
         @I.ir_module
         class DLPackTestModule:
-            @T.prim_func(s_tir=True)
-            def test_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-                x = T.match_buffer(var_x, (4,), "float32")
-                y = T.match_buffer(var_y, (4,), "float32")
-                out = T.match_buffer(var_out, (4,), "float32")
+            @Ts.prim_func
+            def test_tir(
+                x: T.Buffer((4,), "float32"),
+                y: T.Buffer((4,), "float32"),
+                out: T.Buffer((4,), "float32"),
+            ):
                 for i in range(4):
                     out[i] = x[i] + y[i]
 
@@ -891,7 +904,7 @@ class TestDLPackAndTupleSupport:
         x = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
         y = torch.tensor([0.1, 0.2, 0.3, 0.4], dtype=torch.float32)
 
-        result = converted_ir_mod.pyfuncs["test_func"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_func"](x, y)
         expected = torch.add(x, y)
 
         assert torch.allclose(result, expected), "DLPack conversion with numpy fallback failed"
@@ -909,7 +922,7 @@ class TestDLPackAndTupleSupport:
         converted_ir_mod = converter.convert(["test_split"])
 
         x = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], dtype=torch.float32)
-        result = converted_ir_mod.pyfuncs["test_split"](x)
+        result = converted_ir_mod.__pyfuncs__["test_split"](x)
         expected = torch.split(x, 2, dim=0)
 
         assert isinstance(result, tuple), "Split should return tuple"
@@ -922,11 +935,12 @@ class TestDLPackAndTupleSupport:
 
         @I.ir_module
         class RuntimeAPITestModule:
-            @T.prim_func(s_tir=True)
-            def test_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-                x = T.match_buffer(var_x, (3,), "float32")
-                y = T.match_buffer(var_y, (3,), "float32")
-                out = T.match_buffer(var_out, (3,), "float32")
+            @Ts.prim_func
+            def test_tir(
+                x: T.Buffer((3,), "float32"),
+                y: T.Buffer((3,), "float32"),
+                out: T.Buffer((3,), "float32"),
+            ):
                 for i in range(3):
                     out[i] = x[i] * y[i]
 
@@ -944,7 +958,7 @@ class TestDLPackAndTupleSupport:
         x = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
         y = torch.tensor([2.0, 3.0, 4.0], dtype=torch.float32)
 
-        result = converted_ir_mod.pyfuncs["test_func"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_func"](x, y)
         expected = torch.mul(x, y)
 
         assert torch.allclose(result, expected)
@@ -970,7 +984,7 @@ class TestDLPackAndTupleSupport:
         converted_ir_mod = converter.convert(["test_dps"])
 
         x = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
-        result = converted_ir_mod.pyfuncs["test_dps"](x)
+        result = converted_ir_mod.__pyfuncs__["test_dps"](x)
         expected = x  # Identity function
 
         assert torch.allclose(result, expected), "Packed function with Expr args failed"
@@ -980,11 +994,12 @@ class TestDLPackAndTupleSupport:
 
         @I.ir_module
         class MixedOpsTestModule:
-            @T.prim_func(s_tir=True)
-            def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-                x = T.match_buffer(var_x, (4,), "float32")
-                y = T.match_buffer(var_y, (4,), "float32")
-                out = T.match_buffer(var_out, (4,), "float32")
+            @Ts.prim_func
+            def add_tir(
+                x: T.Buffer((4,), "float32"),
+                y: T.Buffer((4,), "float32"),
+                out: T.Buffer((4,), "float32"),
+            ):
                 for i in range(4):
                     out[i] = x[i] + y[i]
 
@@ -1007,7 +1022,7 @@ class TestDLPackAndTupleSupport:
         x = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
         y = torch.tensor([0.1, 0.2, 0.3, 0.4], dtype=torch.float32)
 
-        result = converted_ir_mod.pyfuncs["test_mixed"](x, y)
+        result = converted_ir_mod.__pyfuncs__["test_mixed"](x, y)
 
         # Manual computation for expected result
         added = torch.add(x, y)
@@ -1031,7 +1046,7 @@ class TestDLPackAndTupleSupport:
         converted_ir_mod = converter.convert(["test_error_handling"])
 
         x = torch.tensor([-2.0, -1.0, 0.0, 1.0], dtype=torch.float32)
-        result = converted_ir_mod.pyfuncs["test_error_handling"](x)
+        result = converted_ir_mod.__pyfuncs__["test_error_handling"](x)
         expected = F.relu(x)
 
         assert torch.allclose(result, expected), "Error handling with tensor fallbacks failed"

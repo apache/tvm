@@ -24,12 +24,13 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm.runtime import Executable
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
 class MyModule:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def add(
         A: T.Buffer((10,), "float32"),
         B: T.Buffer((10,), "float32"),

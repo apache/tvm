@@ -207,7 +207,7 @@ def test_recursive_inline():
 
             @T.inline
             def add(x, c):
-                if c > 0:
+                if T.constexpr(c > 0):
                     add(x, c - 1)
                 T.evaluate(x)
 

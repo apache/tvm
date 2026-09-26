@@ -65,10 +65,11 @@ Doc PrintCanonicalVar(Var n, AccessPath n_p, IRDocsifier d) {
         f->type_vars->insert(n.get());
       }
     }
-    IdDoc var = d->Define(n, ffi::GetRef<Frame>(f), n->name.empty() ? "v" : n->name);
+    Frame frame = d->frames.front();
+    IdDoc var = d->Define(n, frame, n->name.empty() ? "v" : n->name);
     var->source_paths.push_back(n_p);
     if (!f->func_vars || f->prim_params->count(n.get()) || !f->type_vars->count(n.get())) {
-      f->stmts.push_back(AssignDoc(var, PrintVarCreation(prim_var, n_p, d), std::nullopt));
+      frame->stmts.push_back(AssignDoc(var, PrintVarCreation(prim_var, n_p, d), std::nullopt));
     }
   }
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {

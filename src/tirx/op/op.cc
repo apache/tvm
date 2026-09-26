@@ -135,21 +135,6 @@ PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s, Span s
       .as_or_throw<PrimExpr>();
 }
 
-PrimExpr thread_return(Span span) {
-  return Call(PrimType::Void(), tirx::builtin::thread_return(), {}, {}, {}, span)
-      .as_or_throw<PrimExpr>();
-}
-
-PrimExpr continue_loop(Span span) {
-  return Call(PrimType::Void(), tirx::builtin::continue_loop(), {}, {}, {}, span)
-      .as_or_throw<PrimExpr>();
-}
-
-PrimExpr break_loop(Span span) {
-  return Call(PrimType::Void(), tirx::builtin::break_loop(), {}, {}, {}, span)
-      .as_or_throw<PrimExpr>();
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.RegisterOpLowerIntrinsic",
@@ -159,13 +144,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
+PrimExpr thread_return(Span span) {
+  return Call(PrimType::Void(), tirx::builtin::thread_return(), {}, {}, {}, span)
+      .as_or_throw<PrimExpr>();
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def("tirx.thread_return", thread_return)
-      .def("tirx.continue_loop", continue_loop)
-      .def("tirx.break_loop", break_loop);
-};
+  refl::GlobalDef().def("tirx.thread_return", thread_return);
+}
 
 PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
   TVM_FFI_ICHECK(IsFloatType(a.ty())) << a;

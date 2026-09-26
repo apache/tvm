@@ -99,9 +99,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::MatchCastNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::VarBindingNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::IfNode, ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<relax::MatchCastNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::VarBindingNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::IfNode>(ReprPrintRelax);
+}
 
 }  // namespace printer
 }  // namespace script

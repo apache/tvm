@@ -27,29 +27,51 @@ import scipy
 
 import tvm
 import tvm.testing
-from tvm import te, tirx, topi
+from tvm import tirx
+from tvm.script import ir as I
 from tvm.script import tirx as T
 from tvm.support import clang, utils
 
 
+def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
+    out_dtype = out_dtype or dtype
+
+    n = T.int32()
+
+    @T.prim_func
+    def kernel(A: T.Buffer((n,), dtype), B: T.Buffer((n,), out_dtype)):
+        if I.constexpr(gpu):
+            for bx in T.thread_binding(T.ceildiv(n, 64), thread="blockIdx.x"):
+                for tx in T.thread_binding(64, thread="threadIdx.x"):
+                    if bx * 64 + tx < n:
+                        B[bx * 64 + tx] = op(A[bx * 64 + tx])
+        else:
+            for i in range(n):
+                B[i] = op(A[i])
+
+    return kernel
+
+
+def _binary_kernel(op, rhs_dtype="float32"):
+    n = T.int32()
+
+    @T.prim_func
+    def kernel(
+        A: T.Buffer((n,), "float32"), B: T.Buffer((n,), rhs_dtype), C: T.Buffer((n,), "float32")
+    ):
+        for i in range(n):
+            C[i] = op(A[i], B[i])
+
+    return kernel
+
+
 def test_nearbyint():
-    m = te.var(
-        "m",
-    )
-    A = te.placeholder((m,), name="A")
-    A_rounded = te.compute((m,), lambda *i: tvm.tirx.nearbyint(A(*i)), name="A")
-
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, A_rounded])
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Build from scheduled TIR
-    func = tvm.compile(sch.mod, target="llvm")
+    func = tvm.compile(_unary_kernel(tvm.tirx.nearbyint), target="llvm")
 
     dev = tvm.cpu(0)
     n = 10
-    a = tvm.runtime.tensor(np.random.uniform(high=100, size=n).astype(A.dtype.dtype), dev)
-    a_rounded = tvm.runtime.tensor(np.random.uniform(size=n).astype(A_rounded.dtype.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(high=100, size=n).astype("float32"), dev)
+    a_rounded = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
     func(a, a_rounded)
     # Note that numpys rint rounds to nearest integer with
     # ties to halfway is broken by rounding to even.
@@ -70,13 +92,7 @@ def test_round_ties_to_even(target):
     if target != "c" and not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    m = te.var("m")
-    A = te.placeholder((m,), name="A")
-    A_rounded = te.compute((m,), lambda *i: tvm.tirx.round(A(*i)), name="A")
-
-    mod = te.create_prim_func([A, A_rounded])
-    sch = tvm.s_tir.Schedule(mod)
-    func = tvm.compile(sch.mod, target=target)
+    func = tvm.compile(_unary_kernel(tvm.tirx.round), target=target)
 
     dev = tvm.cpu(0)
     # Midpoint values where ties-to-even and ties-away differ
@@ -118,23 +134,12 @@ def test_unary_intrin():
     ]
 
     def run_test(tvm_intrin, np_func, atol=1e-5, rtol=1e-5):
-        m = te.var(
-            "m",
-        )
-        A = te.placeholder((m,), name="A")
-        B = te.compute((m,), lambda *i: tvm_intrin(A(*i)), name="B")
-
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, B])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # Build from scheduled TIR
-        func = tvm.compile(sch.mod, target="llvm")
+        func = tvm.compile(_unary_kernel(tvm_intrin), target="llvm")
 
         dev = tvm.cpu(0)
         n = 10
-        a = tvm.runtime.tensor(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype.dtype), dev)
-        b = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(0.1, 0.5, size=n).astype("float32"), dev)
+        b = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
         func(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=atol, rtol=rtol)
 
@@ -148,7 +153,7 @@ def test_unary_intrin():
                     np.random.uniform(1.1, 2.0, size=n // 2),
                     np.random.uniform(-2.0, -1.1, size=n // 2),
                 ]
-            ).astype(A.dtype.dtype)
+            ).astype("float32")
             a2 = tvm.runtime.tensor(out_np, dev)
             b2 = tvm.runtime.tensor(np.empty_like(out_np), dev)
             func(a2, b2)
@@ -156,7 +161,7 @@ def test_unary_intrin():
             assert np.all(np.isnan(b2.numpy()))
         if name == "exp":
             n = 8
-            out_np = np.random.randint(-20, 20, size=n).astype(A.dtype.dtype)
+            out_np = np.random.randint(-20, 20, size=n).astype("float32")
             a2 = tvm.runtime.tensor(out_np, dev)
             b2 = tvm.runtime.tensor(np.empty_like(out_np), dev)
             func(a2, b2)
@@ -178,13 +183,7 @@ def test_asin_acos_boundary_values():
     ]
 
     def run_test(tvm_intrin, np_func):
-        m = te.var("m")
-        A = te.placeholder((m,), name="A")
-        B = te.compute((m,), lambda *i: tvm_intrin(A(*i)), name="B")
-
-        mod = te.create_prim_func([A, B])
-        sch = tvm.s_tir.Schedule(mod)
-        func = tvm.compile(sch.mod, target="llvm")
+        func = tvm.compile(_unary_kernel(tvm_intrin), target="llvm")
 
         dev = tvm.cpu(0)
 
@@ -231,25 +230,13 @@ def test_binary_intrin():
     ]
 
     def run_test(tvm_intrin, np_func):
-        m = te.var(
-            "m",
-        )
-        A = te.placeholder((m,), name="A")
-        B = te.placeholder((m,), name="B")
-        C = te.compute((m,), lambda *i: tvm_intrin(A(*i), B(*i)), name="C")
-
-        # Convert to TIR and create schedule
-        mod = te.create_prim_func([A, B, C])
-        sch = tvm.s_tir.Schedule(mod)
-
-        # Build from scheduled TIR
-        func = tvm.compile(sch.mod, target="llvm")
+        func = tvm.compile(_binary_kernel(tvm_intrin), target="llvm")
 
         dev = tvm.cpu(0)
         n = 10
-        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(A.dtype.dtype), dev)
-        b = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(B.dtype.dtype), dev)
-        c = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype.dtype), dev)
+        a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
+        b = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
+        c = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
         func(a, b, c)
         tvm.testing.assert_allclose(c.numpy(), np_func(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
@@ -258,25 +245,13 @@ def test_binary_intrin():
 
 
 def test_ldexp():
-    m = te.var(
-        "m",
-    )
-    A = te.placeholder((m,), name="A")
-    B = te.placeholder((m,), name="B", dtype="int32")
-    C = te.compute((m,), lambda *i: tvm.tirx.ldexp(A(*i), B(*i)), name="C")
-
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, B, C])
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Build from scheduled TIR
-    func = tvm.compile(sch.mod, target="llvm")
+    func = tvm.compile(_binary_kernel(tvm.tirx.ldexp, rhs_dtype="int32"), target="llvm")
 
     dev = tvm.cpu(0)
     n = 10
-    a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype(A.dtype.dtype), dev)
-    b = tvm.runtime.tensor(np.random.randint(0, 5, size=n).astype(B.dtype.dtype), dev)
-    c = tvm.runtime.tensor(np.random.uniform(size=n).astype(A.dtype.dtype), dev)
+    a = tvm.runtime.tensor(np.random.uniform(0, 1, size=n).astype("float32"), dev)
+    b = tvm.runtime.tensor(np.random.randint(0, 5, size=n).astype("int32"), dev)
+    c = tvm.runtime.tensor(np.random.uniform(size=n).astype("float32"), dev)
     func(a, b, c)
     tvm.testing.assert_allclose(c.numpy(), np.ldexp(a.numpy(), b.numpy()), atol=1e-5, rtol=1e-5)
 
@@ -306,24 +281,9 @@ def test_clz(target, dtype):
         clz[np.bitwise_and(x, x - 1) == 0] -= 1
         return clz
 
-    m = te.var("m")
-    A = te.placeholder((m,), name="A", dtype=dtype)
-    B = te.compute((m,), lambda *i: tvm.tirx.clz(A(*i)), name="B")
-
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([A, B])
-    sch = tvm.s_tir.Schedule(mod)
-
-    # Apply scheduling primitives if target is Vulkan
-    if target.kind.name == "vulkan":
-        block = sch.get_sblock("B")
-        loop = sch.get_loops(block)[0]
-        bx, tx = sch.split(loop, factors=[None, 64])
-        sch.bind(bx, "blockIdx.x")
-        sch.bind(tx, "threadIdx.x")
-
-    # Build from scheduled TIR
-    func = tvm.compile(sch.mod, target=target)
+    func = tvm.compile(
+        _unary_kernel(tvm.tirx.clz, dtype, "int32", gpu=target.kind.name == "vulkan"), target=target
+    )
 
     def run_and_check():
         dev = tvm.device_from_target(target)
@@ -347,49 +307,25 @@ def test_clz(target, dtype):
         tvm.testing.run_with_gpu_lock(run_and_check)
 
 
+n = T.dynamic("n", "int32")
+stride = T.dynamic("stride", "int32")
+stride_1 = T.dynamic("stride_1", "int32")
+stride_2 = T.dynamic("stride_2", "int32")
+stride_3 = T.dynamic("stride_3", "int32")
+
+
 @tvm.script.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
-    def test_tir_fma(A: T.handle, B: T.handle, C: T.handle, d: T.handle) -> None:
+    @T.prim_func
+    def test_tir_fma(
+        A_1: T.Buffer([n], strides=[stride], elem_offset=0, align=64, offset_factor=1),
+        B_1: T.Buffer([n], strides=[stride_1], elem_offset=0, align=64, offset_factor=1),
+        C_1: T.Buffer([n], strides=[stride_2], elem_offset=0, align=64, offset_factor=1),
+        d_1: T.Buffer([n], strides=[stride_3], elem_offset=0, align=64, offset_factor=1),
+    ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "test_fma", "tirx.noalias": True})
-        n = T.int32()
-        stride = T.int32()
-        stride_1 = T.int32()
-        stride_2 = T.int32()
-        stride_3 = T.int32()
-        A_1 = T.match_buffer(
-            A,
-            [n],
-            strides=[stride],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-        )
-        B_1 = T.match_buffer(
-            B,
-            [n],
-            strides=[stride_1],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-        )
-        C_1 = T.match_buffer(
-            C,
-            [n],
-            strides=[stride_2],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-        )
-        d_1 = T.match_buffer(
-            d,
-            [n],
-            strides=[stride_3],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-        )
+
         # body
         for i in T.serial(0, n):
             d_1[(i * stride_3)] = (A_1[(i * stride)] * B_1[(i * stride_1)]) + C_1[(i * stride_2)]

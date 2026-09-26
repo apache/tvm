@@ -343,8 +343,8 @@ def test_string_imm():
 
 
 def test_datatype_imm():
-    d0 = tvm.ir.GenericConst(tvm.DataType("int32"), tvm.relax.AnyType())
-    d1 = tvm.ir.GenericConst(tvm.DataType("int32"), tvm.relax.AnyType())
+    d0 = tvm.ir.DataTypeImm(tvm.DataType("int32"))
+    d1 = tvm.ir.DataTypeImm(tvm.DataType("int32"))
     assert d0.value == "int32"
     _check_equal(d0, d1)
     _check_json_roundtrip(d0)

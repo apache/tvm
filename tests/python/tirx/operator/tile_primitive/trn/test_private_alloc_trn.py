@@ -71,8 +71,8 @@ def test_normal_copy():
 
     # fmt: off
     @T.prim_func
-    def copy(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, src_shape, "float32", layout=src_layout)
+    def copy(A: T.Buffer(src_shape, 'float32', layout=src_layout)) -> None:
+
         T.device_entry()
         A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, A)

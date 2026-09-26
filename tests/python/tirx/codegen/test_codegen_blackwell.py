@@ -245,7 +245,7 @@ def test_tma_mbarrier_remote_view_codegen():
 def test_mbarrier_remote_view_rejects_invalid_operations():
     from tvm.tirx.lang.pipeline import MBarrier, TMABar
 
-    with pytest.raises(tvm.error.DiagnosticError, match=r"remote_view\(\) cannot be initialized"):
+    with pytest.raises(ValueError, match=r"remote_view\(\) cannot be initialized"):
         # fmt: off
         @T.prim_func
         def invalid_init():
@@ -257,7 +257,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
             bar.remote_view(0).init(1)
         # fmt: on
 
-    with pytest.raises(tvm.error.DiagnosticError, match=r"remote_view\(\) cannot be waited on"):
+    with pytest.raises(ValueError, match=r"remote_view\(\) cannot be waited on"):
         # fmt: off
         @T.prim_func
         def invalid_wait():
@@ -269,7 +269,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
             bar.remote_view(0).wait(0, 0)
         # fmt: on
 
-    with pytest.raises(tvm.error.DiagnosticError, match="cannot also specify remote"):
+    with pytest.raises(ValueError, match="cannot also specify remote"):
         # fmt: off
         @T.prim_func
         def ambiguous_mbarrier_arrive():
@@ -281,7 +281,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
             bar.remote_view(0).arrive(0, remote=1)
         # fmt: on
 
-    with pytest.raises(tvm.error.DiagnosticError, match="cannot also specify remote"):
+    with pytest.raises(ValueError, match="cannot also specify remote"):
         # fmt: off
         @T.prim_func
         def ambiguous_tma_arrive():
@@ -294,7 +294,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
         # fmt: on
 
     with pytest.raises(
-        tvm.error.DiagnosticError,
+        ValueError,
         match=r"remote_view\(\) cannot be applied to a remote view",
     ):
         # fmt: off

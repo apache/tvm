@@ -472,10 +472,6 @@ ffi::String VMExecutable::AsText() const {
       os << "@" << gfunc.name << " packed_func;\n\n";
       continue;
     }
-    if (gfunc.kind == VMFuncInfo::FuncKind::kVMTIRFunc) {
-      os << "@" << gfunc.name << " num_inputs=" << gfunc.num_args << " vm_tir_func;\n\n";
-      continue;
-    }
     TVM_FFI_ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);
     os << "@" << gfunc.name << ":\n";
     size_t start_instr = gfunc.start_instr;
@@ -551,9 +547,6 @@ ffi::String VMExecutable::AsPython() const {
   for (size_t fidx = 0; fidx < this->func_table.size(); ++fidx) {
     const VMFuncInfo& gfunc = this->func_table[fidx];
     if (gfunc.kind == VMFuncInfo::FuncKind::kPackedFunc) {
-      continue;
-    }
-    if (gfunc.kind == VMFuncInfo::FuncKind::kVMTIRFunc) {
       continue;
     }
     TVM_FFI_ICHECK(gfunc.kind == VMFuncInfo::FuncKind::kVMFunc);

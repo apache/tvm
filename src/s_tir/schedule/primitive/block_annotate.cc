@@ -473,9 +473,11 @@ struct UnsafeSetDTypeTraits : public UnpackedInstTraits<UnsafeSetDTypeTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(StorageAlignTraits);
-TVM_REGISTER_INST_KIND_TRAITS(SetScopeTraits);
-TVM_REGISTER_INST_KIND_TRAITS(UnsafeSetDTypeTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<StorageAlignTraits>();
+  RegisterInstructionKind<SetScopeTraits>();
+  RegisterInstructionKind<UnsafeSetDTypeTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

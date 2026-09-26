@@ -279,7 +279,7 @@ class GraphCreator : public ExprVisitor {
 
     if (!leaf_expr.as<ShapeExprNode>() && !leaf_expr.as<VarNode>() &&
         !leaf_expr.as<GenericConstNode>() && !leaf_expr.as<PrimExpr>() &&
-        !leaf_expr.as<StringImmNode>()) {
+        !leaf_expr.as<StringImmNode>() && !leaf_expr.as<DataTypeImmNode>()) {
       // Skip GlobalVar, ExternFunc, OpNode.
       return;
     }
@@ -1213,6 +1213,7 @@ class PatternBasedPartitioner : ExprVisitor {
   }
 
   void VisitExpr_(const GenericConstNode* op) final { group_map_[op] = arena_->make<Group>(); }
+  void VisitExpr_(const DataTypeImmNode* op) final { group_map_[op] = arena_->make<Group>(); }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     VisitVarDef(binding->var);

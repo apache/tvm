@@ -118,12 +118,9 @@ class CollectLastUsage : public ExprVisitor {
         // this may be handled more easily at the CodeGenVM level.
         //
         // Variables bound to `relax.null_value` are excluded for the
-        // same reason as constants: both CodeGenVM and CodeGenVMTIR
-        // special-case `null_value` to bypass register/anylist-slot
-        // allocation, so such a variable is never a valid target for
-        // R.vm.kill_object. It is currently the only operator either
-        // codegen special-cases this way; a new special case added to
-        // either codegen should be reflected here as well.
+        // same reason as constants: CodeGenVM special-cases `null_value` to bypass register
+        // allocation, so such a variable is never a valid target for R.vm.kill_object. A new
+        // codegen special case should be reflected here as well.
         bool stored_in_vm_register =
             !(visitor.constant_tensors_.count(var) || visitor.null_value_objects_.count(var) ||
               var->ty.as<FuncTypeNode>() || var->ty.as<ShapeTypeNode>() ||
@@ -216,7 +213,7 @@ class CollectLastUsage : public ExprVisitor {
   std::unordered_set<const VarNode*> constant_tensors_;
 
   // Variables bound to `relax.null_value`, which do not occupy a VM
-  // register in either CodeGenVM or CodeGenVMTIR, and therefore must
+  // register in CodeGenVM, and therefore must
   // never be passed to R.vm.kill_object.
   std::unordered_set<const VarNode*> null_value_objects_;
 

@@ -76,9 +76,7 @@ Rung 2 in full — a 256-element block sum via a shared-memory tree reduction
 .. code-block:: python
 
     @Tx.prim_func
-    def block_sum(A_ptr: Tx.handle, out_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (256,), "float32")
-        out = Tx.match_buffer(out_ptr, (1,), "float32")
+    def block_sum(A: Tx.Buffer((256,), "float32"), out: Tx.Buffer((1,), "float32")):
 
         Tx.device_entry()
         bx = Tx.cta_id([1])
@@ -99,11 +97,13 @@ Rung 2 in full — a 256-element block sum via a shared-memory tree reduction
         if tx == 0:
             out[0] = sm[0]
 
-    exe = tvm.compile(tvm.IRModule({"main": block_sum}),
-                      target=tvm.target.Target("cuda"), tir_pipeline="tirx")
+
+    exe = tvm.compile(
+        tvm.IRModule({"main": block_sum}), target=tvm.target.Target("cuda"), tir_pipeline="tirx"
+    )
     a = torch.arange(256, device="cuda", dtype=torch.float32)
     out = torch.zeros(1, device="cuda")
-    exe(a, out)                          # out[0] == 32640.0
+    exe(a, out)  # out[0] == 32640.0
 
 The full tile-level GEMM/attention ladder (sync → TMA → warp specialization →
 2-CTA cluster) is built on top of these and the dispatchable tile primitives in

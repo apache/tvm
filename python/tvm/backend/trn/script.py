@@ -26,17 +26,19 @@ from . import op as _trn_op
 OpWrapper = Callable[[Callable[..., Any]], Callable[..., Any]]
 
 
-def _default_op_wrapper() -> OpWrapper:
-    from tvm.tirx.script.builder.ir import _op_wrapper  # pylint: disable=import-outside-toplevel
+def _default_op_wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Create the default facade for a returned-node NKI intrinsic."""
+    from tvm.tirx.script.ir_builder.op import _op_wrapper  # pylint: disable=import-outside-toplevel
 
-    return _op_wrapper
+    # NKI producers return a single call_intrin node and never emit separately.
+    return _op_wrapper(func)
 
 
 class NKINamespace:
     """The NKI instructions submodule."""
 
     def __init__(self, op_wrapper: OpWrapper | None = None):
-        wrap = op_wrapper or _default_op_wrapper()
+        wrap = _default_op_wrapper if op_wrapper is None else op_wrapper
         self.load = wrap(_trn_op.nki_load)
         self.store = wrap(_trn_op.nki_store)
         self.tensor_copy = wrap(_trn_op.nki_tensor_copy)

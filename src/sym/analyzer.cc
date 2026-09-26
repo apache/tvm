@@ -289,8 +289,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef()
       .def("sym.Analyzer", []() { return Analyzer(); })
       .def("sym.AnalyzerClone", [](Analyzer analyzer) { return analyzer->Clone(); })
-      .def("sym.EnterZ3ContextScope", []() { EnterZ3ContextScope(); })
-      .def("sym.ExitZ3ContextScope", []() { ExitZ3ContextScope(); })
       .def("sym.AnalyzerConstIntBound",
            [](Analyzer analyzer, const PrimExpr& expr) { return analyzer->const_int_bound(expr); })
       .def("sym.AnalyzerConstIntBoundUpdate",

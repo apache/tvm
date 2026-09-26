@@ -23,6 +23,7 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
     check_sketches,
     generate_design_space,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.te import create_prim_func
@@ -30,30 +31,30 @@ from tvm.te import create_prim_func
 
 @tvm.script.ir_module
 class Softmax_mn_after_inline:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_expsum = T.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_maxelem"):
-                i0_1, k = T.axis.remap("SR", [i0, i1])
-                with T.init():
+            with Ts.sblock("T_softmax_maxelem"):
+                i0_1, k = Ts.axis.remap("SR", [i0, i1])
+                with Ts.init():
                     T_softmax_maxelem[i0_1] = T.min_value("float32")
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_expsum"):
-                i0_2, k = T.axis.remap("SR", [i0, i1])
-                with T.init():
+            with Ts.sblock("T_softmax_expsum"):
+                i0_2, k = Ts.axis.remap("SR", [i0, i1])
+                with Ts.init():
                     T_softmax_expsum[i0_2] = T.float32(0)
                 T_softmax_expsum[i0_2] = T_softmax_expsum[i0_2] + T.exp(
                     A[i0_2, k] - T_softmax_maxelem[i0_2], dtype="float32"
                 )
         for i0_3, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_norm"):
-                i0_4, i1_1 = T.axis.remap("SS", [i0_3, i1])
-                T.sblock_attr({"axis": 1})
+            with Ts.sblock("T_softmax_norm"):
+                i0_4, i1_1 = Ts.axis.remap("SS", [i0_3, i1])
+                Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_4, i1_1] = (
                     T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32")
                     / T_softmax_expsum[i0_4]
@@ -61,7 +62,7 @@ class Softmax_mn_after_inline:
 
 
 def test_gpu_softmax_mn():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def softmax_mn_0(
         A: T.Buffer((256, 256), "float32"),
         T_softmax_norm: T.Buffer((256, 256), "float32"),
@@ -69,203 +70,203 @@ def test_gpu_softmax_mn():
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
-        # with T.sblock("root")
-        T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_exp = T.sblock_alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum = T.sblock_alloc_buffer([256], dtype="float32")
+        # with Ts.sblock("root")
+        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_maxelem"):
-                i0_1, k = T.axis.remap("SR", [i0, i1])
-                T.reads(A[i0_1, k])
-                T.writes(T_softmax_maxelem[i0_1])
-                with T.init():
+            with Ts.sblock("T_softmax_maxelem"):
+                i0_1, k = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(A[i0_1, k])
+                Ts.writes(T_softmax_maxelem[i0_1])
+                with Ts.init():
                     T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e38)
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_exp"):
-                i0_2, i1_1 = T.axis.remap("SS", [i0, i1])
-                T.reads(A[i0_2, i1_1], T_softmax_maxelem[i0_2])
-                T.writes(T_softmax_exp[i0_2, i1_1])
+            with Ts.sblock("T_softmax_exp"):
+                i0_2, i1_1 = Ts.axis.remap("SS", [i0, i1])
+                Ts.reads(A[i0_2, i1_1], T_softmax_maxelem[i0_2])
+                Ts.writes(T_softmax_exp[i0_2, i1_1])
                 T_softmax_exp[i0_2, i1_1] = T.exp(
                     A[i0_2, i1_1] - T_softmax_maxelem[i0_2], dtype="float32"
                 )
         for i0_3, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_expsum"):
-                i0_4, k = T.axis.remap("SR", [i0_3, i1])
-                T.reads(T_softmax_exp[i0_4, k])
-                T.writes(T_softmax_expsum[i0_4])
-                with T.init():
+            with Ts.sblock("T_softmax_expsum"):
+                i0_4, k = Ts.axis.remap("SR", [i0_3, i1])
+                Ts.reads(T_softmax_exp[i0_4, k])
+                Ts.writes(T_softmax_expsum[i0_4])
+                with Ts.init():
                     T_softmax_expsum[i0_4] = T.float32(0)
                 T_softmax_expsum[i0_4] = T_softmax_expsum[i0_4] + T_softmax_exp[i0_4, k]
         for i0_5, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_norm"):
-                i0_6, i1_2 = T.axis.remap("SS", [i0_5, i1])
-                T.reads(T_softmax_exp[i0_6, i1_2], T_softmax_expsum[i0_6])
-                T.writes(T_softmax_norm[i0_6, i1_2])
-                T.sblock_attr({"axis": 1})
+            with Ts.sblock("T_softmax_norm"):
+                i0_6, i1_2 = Ts.axis.remap("SS", [i0_5, i1])
+                Ts.reads(T_softmax_exp[i0_6, i1_2], T_softmax_expsum[i0_6])
+                Ts.writes(T_softmax_norm[i0_6, i1_2])
+                Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_6, i1_2] = T_softmax_exp[i0_6, i1_2] / T_softmax_expsum[i0_6]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def softmax_mn_1(
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
-        # with T.sblock("root")
-        T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-        T_softmax_exp = T.sblock_alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum = T.sblock_alloc_buffer([256], dtype="float32")
+        # with Ts.sblock("root")
+        T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
         for i0 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 1):
                 for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_maxelem"):
-                        T.where(ax1_0 * 512 + ax1_1 < 256)
-                        i0_1 = T.axis.spatial(256, i0 + ax0)
-                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
-                        T.reads(A[i0_1, k])
-                        T.writes(T_softmax_maxelem_shared[i0_1])
-                        with T.init():
+                    with Ts.sblock("T_softmax_maxelem"):
+                        Ts.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_1 = Ts.axis.spatial(256, i0 + ax0)
+                        k = Ts.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        Ts.reads(A[i0_1, k])
+                        Ts.writes(T_softmax_maxelem_shared[i0_1])
+                        with Ts.init():
                             T_softmax_maxelem_shared[i0_1] = T.float32(-3.4028234663852886e38)
                         T_softmax_maxelem_shared[i0_1] = T.max(
                             T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                         )
             for i1_0 in T.serial(1):
                 for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_exp"):
-                        T.where(i1_0 * 512 + i1_1 < 256)
-                        i0_2 = T.axis.spatial(256, i0)
-                        i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
-                        T.reads(A[i0_2, i1], T_softmax_maxelem_shared[i0_2])
-                        T.writes(T_softmax_exp[i0_2, i1])
+                    with Ts.sblock("T_softmax_exp"):
+                        Ts.where(i1_0 * 512 + i1_1 < 256)
+                        i0_2 = Ts.axis.spatial(256, i0)
+                        i1 = Ts.axis.spatial(256, i1_0 * 512 + i1_1)
+                        Ts.reads(A[i0_2, i1], T_softmax_maxelem_shared[i0_2])
+                        Ts.writes(T_softmax_exp[i0_2, i1])
                         T_softmax_exp[i0_2, i1] = T.exp(
                             A[i0_2, i1] - T_softmax_maxelem_shared[i0_2], dtype="float32"
                         )
         for i0_3, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_expsum"):
-                i0_4, k = T.axis.remap("SR", [i0_3, i1])
-                T.reads(T_softmax_exp[i0_4, k])
-                T.writes(T_softmax_expsum[i0_4])
-                with T.init():
+            with Ts.sblock("T_softmax_expsum"):
+                i0_4, k = Ts.axis.remap("SR", [i0_3, i1])
+                Ts.reads(T_softmax_exp[i0_4, k])
+                Ts.writes(T_softmax_expsum[i0_4])
+                with Ts.init():
                     T_softmax_expsum[i0_4] = T.float32(0)
                 T_softmax_expsum[i0_4] = T_softmax_expsum[i0_4] + T_softmax_exp[i0_4, k]
         for i0_5, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_norm"):
-                i0_6, i1_2 = T.axis.remap("SS", [i0_5, i1])
-                T.reads(T_softmax_exp[i0_6, i1_2], T_softmax_expsum[i0_6])
-                T.writes(T_softmax_norm[i0_6, i1_2])
-                T.sblock_attr({"axis": 1})
+            with Ts.sblock("T_softmax_norm"):
+                i0_6, i1_2 = Ts.axis.remap("SS", [i0_5, i1])
+                Ts.reads(T_softmax_exp[i0_6, i1_2], T_softmax_expsum[i0_6])
+                Ts.writes(T_softmax_norm[i0_6, i1_2])
+                Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_6, i1_2] = T_softmax_exp[i0_6, i1_2] / T_softmax_expsum[i0_6]
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def softmax_mn_2(
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
-        # with T.sblock("root")
-        T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_exp = T.sblock_alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        # with Ts.sblock("root")
+        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
+        T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_maxelem"):
-                i0_1, k = T.axis.remap("SR", [i0, i1])
-                T.reads(A[i0_1, k])
-                T.writes(T_softmax_maxelem[i0_1])
-                with T.init():
+            with Ts.sblock("T_softmax_maxelem"):
+                i0_1, k = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(A[i0_1, k])
+                Ts.writes(T_softmax_maxelem[i0_1])
+                with Ts.init():
                     T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e38)
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_exp"):
-                i0_2, i1_1 = T.axis.remap("SS", [i0, i1])
-                T.reads(A[i0_2, i1_1], T_softmax_maxelem[i0_2])
-                T.writes(T_softmax_exp[i0_2, i1_1])
+            with Ts.sblock("T_softmax_exp"):
+                i0_2, i1_1 = Ts.axis.remap("SS", [i0, i1])
+                Ts.reads(A[i0_2, i1_1], T_softmax_maxelem[i0_2])
+                Ts.writes(T_softmax_exp[i0_2, i1_1])
                 T_softmax_exp[i0_2, i1_1] = T.exp(
                     A[i0_2, i1_1] - T_softmax_maxelem[i0_2], dtype="float32"
                 )
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 32):
                 for ax1_1 in T.thread_binding(8, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_expsum"):
-                        i0_4 = T.axis.spatial(256, i0_3 + ax0)
-                        k = T.axis.reduce(256, ax1_0 * 8 + ax1_1)
-                        T.reads(T_softmax_exp[i0_4, k])
-                        T.writes(T_softmax_expsum_shared[i0_4])
-                        with T.init():
+                    with Ts.sblock("T_softmax_expsum"):
+                        i0_4 = Ts.axis.spatial(256, i0_3 + ax0)
+                        k = Ts.axis.reduce(256, ax1_0 * 8 + ax1_1)
+                        Ts.reads(T_softmax_exp[i0_4, k])
+                        Ts.writes(T_softmax_expsum_shared[i0_4])
+                        with Ts.init():
                             T_softmax_expsum_shared[i0_4] = T.float32(0)
                         T_softmax_expsum_shared[i0_4] = (
                             T_softmax_expsum_shared[i0_4] + T_softmax_exp[i0_4, k]
                         )
             for i1_0 in T.serial(32):
                 for i1_1_1 in T.thread_binding(8, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_norm"):
-                        i0_5 = T.axis.spatial(256, i0_3)
-                        i1 = T.axis.spatial(256, i1_0 * 8 + i1_1_1)
-                        T.reads(T_softmax_exp[i0_5, i1], T_softmax_expsum_shared[i0_5])
-                        T.writes(T_softmax_norm[i0_5, i1])
-                        T.sblock_attr({"axis": 1})
+                    with Ts.sblock("T_softmax_norm"):
+                        i0_5 = Ts.axis.spatial(256, i0_3)
+                        i1 = Ts.axis.spatial(256, i1_0 * 8 + i1_1_1)
+                        Ts.reads(T_softmax_exp[i0_5, i1], T_softmax_expsum_shared[i0_5])
+                        Ts.writes(T_softmax_norm[i0_5, i1])
+                        Ts.sblock_attr({"axis": 1})
                         T_softmax_norm[i0_5, i1] = (
                             T_softmax_exp[i0_5, i1] / T_softmax_expsum_shared[i0_5]
                         )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def softmax_mn_3(
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
-        # with T.sblock("root")
-        T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-        T_softmax_exp = T.sblock_alloc_buffer([256, 256], dtype="float32")
-        T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        # with Ts.sblock("root")
+        T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
+        T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
         for i0 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 1):
                 for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_maxelem"):
-                        T.where(ax1_0 * 512 + ax1_1 < 256)
-                        i0_1 = T.axis.spatial(256, i0 + ax0)
-                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
-                        T.reads(A[i0_1, k])
-                        T.writes(T_softmax_maxelem_shared[i0_1])
-                        with T.init():
+                    with Ts.sblock("T_softmax_maxelem"):
+                        Ts.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_1 = Ts.axis.spatial(256, i0 + ax0)
+                        k = Ts.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        Ts.reads(A[i0_1, k])
+                        Ts.writes(T_softmax_maxelem_shared[i0_1])
+                        with Ts.init():
                             T_softmax_maxelem_shared[i0_1] = T.float32(-3.4028234663852886e38)
                         T_softmax_maxelem_shared[i0_1] = T.max(
                             T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                         )
             for i1_0 in T.serial(1):
                 for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_exp"):
-                        T.where(i1_0 * 512 + i1_1 < 256)
-                        i0_2 = T.axis.spatial(256, i0)
-                        i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
-                        T.reads(A[i0_2, i1], T_softmax_maxelem_shared[i0_2])
-                        T.writes(T_softmax_exp[i0_2, i1])
+                    with Ts.sblock("T_softmax_exp"):
+                        Ts.where(i1_0 * 512 + i1_1 < 256)
+                        i0_2 = Ts.axis.spatial(256, i0)
+                        i1 = Ts.axis.spatial(256, i1_0 * 512 + i1_1)
+                        Ts.reads(A[i0_2, i1], T_softmax_maxelem_shared[i0_2])
+                        Ts.writes(T_softmax_exp[i0_2, i1])
                         T_softmax_exp[i0_2, i1] = T.exp(
                             A[i0_2, i1] - T_softmax_maxelem_shared[i0_2], dtype="float32"
                         )
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 32):
                 for ax1_1 in T.thread_binding(8, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_expsum"):
-                        i0_4 = T.axis.spatial(256, i0_3 + ax0)
-                        k = T.axis.reduce(256, ax1_0 * 8 + ax1_1)
-                        T.reads(T_softmax_exp[i0_4, k])
-                        T.writes(T_softmax_expsum_shared[i0_4])
-                        with T.init():
+                    with Ts.sblock("T_softmax_expsum"):
+                        i0_4 = Ts.axis.spatial(256, i0_3 + ax0)
+                        k = Ts.axis.reduce(256, ax1_0 * 8 + ax1_1)
+                        Ts.reads(T_softmax_exp[i0_4, k])
+                        Ts.writes(T_softmax_expsum_shared[i0_4])
+                        with Ts.init():
                             T_softmax_expsum_shared[i0_4] = T.float32(0)
                         T_softmax_expsum_shared[i0_4] = (
                             T_softmax_expsum_shared[i0_4] + T_softmax_exp[i0_4, k]
                         )
             for i1_0 in T.serial(32):
                 for i1_1 in T.thread_binding(8, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_norm"):
-                        i0_5 = T.axis.spatial(256, i0_3)
-                        i1 = T.axis.spatial(256, i1_0 * 8 + i1_1)
-                        T.reads(T_softmax_exp[i0_5, i1], T_softmax_expsum_shared[i0_5])
-                        T.writes(T_softmax_norm[i0_5, i1])
-                        T.sblock_attr({"axis": 1})
+                    with Ts.sblock("T_softmax_norm"):
+                        i0_5 = Ts.axis.spatial(256, i0_3)
+                        i1 = Ts.axis.spatial(256, i1_0 * 8 + i1_1)
+                        Ts.reads(T_softmax_exp[i0_5, i1], T_softmax_expsum_shared[i0_5])
+                        Ts.writes(T_softmax_norm[i0_5, i1])
+                        Ts.sblock_attr({"axis": 1})
                         T_softmax_norm[i0_5, i1] = (
                             T_softmax_exp[i0_5, i1] / T_softmax_expsum_shared[i0_5]
                         )
@@ -297,168 +298,168 @@ def test_gpu_softmax_mn():
 
 
 def test_gpu_softmax_mn_after_inline():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def softmax_mn_after_inline_0(
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_expsum = T.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_maxelem"):
-                i0_1, k = T.axis.remap("SR", [i0, i1])
-                T.reads(A[i0_1, k])
-                T.writes(T_softmax_maxelem[i0_1])
-                with T.init():
+            with Ts.sblock("T_softmax_maxelem"):
+                i0_1, k = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(A[i0_1, k])
+                Ts.writes(T_softmax_maxelem[i0_1])
+                with Ts.init():
                     T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e38)
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_expsum"):
-                i0_2, k = T.axis.remap("SR", [i0, i1])
-                T.reads(A[i0_2, k], T_softmax_maxelem[i0_2])
-                T.writes(T_softmax_expsum[i0_2])
-                with T.init():
+            with Ts.sblock("T_softmax_expsum"):
+                i0_2, k = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(A[i0_2, k], T_softmax_maxelem[i0_2])
+                Ts.writes(T_softmax_expsum[i0_2])
+                with Ts.init():
                     T_softmax_expsum[i0_2] = T.float32(0)
                 T_softmax_expsum[i0_2] = T_softmax_expsum[i0_2] + T.exp(
                     A[i0_2, k] - T_softmax_maxelem[i0_2], dtype="float32"
                 )
         for i0_3, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_norm"):
-                i0_4, i1_1 = T.axis.remap("SS", [i0_3, i1])
-                T.reads(A[i0_4, i1_1], T_softmax_maxelem[i0_4], T_softmax_expsum[i0_4])
-                T.writes(T_softmax_norm[i0_4, i1_1])
-                T.sblock_attr({"axis": 1})
+            with Ts.sblock("T_softmax_norm"):
+                i0_4, i1_1 = Ts.axis.remap("SS", [i0_3, i1])
+                Ts.reads(A[i0_4, i1_1], T_softmax_maxelem[i0_4], T_softmax_expsum[i0_4])
+                Ts.writes(T_softmax_norm[i0_4, i1_1])
+                Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_4, i1_1] = (
                     T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32")
                     / T_softmax_expsum[i0_4]
                 )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def softmax_mn_after_inline_1(
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_expsum = T.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
         for i0, i1_0 in T.grid(256, 4):
             for i1_1 in T.thread_binding(64, thread="threadIdx.x"):
-                with T.sblock("T_softmax_maxelem"):
-                    i0_1 = T.axis.spatial(256, i0)
-                    k = T.axis.reduce(256, i1_0 * 64 + i1_1)
-                    T.reads(A[i0_1, k])
-                    T.writes(T_softmax_maxelem[i0_1])
-                    with T.init():
+                with Ts.sblock("T_softmax_maxelem"):
+                    i0_1 = Ts.axis.spatial(256, i0)
+                    k = Ts.axis.reduce(256, i1_0 * 64 + i1_1)
+                    Ts.reads(A[i0_1, k])
+                    Ts.writes(T_softmax_maxelem[i0_1])
+                    with Ts.init():
                         T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e38)
                     T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_expsum"):
-                i0_2, k = T.axis.remap("SR", [i0, i1])
-                T.reads(A[i0_2, k], T_softmax_maxelem[i0_2])
-                T.writes(T_softmax_expsum[i0_2])
-                with T.init():
+            with Ts.sblock("T_softmax_expsum"):
+                i0_2, k = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(A[i0_2, k], T_softmax_maxelem[i0_2])
+                Ts.writes(T_softmax_expsum[i0_2])
+                with Ts.init():
                     T_softmax_expsum[i0_2] = T.float32(0)
                 T_softmax_expsum[i0_2] = T_softmax_expsum[i0_2] + T.exp(
                     A[i0_2, k] - T_softmax_maxelem[i0_2], dtype="float32"
                 )
         for i0_3, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_norm"):
-                i0_4, i1_1 = T.axis.remap("SS", [i0_3, i1])
-                T.reads(A[i0_4, i1_1], T_softmax_maxelem[i0_4], T_softmax_expsum[i0_4])
-                T.writes(T_softmax_norm[i0_4, i1_1])
-                T.sblock_attr({"axis": 1})
+            with Ts.sblock("T_softmax_norm"):
+                i0_4, i1_1 = Ts.axis.remap("SS", [i0_3, i1])
+                Ts.reads(A[i0_4, i1_1], T_softmax_maxelem[i0_4], T_softmax_expsum[i0_4])
+                Ts.writes(T_softmax_norm[i0_4, i1_1])
+                Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_4, i1_1] = (
                     T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32")
                     / T_softmax_expsum[i0_4]
                 )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def softmax_mn_after_inline_2(
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem = T.sblock_alloc_buffer([256], dtype="float32")
-        T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
+        T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
         for i0, i1 in T.grid(256, 256):
-            with T.sblock("T_softmax_maxelem"):
-                i0_1, k = T.axis.remap("SR", [i0, i1])
-                T.reads(A[i0_1, k])
-                T.writes(T_softmax_maxelem[i0_1])
-                with T.init():
+            with Ts.sblock("T_softmax_maxelem"):
+                i0_1, k = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(A[i0_1, k])
+                Ts.writes(T_softmax_maxelem[i0_1])
+                with Ts.init():
                     T_softmax_maxelem[i0_1] = T.float32(-3.4028234663852886e38)
                 T_softmax_maxelem[i0_1] = T.max(T_softmax_maxelem[i0_1], A[i0_1, k])
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 1):
                 for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_expsum"):
-                        T.where(ax1_0 * 512 + ax1_1 < 256)
-                        i0_2 = T.axis.spatial(256, i0_3 + ax0)
-                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
-                        T.reads(A[i0_2, k], T_softmax_maxelem[i0_2])
-                        T.writes(T_softmax_expsum_shared[i0_2])
-                        with T.init():
+                    with Ts.sblock("T_softmax_expsum"):
+                        Ts.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_2 = Ts.axis.spatial(256, i0_3 + ax0)
+                        k = Ts.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        Ts.reads(A[i0_2, k], T_softmax_maxelem[i0_2])
+                        Ts.writes(T_softmax_expsum_shared[i0_2])
+                        with Ts.init():
                             T_softmax_expsum_shared[i0_2] = T.float32(0)
                         T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
                             A[i0_2, k] - T_softmax_maxelem[i0_2], dtype="float32"
                         )
             for i1_0 in T.serial(1):
                 for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_norm"):
-                        T.where(i1_0 * 512 + i1_1 < 256)
-                        i0_4 = T.axis.spatial(256, i0_3)
-                        i1_1_1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
-                        T.reads(
+                    with Ts.sblock("T_softmax_norm"):
+                        Ts.where(i1_0 * 512 + i1_1 < 256)
+                        i0_4 = Ts.axis.spatial(256, i0_3)
+                        i1_1_1 = Ts.axis.spatial(256, i1_0 * 512 + i1_1)
+                        Ts.reads(
                             A[i0_4, i1_1_1], T_softmax_maxelem[i0_4], T_softmax_expsum_shared[i0_4]
                         )
-                        T.writes(T_softmax_norm[i0_4, i1_1_1])
-                        T.sblock_attr({"axis": 1})
+                        Ts.writes(T_softmax_norm[i0_4, i1_1_1])
+                        Ts.sblock_attr({"axis": 1})
                         T_softmax_norm[i0_4, i1_1_1] = (
                             T.exp(A[i0_4, i1_1_1] - T_softmax_maxelem[i0_4], dtype="float32")
                             / T_softmax_expsum_shared[i0_4]
                         )
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def softmax_mn_after_inline_3(
         A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
     ) -> None:
-        T_softmax_maxelem_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
-        T_softmax_expsum_shared = T.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
+        T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 1):
                 for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_maxelem"):
-                        T.where(ax1_0 * 512 + ax1_1 < 256)
-                        i0_1 = T.axis.spatial(256, i0_3 + ax0)
-                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
-                        T.reads(A[i0_1, k])
-                        T.writes(T_softmax_maxelem_shared[i0_1])
-                        with T.init():
+                    with Ts.sblock("T_softmax_maxelem"):
+                        Ts.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_1 = Ts.axis.spatial(256, i0_3 + ax0)
+                        k = Ts.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        Ts.reads(A[i0_1, k])
+                        Ts.writes(T_softmax_maxelem_shared[i0_1])
+                        with Ts.init():
                             T_softmax_maxelem_shared[i0_1] = T.float32(-3.4028234663852886e38)
                         T_softmax_maxelem_shared[i0_1] = T.max(
                             T_softmax_maxelem_shared[i0_1], A[i0_1, k]
                         )
             for ax0, ax1_0 in T.grid(1, 1):
                 for ax1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_expsum"):
-                        T.where(ax1_0 * 512 + ax1_1 < 256)
-                        i0_2 = T.axis.spatial(256, i0_3 + ax0)
-                        k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
-                        T.reads(A[i0_2, k], T_softmax_maxelem_shared[i0_2])
-                        T.writes(T_softmax_expsum_shared[i0_2])
-                        with T.init():
+                    with Ts.sblock("T_softmax_expsum"):
+                        Ts.where(ax1_0 * 512 + ax1_1 < 256)
+                        i0_2 = Ts.axis.spatial(256, i0_3 + ax0)
+                        k = Ts.axis.reduce(256, ax1_0 * 512 + ax1_1)
+                        Ts.reads(A[i0_2, k], T_softmax_maxelem_shared[i0_2])
+                        Ts.writes(T_softmax_expsum_shared[i0_2])
+                        with Ts.init():
                             T_softmax_expsum_shared[i0_2] = T.float32(0)
                         T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
                             A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32"
                         )
             for i1_0 in T.serial(1):
                 for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
-                    with T.sblock("T_softmax_norm"):
-                        T.where(i1_0 * 512 + i1_1 < 256)
-                        i0_4 = T.axis.spatial(256, i0_3)
-                        i1_1_1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
-                        T.reads(
+                    with Ts.sblock("T_softmax_norm"):
+                        Ts.where(i1_0 * 512 + i1_1 < 256)
+                        i0_4 = Ts.axis.spatial(256, i0_3)
+                        i1_1_1 = Ts.axis.spatial(256, i1_0 * 512 + i1_1)
+                        Ts.reads(
                             A[i0_4, i1_1_1],
                             T_softmax_maxelem_shared[i0_4],
                             T_softmax_expsum_shared[i0_4],
                         )
-                        T.writes(T_softmax_norm[i0_4, i1_1_1])
-                        T.sblock_attr({"axis": 1})
+                        Ts.writes(T_softmax_norm[i0_4, i1_1_1])
+                        Ts.sblock_attr({"axis": 1})
                         T_softmax_norm[i0_4, i1_1_1] = (
                             T.exp(A[i0_4, i1_1_1] - T_softmax_maxelem_shared[i0_4], dtype="float32")
                             / T_softmax_expsum_shared[i0_4]
@@ -497,53 +498,53 @@ def test_gpu_softmax_mn_after_inline():
 
 
 def test_gpu_batch_norm_bmn():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_norm_bmn_0(A: T.Buffer((1, 512, 512), "float32"), D: T.Buffer(1, "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
-        # with T.sblock("root")
-        C = T.sblock_alloc_buffer([1], dtype="float32")
+        # with Ts.sblock("root")
+        C = Ts.sblock_alloc_buffer([1], dtype="float32")
         for i0, i1, i2 in T.grid(1, 512, 512):
-            with T.sblock("C"):
-                b, i, j = T.axis.remap("SRR", [i0, i1, i2])
-                T.reads(A[b, i, j])
-                T.writes(C[b])
-                with T.init():
+            with Ts.sblock("C"):
+                b, i, j = Ts.axis.remap("SRR", [i0, i1, i2])
+                Ts.reads(A[b, i, j])
+                Ts.writes(C[b])
+                with Ts.init():
                     C[b] = T.float32(0)
                 C[b] = C[b] + A[b, i, j] * A[b, i, j]
         for i0 in T.serial(1):
-            with T.sblock("D"):
-                b = T.axis.spatial(1, i0)
-                T.reads(C[b])
-                T.writes(D[b])
+            with Ts.sblock("D"):
+                b = Ts.axis.spatial(1, i0)
+                Ts.reads(C[b])
+                Ts.writes(D[b])
                 D[b] = T.sqrt(C[b], dtype="float32")
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def batch_norm_bmn_1(A: T.Buffer((1, 512, 512), "float32"), D: T.Buffer(1, "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
-        # with T.sblock("root")
-        C_shared = T.sblock_alloc_buffer([1], dtype="float32", scope="shared")
+        # with Ts.sblock("root")
+        C_shared = Ts.sblock_alloc_buffer([1], dtype="float32", scope="shared")
         for i0_0 in T.serial(1):
             for ax0, ax1_ax2_fused_0 in T.grid(1, 1024):
                 for ax1_ax2_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        b = T.axis.spatial(1, ax0)
-                        i = T.axis.reduce(512, (ax1_ax2_fused_0 * 256 + ax1_ax2_fused_1) // 512)
-                        j = T.axis.reduce(512, (ax1_ax2_fused_0 * 256 + ax1_ax2_fused_1) % 512)
-                        T.reads(A[b, i, j])
-                        T.writes(C_shared[b])
-                        with T.init():
+                    with Ts.sblock("C"):
+                        b = Ts.axis.spatial(1, ax0)
+                        i = Ts.axis.reduce(512, (ax1_ax2_fused_0 * 256 + ax1_ax2_fused_1) // 512)
+                        j = Ts.axis.reduce(512, (ax1_ax2_fused_0 * 256 + ax1_ax2_fused_1) % 512)
+                        Ts.reads(A[b, i, j])
+                        Ts.writes(C_shared[b])
+                        with Ts.init():
                             C_shared[b] = T.float32(0)
                         C_shared[b] = C_shared[b] + A[b, i, j] * A[b, i, j]
             for i0_1 in T.thread_binding(256, thread="threadIdx.x"):
-                with T.sblock("D"):
-                    T.where(i0_0 * 256 + i0_1 < 1)
-                    b = T.axis.spatial(1, i0_0 * 256 + i0_1)
-                    T.reads(C_shared[b])
-                    T.writes(D[b])
+                with Ts.sblock("D"):
+                    Ts.where(i0_0 * 256 + i0_1 < 1)
+                    b = Ts.axis.spatial(1, i0_0 * 256 + i0_1)
+                    Ts.reads(C_shared[b])
+                    Ts.writes(D[b])
                     D[b] = T.sqrt(C_shared[b], dtype="float32")
 
     decision_0 = []  # type: ignore
@@ -566,7 +567,7 @@ def test_gpu_batch_norm_bmn():
     )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax(
     idx: T.Buffer((128, 128), "int32"),
     val: T.Buffer((128, 128), "float32"),
@@ -574,12 +575,12 @@ def argmax(
     argmax_v1: T.Buffer((128,), "float32"),
 ) -> None:
     for i0, i1 in T.grid(128, 128):
-        with T.sblock("argmax"):
-            i = T.axis.spatial(128, i0)
-            k = T.axis.reduce(128, i1)
-            T.reads(idx[i, k], val[i, k])
-            T.writes(argmax_v0[i], argmax_v1[i])
-            with T.init():
+        with Ts.sblock("argmax"):
+            i = Ts.axis.spatial(128, i0)
+            k = Ts.axis.reduce(128, i1)
+            Ts.reads(idx[i, k], val[i, k])
+            Ts.writes(argmax_v0[i], argmax_v1[i])
+            with Ts.init():
                 argmax_v0[i] = -1
                 argmax_v1[i] = T.min_value("float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
@@ -592,7 +593,7 @@ def argmax(
             argmax_v1[i] = v_argmax_v1
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def argmax_32(
     idx: T.Buffer((1, 32), "int32"),
     val: T.Buffer((1, 32), "float32"),
@@ -600,12 +601,12 @@ def argmax_32(
     argmax_v1: T.Buffer((1,), "float32"),
 ) -> None:
     for i0, i1 in T.grid(1, 32):
-        with T.sblock("argmax"):
-            i = T.axis.spatial(1, i0)
-            k = T.axis.reduce(32, i1)
-            T.reads(idx[i, k], val[i, k])
-            T.writes(argmax_v0[i], argmax_v1[i])
-            with T.init():
+        with Ts.sblock("argmax"):
+            i = Ts.axis.spatial(1, i0)
+            k = Ts.axis.reduce(32, i1)
+            Ts.reads(idx[i, k], val[i, k])
+            Ts.writes(argmax_v0[i], argmax_v1[i])
+            with Ts.init():
                 argmax_v0[i] = -1
                 argmax_v1[i] = T.min_value("float32")
             v_argmax_v0: T.let[T.int32] = T.Select(
@@ -619,7 +620,7 @@ def argmax_32(
 
 
 def test_gpu_argmax():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def argmax_0(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),
@@ -627,13 +628,13 @@ def test_gpu_argmax():
         argmax_v1: T.Buffer(128, "float32"),
     ) -> None:
         # body
-        # with T.sblock("root")
+        # with Ts.sblock("root")
         for i0, i1 in T.grid(128, 128):
-            with T.sblock("argmax"):
-                i, k = T.axis.remap("SR", [i0, i1])
-                T.reads(idx[i, k], val[i, k])
-                T.writes(argmax_v0[i], argmax_v1[i])
-                with T.init():
+            with Ts.sblock("argmax"):
+                i, k = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(idx[i, k], val[i, k])
+                Ts.writes(argmax_v0[i], argmax_v1[i])
+                with Ts.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
                 v_argmax_v0: T.let[T.int32] = T.Select(
@@ -645,7 +646,7 @@ def test_gpu_argmax():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def argmax_1(
         idx: T.Buffer((128, 128), "int32"),
         val: T.Buffer((128, 128), "float32"),
@@ -653,15 +654,15 @@ def test_gpu_argmax():
         argmax_v1: T.Buffer(128, "float32"),
     ) -> None:
         # body
-        # with T.sblock("root")
+        # with Ts.sblock("root")
         for i0, i1_0 in T.grid(128, 2):
             for i1_1 in T.thread_binding(64, thread="threadIdx.x"):
-                with T.sblock("argmax"):
-                    i = T.axis.spatial(128, i0)
-                    k = T.axis.reduce(128, i1_0 * 64 + i1_1)
-                    T.reads(idx[i, k], val[i, k])
-                    T.writes(argmax_v0[i], argmax_v1[i])
-                    with T.init():
+                with Ts.sblock("argmax"):
+                    i = Ts.axis.spatial(128, i0)
+                    k = Ts.axis.reduce(128, i1_0 * 64 + i1_1)
+                    Ts.reads(idx[i, k], val[i, k])
+                    Ts.writes(argmax_v0[i], argmax_v1[i])
+                    with Ts.init():
                         argmax_v0[i] = -1
                         argmax_v1[i] = T.float32(-3.4028234663852886e38)
                     v_argmax_v0: T.let[T.int32] = T.Select(
@@ -694,7 +695,7 @@ def test_gpu_argmax():
 
 
 def test_gpu_argmax_32():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def argmax_0(
         idx: T.Buffer((1, 32), "int32"),
         val: T.Buffer((1, 32), "float32"),
@@ -702,13 +703,13 @@ def test_gpu_argmax_32():
         argmax_v1: T.Buffer((1,), "float32"),
     ) -> None:
         # body
-        # with T.sblock("root")
+        # with Ts.sblock("root")
         for i0, i1 in T.grid(1, 32):
-            with T.sblock("argmax"):
-                i, k = T.axis.remap("SR", [i0, i1])
-                T.reads(idx[i, k], val[i, k])
-                T.writes(argmax_v0[i], argmax_v1[i])
-                with T.init():
+            with Ts.sblock("argmax"):
+                i, k = Ts.axis.remap("SR", [i0, i1])
+                Ts.reads(idx[i, k], val[i, k])
+                Ts.writes(argmax_v0[i], argmax_v1[i])
+                with Ts.init():
                     argmax_v0[i] = -1
                     argmax_v1[i] = T.float32(-3.4028234663852886e38)
                 v_argmax_v0: T.let[T.int32] = T.Select(
@@ -720,7 +721,7 @@ def test_gpu_argmax_32():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def argmax_1(
         idx: T.Buffer((1, 32), "int32"),
         val: T.Buffer((1, 32), "float32"),
@@ -728,16 +729,16 @@ def test_gpu_argmax_32():
         argmax_v1: T.Buffer((1,), "float32"),
     ) -> None:
         # body
-        # with T.sblock("root")
+        # with Ts.sblock("root")
         for i0, i1_0 in T.grid(1, 1):
             for i1_1 in T.thread_binding(64, thread="threadIdx.x"):
-                with T.sblock("argmax"):
-                    i = T.axis.spatial(1, i0)
-                    k = T.axis.reduce(32, i1_0 * 64 + i1_1)
-                    T.where(i1_0 * 64 + i1_1 < 32)
-                    T.reads(idx[i, k], val[i, k])
-                    T.writes(argmax_v0[i], argmax_v1[i])
-                    with T.init():
+                with Ts.sblock("argmax"):
+                    i = Ts.axis.spatial(1, i0)
+                    k = Ts.axis.reduce(32, i1_0 * 64 + i1_1)
+                    Ts.where(i1_0 * 64 + i1_1 < 32)
+                    Ts.reads(idx[i, k], val[i, k])
+                    Ts.writes(argmax_v0[i], argmax_v1[i])
+                    with Ts.init():
                         argmax_v0[i] = -1
                         argmax_v1[i] = T.float32(-3.4028234663852886e38)
                     v_argmax_v0: T.let[T.int32] = T.Select(

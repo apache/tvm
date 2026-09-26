@@ -26,9 +26,8 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
-#include <tvm/tirx/buffer.h>
-#include <tvm/tirx/buffer_region.h>
 #include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/layout.h>
 
 #include <optional>

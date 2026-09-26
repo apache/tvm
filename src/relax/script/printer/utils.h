@@ -141,8 +141,6 @@ ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
 
 Doc PrintRelaxVar(tvm::Var n, AccessPath p, IRDocsifier d);
 
-ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifier& d);
-
 inline int FindVDeviceIndexByTargetKind(const relax::VDevice& vdevice, const IRDocsifier& d) {
   ffi::Array<GlobalInfo> vdevices = d->global_infos["vdevice"];
   int kind_index = 0;

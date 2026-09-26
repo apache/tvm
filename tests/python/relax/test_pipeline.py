@@ -56,12 +56,14 @@ def test_pipeline_with_kv_cache():
     target = tvm.target.Target("llvm", host="llvm")
     pipeline = relax.pipeline.get_default_pipeline(target)
 
+    m = T.dynamic("m")
+    L = T.dynamic("L")
+
     @tvm.script.ir_module
     class Mod:
         @R.function
-        def create_kv_cache(reserve_slots: R.Shape(["m"])):
+        def create_kv_cache(reserve_slots: R.Shape([m])):
             # just allocate minimum slot since it is only used to signal dtype
-            m = T.int64()
             init_data = R.ones((1, 4), "float32")
             kv_cache = R.call_pure_packed(
                 "vm.builtin.attention_kv_cache_create",
@@ -76,10 +78,9 @@ def test_pipeline_with_kv_cache():
         def main(
             x: R.Tensor((1, 4), "float32"),
             y: R.Tensor((1, 4), "float32"),
-            shape: R.Shape(["L", 4]),
+            shape: R.Shape([L, 4]),
             kv_cache: R.Any,
         ):
-            L = T.int64()
             # computation of the current value
             curr_value = R.add(x, y)
             # update cache

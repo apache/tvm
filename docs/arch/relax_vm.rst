@@ -91,13 +91,7 @@ Internally, ``relax.build()`` performs these steps:
 4. **Link** the bytecode executable with the compiled native module using ``VMLink``, producing
    a ``VMExecutable``.
 
-Two execution modes are supported:
-
-- ``exec_mode="bytecode"`` (default): Relax functions are interpreted by the VM's bytecode
-  dispatch loop.
-- ``exec_mode="compiled"``: Relax functions are compiled into TIR functions (``VMTIRCodeGen``)
-  that directly manipulate the register file, bypassing the interpreter loop. This avoids
-  dispatch overhead but produces more code.
+Relax functions execute through the VM bytecode dispatch loop.
 
 Bytecode generation
 ~~~~~~~~~~~~~~~~~~~
@@ -180,7 +174,7 @@ execution:
 Function kinds
 ~~~~~~~~~~~~~~
 
-The VM recognizes three function kinds (``VMFuncInfo::FuncKind``):
+The VM recognizes two function kinds (``VMFuncInfo::FuncKind``):
 
 .. list-table::
    :header-rows: 1
@@ -193,10 +187,6 @@ The VM recognizes three function kinds (``VMFuncInfo::FuncKind``):
        registry. Examples: ``vm.builtin.alloc_shape_heap``, ``vm.builtin.match_shape``.
    * - ``kVMFunc``
      - A bytecode-interpreted Relax function. The VM interprets its instructions in ``RunLoop()``.
-   * - ``kVMTIRFunc``
-     - A Relax function compiled to a TIR function (``exec_mode="compiled"``). Found in
-       imports under the name ``__vmtir__<func_name>``. Called directly with register file
-       pointers, bypassing the interpreter loop.
 
 Serialization
 ~~~~~~~~~~~~~
@@ -239,7 +229,7 @@ Under the hood:
    (either ``NAIVE_ALLOCATOR`` or ``POOLED_ALLOCATOR``, defaulting to pooled). A CPU device
    is always added for shape computations.
 3. **InitFuncPool**: the function pool is populated — ``kPackedFunc`` entries are resolved from
-   imports or the global registry; ``kVMFunc`` and ``kVMTIRFunc`` entries are wrapped in
+   imports or the global registry; ``kVMFunc`` entries are wrapped in
    ``VMClosure`` objects.
 4. **Constant pool**: model constants are loaded and optionally transferred to the target device.
 
@@ -286,7 +276,7 @@ VMClosure and function dispatch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Functions in the VM are stored in a ``func_pool_`` indexed by function table position.
-``kVMFunc`` and ``kVMTIRFunc`` entries are wrapped as ``VMClosure`` objects, while ``kPackedFunc``
+``kVMFunc`` entries are wrapped as ``VMClosure`` objects, while ``kPackedFunc``
 entries are stored as plain ``ffi::Function``. A ``VMClosure`` stores:
 
 - ``func_name``: the function's string name.
@@ -419,8 +409,6 @@ Source Code Map
      - Built-in operations (shape matching, allocation)
    * - ``src/relax/backend/vm/codegen_vm.cc``
      - CodeGenVM: Relax IR → bytecode
-   * - ``src/relax/backend/vm/codegen_vm_tir.cc``
-     - VMTIRCodeGen: Relax IR → compiled TIR
    * - ``python/tvm/runtime/vm.py``
      - Python VirtualMachine wrapper
    * - ``python/tvm/relax/vm_build.py``

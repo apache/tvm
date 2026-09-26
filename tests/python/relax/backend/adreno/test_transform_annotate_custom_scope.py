@@ -195,6 +195,15 @@ def test_conv2d_NHWC_sub_indexed():
 
 
 def _test_conv2d_symbolic_sub_indexed():
+    N, H, W = T.dynamic("N"), T.dynamic("H"), T.dynamic("W")
+    Hw, Ww = T.dynamic("Hw"), T.dynamic("Ww")
+
+    N = T.dynamic("N")
+    H = T.dynamic("H")
+    W = T.dynamic("W")
+    Hw = T.dynamic("Hw")
+    Ww = T.dynamic("Ww")
+
     @I.ir_module
     class Input:
         @R.function
@@ -202,13 +211,9 @@ def _test_conv2d_symbolic_sub_indexed():
             "float32", ndim=4
         ):
             with R.dataflow():
-                N, C, H, W = T.int64(), I.meta_var(T.int64(16)), T.int64(), T.int64()
-                Nw, Cw, Hw, Ww = (
-                    I.meta_var(T.int64(4)),
-                    I.meta_var(T.int64(16)),
-                    T.int64(),
-                    T.int64(),
-                )
+                C = I.meta_var(T.int64(16))
+                Nw = I.meta_var(T.int64(4))
+                Cw = I.meta_var(T.int64(16))
                 lv0 = R.match_cast(x, R.Tensor((N, C, H, W), "float32"))
                 lv1 = R.match_cast(w, R.Tensor((Nw, Cw, Hw, Ww), "float32"))
                 gv: R.Tensor(

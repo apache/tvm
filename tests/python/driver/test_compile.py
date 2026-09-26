@@ -23,6 +23,7 @@ from tvm import relax, te
 from tvm.runtime import Executable
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -89,7 +90,7 @@ def test_compile_relax():
 def test_compile_mixed_module():
     @tvm.script.ir_module
     class MyModule:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_one(X: T.Buffer((4,), "float32"), Y: T.Buffer((4,), "float32")):
             for i in range(4):
                 Y[i] = X[i] + 1

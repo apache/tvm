@@ -53,7 +53,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
       // same Relax-facing wildcard semantics that opaque handle parameters had
       // before pointers became exact IR types.
       if (param->ty.as<PointerTypeNode>()) {
-        return relax::AnyType();
+        return AnyType();
       }
 
       return param->ty;
@@ -67,7 +67,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
     } else if (IsVoidType(prim_func->ret_type)) {
       return relax::TupleType(ffi::Array<tvm::Type>{});
     } else {
-      return relax::AnyType();
+      return AnyType();
     }
   }();
 

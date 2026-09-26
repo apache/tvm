@@ -278,7 +278,7 @@ class Trace(Object):
         style : str, optional
 
             Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
+            `tvm.script.printer.highlight.cprint` for more details.
 
         black_format: bool
 
@@ -286,7 +286,7 @@ class Trace(Object):
             If None, determine based on the "TVM_BLACK_FORMAT" environment
             variable.
         """
-        from tvm.script.highlight import (  # pylint: disable=import-outside-toplevel
+        from tvm.script.printer.highlight import (  # pylint: disable=import-outside-toplevel
             cprint,
         )
 

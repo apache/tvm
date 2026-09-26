@@ -23,14 +23,6 @@ from tvm import tirx
 from tvm.backend.cuda import op as _cuda_op
 
 
-def test_tir_op_tvm_tuple():
-    x = tirx.Var("x", ty="float32")
-    y = tirx.Var("y", ty="float32")
-    z = tirx.Var("z", ty="float32")
-    expr = tirx.tvm_tuple(x, y, z, 1, 2, 3)
-    assert expr.op.name == "tirx.tvm_tuple"
-
-
 def test_tir_op_tvm_struct_get():
     x = tirx.Var("x", ty="handle")
     expr = tirx.tvm_struct_get(x, 1, 2, dtype="int32")
@@ -54,17 +46,6 @@ def test_tir_op_address_of():
     assert tirx.address_of(pooled_buffer[0]).ty == expected_ty
     scalar_address = tirx.address_of(tirx.Var("value", "uint32"))
     assert scalar_address.ty == tvm.ir.PointerType(tvm.ir.PrimType("uint32"))
-
-
-def test_tir_op_trace_pointer():
-    pointer = tirx.Var("pointer", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
-    traced = tirx.trace([pointer])
-    assert traced.ty == pointer.ty
-
-
-def test_tir_op_lookup_param():
-    expr = tirx.lookup_param("p0")
-    assert expr.op.name == "tirx.lookup_param"
 
 
 def test_tir_op_reinterpret():

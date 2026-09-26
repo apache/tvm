@@ -150,9 +150,7 @@ def _make_cp_kernel(
         cfg.update(extra_cfg)
 
     @T.prim_func(check_well_formed=False)
-    def kernel(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, s_full_shape, dtype)
-        B = T.match_buffer(B_ptr, (128, W32), "uint32")
+    def kernel(A: T.Buffer(s_full_shape, dtype), B: T.Buffer((128, W32), "uint32")):
         T.device_entry()
         warp_id = T.warp_id([4])
         wg_id = T.warpgroup_id([1])
@@ -475,9 +473,7 @@ def _make_cp_kernel_cta2(s_full, s_shape, t_full, t_shape, dtype, cfg, W32, n_co
     t_sl = tuple(slice(0, e) for e in t_shape)
 
     @T.prim_func(check_well_formed=False)
-    def kernel(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (2, *s_shape), dtype)
-        B = T.match_buffer(B_ptr, (256, W32), "uint32")
+    def kernel(A: T.Buffer((2, *s_shape), dtype), B: T.Buffer((256, W32), "uint32")):
         T.device_entry()
         warp_id = T.warp_id([4])
         cbx, cby = T.cta_id_in_cluster([2, 1])
@@ -645,8 +641,7 @@ def test_cp_default_32x128b_instruction_sequence_unchanged():
     t_full = TileLayout(S[(4, 32, 16) : (16 @ TCol, 1 @ TLane, 1 @ TCol)] + R[4 : 32 @ TLane])
 
     @T.prim_func(check_well_formed=False)
-    def kernel(A_ptr: T.handle):
-        A = T.match_buffer(A_ptr, (4, 32, 16), "uint8")
+    def kernel(A: T.Buffer((4, 32, 16), "uint8")):
         T.device_entry()
         warp_id = T.warp_id([4])
         wg_id = T.warpgroup_id([1])
@@ -933,9 +928,7 @@ def _make_2d_kernel(
     OUT_BYTES = 16
 
     @T.prim_func(check_well_formed=False)
-    def kernel(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, s_full_shape, dtype)
-        B = T.match_buffer(B_ptr, (OUT_LANES, OUT_BYTES), dtype)
+    def kernel(A: T.Buffer(s_full_shape, dtype), B: T.Buffer((OUT_LANES, OUT_BYTES), dtype)):
         T.device_entry()
         warp_id = T.warp_id([4])
         wg_id = T.warpgroup_id([1])
@@ -998,9 +991,7 @@ def _make_3d_4tile_kernel(s_full, t_full, s_full_shape, t_full_shape, dtype, cta
     n_tmem_cols_total = max(32, t_full_shape[-1])
 
     @T.prim_func(check_well_formed=False)
-    def kernel(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, s_full_shape, dtype)
-        B = T.match_buffer(B_ptr, (32, 16), dtype)
+    def kernel(A: T.Buffer(s_full_shape, dtype), B: T.Buffer((32, 16), dtype)):
         T.device_entry()
         warp_id = T.warp_id([4])
         wg_id = T.warpgroup_id([1])
@@ -1178,9 +1169,7 @@ def test_align_middle_2_to_1_nvfp4_sfb():
     n_tmem_cols_total = max(32, 32)  # SFB occupies 32 cols total (8*4 elements / 4 epc)
 
     @T.prim_func(check_well_formed=False)
-    def kernel(A_ptr: T.handle, B_ptr: T.handle):
-        A = T.match_buffer(A_ptr, s_full_shape, "uint8")
-        B = T.match_buffer(B_ptr, (32, 16), "uint8")
+    def kernel(A: T.Buffer(s_full_shape, "uint8"), B: T.Buffer((32, 16), "uint8")):
         T.device_entry()
         warp_id = T.warp_id([4])
         wg_id = T.warpgroup_id([1])

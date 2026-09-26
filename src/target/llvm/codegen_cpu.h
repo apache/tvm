@@ -143,8 +143,6 @@ class CodeGenCPU : public CodeGenLLVM {
                                    const int64_t begin, const int64_t end, bool use_string_lookup);
   // create call into tvm packed function.
   llvm::Value* CreateCallPacked(const CallNode* op);
-  // Create trace call into tvm packed function.
-  llvm::Value* CreateCallTracePacked(const CallNode* op);
   // Create parallel launch
   void CreateParallelLaunch(const Stmt& body, int num_task, std::string name = "");
   // Create a new compute scope.

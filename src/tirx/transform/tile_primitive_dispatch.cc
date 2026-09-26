@@ -52,9 +52,8 @@ namespace tirx {
 
 namespace {
 
-// Gather every ScopeIdDef declared anywhere under a given Stmt, paired with
-// the source stmt node that declared it (for implicit-eval routing). The
-// source is the AttrStmt(kDeviceEntry) marker.
+// Gather ScopeIdDefs with their enclosing device-entry marker, preserving
+// nested-before-direct declaration order for launch parameter resolution.
 struct ScopeIdDefWithSource {
   ScopeIdDef def;
   const StmtNode* source_stmt;
@@ -185,57 +184,6 @@ class ScopeIdDefRemover : public StmtExprMutator {
   }
 };
 
-// For implicitly-named ScopeIdDefs (parser-emitted Var("")), inject an
-// Evaluate(var) at the source stmt's body so the binding stays observably
-// live in the IR even if user code never references it. Routing uses source
-// stmt-node identity to match against the device-entry marker.
-class ImplicitScopeIdEvalInjector : public StmtExprMutator {
- public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
-  static Stmt Inject(const Stmt& stmt,
-                     const std::vector<std::pair<Var, const StmtNode*>>& eval_specs) {
-    auto injector = ffi::make_object<ImplicitScopeIdEvalInjector>(eval_specs);
-    return injector->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
-  }
-  explicit ImplicitScopeIdEvalInjector(
-      const std::vector<std::pair<Var, const StmtNode*>>& eval_specs) {
-    for (const auto& [var, src] : eval_specs) {
-      eval_map_[src].push_back(var);
-    }
-  }
-
-  ffi::Array<Stmt> ConsumeEvalsFor(const StmtNode* src) {
-    ffi::Array<Stmt> evals;
-    auto it = eval_map_.find(src);
-    if (it != eval_map_.end() && !it->second.empty()) {
-      evals.reserve(it->second.size());
-      for (const Var& var : it->second) {
-        evals.push_back(Evaluate(var));
-      }
-      eval_map_.erase(it);
-    }
-    return evals;
-  }
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    auto body_result = Mutate(op->body, inplace_mode);
-    bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
-    Stmt body = std::move(body_result).ValueOrUnchanged(op->body);
-    if (op->attr_key == tvm::tirx::attr::kDeviceEntry) {
-      auto evals = ConsumeEvalsFor(op);
-      if (!evals.empty()) {
-        body = SeqStmt::Flatten(evals, body);
-        body_unchanged = false;
-      }
-    }
-    if (body_unchanged) return ffi::Unchanged();
-    return AttrStmt(op->node, op->attr_key, op->value, body, op->span);
-  }
-
-  std::unordered_map<const StmtNode*, std::vector<Var>> eval_map_;
-};
-
 }  // namespace
 
 class NoOpCallVerifier : public Verifier<NoOpCallVerifier> {
@@ -317,7 +265,6 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     std::swap(is_first_block, is_first_block_);
 
     std::vector<std::pair<Var, PrimExpr>> scope_binds;
-    std::vector<std::pair<Var, const StmtNode*>> implicit_scope_id_evals;
 
     launch_params_.clear();
     // Pre-dispatch: only populate ``launch_params_`` + synthesize
@@ -337,7 +284,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
     // Post-dispatch: re-gather the now-inlined body and resolve every
     // ``ScopeIdDef`` (kernel-side + dispatch-introduced) into ``scope_binds``.
-    ResolveAllScopeBinds(entry_node, body, &scope_binds, &implicit_scope_id_evals);
+    ResolveAllScopeBinds(body, &scope_binds);
 
     auto pop_exec_contexts = [&]() {
       if (pushed_base_ctx) ctx_stack_.pop_back();
@@ -369,38 +316,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
     alloc_buffers_.clear();
 
-    // Partition implicit evals: evals sourced from the device-entry marker
-    // are prepended directly to ``body``. The entry-marker wrapper is
-    // stripped below, so the injector (which matches by source node identity)
-    // can't reach into the stripped node — handle these inline. Evals
-    // sourced from inner ExecScopes (which survive lowering) are still
-    // routed via the injector.
-    {
-      ffi::Array<Stmt> prepend_evals;
-      std::vector<std::pair<Var, const StmtNode*>> remaining;
-      const StmtNode* entry_stmt = static_cast<const StmtNode*>(entry_node);
-      for (const auto& [var, src] : implicit_scope_id_evals) {
-        if (src == entry_stmt) {
-          prepend_evals.push_back(Evaluate(var));
-        } else {
-          remaining.push_back({var, src});
-        }
-      }
-      if (!prepend_evals.empty()) {
-        body = SeqStmt::Flatten(prepend_evals, body);
-      }
-      implicit_scope_id_evals = std::move(remaining);
-    }
-
     // Strip the device-entry marker; its only role was to scope this
     // processing. Downstream passes consume the bound launch params and
     // alloc buffers wrapping ``body`` directly.
     Stmt res = body;
-
-    // Inject implicit scope-id evals sourced from the device-entry marker.
-    // Must run before ScopeIdDefRemover, which rebuilds nodes and
-    // invalidates source identities.
-    res = ImplicitScopeIdEvalInjector::Inject(res, implicit_scope_id_evals);
 
     // Strip standalone ScopeIdDefStmt nodes -- their values are now bound at
     // kernel scope via the Bind statements below.
@@ -415,8 +334,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
     res = SeqStmt::Flatten(bind_stmts, res);
 
-    // Wrap with thread_extent attrs (consumed by downstream codegen passes
-    // that expect TVM-standard thread launch annotations).
+    // Launch extents come from ScopeIdDefs, independently of whether their
+    // returned Vars are named or used. Downstream codegen consumes these attrs.
     for (const auto& [tag, iv] : launch_params_) {
       if (tag == "warp_id_in_cta") continue;
       res = AttrStmt(iv, tirx::attr::thread_extent, iv->dom->extent, res);
@@ -704,24 +623,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   // POST-DISPATCH step: re-gather the now-inlined body (which includes any
   // ScopeIdDefs introduced inside dispatched impls), verify against the
   // current launch_params, resolve each def, and push (Var, value) pairs
-  // into ``*scope_binds``. Implicit (unnamed) scope-id Vars are recorded
-  // for later evaluate-injection.
-  void ResolveAllScopeBinds(const AttrStmtNode* entry_node, Stmt body,
-                            std::vector<std::pair<Var, PrimExpr>>* scope_binds,
-                            std::vector<std::pair<Var, const StmtNode*>>* implicit_scope_id_evals) {
+  // into ``*scope_binds``.
+  void ResolveAllScopeBinds(Stmt body, std::vector<std::pair<Var, PrimExpr>>* scope_binds) {
     // Gather from a temporary stmt synthesized as the device-entry marker
-    // so direct ScopeIdDefStmt children are attributed back to entry_node.
+    // to retain nested-before-direct declaration order.
     Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
-    // Remap the synthetic source pointer back to the real entry_node so the
-    // injector matches against the actual node present in the post-processed
-    // IR.
-    const StmtNode* synth_src = static_cast<const StmtNode*>(gather_target.get());
-    for (auto& g : gathered) {
-      if (g.source_stmt == synth_src) {
-        g.source_stmt = static_cast<const StmtNode*>(entry_node);
-      }
-    }
     Array<ScopeIdDef> defs;
     defs.reserve(gathered.size());
     for (const auto& g : gathered) defs.push_back(g.def);
@@ -729,7 +636,6 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     ScopeIdDefVerifier verifier;
     TVM_FFI_ICHECK(verifier.Verify(defs)) << "Inconsistent ScopeIdDef";
 
-    auto is_implicit = [](const Var& v) { return v->name.empty(); };
     for (const auto& g : gathered) {
       ScopeIdDef def = g.def;
       // Deferred extents: resolved via closure into verifier.id_set.
@@ -756,9 +662,6 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
           value = prim::Cast(bind_var_ty, value);
         }
         scope_binds->push_back({bind_var, value});
-        if (is_implicit(bind_var)) {
-          implicit_scope_id_evals->push_back({bind_var, g.source_stmt});
-        }
       }
     }
   }

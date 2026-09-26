@@ -24,12 +24,13 @@ from tvm.script import tirx as T
 
 
 def test_alloc_storage():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function(pure=False)
-        def main(shape: R.Shape(["m", "n"])):  # type: ignore
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):  # type: ignore
             storage: R.Any = R.memory.alloc_storage(
                 R.shape([m, n]), R.prim_value(0), R.str("ipc_memory"), R.dtype("float16")
             )
@@ -38,12 +39,13 @@ def test_alloc_storage():
             )
             return alloc
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function(pure=False)
-        def main(shape: R.Shape(["m", "n"])):  # type: ignore
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):  # type: ignore
             storage: R.Any = R.call_packed(
                 "runtime.disco.cuda_ipc.alloc_storage",
                 R.shape([m, n]),
@@ -60,23 +62,25 @@ def test_alloc_storage():
 
 
 def test_builtin_alloc_tensor():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function(pure=False)
-        def main(shape: R.Shape(["m", "n"])):  # type: ignore
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):  # type: ignore
             tensor: R.Any = R.builtin.alloc_tensor(
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("ipc_memory")
             )
             return tensor
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function(pure=False)
-        def main(shape: R.Shape(["m", "n"])):  # type: ignore
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):  # type: ignore
             gv: R.Any = R.call_packed(
                 "runtime.disco.cuda_ipc.alloc_storage",
                 R.shape([m, n]),

@@ -1937,8 +1937,10 @@ struct ReverseComputeInlineTraits : public UnpackedInstTraits<ReverseComputeInli
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(ComputeInlineTraits);
-TVM_REGISTER_INST_KIND_TRAITS(ReverseComputeInlineTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<ComputeInlineTraits>();
+  RegisterInstructionKind<ReverseComputeInlineTraits>();
+}
 
 struct FuseReductionEpilogueTraits : public UnpackedInstTraits<FuseReductionEpilogueTraits> {
   static constexpr const char* kName = "FuseReductionEpilogue";
@@ -1967,7 +1969,7 @@ struct FuseReductionEpilogueTraits : public UnpackedInstTraits<FuseReductionEpil
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(FuseReductionEpilogueTraits);
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<FuseReductionEpilogueTraits>(); }
 
 }  // namespace s_tir
 }  // namespace tvm

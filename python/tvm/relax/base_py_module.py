@@ -19,6 +19,8 @@
 
 import inspect
 import os
+import sys
+import weakref
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -43,6 +45,11 @@ except ImportError:
     _FASTER_DLPACK_EXTENSION = None
 
 
+# Maps a registered Python function name to the id of the BasePyModule that registered it last.
+# A module only unregisters names it still owns, so re-registering a name transfers ownership.
+_PY_FUNC_OWNERS: dict[str, int] = {}
+
+
 class BasePyModule:
     """Base class that allows Python functions in IRModule with DLPack conversion.
 
@@ -52,15 +59,35 @@ class BasePyModule:
     3. Wrapping Relax functions for easy Python calling.
     4. Cross-function calls between Python, TIR, and Relax functions.
 
-    Only IRModules that inherit from this class are allowed to contain Python functions.
+    Shared IRModules collect Python functions in ``__pyfuncs__``. Decorating a
+    subclass with ``R.py_module`` adds this executable runtime interface.
     """
 
+    # Names this instance registered with the VM's Python function registry. The registry is
+    # global, so a module must only remove entries it still owns.
+    _registered_py_funcs: tuple[str, ...] = ()
+
     def __del__(self):
-        """Clean up registered Python functions on module destruction."""
+        """Unregister the Python functions this module still owns."""
+        registered = getattr(self, "_registered_py_funcs", None)
+        if not registered:
+            return
         try:
-            clear_func = tvm.get_global_func("vm.builtin.clear_py_func_registry")
-            clear_func()
-        except (ValueError, AttributeError):
+            # Release ownership first: if the call below fails, the map must not keep pointing at
+            # a destroyed module, whose id() a later module could reuse.
+            owned = [name for name in registered if _PY_FUNC_OWNERS.get(name) == id(self)]
+            for func_name in owned:
+                del _PY_FUNC_OWNERS[func_name]
+            # Once finalization starts the registry goes away with the process, and the module
+            # globals this needs may already be cleared.
+            if not owned or sys.is_finalizing():
+                return
+            unregister_py_func = tvm.get_global_func("vm.builtin.unregister_py_func")
+            for func_name in owned:
+                unregister_py_func(func_name)
+        except Exception:  # pylint: disable=broad-except
+            # A finalizer must not raise: either the interpreter is shutting down or the runtime
+            # is already unusable, and in both cases the registry no longer matters.
             pass
 
     def __init__(
@@ -168,8 +195,8 @@ class BasePyModule:
             def _create_relax_wrapper(name):
                 def wrapper(*args, **kwargs):
                     """Wrapper for Relax function with automatic tensor conversion."""
-                    if hasattr(self.ir_mod, "pyfuncs") and name in self.ir_mod.pyfuncs:
-                        return self.ir_mod.pyfuncs[name](*args, **kwargs)
+                    if hasattr(self.ir_mod, "__pyfuncs__") and name in self.ir_mod.__pyfuncs__:
+                        return self.ir_mod.__pyfuncs__[name](*args, **kwargs)
 
                     if self.relax_vm is not None:
                         converted_args = self._convert_pytorch_to_tvm(list(args))
@@ -191,7 +218,7 @@ class BasePyModule:
 
     def _register_python_functions(self):
         """Register Python functions with the VM runtime for call_py_func support."""
-        if not hasattr(self.ir_mod, "pyfuncs") or not self.ir_mod.pyfuncs:
+        if not hasattr(self.ir_mod, "__pyfuncs__") or not self.ir_mod.__pyfuncs__:
             return
 
         try:
@@ -199,24 +226,39 @@ class BasePyModule:
         except ValueError:
             return
 
-        for func_name, py_func in self.ir_mod.pyfuncs.items():
+        for func_name, py_func in self.ir_mod.__pyfuncs__.items():
 
             def create_py_func_wrapper(name, original_func):
+                # The registry owns the wrapper, so capture the module weakly. A strong capture
+                # would make every registering module immortal, keeping its entries registered
+                # for the lifetime of the process.
+                module_ref = weakref.ref(self)
+
                 def wrapper(*args, **kwargs):
-                    converted_args = [self._convert_tvm_to_pytorch(arg) for arg in args]
+                    module = module_ref()
+                    if module is None:
+                        raise RuntimeError(
+                            f"Python function '{name}' belongs to a BasePyModule that has been "
+                            "destroyed; keep the module alive while calling into it."
+                        )
+
+                    converted_args = [module._convert_tvm_to_pytorch(arg) for arg in args]
                     converted_kwargs = {
-                        k: self._convert_tvm_to_pytorch(v) for k, v in kwargs.items()
+                        k: module._convert_tvm_to_pytorch(v) for k, v in kwargs.items()
                     }
 
-                    result = original_func(self, *converted_args, **converted_kwargs)
+                    result = original_func(module, *converted_args, **converted_kwargs)
 
-                    return self._convert_pytorch_to_tvm(result)
+                    return module._convert_pytorch_to_tvm(result)
 
                 wrapper.__name__ = name
                 return wrapper
 
             wrapped_func = create_py_func_wrapper(func_name, py_func)
             register_py_func(func_name, wrapped_func)
+            _PY_FUNC_OWNERS[func_name] = id(self)
+            if func_name not in self._registered_py_funcs:
+                self._registered_py_funcs = (*self._registered_py_funcs, func_name)
 
     def call_tir(self, tir_func, args, out_ty):
         """Call a TIR function with PyTorch tensors."""
@@ -514,7 +556,7 @@ class BasePyModule:
         """Print TVM IR into TVMScript text format with Python function support.
 
         This method extends the standard IRModule script() method to handle
-        Python functions stored in the IRModule's pyfuncs attribute.
+        Python functions stored in the IRModule's ``__pyfuncs__`` attribute.
         """
         # First get the standard IRModule script
         base_script = self.ir_mod.script(
@@ -535,7 +577,7 @@ class BasePyModule:
         )
 
         # If there are no Python functions, return the base script
-        if not hasattr(self.ir_mod, "pyfuncs") or not self.ir_mod.pyfuncs:
+        if not hasattr(self.ir_mod, "__pyfuncs__") or not self.ir_mod.__pyfuncs__:
             return base_script
 
         # Insert Python functions into the script
@@ -559,8 +601,8 @@ class BasePyModule:
                 class_indent = len(line) - len(line.lstrip())
 
                 # Insert Python functions after the class definition
-                if hasattr(self.ir_mod, "pyfuncs") and self.ir_mod.pyfuncs:
-                    for func_name, func in self.ir_mod.pyfuncs.items():
+                if hasattr(self.ir_mod, "__pyfuncs__") and self.ir_mod.__pyfuncs__:
+                    for func_name, func in self.ir_mod.__pyfuncs__.items():
                         # Get the function source code
                         func_source = self._get_function_source(func)
                         if func_source:
@@ -604,7 +646,7 @@ class BasePyModule:
         This method extends the standard IRModule show() method to handle
         Python functions stored in the IRModule's pyfuncs attribute.
         """
-        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm.script.printer.highlight import cprint  # pylint: disable=import-outside-toplevel
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")

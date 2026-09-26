@@ -26,7 +26,6 @@ We'll cover various ways to define Relax functions, including using TVMScript,
 and relax NNModule API.
 """
 
-
 ######################################################################
 # Create Relax programs using TVMScript
 # -------------------------------------
@@ -40,19 +39,22 @@ and relax NNModule API.
 from tvm import relax, topi
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
+
+n = T.dynamic("n")
 
 
 @I.ir_module
 class RelaxModule:
     @R.function
     def forward(
-        data: R.Tensor(("n", 784), dtype="float32"),
+        data: R.Tensor((n, 784), dtype="float32"),
         w0: R.Tensor((128, 784), dtype="float32"),
         b0: R.Tensor((128,), dtype="float32"),
         w1: R.Tensor((10, 128), dtype="float32"),
         b1: R.Tensor((10,), dtype="float32"),
-    ) -> R.Tensor(("n", 10), dtype="float32"):
+    ) -> R.Tensor((n, 10), dtype="float32"):
         with R.dataflow():
             lv0 = R.matmul(data, R.permute_dims(w0)) + b0
             lv1 = R.nn.relu(lv0)
@@ -68,29 +70,27 @@ RelaxModule.show()
 # representation and transformation. To be specific, we can directly call
 # TensorIR functions in Relax function.
 
+n = T.dynamic("n", "int64")
+m = T.dynamic("m", "int64")
+
 
 @I.ir_module
 class RelaxModuleWithTIR:
-    @T.prim_func(s_tir=True)
-    def relu(x: T.handle, y: T.handle):
-        n = T.int64()
-        m = T.int64()
-        X = T.match_buffer(x, (n, m), "float32")
-        Y = T.match_buffer(y, (n, m), "float32")
+    @Ts.prim_func
+    def relu(X: T.Buffer((n, m), "float32"), Y: T.Buffer((n, m), "float32")):
         for i, j in T.grid(n, m):
-            with T.sblock("relu"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("relu"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 Y[vi, vj] = T.max(X[vi, vj], T.float32(0))
 
     @R.function
     def forward(
-        data: R.Tensor(("n", 784), dtype="float32"),
+        data: R.Tensor((n, 784), dtype="float32"),
         w0: R.Tensor((128, 784), dtype="float32"),
         b0: R.Tensor((128,), dtype="float32"),
         w1: R.Tensor((10, 128), dtype="float32"),
         b1: R.Tensor((10,), dtype="float32"),
-    ) -> R.Tensor(("n", 10), dtype="float32"):
-        n = T.int64()
+    ) -> R.Tensor((n, 10), dtype="float32"):
         cls = RelaxModuleWithTIR
         with R.dataflow():
             lv0 = R.matmul(data, R.permute_dims(w0)) + b0
@@ -163,25 +163,27 @@ mod.show()
 # We can also insert customized function calls into the NNModule, such as
 # Tensor Expression(TE), TensorIR functions or other TVM packed functions.
 
+M = T.dynamic("M", "int64")
+N = T.dynamic("N", "int64")
+K = T.dynamic("K", "int64")
 
-@T.prim_func(s_tir=True)
-def tir_linear(x: T.handle, w: T.handle, b: T.handle, z: T.handle):
-    M = T.int64()
-    N = T.int64()
-    K = T.int64()
-    X = T.match_buffer(x, (M, K), "float32")
-    W = T.match_buffer(w, (N, K), "float32")
-    B = T.match_buffer(b, (N,), "float32")
-    Z = T.match_buffer(z, (M, N), "float32")
+
+@Ts.prim_func
+def tir_linear(
+    X: T.Buffer((M, K), "float32"),
+    W: T.Buffer((N, K), "float32"),
+    B: T.Buffer((N,), "float32"),
+    Z: T.Buffer((M, N), "float32"),
+):
     for i, j, k in T.grid(M, N, K):
-        with T.sblock("linear"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("linear"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 Z[vi, vj] = 0
             Z[vi, vj] = Z[vi, vj] + X[vi, vk] * W[vj, vk]
     for i, j in T.grid(M, N):
-        with T.sblock("add"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("add"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             Z[vi, vj] = Z[vi, vj] + B[vj]
 
 
@@ -216,7 +218,6 @@ mod, params = NNModuleWithTIR().export_tvm(
 )
 mod.show()
 
-
 ######################################################################
 # Create Relax programs using Block Builder API
 # ---------------------------------------------
@@ -226,7 +227,7 @@ mod.show()
 # customized pass.
 
 bb = relax.BlockBuilder()
-n = T.int64()
+n = T.dynamic("n", "int64")
 x = relax.Var("x", R.Tensor((n, 784), "float32"))
 fc1_weight = relax.Var("fc1_weight", R.Tensor((128, 784), "float32"))
 fc1_bias = relax.Var("fc1_bias", R.Tensor((128,), "float32"))

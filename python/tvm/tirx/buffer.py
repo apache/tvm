@@ -459,6 +459,10 @@ class _BufferMethods:
         return _buffer_view.chunk(self, spec)
 
 
+# These results expose the complete buffer namespace defined above. Indexer
+# definitions precede this class to avoid a circular buffer/view import.
+
+
 def decl_buffer(
     shape,
     dtype=None,

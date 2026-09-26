@@ -310,7 +310,8 @@ tvm_file_glob(GLOB_RECURSE COMPILER_SRCS
     # src/script/{printer,ir_builder}/<dialect>/ for a non-IR dialect is
     # rejected at link time rather than silently included.
     src/script/ir_builder/base.cc
-    src/script/ir_builder/ir/*.cc
+    src/script/ir_builder/ir.cc
+    src/script/ir_builder/frame.cc
     src/script/printer/config.cc
     src/script/printer/script_printer.cc
     src/script/printer/doc.cc

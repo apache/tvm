@@ -181,11 +181,6 @@ void ExecBuilderNode::EmitIf(vm::Instruction::Arg cond, vm::Index false_offset) 
 void ExecBuilderNode::CheckExecutable() {
   for (auto it = exec_->func_table.cbegin(); it != exec_->func_table.cend(); ++it) {
     if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
-    if (it->kind == VMFuncInfo::FuncKind::kVMTIRFunc) {
-      TVM_FFI_ICHECK_GE(it->register_file_size, it->num_args + 1)
-          << "Function " << it->name << " do not meet register file constraint.";
-      continue;
-    }
     Index num_inputs = it->num_args;
     std::unordered_set<RegName> dst_registers;
     std::unordered_set<RegName> arg_registers;
@@ -267,7 +262,6 @@ void ExecBuilderNode::Formalize() {
   // and decide the number of registers to allocate for each VMFunction in the VMExecutable
   for (auto it = this->exec_->func_table.begin(); it != this->exec_->func_table.end(); ++it) {
     if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
-    if (it->kind == VMFuncInfo::FuncKind::kVMTIRFunc) continue;
 
     Index num_inputs = it->num_args;
     RegName register_idx = num_inputs;

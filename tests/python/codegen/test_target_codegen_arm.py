@@ -30,17 +30,13 @@ def test_popcount():
     }
 
     def check_correct_assembly(type, elements, counts):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
+            @T.prim_func
             def main(A: T.Buffer((elements,), type), B: T.Buffer((elements,), type)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.vectorized(elements):
-                    with T.sblock("B"):
-                        v_i = T.axis.spatial(elements, i)
-                        T.reads(A[v_i])
-                        T.writes(B[v_i])
-                        B[v_i] = T.popcount(A[v_i])
+                    B[i] = T.popcount(A[i])
 
         f = tvm.tirx.build(Module, target=target)
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
@@ -66,25 +62,20 @@ def test_vmlal_s16():
     }
 
     def check_correct_assembly(N):
-        @I.ir_module(s_tir=True)
+        K = T.dynamic("K", "int32")
+
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
+            @T.prim_func
+            def main(
+                A: T.Buffer((K, N), "int8"), B: T.Buffer((K, N), "int8"), C: T.Buffer((N,), "int32")
+            ):
                 T.func_attr({"tirx.noalias": True})
-                K = T.int32()
-                A = T.match_buffer(var_A, (K, N), "int8")
-                B = T.match_buffer(var_B, (K, N), "int8")
+
                 for n in T.vectorized(N):
+                    C[n] = 0
                     for rv in range(K):
-                        with T.sblock("C"):
-                            v_n, v_rv = T.axis.remap("SR", [n, rv])
-                            T.reads(A[v_rv, v_n], B[v_rv, v_n])
-                            T.writes(C[v_n])
-                            with T.init():
-                                C[v_n] = 0
-                            C[v_n] = C[v_n] + T.Cast("int32", A[v_rv, v_n]) * T.Cast(
-                                "int32", B[v_rv, v_n]
-                            )
+                        C[n] = C[n] + T.Cast("int32", A[rv, n]) * T.Cast("int32", B[rv, n])
 
         f = tvm.tirx.build(Module, target=target)
 
@@ -99,25 +90,20 @@ def test_vmlal_s16():
     check_correct_assembly(64)
 
     def check_broadcast_correct_assembly(N):
-        @I.ir_module(s_tir=True)
+        K = T.dynamic("K", "int32")
+
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
-            def main(var_A: T.handle, var_B: T.handle, C: T.Buffer((N,), "int32")):
+            @T.prim_func
+            def main(
+                A: T.Buffer((K, N), "int8"), B: T.Buffer((K,), "int8"), C: T.Buffer((N,), "int32")
+            ):
                 T.func_attr({"tirx.noalias": True})
-                K = T.int32()
-                A = T.match_buffer(var_A, (K, N), "int8")
-                B = T.match_buffer(var_B, (K,), "int8")
+
                 for n in T.vectorized(N):
+                    C[n] = 0
                     for rv in range(K):
-                        with T.sblock("C"):
-                            v_n, v_rv = T.axis.remap("SR", [n, rv])
-                            T.reads(A[v_rv, v_n], B[v_rv])
-                            T.writes(C[v_n])
-                            with T.init():
-                                C[v_n] = 0
-                            C[v_n] = C[v_n] + T.Cast("int32", A[v_rv, v_n]) * T.Cast(
-                                "int32", B[v_rv]
-                            )
+                        C[n] = C[n] + T.Cast("int32", A[rv, n]) * T.Cast("int32", B[rv])
 
         f = tvm.tirx.build(Module, target=target)
 

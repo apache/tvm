@@ -133,9 +133,9 @@ def transpose_schedule(
                                 )
                                 src_indices = T.meta_var(inst_gen.generate_indices(src_region))
                                 dst_indices = T.meta_var(inst_gen.generate_indices(dst_region))
-                                src_guard = T.meta_var(inst_gen.make_guard(src_region))
-                                dst_guard = T.meta_var(inst_gen.make_guard(dst_region))
-                                if src_guard and dst_guard:
+                                if inst_gen.make_guard(src_region) and inst_gen.make_guard(
+                                    dst_region
+                                ):
                                     T.evaluate(
                                         T.nki.matmul(
                                             dst_buffer[tuple(dst_indices)],
@@ -176,16 +176,14 @@ def transpose_schedule(
                             for rhs_f_loop in T.serial(0, rhs_f_size, annotations={nki_dim: "rhs_F"}):  # noqa: E501
                                 inst_gen.set_bind_map(src_region, {b_var: b_loop, lhs_f: lhs_f_loop, lhs_p: p_loop, extend_b: extend_b_loop})  # noqa: E501
                                 src_indices = T.meta_var(inst_gen.generate_indices(src_region))
-                                src_guard = T.meta_var(inst_gen.make_guard(src_region))
-                                if src_guard:
+                                if inst_gen.make_guard(src_region):
                                     T.evaluate(T.nki.matmul(acc_psum[b_loop % max_psum_slots, lhs_f_loop,extend_b_loop * rhs_f_size + rhs_f_loop], src_buffer[tuple(src_indices)], identity_tensor[p_loop, rhs_f_loop]))  # noqa: E501
             with T.attr(0, "tensorized_nki_instruction", 1):
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, rhs_f_size * extend_len, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map(dst_region, {b_var: b_loop, lhs_f: p_loop, dst_f: f_loop % rhs_f_size, extend_b: f_loop // rhs_f_size})  # noqa: E501
-                        dst_guard = T.meta_var(inst_gen.make_guard(dst_region))
                         dst_indices = T.meta_var(inst_gen.generate_indices(dst_region))
-                        if dst_guard:
+                        if inst_gen.make_guard(dst_region):
                             T.evaluate(T.nki.tensor_copy(dst_buffer[tuple(dst_indices)], acc_psum[b_loop % max_psum_slots, p_loop, f_loop]))  # noqa: E501
     # fmt: on
     return transpose_sbuf_output

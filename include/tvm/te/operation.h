@@ -29,7 +29,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/tensor.h>
-#include <tvm/tirx/buffer.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 
 #include <string>

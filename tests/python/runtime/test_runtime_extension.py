@@ -18,16 +18,17 @@ import numpy as np
 
 import tvm
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 def test_dltensor_compatible():
+    n = T.dynamic("n", "int32")
+
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def arange(A: T.handle):
-            n = T.int32()
-            Ab = T.match_buffer(A, (n,), "int64")
+        @Ts.prim_func
+        def arange(Ab: T.Buffer((n,), "int64")):
             for i in T.serial(n - 1):
                 Ab[i + 1] = Ab[i] + T.int64(1)
 

@@ -23,6 +23,7 @@ import logging
 import tvm_ffi
 
 from tvm.runtime import DataType
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target.codegen import Target, llvm_get_vector_width, target_has_features
 
@@ -73,19 +74,19 @@ def rvv_vec_dot_product_kernels(
         }
     """
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def rvv_vec_dot_prod_desc(
         A: T.Buffer((n_elems,), data_dtype, offset_factor=1),
         B: T.Buffer((n_lanes, n_elems), weight_dtype, offset_factor=1),
         C: T.Buffer((n_lanes,), out_dtype, offset_factor=1),
     ) -> None:
-        with T.sblock("root"):
-            T.reads(C[0:n_lanes], A[0:n_elems], B[0:n_lanes, 0:n_elems])
-            T.writes(C[0:n_lanes])
+        with Ts.sblock("root"):
+            Ts.reads(C[0:n_lanes], A[0:n_elems], B[0:n_lanes, 0:n_elems])
+            Ts.writes(C[0:n_lanes])
             for j in T.serial(0, n_lanes):
                 for k in T.serial(0, n_elems):
-                    with T.sblock("update"):
-                        vj, vk = T.axis.remap("SR", [j, k])
+                    with Ts.sblock("update"):
+                        vj, vk = Ts.axis.remap("SR", [j, k])
                         C[vj] = C[vj] + T.cast(A[vk], out_dtype) * T.cast(B[vj, vk], out_dtype)
 
     # LLVM only supports ELEN=32 or ELEN=64
@@ -105,15 +106,15 @@ def rvv_vec_dot_product_kernels(
         wide_dtype += str(DataType(data_dtype).bits * 2)
 
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def rvv_vec_dot_prod_impl(
         A: T.Buffer((n_elems,), data_dtype, offset_factor=1),
         B: T.Buffer((n_lanes, n_elems), weight_dtype, offset_factor=1),
         C: T.Buffer((n_lanes,), out_dtype, offset_factor=1),
     ) -> None:
-        with T.sblock("root"):
-            T.reads(C[0:n_lanes], A[0:n_elems], B[0:n_lanes, 0:n_elems])
-            T.writes(C[0:n_lanes])
+        with Ts.sblock("root"):
+            Ts.reads(C[0:n_lanes], A[0:n_elems], B[0:n_lanes, 0:n_elems])
+            Ts.writes(C[0:n_lanes])
 
             vec_A = T.call_llvm_intrin(
                 f"{data_dtype}xvscalex{d_dtype_lanes}",
@@ -123,9 +124,9 @@ def rvv_vec_dot_product_kernels(
                 T.int64(n_elems))
 
             for i in range(n_lanes):
-                with T.sblock("update"):
-                    T.reads(B[i, 0:n_elems])
-                    T.writes(C[i])
+                with Ts.sblock("update"):
+                    Ts.reads(B[i, 0:n_elems])
+                    Ts.writes(C[i])
 
                     vec_B_row = T.call_llvm_intrin(
                         f"{weight_dtype}xvscalex{w_dtype_lanes}",

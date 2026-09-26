@@ -23,31 +23,32 @@ from tvm import s_tir
 from tvm.ir import assert_structural_equal
 from tvm.s_tir import dlight as dl
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
 
 def test_fallback():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
-            B = T.sblock_alloc_buffer((1, 1, 32, 128), "float16")
+            B = Ts.sblock_alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
-                with T.sblock("T_transpose"):
-                    vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+                with Ts.sblock("T_transpose"):
+                    vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
             for i, j, k in T.grid(1, 1, 4096):
-                with T.sblock("T_reshape"):
-                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                with Ts.sblock("T_reshape"):
+                    vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -55,10 +56,10 @@ def test_fallback():
             T.func_attr({"tirx.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
-                    with T.sblock("T_reshape"):
-                        v0 = T.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
-                        T.reads(A[0, v0 // 128, 0, v0 % 128])
-                        T.writes(C[0, 0, v0])
+                    with Ts.sblock("T_reshape"):
+                        v0 = Ts.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
+                        Ts.reads(A[0, v0 // 128, 0, v0 % 128])
+                        Ts.writes(C[0, 0, v0])
                         C[0, 0, v0] = A[0, v0 // 128, 0, v0 % 128]
 
     target = Target("nvidia/geforce-rtx-3090-ti")
@@ -69,41 +70,58 @@ def test_fallback():
     assert_structural_equal(mod, After)
 
 
-def test_fallback_reduction():
-    @I.ir_module(s_tir=True)
+def test_fallback_skips_zero_extent_spatial():
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
+        def main(A: T.Buffer((4, 0), "float32"), B: T.Buffer((4, 0), "float32")):
+            for i, j in T.grid(4, 0):
+                with Ts.sblock("copy"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi, vj]
+
+    with Target("nvidia/geforce-rtx-3090-ti"):
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Fallback(),
+        )(Module)
+    assert_structural_equal(mod, Module)
+
+
+def test_fallback_reduction():
+    @I.ir_module
+    class Module:
+        @Ts.prim_func
         def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
             for ax0, ax1 in T.grid(1, 6144):
-                with T.sblock("block"):
-                    v0 = T.axis.spatial(1, ax0)
-                    v1 = T.axis.reduce(6144, ax1)
-                    T.reads(A[v0, v1])
-                    T.writes(B[v0])
-                    with T.init():
+                with Ts.sblock("block"):
+                    v0 = Ts.axis.spatial(1, ax0)
+                    v1 = Ts.axis.reduce(6144, ax1)
+                    Ts.reads(A[v0, v1])
+                    Ts.writes(B[v0])
+                    with Ts.init():
                         B[v0] = T.float32(0)
                     B[v0] = B[v0] + T.Cast("float32", A[v0, v1])
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((1, 6144), "float32"), B: T.Buffer((1,), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
-                    with T.sblock("block_init"):
-                        v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                        T.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
-                        T.reads()
-                        T.writes(B[0])
+                    with Ts.sblock("block_init"):
+                        v0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                        Ts.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
+                        Ts.reads()
+                        Ts.writes(B[0])
                         B[0] = T.float32(0)
                     for ax1 in range(6144):
-                        with T.sblock("block_update"):
-                            v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                            v1 = T.axis.reduce(6144, ax1)
-                            T.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
-                            T.reads(B[0], A[0, v1])
-                            T.writes(B[0])
+                        with Ts.sblock("block_update"):
+                            v0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                            v1 = Ts.axis.reduce(6144, ax1)
+                            Ts.where(ax0_fused_0 * T.int64(1024) + ax0_fused_1 < T.int64(1))
+                            Ts.reads(B[0], A[0, v1])
+                            Ts.writes(B[0])
                             B[0] = B[0] + T.Cast("float32", A[0, v1])
 
     with Target("apple/m1-gpu"):
@@ -114,30 +132,25 @@ def test_fallback_reduction():
 
 
 def test_fallback_irregular_spatial():
-    @T.prim_func(private=True, s_tir=True)
+    nhead = T.dynamic("nhead", "int32")
+    nlayer = T.dynamic("nlayer", "int32")
+    seqlen = T.dynamic("seqlen", "int32")
+    npage = T.dynamic("npage", "int32")
+    page_size = T.dynamic("page_size", "int32")
+    num_total_pages = T.dynamic("num_total_pages", "int32")
+    num_total_seqs_plus_1 = T.dynamic("num_total_seqs_plus_1", "int32")
+
+    @Ts.prim_func(private=True)
     def func(
-        var_pages: T.handle,
-        var_page_table_indptr: T.handle,
-        var_page_table_values: T.handle,
-        var_values: T.handle,
+        pages: T.Buffer((num_total_pages, nlayer, nhead, page_size), "float16"),
+        page_table_indptr: T.Buffer((num_total_seqs_plus_1,), "int32"),
+        page_table_values: T.Buffer((npage,), "int32"),
+        values: T.Buffer((nlayer, nhead, seqlen), "float16"),
         seq_id: T.int32,
     ):
-        nhead = T.int32()
-        nlayer = T.int32()
-        seqlen = T.int32()
-        npage = T.int32()
-        page_size = T.int32()
-        num_total_pages = T.int32()
-        num_total_seqs_plus_1 = T.int32()
-
-        pages = T.match_buffer(var_pages, (num_total_pages, nlayer, nhead, page_size), "float16")
-        page_table_indptr = T.match_buffer(var_page_table_indptr, (num_total_seqs_plus_1,), "int32")
-        page_table_values = T.match_buffer(var_page_table_values, (npage,), "int32")
-        values = T.match_buffer(var_values, (nlayer, nhead, seqlen), "float16")
-
         for l, h, pos in T.grid(nlayer, nhead, seqlen):
-            with T.sblock("block"):
-                vl, vh, vp = T.axis.remap("SSS", [l, h, pos])
+            with Ts.sblock("block"):
+                vl, vh, vp = Ts.axis.remap("SSS", [l, h, pos])
                 values[vl, vh, vp] = pages[
                     page_table_values[page_table_indptr[seq_id] + T.floordiv(vp, page_size)],
                     vl,
@@ -146,31 +159,27 @@ def test_fallback_irregular_spatial():
                 ]
 
     # fmt: off
-    @T.prim_func(private=True, s_tir=True)
-    def expected(var_pages: T.handle, var_page_table_indptr: T.handle, var_page_table_values: T.handle, var_values: T.handle, seq_id: T.int32):
-        T.func_attr({"tirx.is_scheduled": True})
-        nhead = T.int32()
-        nlayer = T.int32()
-        seqlen = T.int32()
-        npage = T.int32()
-        page_size = T.int32()
-        num_total_pages = T.int32()
-        num_total_seqs_plus_1 = T.int32()
+    nhead = T.dynamic("nhead", "int32")
+    nlayer = T.dynamic("nlayer", "int32")
+    seqlen = T.dynamic("seqlen", "int32")
+    npage = T.dynamic("npage", "int32")
+    page_size = T.dynamic("page_size", "int32")
+    num_total_pages = T.dynamic("num_total_pages", "int32")
+    num_total_seqs_plus_1 = T.dynamic("num_total_seqs_plus_1", "int32")
 
-        pages = T.match_buffer(var_pages, (num_total_pages, nlayer, nhead, page_size), "float16")
-        page_table_indptr = T.match_buffer(var_page_table_indptr, (num_total_seqs_plus_1,), "int32")
-        page_table_values = T.match_buffer(var_page_table_values, (npage,), "int32")
-        values = T.match_buffer(var_values, (nlayer, nhead, seqlen), "float16")
+    @Ts.prim_func(private=True)
+    def expected(pages: T.Buffer((num_total_pages, nlayer, nhead, page_size), 'float16'), page_table_indptr: T.Buffer((num_total_seqs_plus_1,), 'int32'), page_table_values: T.Buffer((npage,), 'int32'), values: T.Buffer((nlayer, nhead, seqlen), 'float16'), seq_id: T.int32):
+        T.func_attr({"tirx.is_scheduled": True})
 
         for ax0_ax1_ax2_fused_0 in T.thread_binding((nlayer * nhead * seqlen + 1023) // 1024, thread="blockIdx.x"):
             for ax0_ax1_ax2_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
-                with T.sblock("block"):
-                    v0 = T.axis.spatial(nlayer, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // (nhead * seqlen))
-                    v1 = T.axis.spatial(nhead, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % (nhead * seqlen) // seqlen)
-                    v2 = T.axis.spatial(seqlen, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % seqlen)
-                    T.where(ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1 < nlayer * nhead * seqlen)
-                    T.reads(pages[page_table_values[page_table_indptr[seq_id] + v2 // page_size], v0, v1, v2 % page_size], page_table_values[page_table_indptr[seq_id] + v2 // page_size], page_table_indptr[seq_id])
-                    T.writes(values[v0, v1, v2])
+                with Ts.sblock("block"):
+                    v0 = Ts.axis.spatial(nlayer, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) // (nhead * seqlen))
+                    v1 = Ts.axis.spatial(nhead, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % (nhead * seqlen) // seqlen)
+                    v2 = Ts.axis.spatial(seqlen, (ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1) % seqlen)
+                    Ts.where(ax0_ax1_ax2_fused_0 * 1024 + ax0_ax1_ax2_fused_1 < nlayer * nhead * seqlen)
+                    Ts.reads(pages[page_table_values[page_table_indptr[seq_id] + v2 // page_size], v0, v1, v2 % page_size], page_table_values[page_table_indptr[seq_id] + v2 // page_size], page_table_indptr[seq_id])
+                    Ts.writes(values[v0, v1, v2])
                     values[v0, v1, v2] = pages[page_table_values[page_table_indptr[seq_id] + v2 // page_size], v0, v1, v2 % page_size]
     # fmt: on
 
@@ -184,47 +193,47 @@ def test_fallback_irregular_spatial():
 
 
 def test_gpu_fallback_ignores_non_gpu_functions():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
         # This function has no "target" attribute, and is scheduled
         # using the `Target.current`.
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def gpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
-            B = T.sblock_alloc_buffer((1, 1, 32, 128), "float16")
+            B = Ts.sblock_alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
-                with T.sblock("T_transpose"):
-                    vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+                with Ts.sblock("T_transpose"):
+                    vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
             for i, j, k in T.grid(1, 1, 4096):
-                with T.sblock("T_reshape"):
-                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                with Ts.sblock("T_reshape"):
+                    vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
         # This function is identical, except that it is explicitly
         # annotated with the "target" attribute, and is scheduled
         # based on the annotation's target.
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def cpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
             T.func_attr({"target": T.target("llvm")})
-            B = T.sblock_alloc_buffer((1, 1, 32, 128), "float16")
+            B = Ts.sblock_alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
-                with T.sblock("T_transpose"):
-                    vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+                with Ts.sblock("T_transpose"):
+                    vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
             for i, j, k in T.grid(1, 1, 4096):
-                with T.sblock("T_reshape"):
-                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                with Ts.sblock("T_reshape"):
+                    vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class After:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def gpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
@@ -232,26 +241,26 @@ def test_gpu_fallback_ignores_non_gpu_functions():
             T.func_attr({"tirx.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
                 for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
-                    with T.sblock("T_reshape"):
-                        v0 = T.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
-                        T.reads(A[0, v0 // 128, 0, v0 % 128])
-                        T.writes(C[0, 0, v0])
+                    with Ts.sblock("T_reshape"):
+                        v0 = Ts.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
+                        Ts.reads(A[0, v0 // 128, 0, v0 % 128])
+                        Ts.writes(C[0, 0, v0])
                         C[0, 0, v0] = A[0, v0 // 128, 0, v0 % 128]
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def cpu_func(
             A: T.Buffer((1, 32, 1, 128), "float16"),
             C: T.Buffer((1, 1, 4096), "float16"),
         ):
             T.func_attr({"target": T.target("llvm")})
-            B = T.sblock_alloc_buffer((1, 1, 32, 128), "float16")
+            B = Ts.sblock_alloc_buffer((1, 1, 32, 128), "float16")
             for i, j, k, l in T.grid(1, 1, 32, 128):
-                with T.sblock("T_transpose"):
-                    vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+                with Ts.sblock("T_transpose"):
+                    vi, vj, vk, vl = Ts.axis.remap("SSSS", [i, j, k, l])
                     B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
             for i, j, k in T.grid(1, 1, 4096):
-                with T.sblock("T_reshape"):
-                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                with Ts.sblock("T_reshape"):
+                    vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
                     C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
 
     with Target("cuda"):
@@ -263,15 +272,15 @@ def test_gpu_fallback_ignores_non_gpu_functions():
 
 def test_schedule_error_propagates_from_rule():
     # ScheduleError indicates a broken rule and must propagate.
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer((128,), "float32"), C: T.Buffer((128,), "float32")):
             for i in range(128):
-                with T.sblock("copy"):
-                    vi = T.axis.remap("S", [i])
-                    T.reads(A[vi])
-                    T.writes(C[vi])
+                with Ts.sblock("copy"):
+                    vi = Ts.axis.remap("S", [i])
+                    Ts.reads(A[vi])
+                    Ts.writes(C[vi])
                     C[vi] = A[vi] * T.float32(2)
 
     class BrokenRule(dl.base.ScheduleRule):

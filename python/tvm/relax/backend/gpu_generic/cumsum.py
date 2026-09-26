@@ -19,6 +19,7 @@
 
 import math
 
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 
@@ -108,9 +109,9 @@ def gpu_2d_continuous_cumsum(
     ):
         for by in T.thread_binding(batch, thread="blockIdx.y"):
             for bx in T.thread_binding(num_blocks, thread="blockIdx.x"):
-                with T.sblock():
-                    local_buf = T.sblock_alloc_buffer((thread_elem,), out_dtype, scope="local")
-                    shared_buf = T.sblock_alloc_buffer((block_elem,), out_dtype, scope="shared")
+                with Ts.sblock():
+                    local_buf = Ts.sblock_alloc_buffer((thread_elem,), out_dtype, scope="local")
+                    shared_buf = Ts.sblock_alloc_buffer((block_elem,), out_dtype, scope="shared")
                     for ty in T.thread_binding(TY, thread="threadIdx.y"):
                         for tx in T.thread_binding(TX, thread="threadIdx.x"):
                             tx_idx: T.let[T.int64] = (
@@ -173,12 +174,13 @@ def gpu_2d_continuous_cumsum(
                                     bx > 0, source[by, src_offset + bx - 1], 0
                                 )
 
-    @T.prim_func(private=True, s_tir=True)
-    def cumsum(var_a: T.handle, var_out: T.handle):
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
+    @Ts.prim_func(private=True)
+    def cumsum(A: T.Buffer([m, n], dtype=in_dtype), Out: T.Buffer([m, n], dtype=out_dtype)):
         T.func_attr({"tirx.is_scheduled": True})  # prevent further scheduling
-        m, n = T.int64(), T.int64()
-        A = T.match_buffer(var_a, [m, n], dtype=in_dtype)
-        Out = T.match_buffer(var_out, [m, n], dtype=out_dtype)
+
         Tmp = T.alloc_buffer([m, n], dtype=out_dtype)
         # LowerIntrin may implement signed FloorDiv using a sign-bit shift.  Keep
         # hierarchy counting division-free so WebGPU can narrow indices to int32.
@@ -252,18 +254,22 @@ def gpu_3d_axis_1_cumsum(
     out_dtype = out_dtype or in_dtype
     TX = T.int64(tx_len)
 
-    @T.prim_func(private=True, s_tir=True)
-    def cumsum(var_a: T.handle, var_out: T.handle):
+    outer = T.dynamic("outer")
+    scan = T.dynamic("scan")
+    inner = T.dynamic("inner")
+
+    @Ts.prim_func(private=True)
+    def cumsum(
+        A: T.Buffer([outer, scan, inner], dtype=in_dtype),
+        Out: T.Buffer([outer, scan, inner], dtype=out_dtype),
+    ):
         T.func_attr({"tirx.is_scheduled": True})
-        outer, scan, inner = T.int64(), T.int64(), T.int64()
-        A = T.match_buffer(var_a, [outer, scan, inner], dtype=in_dtype)
-        Out = T.match_buffer(var_out, [outer, scan, inner], dtype=out_dtype)
 
         for bx in T.thread_binding(T.ceildiv(outer * inner, TX), thread="blockIdx.x"):
             for tx in T.thread_binding(TX, thread="threadIdx.x"):
                 row: T.let[T.int64] = bx * TX + tx
-                with T.sblock():
-                    accumulator = T.sblock_alloc_buffer((), out_dtype, scope="local")
+                with Ts.sblock():
+                    accumulator = Ts.sblock_alloc_buffer((), out_dtype, scope="local")
                     if row < outer * inner:
                         outer_idx: T.let[T.int64] = row // inner
                         inner_idx: T.let[T.int64] = row % inner

@@ -211,27 +211,6 @@ llvm::Value* CodeGenHexagon::Dispatch_(const TensorLoadNode* op) {
 }
 
 llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
-  if (op->op.same_as(builtin::start_profile_intrinsic()) ||
-      op->op.same_as(builtin::end_profile_intrinsic())) {
-    llvm::Value* id = MakeValue(op->args[0].as_or_throw<PrimExpr>());
-    auto instrprof_id = llvm::Intrinsic::hexagon_instrprof_custom;
-#if TVM_LLVM_VERSION >= 200
-    llvm::Function* func = llvm::cast<llvm::Function>(
-        llvm::Intrinsic::getOrInsertDeclaration(module_.get(), instrprof_id, {}));
-#else
-    llvm::Function* func = llvm::Intrinsic::getDeclaration(module_.get(), instrprof_id);
-#endif
-    llvm::GlobalVariable* name_var = module_->getGlobalVariable("handler_name");
-    if (!name_var) {
-      llvm::StringRef init_str = "lwp_handler";
-      llvm::Constant* init = llvm::ConstantDataArray::getString(module_->getContext(), init_str);
-
-      name_var = new llvm::GlobalVariable(*module_, init->getType(), true,
-                                          llvm::GlobalValue::InternalLinkage, init, "handler_name");
-    }
-    llvm::Type* t_int8_p_ = llvmGetPointerTo(t_int8_, 0);
-    return builder_->CreateCall(func, {llvm::ConstantExpr::getBitCast(name_var, t_int8_p_), id});
-  }
   return CodeGenCPU::CreateIntrinsic(op);
 }
 

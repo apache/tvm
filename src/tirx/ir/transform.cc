@@ -45,7 +45,6 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tirx.add_lower_pass", ffi::Array<ffi::Array<ffi
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.debug_keep_trivial_loop", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.use_async_copy", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.merge_static_smem", bool);
-TVM_REGISTER_PASS_CONFIG_OPTION("tirx.instrument_lwp", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.vtcm_capacity", int64_t);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.s_tir.ldg32", bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.enable_fast_math", bool);

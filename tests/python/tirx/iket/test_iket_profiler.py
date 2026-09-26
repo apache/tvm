@@ -83,7 +83,7 @@ def token_loop(n: T.int32, out: T.Buffer((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
-    token = iket.sentinel_token("sentinel")
+    token: T.uint32 = iket.sentinel_token("sentinel")
     for i in T.serial(n, unroll=False):
         iket.range_end(token)
         if i % 2 == 0:
@@ -119,7 +119,7 @@ def payload_types(n: T.int64, out: T.Buffer((32,), "int32")):
     iket.mark("u64", T.uint64(64))
     iket.mark("f32", T.float32(-3.25))
     iket.mark("f64", T.float64(6.5))
-    token = iket.range_start("token_payload", T.int32(-7))
+    token: T.uint32 = iket.range_start("token_payload", T.int32(-7))
     iket.range_end(token, T.int32(9))
     iket.range_push("stack_payload", T.float32(1.5))
     iket.range_pop()
@@ -131,7 +131,7 @@ def payload_presence_mismatch(out: T.Buffer((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
-    token = iket.range_start("mismatch", tx)
+    token: T.uint32 = iket.range_start("mismatch", tx)
     iket.range_end(token)
     out[tx] = tx
 
@@ -141,7 +141,7 @@ def payload_type_mismatch(out: T.Buffer((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
-    token = iket.range_start("mismatch", tx)
+    token: T.uint32 = iket.range_start("mismatch", tx)
     iket.range_end(token, T.uint32(tx))
     out[tx] = tx
 
@@ -151,7 +151,7 @@ def sentinel_only_payload(out: T.Buffer((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
-    token = iket.sentinel_token("not-a-declaration")
+    token: T.uint32 = iket.sentinel_token("not-a-declaration")
     iket.range_end(token, out[tx])
     out[tx] = tx
 
@@ -372,13 +372,23 @@ def test_public_interface_is_official_only():
     script = serial_a.script()
     assert 'T.cuda.iket.mark("a")' in script
     assert "T.tirx.iket" not in script
-    assert tvm.script.from_source(script).script() == script
+    assert (
+        tvm.script.from_source(
+            script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        ).script()
+        == script
+    )
 
     payload_script = payload_types.script()
     assert 'T.cuda.iket.mark("i8", T.int8(-8))' in payload_script
     assert 'T.cuda.iket.range_start("token_payload", -7)' in payload_script
     assert "T.cuda.iket.range_end(token, 9)" in payload_script
-    assert tvm.script.from_source(payload_script).script() == payload_script
+    assert (
+        tvm.script.from_source(
+            payload_script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
+        ).script()
+        == payload_script
+    )
 
 
 @pytest.mark.parametrize(
@@ -459,17 +469,27 @@ def test_injected_child_auto_enable_remains_fail_closed(monkeypatch, missing_env
 )
 def test_tirx_pipelines_immediately_lower_iket(module_name, factory_name):
     factory = getattr(importlib.import_module(module_name), factory_name)
-    source = inspect.getsource(factory)
-    assert re.search(
-        r"tirx\.transform\.SplitHostDevice\(\),\s+cuda_transforms\.LowerIket\(\)", source
-    )
+    visited = []
+
+    @tvm.instrument.pass_instrument
+    class RecordPasses:
+        def run_before_pass(self, mod, info):
+            visited.append(("before", info.name))
+
+        def run_after_pass(self, mod, info):
+            visited.append(("after", info.name))
+
+    pipeline, _, _ = factory()
+    with tvm.transform.PassContext(instruments=[RecordPasses()]):
+        pipeline(tvm.IRModule())
+
+    split = visited.index(("after", tvm.tirx.transform.SplitHostDevice().info.name))
+    assert visited[split + 1] == ("before", cuda_transforms.LowerIket().info.name)
 
 
 @pytest.mark.parametrize(
     ("module_name", "factory_name"),
     [
-        ("tvm.s_tir.pipeline", "default_s_tir_pipeline"),
-        ("tvm.s_tir.backend.adreno.pipeline", "default_tir_pipeline"),
         ("tvm.backend.trn.pipeline", "trn_pipeline"),
     ],
 )

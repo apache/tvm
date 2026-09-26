@@ -334,7 +334,7 @@ class Scriptable:
         ----------
         style : str, optional
             Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
+            `tvm.script.printer.highlight.cprint` for more details.
 
         black_format: Optional[bool]
 
@@ -396,7 +396,7 @@ class Scriptable:
             Object to be annotated
 
         """
-        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm.script.printer.highlight import cprint  # pylint: disable=import-outside-toplevel
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")

@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
 
 import inspect
 
@@ -39,16 +38,19 @@ class Base:
             tvm.ir.assert_structural_equal(self.Expected, after)
 
 
+weight_table_size_before = T.dynamic("weight_table_size")
+weight_table_size_expected = T.dynamic("weight_table_size")
+
+
 class TestSimple(Base):
     @I.ir_module
     class Before:
         @R.function
         def main(
             x: R.Tensor([1, 16], "float32"),
-            weight_table: R.Tensor([16, "weight_table_size"], "float32"),
+            weight_table: R.Tensor([16, weight_table_size_before], "float32"),
             routing_table: R.Tensor([32], "int64"),
         ) -> R.Tensor([1, 32], "float32"):
-            weight_table_size = T.int64()
             with R.dataflow():
                 weight: R.Tensor([16, 32], "float32") = R.take(weight_table, routing_table, axis=1)
                 out: R.Tensor([1, 32], "float32") = R.matmul(x, weight)
@@ -60,15 +62,22 @@ class TestSimple(Base):
         @R.function
         def main(
             x: R.Tensor([1, 16], "float32"),
-            weight_table: R.Tensor([16, "weight_table_size"], "float32"),
+            weight_table: R.Tensor([16, weight_table_size_expected], "float32"),
             routing_table: R.Tensor([32], "int64"),
         ) -> R.Tensor([1, 32], "float32"):
-            weight_table_size = T.int64()
             with R.dataflow():
-                out_table: R.Tensor([1, weight_table_size], "float32") = R.matmul(x, weight_table)
+                out_table: R.Tensor([1, weight_table_size_expected], "float32") = R.matmul(
+                    x, weight_table
+                )
                 out: R.Tensor([1, 32], "float32") = R.take(out_table, routing_table, axis=1)
                 R.output(out)
             return out
+
+
+batch_size_before = T.dynamic("batch_size")
+weight_table_size_before = T.dynamic("weight_table_size")
+batch_size_expected = T.dynamic("batch_size")
+weight_table_size_expected = T.dynamic("weight_table_size")
 
 
 class TestBatchedActivations(Base):
@@ -76,15 +85,13 @@ class TestBatchedActivations(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16], "float32"),
-            weight_table: R.Tensor([16, "weight_table_size"], "float32"),
+            x: R.Tensor([batch_size_before, 1, 16], "float32"),
+            weight_table: R.Tensor([16, weight_table_size_before], "float32"),
             routing_table: R.Tensor([32], "int64"),
-        ) -> R.Tensor(["batch_size", 1, 32], "float32"):
-            batch_size = T.int64()
-            weight_table_size = T.int64()
+        ) -> R.Tensor([batch_size_before, 1, 32], "float32"):
             with R.dataflow():
                 weight: R.Tensor([16, 32], "float32") = R.take(weight_table, routing_table, axis=1)
-                out: R.Tensor([batch_size, 1, 32], "float32") = R.matmul(x, weight)
+                out: R.Tensor([batch_size_before, 1, 32], "float32") = R.matmul(x, weight)
                 R.output(out)
             return out
 
@@ -92,21 +99,25 @@ class TestBatchedActivations(Base):
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16], "float32"),
-            weight_table: R.Tensor([16, "weight_table_size"], "float32"),
+            x: R.Tensor([batch_size_expected, 1, 16], "float32"),
+            weight_table: R.Tensor([16, weight_table_size_expected], "float32"),
             routing_table: R.Tensor([32], "int64"),
-        ) -> R.Tensor(["batch_size", 1, 32], "float32"):
-            batch_size = T.int64()
-            weight_table_size = T.int64()
+        ) -> R.Tensor([batch_size_expected, 1, 32], "float32"):
             with R.dataflow():
-                out_table: R.Tensor([batch_size, 1, weight_table_size], "float32") = R.matmul(
-                    x, weight_table
-                )
-                out: R.Tensor([batch_size, 1, 32], "float32") = R.take(
+                out_table: R.Tensor(
+                    [batch_size_expected, 1, weight_table_size_expected], "float32"
+                ) = R.matmul(x, weight_table)
+                out: R.Tensor([batch_size_expected, 1, 32], "float32") = R.take(
                     out_table, routing_table, axis=2
                 )
                 R.output(out)
             return out
+
+
+batch_size_before = T.dynamic("batch_size")
+routing_table_size_before = T.dynamic("routing_table_size")
+batch_size_expected = T.dynamic("batch_size")
+routing_table_size_expected = T.dynamic("routing_table_size")
 
 
 class TestStaticBatchedActivationsAndWeights(Base):
@@ -115,11 +126,9 @@ class TestStaticBatchedActivationsAndWeights(Base):
         @R.function
         def main(
             x: R.Tensor([128, 1, 16], "float32"),
-            weight_table: R.Tensor(["routing_table_size", 16, 32], "float32"),
+            weight_table: R.Tensor([routing_table_size_before, 16, 32], "float32"),
             routing_table: R.Tensor([128], "int64"),
         ) -> R.Tensor([128, 1, 32], "float32"):
-            batch_size = T.int64()
-            routing_table_size = T.int64()
             with R.dataflow():
                 weight = R.take(weight_table, routing_table, axis=0)
                 out = R.matmul(x, weight)
@@ -131,20 +140,26 @@ class TestStaticBatchedActivationsAndWeights(Base):
         @R.function
         def main(
             x: R.Tensor([128, 1, 16], "float32"),
-            weight_table: R.Tensor(["routing_table_size", 16, 32], "float32"),
+            weight_table: R.Tensor([routing_table_size_expected, 16, 32], "float32"),
             routing_table: R.Tensor([128], "int64"),
         ) -> R.Tensor([128, 1, 32], "float32"):
-            batch_size = T.int64()
-            routing_table_size = T.int64()
             with R.dataflow():
                 reordered_weight = R.permute_dims(weight_table, [1, 0, 2])
-                fused_weight = R.reshape(reordered_weight, [16, routing_table_size * 32])
+                fused_weight = R.reshape(reordered_weight, [16, routing_table_size_expected * 32])
                 fused_output = R.matmul(x, fused_weight)
-                reordered_output = R.reshape(fused_output, [128, 1, routing_table_size, 32])
+                reordered_output = R.reshape(
+                    fused_output, [128, 1, routing_table_size_expected, 32]
+                )
                 tabular_output = R.take(reordered_output, routing_table, axis=2)
                 out = R.einsum([tabular_output], "ijik->ijk")
                 R.output(out)
             return out
+
+
+batch_size_before = T.dynamic("batch_size")
+routing_table_size_before = T.dynamic("routing_table_size")
+batch_size_expected = T.dynamic("batch_size")
+routing_table_size_expected = T.dynamic("routing_table_size")
 
 
 class TestDynamicBatchedActivationsAndWeights(Base):
@@ -152,12 +167,10 @@ class TestDynamicBatchedActivationsAndWeights(Base):
     class Before:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16], "float32"),
-            weight_table: R.Tensor(["routing_table_size", 16, 32], "float32"),
-            routing_table: R.Tensor(["batch_size"], "int64"),
-        ) -> R.Tensor(["batch_size", 1, 32], "float32"):
-            batch_size = T.int64()
-            routing_table_size = T.int64()
+            x: R.Tensor([batch_size_before, 1, 16], "float32"),
+            weight_table: R.Tensor([routing_table_size_before, 16, 32], "float32"),
+            routing_table: R.Tensor([batch_size_before], "int64"),
+        ) -> R.Tensor([batch_size_before, 1, 32], "float32"):
             with R.dataflow():
                 weight = R.take(weight_table, routing_table, axis=0)
                 out = R.matmul(x, weight)
@@ -168,17 +181,17 @@ class TestDynamicBatchedActivationsAndWeights(Base):
     class Expected:
         @R.function
         def main(
-            x: R.Tensor(["batch_size", 1, 16], "float32"),
-            weight_table: R.Tensor(["routing_table_size", 16, 32], "float32"),
-            routing_table: R.Tensor(["batch_size"], "int64"),
-        ) -> R.Tensor(["batch_size", 1, 32], "float32"):
-            batch_size = T.int64()
-            routing_table_size = T.int64()
+            x: R.Tensor([batch_size_expected, 1, 16], "float32"),
+            weight_table: R.Tensor([routing_table_size_expected, 16, 32], "float32"),
+            routing_table: R.Tensor([batch_size_expected], "int64"),
+        ) -> R.Tensor([batch_size_expected, 1, 32], "float32"):
             with R.dataflow():
                 reordered_weight = R.permute_dims(weight_table, [1, 0, 2])
-                fused_weight = R.reshape(reordered_weight, [16, routing_table_size * 32])
+                fused_weight = R.reshape(reordered_weight, [16, routing_table_size_expected * 32])
                 fused_output = R.matmul(x, fused_weight)
-                reordered_output = R.reshape(fused_output, [batch_size, 1, routing_table_size, 32])
+                reordered_output = R.reshape(
+                    fused_output, [batch_size_expected, 1, routing_table_size_expected, 32]
+                )
                 tabular_output = R.take(reordered_output, routing_table, axis=2)
                 out = R.einsum([tabular_output], "ijik->ijk")
                 R.output(out)

@@ -26,6 +26,7 @@ from tvm import relax
 from tvm.relax.frontend import nn
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -61,58 +62,65 @@ def test_tir_triton_integration():
         output = x + y
         tl.store(output_ptr + offsets, output, mask=mask)
 
-    @I.ir_module(s_tir=True)
+    BLOCK_SIZE = 64
+
+    add_m = T.dynamic("m")
+    main_m = T.dynamic("m")
+
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
+        @Ts.prim_func
+        def add(
+            x: T.Buffer((add_m,), "float32"),
+            y: T.Buffer((add_m,), "float32"),
+            output: T.Buffer((add_m,), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "add"})
-            m = T.int64()
-            x = T.match_buffer(x_handle, (m,), "float32")
-            y = T.match_buffer(y_handle, (m,), "float32")
-            output = T.match_buffer(output_handle, (m,), "float32")
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
-                BLOCK_SIZE = T.meta_var(64)
+
+            with Ts.sblock("root"):
+                Ts.reads(x[0:add_m], y[0:add_m])
+                Ts.writes(output[0:add_m])
                 T.call_kernel(
                     add_kernel,
-                    (T.ceildiv(m, BLOCK_SIZE),),
+                    (T.ceildiv(add_m, BLOCK_SIZE),),
                     x.data,
                     y.data,
                     output.data,
-                    m,
+                    add_m,
                     BLOCK_SIZE,
                     num_warps=8,
                 )
 
         @R.function
-        def main(x: R.Tensor(("m",), "float32"), y: R.Tensor(("m",), "float32")):
-            m = T.int64()
+        def main(x: R.Tensor((main_m,), "float32"), y: R.Tensor((main_m,), "float32")):
             with R.dataflow():
-                output = R.call_tir(Module.add, [x, y], relax.TensorType((m,), "float32"))
+                output = R.call_tir(Module.add, [x, y], relax.TensorType((main_m,), "float32"))
                 R.output(output)
             return output
 
-    # Constexpr parameters (BLOCK_SIZE) stay in the kernel arguments, and the
-    # thread extent is 256 because the kernel is compiled with num_warps=8.
-    @I.ir_module(s_tir=True)
+    # Triton omits constexpr arguments and appends global scratch, plus profile
+    # scratch starting in 3.5. This kernel requires no scratch allocation.
+    scratch_args = [tvm.tirx.reinterpret("handle", tvm.tirx.IntImm("uint64", 0))]
+    if version.parse(triton.__version__) >= version.parse("3.5.0"):
+        scratch_args.append(tvm.tirx.reinterpret("handle", tvm.tirx.IntImm("uint64", 0)))
+
+    # The thread extent is 256 because the kernel is compiled with num_warps=8.
+    m = T.dynamic("m")
+
+    @I.ir_module
     class Parsed:
-        @T.prim_func(s_tir=True)
-        def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
-            m = T.int64()
-            x = T.match_buffer(x_handle, (m,))
-            y = T.match_buffer(y_handle, (m,))
-            output = T.match_buffer(output_handle, (m,))
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
+        @Ts.prim_func
+        def add(x: T.Buffer((m,)), y: T.Buffer((m,)), output: T.Buffer((m,))):
+            with Ts.sblock("root"):
+                Ts.reads(x[0:m], y[0:m])
+                Ts.writes(output[0:m])
                 T.call_packed(
                     "add_kernel",
                     x.data,
                     y.data,
                     output.data,
                     m,
-                    64,
+                    *scratch_args,
                     256,
                     (m + T.int64(64) - T.int64(1)) // T.int64(64),
                 )

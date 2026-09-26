@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.s_tir import meta_schedule as ms
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -48,8 +49,8 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 @tvm.script.ir_module
 class Conv2dCuda0:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
+    @Ts.prim_func
+    def main(A: T.Buffer([14 * 14 * 256 * 256], dtype='float32'), B: T.Buffer([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
@@ -58,8 +59,7 @@ class Conv2dCuda0:
         blockIdx_x = T.env_thread("blockIdx.x")
         blockIdx_y = T.env_thread("blockIdx.y")
         blockIdx_z = T.env_thread("blockIdx.z")
-        A = T.match_buffer(a, [14*14*256*256], dtype="float32")
-        B = T.match_buffer(b, [14*14*512*256], dtype="float32")
+
         # body
         T.launch_thread(blockIdx_z, 196)
         B_local = T.decl_buffer([64], "float32", scope="local")
@@ -87,11 +87,10 @@ class Conv2dCuda0:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-
 @tvm.script.ir_module
 class Conv2dCuda1:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
+    @Ts.prim_func
+    def main(A: T.Buffer([14 * 14 * 256 * 256], dtype='float32'), B: T.Buffer([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
@@ -100,8 +99,7 @@ class Conv2dCuda1:
         blockIdx_x = T.env_thread("blockIdx.x")
         blockIdx_y = T.env_thread("blockIdx.y")
         blockIdx_z = T.env_thread("blockIdx.z")
-        A = T.match_buffer(a, [14*14*256*256], dtype="float32")
-        B = T.match_buffer(b, [14*14*512*256], dtype="float32")
+
         # body
         T.launch_thread(blockIdx_z, 196)
         B_local = T.decl_buffer([6400000], "float32", scope="local")
@@ -133,11 +131,10 @@ class Conv2dCuda1:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-
 @tvm.script.ir_module
 class Conv2dCuda2:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
+    @Ts.prim_func
+    def main(A: T.Buffer([14 * 14 * 256 * 256], dtype='float32'), B: T.Buffer([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
@@ -146,8 +143,7 @@ class Conv2dCuda2:
         blockIdx_x = T.env_thread("blockIdx.x")
         blockIdx_y = T.env_thread("blockIdx.y")
         blockIdx_z = T.env_thread("blockIdx.z")
-        A = T.match_buffer(a, [14*14*256*256], dtype="float32")
-        B = T.match_buffer(b, [14*14*512*256], dtype="float32")
+
         # body
         T.launch_thread(blockIdx_z, 196)
         B_local = T.decl_buffer([64], "float32", scope="local")
@@ -179,11 +175,10 @@ class Conv2dCuda2:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-
 @tvm.script.ir_module
 class Conv2dCuda3:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
+    @Ts.prim_func
+    def main(A: T.Buffer([14 * 14 * 256 * 256], dtype='float32'), B: T.Buffer([14 * 14 * 512 * 256], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
@@ -192,8 +187,7 @@ class Conv2dCuda3:
         blockIdx_x = T.env_thread("blockIdx.x")
         blockIdx_y = T.env_thread("blockIdx.y")
         blockIdx_z = T.env_thread("blockIdx.z")
-        A = T.match_buffer(a, [14*14*256*256], dtype="float32")
-        B = T.match_buffer(b, [14*14*512*256], dtype="float32")
+
         # body
         T.launch_thread(blockIdx_z, 196)
         B_local = T.decl_buffer([64], "float32", scope="local")
@@ -221,179 +215,184 @@ class Conv2dCuda3:
         for ff_inner_inner_inner, nn_inner_inner_inner in T.grid(8, 8):
             B[blockIdx_z * 131072 + blockIdx_y * 16384 + threadIdx_y * 2048 + ff_inner_inner_inner * 256 + blockIdx_x * 64 + threadIdx_x * 8 + nn_inner_inner_inner] = B_local[ff_inner_inner_inner * 8 + nn_inner_inner_inner]
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def GmmCuda0(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
-    Z_local = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
-    X_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
-    Y_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
+    X_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Y_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     for i0_0_i1_0_i2_0_fused in T.thread_binding(16, thread="blockIdx.x"):
         for i0_1_i1_1_i2_1_fused in T.thread_binding(1, thread="vthread.x"):
             for i0_2_i1_2_i2_2_fused in T.thread_binding(128, thread="threadIdx.x"):
                 for i1_3_init, i2_4_init in T.grid(4, 2):
-                    with T.sblock("Z_init"):
-                        b = T.axis.spatial(1, 0)
-                        i = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3_init)
-                        j = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4_init)
-                        T.reads()
-                        T.writes(Z_local[b, i, j])
+                    with Ts.sblock("Z_init"):
+                        b = Ts.axis.spatial(1, 0)
+                        i = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3_init)
+                        j = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4_init)
+                        Ts.reads()
+                        Ts.writes(Z_local[b, i, j])
                         Z_local[b, i, j] = T.float32(0)
                 for i3_0 in T.serial(4):
                     for ax0_ax1_ax2_fused_0 in T.serial(4):
                         for ax0_ax1_ax2_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
                             for ax0_ax1_ax2_fused_2 in T.vectorized(2):
-                                with T.sblock("X_shared"):
-                                    v0 = T.axis.spatial(1, 0)
-                                    v1 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) // 32)
-                                    v2 = T.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) % 32)
-                                    T.reads(X[v0, v1, v2])
-                                    T.writes(X_shared[v0, v1, v2])
+                                with Ts.sblock("X_shared"):
+                                    v0 = Ts.axis.spatial(1, 0)
+                                    v1 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) // 32)
+                                    v2 = Ts.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) % 32)
+                                    Ts.reads(X[v0, v1, v2])
+                                    Ts.writes(X_shared[v0, v1, v2])
                                     X_shared[v0, v1, v2] = X[v0, v1, v2]
                     for ax0_ax1_ax2_fused_0 in T.serial(8):
                         for ax0_ax1_ax2_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
-                            with T.sblock("Y_shared"):
-                                v0 = T.axis.spatial(1, 0)
-                                v1 = T.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) // 32)
-                                v2 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) % 32)
-                                T.reads(Y[v0, v1, v2])
-                                T.writes(Y_shared[v0, v1, v2])
+                            with Ts.sblock("Y_shared"):
+                                v0 = Ts.axis.spatial(1, 0)
+                                v1 = Ts.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) // 32)
+                                v2 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) % 32)
+                                Ts.reads(Y[v0, v1, v2])
+                                Ts.writes(Y_shared[v0, v1, v2])
                                 Y_shared[v0, v1, v2] = Y[v0, v1, v2]
                     for i3_1, i0_3, i1_3, i2_3, i3_2, i0_4, i1_4, i2_4 in T.grid(1, 1, 4, 1, 32, 1, 1, 2):
-                        with T.sblock("Z_update"):
-                            b = T.axis.spatial(1, 0)
-                            i = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3)
-                            j = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4)
-                            k = T.axis.reduce(128, i3_0 * 32 + i3_2)
-                            T.reads(Z_local[b, i, j], X_shared[b, i, k], Y_shared[b, k, j])
-                            T.writes(Z_local[b, i, j])
+                        with Ts.sblock("Z_update"):
+                            b = Ts.axis.spatial(1, 0)
+                            i = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3)
+                            j = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4)
+                            k = Ts.axis.reduce(128, i3_0 * 32 + i3_2)
+                            Ts.reads(Z_local[b, i, j], X_shared[b, i, k], Y_shared[b, k, j])
+                            Ts.writes(Z_local[b, i, j])
                             Z_local[b, i, j] = Z_local[b, i, j] + X_shared[b, i, k] * Y_shared[b, k, j]
                 for ax0, ax1, ax2 in T.grid(1, 4, 2):
-                    with T.sblock("Z_local"):
-                        v0 = T.axis.spatial(1, ax0)
-                        v1 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + ax1)
-                        v2 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + ax2)
-                        T.reads(Z_local[v0, v1, v2])
-                        T.writes(Z[v0, v1, v2])
+                    with Ts.sblock("Z_local"):
+                        v0 = Ts.axis.spatial(1, ax0)
+                        v1 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + ax1)
+                        v2 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + ax2)
+                        Ts.reads(Z_local[v0, v1, v2])
+                        Ts.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def GmmCuda1(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
-    Z_local = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
-    X_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
-    Y_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
+    X_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Y_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     for i0_0_i1_0_i2_0_fused in T.thread_binding(16, thread="blockIdx.x"):
         for i0_1_i1_1_i2_1_fused in T.thread_binding(1, thread="vthread.x"):
             for i0_2_i1_2_i2_2_fused in T.thread_binding(128, thread="threadIdx.x"):
                 for i1_3_init, i2_4_init in T.grid(4, 2):
-                    with T.sblock("Z_init"):
-                        b = T.axis.spatial(1, 0)
-                        i = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3_init)
-                        j = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4_init)
-                        T.reads()
-                        T.writes(Z_local[b, i, j])
+                    with Ts.sblock("Z_init"):
+                        b = Ts.axis.spatial(1, 0)
+                        i = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3_init)
+                        j = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4_init)
+                        Ts.reads()
+                        Ts.writes(Z_local[b, i, j])
                         Z_local[b, i, j] = T.float32(0)
                 for i3_0 in T.serial(4):
                     for ax0_ax1_ax2_fused_0 in T.serial(4):
                         for ax0_ax1_ax2_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
                             for ax0_ax1_ax2_fused_2 in T.vectorized(2):
-                                with T.sblock("X_shared"):
-                                    v0 = T.axis.spatial(1, 0)
-                                    v1 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) // 32)
-                                    v2 = T.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) % 32)
-                                    T.reads(X[v0, v1, v2])
-                                    T.writes(X_shared[v0, v1, v2])
+                                with Ts.sblock("X_shared"):
+                                    v0 = Ts.axis.spatial(1, 0)
+                                    v1 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) // 32)
+                                    v2 = Ts.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) % 32)
+                                    Ts.reads(X[v0, v1, v2])
+                                    Ts.writes(X_shared[v0, v1, v2])
                                     X_shared[v0, v1, v2] = X[v0, v1, v2]
                     for ax0_ax1_ax2_fused_0 in T.serial(8):
                         for ax0_ax1_ax2_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
-                            with T.sblock("Y_shared"):
-                                v0 = T.axis.spatial(1, 0)
-                                v1 = T.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) // 32)
-                                v2 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) % 32)
-                                T.reads(Y[v0, v1, v2])
-                                T.writes(Y_shared[v0, v1, v2])
+                            with Ts.sblock("Y_shared"):
+                                v0 = Ts.axis.spatial(1, 0)
+                                v1 = Ts.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) // 32)
+                                v2 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) % 32)
+                                Ts.reads(Y[v0, v1, v2])
+                                Ts.writes(Y_shared[v0, v1, v2])
                                 Y_shared[v0, v1, v2] = Y[v0, v1, v2]
                     for i3_1, i0_3, i1_3, i2_3, i3_2, i0_4, i1_4, i2_4 in T.grid(1, 1, 4, 1, 32, 1, 1, 2):
-                        with T.sblock("Z_update"):
-                            b = T.axis.spatial(1, 0)
-                            i = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3)
-                            j = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4)
-                            k = T.axis.reduce(128, i3_0 * 32 + i3_2)
-                            T.sblock_attr({
+                        with Ts.sblock("Z_update"):
+                            b = Ts.axis.spatial(1, 0)
+                            i = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3)
+                            j = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4)
+                            k = Ts.axis.reduce(128, i3_0 * 32 + i3_2)
+                            Ts.sblock_attr({
                                 "meta_schedule.thread_extent_low_inclusive": 0,
                                 "meta_schedule.thread_extent_high_inclusive": 32,
                             })
-                            T.reads(Z_local[b, i, j], X_shared[b, i, k], Y_shared[b, k, j])
-                            T.writes(Z_local[b, i, j])
+                            Ts.reads(Z_local[b, i, j], X_shared[b, i, k], Y_shared[b, k, j])
+                            Ts.writes(Z_local[b, i, j])
                             Z_local[b, i, j] = Z_local[b, i, j] + X_shared[b, i, k] * Y_shared[b, k, j]
                 for ax0, ax1, ax2 in T.grid(1, 4, 2):
-                    with T.sblock("Z_local"):
-                        v0 = T.axis.spatial(1, ax0)
-                        v1 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + ax1)
-                        v2 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + ax2)
-                        T.reads(Z_local[v0, v1, v2])
-                        T.writes(Z[v0, v1, v2])
+                    with Ts.sblock("Z_local"):
+                        v0 = Ts.axis.spatial(1, ax0)
+                        v1 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + ax1)
+                        v2 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + ax2)
+                        Ts.reads(Z_local[v0, v1, v2])
+                        Ts.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
-
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def GmmCuda2(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
-    Z_local = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
-    X_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
-    Y_shared = T.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Z_local = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="local")
+    X_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
+    Y_shared = Ts.sblock_alloc_buffer([1, 128, 128], dtype="float32", scope="shared")
     for i0_0_i1_0_i2_0_fused in T.thread_binding(16, thread="blockIdx.x"):
         for i0_1_i1_1_i2_1_fused in T.thread_binding(1, thread="vthread.x"):
             for i0_2_i1_2_i2_2_fused in T.thread_binding(128, thread="threadIdx.x"):
                 for i1_3_init, i2_4_init in T.grid(4, 2):
-                    with T.sblock("Z_init"):
-                        b = T.axis.spatial(1, 0)
-                        i = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3_init)
-                        j = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4_init)
-                        T.reads()
-                        T.writes(Z_local[b, i, j])
+                    with Ts.sblock("Z_init"):
+                        b = Ts.axis.spatial(1, 0)
+                        i = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3_init)
+                        j = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4_init)
+                        Ts.reads()
+                        Ts.writes(Z_local[b, i, j])
                         Z_local[b, i, j] = T.float32(0)
                 for i3_0 in T.serial(4):
                     for ax0_ax1_ax2_fused_0 in T.serial(4):
                         for ax0_ax1_ax2_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
                             for ax0_ax1_ax2_fused_2 in T.vectorized(2):
-                                with T.sblock("X_shared"):
-                                    v0 = T.axis.spatial(1, 0)
-                                    v1 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) // 32)
-                                    v2 = T.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) % 32)
-                                    T.reads(X[v0, v1, v2])
-                                    T.writes(X_shared[v0, v1, v2])
+                                with Ts.sblock("X_shared"):
+                                    v0 = Ts.axis.spatial(1, 0)
+                                    v1 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) // 32)
+                                    v2 = Ts.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 256 + ax0_ax1_ax2_fused_1 * 2 + ax0_ax1_ax2_fused_2) % 32)
+                                    Ts.reads(X[v0, v1, v2])
+                                    Ts.writes(X_shared[v0, v1, v2])
                                     X_shared[v0, v1, v2] = X[v0, v1, v2]
                     for ax0_ax1_ax2_fused_0 in T.serial(8):
                         for ax0_ax1_ax2_fused_1 in T.thread_binding(128, thread="threadIdx.x"):
-                            with T.sblock("Y_shared"):
-                                v0 = T.axis.spatial(1, 0)
-                                v1 = T.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) // 32)
-                                v2 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) % 32)
-                                T.reads(Y[v0, v1, v2])
-                                T.writes(Y_shared[v0, v1, v2])
+                            with Ts.sblock("Y_shared"):
+                                v0 = Ts.axis.spatial(1, 0)
+                                v1 = Ts.axis.spatial(128, i3_0 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) // 32)
+                                v2 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + (ax0_ax1_ax2_fused_0 * 128 + ax0_ax1_ax2_fused_1) % 32)
+                                Ts.reads(Y[v0, v1, v2])
+                                Ts.writes(Y_shared[v0, v1, v2])
                                 Y_shared[v0, v1, v2] = Y[v0, v1, v2]
                     for i3_1, i0_3, i1_3, i2_3, i3_2, i0_4, i1_4, i2_4 in T.grid(1, 1, 4, 1, 32, 1, 1, 2):
-                        with T.sblock("Z_update"):
-                            b = T.axis.spatial(1, 0)
-                            i = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3)
-                            j = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4)
-                            k = T.axis.reduce(128, i3_0 * 32 + i3_2)
-                            T.sblock_attr({
+                        with Ts.sblock("Z_update"):
+                            b = Ts.axis.spatial(1, 0)
+                            i = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + i1_3)
+                            j = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + i2_4)
+                            k = Ts.axis.reduce(128, i3_0 * 32 + i3_2)
+                            Ts.sblock_attr({
                                 "meta_schedule.thread_extent_low_inclusive": 1024,
                                 "meta_schedule.thread_extent_high_inclusive": 1024,
                             })
-                            T.reads(Z_local[b, i, j], X_shared[b, i, k], Y_shared[b, k, j])
-                            T.writes(Z_local[b, i, j])
+                            Ts.reads(Z_local[b, i, j], X_shared[b, i, k], Y_shared[b, k, j])
+                            Ts.writes(Z_local[b, i, j])
                             Z_local[b, i, j] = Z_local[b, i, j] + X_shared[b, i, k] * Y_shared[b, k, j]
                 for ax0, ax1, ax2 in T.grid(1, 4, 2):
-                    with T.sblock("Z_local"):
-                        v0 = T.axis.spatial(1, ax0)
-                        v1 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + ax1)
-                        v2 = T.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + ax2)
-                        T.reads(Z_local[v0, v1, v2])
-                        T.writes(Z[v0, v1, v2])
+                    with Ts.sblock("Z_local"):
+                        v0 = Ts.axis.spatial(1, ax0)
+                        v1 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused // 4 * 32 + i0_2_i1_2_i2_2_fused // 16 * 4 + ax1)
+                        v2 = Ts.axis.spatial(128, i0_0_i1_0_i2_0_fused % 4 * 32 + i0_2_i1_2_i2_2_fused % 16 * 2 + ax2)
+                        Ts.reads(Z_local[v0, v1, v2])
+                        Ts.writes(Z[v0, v1, v2])
                         Z[v0, v1, v2] = Z_local[v0, v1, v2]
 
+s0 = T.dynamic("s0", "int32")
+s0_1 = T.dynamic("s0_1", "int32")
+s0_2 = T.dynamic("s0_2", "int32")
+s1 = T.dynamic("s1", "int32")
+s1_1 = T.dynamic("s1_1", "int32")
+s1_2 = T.dynamic("s1_2", "int32")
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def GMMCUDATensorCore(
     X: T.Buffer((1024, 1024), "float16"),
     Y: T.Buffer((1024, 1024), "float16"),
@@ -401,26 +400,20 @@ def GMMCUDATensorCore(
 ) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    s0 = T.int32()
-    s0_1 = T.int32()
-    s0_2 = T.int32()
-    s1 = T.int32()
-    s1_1 = T.int32()
-    s1_2 = T.int32()
     # body
-    # with T.sblock("root")
-    Z_wmma_accumulator = T.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="wmma.accumulator")
-    X_shared = T.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="shared")
-    Y_shared = T.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="shared")
-    X_shared_wmma_matrix_a = T.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="wmma.matrix_a")
-    Y_shared_wmma_matrix_b = T.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="wmma.matrix_b")
+    # with Ts.sblock("root")
+    Z_wmma_accumulator = Ts.sblock_alloc_buffer([1024, 1024], dtype="float32", scope="wmma.accumulator")
+    X_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="shared")
+    Y_shared = Ts.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="shared")
+    X_shared_wmma_matrix_a = Ts.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="wmma.matrix_a")
+    Y_shared_wmma_matrix_b = Ts.sblock_alloc_buffer([1024, 1024], dtype="float16", scope="wmma.matrix_b")
     for ax0_0_ax1_0_0_ax2_0_0_fused in T.thread_binding(64, thread="blockIdx.x"):
         for ax0_1_ax1_0_1_ax2_0_1_fused in T.thread_binding(2, thread="blockIdx.y"):
             for ax0_2_ax1_0_2_ax2_0_2_fused in T.thread_binding(2, thread="threadIdx.y"):
                 for ax1_0_3_init, ax2_0_3_init, ax1_0_4_init, ax2_0_4_init in T.grid(2, 1, 2, 4):
-                    with T.sblock("Z_o_init"):
-                        v0 = T.axis.spatial(1, 0)
-                        v1_o = T.axis.spatial(
+                    with Ts.sblock("Z_o_init"):
+                        v0 = Ts.axis.spatial(1, 0)
+                        v1_o = Ts.axis.spatial(
                             64,
                             ax0_0_ax1_0_0_ax2_0_0_fused % 64 // 16 * 16
                             + ax0_1_ax1_0_1_ax2_0_1_fused % 2 * 8
@@ -428,25 +421,25 @@ def GMMCUDATensorCore(
                             + ax1_0_3_init * 2
                             + ax1_0_4_init,
                         )
-                        v2_o = T.axis.spatial(
+                        v2_o = Ts.axis.spatial(
                             64,
                             (ax0_0_ax1_0_0_ax2_0_0_fused % 16 + 0 + 0 + ax2_0_3_init) * 4
                             + ax2_0_4_init,
                         )
-                        T.reads()
-                        T.writes(
+                        Ts.reads()
+                        Ts.writes(
                             Z_wmma_accumulator[
                                 v1_o * 16 : v1_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                             ]
                         )
-                        T.sblock_attr(
+                        Ts.sblock_attr(
                             {
                                 "meta_schedule.thread_extent_high_inclusive": 1024,
                                 "meta_schedule.thread_extent_low_inclusive": 32,
                                 "warp_execution": 1,
                             }
                         )
-                        C = T.match_buffer(
+                        C = Ts.match_buffer(
                             Z_wmma_accumulator[
                                 v1_o * 16 : v1_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                             ],
@@ -471,8 +464,8 @@ def GMMCUDATensorCore(
                         for ax0_ax1_fused_1 in T.thread_binding(2, thread="threadIdx.y"):
                             for ax0_ax1_fused_2 in T.thread_binding(32, thread="threadIdx.x"):
                                 for ax0_ax1_fused_3 in T.vectorized(4):
-                                    with T.sblock("X_shared"):
-                                        v0 = T.axis.spatial(
+                                    with Ts.sblock("X_shared"):
+                                        v0 = Ts.axis.spatial(
                                             1024,
                                             ax0_0_ax1_0_0_ax2_0_0_fused // 16 * 256
                                             + ax0_1_ax1_0_1_ax2_0_1_fused * 128
@@ -484,7 +477,7 @@ def GMMCUDATensorCore(
                                             )
                                             // 32,
                                         )
-                                        v1 = T.axis.spatial(
+                                        v1 = Ts.axis.spatial(
                                             1024,
                                             ax3_0_0 * 32
                                             + (
@@ -495,16 +488,16 @@ def GMMCUDATensorCore(
                                             )
                                             % 32,
                                         )
-                                        T.reads(X[v0, v1])
-                                        T.writes(X_shared[v0, v1])
-                                        T.sblock_attr({"buffer_dim_align": [[0, 0, 32, 8]]})
+                                        Ts.reads(X[v0, v1])
+                                        Ts.writes(X_shared[v0, v1])
+                                        Ts.sblock_attr({"buffer_dim_align": [[0, 0, 32, 8]]})
                                         X_shared[v0, v1] = X[v0, v1]
                     for ax0_ax1_fused_0 in T.serial(8):
                         for ax0_ax1_fused_1 in T.thread_binding(2, thread="threadIdx.y"):
                             for ax0_ax1_fused_2 in T.thread_binding(32, thread="threadIdx.x"):
                                 for ax0_ax1_fused_3 in T.vectorized(4):
-                                    with T.sblock("Y_shared"):
-                                        v0 = T.axis.spatial(
+                                    with Ts.sblock("Y_shared"):
+                                        v0 = Ts.axis.spatial(
                                             1024,
                                             ax3_0_0 * 32
                                             + (
@@ -515,7 +508,7 @@ def GMMCUDATensorCore(
                                             )
                                             // 64,
                                         )
-                                        v1 = T.axis.spatial(
+                                        v1 = Ts.axis.spatial(
                                             1024,
                                             ax0_0_ax1_0_0_ax2_0_0_fused % 16 * 64
                                             + (
@@ -526,30 +519,30 @@ def GMMCUDATensorCore(
                                             )
                                             % 64,
                                         )
-                                        T.reads(Y[v0, v1])
-                                        T.writes(Y_shared[v0, v1])
-                                        T.sblock_attr({"buffer_dim_align": [[0, 0, 32, 8]]})
+                                        Ts.reads(Y[v0, v1])
+                                        Ts.writes(Y_shared[v0, v1])
+                                        Ts.sblock_attr({"buffer_dim_align": [[0, 0, 32, 8]]})
                                         Y_shared[v0, v1] = Y[v0, v1]
                     for ax3_0_1 in T.serial(2):
                         for ax0_0, ax1_0 in T.grid(4, 1):
-                            with T.sblock("X_shared_wmma.matrix_a_o"):
-                                v0_o = T.axis.spatial(
+                            with Ts.sblock("X_shared_wmma.matrix_a_o"):
+                                v0_o = Ts.axis.spatial(
                                     64,
                                     ax0_0_ax1_0_0_ax2_0_0_fused // 16 * 16
                                     + ax0_1_ax1_0_1_ax2_0_1_fused * 8
                                     + ax0_2_ax1_0_2_ax2_0_2_fused * 4
                                     + ax0_0,
                                 )
-                                v1_o = T.axis.spatial(64, ax3_0_0 * 2 + ax3_0_1)
-                                T.reads(
+                                v1_o = Ts.axis.spatial(64, ax3_0_0 * 2 + ax3_0_1)
+                                Ts.reads(
                                     X_shared[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16]
                                 )
-                                T.writes(
+                                Ts.writes(
                                     X_shared_wmma_matrix_a[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ]
                                 )
-                                A = T.match_buffer(
+                                A = Ts.match_buffer(
                                     X_shared[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
@@ -559,7 +552,7 @@ def GMMCUDATensorCore(
                                     scope="shared",
                                     offset_factor=16,
                                 )
-                                C_1 = T.match_buffer(
+                                C_1 = Ts.match_buffer(
                                     X_shared_wmma_matrix_a[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
@@ -589,20 +582,20 @@ def GMMCUDATensorCore(
                                     )
                                 )
                         for ax0_0, ax1_0 in T.grid(1, 4):
-                            with T.sblock("Y_shared_wmma.matrix_b_o"):
-                                v0_o = T.axis.spatial(64, ax3_0_0 * 2 + ax3_0_1)
-                                v1_o = T.axis.spatial(
+                            with Ts.sblock("Y_shared_wmma.matrix_b_o"):
+                                v0_o = Ts.axis.spatial(64, ax3_0_0 * 2 + ax3_0_1)
+                                v1_o = Ts.axis.spatial(
                                     64, ax0_0_ax1_0_0_ax2_0_0_fused % 16 * 4 + ax1_0
                                 )
-                                T.reads(
+                                Ts.reads(
                                     Y_shared[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16]
                                 )
-                                T.writes(
+                                Ts.writes(
                                     Y_shared_wmma_matrix_b[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ]
                                 )
-                                A_1 = T.match_buffer(
+                                A_1 = Ts.match_buffer(
                                     Y_shared[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
@@ -612,7 +605,7 @@ def GMMCUDATensorCore(
                                     scope="shared",
                                     offset_factor=16,
                                 )
-                                C_2 = T.match_buffer(
+                                C_2 = Ts.match_buffer(
                                     Y_shared_wmma_matrix_b[
                                         v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                                     ],
@@ -644,9 +637,9 @@ def GMMCUDATensorCore(
                         for ax0_3, ax1_0_3, ax2_0_3, ax3_0_2, ax0_4, ax1_0_4, ax2_0_4 in T.grid(
                             1, 2, 1, 1, 1, 2, 4
                         ):
-                            with T.sblock("Z_o_update"):
-                                v0 = T.axis.spatial(1, 0)
-                                v1_o = T.axis.spatial(
+                            with Ts.sblock("Z_o_update"):
+                                v0 = Ts.axis.spatial(1, 0)
+                                v1_o = Ts.axis.spatial(
                                     64,
                                     ax0_0_ax1_0_0_ax2_0_0_fused % 64 // 16 * 16
                                     + ax0_1_ax1_0_1_ax2_0_1_fused % 2 * 8
@@ -654,13 +647,13 @@ def GMMCUDATensorCore(
                                     + ax1_0_3 * 2
                                     + ax1_0_4,
                                 )
-                                v2_o = T.axis.spatial(
+                                v2_o = Ts.axis.spatial(
                                     64,
                                     (ax0_0_ax1_0_0_ax2_0_0_fused % 16 + 0 + 0 + ax2_0_3) * 4
                                     + ax2_0_4,
                                 )
-                                v3_o = T.axis.reduce(64, ax3_0_0 * 2 + ax3_0_1 + ax3_0_2)
-                                T.reads(
+                                v3_o = Ts.axis.reduce(64, ax3_0_0 * 2 + ax3_0_1 + ax3_0_2)
+                                Ts.reads(
                                     Z_wmma_accumulator[
                                         v1_o * 16 : v1_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                                     ],
@@ -671,19 +664,19 @@ def GMMCUDATensorCore(
                                         v3_o * 16 : v3_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                                     ],
                                 )
-                                T.writes(
+                                Ts.writes(
                                     Z_wmma_accumulator[
                                         v1_o * 16 : v1_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                                     ]
                                 )
-                                T.sblock_attr(
+                                Ts.sblock_attr(
                                     {
                                         "meta_schedule.thread_extent_high_inclusive": 1024,
                                         "meta_schedule.thread_extent_low_inclusive": 32,
                                         "warp_execution": 1,
                                     }
                                 )
-                                A_2 = T.match_buffer(
+                                A_2 = Ts.match_buffer(
                                     X_shared_wmma_matrix_a[
                                         v1_o * 16 : v1_o * 16 + 16, v3_o * 16 : v3_o * 16 + 16
                                     ],
@@ -692,7 +685,7 @@ def GMMCUDATensorCore(
                                     scope="wmma.matrix_a",
                                     offset_factor=16,
                                 )
-                                B = T.match_buffer(
+                                B = Ts.match_buffer(
                                     Y_shared_wmma_matrix_b[
                                         v3_o * 16 : v3_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                                     ],
@@ -701,7 +694,7 @@ def GMMCUDATensorCore(
                                     scope="wmma.matrix_b",
                                     offset_factor=16,
                                 )
-                                C_3 = T.match_buffer(
+                                C_3 = Ts.match_buffer(
                                     Z_wmma_accumulator[
                                         v1_o * 16 : v1_o * 16 + 16, v2_o * 16 : v2_o * 16 + 16
                                     ],
@@ -724,22 +717,22 @@ def GMMCUDATensorCore(
                                     )
                                 )
                 for ax0_0, ax1_0 in T.grid(4, 4):
-                    with T.sblock("Z_wmma.accumulator_o"):
-                        v0_o = T.axis.spatial(
+                    with Ts.sblock("Z_wmma.accumulator_o"):
+                        v0_o = Ts.axis.spatial(
                             64,
                             ax0_0_ax1_0_0_ax2_0_0_fused // 16 * 16
                             + ax0_1_ax1_0_1_ax2_0_1_fused * 8
                             + ax0_2_ax1_0_2_ax2_0_2_fused * 4
                             + ax0_0,
                         )
-                        v1_o = T.axis.spatial(64, ax0_0_ax1_0_0_ax2_0_0_fused % 16 * 4 + ax1_0)
-                        T.reads(
+                        v1_o = Ts.axis.spatial(64, ax0_0_ax1_0_0_ax2_0_0_fused % 16 * 4 + ax1_0)
+                        Ts.reads(
                             Z_wmma_accumulator[
                                 v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                             ]
                         )
-                        T.writes(Z[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
-                        A_3 = T.match_buffer(
+                        Ts.writes(Z[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16])
+                        A_3 = Ts.match_buffer(
                             Z_wmma_accumulator[
                                 v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16
                             ],
@@ -748,7 +741,7 @@ def GMMCUDATensorCore(
                             scope="wmma.accumulator",
                             offset_factor=16,
                         )
-                        C_4 = T.match_buffer(
+                        C_4 = Ts.match_buffer(
                             Z[v0_o * 16 : v0_o * 16 + 16, v1_o * 16 : v1_o * 16 + 16],
                             [16, 16],
                             dtype="float32",
@@ -775,7 +768,6 @@ def GMMCUDATensorCore(
                                 dtype="handle",
                             )
                         )
-
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument,not-callable,misplaced-comparison-constant

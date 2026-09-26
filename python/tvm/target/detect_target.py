@@ -45,9 +45,6 @@ SUPPORTED_DEVICE: dict[str, Callable[[Device], Target]] = {
     "cpu": _detect_cpu,
 }
 
-# Backward-compatible alias for the previous private module-level map.
-SUPPORT_DEVICE = SUPPORTED_DEVICE
-
 
 def register_device_target_detector(device_type: str, detector: Callable[[Device], Target]) -> None:
     """Register target detection for a runtime device type."""

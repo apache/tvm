@@ -52,18 +52,24 @@ def _test_static_shape(name: str, relax_op: Callable, te_func: Callable, dtype: 
 
 
 def _test_symbolic_shape(name: str, relax_op: Callable, te_func: Callable, dtype: str):
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(("m", "n"), dtype)):
+        def main(x: R.Tensor((m, n), dtype)):
             nonlocal dtype
             gv = relax_op(x)
             return gv
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("m", "n"), dtype)):
+        def main(x: R.Tensor((m, n), dtype)):
             nonlocal dtype
             gv = R.emit_te(te_func, x, primfunc_name_hint=f"tir_{name}")
             return gv

@@ -242,9 +242,7 @@ def test_ptx_addr_offset_type_and_range_rejections():
 
 
 def test_ptx_addr_pointer_and_raw_address_validation():
-    with pytest.raises(
-        (ValueError, tvm.error.DiagnosticError), match="uint32 address requires shared"
-    ):
+    with pytest.raises(ValueError, match="uint32 address requires shared"):
 
         @T.prim_func
         def global_u32(raw: T.uint32):
@@ -252,9 +250,7 @@ def test_ptx_addr_pointer_and_raw_address_validation():
             value = T.local_scalar("uint32")
             T.ptx.ld.global_.b32(value, T.ptx.addr(raw, 4))
 
-    with pytest.raises(
-        (ValueError, tvm.error.DiagnosticError), match="does not support T.ptx.addr"
-    ):
+    with pytest.raises(ValueError, match="does not support T.ptx.addr"):
 
         @T.prim_func
         def ptr_operand(src: T.Buffer((8,), "uint32")):
@@ -264,9 +260,7 @@ def test_ptx_addr_pointer_and_raw_address_validation():
 
 
 def test_ptx_addr_tma_tmem_and_independent_immediate_rejections():
-    with pytest.raises(
-        (ValueError, tvm.error.DiagnosticError), match="does not support T.ptx.addr"
-    ):
+    with pytest.raises(ValueError, match="does not support T.ptx.addr"):
 
         @T.prim_func
         def tma(tmap: T.Buffer((8,), "uint64")):
@@ -277,9 +271,7 @@ def test_ptx_addr_tma_tmem_and_independent_immediate_rejections():
                 shared_buf.data, T.ptx.addr(tmap.data, 16), T.int32(0), barrier.data
             )
 
-    with pytest.raises(
-        (ValueError, tvm.error.DiagnosticError), match="does not support T.ptx.addr"
-    ):
+    with pytest.raises(ValueError, match="does not support T.ptx.addr"):
 
         @T.prim_func
         def tmem(raw: T.uint32):
@@ -309,12 +301,15 @@ def test_ptx_addr_printer_script_and_json_roundtrip():
 
     script = kernel.script()
     assert script.count("T.ptx.addr(") == 2
-    tvm.ir.assert_structural_equal(kernel, tvm.script.from_source(script))
+    tvm.ir.assert_structural_equal(
+        kernel,
+        tvm.script.from_source(script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
+    )
     tvm.ir.assert_structural_equal(kernel, tvm.ir.load_json(tvm.ir.save_json(kernel)))
 
 
 def test_ptx_addr_legacy_positional_offsets_rejected():
-    with pytest.raises((ValueError, tvm.error.DiagnosticError)):
+    with pytest.raises(ValueError):
 
         @T.prim_func
         def scalar_load(src: T.Buffer((8,), "uint32")):
@@ -322,7 +317,7 @@ def test_ptx_addr_legacy_positional_offsets_rejected():
             value = T.local_scalar("uint32")
             T.ptx.ld.global_.b32(value, src.data, 16)
 
-    with pytest.raises((ValueError, tvm.error.DiagnosticError)):
+    with pytest.raises(ValueError):
 
         @T.prim_func
         def vector_load(src: T.Buffer((8,), "uint32")):
@@ -330,14 +325,14 @@ def test_ptx_addr_legacy_positional_offsets_rejected():
             values = T.alloc_local((2,), "uint32")
             T.ptx.ld.global_.v2.b32(values[0], values[1], src.data, 16)
 
-    with pytest.raises((ValueError, tvm.error.DiagnosticError)):
+    with pytest.raises(ValueError):
 
         @T.prim_func
         def scalar_store(dst: T.Buffer((8,), "uint32")):
             T.device_entry()
             T.ptx.st.global_.b32(dst.data, 16, T.uint32(0))
 
-    with pytest.raises((ValueError, tvm.error.DiagnosticError)):
+    with pytest.raises(ValueError):
 
         @T.prim_func
         def vector_store(dst: T.Buffer((8,), "uint32")):

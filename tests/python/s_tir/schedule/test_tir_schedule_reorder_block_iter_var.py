@@ -22,35 +22,36 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.s_tir.schedule.testing import verify_trace_roundtrip
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((128, 128), "float32"),
     C: T.Buffer((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("C"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("C"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 C[vi, vj] = 0.0
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_after_reorder_block_iter_var(
     A: T.Buffer((128, 128), "float32"),
     B: T.Buffer((128, 128), "float32"),
     C: T.Buffer((128, 128), "float32"),
 ):
     for i, j, k in T.grid(128, 128, 128):
-        with T.sblock("C"):
-            vk, vj, vi = T.axis.remap("RSS", [k, j, i])
-            T.reads(A[vi, vk], B[vj, vk])
-            T.writes(C[vi, vj])
-            with T.init():
+        with Ts.sblock("C"):
+            vk, vj, vi = Ts.axis.remap("RSS", [k, j, i])
+            Ts.reads(A[vi, vk], B[vj, vk])
+            Ts.writes(C[vi, vj])
+            with Ts.init():
                 C[vi, vj] = T.float32(0)
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 

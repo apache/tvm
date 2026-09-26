@@ -155,7 +155,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::ForNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() { TVMScriptPrinter::Register<tirx::ForNode>(ReprPrintTIR); }
 
 }  // namespace printer
 }  // namespace script

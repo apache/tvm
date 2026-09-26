@@ -212,7 +212,7 @@ bool TileLayoutNode::VerifyWellFormed() const {
   // std::unordered_map<String, std::vector<Iter>> thread_axes;
   // auto collect_thread_axis = [&thread_axes](const Iter& iter) {
   //   if (iter->axis->IsThreadAxis()) {
-  //     thread_axes[iter->axis->name].push_back(iter);
+  //     thread_axes[iter->axis.name()].push_back(iter);
   //   }
   // };
   // for (const auto& iter : shard) {
@@ -238,7 +238,7 @@ bool TileLayoutNode::VerifyWellFormed() const {
 
 PrimExpr TileLayoutNode::GetSize(ffi::Optional<ffi::String> axis_name) const {
   auto filter = [&](const Iter& iter, PrimExpr acc) {
-    if (!axis_name.has_value() || iter->axis->name == axis_name.value()) {
+    if (!axis_name.has_value() || iter->axis.name() == axis_name.value()) {
       return acc * iter->extent;
     }
     return acc;
@@ -314,20 +314,20 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) con
       << "Coordinate size must match the number of shard axes";
   std::unordered_map<ffi::String, PrimExpr> result;
   for (size_t i = 0; i < shard.size(); ++i) {
-    auto it = result.find(shard[i]->axis->name);
+    auto it = result.find(shard[i]->axis.name());
     if (it == result.end()) {
-      result[shard[i]->axis->name] = analyzer->Simplify(coord[i] * shard[i]->stride);
+      result[shard[i]->axis.name()] = analyzer->Simplify(coord[i] * shard[i]->stride);
     } else {
-      result[shard[i]->axis->name] = analyzer->Simplify(it->second + coord[i] * shard[i]->stride);
+      result[shard[i]->axis.name()] = analyzer->Simplify(it->second + coord[i] * shard[i]->stride);
     }
   }
   // Add offset to the result
   for (const auto& [axis, off] : offset) {
-    auto it = result.find(axis->name);
+    auto it = result.find(axis.name());
     if (it == result.end()) {
-      result[axis->name] = analyzer->Simplify(off);
+      result[axis.name()] = analyzer->Simplify(off);
     } else {
-      result[axis->name] = analyzer->Simplify(it->second + off);
+      result[axis.name()] = analyzer->Simplify(it->second + off);
     }
   }
   return result;
@@ -387,7 +387,7 @@ ffi::Optional<ffi::Tuple<ExecScope, ExecScope>> TileLayoutNode::GetScope() const
     auto subtile_primitivet = axis->GetSubscope();
     auto tile_primitivet = axis->GetScope();
     TVM_FFI_ICHECK(subtile_primitivet.has_value() && tile_primitivet.has_value())
-        << "Thread axis " << axis->name << " has no subscope or scope";
+        << "Thread axis " << axis.name() << " has no subscope or scope";
 
     ffi::String subscope = subtile_primitivet.value()->name();
     ffi::String scope = tile_primitivet.value()->name();

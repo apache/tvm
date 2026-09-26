@@ -32,19 +32,20 @@ shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store
 .. code-block:: python
 
     @Tx.prim_func
-    def dtypes(A_ptr: Tx.handle, O_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (256,), "float32")
-        O = Tx.match_buffer(O_ptr, (256,), "float32")
-        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([64])
-        f16  = Tx.alloc_local((1,), "float16")        # per-thread locals ...
+    def dtypes(A: Tx.Buffer((256,), "float32"), O: Tx.Buffer((256,), "float32")):
+
+        Tx.device_entry()
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([64])
+        f16 = Tx.alloc_local((1,), "float16")  # per-thread locals ...
         bf16 = Tx.alloc_local((1,), "bfloat16")
-        i32  = Tx.alloc_local((1,), "int32")
-        u8   = Tx.alloc_local((1,), "uint8")
-        b1   = Tx.alloc_local((1,), "bool")
-        sm   = Tx.alloc_shared((64,), "float16")      # ... and a shared tile
-        v    = Tx.alloc_local((1,), "float32x4")      # a vector-dtype local (float4)
+        i32 = Tx.alloc_local((1,), "int32")
+        u8 = Tx.alloc_local((1,), "uint8")
+        b1 = Tx.alloc_local((1,), "bool")
+        sm = Tx.alloc_shared((64,), "float16")  # ... and a shared tile
+        v = Tx.alloc_local((1,), "float32x4")  # a vector-dtype local (float4)
         v[0] = A.vload([tx * 4], dtype="float32x4")  # vectorized load
-        O.vstore([tx * 4], v[0])                     # vectorized store
+        O.vstore([tx * 4], v[0])  # vectorized store
         # ... (use f16/bf16/i32/u8/b1/sm) ...
 
 lowers to (generated CUDA, elided):

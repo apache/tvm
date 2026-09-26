@@ -24,12 +24,13 @@ from tvm.script import tirx as T
 
 
 def test_ipc_allreduce_rewrite():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function(pure=False)
-        def main(shape: R.Shape(["m", "n"])):  # type: ignore
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):  # type: ignore
             alloc: R.Tensor((m, n), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("global")
             )
@@ -42,12 +43,13 @@ def test_ipc_allreduce_rewrite():
             )
             return alloc1
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function(pure=False)
-        def main(shape: R.Shape(["m", "n"])):  # type: ignore
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):  # type: ignore
             alloc: R.Tensor((m, n), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("ipc_memory")
             )
@@ -74,12 +76,13 @@ def test_ipc_allreduce_rewrite():
 
 
 def test_ipc_allreduce_spread_along_reshape():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function(pure=False)
-        def main(shape: R.Shape(["m", "n"])):  # type: ignore
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):  # type: ignore
             alloc: R.Tensor((m, n), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("global")
             )
@@ -92,14 +95,15 @@ def test_ipc_allreduce_spread_along_reshape():
             )
             return alloc1
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function(pure=False)
         def main(
-            shape: R.Shape(["m", "n"]),  # type: ignore
-        ) -> R.Tensor(("m * n",), dtype="float16"):  # type: ignore
-            m = T.int64()
-            n = T.int64()
+            shape: R.Shape([m, n]),  # type: ignore
+        ) -> R.Tensor((m * n,), dtype="float16"):  # type: ignore
             alloc: R.Tensor((m, n), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("ipc_memory")
             )
@@ -128,12 +132,13 @@ def test_ipc_allreduce_spread_along_reshape():
 
 
 def test_ipc_allreduce_skip_reducer_other_than_sum():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
         @R.function(pure=False)
-        def main(shape: R.Shape(["m", "n"])):  # type: ignore
-            m = T.int64()
-            n = T.int64()
+        def main(shape: R.Shape([m, n])):  # type: ignore
             alloc: R.Tensor((m, n), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("global")
             )

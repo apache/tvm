@@ -295,13 +295,23 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       }
     }
 
-    // Runtime parameters themselves are definitions only in source order.
+    // Primitive parameters may supply dimensions anywhere in the signature.
+    // Register each once so duplicate parameters remain an error.
+    for (Var param : op->params) {
+      if (GetType(param).as<PrimTypeNode>()) {
+        RegisterVarDefinition(param);
+      }
+    }
+
+    // Other runtime parameters retain source-order definition scope.
     for (Var param : op->params) {
       if (auto* dataflow_var = param.as<DataflowVarNode>()) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<DataflowVar>(dataflow_var))
             << "DataflowVar " << param << " is defined outside DataflowBlock.";
       }
-      RegisterVarDefinition(param);
+      if (!GetType(param).as<PrimTypeNode>()) {
+        RegisterVarDefinition(param);
+      }
 
       auto it = param_var_func_map_.find(param);
       if (it != param_var_func_map_.end() && it->second != cur_visited_func_) {

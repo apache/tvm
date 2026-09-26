@@ -14,24 +14,70 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TIRX-layer TVMScript pieces (parser, builder).
+"""Public canonical TVMScript dialect namespace."""
 
-After the per-dialect TVMScript restructure, the TIRX layer owns its own
-``script/{parser,builder}`` subpackages. ``tvm.script.tirx`` resolves to
-this module via the dialect registry, so the public parser surface
-(``prim_func``, ``Buffer``, ``Ptr``, etc.) is re-exported here.
-"""
+import importlib as _importlib
+import sys as _sys
+from typing import Any as _Any
 
-# pylint: disable=redefined-builtin,wildcard-import,unused-wildcard-import
-from .parser import *
-from .parser import Buffer, Ptr, prim_func
+_initialized = False
+_initializing = False
+_ENTRY_EXPORTS = ("jit", "Optional")
 
-try:
-    from .parser import macro
-except ImportError:
-    macro = None
-from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
 
-from . import tile
-from .builder.ir import TensorMap, meta_class
-from .tile import cluster, cta, thread, warp, warpgroup, wg
+def _initialize() -> None:
+    global _initialized, _initializing
+    if _initialized or _initializing:
+        return
+    _initializing = True
+    try:
+        from tvm.script.parser import entry, register_namespace
+        from tvm.tirx.layout import Axis
+
+        from . import ir_builder as builder
+        from . import tile
+        from .jit import make_jit
+
+        globals().update(
+            (name, value) for name, value in vars(builder).items() if not name.startswith("_")
+        )
+        globals().update(
+            bind=builder.bind,
+            prim_func=entry.make_decorator(builder, namespace_path="tirx.prim_func"),
+            inline=entry.make_macro_decorator(
+                builder, namespace_path="tirx.inline", preserve_return=True, late_binding=True
+            ),
+            macro=entry.make_macro_decorator(
+                builder, namespace_path="tirx.macro", preserve_return=False
+            ),
+            jit=make_jit(builder, namespace_path="tirx.jit"),
+            tile=tile,
+        )
+        for name in ("cluster", "cta", "thread", "warp", "warpgroup", "wg"):
+            globals()[name] = getattr(tile, name)
+        namespace = _sys.modules[__name__]
+        register_namespace("tirx", namespace)
+        register_namespace("Tx", tile)
+        register_namespace("Axis", Axis)
+        globals()["__all__"] = sorted(name for name in globals() if not name.startswith("_"))
+        _initialized = True
+    finally:
+        _initializing = False
+
+
+def __getattr__(name: str) -> _Any:
+    if name == "ir_builder":
+        return _importlib.import_module(__name__ + ".ir_builder")
+    if name == "tile":
+        return _importlib.import_module(__name__ + ".tile")
+    if name.startswith("_") and name != "__all__":
+        raise AttributeError(name)
+    _initialize()
+    if name in globals():
+        return globals()[name]
+    return getattr(_importlib.import_module("tvm.tirx.script.ir_builder"), name)
+
+
+from .jit import OptionalAnnotation as Optional
+
+globals().pop("jit", None)

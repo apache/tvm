@@ -82,29 +82,39 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
 
     from tvm.tirx.layout import S, TileLayout, laneid
 
-    D_FRAG    = TileLayout(S[(2, 8, 4, 2) : (2, 4 @ laneid, 1 @ laneid, 1)])
+    D_FRAG = TileLayout(S[(2, 8, 4, 2) : (2, 4 @ laneid, 1 @ laneid, 1)])
     A_FRAG_K8 = TileLayout(S[(2, 8, 4, 2) : (2, 4 @ laneid, 1 @ laneid, 1)])
     B_FRAG_K8 = TileLayout(S[(4, 2, 8) : (1 @ laneid, 1, 4 @ laneid)])
-    A_FRAG = A_FRAG_K8.tile_to([16, 16], [16, 8]); B_FRAG = B_FRAG_K8.tile_to([16, 8], [8, 8])
+    A_FRAG = A_FRAG_K8.tile_to([16, 16], [16, 8])
+    B_FRAG = B_FRAG_K8.tile_to([16, 8], [8, 8])
+
 
     @Tx.prim_func
-    def gemm(A_ptr: Tx.handle, B_ptr: Tx.handle, D_ptr: Tx.handle):
-        A_g = Tx.match_buffer(A_ptr, (16, 16), "float16"); B_g = Tx.match_buffer(B_ptr, (16, 8), "float16")
-        D_g = Tx.match_buffer(D_ptr, (16, 8), "float32")
-        Tx.device_entry(); Tx.cta_id([1]); Tx.warp_id([1]); lane = Tx.lane_id([32])
+    def gemm(
+        A_g: Tx.Buffer((16, 16), "float16"),
+        B_g: Tx.Buffer((16, 8), "float16"),
+        D_g: Tx.Buffer((16, 8), "float32"),
+    ):
+
+        Tx.device_entry()
+        Tx.cta_id([1])
+        Tx.warp_id([1])
+        lane = Tx.lane_id([32])
         A_f = Tx.alloc_buffer((16, 16), "float16", scope="local", layout=A_FRAG)
-        B_f = Tx.alloc_buffer((16, 8),  "float16", scope="local", layout=B_FRAG)
-        D_f = Tx.alloc_buffer((16, 8),  "float32", scope="local", layout=D_FRAG)
-        A_reg = A_f.local(8)                              # stage A into the lane's 8 regs
+        B_f = Tx.alloc_buffer((16, 8), "float16", scope="local", layout=B_FRAG)
+        D_f = Tx.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
+        A_reg = A_f.local(8)  # stage A into the lane's 8 regs
         for s in Tx.unroll(8):
             kp, rM, kHi = s % 2, (s // 2) % 2, s // 4
             A_reg[s] = A_g[lane // 4 + 8 * rM, 2 * (lane % 4) + kp + 8 * kHi]
-        B_reg = B_f.local(4)                              # stage B into the lane's 4 regs
+        B_reg = B_f.local(4)  # stage B into the lane's 4 regs
         for s in Tx.unroll(4):
             kp, kHi = s % 2, s // 2
             B_reg[s] = B_g[2 * (lane % 4) + kp + 8 * kHi, lane // 4]
-        Tx.tile.warp.gemm(D_f, A_f, B_f, D_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0)
-        D_reg = D_f.local(4)                              # write the 4 result regs out
+        Tx.tile.warp.gemm(
+            D_f, A_f, B_f, D_f, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0
+        )
+        D_reg = D_f.local(4)  # write the 4 result regs out
         for s in Tx.unroll(4):
             rN, rM = s % 2, s // 2
             D_g[lane // 4 + 8 * rM, 2 * (lane % 4) + rN] = D_reg[s]

@@ -187,14 +187,5 @@ class Target : public ffi::ObjectRef {
   TVM_DLL void ExitWithScope();
 };
 
-/*!
- * \brief Check and update host field of the given legacy target and target host pair.
- *  Note that this function is for legacy target api compatibility issue only, not
- *  recommended for other use.
- * \param target The pointer to a Target typed object with host field to be updated
- * \param host The pointer to a Target typed object for target host to be updated
- */
-void CheckAndUpdateHostConsistency(Target* target, Target* host);
-
 }  // namespace tvm
 #endif  // TVM_TARGET_TARGET_H_

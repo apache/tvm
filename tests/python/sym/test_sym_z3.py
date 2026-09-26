@@ -93,7 +93,7 @@ def test_z3_context_lifetime_outlives_worker_thread():
     gc.collect()
 
 
-def test_z3_context_scope_clone_lifetime():
+def test_z3_context_clone_lifetime():
     _require_z3(Analyzer())
 
     a = tirx.Var("a", "int32")
@@ -101,20 +101,26 @@ def test_z3_context_scope_clone_lifetime():
     c = tirx.Var("c", "int32")
     expr = ((b - a) // c) * c + a <= b
 
-    with tvm.sym.Z3ContextScope():
-        analyzer = Analyzer()
-        analyzer.bind(a, tvm.ir.Range(1, 100000))
-        analyzer.bind(b, tvm.ir.Range(1, 100000))
-        analyzer.bind(c, tvm.ir.Range(1, 100000))
-        assert analyzer.can_prove(expr, SB)
+    analyzer = Analyzer()
+    analyzer.bind(a, tvm.ir.Range(1, 100000))
+    analyzer.bind(b, tvm.ir.Range(1, 100000))
+    analyzer.bind(c, tvm.ir.Range(1, 100000))
+    assert analyzer.can_prove(expr, SB)
 
-    # Clone while a different scope is active. The clone must adopt the
+    # Materialize a separate context before cloning. The clone must adopt the
     # source Analyzer's context before copying any Z3 handles.
-    with tvm.sym.Z3ContextScope():
-        cloned = analyzer.clone()
+    independent = Analyzer()
+    independent.bind(a, tvm.ir.Range(-100000, -1))
+    independent.bind(b, tvm.ir.Range(-100000, 100000))
+    independent.bind(c, tvm.ir.Range(1, 100000))
+    assert independent.can_prove(expr, SB)
+    assert independent.can_prove(a < 0, SB)
+    cloned = analyzer.clone()
 
-    del analyzer
+    del analyzer, independent
+    gc.collect()
     assert cloned.can_prove(expr, SB)
+    assert cloned.can_prove(a > 0, SB)
 
 
 # ---------------------------------------------------------------------------

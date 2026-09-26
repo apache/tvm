@@ -342,17 +342,6 @@ def InjectPTXLDG32(enable_inject_ptx_intrin=True):
     return _ffi_api.InjectPTXLDG32(enable_inject_ptx_intrin)  # type: ignore
 
 
-def InstrumentProfileIntrinsics():
-    """Insert intrinsic calls to instrument function and loop level profiling.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InstrumentProfileIntrinsics()  # type: ignore
-
-
 def VerifyVTCMLimit(default_target=None):
     """Verify if the size of the allocated vtcm memory satisfies the limit.
 
@@ -418,17 +407,6 @@ def LowerThreadAllreduce():
         The result pass
     """
     return _ffi_api.LowerThreadAllreduce()  # type: ignore
-
-
-def LowerAsyncDMA():
-    """Lower async DMA to DMA.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerAsyncDMA()  # type: ignore
 
 
 def InjectPTXAsyncCopy():
@@ -512,3 +490,22 @@ def UseAssumeToReduceBranches():
         The result pass
     """
     return _ffi_api.UseAssumeToReduceBranches()  # type: ignore
+
+
+def ForceNarrowIndexToInt32():
+    """Force narrow down indexing expressions and integer buffers to int32 dtype.
+
+    Unlike :py:func:`tvm.tirx.transform.ForceNarrowIndexToInt32`, this pass also rewrites block
+    iterators, block access regions, and match buffer regions, so it can run on scheduled
+    functions before block lowering.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    Note
+    ----
+    This pass should not be used in default cases.
+    """
+    return _ffi_api.ForceNarrowIndexToInt32()  # type: ignore

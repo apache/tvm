@@ -26,12 +26,14 @@ from tvm.script import tirx as T
 
 
 def test_vm_builtin_lower_mem_alloc_storage():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+        def main(x: R.Tensor((m, n), "float32")) -> R.Tensor:
             R.func_attr({"relax.force_pure": True})
-            m, n = T.int64(), T.int64()
 
             storage = R.memory.alloc_storage(R.shape([m * n * 4]), 0, "global", "uint8")
             alloc = R.memory.alloc_tensor(storage, 0, R.shape([m, n]), "float32")
@@ -41,13 +43,15 @@ def test_vm_builtin_lower_mem_alloc_storage():
             gv0 = alloc
             return gv0
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+        def main(x: R.Tensor((m, n), "float32")) -> R.Tensor:
             # we expected RemovePurityChecking to have been called first
             R.func_attr({"relax.force_pure": True})
-            m, n = T.int64(), T.int64()
 
             storage = R.vm.alloc_storage(R.shape([m * n * 4]), R.prim_value(0), "uint8", "global")
             alloc = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape([m, n]), "float32")
@@ -65,12 +69,14 @@ def test_vm_builtin_lower_mem_alloc_storage():
 def test_vm_builtin_alloc_tensor_raises_error():
     """R.builtin.alloc_tensor should be handled earlier"""
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor:
+        def main(x: R.Tensor((m, n), "float32")) -> R.Tensor:
             R.func_attr({"relax.force_pure": True})
-            m, n = T.int64(), T.int64()
 
             alloc = R.builtin.alloc_tensor(R.shape([m, n]), runtime_device_index=0, dtype="float32")
             _ = R.call_packed(
@@ -107,7 +113,7 @@ def test_vm_reshape_may_be_var():
             )
             return reshape
 
-    After = relax.transform.VMBuiltinLower()(Before)
+    After = relax.transform.LowerRuntimeBuiltin()(Before)
 
     tvm.ir.assert_structural_equal(Expected, After)
 
@@ -143,7 +149,7 @@ def test_vm_reshape_using_tensor_to_shape():
             )
             return reshape
 
-    After = relax.transform.VMBuiltinLower()(Before)
+    After = relax.transform.LowerRuntimeBuiltin()(Before)
 
     tvm.ir.assert_structural_equal(Expected, After)
 

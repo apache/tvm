@@ -23,6 +23,11 @@ namespace.  Layouts, execution scopes, visitors, compilation helpers, and
 tile-dispatch extensions are documented on their focused pages and excluded
 here so the same objects are not expanded twice.
 
+For C++ construction, include ``tvm/tirx/expr.h`` for ``BufferVar``, buffer
+loads, and buffer-region constructors. Include ``tvm/tirx/type.h`` for
+``BufferType``, ``BufferRegionType``, and ``TensorMapType``. Buffer regions
+use the shared ``TensorRegion`` expression from ``tvm/ir/expr.h``.
+
 .. automodule:: tvm.tirx
    :members:
    :imported-members:

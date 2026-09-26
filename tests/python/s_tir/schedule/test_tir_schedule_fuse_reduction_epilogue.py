@@ -26,88 +26,89 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_before(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
     C: T.Buffer((16, 16), "int32"),
     D: T.Buffer((16, 16), "int32"),
 ) -> None:
-    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("multiply"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("multiply"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 temp[vi, vj] = T.int32(0)
             temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
     for i, j in T.grid(16, 16):
-        with T.sblock("add"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("add"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_expected(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
     C: T.Buffer((16, 16), "int32"),
     D: T.Buffer((16, 16), "int32"),
 ) -> None:
-    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("multiply"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
-            T.writes(D[vi, vj])
-            with T.init():
+        with Ts.sblock("multiply"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            Ts.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+            Ts.writes(D[vi, vj])
+            with Ts.init():
                 D[vi, vj] = C[vi, vj]
             D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_fp32_before(
     A: T.Buffer((32, 32), "float32"),
     B: T.Buffer((32, 32), "float32"),
     C: T.Buffer((32, 32), "float32"),
     D: T.Buffer((32, 32), "float32"),
 ) -> None:
-    temp = T.sblock_alloc_buffer((32, 32), dtype="float32")
+    temp = Ts.sblock_alloc_buffer((32, 32), dtype="float32")
     for i, j, k in T.grid(32, 32, 32):
-        with T.sblock("multiply"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("multiply"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 temp[vi, vj] = T.float32(0)
             temp[vi, vj] = temp[vi, vj] + A[vi, vk] * B[vj, vk]
     for i, j in T.grid(32, 32):
-        with T.sblock("add"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("add"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_fp32_expected(
     A: T.Buffer((32, 32), "float32"),
     B: T.Buffer((32, 32), "float32"),
     C: T.Buffer((32, 32), "float32"),
     D: T.Buffer((32, 32), "float32"),
 ) -> None:
-    temp = T.sblock_alloc_buffer((32, 32), dtype="float32")
+    temp = Ts.sblock_alloc_buffer((32, 32), dtype="float32")
     for i, j, k in T.grid(32, 32, 32):
-        with T.sblock("multiply"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
-            T.writes(D[vi, vj])
-            with T.init():
+        with Ts.sblock("multiply"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            Ts.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+            Ts.writes(D[vi, vj])
+            with Ts.init():
                 D[vi, vj] = C[vi, vj]
             D[vi, vj] = D[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_multiple_epilogue_before(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
@@ -115,24 +116,24 @@ def matmul_bias_multiple_epilogue_before(
     D: T.Buffer((16, 16), "int32"),
     E: T.Buffer((16, 16), "int32"),
 ) -> None:
-    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("multiply"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("multiply"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 temp[vi, vj] = T.int32(0)
             temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
     for i, j in T.grid(16, 16):
-        with T.sblock("add"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("add"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             D[vi, vj] = temp[vi, vj] + C[vi, vj]
     for i, j in T.grid(16, 16):
-        with T.sblock("add2"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("add2"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             E[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_multiple_epilogue_expected(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
@@ -140,20 +141,20 @@ def matmul_bias_multiple_epilogue_expected(
     D: T.Buffer((16, 16), "int32"),
     E: T.Buffer((16, 16), "int32"),
 ) -> None:
-    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("multiply"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
-            T.writes(D[vi, vj])
-            with T.init():
+        with Ts.sblock("multiply"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            Ts.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+            Ts.writes(D[vi, vj])
+            with Ts.init():
                 D[vi, vj] = C[vi, vj]
             D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
     for i, j in T.grid(16, 16):
-        with T.sblock("add2"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads(temp[vi, vj], C[vi, vj])
-            T.writes(E[vi, vj])
+        with Ts.sblock("add2"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads(temp[vi, vj], C[vi, vj])
+            Ts.writes(E[vi, vj])
             E[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
@@ -216,7 +217,7 @@ def test_fuse_reduction_epilogue_multiple_epilogue():
     assert mod is not None
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_invalid_multiple_use_before(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
@@ -225,16 +226,16 @@ def matmul_bias_invalid_multiple_use_before(
     D: T.Buffer((16, 16), "int32"),
 ) -> None:
     """Epilogue uses the reduction result twice; fusion must be rejected."""
-    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("multiply"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("multiply"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 temp[vi, vj] = T.int32(0)
             temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
     for i, j in T.grid(16, 16):
-        with T.sblock("bad_epilogue"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("bad_epilogue"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             # temp[vi, vj] is used twice in the epilogue expression
             D[vi, vj] = (temp[vi, vj] + C1[vi, vj]) * (temp[vi, vj] + C2[vi, vj])
 
@@ -246,7 +247,7 @@ def test_fuse_reduction_epilogue_reject_multiple_use():
         sch.fuse_reduction_epilogue("multiply", "bad_epilogue")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def matmul_bias_invalid_scaling_before(
     A: T.Buffer((16, 16), "int8"),
     B: T.Buffer((16, 16), "int8"),
@@ -254,16 +255,16 @@ def matmul_bias_invalid_scaling_before(
     D: T.Buffer((16, 16), "int32"),
 ) -> None:
     """Epilogue scales the reduction result; fusion must be rejected."""
-    temp = T.sblock_alloc_buffer((16, 16), dtype="int32")
+    temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
-        with T.sblock("multiply"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-            with T.init():
+        with Ts.sblock("multiply"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+            with Ts.init():
                 temp[vi, vj] = T.int32(0)
             temp[vi, vj] = temp[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
     for i, j in T.grid(16, 16):
-        with T.sblock("scaled_epilogue"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("scaled_epilogue"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             # temp[vi, vj] is scaled by 2 before adding bias; this must not be fused.
             D[vi, vj] = temp[vi, vj] * T.int32(2) + C[vi, vj]
 

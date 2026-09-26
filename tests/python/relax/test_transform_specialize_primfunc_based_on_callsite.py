@@ -16,12 +16,15 @@
 # under the License.
 # ruff: noqa: E501, F401, F821
 
+from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -83,33 +86,33 @@ def verify(input):
 
 
 def test_single_arg_return():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global.texture-weight"),
-                    I.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global"),
+                    R.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global.texture-weight"),
+                    R.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global"),
                 ]
             }
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def max_pool2d_opencl(
             gv: T.Buffer((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
             pool_max: T.Buffer(
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
             ),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3, ax4, rv0, rv1 in T.grid(
                 T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4), T.int64(2), T.int64(2)
             ):
-                with T.sblock("pool_max"):
-                    v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = T.axis.remap(
+                with Ts.sblock("pool_max"):
+                    v_ax0, v_ax1, v_ax2, v_ax3, v_ax4, v_rv0, v_rv1 = Ts.axis.remap(
                         "SSSSSRR", [ax0, ax1, ax2, ax3, ax4, rv0, rv1]
                     )
-                    T.reads(
+                    Ts.reads(
                         gv[
                             v_ax0,
                             v_ax1,
@@ -118,9 +121,9 @@ def test_single_arg_return():
                             v_ax4,
                         ]
                     )
-                    T.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
-                    T.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
-                    with T.init():
+                    Ts.writes(pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4])
+                    Ts.sblock_attr({"schedule_rule": "meta_schedule.pool_max"})
+                    with Ts.init():
                         pool_max[v_ax0, v_ax1, v_ax2, v_ax3, v_ax4] = T.float32(
                             -340282346638528859811704183484516925440.0
                         )
@@ -135,19 +138,19 @@ def test_single_arg_return():
                         ],
                     )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform(
             x: T.Buffer((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float32"),
             te_layout_transform: T.Buffer(
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"
             ),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for self, i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(26), T.int64(26)):
-                with T.sblock("te_layout_transform"):
-                    v_self, v_i0, v_i1, v_i2 = T.axis.remap("SSSS", [self, i0, i1, i2])
-                    T.reads(x[v_self, v_i0, v_i1, v_i2])
-                    T.writes(
+                with Ts.sblock("te_layout_transform"):
+                    v_self, v_i0, v_i1, v_i2 = Ts.axis.remap("SSSS", [self, i0, i1, i2])
+                    Ts.reads(x[v_self, v_i0, v_i1, v_i2])
+                    Ts.writes(
                         te_layout_transform[
                             v_self, v_i0 // T.int64(4), v_i1, v_i2, v_i0 % T.int64(4)
                         ]
@@ -156,7 +159,7 @@ def test_single_arg_return():
                         v_self, v_i0 // T.int64(4), v_i1, v_i2, v_i0 % T.int64(4)
                     ] = x[v_self, v_i0, v_i1, v_i2]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform2(
             lv2: T.Buffer(
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
@@ -165,14 +168,14 @@ def test_single_arg_return():
                 (T.int64(2), T.int64(4), T.int64(13), T.int64(13)), "float32"
             ),
         ):
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for self, i0, i1, i2, i3 in T.grid(
                 T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)
             ):
-                with T.sblock("te_layout_transform"):
-                    v_self, v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSSS", [self, i0, i1, i2, i3])
-                    T.reads(lv2[v_self, v_i0, v_i1, v_i2, v_i3])
-                    T.writes(te_layout_transform[v_self, v_i3, v_i1, v_i2])
+                with Ts.sblock("te_layout_transform"):
+                    v_self, v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSSS", [self, i0, i1, i2, i3])
+                    Ts.reads(lv2[v_self, v_i0, v_i1, v_i2, v_i3])
+                    Ts.writes(te_layout_transform[v_self, v_i3, v_i1, v_i2])
                     te_layout_transform[v_self, v_i3, v_i1, v_i2] = lv2[
                         v_self, v_i0, v_i1, v_i2, v_i3
                     ]
@@ -212,18 +215,18 @@ def test_single_arg_return():
 
 
 def test_multi_arg_return():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Input:
         I.module_global_infos(
             {
                 "vdevice": [
-                    I.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global.texture-weight"),
-                    I.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global"),
+                    R.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global.texture-weight"),
+                    R.vdevice({"device": "adreno", "kind": "opencl"}, 0, "global"),
                 ]
             }
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def conv2d_NCHWc_OIHWo_opencl(
             lv: T.Buffer((T.int64(2), T.int64(4), T.int64(28), T.int64(28), T.int64(4)), "float32"),
             lv1: T.Buffer((T.int64(1), T.int64(16), T.int64(3), T.int64(3), T.int64(4)), "float32"),
@@ -233,7 +236,7 @@ def test_multi_arg_return():
         ):
             conv2d_NCHWc_OIHWo[0, 0, 0, 0, 0] = T.float32(0.0)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def fused_relu_concatenate_split(
             gv: T.Buffer((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
             T_split_sections_intermediate: T.Buffer(
@@ -246,7 +249,7 @@ def test_multi_arg_return():
             T_split_sections_intermediate[0, 0, 0, 0, 0] = T.float32(0.0)
             T_split_sections_intermediate_1[0, 0, 0, 0, 0] = T.float32(0.0)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform(
             x: T.Buffer((T.int64(2), T.int64(16), T.int64(28), T.int64(28)), "float32"),
             te_layout_transform: T.Buffer(
@@ -255,7 +258,7 @@ def test_multi_arg_return():
         ):
             te_layout_transform[0, 0, 0, 0, 0] = T.float32(0.0)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform1(
             w: T.Buffer((T.int64(4), T.int64(16), T.int64(3), T.int64(3)), "float32"),
             te_layout_transform: T.Buffer(
@@ -264,7 +267,7 @@ def test_multi_arg_return():
         ):
             te_layout_transform[0, 0, 0, 0, 0] = T.float32(0.0)
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_layout_transform2(
             lv3: T.Buffer(
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"

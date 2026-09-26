@@ -272,12 +272,12 @@ def _run_roundtrip_16b(
     tmem_layout = tmem_datapath_layout(tmem_datapath, tmem_rows, stage_width_elem)
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+    def kernel(
+        A: T.Buffer((128, per_thread_elems), dtype), B: T.Buffer((128, per_thread_elems), dtype)
+    ) -> None:
         # Per-thread input/output: A[tid_in_wg, i] feeds register slot i of the
         # warpgroup-collective fragment; B[tid_in_wg, i] is what comes back
         # after a .16x*b.st → .16x*b.ld round-trip.
-        A = T.match_buffer(A_ptr, (128, per_thread_elems), dtype)
-        B = T.match_buffer(B_ptr, (128, per_thread_elems), dtype)
 
         T.device_entry()
         warp_id = T.warp_id([128 // 32])
@@ -512,11 +512,12 @@ def test_tcgen05_16xnb_sub_slab_view_read(shape, rep):
     layout_f1 = tmem_datapath_layout("F", 64, tmem_cols, sub_slab=1)
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B128_ptr: T.handle, B0_ptr: T.handle, B1_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, regs128), dtype)
-        B128 = T.match_buffer(B128_ptr, (128, regs128), dtype)
-        B0 = T.match_buffer(B0_ptr, (128, regs64), dtype)
-        B1 = T.match_buffer(B1_ptr, (128, regs64), dtype)
+    def kernel(
+        A: T.Buffer((128, regs128), dtype),
+        B128: T.Buffer((128, regs128), dtype),
+        B0: T.Buffer((128, regs64), dtype),
+        B1: T.Buffer((128, regs64), dtype),
+    ) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
         T.cta_id([2])
@@ -764,9 +765,9 @@ def test_datapath_B_ld_st_roundtrip(n_cols, col_offset):
     tmem_cols = _next_pow2(max(32, col_offset + n_half))
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, n_half), "float32")
-        B = T.match_buffer(B_ptr, (128, n_half), "float32")
+    def kernel(
+        A: T.Buffer((128, n_half), "float32"), B: T.Buffer((128, n_half), "float32")
+    ) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
         T.cta_id([1])
@@ -870,11 +871,12 @@ def _run_load_test(shape: str, rep: int, dtype: str):
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+    def kernel(
+        A: T.Buffer((128, stage_width_elem), dtype), B: T.Buffer((128, per_thread_elems), dtype)
+    ) -> None:
         # A is the host data we stage into TMEM via the standard .32x32b path.
-        A = T.match_buffer(A_ptr, (128, stage_width_elem), dtype)
+
         # B is a per-thread register dump: B[tid_in_wg, reg_idx_in_elements].
-        B = T.match_buffer(B_ptr, (128, per_thread_elems), dtype)
 
         A_flat = A.view(-1)
 
@@ -1037,11 +1039,13 @@ def test_tcgen05_st_16xnb_store(shape, rep, dtype):
     atom_view = tcgen05_atom_layout(shape, (frag_rows, K_cols_elem), dtype)
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
+    def kernel(
+        A: T.Buffer((128, per_thread_elems), dtype), B: T.Buffer((128, stage_width_elem), dtype)
+    ) -> None:
         # A[tid_in_wg, i] is the i-th per-thread element to feed into the atom store.
-        A = T.match_buffer(A_ptr, (128, per_thread_elems), dtype)
+
         # B[lane, col] is the TMEM-staged readout after the round-trip.
-        B = T.match_buffer(B_ptr, (128, stage_width_elem), dtype)
+
         B_flat = B.view(-1)
 
         T.device_entry()
@@ -1170,8 +1174,7 @@ def test_alloc_tcgen05_frag_wrapper_compiles(shape, frag_rows, K_cols):
     and lowers to the correct tcgen05 atom for each supported instr_shape."""
 
     @T.prim_func
-    def kernel(A_ptr: T.handle) -> None:
-        T.match_buffer(A_ptr, (128, K_cols), "float32")
+    def kernel(A: T.Buffer((128, K_cols), "float32")) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
         T.cta_id([2])
@@ -1224,8 +1227,7 @@ def test_tcgen05_32x32b_float32_keeps_typed_register_operands():
     K_cols = 32
 
     @T.prim_func
-    def kernel(A_ptr: T.handle) -> None:
-        T.match_buffer(A_ptr, (128, K_cols), "float32")
+    def kernel(A: T.Buffer((128, K_cols), "float32")) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
         T.cta_id([2])
@@ -1360,10 +1362,13 @@ def _run_sliced_vs_full_load(shape, full_rep, n_chunks):
     stage_view = TileLayout(S[(128, stage_w) : (1 @ axis_tid_in_wg, 1)])
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, Bf_ptr: T.handle, Bs_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, stage_width_elem), dtype)
-        Bf = T.match_buffer(Bf_ptr, (128, per_thread_elems), dtype)  # full-load dump
-        Bs = T.match_buffer(Bs_ptr, (128, per_thread_elems), dtype)  # sliced-load dump
+    def kernel(
+        A: T.Buffer((128, stage_width_elem), dtype),
+        Bf: T.Buffer((128, per_thread_elems), dtype),
+        Bs: T.Buffer((128, per_thread_elems), dtype),
+    ) -> None:
+        # full-load dump
+        # sliced-load dump
         A_flat = A.view(-1)
 
         T.device_entry()
@@ -1500,9 +1505,7 @@ def test_copy_tmem2reg_async(dtype, width_32b):
 
     # fmt: off
     @T.prim_func
-    def copy_async_test(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, WIDTH), dtype)
-        B = T.match_buffer(B_ptr, (128, WIDTH), dtype)
+    def copy_async_test(A: T.Buffer((128, WIDTH), dtype), B: T.Buffer((128, WIDTH), dtype)) -> None:
 
         A_flat = A.view(-1)
         B_flat = B.view(-1)
@@ -1598,9 +1601,7 @@ def test_copy_tmem2reg(dtype, width_32b, offset_32b):
 
     # fmt: off
     @T.prim_func
-    def copy_sync(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, WIDTH), dtype)
-        B = T.match_buffer(B_ptr, (128, WIDTH), dtype)
+    def copy_sync(A: T.Buffer((128, WIDTH), dtype), B: T.Buffer((128, WIDTH), dtype)) -> None:
 
         A_flat = A.view(-1)
         B_flat = B.view(-1)
@@ -1697,9 +1698,7 @@ def test_copy_tmem2reg_sliced_local(dtype, width_32b, local_offset_32b):
 
     # fmt: off
     @T.prim_func
-    def copy_sync(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (128, WIDTH), dtype)
-        B = T.match_buffer(B_ptr, (128, WIDTH), dtype)
+    def copy_sync(A: T.Buffer((128, WIDTH), dtype), B: T.Buffer((128, WIDTH), dtype)) -> None:
 
         A_flat = A.view(-1)
         B_flat = B.view(-1)

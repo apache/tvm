@@ -14,16 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E731, F401, F841
+# ruff: noqa: E731, F401
 import pytest
 
 import tvm.testing
 from tvm import relax, tirx
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.relax.transform import CombineParallelMatmul
 from tvm.script import relax as R
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 def get_parallel_matmul(
@@ -39,17 +39,17 @@ def get_parallel_matmul(
 
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            x = R.arg("x", R.Tensor(lhs_shape, dtype))
+            R.func_name_("main")
+            x = R.arg_("x", R.Tensor(lhs_shape, dtype))
 
             rhs = []
             bias = []
 
             for i in range(num_branches):
-                rhs.append(R.arg("y", R.Tensor(rhs_shape, dtype)))
+                rhs.append(R.arg_("y", R.Tensor(rhs_shape, dtype)))
 
                 if with_bias and with_bias[i]:
-                    bias.append(R.arg("bias", R.Tensor((rhs_shape[1],), dtype)))
+                    bias.append(R.arg_("bias", R.Tensor((rhs_shape[1],), dtype)))
                 else:
                     bias.append(None)
 
@@ -538,13 +538,14 @@ def test_combine_matmul_of_static_and_dynamic_shapes():
 
     """
 
+    M = T.dynamic("M")
+
     @R.function(private=True)
     def before(
         x: R.Tensor((2, 1024, 640), "float32"),
         w0: R.Tensor((640, 640), "float32"),
-        w1: R.Tensor((640, "M"), "float32"),
+        w1: R.Tensor((640, M), "float32"),
     ):
-        M = T.int64()
         with R.dataflow():
             lv0 = R.matmul(x, w0)
             lv1 = R.matmul(x, w1)
@@ -552,15 +553,16 @@ def test_combine_matmul_of_static_and_dynamic_shapes():
             R.output(out)
         return out
 
+    M = T.dynamic("M")
+
     @R.function(private=True)
     def expected(
         x: R.Tensor((2, 1024, 640), dtype="float32"),
         w0: R.Tensor((640, 640), dtype="float32"),
-        w1: R.Tensor((640, "M"), dtype="float32"),
+        w1: R.Tensor((640, M), dtype="float32"),
     ) -> R.Tuple(
-        R.Tensor((2, 1024, 640), dtype="float32"), R.Tensor((2, 1024, "M"), dtype="float32")
+        R.Tensor((2, 1024, 640), dtype="float32"), R.Tensor((2, 1024, M), dtype="float32")
     ):
-        M = T.int64()
         with R.dataflow():
             lv: R.Tensor((640, 640 + M), dtype="float32") = R.concat((w0, w1), axis=1)
             lv1: R.Tensor((2, 1024, 640 + M), dtype="float32") = R.matmul(
@@ -594,13 +596,14 @@ def test_combine_matmul_of_dynamic_and_static_shapes():
     concatenated weights.
     """
 
+    M = T.dynamic("M")
+
     @R.function(private=True)
     def before(
         x: R.Tensor((2, 1024, 640), "float32"),
-        w0: R.Tensor((640, "M"), "float32"),
+        w0: R.Tensor((640, M), "float32"),
         w1: R.Tensor((640, 640), "float32"),
     ):
-        M = T.int64()
         with R.dataflow():
             lv0 = R.matmul(x, w0)
             lv1 = R.matmul(x, w1)
@@ -608,15 +611,16 @@ def test_combine_matmul_of_dynamic_and_static_shapes():
             R.output(out)
         return out
 
+    M = T.dynamic("M")
+
     @R.function(private=True)
     def expected(
         x: R.Tensor((2, 1024, 640), dtype="float32"),
-        w0: R.Tensor((640, "M"), dtype="float32"),
+        w0: R.Tensor((640, M), dtype="float32"),
         w1: R.Tensor((640, 640), dtype="float32"),
     ) -> R.Tuple(
-        R.Tensor((2, 1024, "M"), dtype="float32"), R.Tensor((2, 1024, 640), dtype="float32")
+        R.Tensor((2, 1024, M), dtype="float32"), R.Tensor((2, 1024, 640), dtype="float32")
     ):
-        M = T.int64()
         with R.dataflow():
             lv: R.Tensor((640, 640 + M), dtype="float32") = R.concat((w1, w0), axis=1)
             lv1: R.Tensor((2, 1024, 640 + M), dtype="float32") = R.matmul(
@@ -650,14 +654,16 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
     matmul.
     """
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function(private=True)
     def before(
         x: R.Tensor((2, 1024, 640), "float32"),
-        w0: R.Tensor((640, "M"), "float32"),
+        w0: R.Tensor((640, M), "float32"),
         w1: R.Tensor((640, 640), "float32"),
-        w2: R.Tensor((640, "N"), "float32"),
+        w2: R.Tensor((640, N), "float32"),
     ):
-        M = T.int64()
         with R.dataflow():
             lv0 = R.matmul(x, w0)
             lv1 = R.matmul(x, w1)
@@ -666,18 +672,20 @@ def test_limit_one_dynamic_shape_in_combined_matmul():
             R.output(out)
         return out
 
+    M = T.dynamic("M")
+    N = T.dynamic("N")
+
     @R.function(private=True)
     def expected(
         x: R.Tensor((2, 1024, 640), dtype="float32"),
-        w0: R.Tensor((640, "M"), dtype="float32"),
+        w0: R.Tensor((640, M), dtype="float32"),
         w1: R.Tensor((640, 640), dtype="float32"),
-        w2: R.Tensor((640, "N"), "float32"),
+        w2: R.Tensor((640, N), "float32"),
     ) -> R.Tuple(
-        R.Tensor((2, 1024, "M"), dtype="float32"),
+        R.Tensor((2, 1024, M), dtype="float32"),
         R.Tensor((2, 1024, 640), dtype="float32"),
-        R.Tensor((2, 1024, "N"), dtype="float32"),
+        R.Tensor((2, 1024, N), dtype="float32"),
     ):
-        M = T.int64()
         with R.dataflow():
             concat_weights = R.concat((w1, w0), axis=1)
             concat_output = R.matmul(x, concat_weights, out_dtype="float32")

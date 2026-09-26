@@ -177,13 +177,13 @@ def generate_unary_func(
                         inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, b_var: b_loop})
                         dst_indices = T.meta_var(inst_gen.generate_indices(dst_buffer_region))
                         if inst_gen.make_guard(dst_buffer_region):
-                            if unary_op == MapOpType.FILL:
+                            if T.constexpr(unary_op == MapOpType.FILL):
                                 T.evaluate(T.nki.memset(dst[tuple(dst_indices)], _src))
                             else:
                                 src_indices = T.meta_var(inst_gen.generate_indices(_src))
-                                if unary_op == MapOpType.RECIPROCAL:
+                                if T.constexpr(unary_op == MapOpType.RECIPROCAL):
                                     T.evaluate(T.nki.reciprocal(dst[tuple(dst_indices)], src[tuple(src_indices)]))  # noqa: E501
-                                elif isinstance(bias, TensorRegion):
+                                elif T.constexpr(isinstance(bias, TensorRegion)):
                                     bias_indices = T.meta_var(inst_gen.generate_indices(bias))
                                     T.evaluate(T.nki.activation(dst[tuple(dst_indices)], src[tuple(src_indices)], opcode, scale=scale, bias=bias_buffer[tuple(bias_indices)]))  # noqa: E501
                                 else:

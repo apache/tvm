@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import relax as rx
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -29,14 +30,11 @@ def identity_packed(a):
     return tvm.runtime.tensor(a.numpy())
 
 
-@T.prim_func(s_tir=True)
-def identity_tir(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [54, 96])
-    B = T.match_buffer(b, [54, 96])
-
+@Ts.prim_func
+def identity_tir(A: T.Buffer([54, 96]), B: T.Buffer([54, 96])) -> None:
     for i, j in T.grid(54, 96):
-        with T.sblock("compute"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("compute"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj]
 
 

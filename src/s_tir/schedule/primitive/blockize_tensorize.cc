@@ -985,8 +985,10 @@ struct TensorizeTraits : public UnpackedInstTraits<TensorizeTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(BlockizeTraits);
-TVM_REGISTER_INST_KIND_TRAITS(TensorizeTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<BlockizeTraits>();
+  RegisterInstructionKind<TensorizeTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

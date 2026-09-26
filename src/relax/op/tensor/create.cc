@@ -462,14 +462,10 @@ Expr tril(Expr x, Expr k) {
   return Call(Type::Missing(), op, {x, k});
 }
 
-Expr tril(Expr x, int k) { return tril(x, IntImm::Int64(k)); }
-
 Expr triu(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.triu");
   return Call(Type::Missing(), op, {x, k});
 }
-
-Expr triu(Expr x, int k) { return triu(x, IntImm::Int64(k)); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

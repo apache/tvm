@@ -893,8 +893,10 @@ struct ReverseComputeAtTraits : public UnpackedInstTraits<ReverseComputeAtTraits
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(ComputeAtTraits);
-TVM_REGISTER_INST_KIND_TRAITS(ReverseComputeAtTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<ComputeAtTraits>();
+  RegisterInstructionKind<ReverseComputeAtTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

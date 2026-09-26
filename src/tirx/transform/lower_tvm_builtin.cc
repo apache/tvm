@@ -427,36 +427,17 @@ class BuiltinLower : public StmtExprMutator {
         args.push_back(IntImm(PrimType::Int(32), attr->force_cu_dtype));
       }
       Call packed(op->ty, builtin::tvm_call_packed(), args);
-      return MakeCallPackedGeneric(packed.get(), 0, builtin::tvm_call_packed_lowered(), false);
+      return MakeCallPackedGeneric(packed.get(), 0, builtin::tvm_call_packed_lowered());
     }
     if (op->op.same_as(builtin::tvm_call_packed()) ||
         (op->op.same_as(builtin::call_ffi_kernel()) && !preserve_ffi_kernel_)) {
-      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered(),
-                                   /* use_last_value_as_traced_value*/ false);
+      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered());
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
-      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_cpacked_lowered(),
-                                   /* use_last_value_as_traced_value*/ false);
-    } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
-      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_trace_packed_lowered(),
-                                   /* use_last_value_as_traced_value*/ true);
-    } else if (op->op.same_as(builtin::anylist_setitem_call_packed())) {
-      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_packed_lowered());
-    } else if (op->op.same_as(builtin::anylist_setitem_call_cpacked())) {
-      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_cpacked_lowered());
+      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_cpacked_lowered());
     } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {
       return MakeShape(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
       return MakeArray(op);
-    } else if (op->op.same_as(builtin::tvm_context_id())) {
-      return IntImm(op->ty.as_or_throw<PrimType>(), 0);
-    } else if (op->op.same_as(builtin::dma_copy())) {
-      return MakeDMACopy(op);
-    } else if (op->op.same_as(builtin::dma_wait())) {
-      return MakeDMAWait(op);
-    } else if (op->op.same_as(builtin::dma_start_group())) {
-      return MakeDMAStartGroup(op);
-    } else if (op->op.same_as(builtin::dma_end_group())) {
-      return MakeDMAEndGroup(op);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -474,49 +455,6 @@ class BuiltinLower : public StmtExprMutator {
 
     ffi::String device_name = runtime::DLDeviceType2Str(as_int->value.as<int>().value());
     return StringImm("device_api." + device_name + "." + method_name);
-  }
-
-  PrimExpr MakeDMACopy(const CallNode* op) {
-    PrimExpr queue_id = op->args[0].as_or_throw<PrimExpr>();
-    Expr dst = op->args[1];
-    Expr src = op->args[2];
-    PrimExpr size = op->args[3].as_or_throw<PrimExpr>();
-    PrimExpr bypass_cache = op->args[4].as_or_throw<PrimExpr>();
-
-    auto method_name = GetDeviceMethodName("dma_copy");
-    Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(),
-                            {method_name, queue_id, dst, src, size, bypass_cache});
-    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
-        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
-  }
-
-  PrimExpr MakeDMAWait(const CallNode* op) {
-    PrimExpr queue_id = op->args[0].as_or_throw<PrimExpr>();
-    PrimExpr inflight = op->args[1].as_or_throw<PrimExpr>();
-
-    auto method_name = GetDeviceMethodName("dma_wait");
-    Call call_packed =
-        Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id, inflight});
-    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
-        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
-  }
-
-  PrimExpr MakeDMAStartGroup(const CallNode* op) {
-    PrimExpr queue_id = op->args[0].as_or_throw<PrimExpr>();
-
-    auto method_name = GetDeviceMethodName("dma_start_group");
-    Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id});
-    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
-        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
-  }
-
-  PrimExpr MakeDMAEndGroup(const CallNode* op) {
-    PrimExpr queue_id = op->args[0].as_or_throw<PrimExpr>();
-
-    auto method_name = GetDeviceMethodName("dma_end_group");
-    Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id});
-    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
-        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
   }
 
   // call shape
@@ -596,78 +534,53 @@ class BuiltinLower : public StmtExprMutator {
 
   void SetPackedArg(Expr arg, const Var& args_stack, size_t stack_offset,
                     std::vector<tirx::Stmt>* prep_seq) {
-    auto* call_pattern = arg.as<CallNode>();
-    if (call_pattern && call_pattern->op.same_as(builtin::anylist_getitem())) {
-      // call runtime function to set anylist
-      static const Op& anylist_set_packed_arg_op = Op::Get("tirx.TVMBackendAnyListSetPackedArg");
-      prep_seq->emplace_back(Evaluate(Call(
-          PrimType::Int(32), anylist_set_packed_arg_op,
-          {call_pattern->args[0], call_pattern->args[1], args_stack, ConstInt32(stack_offset)})));
+    int arg_type_index;
+    if (arg.as<StringImmNode>()) {
+      arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
+      arg = reinterpret(PointerType::VoidPointerTy(), std::move(arg));
+    } else if (arg->ty.as<PointerTypeNode>()) {
+      arg_type_index = IsArrayHandle(arg) ? ffi::TypeIndex::kTVMFFIDLTensorPtr
+                                          : ffi::TypeIndex::kTVMFFIOpaquePtr;
     } else {
-      int arg_type_index;
-      if (arg.as<StringImmNode>()) {
-        arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
-        arg = reinterpret(PointerType::VoidPointerTy(), std::move(arg));
-      } else if (arg->ty.as<PointerTypeNode>()) {
-        arg_type_index = IsArrayHandle(arg) ? ffi::TypeIndex::kTVMFFIDLTensorPtr
-                                            : ffi::TypeIndex::kTVMFFIOpaquePtr;
-      } else {
-        PrimExpr prim_arg = arg.as_or_throw<PrimExpr>();
-        PrimType arg_ty = prim_arg.ty();
-        PrimType api_ty = APIType(arg_ty);
-        if (arg_ty != api_ty) {
-          arg = prim::Cast(api_ty, prim_arg);
-        }
-        if (api_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
-          arg_type_index = ffi::TypeIndex::kTVMFFIBool;
-        } else if (api_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-          arg_type_index = ffi::TypeIndex::kTVMFFIInt;
-        } else if (api_ty.code() == DLDataTypeCode::kDLFloat) {
-          arg_type_index = ffi::TypeIndex::kTVMFFIFloat;
-        } else {
-          TVM_FFI_THROW(InternalError) << "Unsupported type: " << api_ty;
-        }
+      PrimExpr prim_arg = arg.as_or_throw<PrimExpr>();
+      PrimType arg_ty = prim_arg.ty();
+      PrimType api_ty = APIType(arg_ty);
+      if (arg_ty != api_ty) {
+        arg = prim::Cast(api_ty, prim_arg);
       }
-
-      // opaque handle need to set the kind properly
-      if (arg_type_index == ffi::TypeIndex::kTVMFFIOpaquePtr) {
-        prep_seq->emplace_back(
-            IfThenElse(Call(PrimType::Bool(), builtin::isnullptr(), {arg}).as_or_throw<PrimExpr>(),
-                       TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
-                                    ConstInt32(ffi::TypeIndex::kTVMFFINone)),
-                       TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
-                                    ConstInt32(ffi::TypeIndex::kTVMFFIOpaquePtr))));
+      if (api_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
+        arg_type_index = ffi::TypeIndex::kTVMFFIBool;
+      } else if (api_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+        arg_type_index = ffi::TypeIndex::kTVMFFIInt;
+      } else if (api_ty.code() == DLDataTypeCode::kDLFloat) {
+        arg_type_index = ffi::TypeIndex::kTVMFFIFloat;
       } else {
-        prep_seq->emplace_back(TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
-                                            ConstInt32(arg_type_index)));
+        TVM_FFI_THROW(InternalError) << "Unsupported type: " << api_ty;
       }
-      // set zero padding to ensure compatibility with FFI convention
-      prep_seq->emplace_back(
-          TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyZeroPadding, ConstInt32(0)));
-      // handle arg value
-      // NOTE: the intrinsic codegen will handle padding value clear for 32bit
-      // types or types that are smaller than 64 bits.
-      prep_seq->emplace_back(
-          TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyUnionValue, arg));
     }
+
+    // opaque handle need to set the kind properly
+    if (arg_type_index == ffi::TypeIndex::kTVMFFIOpaquePtr) {
+      prep_seq->emplace_back(
+          IfThenElse(Call(PrimType::Bool(), builtin::isnullptr(), {arg}).as_or_throw<PrimExpr>(),
+                     TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                  ConstInt32(ffi::TypeIndex::kTVMFFINone)),
+                     TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                  ConstInt32(ffi::TypeIndex::kTVMFFIOpaquePtr))));
+    } else {
+      prep_seq->emplace_back(TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                          ConstInt32(arg_type_index)));
+    }
+    // set zero padding to ensure compatibility with FFI convention
+    prep_seq->emplace_back(
+        TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyZeroPadding, ConstInt32(0)));
+    // handle arg value
+    // NOTE: the intrinsic codegen will handle padding value clear for 32bit
+    // types or types that are smaller than 64 bits.
+    prep_seq->emplace_back(
+        TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyUnionValue, arg));
   }
 
-  PrimExpr MakeAnyListSetItemCallPacked(const CallNode* op, const Op& lowered_op) {
-    Expr list_handle = op->args[0];
-    PrimExpr list_index = op->args[1].as_or_throw<PrimExpr>();
-
-    Call call = MakeCallPackedGeneric(op, 2, lowered_op, false);
-    Expr args_stack = call->args[1];
-    // The stack offset of return value stack_end
-    PrimExpr ret_offset = call->args[3].as_or_throw<PrimExpr>();
-    auto& prep_seq = prep_seq_stack_.back();
-    prep_seq.emplace_back(Evaluate(call.as_or_throw<PrimExpr>()));
-    static const Op& anylist_move_from_packed_return_op =
-        Op::Get("tirx.TVMBackendAnyListMoveFromPackedReturn");
-    return Call(PrimType::Int(32), anylist_move_from_packed_return_op,
-                {list_handle, list_index, args_stack, ret_offset})
-        .as_or_throw<PrimExpr>();
-  }
   /*!
    * \brief Generic tool to make low-level
    *  packed_call(other_args..., func_name, packed_arg0, packed_arg1...)
@@ -675,10 +588,8 @@ class BuiltinLower : public StmtExprMutator {
    * \param op The call
    * \param name_offset The beginning of function name and call packed section.
    * \param lowered_packed_op The target lowered op.
-   * \param pass_last_arg_as_traced_value Whether to pass last argument as traced value
    */
-  Call MakeCallPackedGeneric(const CallNode* op, size_t name_offset, const Op& lowered_packed_op,
-                             bool pass_last_arg_as_traced_value) {
+  Call MakeCallPackedGeneric(const CallNode* op, size_t name_offset, const Op& lowered_packed_op) {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
@@ -725,11 +636,6 @@ class BuiltinLower : public StmtExprMutator {
     ffi::Array<Expr> packed_args = {op->args[name_offset], scope.stack_ffi_any,
                                     ConstInt32(arg_stack_begin),
                                     ConstInt32(arg_stack_begin + num_args)};
-    if (pass_last_arg_as_traced_value) {
-      // pass in last element as traced value
-      // used by call_packed_traced
-      packed_args.push_back(op->args[op->args.size() - 1]);
-    }
     return Call(op->ty, lowered_packed_op, packed_args);
   }
 

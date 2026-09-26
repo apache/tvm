@@ -116,7 +116,7 @@ def _map_buffer_into_cta(ptr, rank, depth):
     mapped = T.alloc_local([1], "uint64")
     T.evaluate(T.ptx.mapa.u64(mapped[0], ptr, T.uint32(rank)))
     remote_ptr = TIRVar("remote_mbar_ptr", ptr_ty)
-    T.Bind(T.reinterpret(ptr_ty, mapped[0]), var=remote_ptr)
+    T.bind(T.reinterpret(ptr_ty, mapped[0]), var=remote_ptr)
     return T.decl_buffer([depth], "uint64", data=remote_ptr, scope="shared")
 
 

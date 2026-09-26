@@ -22,12 +22,15 @@
 #include <cmath>
 #include <limits>
 
+#include "../../../script/printer/dialect_prefix.h"
 #include "../../../tirx/script/printer/utils.h"
 #include "./utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterDialectPrefix("relax.prefix", "R"); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<StringImm>(
@@ -66,7 +69,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ffi::Array<ExprDoc> values_doc;
         AccessPath values_p = n_p->Attr("values");
         for (int i = 0, l = n->values.size(); i < l; ++i) {
-          values_doc.push_back(PrintShapeVar(n->values[i], values_p->ArrayItem(i), d));
+          values_doc.push_back(d->AsDoc<ExprDoc>(n->values[i], values_p->ArrayItem(i)));
         }
         return Relax(d, "shape")->Call({ListDoc(values_doc)});
       });
@@ -127,9 +130,9 @@ ffi::Optional<ExprDoc> SpecialScalar(const runtime::Tensor& n, const AccessPath&
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<::tvm::GenericConst>(  //
-      "", [](::tvm::GenericConst n, AccessPath n_p, IRDocsifier d) -> Doc {
-        if (auto dtype = n->value.as<DLDataType>()) {
-          return Relax(d, "dtype")->Call({LiteralDoc::DataType(*dtype, n_p->Attr("value"))});
+      "relax", [](::tvm::GenericConst n, AccessPath n_p, IRDocsifier d) -> Doc {
+        if (n->value.as<DLDataType>()) {
+          return IRDocsifier::vtable()("", n, n_p, d);
         }
         auto data = n->value.cast<runtime::Tensor>();
         if (ffi::Optional<ExprDoc> s = SpecialScalar(data, n_p->Attr("value"))) {
@@ -170,12 +173,15 @@ std::string ReprPrintVar(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   return ReprPrintRelax(obj, cfg);
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleGetItemNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeExprNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(VarNode, ReprPrintVar);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::DataflowVarNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(::tvm::GenericConstNode, ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<relax::TupleNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::TupleGetItemNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::ShapeExprNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<VarNode>(ReprPrintVar);
+  TVMScriptPrinter::Register<relax::DataflowVarNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<::tvm::GenericConstNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<::tvm::DataTypeImmNode>(ReprPrintRelax);
+}
 
 }  // namespace printer
 }  // namespace script

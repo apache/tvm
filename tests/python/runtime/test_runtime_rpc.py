@@ -36,6 +36,7 @@ from tvm import rpc, te
 from tvm.rpc.proxy import Proxy
 from tvm.rpc.tracker import Tracker
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.support import cc, utils
 from tvm.testing import env
@@ -675,11 +676,11 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
 
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func_without_arg() -> T.int64:
             return T.int64(42)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def func_with_arg(unused: T.int64) -> T.int64:
             return T.int64(42)
 

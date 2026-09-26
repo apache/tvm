@@ -22,7 +22,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/buffer.h>
+#include <tvm/tirx/expr.h>
 
 TEST(Simplify, MinMax) {
   tvm::sym::Analyzer ana;

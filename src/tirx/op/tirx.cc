@@ -169,7 +169,6 @@ TIRX_DEFINE_TILE_OP(cast);
 TIRX_DEFINE_TILE_OP(fma);
 TIRX_DEFINE_TILE_OP(silu);
 TIRX_DEFINE_TILE_OP(permute_layout);
-TIRX_DEFINE_TILE_OP(compose_op);
 TIRX_DEFINE_TILE_OP(copy_async);
 TIRX_DEFINE_TILE_OP(gemm_async);
 

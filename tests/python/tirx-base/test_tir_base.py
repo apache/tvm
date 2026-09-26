@@ -149,7 +149,7 @@ def test_return_stmt_functor_traversal_and_mutation():
 
 
 def test_control_flow_jump():
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def func(a: T.float32, b: T.float32):
         if True:
             return a
@@ -160,8 +160,8 @@ def test_control_flow_jump():
     assert out == 1.0
 
 
-def test_break_loop():
-    @T.prim_func(s_tir=True)
+def test_break_statement():
+    @T.prim_func
     def func(In: T.Buffer((2,), "int32"), Out: T.Buffer((2,), "int32")):
         Out[0] = 0
         Out[1] = 1
@@ -187,8 +187,8 @@ def test_break_loop():
     assert b[1] == 9
 
 
-def test_continue_loop():
-    @T.prim_func(s_tir=True)
+def test_continue_statement():
+    @T.prim_func
     def func(Out: T.Buffer((2,), "int32")):
         T.func_attr({"global_symbol": "main"})
         Out[0] = 0

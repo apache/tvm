@@ -20,6 +20,7 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import relax
+from tvm.script import ir as I
 from tvm.script import relax as R
 
 
@@ -42,10 +43,13 @@ def test_op_size():
 
 
 def test_op_size_dynamic():
+    m = I.dynamic("m")
+    n = I.dynamic("n")
+
     @tvm.script.ir_module
     class Module:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor((), "int64"):
+        def main(x: R.Tensor((m, n), "float32")) -> R.Tensor((), "int64"):
             return R.size(x)
 
     x_np = np.random.rand(4, 5).astype("float32")

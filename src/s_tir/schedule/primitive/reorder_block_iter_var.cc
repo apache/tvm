@@ -171,7 +171,7 @@ struct ReorderBlockIterVarTraits : public UnpackedInstTraits<ReorderBlockIterVar
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(ReorderBlockIterVarTraits);
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<ReorderBlockIterVarTraits>(); }
 
 }  // namespace s_tir
 }  // namespace tvm

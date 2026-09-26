@@ -21,7 +21,6 @@
 import functools
 import inspect
 import types
-import warnings
 from collections.abc import Callable, Mapping, Sequence
 from typing import Optional, Union
 
@@ -112,7 +111,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -131,7 +130,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class After:
             @R.function
             def main(
@@ -170,7 +169,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -188,7 +187,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -335,7 +334,7 @@ def LazyGetInput() -> tvm.ir.transform.Pass:
             ...
 
         @R.function
-        def after(fget_param: R.Callable([R.Prim('int64'), R.Any], R.Any)):
+        def after(fget_param: R.Callable([T.int64, R.Any], R.Any)):
             A_untyped = fget_param(0, R.str('A'))
             A = R.match_cast(A_untyped, R.Tensor([16,32], "float32")
             ...
@@ -373,7 +372,7 @@ def LazySetOutput() -> tvm.ir.transform.Pass:
             return (A, B)
 
         @R.function
-        def after(args, fset_param: R.Callable([R.Prim('int64'), R.Any])):
+        def after(args, fset_param: R.Callable([T.int64, R.Any])):
             ...
             fset_param(0, A)
             ...
@@ -598,20 +597,6 @@ def LowerRuntimeBuiltin() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
-
-
-def VMBuiltinLower() -> tvm.ir.transform.Pass:
-    """Lowering generic intrinsic to VM intrinsics.
-
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-    """
-    warnings.warn(
-        "tvm.relax.transform.VMBuiltinLower has been renamed to 'LowerRuntimeBuiltin'.  "
-        "This wrapper is for backwards compatibility, and will be removed in a later update."
-    )
     return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
 
 
@@ -1147,7 +1132,7 @@ def LegalizeOps(
                 r = R.call_tir(multiply, (y, z), (2, 3), dtype="float32")
                 return r
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def add(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),
@@ -1155,13 +1140,13 @@ def LegalizeOps(
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.sblock("T_add"):
-                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                        T.writes(T_add[v_ax0, v_ax1])
+                    with Ts.sblock("T_add"):
+                        v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                        Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        Ts.writes(T_add[v_ax0, v_ax1])
                         T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def multiply(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),
@@ -1169,10 +1154,10 @@ def LegalizeOps(
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.sblock("T_multiply"):
-                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                        T.writes(T_multiply[v_ax0, v_ax1])
+                    with Ts.sblock("T_multiply"):
+                        v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                        Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        Ts.writes(T_multiply[v_ax0, v_ax1])
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 

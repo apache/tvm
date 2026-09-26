@@ -69,8 +69,7 @@ def test_smem_descriptor_matches_runtime_encoder(ldo, sdo, swizzle):
     """`base | (addr >> 4)` must reproduce the C bitfield fill exactly."""
 
     @T.prim_func
-    def kernel(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (2,), "uint64")
+    def kernel(out: T.Buffer((2,), "uint64")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])
@@ -113,8 +112,7 @@ def test_instr_descriptor_block_scaled_matches_runtime_encoder(
     m, n, k, a_dtype, b_dtype, trans_a, trans_b, cta_group
 ):
     @T.prim_func
-    def kernel(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (1,), "uint64")
+    def kernel(out: T.Buffer((1,), "uint64")):
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([32])

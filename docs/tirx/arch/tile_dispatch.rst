@@ -32,7 +32,7 @@ The authoritative operation list is the C++ registry
 wrapper classes live in
 ``python/tvm/tirx/operator/tile_primitive/ops.py``.  Raw
 ``TilePrimitiveCall`` constructors live in
-``python/tvm/tirx/script/builder/tirx.py``, while the validated authoring facade
+``python/tvm/tirx/script/ir_builder/tirx.py``, while the validated authoring facade
 is in ``python/tvm/tirx/script/tile.py``.  Both Python construction surfaces
 produce the same IR node type.
 

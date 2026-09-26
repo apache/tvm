@@ -29,11 +29,10 @@ namespace script {
 
 namespace printer {
 
-ffi::Map<ffi::String, ExprDoc> BufferAttrs(
-    tirx::BufferVar buffer, const AccessPath& buffer_p, const Frame& frame, const IRDocsifier& d,
-    BufferVarDefinition var_definitions, ffi::Optional<Expr> data = std::nullopt,
-    bool stringify_undefined_shape = false, std::unordered_set<tirx::Var> stringify_shape_vars = {},
-    std::unordered_set<tirx::Var> stringify_compound_shape_vars = {}) {
+ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessPath& buffer_p,
+                                           const Frame& frame, const IRDocsifier& d,
+                                           BufferVarDefinition var_definitions,
+                                           ffi::Optional<Expr> data = std::nullopt) {
   using tvm::tirx::Var;
   using tvm::tirx::VarNode;
   ffi::Map<ffi::String, ExprDoc> kwargs;
@@ -92,33 +91,11 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
     for (int i = 0; i < n; ++i) {
       PrimExpr e = shape[i];
       AccessPath e_p = shape_p->ArrayItem(i);
-      bool contains_new_var = false;
-      bool contains_compound_shape_var = false;
-      std::unordered_set<Var> vars_in_shape;
-      auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-        vars_in_shape.insert(var);
-        contains_new_var =
-            contains_new_var || !d->IsVarDefined(var) || stringify_shape_vars.count(var);
-        contains_compound_shape_var =
-            contains_compound_shape_var || stringify_compound_shape_vars.count(var);
-        return ffi::WalkResult::Advance();
-      };
-      ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
-      if (is_new_var(e)) {
+      bool was_undefined = is_new_var(e);
+      if (was_undefined) {
         add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
       }
-      ExprDoc result = d->AsDoc<ExprDoc>(e, e_p);
-      bool is_bare_compound_shape_var =
-          e.as<VarNode>() && stringify_compound_shape_vars.count(e.as_or_throw<Var>());
-      bool stringify_compound_expr = contains_compound_shape_var && !is_bare_compound_shape_var;
-      results.push_back((stringify_undefined_shape && contains_new_var) || stringify_compound_expr
-                            ? ExprStringDoc(result, e_p)
-                            : result);
-      // A quoted shape expression defines every Var it contains.  Do not quote
-      // later dimensions merely because they reuse a Var introduced here.
-      for (const Var& var : vars_in_shape) {
-        stringify_shape_vars.erase(var);
-      }
+      results.push_back(d->AsDoc<ExprDoc>(e, e_p));
     }
     kwargs.Set("shape", TupleDoc(results));
   }
@@ -159,13 +136,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
       PrimExpr e = strides[i];
       AccessPath e_p = strides_p->ArrayItem(i);
       if (is_new_var(e)) {
-        if (try_inline_def(e, e_p, [=]() {
-              return d->AsDoc<ExprDoc>(buffer, buffer_p)
-                  ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
-            })) {
-          results.push_back(LiteralDoc::Str(e.as_or_throw<Var>()->name, e_p));
-          continue;
-        }
+        add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
       }
       results.push_back(d->AsDoc<ExprDoc>(e, e_p));
     }
@@ -177,8 +148,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
     if (int_imm->value != 0 ||
         int_imm->ty.as_or_throw<PrimType>()->dtype != buffer->DefaultIndexType()) {
       kwargs.Set("elem_offset",
-                 d->AsDoc<ExprDoc>(buffer->elem_offset,  //
-                                   buffer_p->Attr("elem_offset")));
+                 d->AsDoc<ExprDoc>(buffer->elem_offset, buffer_p->Attr("elem_offset")));
     }
   } else if (is_new_var(buffer->elem_offset)) {
     try_inline_def(buffer->elem_offset, buffer_p->Attr("elem_offset"),
@@ -186,8 +156,7 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
     needs_print_factor = true;
   } else {
     kwargs.Set("elem_offset",
-               d->AsDoc<ExprDoc>(buffer->elem_offset,  //
-                                 buffer_p->Attr("elem_offset")));
+               d->AsDoc<ExprDoc>(buffer->elem_offset, buffer_p->Attr("elem_offset")));
   }
   // Step 6. Handle `buffer.scope`
   {
@@ -207,8 +176,8 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
                LiteralDoc::Int(buffer->offset_factor, buffer_p->Attr("offset_factor")));
   }
   // Step 9. Handle `buffer.layout`. Track the enclosing PrimFunc's `s_tir`
-  // attr — in `s_tir=True` mode the parser fills `layout=None` by default,
-  // in `s_tir=False` (tirx) mode it fills `DefaultLayout(shape)`. Mirror
+  // attr: S-TIR construction uses layout=None by default, while TIRx
+  // construction uses DefaultLayout(shape). Mirror
   // that here so the implicit default is omitted and the non-default value
   // is emitted explicitly (round-trips safely under `StructuralEqual`).
   bool enclosing_s_tir = false;
@@ -241,8 +210,12 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(
                  d->AsDoc<ExprDoc>(buffer->allocated_addr[0],
                                    buffer_p->Attr("allocated_addr")->ArrayItem(0)));
     } else {
-      kwargs.Set("allocated_addr",
-                 d->AsDoc<ExprDoc>(buffer->allocated_addr, buffer_p->Attr("allocated_addr")));
+      ffi::Array<ExprDoc> addresses;
+      for (size_t i = 0; i < buffer->allocated_addr.size(); ++i) {
+        addresses.push_back(d->AsDoc<ExprDoc>(buffer->allocated_addr[i],
+                                              buffer_p->Attr("allocated_addr")->ArrayItem(i)));
+      }
+      kwargs.Set("allocated_addr", TupleDoc(addresses));
     }
   }
 
@@ -277,7 +250,8 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
                    const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d, BufferVarDefinition var_definitions,
                    ffi::Optional<Expr> data) {
-  auto prefix = TIR(d, method);
+  auto prefix = (method == "sblock_alloc_buffer" || method == "match_buffer") ? STIR(d, method)
+                                                                              : TIR(d, method);
   auto attrs = BufferAttrs(buffer, p, frame, d, var_definitions, data);
   if (method == "alloc_buffer") {
     if (buffer.IsScalar()) {
@@ -326,11 +300,9 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
 }
 
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars,
-                   std::unordered_set<tirx::Var> stringify_compound_shape_vars) {
+                   const IRDocsifier& d) {
   ffi::Map<ffi::String, ExprDoc> attrs =
-      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer, std::nullopt, true,
-                  std::move(stringify_shape_vars), std::move(stringify_compound_shape_vars));
+      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer);
   if (!attrs.count("dtype")) {
     attrs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
   }
@@ -447,7 +419,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::Axis>(
       "", [](tirx::Axis axis, AccessPath p, IRDocsifier d) -> Doc {
-        return LiteralDoc::Str(axis->name, p->Attr("name"));
+        return LiteralDoc::Str(axis.name(), p->Attr("name"));
       });
 }
 
@@ -456,7 +428,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "", [](tirx::Iter iter, AccessPath p, IRDocsifier d) -> Doc {
         return TIR(d, "Iter")->Call({d->AsDoc<ExprDoc>(iter->extent, p->Attr("extent")),
                                      d->AsDoc<ExprDoc>(iter->stride, p->Attr("stride")),
-                                     d->AsDoc<ExprDoc>(iter->axis->name, p->Attr("axis"))},
+                                     d->AsDoc<ExprDoc>(iter->axis.name(), p->Attr("axis"))},
                                     {}, {});
       });
 }
@@ -466,8 +438,8 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
 
   // `value @ Axis.<name>`, but elide `@m` (the default memory axis).
   auto bind_axis = [&](ExprDoc value, const tirx::Axis& axis) -> ExprDoc {
-    if (axis->name == "m") return value;
-    return OperationDoc(OpKind::kMatMul, {value, IdDoc("Axis")->Attr(axis->name)});
+    if (axis.name() == "m") return value;
+    return OperationDoc(OpKind::kMatMul, {value, IdDoc("Axis")->Attr(axis.name())});
   };
 
   // Build `head[(e0, e1, ...) : (s0@a0, s1@a1, ...)]` (or 1D shorthand
@@ -493,13 +465,13 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
     if (layout->offset.size() > 0) {
       ffi::Array<ExprDoc> offset_keys, offset_values;
       for (const auto& [axis, off] : layout->offset) {
-        offset_keys.push_back(LiteralDoc::Str(axis->name, p->Attr("axis")));
+        offset_keys.push_back(LiteralDoc::Str(axis.name(), p->Attr("axis")));
         offset_values.push_back(d->AsDoc<ExprDoc>(off, p->Attr("offset")));
       }
       keys.push_back("offset");
       values.push_back(DictDoc(offset_keys, offset_values));
     }
-    return TIRx(d, "TileLayout")->Attr("from_iters")->Call({}, keys, values);
+    return TIR(d, "TileLayout")->Attr("from_iters")->Call({}, keys, values);
   }
 
   // Compose `Tx.S[..] [+ Tx.R[..]] [+ offset_expr]`.
@@ -513,10 +485,10 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
 
   ffi::Optional<ExprDoc> spec;
   if (layout->shard.size() > 0) {
-    add_term(spec, iters_to_index(TIRx(d, "S"), layout->shard));
+    add_term(spec, iters_to_index(TIR(d, "S"), layout->shard));
   }
   if (layout->replica.size() > 0) {
-    add_term(spec, iters_to_index(TIRx(d, "R"), layout->replica));
+    add_term(spec, iters_to_index(TIR(d, "R"), layout->replica));
   }
   if (layout->offset.size() > 0) {
     // Sort by axis name so the printed text is deterministic across builds
@@ -524,7 +496,7 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
     std::vector<std::pair<tirx::Axis, PrimExpr>> sorted_offset(layout->offset.begin(),
                                                                layout->offset.end());
     std::sort(sorted_offset.begin(), sorted_offset.end(),
-              [](const auto& a, const auto& b) { return a.first->name < b.first->name; });
+              [](const auto& a, const auto& b) { return a.first.name() < b.first.name(); });
 
     // Build the offset as a single arithmetic expression first, then add it
     // to the spec in one `+`. Chaining `spec + term1 + term2` would re-enter
@@ -544,7 +516,7 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
     add_term(spec, off_doc.value());
   }
 
-  return TIRx(d, "TileLayout")->Call({spec.value()}, {}, {});
+  return TIR(d, "TileLayout")->Call({spec.value()}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -570,7 +542,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               kwargs_values.push_back(
                   LiteralDoc::Boolean(layout->swizzle_inner, p->Attr("swizzle_inner")));
             }
-            return TIRx(d, "ComposeLayout")
+            return TIR(d, "ComposeLayout")
                 ->Call({per_element, swizzle_len, atom_len, tile_doc}, kwargs_keys, kwargs_values);
           });
 }
@@ -587,14 +559,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_SCRIPT_REPR(tvm::TensorRegionNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(TensorLoadNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BufferStoreNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BufferTypeNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::IterNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::TileLayoutNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(s_tir::MatchBufferRegionNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<tvm::TensorRegionNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<TensorLoadNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::BufferStoreNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::BufferTypeNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::IterNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::TileLayoutNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::ComposeLayoutNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<s_tir::MatchBufferRegionNode>(ReprPrintTIR);
+}
 
 }  // namespace printer
 }  // namespace script

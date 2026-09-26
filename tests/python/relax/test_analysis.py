@@ -16,13 +16,11 @@
 # under the License.
 # ruff: noqa: F811, F841
 
-
 import pytest
 
 import tvm
 import tvm.testing
 from tvm import relax as rx
-from tvm import tirx
 from tvm.relax.analysis import (
     all_global_vars,
     all_vars,
@@ -36,6 +34,7 @@ from tvm.relax.analysis import (
 )
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -44,8 +43,8 @@ def var_name_set(vars: list[rx.Var | rx.GlobalVar]) -> set[str]:
 
 
 def test_use_def():
-    m = tirx.Var("m", "int64")
-    n = tirx.Var("n", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float16"))
     y = rx.Var("y", R.Tensor([n], "float16"))
     ib = rx.BlockBuilder()
@@ -74,8 +73,8 @@ def test_use_def():
     ids=["binary_op", "self_reference", "tuple"],
 )
 def test_used_vars(expr_fn, expected_var_names):
-    m = tirx.Var("m", "int64")
-    n = tirx.Var("n", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
     x = rx.Var("x", R.Tensor([m, n], "float16"))
     y = rx.Var("y", R.Tensor([n], "float16"))
     z = rx.Var("z", R.Tensor([m], "float16"))
@@ -292,13 +291,14 @@ def test_edge_binding_block_fake_unused_remove_all_unused():
 
 
 def test_edge_binding_block_fake_unused_remove_all_unused2():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+    k = T.dynamic("k")
+
     @tvm.script.ir_module
     class IdentityUnused:
         @R.function
         def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor(dtype="int32", ndim=3):
-            m = T.int64()
-            n = T.int64()
-            k = T.int64()
             with R.dataflow():
                 lv: R.Shape(ndim=3) = R.call_pure_packed(
                     "vm.builtin.tensor_to_shape", x, ty_args=(R.Shape(ndim=3),)
@@ -379,16 +379,17 @@ def test_retain_impure_calls_unused_in_binding_block():
 
 
 def test_retain_calls_to_impure_builtin_ops():
-    @I.ir_module(s_tir=True)
+    n = T.dynamic("n")
+
+    @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def my_tir(A: T.handle, B: T.handle, n: T.int64):
             T.evaluate(0)
 
         @R.function(pure=False)
-        def main(x: R.Tensor(("n",), "float32")):
+        def main(x: R.Tensor((n,), "float32")):
             cls = Module
-            n = T.int64()
             storage = R.memory.alloc_storage((n * 4,), 0, "global", "float32")
             alloc = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([n]), "float32")
             # "call_tir_dyn" is impure which shouldn't be removed.
@@ -521,7 +522,7 @@ def test_free_vars():
 
 @pytest.mark.parametrize("definition_site", ["parameter", "match_cast"])
 def test_free_vars_primitive_definition_sites(definition_site):
-    n = tirx.Var("n", "int64")
+    n = T.dynamic("n", "int64")
     if definition_site == "parameter":
         y = rx.Var("y", rx.TensorType([n], "float32"))
     else:
@@ -554,15 +555,15 @@ def test_all_global_vars():
 
 
 def test_reshape_pattern_reshape():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape(
         rxplaceholder: T.Buffer((1, 2, 3, 4), "float32"),
         T_reshape: T.Buffer((8, 3), "float32"),
     ):
         for i0, i1 in T.grid(8, 3):
-            with T.sblock("T_reshape"):
-                ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                T.reads(
+            with Ts.sblock("T_reshape"):
+                ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
+                Ts.reads(
                     rxplaceholder[
                         (ax0 * 3 + ax1) // 24,
                         (ax0 * 3 + ax1) % 24 // 12,
@@ -570,7 +571,7 @@ def test_reshape_pattern_reshape():
                         (ax0 * 3 + ax1) % 4,
                     ]
                 )
-                T.writes(T_reshape[ax0, ax1])
+                Ts.writes(T_reshape[ax0, ax1])
                 T_reshape[ax0, ax1] = rxplaceholder[
                     (ax0 * 3 + ax1) // 24,
                     (ax0 * 3 + ax1) % 24 // 12,
@@ -582,17 +583,17 @@ def test_reshape_pattern_reshape():
 
 
 def test_reshape_pattern_reshape_scheduled():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape_scheduled(
         rxplaceholder: T.Buffer((1, 2, 3, 4), "float32"),
         T_reshape: T.Buffer((8, 3), "float32"),
     ):
         for i0_i1_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for i0_i1_fused_1 in T.thread_binding(24, thread="threadIdx.x"):
-                with T.sblock("T_reshape"):
-                    ax0 = T.axis.spatial(8, (i0_i1_fused_0 * 24 + i0_i1_fused_1) // 3)
-                    ax1 = T.axis.spatial(3, (i0_i1_fused_0 * 24 + i0_i1_fused_1) % 3)
-                    T.reads(
+                with Ts.sblock("T_reshape"):
+                    ax0 = Ts.axis.spatial(8, (i0_i1_fused_0 * 24 + i0_i1_fused_1) // 3)
+                    ax1 = Ts.axis.spatial(3, (i0_i1_fused_0 * 24 + i0_i1_fused_1) % 3)
+                    Ts.reads(
                         rxplaceholder[
                             (ax0 * 3 + ax1) // 24,
                             (ax0 * 3 + ax1) % 24 // 12,
@@ -600,7 +601,7 @@ def test_reshape_pattern_reshape_scheduled():
                             (ax0 * 3 + ax1) % 4,
                         ]
                     )
-                    T.writes(T_reshape[ax0, ax1])
+                    Ts.writes(T_reshape[ax0, ax1])
                     T_reshape[ax0, ax1] = rxplaceholder[
                         (ax0 * 3 + ax1) // 24,
                         (ax0 * 3 + ax1) % 24 // 12,
@@ -612,35 +613,35 @@ def test_reshape_pattern_reshape_scheduled():
 
 
 def test_reshape_pattern_zero_extent():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def transpose_zero(
         rxplaceholder: T.Buffer((3, 0, 4), "float32"),
         T_transpose: T.Buffer((0, 3, 4), "float32"),
     ):
         for i0, i1, i2 in T.grid(0, 3, 4):
-            with T.sblock("T_transpose"):
-                ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
-                T.reads(rxplaceholder[ax1, ax0, ax2])
-                T.writes(T_transpose[ax0, ax1, ax2])
+            with Ts.sblock("T_transpose"):
+                ax0, ax1, ax2 = Ts.axis.remap("SSS", [i0, i1, i2])
+                Ts.reads(rxplaceholder[ax1, ax0, ax2])
+                Ts.writes(T_transpose[ax0, ax1, ax2])
                 T_transpose[ax0, ax1, ax2] = rxplaceholder[ax1, ax0, ax2]
 
     assert not has_reshape_pattern(transpose_zero)
 
 
 def test_reshape_pattern_expand_dims():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expand_dims(
         rxplaceholder: T.Buffer((2, 3, 4), "float32"),
         expand_dims: T.Buffer((2, 1, 1, 1, 3, 1, 4, 1), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7 in T.grid(2, 1, 1, 1, 3, 1, 4, 1):
-            with T.sblock("expand_dims"):
-                i0_1, i1_1, i2_1, i3_1, i4_1, i5_1, i6_1, i7_1 = T.axis.remap(
+            with Ts.sblock("expand_dims"):
+                i0_1, i1_1, i2_1, i3_1, i4_1, i5_1, i6_1, i7_1 = Ts.axis.remap(
                     "SSSSSSSS", [i0, i1, i2, i3, i4, i5, i6, i7]
                 )
-                T.reads(rxplaceholder[i0_1, i4_1, i6_1])
-                T.writes(expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1, i6_1, i7_1])
+                Ts.reads(rxplaceholder[i0_1, i4_1, i6_1])
+                Ts.writes(expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1, i6_1, i7_1])
                 expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1, i6_1, i7_1] = rxplaceholder[
                     i0_1, i4_1, i6_1
                 ]
@@ -649,24 +650,24 @@ def test_reshape_pattern_expand_dims():
 
 
 def test_reshape_pattern_dyn_1():
-    @T.prim_func(s_tir=True)
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
-        n = T.int64()
-        A = T.match_buffer(var_A, (n, T.int64(32), T.int64(128)), "float16")
-        T_reshape = T.match_buffer(
-            var_T_reshape, (T.int64(1), n, T.int64(32), T.int64(128)), "float16"
-        )
+    n = T.dynamic("n")
+
+    @Ts.prim_func
+    def reshape(
+        A: T.Buffer((n, T.int64(32), T.int64(128)), "float16"),
+        T_reshape: T.Buffer((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
+    ):
         for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), n, T.int64(32), T.int64(128)):
-            with T.sblock("T_reshape"):
-                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(
+            with Ts.sblock("T_reshape"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(
                     A[
                         ((v_ax3 // T.int64(128) + v_ax2) // T.int64(32) + v_ax0 * n + v_ax1) % n,
                         (v_ax3 // T.int64(128) + v_ax2) % T.int64(32),
                         v_ax3 % T.int64(128),
                     ]
                 )
-                T.writes(T_reshape[v_ax0, v_ax1, v_ax2, v_ax3])
+                Ts.writes(T_reshape[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_reshape[v_ax0, v_ax1, v_ax2, v_ax3] = A[
                     ((v_ax3 // T.int64(128) + v_ax2) // T.int64(32) + v_ax0 * n + v_ax1) % n,
                     (v_ax3 // T.int64(128) + v_ax2) % T.int64(32),
@@ -677,33 +678,35 @@ def test_reshape_pattern_dyn_1():
 
 
 def test_reshape_pattern_dyn_2():
-    @T.prim_func(s_tir=True)
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
-        n = T.int64()
-        A = T.match_buffer(var_A, (T.int64(1), n), "int32")
-        T_reshape = T.match_buffer(var_T_reshape, (n,), "int32")
+    n = T.dynamic("n")
+
+    @Ts.prim_func
+    def reshape(A: T.Buffer((T.int64(1), n), "int32"), T_reshape: T.Buffer((n,), "int32")):
         for ax0 in range(n):
-            with T.sblock("T_reshape"):
-                v_ax0 = T.axis.spatial(n, ax0)
-                T.reads(A[T.int64(0), v_ax0 % n])
-                T.writes(T_reshape[v_ax0])
+            with Ts.sblock("T_reshape"):
+                v_ax0 = Ts.axis.spatial(n, ax0)
+                Ts.reads(A[T.int64(0), v_ax0 % n])
+                Ts.writes(T_reshape[v_ax0])
                 T_reshape[v_ax0] = A[T.int64(0), v_ax0 % n]
 
     assert has_reshape_pattern(reshape)
 
 
 def test_reshape_pattern_dyn_3():
-    @T.prim_func(s_tir=True)
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
+    n = T.dynamic("n")
+
+    @Ts.prim_func
+    def reshape(
+        A: T.Buffer((n, T.int64(4096)), "float16"),
+        T_reshape: T.Buffer((T.int64(1), n, T.int64(4096)), "float16"),
+    ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
-        n = T.int64()
-        A = T.match_buffer(var_A, (n, T.int64(4096)), "float16")
-        T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(4096)), "float16")
+
         for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(4096)):
-            with T.sblock("T_reshape"):
-                v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                T.reads(A[(v_ax2 // T.int64(4096) + v_ax0 * n + v_ax1) % n, v_ax2 % T.int64(4096)])
-                T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
+            with Ts.sblock("T_reshape"):
+                v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+                Ts.reads(A[(v_ax2 // T.int64(4096) + v_ax0 * n + v_ax1) % n, v_ax2 % T.int64(4096)])
+                Ts.writes(T_reshape[v_ax0, v_ax1, v_ax2])
                 T_reshape[v_ax0, v_ax1, v_ax2] = A[
                     (v_ax2 // T.int64(4096) + v_ax0 * n + v_ax1) % n, v_ax2 % T.int64(4096)
                 ]
@@ -712,25 +715,26 @@ def test_reshape_pattern_dyn_3():
 
 
 def test_reshape_pattern_dyn_4():
-    @T.prim_func(s_tir=True)
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
+    n = T.dynamic("n")
+
+    @Ts.prim_func
+    def reshape(
+        A: T.Buffer((T.int64(1), n, T.int64(4096)), "float16"),
+        T_reshape: T.Buffer((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
+    ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
-        n = T.int64()
-        A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
-        T_reshape = T.match_buffer(
-            var_T_reshape, (T.int64(1), n, T.int64(32), T.int64(128)), "float16"
-        )
+
         for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), n, T.int64(32), T.int64(128)):
-            with T.sblock("T_reshape"):
-                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
-                T.reads(
+            with Ts.sblock("T_reshape"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = Ts.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Ts.reads(
                     A[
                         T.int64(0),
                         ((v_ax2 * T.int64(128) + v_ax3) // T.int64(4096) + v_ax0 * n + v_ax1) % n,
                         (v_ax2 * T.int64(128) + v_ax3) % T.int64(4096),
                     ]
                 )
-                T.writes(T_reshape[v_ax0, v_ax1, v_ax2, v_ax3])
+                Ts.writes(T_reshape[v_ax0, v_ax1, v_ax2, v_ax3])
                 T_reshape[v_ax0, v_ax1, v_ax2, v_ax3] = A[
                     T.int64(0),
                     ((v_ax2 * T.int64(128) + v_ax3) // T.int64(4096) + v_ax0 * n + v_ax1) % n,
@@ -741,17 +745,20 @@ def test_reshape_pattern_dyn_4():
 
 
 def test_reshape_pattern_dyn_5():
-    @T.prim_func(s_tir=True)
-    def reshape(var_A: T.handle, var_T_reshape: T.handle):
+    n = T.dynamic("n")
+
+    @Ts.prim_func
+    def reshape(
+        A: T.Buffer((T.int64(1), n, T.int64(32), T.int64(128)), "float16"),
+        T_reshape: T.Buffer((T.int64(1), n, T.int64(4096)), "float16"),
+    ):
         T.func_attr({"op_pattern": 8, "tirx.noalias": True})
-        n = T.int64()
-        A = T.match_buffer(var_A, (T.int64(1), n, T.int64(32), T.int64(128)), "float16")
-        T_reshape = T.match_buffer(var_T_reshape, (T.int64(1), n, T.int64(4096)), "float16")
-        # with T.sblock("root"):
+
+        # with Ts.sblock("root"):
         for ax0, ax1, ax2 in T.grid(T.int64(1), n, T.int64(4096)):
-            with T.sblock("T_reshape"):
-                v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                T.reads(
+            with Ts.sblock("T_reshape"):
+                v_ax0, v_ax1, v_ax2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
+                Ts.reads(
                     A[
                         T.int64(0),
                         (v_ax2 // T.int64(4096) + v_ax0 * n + v_ax1) % n,
@@ -759,7 +766,7 @@ def test_reshape_pattern_dyn_5():
                         v_ax2 % T.int64(128),
                     ]
                 )
-                T.writes(T_reshape[v_ax0, v_ax1, v_ax2])
+                Ts.writes(T_reshape[v_ax0, v_ax1, v_ax2])
                 T_reshape[v_ax0, v_ax1, v_ax2] = A[
                     T.int64(0),
                     (v_ax2 // T.int64(4096) + v_ax0 * n + v_ax1) % n,
@@ -771,20 +778,20 @@ def test_reshape_pattern_dyn_5():
 
 
 def test_reshape_pattern_with_raggedness():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reshape_raggedness(
         A: T.Buffer((100, 768), "float32"),
         src_indptr: T.Buffer((9,), "int32"),
         B: T.Buffer((100, 12, 64), "float32"),
     ):
         for b in T.serial(8):
-            with T.sblock("block0"):
-                vb = T.axis.spatial(8, b)
+            with Ts.sblock("block0"):
+                vb = Ts.axis.spatial(8, b)
                 for i in T.serial(src_indptr[vb + 1] - src_indptr[vb]):
                     for h in T.serial(12):
                         for f in T.serial(64):
-                            with T.sblock("block1"):
-                                vi, vh, vf = T.axis.remap("SSS", [i, h, f])
+                            with Ts.sblock("block1"):
+                                vi, vh, vf = Ts.axis.remap("SSS", [i, h, f])
                                 B[src_indptr[vb] + vi, vh, vf] = A[
                                     src_indptr[vb] + vi, vh * 64 + vf
                                 ]
@@ -793,28 +800,28 @@ def test_reshape_pattern_with_raggedness():
 
 
 def test_reshape_pattern_reject_seqstmt():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def identity_bias(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
-        C = T.sblock_alloc_buffer((128, 128), "float32")
+        C = Ts.sblock_alloc_buffer((128, 128), "float32")
         for i0, i1 in T.grid(4, 4):
-            with T.sblock("identity"):
-                vi0, vi1 = T.axis.remap("SS", [i0, i1])
+            with Ts.sblock("identity"):
+                vi0, vi1 = Ts.axis.remap("SS", [i0, i1])
                 C[vi0, vi1] = A[vi0, vi1]
         for i0, i1 in T.grid(4, 4):
-            with T.sblock("identity"):
-                vi0, vi1 = T.axis.remap("SS", [i0, i1])
+            with Ts.sblock("identity"):
+                vi0, vi1 = Ts.axis.remap("SS", [i0, i1])
                 B[vi0, vi1] = C[vi0, vi1] + T.float32(1)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def identity_identity(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4, 4), "float32")):
-        C = T.sblock_alloc_buffer((128, 128), "float32")
+        C = Ts.sblock_alloc_buffer((128, 128), "float32")
         for i0, i1 in T.grid(4, 4):
-            with T.sblock("identity"):
-                vi0, vi1 = T.axis.remap("SS", [i0, i1])
+            with Ts.sblock("identity"):
+                vi0, vi1 = Ts.axis.remap("SS", [i0, i1])
                 C[vi0, vi1] = A[vi0, vi1]
         for i0, i1 in T.grid(4, 4):
-            with T.sblock("identity"):
-                vi0, vi1 = T.axis.remap("SS", [i0, i1])
+            with Ts.sblock("identity"):
+                vi0, vi1 = Ts.axis.remap("SS", [i0, i1])
                 B[vi0, vi1] = C[vi0, vi1]
 
     assert not has_reshape_pattern(identity_bias)
@@ -822,12 +829,12 @@ def test_reshape_pattern_reject_seqstmt():
 
 
 def test_reshape_pattern_reject_reduction():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reduction(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4,), "float32")):
         for i0, i1 in T.grid(4, 4):
-            with T.sblock("identity"):
-                vi0, vi1 = T.axis.remap("SR", [i0, i1])
-                with T.init():
+            with Ts.sblock("identity"):
+                vi0, vi1 = Ts.axis.remap("SR", [i0, i1])
+                with Ts.init():
                     B[vi0] = T.float32(0)
                 B[vi0] = B[vi0] + A[vi0, vi1]
 
@@ -835,12 +842,12 @@ def test_reshape_pattern_reject_reduction():
 
 
 def test_reshape_pattern_reject_reduction():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def reduction(A: T.Buffer((4, 4), "float32"), B: T.Buffer((4,), "float32")):
         for i0, i1 in T.grid(4, 4):
-            with T.sblock("identity"):
-                vi0, vi1 = T.axis.remap("SR", [i0, i1])
-                with T.init():
+            with Ts.sblock("identity"):
+                vi0, vi1 = Ts.axis.remap("SR", [i0, i1])
+                with Ts.init():
                     B[vi0] = T.float32(0)
                 B[vi0] = B[vi0] + A[vi0, vi1]
 

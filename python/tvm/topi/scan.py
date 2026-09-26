@@ -22,7 +22,7 @@ from collections.abc import Callable
 
 import tvm
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 from ..te import extern
 from ..tirx import decl_buffer
@@ -117,25 +117,42 @@ def scanop(
 
     def gen_ir(data_buf, out_buf):
         with IRBuilder() as ib:
-            data_buf = T.buffer_proxy(data_buf)
-            out_buf = T.buffer_proxy(out_buf)
-
             with T.parallel(0, axis_mul_before * axis_mul_after) as fused:
                 i = fused // axis_mul_after
                 j = fused % axis_mul_after
                 base_idx = i * cumsum_axis_len * axis_mul_after + j
                 if exclusive:
-                    out_buf[base_idx] = cast(identity_value, dtype)
+                    T.buffer_store(
+                        out_buf, cast(identity_value, dtype), T.buffer_indices(out_buf, base_idx)
+                    )
                 else:
-                    out_buf[base_idx] = maybe_cast(data_buf[base_idx])
+                    T.buffer_store(
+                        out_buf,
+                        maybe_cast(data_buf[T.buffer_indices(data_buf, base_idx)]),
+                        T.buffer_indices(out_buf, base_idx),
+                    )
                 with T.serial(0, cumsum_axis_len - 1) as _k:
                     k = _k + 1
                     cur_idx = base_idx + k * axis_mul_after
                     prev_idx = base_idx + (k - 1) * axis_mul_after
                     if exclusive:
-                        out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[prev_idx]))
+                        T.buffer_store(
+                            out_buf,
+                            binop(
+                                out_buf[T.buffer_indices(out_buf, prev_idx)],
+                                maybe_cast(data_buf[T.buffer_indices(data_buf, prev_idx)]),
+                            ),
+                            T.buffer_indices(out_buf, cur_idx),
+                        )
                     else:
-                        out_buf[cur_idx] = binop(out_buf[prev_idx], maybe_cast(data_buf[cur_idx]))
+                        T.buffer_store(
+                            out_buf,
+                            binop(
+                                out_buf[T.buffer_indices(out_buf, prev_idx)],
+                                maybe_cast(data_buf[T.buffer_indices(data_buf, cur_idx)]),
+                            ),
+                            T.buffer_indices(out_buf, cur_idx),
+                        )
 
             return ib.get()
 

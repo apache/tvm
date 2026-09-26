@@ -24,7 +24,7 @@
 #include "intrin_rule.h"
 
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/buffer.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 

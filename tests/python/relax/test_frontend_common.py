@@ -20,6 +20,7 @@ from tvm import relax
 from tvm.relax.frontend import detach_params
 from tvm.relax.frontend.common import autopad
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.parser import relax as R
 
@@ -66,19 +67,19 @@ class TestAutopad:
         tvm.ir.assert_structural_equal(bb.get(), expected)
 
     def test_constant(self):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class expected:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def pad(
                 x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 PadInput: T.Buffer((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
-                    with T.sblock("PadInput"):
-                        v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                        T.reads(x[v_i0, v_i1, v_i2, v_i3])
-                        T.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
+                    with Ts.sblock("PadInput"):
+                        v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                        Ts.reads(x[v_i0, v_i1, v_i2, v_i3])
+                        Ts.writes(PadInput[v_i0, v_i1, v_i2, v_i3])
                         PadInput[v_i0, v_i1, v_i2, v_i3] = T.if_then_else(
                             T.int64(0) <= v_i2
                             and v_i2 < T.int64(4)
@@ -102,9 +103,9 @@ class TestAutopad:
         self._test_autopad("constant", expected)
 
     def test_edge(self):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class expected:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def replicate_pad(
                 x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 ReplicatePadInput: T.Buffer(
@@ -113,9 +114,9 @@ class TestAutopad:
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
-                    with T.sblock("ReplicatePadInput"):
-                        v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                        T.reads(
+                    with Ts.sblock("ReplicatePadInput"):
+                        v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                        Ts.reads(
                             x[
                                 T.int64(0),
                                 T.int64(0),
@@ -123,7 +124,7 @@ class TestAutopad:
                                 T.max(T.int64(0), T.min(T.int64(3), v_i3)),
                             ]
                         )
-                        T.writes(ReplicatePadInput[v_i0, v_i1, v_i2, v_i3])
+                        Ts.writes(ReplicatePadInput[v_i0, v_i1, v_i2, v_i3])
                         ReplicatePadInput[v_i0, v_i1, v_i2, v_i3] = x[
                             T.int64(0),
                             T.int64(0),
@@ -147,9 +148,9 @@ class TestAutopad:
         self._test_autopad("edge", expected)
 
     def test_reflect(self):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class expected:
-            @T.prim_func(private=True, s_tir=True)
+            @Ts.prim_func(private=True)
             def mirror_pad(
                 x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 MirrorPadInput: T.Buffer(
@@ -158,10 +159,10 @@ class TestAutopad:
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
-                    with T.sblock("MirrorPadInput"):
-                        v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                        T.reads(x[v_i0, v_i1, T.int64(0) : T.int64(4), T.int64(0) : T.int64(4)])
-                        T.writes(MirrorPadInput[v_i0, v_i1, v_i2, v_i3])
+                    with Ts.sblock("MirrorPadInput"):
+                        v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                        Ts.reads(x[v_i0, v_i1, T.int64(0) : T.int64(4), T.int64(0) : T.int64(4)])
+                        Ts.writes(MirrorPadInput[v_i0, v_i1, v_i2, v_i3])
                         MirrorPadInput[v_i0, v_i1, v_i2, v_i3] = x[
                             v_i0,
                             v_i1,

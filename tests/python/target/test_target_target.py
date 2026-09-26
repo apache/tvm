@@ -21,6 +21,7 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
+from tvm.script import s_tir as Ts
 from tvm.target import Target
 from tvm.testing import env
 
@@ -432,7 +433,7 @@ def test_module_dict_from_deserialized_targets():
 
     from tvm.script import tirx as T
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func():
         T.evaluate(0)
 

@@ -35,18 +35,6 @@ using namespace tvm::prim;
 
 namespace {
 
-TVMFFIAny AnyTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
-}
-
-TVMFFIAny AnyTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
-TVMFFIAny AnyTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
-}
-
 TVMFFIAny ShapeTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: ndim (scalar)
   const ShapeTypeNode* self =
@@ -187,29 +175,6 @@ TVMFFIAny FuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
 }
 
 }  // namespace
-
-AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
-  ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();
-  n->span = span;
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  AnyTypeNode::RegisterReflection();
-  refl::TypeAttrDef<AnyTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&AnyTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&AnyTypeMutate))
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&AnyTypeMaybeInplaceMutate));
-
-  refl::GlobalDef().def("relax.AnyType", [](Span span) { return AnyType(span); });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.ObjectType", [](Span span) { return AnyType(span); });
-}
 
 // Shape
 ShapeType::ShapeType(ffi::Array<PrimExpr> values, Span span) : Type(ffi::UnsafeInit{}) {

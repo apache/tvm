@@ -25,70 +25,67 @@ from tvm.s_tir.schedule.testing import (
     assert_structural_equal_ignore_global_symbol,
     verify_trace_roundtrip,
 )
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.sblock_alloc_buffer((128, 128), dtype="float32")
+    B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
-
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise_set_scope(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B_shared = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
+    B_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
 
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B_shared[vi, vj] = A[vi, vj] * T.float32(2)
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B_shared[vi, vj] + T.float32(1)
 
-
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B = T.sblock_alloc_buffer((128, 128), dtype="float32")
+    B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion0 = T.match_buffer(B[vi, vj], [], offset_factor=1)
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            B_subregion0 = Ts.match_buffer(B[vi, vj], [], offset_factor=1)
             B_subregion0[()] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion1 = T.match_buffer(B[vi, vj], [], offset_factor=1)
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            B_subregion1 = Ts.match_buffer(B[vi, vj], [], offset_factor=1)
             C[vi, vj] = B_subregion1[()] + 1.0
 
-
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def element_wise_subregion_match_set_scope(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    B_shared = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
+    B_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
 
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion0_shared = T.match_buffer(B_shared[vi, vj], [], dtype="float32", scope="shared", offset_factor=1)
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            B_subregion0_shared = Ts.match_buffer(B_shared[vi, vj], [], dtype="float32", scope="shared", offset_factor=1)
             B_subregion0_shared[()] = A[vi, vj] * T.float32(2)
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion1_shared = T.match_buffer(B_shared[vi, vj], [], dtype="float32", scope="shared", offset_factor=1)
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            B_subregion1_shared = Ts.match_buffer(B_shared[vi, vj], [], dtype="float32", scope="shared", offset_factor=1)
             C[vi, vj] = B_subregion1_shared[()] + T.float32(1)
-
 
 # pylint: enable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
@@ -98,17 +95,20 @@ use_buffer_name = tvm.testing.parameter(by_dict={"buffer_index": False, "buffer_
 def test_set_scope(use_block_name, use_buffer_name):
     func = element_wise
     s = tvm.s_tir.Schedule(func, debug_mask='all')
-    s.set_scope('B' if use_block_name else s.get_sblock("B"), 'B' if use_buffer_name else 0, "shared")
+    buffer_name = s.get(s.get_sblock("B")).writes[0].source.name
+    s.set_scope(
+        "B" if use_block_name else s.get_sblock("B"),
+        buffer_name if use_buffer_name else 0,
+        "shared",
+    )
     assert_structural_equal_ignore_global_symbol(element_wise_set_scope, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
-
 
 def test_set_scope_fail_on_output_buffer(use_block_name, use_buffer_name):
     func = element_wise
     s = tvm.s_tir.Schedule(func, debug_mask='all')
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.set_scope('C' if use_block_name else s.get_sblock("C"), 'C' if use_buffer_name else 0, "shared")
-
 
 def test_set_scope_fail_on_index_out_of_bound():
     func = element_wise
@@ -118,13 +118,11 @@ def test_set_scope_fail_on_index_out_of_bound():
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.set_scope(s.get_sblock("B"), -1, "shared")
 
-
 def test_set_scope_fail_on_invalid_scope():
     func = element_wise
     s = tvm.s_tir.Schedule(func, debug_mask='all')
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.set_scope(s.get_sblock("B"), 0, "test_scope")
-
 
 def test_set_scope_subregion():
     func = element_wise_subregion_match
@@ -132,7 +130,6 @@ def test_set_scope_subregion():
     s.set_scope(s.get_sblock("B"), 0, "shared")
     assert_structural_equal_ignore_global_symbol(element_wise_subregion_match_set_scope, s.mod["main"])
     verify_trace_roundtrip(sch=s, mod=func)
-
 
 if __name__ == "__main__":
     tvm.testing.main()

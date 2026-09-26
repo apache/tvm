@@ -512,6 +512,6 @@ struct RollingBufferTraits : public UnpackedInstTraits<RollingBufferTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(RollingBufferTraits);
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<RollingBufferTraits>(); }
 }  // namespace s_tir
 }  // namespace tvm

@@ -93,8 +93,7 @@ introspection.
      - ``sum``, ``max``, ``min``
      - reduce selected axes, optionally accumulating into the destination
    * - Fused and composed
-     - ``binary_reduce``, ``unary_reduce``, ``binary_chain``, ``reduce_negate``,
-       ``compose_op``
+     - ``binary_reduce``, ``unary_reduce``, ``binary_chain``, ``reduce_negate``
      - combine several primitive operations for backends that dispatch them as
        one unit
 

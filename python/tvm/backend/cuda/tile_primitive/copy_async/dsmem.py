@@ -134,13 +134,9 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
 
     # Helper to compute element offsets from loop variables (called via T.meta_var)
     def compute_offsets(loop_vars):
-        if len(outer_extents) == 1:
-            lvs = [loop_vars]
-        else:
-            lvs = list(loop_vars)
         src_off = 0
         dst_off = 0
-        for j, v in enumerate(lvs):
+        for j, v in enumerate(loop_vars):
             src_off = src_off + v * outer_src_strides[j]
             dst_off = dst_off + v * outer_dst_strides[j]
         return src_off, dst_off
@@ -158,7 +154,7 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
         T.ptx.mapa.u64(mapped[0], mbar, T.uint32(remote_cta_id))
         remote_mbar = mapped[0]
 
-        if not outer_extents:
+        if T.constexpr(not outer_extents):
             # Single contiguous chunk — no iteration needed
             src_ptr = src_buf.ptr_to(src_st)
             T.ptx.mapa.u64(mapped[1], dst_buf.ptr_to(dst_st), T.uint32(remote_cta_id))

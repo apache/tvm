@@ -67,14 +67,19 @@ A single thread reduces a 4-element ``float32`` local vector to a scalar
 .. code-block:: python
 
     @Tx.prim_func
-    def test_func(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, [4], "float32", layout=TileLayout(S[(4,)]))
-        B = Tx.match_buffer(B_ptr, [1], "float32", layout=TileLayout(S[(1,)]))
-        Tx.device_entry(); Tx.cta_id([1]); Tx.thread_id([1])
+    def test_func(
+        A: Tx.Buffer([4], "float32", layout=TileLayout(S[4,])),
+        B: Tx.Buffer([1], "float32", layout=TileLayout(S[1,])),
+    ):
+
+        Tx.device_entry()
+        Tx.cta_id([1])
+        Tx.thread_id([1])
         A_local = Tx.alloc_buffer([4], "float32", scope="local")
         B_local = Tx.alloc_buffer([1], "float32", scope="local")
-        for i in Tx.serial(4): A_local[i] = A[i]
-        Tx.tile.sum(B_local, A_local, accum=False)     # reduction local dispatch
+        for i in Tx.serial(4):
+            A_local[i] = A[i]
+        Tx.tile.sum(B_local, A_local, accum=False)  # reduction local dispatch
         B[0] = B_local[0]
 
 (4 < 8 elements, so this stays on ``local`` rather than the
