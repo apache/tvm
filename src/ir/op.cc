@@ -65,7 +65,8 @@ class OpRegistry {
 
   ffi::List<ffi::Any> GetAttrColumn(const ffi::String& name) const {
     auto column = attrs_.Get(name);
-    TVM_FFI_CHECK(column.has_value(), InternalError) << "Attribute '" << name << "' is not registered";
+    TVM_FFI_CHECK(column.has_value(), InternalError)
+        << "Attribute '" << name << "' is not registered";
     return *column;
   }
 
@@ -145,6 +146,7 @@ OpDef& OpDef::reset_attr(const ffi::String& name) {
 
 void OpNode::RegisterReflection() {
   namespace refl = ffi::reflection;
+  // clang-format off
   refl::ObjectDef<OpNode>()
       .def_ro("name", &OpNode::name)
       .def_ro("doc", &OpNode::doc, refl::AttachFieldFlag::SEqHashIgnore())
@@ -169,12 +171,15 @@ void OpNode::RegisterReflection() {
           "has_attr", [](Op, ffi::String name) { return Op::HasAttrMap(name); },
           "has_attr(attr_name: str) -> bool\n\nReturn whether the attribute column exists in the "
           "registry.")
-      .def("_set_attr", [](Op op, ffi::String name, ffi::Any value,
-                           bool override) { OpDef(op->name)
-                               .set_attr(name, value, override); })
+      .def("_set_attr", [](Op op, ffi::String name, ffi::Any value, bool override) {
+        OpDef(op->name)
+            .set_attr(name, value, override);
+      })
       .def(
-          "reset_attr", [](Op op, ffi::String name) { OpDef(op->name)
-              .reset_attr(name); },
+          "reset_attr", [](Op op, ffi::String name) {
+            OpDef(op->name)
+                .reset_attr(name);
+          },
           "reset_attr(attr_name: str) -> None\n\nRemove this Op's current value; missing values "
           "are ignored and cached views observe removal.")
       .def(
@@ -186,8 +191,10 @@ void OpNode::RegisterReflection() {
           "add_argument(name: str, ir_type_schema: str, doc: str) -> None\n\nAppend an argument's "
           "name, IR representation schema, and documentation without validating operands.")
       .def(
-          "set_allow_extra_args", [](Op op) { OpDef(op->name)
-              .allow_extra_args(); },
+          "set_allow_extra_args", [](Op op) {
+            OpDef(op->name)
+                .allow_extra_args();
+          },
           "set_allow_extra_args() -> None\n\nAllow value arguments after the required prefix.")
       .def(
           "add_type_argument",
@@ -200,10 +207,13 @@ void OpNode::RegisterReflection() {
           "name, IR representation schema, and documentation without imposing a count rule.")
       .def(
           "set_attrs_type_key",
-          [](Op op, ffi::String key) { OpDef(op->name)
-              .set_attrs_type_key(key); },
+          [](Op op, ffi::String key) {
+            OpDef(op->name)
+                .set_attrs_type_key(key);
+          },
           "set_attrs_type_key(key: str) -> None\n\nResolve and set the attribute object type key "
           "and runtime index together; an unknown key raises before updating.");
+  // clang-format on
 }
 
 namespace {
@@ -234,6 +244,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             reinterpret_cast<void*>(&OpMaybeInplaceMutate))
       .def("__data_to_json__", [](const OpNode* node) { return node->name; })
       .def("__data_from_json__", &Op::Get);
+  // clang-format off
   refl::GlobalDef()
       .def("ir.RegisterOp",
            [](ffi::String name, ffi::String doc) {
@@ -245,6 +256,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         OpDef(name)
             .set_attr(key, value, override);
       });
+  // clang-format on
 }
 
 }  // namespace tvm

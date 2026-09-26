@@ -164,6 +164,7 @@ static PrimExpr DispatchCUDAShuffle(const PrimExpr& e) {
 }
 
 void RegisterCudaIntrinRules() {
+  // clang-format off
   OpDef("prim.clz")
       .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic",
                                  DispatchPureExtern<CUDAMath, /*dtype_from_arg=*/true>);
@@ -328,6 +329,7 @@ void RegisterCudaIntrinRules() {
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "__activemask")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<bool>("cuda.need_warp_shuffle", true);
+  // clang-format on
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { RegisterCudaIntrinRules(); }

@@ -294,7 +294,7 @@ class OpAttrMap {
    */
   ValueType operator[](const Op& op) const {
     TVM_FFI_ICHECK(count(op)) << "Attribute " << attr_name_ << " has not been registered for "
-                            << op->name;
+                              << op->name;
     if constexpr (std::is_same_v<ValueType, ffi::Any>) {
       return column_[op->index_];
     } else {

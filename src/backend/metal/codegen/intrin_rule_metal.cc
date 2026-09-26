@@ -57,6 +57,7 @@ static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
 }
 
 void RegisterMetalIntrinRules() {
+  // clang-format off
   OpDef("prim.clz")
       .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
@@ -173,6 +174,7 @@ void RegisterMetalIntrinRules() {
                                           ffi::String("metal.simd_shuffle_down"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_down")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  // clang-format on
 }
 
 }  // namespace intrin

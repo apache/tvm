@@ -160,6 +160,7 @@ void RegisterVulkanLegalizeRules() {
   if (registered) return;
   registered = true;
 
+  // clang-format off
   OpDef("prim.clz")
       .set_attr<FLegalize>("vulkan.FLegalize", [](const PrimExpr& e) -> PrimExpr {
     const CallNode* call = e.as<CallNode>();
@@ -183,6 +184,7 @@ void RegisterVulkanLegalizeRules() {
     }
     return PrimExpr(arg_ty.bits() - 1) - msb;
   });
+  // clang-format on
 }
 }  // namespace legalize
 

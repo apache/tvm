@@ -125,6 +125,7 @@ namespace legalize {
 using tirx::FLegalize;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("tirx.exp10")
       .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
     using tvm::prim::MakeConst;
@@ -187,6 +188,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             .as_or_throw<PrimExpr>();
     return cast(call->ty.as_or_throw<PrimType>(), clz);
   });
+  // clang-format on
 }
 
 }  // namespace legalize

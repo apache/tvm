@@ -47,6 +47,7 @@ Type InferDistTypeSoftmax(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("relax.nn.softmax")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeSoftmax);
 
@@ -69,6 +70,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.silu")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+  // clang-format on
 }
 
 }  // namespace distributed

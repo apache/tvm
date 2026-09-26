@@ -87,6 +87,7 @@ void RegisterHexagonIntrinRules() {
   if (registered) return;
   registered = true;
 
+  // clang-format off
   OpDef("tirx.fma")
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::fmuladd, 3>);
@@ -254,6 +255,7 @@ void RegisterHexagonIntrinRules() {
       .set_attr<FLowerIntrinsic>(
           "hexagon.FLowerIntrinsic",
           DispatchTVMQHLWrapperFp16<tvm_qhl_ahf_sqrt, ::llvm::Intrinsic::sqrt, 1>);
+  // clang-format on
 }
 
 }  // namespace llvm

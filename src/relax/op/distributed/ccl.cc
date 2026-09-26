@@ -38,8 +38,10 @@ Type InferDistTypeAllReduce(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("relax.ccl.allreduce")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeAllReduce);
+  // clang-format on
 }
 
 }  // namespace distributed

@@ -52,6 +52,7 @@ void RegisterOpenCLIntrinRules() {
   if (registered) return;
   registered = true;
 
+  // clang-format off
   OpDef("prim.clz")
       .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
@@ -132,6 +133,7 @@ void RegisterOpenCLIntrinRules() {
 
   OpDef("tirx.tvm_warp_shuffle")
       .set_attr<FLowerIntrinsic>("opencl.FLowerIntrinsic", DispatchIntelShuffle);
+  // clang-format on
 }
 
 }  // namespace intrin

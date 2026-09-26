@@ -97,8 +97,10 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphMatmul);
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("relax.matmul")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeMatmul);
+  // clang-format on
 }
 
 }  // namespace distributed

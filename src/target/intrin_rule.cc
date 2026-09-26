@@ -192,6 +192,7 @@ namespace legalize {
 using namespace tirx;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("tirx.rsqrt")
       .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
     const CallNode* call = e.as<CallNode>();
@@ -227,6 +228,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         TVM_FFI_ICHECK(call != nullptr);
         return isinf(call->args[0].as_or_throw<PrimExpr>());
       });
+  // clang-format on
 }
 
 /*!

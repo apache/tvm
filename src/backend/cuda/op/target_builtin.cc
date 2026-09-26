@@ -447,7 +447,6 @@ void RegisterDeviceIntrinsicAliases() {
   }
 }
 
-
 }  // namespace
 
 TVM_FFI_STATIC_INIT_BLOCK() { RegisterCudaTargetBuiltins(); }

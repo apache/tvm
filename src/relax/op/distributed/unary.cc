@@ -29,6 +29,7 @@ Type InferDistTypeUnaryCheck(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("relax.abs")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
 
@@ -118,6 +119,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.isnan")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryCheck);
+  // clang-format on
 }
 
 }  // namespace distributed

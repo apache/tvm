@@ -76,6 +76,7 @@ Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphReduce);
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("relax.max")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical);
 
@@ -96,6 +97,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.variance")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical);
+  // clang-format on
 }
 
 }  // namespace distributed

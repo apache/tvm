@@ -62,6 +62,7 @@ namespace llvm {
 using tirx::FLowerIntrinsic;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("tirx.floor")
       .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
 
@@ -139,6 +140,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.atan")
       .set_attr<FLowerIntrinsic>("nvptx.FLowerIntrinsic", DispatchPureExternLibDevice);
+  // clang-format on
 }
 
 }  // namespace llvm

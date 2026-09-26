@@ -78,8 +78,10 @@ Type InferDistTypePermuteDims(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("relax.permute_dims")
       .set_attr<FInferType>("dist.FInferType", InferDistTypePermuteDims);
+  // clang-format on
 }
 
 Type InferDistTypeReshape(const Call& call, const BlockBuilder& ctx) {
@@ -131,8 +133,10 @@ Type InferDistTypeReshape(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("relax.reshape")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeReshape);
+  // clang-format on
 }
 
 }  // namespace distributed

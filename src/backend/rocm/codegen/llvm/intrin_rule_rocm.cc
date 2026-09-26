@@ -118,6 +118,7 @@ using tirx::FLowerIntrinsic;
 
 void RegisterROCMIntrinRules() {
   // dummy because we don't have the activemask
+  // clang-format off
   OpDef("tirx.tvm_warp_activemask")
       .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
         PrimExpr zero = IntImm::Int32(0);
@@ -203,6 +204,7 @@ void RegisterROCMIntrinRules() {
 
   OpDef("tirx.erf")
       .set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic", ::tvm::codegen::intrin::DispatchFastErf);
+  // clang-format on
 
   // OpDef("tirx.tan").set_attr<FLowerIntrinsic>("rocm.FLowerIntrinsic",
   //                                                      DispatchPureExternOCML);

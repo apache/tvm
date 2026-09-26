@@ -31,7 +31,6 @@
 #include <numeric>
 #include <vector>
 
-
 namespace tvm {
 namespace tirx {
 

@@ -37,6 +37,7 @@ Type InferDistTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
 /***************** Arithmetic operators *****************/
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
   OpDef("relax.add")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
 
@@ -116,6 +117,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.right_shift")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+  // clang-format on
 }
 
 }  // namespace distributed

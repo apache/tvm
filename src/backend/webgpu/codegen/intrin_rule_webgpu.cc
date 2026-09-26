@@ -72,6 +72,7 @@ void RegisterWebGPUIntrinRules() {
     std::string operator()(PrimType t, std::string name) const { return "abs"; }
   };
 
+  // clang-format off
   OpDef("tirx.fabs")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<ReturnAbs>);
 
@@ -122,12 +123,14 @@ void RegisterWebGPUIntrinRules() {
 
   OpDef("tirx.pow")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  // clang-format on
 
   struct ReturnRound {
     std::string operator()(PrimType t, std::string name) const { return "round"; }
   };
 
   // WGSL round() uses ties-to-even (banker's rounding), matching IEEE 754 and ONNX Round spec.
+  // clang-format off
   OpDef("tirx.nearbyint")
       .set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<ReturnRound>);
 
@@ -199,6 +202,7 @@ void RegisterWebGPUIntrinRules() {
                                           ffi::String("webgpu.subgroup_shuffle_down"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleDown")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  // clang-format on
 }
 
 }  // namespace intrin
