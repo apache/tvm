@@ -21,9 +21,10 @@ import functools
 import operator
 import re
 from collections.abc import Sequence
-from typing import ClassVar, Optional, Union
+from typing import Optional, Union
 
 import tvm_ffi
+from tvm_ffi.dataclasses import Enum
 
 import tvm
 from tvm.runtime import Object
@@ -502,7 +503,7 @@ _AXIS_NAMES = (
 )
 
 
-class _AxisMeta(type(Object)):
+class _AxisMeta(type(Enum)):
     """Metaclass: lazy resolve `Axis.<name>` for registered axes."""
 
     def __getattr__(cls, name):
@@ -511,27 +512,21 @@ class _AxisMeta(type(Object)):
         raise AttributeError(f"type object 'Axis' has no attribute {name!r}")
 
 
-@tvm_ffi.register_object("tirx.Axis")
-class Axis(Object, metaclass=_AxisMeta):
+class Axis(Enum, metaclass=_AxisMeta, type_key="tirx.Axis", init=False):
     """Layout axis wrapper."""
 
-    # ---- forbid direct construction ----
-    def __init__(self, *args, **kwargs):
-        raise RuntimeError("Cannot create Axis directly; use Axis.get()")
+    @property
+    def name(self) -> str:
+        """Return the canonical axis name."""
+        return self._str_index
 
-    @staticmethod
-    def _register_axis(name: str) -> "Axis":
+    @classmethod
+    def get(cls, name: str) -> "Axis":
+        """Get or create the axis singleton named `name`.
+
+        Unknown names are registered without thread or memory attributes.
+        """
         return _ffi_api.AxisGet(name)  # pylint: disable=no-member
-
-    # Singleton cache, populated lazily as names are accessed.
-    reg_dict: ClassVar[dict[str, "Axis"]] = {}
-
-    @staticmethod
-    def get(name: str) -> "Axis":
-        """Get or create an axis by name. Unknown names are auto-registered."""
-        if name not in Axis.reg_dict:
-            Axis.reg_dict[name] = Axis._register_axis(name)
-        return Axis.reg_dict[name]
 
     def is_thread(self) -> bool:
         """Check if the axis is a thread axis."""
