@@ -483,9 +483,17 @@ tvm::tirx::Stmt Return(Expr value) {
   return stmt;
 }
 
-void Break() { AddToParent(tvm::tirx::Break(Span())); }
+tvm::tirx::Stmt Break() {
+  tvm::tirx::Stmt stmt = tvm::tirx::Break(Span());
+  AddToParent(stmt);
+  return stmt;
+}
 
-void Continue() { AddToParent(tvm::tirx::Continue(Span())); }
+tvm::tirx::Stmt Continue() {
+  tvm::tirx::Stmt stmt = tvm::tirx::Continue(Span());
+  AddToParent(stmt);
+  return stmt;
+}
 
 IfFrame If(PrimExpr condition) {
   ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>();

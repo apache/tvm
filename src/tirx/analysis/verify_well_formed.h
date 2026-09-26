@@ -317,14 +317,6 @@ class LoopControlVerifier : public Verifier<LoopControlVerifier<PathVisitor>, Pa
                             << " requires an enclosing loop in the same function.";
   }
 
-  void Dispatch_(const CallNode* op, AccessPath path) override {
-    if (op->op.same_as(builtin::break_loop()) || op->op.same_as(builtin::continue_loop())) {
-      Verify(loop_depth_ > 0) << "ValueError: " << op->op << " at " << path
-                              << " requires an enclosing loop in the same function.";
-    }
-    PathVisitor::Dispatch_(op, path);
-  }
-
   int loop_depth_{0};
 };
 

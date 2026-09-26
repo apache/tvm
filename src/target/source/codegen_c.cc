@@ -714,10 +714,6 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       TVM_FFI_ICHECK(buffer && buffer->ty.as<BufferTypeNode>())
           << "buffer_data expects a Var with BufferType";
       os << GetVarID(buffer);
-    } else if (op->op.same_as(tirx::builtin::continue_loop())) {
-      os << "continue;";
-    } else if (op->op.same_as(tirx::builtin::break_loop())) {
-      os << "break;";
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
       auto func = op->args[0].as_or_throw<StringImm>();
@@ -892,11 +888,6 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << " != ";
       this->PrintExpr(op->args[0], os);
       os << ")";
-    } else if (op->op.same_as(tirx::builtin::lookup_param())) {
-      TVM_FFI_ICHECK_EQ(op->args.size(), 1);
-      const StringImmNode* str = op->args[0].as<StringImmNode>();
-      TVM_FFI_ICHECK(str != nullptr);
-      os << "__tvm_param__" << str->value;
     } else if (op->op.same_as(tirx::builtin::tvm_thread_invariant())) {
       os << "(";
       this->PrintExpr(op->args[0], os);

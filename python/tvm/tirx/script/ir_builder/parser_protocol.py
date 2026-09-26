@@ -668,7 +668,7 @@ def break_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
 
     Legality is checked on the completed function, across loop and function boundaries.
     """
-    return _base.at_(span, evaluate(_op.break_loop()))
+    return _base.with_at_group_(span, lambda: _base.AlreadyEmitted(_ffi_api.Break()))
 
 
 def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
@@ -676,7 +676,7 @@ def continue_(*, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
 
     Legality is checked on the completed function, across loop and function boundaries.
     """
-    return _base.at_(span, evaluate(_op.continue_loop()))
+    return _base.with_at_group_(span, lambda: _base.AlreadyEmitted(_ffi_api.Continue()))
 
 
 def return_(value: Any = None, *, span: _Span = None) -> _base.AlreadyEmitted[_tir.Stmt]:
