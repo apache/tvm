@@ -812,35 +812,31 @@ def test_vectorized_intrin1():
 
 
 def _min_max_nan_module(op, dt, n=8, vectorize=False, composite=False):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((n,), dt), B: T.Buffer((n,), dt), C: T.Buffer((n,), dt)):
             T.func_attr({"tirx.noalias": True})
             for i0 in T.thread_binding(2, thread="blockIdx.x"):
-                if composite:
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(n, i0 * 4 + 0)
-                        C[v_i] = T.max(A[v_i], B[v_i]) + T.float32(1.0)
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(n, i0 * 4 + 1)
-                        C[v_i] = T.max(A[v_i], B[v_i]) + T.float32(1.0)
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(n, i0 * 4 + 2)
-                        C[v_i] = T.max(A[v_i], B[v_i]) + T.float32(1.0)
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(n, i0 * 4 + 3)
-                        C[v_i] = T.max(A[v_i], B[v_i]) + T.float32(1.0)
-                elif vectorize:
+                if T.constexpr(composite):
+                    C[i0 * 4 + 0] = T.max(A[i0 * 4 + 0], B[i0 * 4 + 0]) + T.float32(1.0)
+                    C[i0 * 4 + 1] = T.max(A[i0 * 4 + 1], B[i0 * 4 + 1]) + T.float32(1.0)
+                    C[i0 * 4 + 2] = T.max(A[i0 * 4 + 2], B[i0 * 4 + 2]) + T.float32(1.0)
+                    C[i0 * 4 + 3] = T.max(A[i0 * 4 + 3], B[i0 * 4 + 3]) + T.float32(1.0)
+                elif T.constexpr(vectorize):
                     for i1 in T.vectorized(4):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(n, i0 * 4 + i1)
-                            C[v_i] = T.max(A[v_i], B[v_i]) if op == "max" else T.min(A[v_i], B[v_i])
+                        C[i0 * 4 + i1] = (
+                            T.max(A[i0 * 4 + i1], B[i0 * 4 + i1])
+                            if T.constexpr(op == "max")
+                            else T.min(A[i0 * 4 + i1], B[i0 * 4 + i1])
+                        )
                 else:
                     for i1 in T.thread_binding(4, thread="threadIdx.x"):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(n, i0 * 4 + i1)
-                            C[v_i] = T.max(A[v_i], B[v_i]) if op == "max" else T.min(A[v_i], B[v_i])
+                        C[i0 * 4 + i1] = (
+                            T.max(A[i0 * 4 + i1], B[i0 * 4 + i1])
+                            if T.constexpr(op == "max")
+                            else T.min(A[i0 * 4 + i1], B[i0 * 4 + i1])
+                        )
 
     return Module
 
@@ -938,9 +934,9 @@ def test_min_max_chained_statements_cuda():
     a_np = np.array([5.0, 9.0, 3.0, 7.0, 1.0, 8.0, 4.0, 6.0], dtype="float32")
     b_np = np.array([1.0, 2.0, 2.0, 1.0, 0.0, 3.0, 2.0, 5.0], dtype="float32")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(
             A: T.Buffer((n,), "float32"),
             B: T.Buffer((n,), "float32"),
@@ -948,10 +944,8 @@ def test_min_max_chained_statements_cuda():
         ):
             T.func_attr({"tirx.noalias": True})
             for i in T.thread_binding(n, thread="threadIdx.x"):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(n, i)
-                    C[v_i] = T.max(C[v_i], A[v_i])
-                    C[v_i] = T.max(C[v_i], B[v_i])
+                C[i] = T.max(C[i], A[i])
+                C[i] = T.max(C[i], B[i])
 
     mod = tvm.compile(Module, target="cuda")
     a = tvm.runtime.tensor(a_np, tvm.cuda(0))
@@ -978,8 +972,7 @@ CONST_OTHER = np.array([np.nan, -0.0, 0.0, -1.0, 1.0, np.inf, -np.inf, 2.0], dty
 def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
     # The constant-operand cases from #20054's test_min_max_float_imm_operand.
     # The constant is written inline as T.float32(const_val) so that it reaches
-    # codegen as a FloatImm; a statement `c = T.float32(...)` in the prim_func
-    # body would instead become a one-element local buffer read through a load.
+    # codegen as a FloatImm.
     # scalar: lanes == 1, so codegen takes the constant fast path, none of
     #   whose forms emits the "||" of the general ternary.
     # vec4: VectorizeLoop turns the literal into Broadcast(FloatImm, 4); the fast
@@ -991,49 +984,41 @@ def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
     b_np = CONST_OTHER.copy()
     b_np[0] = np.float32("nan")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(B: T.Buffer((n,), "float32"), C: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
-            if form == "scalar" and const_side == "lhs":
+            if T.constexpr(form == "scalar" and const_side == "lhs"):
                 for i in T.thread_binding(n, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(n, i)
-                        C[v_i] = (
-                            T.min(T.float32(const_val), B[v_i])
-                            if op == "min"
-                            else T.max(T.float32(const_val), B[v_i])
-                        )
-            elif form == "scalar":
+                    C[i] = (
+                        T.min(T.float32(const_val), B[i])
+                        if T.constexpr(op == "min")
+                        else T.max(T.float32(const_val), B[i])
+                    )
+            elif T.constexpr(form == "scalar"):
                 for i in T.thread_binding(n, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(n, i)
-                        C[v_i] = (
-                            T.min(B[v_i], T.float32(const_val))
-                            if op == "min"
-                            else T.max(B[v_i], T.float32(const_val))
-                        )
-            elif const_side == "lhs":
+                    C[i] = (
+                        T.min(B[i], T.float32(const_val))
+                        if T.constexpr(op == "min")
+                        else T.max(B[i], T.float32(const_val))
+                    )
+            elif T.constexpr(const_side == "lhs"):
                 for i0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i1 in T.vectorized(4):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(n, i0 * 4 + i1)
-                            C[v_i] = (
-                                T.min(T.float32(const_val), B[v_i])
-                                if op == "min"
-                                else T.max(T.float32(const_val), B[v_i])
-                            )
+                        C[i0 * 4 + i1] = (
+                            T.min(T.float32(const_val), B[i0 * 4 + i1])
+                            if T.constexpr(op == "min")
+                            else T.max(T.float32(const_val), B[i0 * 4 + i1])
+                        )
             else:
                 for i0 in T.thread_binding(2, thread="blockIdx.x"):
                     for i1 in T.vectorized(4):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(n, i0 * 4 + i1)
-                            C[v_i] = (
-                                T.min(B[v_i], T.float32(const_val))
-                                if op == "min"
-                                else T.max(B[v_i], T.float32(const_val))
-                            )
+                        C[i0 * 4 + i1] = (
+                            T.min(B[i0 * 4 + i1], T.float32(const_val))
+                            if T.constexpr(op == "min")
+                            else T.max(B[i0 * 4 + i1], T.float32(const_val))
+                        )
 
     mod = tvm.compile(Module, target="cuda")
 
@@ -1100,15 +1085,13 @@ def test_min_max_float_imm_operand_nested_cuda():
     # NaN (CUDA float add normalizes the payload); finite lanes bitwise.
     n = 8
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(B: T.Buffer((n,), "float32"), C: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i in T.thread_binding(n, thread="threadIdx.x"):
-                with T.sblock("C"):
-                    v_i = T.axis.spatial(n, i)
-                    C[v_i] = T.max(T.float32(0.0), B[v_i]) + T.float32(1.0)
+                C[i] = T.max(T.float32(0.0), B[i]) + T.float32(1.0)
 
     mod = tvm.compile(Module, target="cuda")
     src = mod.mod.imports[0].inspect_source()
