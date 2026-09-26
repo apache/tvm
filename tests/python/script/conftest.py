@@ -17,7 +17,6 @@
 """Recording builder fixtures for the production source-to-builder parser."""
 
 import pytest
-from minilang import Language, RecordingSpanEntry
 
 from tvm.script.ir_builder import base
 from tvm.script.parser import entry
@@ -25,6 +24,11 @@ from tvm.script.parser import entry
 
 @pytest.fixture
 def language(monkeypatch):
+    """Use the shared recording language without selecting a native dialect."""
+    from minilang import Language, RecordingSpanEntry
+
+    from tvm.script.parser import entry
+
     monkeypatch.setattr(
         entry,
         "register_namespace",
