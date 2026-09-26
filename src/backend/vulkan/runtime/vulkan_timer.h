@@ -72,10 +72,10 @@ class VulkanTimerNode : public TimerNode {
   VkDevice device_{VK_NULL_HANDLE};         ///< The Vulkan device handle.
   VulkanStream* stream_{nullptr};           ///< The Vulkan stream for command buffer management.
   VkQueryPool query_pool_{VK_NULL_HANDLE};  ///< The Vulkan query pool for timestamp queries.
-  double timestamp_period_;                 ///< The period (in nanoseconds) for each timestamp tick.
-  uint32_t start_query_ = 0;                 ///< The index for the start timestamp query.
-  uint32_t end_query_ = 1;                   ///< The index for the end timestamp query.
-  int64_t duration_ = 0;                     ///< The measured duration in nanoseconds.
+  double timestamp_period_;   ///< The period (in nanoseconds) for each timestamp tick.
+  uint32_t start_query_ = 0;  ///< The index for the start timestamp query.
+  uint32_t end_query_ = 1;    ///< The index for the end timestamp query.
+  int64_t duration_ = 0;      ///< The measured duration in nanoseconds.
 
   /*!
    * \brief Creates a Vulkan query pool for timestamp queries.
