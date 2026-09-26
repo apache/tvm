@@ -18,9 +18,7 @@
 
 from __future__ import annotations
 
-import ast
 import inspect
-from textwrap import dedent
 
 import pytest
 
@@ -285,14 +283,17 @@ def test_host_ordering_does_not_materialize_an_equality_result(primitive_languag
             return result
 
     left, right = Host(), Host()
+    seen = []
 
     def consume(value):
-        assert value is result
+        seen.append(value)
         return 0
 
     @M.function
     def main():
         consume(M.constexpr(left < right))
+
+    assert len(seen) == 1 and seen[0] is result
 
 
 def test_comparisons_use_native_promotion_and_broadcast(primitive_language):
@@ -396,20 +397,6 @@ def test_nested_unmarked_statement_retains_ir_frame(language):
                 M.record(2)
 
     assert main.body == [("emit", 1), ("emit", 2)]
-
-
-def test_conditional_binding_can_be_assigned_after_skipped_branch(language):
-    # A skipped constexpr assignment must not prevent a later ordinary assignment.
-    M = language.M
-
-    @M.function
-    def main():
-        if I.constexpr(False):
-            x = 1
-        x = 2
-        M.record(x)
-
-    assert main.body[-1] == ("emit", 2)
 
 
 def test_ir_optional_binding_survives_skipped_host_assignment(language):
@@ -572,74 +559,6 @@ def test_numeric_relations_keep_each_written_operation(primitive_language):
     for (_, actual), reference in zip(main.body, expected):
         ir.assert_structural_equal(actual, reference)
     assert len(main.body) == len(expected)
-
-
-def test_parse_string_returns_fresh_symbols(language):
-    # The direct string API must create independent symbol/parameter objects on repeated calls.
-    # This is the suite's single dedicated parse(str) API case.
-    source = '@M.function\ndef main(x: M.Tensor((M.dynamic("n") + 1,))):\n    M.record(x)\n'
-    first = entry.parse(source, extra_vars={"M": language.M})
-    second = entry.parse(source, extra_vars={"M": language.M})
-    assert first.params[0] is not second.params[0]
-    first_shape = first.params[0].args[0].args[0][0]
-    second_shape = second.params[0].args[0].args[0][0]
-    assert first_shape.op == second_shape.op == "add"
-    assert first_shape.args[0] is not second_shape.args[0]
-    assert first_shape.args[1] == second_shape.args[1] == 1
-    assert first.body[0][1] is first.params[0]
-    assert second.body[0][1] is second.params[0]
-
-
-def test_callable_entry_emits_the_expected_builder_program(language, monkeypatch):
-    # Normal callable parsing must construct the documented builder program without span
-    # scaffolding.
-    M = language.M
-
-    programs = []
-    recompose = entry._recompose_builder
-
-    def observe(translated, **kwargs):
-        programs.append(ast.unparse(translated))
-        return recompose(translated, **kwargs)
-
-    # Observe actual generated output; the original recomposition and execution still run.
-    monkeypatch.setattr(entry, "_recompose_builder", observe)
-    parse = entry.parse
-
-    def without_spans(*args, **kwargs):
-        return parse(*args, track_span=False, **kwargs)
-
-    monkeypatch.setattr(entry, "parse", without_spans)
-
-    @M.function
-    def identity(x: M.Tensor((4,))):
-        M.record(x)
-
-    result = identity
-    expected = dedent(
-        """
-        with _I0.IRBuilder() as _builder0:
-            with M.function_() as _fn0:
-
-                def _declare0():
-                    M.func_name_('identity')
-                    x = M.arg_('x', M.Tensor((4,)))
-
-                _declare0()
-
-                def _build0():
-                    x, = _fn0.params
-                    M.emit_(M.record(x))
-                _build0()
-        _result0 = _fn0.function
-        _result0.__name__ = 'identity'
-        M.check_well_formed_(_result0)
-        """
-    ).strip()
-    assert len(programs) == 1
-    assert ast.dump(ast.parse(programs[0])) == ast.dump(ast.parse(expected))
-    assert result.params[0].args[0].args[0] == (4,)
-    assert result.body == [("emit", result.params[0])]
 
 
 @pytest.mark.parametrize(

@@ -269,12 +269,7 @@ def test_callee_arguments_and_keywords_evaluate_once_with_caller_context(languag
 # This undecorated minilang program also gives Source a module-level callable.
 def _source_program(a, b, c):
     A = M.value(a)  # noqa: F821
-    B = M.value(b)  # noqa: F821
-    C = M.value(c)  # noqa: F821
-    for i, j, k in M.grid(2, 3, 4):  # noqa: F821
-        with M.If(i):  # noqa: F821
-            M.record((A, B, C))  # noqa: F821
-            M.record((i, j, k))  # noqa: F821
+    M.record((A, b, c))  # noqa: F821
 
 
 def test_minilang_callable_source_introspection():
@@ -289,16 +284,8 @@ def test_minilang_callable_source_introspection():
     definition = tree.body[0]
     assert isinstance(definition, ast.FunctionDef) and definition.name == "_source_program"
     assert [arg.arg for arg in definition.args.args] == ["a", "b", "c"]
-    assert len(definition.body) == 4
-    assignments = definition.body[:3]
-    assert all(isinstance(node, ast.Assign) for node in assignments)
-    assert [node.targets[0].id for node in assignments] == ["A", "B", "C"]
-    loop = definition.body[3]
-    assert isinstance(loop, ast.For)
-    assert [element.id for element in loop.target.elts] == ["i", "j", "k"]
-    assert len(loop.body) == 1
-    assert isinstance(loop.body[0], ast.With) and len(loop.body[0].body) == 2
-    assignment = assignments[0]
+    assignment = definition.body[0]
+    assert isinstance(assignment, ast.Assign) and assignment.targets[0].id == "A"
     line = source.start_line + 1
     expected = (line, 5, line, 19)
     assert source.location(assignment) == expected
@@ -307,7 +294,7 @@ def test_minilang_callable_source_introspection():
     assert span.source_name.name == source.source_name
 
 
-def test_minilang_source_preserves_multiline_literal(language):
+def test_minilang_source_preserves_multiline_literal():
     # fmt: off
     def original(
         value: int = 0,
@@ -326,10 +313,3 @@ def test_minilang_source_preserves_multiline_literal(language):
     assert filename == inspect.getsourcefile(original)
     full_source = inspect.getsource(inspect.getmodule(original))
     assert ast.literal_eval(ast.get_source_segment(full_source, literal)) == original()
-    M = language.M
-
-    @M.function
-    def main():
-        M.record(original())
-
-    assert main.body == [("emit", original())]

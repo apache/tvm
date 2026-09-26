@@ -27,27 +27,6 @@ import pytest
 from tvm.script.parser import entry
 
 
-def test_external_expression_preserves_symbol_dtype(language):
-    # Ordinary expressions retain the externally declared int32 symbol dtype.
-    M = language.M
-
-    def shape(values):
-        return values
-
-    M.shape = shape
-    n = M.dynamic("n", "int32")
-
-    @M.function
-    def main():
-        M.shape((n, n + 1))
-
-    n, increment = main.body[0][1]
-    assert n.args == ("int32",)
-    assert increment.op == "add"
-    assert increment.args[0] is n
-    assert increment.args[1] == 1
-
-
 def test_signature_symbols_cross_nested_calls_parameters_return_and_body(language):
     # Nested annotations and body reads retain the externally constructed symbol.
     M = language.M
@@ -60,19 +39,20 @@ def test_signature_symbols_cross_nested_calls_parameters_return_and_body(languag
         y: M.Tensor((n,), "float32"),
     ) -> M.Tensor((n,), "float32"):
         M.record(n)
+        M.record(n)
         return y
 
-    n = main.params[0].args[0][0].args[0][0]
+    assert main.params[0].args[0][0].args[0][0] is n
     assert main.params[0].args[0][1].args[0][0] is n
     assert main.params[1].args[0].args[0][0] is n
     assert main.ret_type.args[0][0] is n
-    assert main.body[0][1] is n
+    assert main.body[0][1] is n and main.body[1][1] is n
 
 
 def test_signature_read_before_introduction_remains_unbound(language):
     # An undeclared dimension must remain an ordinary unbound Python name.
     M = language.M
-    with pytest.raises(NameError, match="n"):
+    with pytest.raises(NameError, match="name 'n' is not defined"):
 
         @M.function
         def main(x: M.Tensor((n,), "float32")):
@@ -121,7 +101,7 @@ def test_external_symbol_does_not_introduce_same_named_python_binding(language):
     # Capturing a symbol under another name must not introduce its IR name in Python.
     M = language.M
     symbol = M.dynamic("n")
-    with pytest.raises(NameError, match="n"):
+    with pytest.raises(NameError, match="name 'n' is not defined"):
 
         @M.function
         def main(x: M.Tensor((symbol, symbol))):
@@ -150,22 +130,6 @@ def main[n](x: M.Tensor((n,))):
     assert (error.offset, error.end_offset) == (5, 6)
 
 
-def test_external_dynamic_symbols_reuse_identity(language):
-    # Repeated captures share the exact externally constructed symbol.
-    M = language.M
-
-    n = M.dynamic("n")
-
-    @M.function
-    def main(x: M.Tensor((n,))):
-        M.record(n)
-        M.record(n)
-
-    symbol = main.params[0].args[0].args[0][0]
-    assert main.body == [("emit", symbol), ("emit", symbol)]
-    assert main.body[0][1] is main.body[1][1]
-
-
 def test_nested_scope_does_not_reassign_outer_symbol(language):
     # An ordinary nested local must not overwrite an enclosing symbolic dimension.
     M = language.M
@@ -181,7 +145,7 @@ def test_nested_scope_does_not_reassign_outer_symbol(language):
 
         M.record(n)
 
-    assert main.body[0][1].op == "symbol"
+    assert main.body[0][1] is n
     assert language.functions["nested"].body == [("emit", 2)]
 
 

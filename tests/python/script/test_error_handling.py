@@ -202,25 +202,22 @@ def test_constexpr_keeps_named_expression_unsupported(language):
     assert not language.functions
 
 
-def test_missing_host_binding_cannot_be_truth_tested(language):
-    # Reading an unexecuted constexpr binding must raise before truth testing it.
+def test_missing_host_binding_raises_before_use(language):
+    # Reading an unexecuted constexpr binding must raise before truth testing it, including an
+    # if-condition whose arms would assign that name.
     M = language.M
-    with pytest.raises(NameError):
+    with pytest.raises(NameError, match="'x'"):
 
         @M.function
-        def main():
+        def expression():
             if I.constexpr(False):
                 x = 1
             M.record(1 if I.constexpr(x) else 0)
 
-
-def test_missing_host_if_binding_raises_before_branch_assignments(language):
-    # An if-condition must reject its missing incoming value before either arm assigns that name.
-    M = language.M
-    with pytest.raises(NameError):
+    with pytest.raises(NameError, match="'x'"):
 
         @M.function
-        def main():
+        def statement():
             if I.constexpr(False):
                 x = 1
             if I.constexpr(x):

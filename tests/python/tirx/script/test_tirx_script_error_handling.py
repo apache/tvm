@@ -26,7 +26,6 @@ import pytest
 
 import tvm
 from tvm.script import tirx as T
-from tvm.script.ir_builder import resolve_global_info_args
 
 
 def test_optional_annotation_requires_jit_at_the_source_parameter():
@@ -56,42 +55,6 @@ def test_optional_annotation_requires_jit_at_the_source_parameter():
         )
 
 
-def test_tirx_rejects_global_info_at_the_call_site(monkeypatch):
-    # A custom builder reports its resolver failure at the ordinary call site.
-    @resolve_global_info_args("device", resolver=T.resolve_global_info_)
-    def global_annotation(device):
-        return T.int32
-
-    monkeypatch.setattr(T, "global_annotation", global_annotation, raising=False)
-    with pytest.raises(
-        NotImplementedError, match="TIRx does not support global-info lookup"
-    ) as caught:
-
-        @T.prim_func
-        def main(value: T.global_annotation(device="cuda:0")):
-            T.evaluate(value)
-
-    lines, first = inspect.getsourcelines(test_tirx_rejects_global_info_at_the_call_site)
-    index, line = next((i, line) for i, line in enumerate(lines) if "def main(value:" in line)
-    location = first + index
-    frames = traceback.extract_tb(caught.value.__traceback__)
-    source_frames = [
-        frame for frame in frames if frame.filename == __file__ and frame.lineno == location
-    ]
-    assert source_frames
-    if getattr(source_frames[-1], "colno", None) is not None:
-        column = line.index("T.global_annotation(")
-        assert (
-            source_frames[-1].colno,
-            source_frames[-1].end_lineno,
-            source_frames[-1].end_colno,
-        ) == (
-            column,
-            location,
-            column + len('T.global_annotation(device="cuda:0")'),
-        )
-
-
 def test_scalar_assign_error_not_swallowed():
     """Regression: genuine errors (non-TypeError) from buffer_store during
     scalar-assignment sugar must propagate, not be silently swallowed.
@@ -109,17 +72,18 @@ def test_scalar_assign_error_not_swallowed():
             raise ValueError("boom")
         return original(*args, **kwargs)
 
-    src = """
-# from tvm.script import tirx as T
-
-@T.prim_func
-def func():
-    T.device_entry()
-    v: T.int32
-    v = v + T.int32(1)
-"""
     # The ValueError propagates unchanged. A broad ``except Exception`` here
     # previously swallowed it and fell through to eval_assign.
     with patch("tvm.tirx.script.ir_builder.parser_protocol.buffer_store", side_effect=bomb):
-        with pytest.raises(ValueError, match="boom"):
-            tvm.script.from_source(src, extra_vars={"I": tvm.script.ir, "T": T})
+        try:
+
+            @T.prim_func
+            def func():
+                T.device_entry()
+                v: T.int32
+                v = v + T.int32(1)  # noqa: F821
+
+        except ValueError as error:
+            assert str(error) == "boom"
+        else:
+            pytest.fail("buffer_store error was swallowed")

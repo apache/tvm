@@ -30,19 +30,14 @@ from tvm.script import tirx as T
 
 
 def test_tir_bound_prim_param_reused_in_dependent_annotations():
-    func = tvm.script.from_source(
-        """
-@T.prim_func
-def main(
-    n: T.int32,
-    direct: T.Buffer((n,), "float32"),
-    repeated: T.Buffer((n,), "float32"),
-    compound: T.Buffer((n + 1,), "float32"),
-) -> T.Buffer((n,), "float32"):
-    return repeated
-""",
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-    )
+    @T.prim_func
+    def func(
+        n: T.int32,
+        direct: T.Buffer((n,), "float32"),
+        repeated: T.Buffer((n,), "float32"),
+        compound: T.Buffer((n + 1,), "float32"),
+    ) -> T.Buffer((n,), "float32"):
+        return repeated
 
     n, direct, repeated, compound = func.params
     assert direct.ty.shape[0].same_as(n)
@@ -52,79 +47,42 @@ def main(
 
 
 def test_tir_bound_prim_param_reused_in_declared_function_signature():
-    mod = tvm.script.from_source(
-        """
-@I.ir_module
-class Module:
-    @T.prim_func
-    def main(n: T.int32, A: T.Buffer((n + 1,), "float32")):
-        T.evaluate(n)
-""",
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-    )
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(n: T.int32, A: T.Buffer((n + 1,), "float32")):
+            T.evaluate(n)
 
-    n, A = mod["main"].params
+    n, A = Module["main"].params
     assert A.ty.shape[0].a.same_as(n)
 
 
-def test_tir_external_symbol_adopted_by_later_prim_param():
-    func = tvm.script.from_source(
-        """
-n = T.dynamic("n", "int32")
-@T.prim_func
-def main(A: T.Buffer((n,), "float32"), n: n):
-    T.evaluate(n)
-""",
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-    )
+@pytest.mark.parametrize("dtype", ["int32", "int64"])
+def test_tir_external_symbol_adopted_by_later_prim_param(dtype):
+    n = T.dynamic("n", dtype)
 
-    A, n = func.params
-    assert A.ty.shape[0].same_as(n)
-    assert str(n.ty.dtype) == "int32"
-
-    mod = tvm.script.from_source(
-        """
-n = T.dynamic("n", "int32")
-@I.ir_module
-class Module:
     @T.prim_func
-    def main(A: T.Buffer((n,), "float32"), n: n):
+    def func(A: T.Buffer((n,), "float32"), n: n):
         T.evaluate(n)
-""",
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-    )
 
-    A, n = mod["main"].params
-    assert A.ty.shape[0].same_as(n)
-    assert str(n.ty.dtype) == "int32"
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((n,), "float32"), n: n):
+            T.evaluate(n)
 
-
-def test_tir_external_symbol_preserves_later_prim_param_dtype():
-    func = tvm.script.from_source(
-        """
-n = T.dynamic("n", "int64")
-@T.prim_func
-def main(A: T.Buffer((n,), "float32"), n: n):
-    T.evaluate(n)
-""",
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-    )
-
-    A, n = func.params
-    assert A.ty.shape[0].same_as(n)
-    assert str(n.ty.dtype) == "int64"
+    for function in [func, Module["main"]]:
+        A, n = function.params
+        assert A.ty.shape[0].same_as(n)
+        assert str(n.ty.dtype) == dtype
 
 
 def test_tir_external_dynamic_symbol_preserves_dtype():
-    func = tvm.script.from_source(
-        """
-n = T.dynamic("n", "int64")
-@T.prim_func
-def main(A: T.Buffer((n,), "float32")):
-    T.evaluate(n)
-""",
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-    )
+    n = T.dynamic("n", "int64")
+
+    @T.prim_func
+    def func(A: T.Buffer((n,), "float32")):
+        T.evaluate(n)
 
     n = func.params[0].ty.shape[0]
     assert str(n.ty.dtype) == "int64"
@@ -133,67 +91,46 @@ def main(A: T.Buffer((n,), "float32")):
 
 def test_tir_undeclared_shape_symbol_is_undefined():
     with pytest.raises(NameError):
-        tvm.script.from_source(
-            """
-@T.prim_func
-def main(A: T.Buffer((n, n), "float32")):
-    T.evaluate(0)
-""",
-            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-        )
+
+        @T.prim_func
+        def main(A: T.Buffer((n, n), "float32")):  # noqa: F821
+            T.evaluate(0)
 
 
-@pytest.mark.parametrize(
-    "source",
-    [
-        """
-@T.prim_func
-def main(A: T.Buffer((n,), "float32"), n: T.int32):
-    T.evaluate(n)
-""",
-        """
-@I.ir_module
-class Module:
+def test_tir_direct_later_prim_param_reuses_shape_symbol():
     @T.prim_func
-    def main(A: T.Buffer((n,), "float32"), n: T.int32):
+    def func(A: T.Buffer((n,), "float32"), n: T.int32):
         T.evaluate(n)
-""",
-    ],
-)
-def test_tir_direct_later_prim_param_reuses_shape_symbol(source):
-    result = tvm.script.from_source(source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
-    function = result["main"] if isinstance(result, tvm.IRModule) else result
-    A, n = function.params
-    assert A.ty.shape[0].same_as(n)
-    assert str(n.ty.dtype) == "int32"
-    assert function.body.value.same_as(n)
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((n,), "float32"), n: T.int32):
+            T.evaluate(n)
+
+    for function in [func, Module["main"]]:
+        A, n = function.params
+        assert A.ty.shape[0].same_as(n)
+        assert str(n.ty.dtype) == "int32"
+        assert function.body.value.same_as(n)
 
 
 def test_tir_return_annotation_does_not_define_symbolic_var():
     with pytest.raises(NameError):
-        tvm.script.from_source(
-            """
-@T.prim_func
-def main() -> T.Buffer((n,), "float32"):
-    A = T.alloc_buffer((n,), "float32")
-    return A
-""",
-            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-        )
+
+        @T.prim_func
+        def main() -> T.Buffer((n,), "float32"):  # noqa: F821
+            A = T.alloc_buffer((n,), "float32")  # noqa: F821
+            return A
 
 
 def test_type_vars_roundtrip():
-    func = tvm.script.from_source(
-        """
-M = I.dynamic("M")
-UNUSED = I.dynamic("UNUSED")
+    M = I.dynamic("M")
+    UNUSED = I.dynamic("UNUSED")
 
-@T.prim_func(private=True)
-def func(A: T.Buffer((M, M * 2), "float32")):
-    A[0, 0] = T.float32(1)
-""",
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-    )
+    @T.prim_func(private=True)
+    def func(A: T.Buffer((M, M * 2), "float32")):
+        A[0, 0] = T.float32(1)
 
     script = func.script()
     if sys.version_info >= (3, 12):
@@ -234,15 +171,12 @@ def func[M: int](A: T.Buffer((M, M * 2), "float32")):
 
 
 def test_dynamic_int32_roundtrip():
-    func = tvm.script.from_source(
-        """
-n = I.dynamic("n", "int32")
-@T.prim_func(private=True)
-def func(A: T.Buffer((n,), "float32")):
-    A[0] = T.float32(1)
-""",
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-    )
+    n = I.dynamic("n", "int32")
+
+    @T.prim_func(private=True)
+    def func(A: T.Buffer((n,), "float32")):
+        A[0] = T.float32(1)
+
     source = func.script()
     if sys.version_info >= (3, 12):
         assert "def main[n: T.int32](" in source
@@ -260,22 +194,19 @@ def func(A: T.Buffer((n,), "float32")):
 
 
 def test_dynamic_module_body_identity():
-    mod = tvm.script.from_source(
-        """
-n = I.dynamic("n", "int32")
-m = I.dynamic("n", "int32")
-@I.ir_module
-class Module:
-    @T.prim_func(private=True)
-    def first():
-        T.evaluate(n)
-    @T.prim_func(private=True)
-    def second():
-        T.evaluate(n + m)
-""",
-        check_well_formed=False,
-        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-    )
+    n = I.dynamic("n", "int32")
+    m = I.dynamic("n", "int32")
+
+    @I.ir_module(check_well_formed=False)
+    class mod:
+        @T.prim_func(private=True)
+        def first():
+            T.evaluate(n)
+
+        @T.prim_func(private=True)
+        def second():
+            T.evaluate(n + m)
+
     source = mod.script()
     assert source.count('I.dynamic("n", dtype="int32")') == 2
     restored = tvm.script.from_source(

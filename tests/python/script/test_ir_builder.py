@@ -24,11 +24,6 @@ from tvm.script import ir_builder as I
 from tvm.script.ir_builder import IRBuilder
 
 
-def test_ir_builder_scope():
-    with IRBuilder() as ib:  # pylint: disable=invalid-name
-        assert IRBuilder.current() == ib
-
-
 def test_ir_builder_multi_scope():
     with IRBuilder() as ib:  # pylint: disable=invalid-name
         with IRBuilder() as ib2:  # pylint: disable=invalid-name

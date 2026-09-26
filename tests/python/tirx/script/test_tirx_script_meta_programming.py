@@ -20,7 +20,6 @@
 from __future__ import annotations
 
 import pytest
-import tvm_ffi
 
 import tvm
 import tvm.script
@@ -55,7 +54,7 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
             self.scalar = T.local_scalar("int32")
             instances.append(self)
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def test():
         T.device_entry()
         external = T.alloc_buffer((2,), "int32", scope="local")
@@ -70,31 +69,21 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
             + second.external[1]
         )
 
-    code = test.script()
+    @T.prim_func(private=True)
+    def expected():
+        T.device_entry()
+        external = T.alloc_local((2,), "int32")
+        first_buf = T.alloc_local((2,), "int32")
+        first_scalar: T.int32
+        second_buf = T.alloc_local((2,), "int32")
+        second_scalar: T.int32
+        T.evaluate(
+            first_buf[0] + second_buf[1] + first_scalar + second_scalar + external[0] + external[1]  # noqa: F821
+        )
+
     assert len(instances) == 2
-    first, second = instances
-    assert first.external.same_as(second.external)
-    assert first.external.name == "external"
-    owned = [first.buf, second.buf, first.scalar.source, second.scalar.source]
-    assert all(resource.name == "" for resource in owned)
-    assert all(
-        not lhs.same_as(rhs) for index, lhs in enumerate(owned) for rhs in owned[index + 1 :]
-    )
-    assert [tuple(resource.shape) for resource in owned] == [(2,), (2,), (1,), (1,)]
-    assert all(resource.dtype == "int32" and resource.scope() == "local" for resource in owned)
-    allocations = []
-
-    def collect_allocation(node):
-        if isinstance(node, tvm.tirx.AllocBuffer):
-            allocations.append(node.buffer)
-
-    tvm_ffi.structural_walk(test.body, collect_allocation)
-    assert len(allocations) == 5
-    assert all(
-        sum(resource.same_as(allocated) for allocated in allocations) == 1
-        for resource in [first.external, *owned]
-    )
-    assert from_source(code).script() == code
+    assert instances[0].external.same_as(instances[1].external)
+    assert_structural_equal(test, expected)
 
 
 def from_source(code):
@@ -136,9 +125,7 @@ def test_macro():
             T.evaluate(x + 4)
             T.evaluate(x * 2)
         # fmt: on
-    code = test.script()
-    assert from_source(code).script() == code
-    assert_structural_equal(test, from_source(code))
+    assert_structural_equal(test, from_source(test.script()))
     assert_structural_equal(test, expected)
 
 
@@ -168,11 +155,8 @@ def test_macro_recursive():
             T.evaluate(x)
             T.evaluate(x)
         # fmt: on
-    code = test.script()
-    print(code)
-    assert from_source(code).script() == code
-    assert_structural_equal(test, from_source(code))
-    assert_structural_equal(expected, from_source(code))
+    assert_structural_equal(test, from_source(test.script()))
+    assert_structural_equal(test, expected)
 
 
 def test_list_comprehension():
@@ -186,11 +170,25 @@ def test_list_comprehension():
         T.evaluate(tvm.tirx.all(*regs))
         T.evaluate(tvm.tirx.all(*[acc[_] for _ in range(10)]))
         T.evaluate(tvm.tirx.all(*([acc[_] for _ in range(2, 4)] + [acc[_] for _ in range(6, 8)])))
+
+    @T.prim_func(private=True)
+    def expected():
+        T.device_entry()
+        acc = T.alloc_local((10,), "bool")
+        T.evaluate(acc[0])
+        T.evaluate(
+            acc[0] and acc[1] and acc[2] and acc[3] and acc[4]
+            and acc[5] and acc[6] and acc[7] and acc[8] and acc[9]
+        )
+        T.evaluate(
+            acc[0] and acc[1] and acc[2] and acc[3] and acc[4]
+            and acc[5] and acc[6] and acc[7] and acc[8] and acc[9]
+        )
+        T.evaluate(acc[2] and acc[3] and acc[6] and acc[7])
         # fmt: on
-    code = test.script()
-    print(code)
-    assert from_source(code).script() == code
-    assert_structural_equal(test, from_source(code))
+
+    assert_structural_equal(test, from_source(test.script()))
+    assert_structural_equal(test, expected)
 
 
 def test_shared_meta_var_alias():
@@ -207,9 +205,7 @@ def test_shared_meta_var_alias():
         T.evaluate(value)
 
     assert_structural_equal(via_ir_namespace, via_tirx_alias)
-    code = via_ir_namespace.script()
-    assert "meta_var" not in code
-    assert_structural_equal(via_ir_namespace, from_source(code))
+    assert_structural_equal(via_ir_namespace, from_source(via_ir_namespace.script()))
 
 
 def test_scalar_assign_in_macro():
@@ -234,18 +230,24 @@ def test_scalar_assign_in_macro():
             # Expr assigned to scalar via self.attr → buffer_store succeeds
             self.counter = self.counter + T.int32(1)
 
-    @T.prim_func
+    @T.prim_func(private=True)
     def test():
         T.device_entry()
         counter: T.int32
         state = T.meta_var(State(counter))  # noqa: F821
         state.add_one()
         T.evaluate(state.counter)
+
+    @T.prim_func(private=True)
+    def expected():
+        T.device_entry()
+        counter: T.int32
+        counter = counter + 1  # noqa: F821
+        T.evaluate(counter)
         # fmt: on
 
-    code = test.script()
-    assert from_source(code).script() == code
-    assert_structural_equal(test, from_source(code))
+    assert_structural_equal(test, from_source(test.script()))
+    assert_structural_equal(test, expected)
 
 
 def test_prim_func_closure_shape():

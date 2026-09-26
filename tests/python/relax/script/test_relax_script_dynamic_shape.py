@@ -409,25 +409,15 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
 
 
 def test_bound_prim_param_reused_in_dependent_annotations():
-    func = tvm.script.from_source(
-        """
-@R.function
-def main(
-    n: T.int64,
-    direct: R.Tensor([n], "float32"),
-    repeated: R.Tensor([n], "float32"),
-    shape: R.Shape([n]),
-    compound: R.Tensor([n + 1], "float32"),
-) -> R.Tensor([n + 1], "float32"):
-    return compound
-""",
-        extra_vars={
-            "I": tvm.script.ir,
-            "R": tvm.script.relax,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-        },
-    )
+    @R.function
+    def func(
+        n: T.int64,
+        direct: R.Tensor([n], "float32"),
+        repeated: R.Tensor([n], "float32"),
+        shape: R.Shape([n]),
+        compound: R.Tensor([n + 1], "float32"),
+    ) -> R.Tensor([n + 1], "float32"):
+        return compound
 
     n, direct, repeated, shape, compound = func.params
     assert direct.ty.shape[0].same_as(n)
@@ -439,68 +429,37 @@ def main(
 
 
 def test_bound_prim_param_reused_in_declared_function_signature():
-    mod = tvm.script.from_source(
-        """
-@I.ir_module
-class Module:
-    @R.function
-    def main(n: T.int64, x: R.Tensor([n + 1], "float32")) -> R.Tensor(
-        [n + 1], "float32"
-    ):
-        return x
-""",
-        extra_vars={
-            "I": tvm.script.ir,
-            "R": tvm.script.relax,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-        },
-    )
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(n: T.int64, x: R.Tensor([n + 1], "float32")) -> R.Tensor([n + 1], "float32"):
+            return x
 
-    func = mod["main"]
+    func = Module["main"]
     n, x = func.params
     assert x.ty.shape[0].a.same_as(n)
     assert func.ret_ty.shape[0].a.same_as(n)
-    _check(mod)
+    _check(Module)
 
 
 def test_non_int64_prim_param_rejected_in_shape_annotation():
     with pytest.raises(tvm.error.InternalError):
-        tvm.script.from_source(
-            """
-@R.function
-def main(n: T.int32, x: R.Tensor([n], "float32")):
-    return x
-""",
-            extra_vars={
-                "I": tvm.script.ir,
-                "R": tvm.script.relax,
-                "T": tvm.script.tirx,
-                "Ts": tvm.script.s_tir,
-            },
-        )
+
+        @R.function
+        def main(n: T.int32, x: R.Tensor([n], "float32")):  # noqa: F821
+            return x
 
 
 def test_recursive_local_function_reuses_earlier_prim_param_in_signature():
-    func = tvm.script.from_source(
-        """
-@R.function
-def main(n: T.int64, x: R.Tensor([n], "float32")):
     @R.function
-    def recurse(current: T.int64, value: R.Tensor([current], "float32")) -> R.Tensor(
-        [current], "float32"
-    ):
-        return recurse(current, value)
+    def func(n: T.int64, x: R.Tensor([n], "float32")):  # noqa: F821
+        @R.function
+        def recurse(current: T.int64, value: R.Tensor([current], "float32")) -> R.Tensor(
+            [current], "float32"
+        ):
+            return recurse(current, value)
 
-    return recurse(n, x)
-""",
-        extra_vars={
-            "I": tvm.script.ir,
-            "R": tvm.script.relax,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-        },
-    )
+        return recurse(n, x)
 
     recursive_binding = next(
         binding
@@ -666,24 +625,15 @@ def test_roundtrip_dynamic_shape(ir_generator):
     tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
 
 
-if __name__ == "__main__":
-    tvm.testing.main()
-
-
 def test_later_prim_param_reuses_shape_symbol():
-    function = tvm.script.from_source(
-        """
-@R.function
-def main(x: R.Tensor([n], "float32"), n: T.int64):
-    return x
-""",
-        extra_vars={
-            "I": tvm.script.ir,
-            "R": tvm.script.relax,
-            "T": tvm.script.tirx,
-            "Ts": tvm.script.s_tir,
-        },
-    )
+    @R.function
+    def function(x: R.Tensor([n], "float32"), n: T.int64):
+        return x
+
     x, n = function.params
     assert x.ty.shape[0].same_as(n)
     assert str(n.ty.dtype) == "int64"
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
