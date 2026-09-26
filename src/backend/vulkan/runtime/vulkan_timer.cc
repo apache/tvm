@@ -35,17 +35,7 @@ VulkanTimerNode::VulkanTimerNode(Device dev) : dev_(dev) {
 
   // Retrieve the timestamp period from device properties
   timestamp_period_ = vk_dev.device_properties.timestamp_period;
-
-  CreateQueryPool();
-}
-
-VulkanTimerNode::VulkanTimerNode(VulkanDevice& vk_dev) {
-  // Get the Vulkan device and stream
-  stream_ = &vk_dev.ThreadLocalStream();
-  device_ = vk_dev;
-
-  // Retrieve the timestamp period from device properties
-  timestamp_period_ = vk_dev.device_properties.timestamp_period;
+  TVM_FFI_ICHECK_GT(timestamp_period_, 0) << "Vulkan device does not support timestamp queries.";
 
   CreateQueryPool();
 }
@@ -95,7 +85,7 @@ void VulkanTimerNode::CollectTimestamps() {
 
   // Calculate the duration in nanoseconds
   uint64_t diff = timestamps[1] - timestamps[0];
-  duration_ = static_cast<int64_t>(diff * timestamp_period_);
+  duration_ = static_cast<int64_t>(static_cast<double>(diff) * timestamp_period_);
 }
 
 void VulkanTimerNode::Cleanup() {

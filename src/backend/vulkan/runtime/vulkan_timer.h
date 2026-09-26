@@ -20,7 +20,7 @@
 #ifndef TVM_RUNTIME_VULKAN_VULKAN_TIMER_H_
 #define TVM_RUNTIME_VULKAN_VULKAN_TIMER_H_
 
-#include <tvm/runtime/profiling.h>
+#include <tvm/runtime/timer.h>
 #include <vulkan/vulkan.h>
 
 #include "vulkan_device.h"
@@ -29,8 +29,6 @@
 namespace tvm {
 namespace runtime {
 namespace vulkan {
-
-class VulkanDevice;
 
 /*!
  * \brief Timer node for measuring GPU execution time using Vulkan.
@@ -45,7 +43,6 @@ class VulkanTimerNode : public TimerNode {
    * \param dev The TVM device to be used for timing.
    */
   explicit VulkanTimerNode(Device dev);
-  explicit VulkanTimerNode(VulkanDevice& vkdev);
 
   /*!
    * \brief Destructor to clean up Vulkan resources.
@@ -75,10 +72,10 @@ class VulkanTimerNode : public TimerNode {
   VkDevice device_{VK_NULL_HANDLE};         ///< The Vulkan device handle.
   VulkanStream* stream_{nullptr};           ///< The Vulkan stream for command buffer management.
   VkQueryPool query_pool_{VK_NULL_HANDLE};  ///< The Vulkan query pool for timestamp queries.
-  float timestamp_period_;    ///< The period (in nanoseconds) for each timestamp tick.
-  uint32_t start_query_ = 0;  ///< The index for the start timestamp query.
-  uint32_t end_query_ = 1;    ///< The index for the end timestamp query.
-  int64_t duration_ = 0;      ///< The measured duration in nanoseconds.
+  double timestamp_period_;                 ///< The period (in nanoseconds) for each timestamp tick.
+  uint32_t start_query_ = 0;                 ///< The index for the start timestamp query.
+  uint32_t end_query_ = 1;                   ///< The index for the end timestamp query.
+  int64_t duration_ = 0;                     ///< The measured duration in nanoseconds.
 
   /*!
    * \brief Creates a Vulkan query pool for timestamp queries.

@@ -461,6 +461,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.timer.vulkan",
+                        [](Device dev) { return Timer(ffi::make_object<VulkanTimerNode>(dev)); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_packed("device_api.vulkan",
                   [](ffi::PackedArgs args, ffi::Any* rv) {
