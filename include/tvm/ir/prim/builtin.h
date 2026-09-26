@@ -29,16 +29,16 @@ namespace builtin {
  * \brief Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
  * (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
  */
-TVM_DLL Op vscale();
+TVM_DLL const Op& vscale();
 
 /*! \brief Round up to the nearest integral value. */
-TVM_DLL Op ceil();
+TVM_DLL const Op& ceil();
 
 /*! \brief Base-two logarithm. */
-TVM_DLL Op log2();
+TVM_DLL const Op& log2();
 
 /*! \brief Count leading zero bits. */
-TVM_DLL Op clz();
+TVM_DLL const Op& clz();
 
 /*!
  * \brief Same as select, used for unsafe memory access.
@@ -47,10 +47,10 @@ TVM_DLL Op clz();
  *    return cond ? a : b;
  *  }
  */
-TVM_DLL Op if_then_else();
+TVM_DLL const Op& if_then_else();
 
 /*! \brief Marks a condition is likely going to happen. */
-TVM_DLL Op likely();
+TVM_DLL const Op& likely();
 
 }  // namespace builtin
 }  // namespace prim

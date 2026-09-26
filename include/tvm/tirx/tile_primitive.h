@@ -255,35 +255,35 @@ class TilePrimitiveCall : public Stmt {
  *
  * Tx.cast(TensorRegion dst, TensorRegion src)
  */
-TVM_DLL Op cast();
+TVM_DLL const Op& cast();
 
 /*!
  * \brief See pesudo code below:
  *
  * Tx.copy(TensorRegion dst, TensorRegion src)
  */
-TVM_DLL Op copy();
+TVM_DLL const Op& copy();
 
 /*!
  * \brief See pesudo code below:
  *
  * Tx.Async.copy(TensorRegion dst, TensorRegion src)
  */
-TVM_DLL Op copy_async();
+TVM_DLL const Op& copy_async();
 
 /*!
  * \brief See pesudo code below:
  *
  *  Tx.fill(TensorRegion dst, PrimExpr value)
  */
-TVM_DLL Op fill();
+TVM_DLL const Op& fill();
 
 /*!
  * \brief See pesudo code below:
  *
  * Tx.gemm(BufferVar A, BufferVar B, BufferVar C, BufferVar D, PrimExpr alpha, PrimExpr beta)
  */
-TVM_DLL Op gemm();
+TVM_DLL const Op& gemm();
 
 /*!
  * \brief See pesudo code below:
@@ -291,53 +291,53 @@ TVM_DLL Op gemm();
  * Tx.gemm_async(TensorRegion C, TensorRegion A, TensorRegion B, bool transA, bool transB,
  * bool accum)
  */
-TVM_DLL Op gemm_async();
+TVM_DLL const Op& gemm_async();
 
-TVM_DLL Op zero();
+TVM_DLL const Op& zero();
 
-TVM_DLL Op sqrt();
+TVM_DLL const Op& sqrt();
 
-TVM_DLL Op exp();
+TVM_DLL const Op& exp();
 
-TVM_DLL Op exp2();
+TVM_DLL const Op& exp2();
 
-TVM_DLL Op add();
+TVM_DLL const Op& add();
 
-TVM_DLL Op sub();
+TVM_DLL const Op& sub();
 
-TVM_DLL Op mul();
+TVM_DLL const Op& mul();
 
-TVM_DLL Op fdiv();
+TVM_DLL const Op& fdiv();
 
-TVM_DLL Op minimum();
+TVM_DLL const Op& minimum();
 
-TVM_DLL Op maximum();
+TVM_DLL const Op& maximum();
 
-TVM_DLL Op reciprocal();
+TVM_DLL const Op& reciprocal();
 
-TVM_DLL Op sum();
+TVM_DLL const Op& sum();
 
-TVM_DLL Op max();
+TVM_DLL const Op& max();
 
-TVM_DLL Op min();
+TVM_DLL const Op& min();
 
-TVM_DLL Op memset();
+TVM_DLL const Op& memset();
 
-TVM_DLL Op reduce_negate();
+TVM_DLL const Op& reduce_negate();
 
-TVM_DLL Op binary_reduce();
+TVM_DLL const Op& binary_reduce();
 
-TVM_DLL Op unary_reduce();
+TVM_DLL const Op& unary_reduce();
 
-TVM_DLL Op binary_chain();
+TVM_DLL const Op& binary_chain();
 
-TVM_DLL Op select();
+TVM_DLL const Op& select();
 
-TVM_DLL Op fma();
+TVM_DLL const Op& fma();
 
-TVM_DLL Op silu();
+TVM_DLL const Op& silu();
 
-TVM_DLL Op permute_layout();
+TVM_DLL const Op& permute_layout();
 
 }  // namespace tirx
 }  // namespace tvm

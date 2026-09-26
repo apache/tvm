@@ -833,7 +833,7 @@ struct PIfThenElseOp {
   static PrimExpr Eval(ffi::Array<PrimExpr> args) {
     return Call(args[1].ty(), GetOp(), args).as_or_throw<PrimExpr>();
   }
-  static const Op GetOp() { return prim::builtin::if_then_else(); }
+  static const Op& GetOp() { return prim::builtin::if_then_else(); }
 };
 
 /*!

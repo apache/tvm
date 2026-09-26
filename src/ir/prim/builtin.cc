@@ -23,32 +23,32 @@ namespace tvm {
 namespace prim {
 namespace builtin {
 
-Op likely() {
+const Op& likely() {
   static const Op op = Op::Get("prim.likely");
   return op;
 }
 
-Op if_then_else() {
+const Op& if_then_else() {
   static const Op op = Op::Get("prim.if_then_else");
   return op;
 }
 
-Op vscale() {
+const Op& vscale() {
   static const Op op = Op::Get("prim.vscale");
   return op;
 }
 
-Op ceil() {
+const Op& ceil() {
   static const Op op = Op::Get("prim.ceil");
   return op;
 }
 
-Op log2() {
+const Op& log2() {
   static const Op op = Op::Get("prim.log2");
   return op;
 }
 
-Op clz() {
+const Op& clz() {
   static const Op op = Op::Get("prim.clz");
   return op;
 }

@@ -34,7 +34,7 @@ namespace te {
 
 namespace {
 
-Op TensorLoadOp() {
+const Op& TensorLoadOp() {
   static const Op op = Op::Get("te.tensor_load");
   return op;
 }

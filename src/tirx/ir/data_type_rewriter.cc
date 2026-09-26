@@ -316,7 +316,7 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
   }
   PrimExpr prim_e = e.as_or_throw<PrimExpr>();
   static const Op pow_op = Op::Get("tirx.pow");
-  static const Op clz_op = prim::builtin::clz();
+  static const Op& clz_op = prim::builtin::clz();
   if (op->op.same_as(pow_op)) {
     return pow(op->args[0].as_or_throw<PrimExpr>(), op->args[1].as_or_throw<PrimExpr>());
   } else if (op->op.same_as(prim::builtin::if_then_else())) {

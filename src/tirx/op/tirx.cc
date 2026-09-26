@@ -130,152 +130,152 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 /********************* Tile Ops **********************/
-Op zero() {
+const Op& zero() {
   static const Op op = Op::Get("tirx.tile.zero");
   return op;
 }
 
-Op sqrt() {
+const Op& sqrt() {
   static const Op op = Op::Get("tirx.tile.sqrt");
   return op;
 }
 
-Op exp() {
+const Op& exp() {
   static const Op op = Op::Get("tirx.tile.exp");
   return op;
 }
 
-Op exp2() {
+const Op& exp2() {
   static const Op op = Op::Get("tirx.tile.exp2");
   return op;
 }
 
-Op log2() {
+const Op& log2() {
   static const Op op = Op::Get("tirx.tile.log2");
   return op;
 }
 
-Op add() {
+const Op& add() {
   static const Op op = Op::Get("tirx.tile.add");
   return op;
 }
 
-Op sub() {
+const Op& sub() {
   static const Op op = Op::Get("tirx.tile.sub");
   return op;
 }
 
-Op mul() {
+const Op& mul() {
   static const Op op = Op::Get("tirx.tile.mul");
   return op;
 }
 
-Op fdiv() {
+const Op& fdiv() {
   static const Op op = Op::Get("tirx.tile.fdiv");
   return op;
 }
 
-Op minimum() {
+const Op& minimum() {
   static const Op op = Op::Get("tirx.tile.minimum");
   return op;
 }
 
-Op maximum() {
+const Op& maximum() {
   static const Op op = Op::Get("tirx.tile.maximum");
   return op;
 }
 
-Op copy() {
+const Op& copy() {
   static const Op op = Op::Get("tirx.tile.copy");
   return op;
 }
 
-Op fill() {
+const Op& fill() {
   static const Op op = Op::Get("tirx.tile.fill");
   return op;
 }
 
-Op gemm() {
+const Op& gemm() {
   static const Op op = Op::Get("tirx.tile.gemm");
   return op;
 }
 
-Op reciprocal() {
+const Op& reciprocal() {
   static const Op op = Op::Get("tirx.tile.reciprocal");
   return op;
 }
 
-Op sum() {
+const Op& sum() {
   static const Op op = Op::Get("tirx.tile.sum");
   return op;
 }
 
-Op max() {
+const Op& max() {
   static const Op op = Op::Get("tirx.tile.max");
   return op;
 }
 
-Op min() {
+const Op& min() {
   static const Op op = Op::Get("tirx.tile.min");
   return op;
 }
 
-Op memset() {
+const Op& memset() {
   static const Op op = Op::Get("tirx.tile.memset");
   return op;
 }
 
-Op reduce_negate() {
+const Op& reduce_negate() {
   static const Op op = Op::Get("tirx.tile.reduce_negate");
   return op;
 }
 
-Op binary_reduce() {
+const Op& binary_reduce() {
   static const Op op = Op::Get("tirx.tile.binary_reduce");
   return op;
 }
 
-Op unary_reduce() {
+const Op& unary_reduce() {
   static const Op op = Op::Get("tirx.tile.unary_reduce");
   return op;
 }
 
-Op binary_chain() {
+const Op& binary_chain() {
   static const Op op = Op::Get("tirx.tile.binary_chain");
   return op;
 }
 
-Op select() {
+const Op& select() {
   static const Op op = Op::Get("tirx.tile.select");
   return op;
 }
 
-Op cast() {
+const Op& cast() {
   static const Op op = Op::Get("tirx.tile.cast");
   return op;
 }
 
-Op fma() {
+const Op& fma() {
   static const Op op = Op::Get("tirx.tile.fma");
   return op;
 }
 
-Op silu() {
+const Op& silu() {
   static const Op op = Op::Get("tirx.tile.silu");
   return op;
 }
 
-Op permute_layout() {
+const Op& permute_layout() {
   static const Op op = Op::Get("tirx.tile.permute_layout");
   return op;
 }
 
-Op copy_async() {
+const Op& copy_async() {
   static const Op op = Op::Get("tirx.tile.copy_async");
   return op;
 }
 
-Op gemm_async() {
+const Op& gemm_async() {
   static const Op op = Op::Get("tirx.tile.gemm_async");
   return op;
 }

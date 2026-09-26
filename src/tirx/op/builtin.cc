@@ -84,317 +84,317 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 }
 
-Op reinterpret() {
+const Op& reinterpret() {
   static const Op op = Op::Get("tirx.reinterpret");
   return op;
 }
 
-Op thread_return() {
+const Op& thread_return() {
   static const Op op = Op::Get("tirx.thread_return");
   return op;
 }
 
-Op filter() {
+const Op& filter() {
   static const Op op = Op::Get("tirx.filter");
   return op;
 }
 
-Op selector() {
+const Op& selector() {
   static const Op op = Op::Get("tirx.selector");
   return op;
 }
 
-Op address_of() {
+const Op& address_of() {
   static const Op op = Op::Get("tirx.address_of");
   return op;
 }
 
-Op q_multiply_shift() {
+const Op& q_multiply_shift() {
   static const Op op = Op::Get("tirx.q_multiply_shift");
   return op;
 }
 
-Op q_multiply_shift_per_axis() {
+const Op& q_multiply_shift_per_axis() {
   static const Op op = Op::Get("tirx.q_multiply_shift_per_axis");
   return op;
 }
 
-Op isnullptr() {
+const Op& isnullptr() {
   static const Op op = Op::Get("tirx.isnullptr");
   return op;
 }
 
-Op isnan() {
+const Op& isnan() {
   static const Op op = Op::Get("tirx.isnan");
   return op;
 }
 
-Op popcount() {
+const Op& popcount() {
   static const Op op = Op::Get("tirx.popcount");
   return op;
 }
 
-Op fma() {
+const Op& fma() {
   static const Op op = Op::Get("tirx.fma");
   return op;
 }
 
-Op call_extern() {
+const Op& call_extern() {
   static const Op op = Op::Get("tirx.call_extern");
   return op;
 }
 
-Op call_pure_extern() {
+const Op& call_pure_extern() {
   static const Op op = Op::Get("tirx.call_pure_extern");
   return op;
 }
 
-Op call_llvm_intrin() {
+const Op& call_llvm_intrin() {
   static const Op op = Op::Get("tirx.call_llvm_intrin");
   return op;
 }
 
-Op call_llvm_pure_intrin() {
+const Op& call_llvm_pure_intrin() {
   static const Op op = Op::Get("tirx.call_llvm_pure_intrin");
   return op;
 }
 
-Op call_spirv_pure_glsl450() {
+const Op& call_spirv_pure_glsl450() {
   static const Op op = Op::Get("tirx.call_spirv_pure_glsl450");
   return op;
 }
 
-Op prefetch() {
+const Op& prefetch() {
   static const Op op = Op::Get("tirx.prefetch");
   return op;
 }
 
-Op tvm_access_ptr() {
+const Op& tvm_access_ptr() {
   static const Op op = Op::Get("tirx.tvm_access_ptr");
   return op;
 }
 
-Op ptr_byte_offset() {
+const Op& ptr_byte_offset() {
   static const Op op = Op::Get("tirx.ptr_byte_offset");
   return op;
 }
 
-Op tvm_static_handle() {
+const Op& tvm_static_handle() {
   static const Op op = Op::Get("tirx.tvm_static_handle");
   return op;
 }
 
-Op handle_add_byte_offset() {
+const Op& handle_add_byte_offset() {
   static const Op op = Op::Get("tirx.handle_add_byte_offset");
   return op;
 }
 
-Op tvm_struct_get() {
+const Op& tvm_struct_get() {
   static const Op op = Op::Get("tirx.tvm_struct_get");
   return op;
 }
 
-Op tvm_struct_set() {
+const Op& tvm_struct_set() {
   static const Op op = Op::Get("tirx.tvm_struct_set");
   return op;
 }
 
-Op tvm_throw_last_error() {
+const Op& tvm_throw_last_error() {
   static const Op op = Op::Get("tirx.tvm_throw_last_error");
   return op;
 }
 
-Op tvm_stack_alloca() {
+const Op& tvm_stack_alloca() {
   static const Op op = Op::Get("tirx.tvm_stack_alloca");
   return op;
 }
 
-Op tvm_stack_make_shape() {
+const Op& tvm_stack_make_shape() {
   static const Op op = Op::Get("tirx.tvm_stack_make_shape");
   return op;
 }
 
-Op tvm_stack_make_array() {
+const Op& tvm_stack_make_array() {
   static const Op op = Op::Get("tirx.tvm_stack_make_array");
   return op;
 }
 
-Op tvm_call_packed() {
+const Op& tvm_call_packed() {
   static const Op op = Op::Get("tirx.tvm_call_packed");
   return op;
 }
 
-Op tensormap_encode_tiled() {
+const Op& tensormap_encode_tiled() {
   static const Op op = Op::Get("tirx.tensormap_encode_tiled");
   return op;
 }
 
-Op call_ffi_kernel() {
+const Op& call_ffi_kernel() {
   static const Op op = Op::Get("tirx.call_ffi_kernel");
   return op;
 }
 
-Op tvm_call_cpacked() {
+const Op& tvm_call_cpacked() {
   static const Op op = Op::Get("tirx.tvm_call_cpacked");
   return op;
 }
 
-Op tvm_thread_invariant() {
+const Op& tvm_thread_invariant() {
   static const Op op = Op::Get("tirx.tvm_thread_invariant");
   return op;
 }
 
-Op tvm_call_packed_lowered() {
+const Op& tvm_call_packed_lowered() {
   static const Op op = Op::Get("tirx.tvm_call_packed_lowered");
   return op;
 }
 
-Op tvm_call_cpacked_lowered() {
+const Op& tvm_call_cpacked_lowered() {
   static const Op op = Op::Get("tirx.tvm_call_cpacked_lowered");
   return op;
 }
 
-Op tvm_storage_sync() {
+const Op& tvm_storage_sync() {
   static const Op op = Op::Get("tirx.tvm_storage_sync");
   return op;
 }
 
-Op tvm_kernel_replace_point() {
+const Op& tvm_kernel_replace_point() {
   static const Op op = Op::Get("tirx.tvm_kernel_replace_point");
   return op;
 }
 
-Op tvm_warp_shuffle() {
+const Op& tvm_warp_shuffle() {
   static const Op op = Op::Get("tirx.tvm_warp_shuffle");
   return op;
 }
 
-Op tvm_warp_shuffle_up() {
+const Op& tvm_warp_shuffle_up() {
   static const Op op = Op::Get("tirx.tvm_warp_shuffle_up");
   return op;
 }
 
-Op tvm_warp_shuffle_down() {
+const Op& tvm_warp_shuffle_down() {
   static const Op op = Op::Get("tirx.tvm_warp_shuffle_down");
   return op;
 }
 
-Op tvm_warp_shuffle_xor() {
+const Op& tvm_warp_shuffle_xor() {
   static const Op op = Op::Get("tirx.tvm_warp_shuffle_xor");
   return op;
 }
 
-Op tvm_warp_activemask() {
+const Op& tvm_warp_activemask() {
   static const Op op = Op::Get("tirx.tvm_warp_activemask");
   return op;
 }
 
-Op tvm_thread_allreduce() {
+const Op& tvm_thread_allreduce() {
   static const Op op = Op::Get("tirx.tvm_thread_allreduce");
   return op;
 }
 
-Op cooperative_tensor_fill() {
+const Op& cooperative_tensor_fill() {
   static const Op op = Op::Get("tirx.cooperative_tensor_fill");
   return op;
 }
 
-Op cooperative_tensor_load() {
+const Op& cooperative_tensor_load() {
   static const Op op = Op::Get("tirx.cooperative_tensor_load");
   return op;
 }
 
-Op cooperative_tensor_store() {
+const Op& cooperative_tensor_store() {
   static const Op op = Op::Get("tirx.cooperative_tensor_store");
   return op;
 }
 
-Op cooperative_tensor_multiply_accumulate() {
+const Op& cooperative_tensor_multiply_accumulate() {
   static const Op op = Op::Get("tirx.cooperative_tensor_multiply_accumulate");
   return op;
 }
 
-Op vectorhigh() {
+const Op& vectorhigh() {
   static const Op op = Op::Get("tirx.vectorhigh");
   return op;
 }
 
-Op vectorlow() {
+const Op& vectorlow() {
   static const Op op = Op::Get("tirx.vectorlow");
   return op;
 }
 
-Op vectorcombine() {
+const Op& vectorcombine() {
   static const Op op = Op::Get("tirx.vectorcombine");
   return op;
 }
 
-Op dp4a() {
+const Op& dp4a() {
   static const Op op = Op::Get("tirx.dp4a");
   return op;
 }
 
-Op atomic_add() {
+const Op& atomic_add() {
   static const Op op = Op::Get("tirx.atomic_add");
   return op;
 }
 
-Op nd_mem_alloc_with_scope() {
+const Op& nd_mem_alloc_with_scope() {
   static const Op op = Op::Get("tirx.nd_mem_alloc_with_scope");
   return op;
 }
 
-Op texture2d_store() {
+const Op& texture2d_store() {
   static const Op op = Op::Get("tirx.texture2d_store");
   return op;
 }
 
-Op texture2d_load() {
+const Op& texture2d_load() {
   static const Op op = Op::Get("tirx.texture2d_load");
   return op;
 }
 
-Op assume() {
+const Op& assume() {
   static const Op op = Op::Get("tirx.assume");
   return op;
 }
 
-Op undef() {
+const Op& undef() {
   static const Op op = Op::Get("tirx.undef");
   return op;
 }
 
-Op get_active_lane_mask() {
+const Op& get_active_lane_mask() {
   static const Op op = Op::Get("tirx.get_active_lane_mask");
   return op;
 }
 
-Op masked_load() {
+const Op& masked_load() {
   static const Op op = Op::Get("tirx.masked_load");
   return op;
 }
 
-Op masked_store() {
+const Op& masked_store() {
   static const Op op = Op::Get("tirx.masked_store");
   return op;
 }
 
-Op ignore_loop_partition() {
+const Op& ignore_loop_partition() {
   static const Op op = Op::Get("tirx.ignore_loop_partition");
   return op;
 }
 
-Op buffer_offset() {
+const Op& buffer_offset() {
   static const Op op = Op::Get("tirx.buffer_offset");
   return op;
 }
 
-Op buffer_data() {
+const Op& buffer_data() {
   static const Op op = Op::Get("tirx.buffer_data");
   return op;
 }
 
-Op print_buffer() {
+const Op& print_buffer() {
   static const Op op = Op::Get("tirx.print_buffer");
   return op;
 }

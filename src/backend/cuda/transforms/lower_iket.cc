@@ -86,32 +86,32 @@ enum class PayloadType : uint32_t {
   kUI64 = 16,
 };
 
-Op IketMarkOp() {
+const Op& IketMarkOp() {
   static const Op op = Op::Get("tirx.cuda.iket_mark");
   return op;
 }
 
-Op IketRangeStartOp() {
+const Op& IketRangeStartOp() {
   static const Op op = Op::Get("tirx.cuda.iket_range_start");
   return op;
 }
 
-Op IketRangeEndOp() {
+const Op& IketRangeEndOp() {
   static const Op op = Op::Get("tirx.cuda.iket_range_end");
   return op;
 }
 
-Op IketRangePushOp() {
+const Op& IketRangePushOp() {
   static const Op op = Op::Get("tirx.cuda.iket_range_push");
   return op;
 }
 
-Op IketRangePopOp() {
+const Op& IketRangePopOp() {
   static const Op op = Op::Get("tirx.cuda.iket_range_pop");
   return op;
 }
 
-Op IketSentinelOp() {
+const Op& IketSentinelOp() {
   static const Op op = Op::Get("tirx.cuda.iket_sentinel_token");
   return op;
 }

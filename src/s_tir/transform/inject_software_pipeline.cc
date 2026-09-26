@@ -125,7 +125,7 @@ class PipelineOpaqueAccessRewriter {
   Expr Rewrite(const Call& call) {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
-    static const auto access_ptr = tirx::builtin::tvm_access_ptr();
+    static const auto& access_ptr = tirx::builtin::tvm_access_ptr();
     static const Op load_matrix_sync = Op::Get("tirx.tvm_load_matrix_sync");
     static const Op store_matrix_sync = Op::Get("tirx.tvm_store_matrix_sync");
     static const Op mma_sync = Op::Get("tirx.tvm_mma_sync");

@@ -592,11 +592,11 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   // Cache potential common path ops to slightly improve lookup time.
   // global symbol table.
   OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
-  const Op builtin_call_extern_ = builtin::call_extern();
-  const Op builtin_call_pure_extern_ = builtin::call_pure_extern();
-  const Op builtin_call_llvm_intrin_ = builtin::call_llvm_intrin();
-  const Op builtin_call_llvm_pure_intrin_ = builtin::call_llvm_pure_intrin();
-  const Op builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
+  const Op& builtin_call_extern_ = builtin::call_extern();
+  const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
+  const Op& builtin_call_llvm_intrin_ = builtin::call_llvm_intrin();
+  const Op& builtin_call_llvm_pure_intrin_ = builtin::call_llvm_pure_intrin();
+  const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
 
   void EmitDebugLocation();
   void EmitDebugLocation(const ffi::Optional<Span>& span);
