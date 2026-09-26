@@ -146,8 +146,8 @@ InferLayoutOutput InferLayoutResize2d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize2d")
-      .arg("data", "The input tensor.")
-      .arg("size", "The output image shape.")
+      .add_arg("data", "The input tensor.")
+      .add_arg("size", "The output image shape.")
       .attrs_type<Resize2DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeResize2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d)
@@ -261,8 +261,8 @@ InferLayoutOutput InferLayoutResize3d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize3d")
-      .arg("data", "The input tensor.")
-      .arg("size", "The output image shape.")
+      .add_arg("data", "The input tensor.")
+      .add_arg("size", "The output image shape.")
       .attrs_type<Resize3DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeResize3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize3d)
@@ -353,8 +353,8 @@ Type InferTypeGridSample(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.grid_sample")
-      .arg("data", "The input tensor.")
-      .arg("grid", "The grid tensor for sampling.")
+      .add_arg("data", "The input tensor.")
+      .add_arg("grid", "The grid tensor for sampling.")
       .attrs_type<GridSampleAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeGridSample)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -453,8 +453,8 @@ Type InferTypeAffineGrid(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.affine_grid")
-      .arg("data", "The input affine matrix tensor.")
-      .arg("size", "The target output shape (H, W).")
+      .add_arg("data", "The input affine matrix tensor.")
+      .add_arg("size", "The target output shape (H, W).")
       .attrs_type<AffineGridAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAffineGrid)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)

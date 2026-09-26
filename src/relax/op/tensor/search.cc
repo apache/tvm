@@ -79,10 +79,10 @@ Type InferTypeBucketize(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.bucketize")
-      .arg("input_tensor", " N-D tensor or a Scalar containing the search value(s).")
-      .arg("boundaries",
-           "1-D tensor, must contain a strictly increasing sequence, or the return value is "
-           "undefined.")
+      .add_arg("input_tensor", " N-D tensor or a Scalar containing the search value(s).")
+      .add_arg("boundaries",
+               "1-D tensor, must contain a strictly increasing sequence, or the return value is "
+               "undefined.")
       .set_attr<FInferType>("FInferType", InferTypeBucketize)
       .set_attr<bool>("FPurity", true);
 }
@@ -182,9 +182,9 @@ Type InferTypeWhere(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.where")
-      .arg("condition", "When True, yield `x1`; otherwise, yield `x2`.")
-      .arg("x1", "The first input tensor.")
-      .arg("x2", "The second input tensor.")
+      .add_arg("condition", "When True, yield `x1`; otherwise, yield `x2`.")
+      .add_arg("x1", "The first input tensor.")
+      .add_arg("x2", "The second input tensor.")
       .set_attr<FInferType>("FInferType", InferTypeWhere)
       .set_attr<bool>("FPurity", true);
 }
@@ -269,7 +269,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.argmax", argmax);
 
   OpDef("relax.argmax")
-      .arg("x", "The input data tensor")
+      .add_arg("x", "The input data tensor")
       .set_attr<FInferType>("FInferType", InferTypeArgmaxArgmin)
       .set_attr<bool>("FPurity", true);
 };
@@ -278,7 +278,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.argmin", argmin);
 
   OpDef("relax.argmin")
-      .arg("x", "The input data tensor")
+      .add_arg("x", "The input data tensor")
       .set_attr<FInferType>("FInferType", InferTypeArgmaxArgmin)
       .set_attr<bool>("FPurity", true);
 };

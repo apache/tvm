@@ -27,8 +27,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 
-#include <exception>
-
 namespace tvm {
 
 // Owns canonical Ops and mutable attribute columns for the lifetime of the process.
@@ -110,142 +108,7 @@ OpDef::OpDef(const ffi::String& name) : op_(OpRegistry::Global()->GetOrCreate(na
 
 OpDef::OpDef(const ffi::String& name, const ffi::String& doc) : OpDef(name) { get()->doc = doc; }
 
-void Op::Validate(const CallNode* call) const { (*this)->Validate(call); }
-
-namespace {
-
-TVMFFIAny InvokeValidator(const ffi::Any& validator, const CallNode* call) noexcept {
-  if (TVM_FFI_PREDICT_TRUE(validator.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr)) {
-    using CallValidator = TVMFFIAny (*)(const CallNode*) noexcept;
-    return (*reinterpret_cast<CallValidator>(validator.cast<void*>()))(call);
-  }
-  // A Function receives the Call handle and returns None or raises/returns an Error.
-  return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-      validator.cast<ffi::Function>().CallExpected<void>(ffi::GetRef<Call>(call)));
-}
-
-}  // namespace
-
-void OpNode::Validate(const CallNode* call) const {
-  TVM_FFI_CHECK(call != nullptr && call->op.get() == this, ValueError)
-      << "Expected a Call to operator '" << name << "'";
-  const auto* op = this;
-  const size_t expected = op->args_info.size();
-  TVM_FFI_CHECK(
-      op->allow_extra_args ? call->args.size() >= expected : call->args.size() == expected,
-      ValueError)
-      << "Operator '" << op->name << "' expects " << (op->allow_extra_args ? "at least " : "")
-      << expected << " arguments, got " << call->args.size();
-  if (op->validate_args_ != nullptr) {
-    ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(InvokeValidator(op->validate_args_, call))
-        .value();
-  }
-  if (op->validate_ty_args_ != nullptr) {
-    ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(
-        InvokeValidator(op->validate_ty_args_, call))
-        .value();
-  }
-}
-
-void OpDef::DeclareTypes(size_t count, ffi::Any validate, bool type_args) {
-  const auto& infos = type_args ? op_->ty_args_info : op_->args_info;
-  auto& expected = type_args ? expected_ty_args_ : expected_args_;
-  bool defined = type_args ? op_->ty_args_signature_defined_ : op_->args_signature_defined_;
-  TVM_FFI_CHECK(!defined && !expected.has_value() && infos.empty(), ValueError)
-      << "Operator '" << op_->name << "' " << (type_args ? "type-argument" : "argument")
-      << " constraints must be declared once, before their descriptors";
-  expected = count;
-  (type_args ? pending_ty_args_ : pending_args_) = std::move(validate);
-}
-
-void OpDef::DeclareValidator(ffi::Function validate, bool type_args) {
-  const auto& infos = type_args ? op_->ty_args_info : op_->args_info;
-  auto& expected = type_args ? expected_ty_args_ : expected_args_;
-  bool defined = type_args ? op_->ty_args_signature_defined_ : op_->args_signature_defined_;
-  TVM_FFI_CHECK(validate.defined(), ValueError) << "Cannot register a null operator validator";
-  TVM_FFI_CHECK(!defined && !expected.has_value(), ValueError)
-      << "Operator '" << op_->name << "' " << (type_args ? "type-argument" : "argument")
-      << " constraints are already declared";
-  expected = infos.size();
-  (type_args ? pending_ty_args_ : pending_args_) = std::move(validate);
-}
-
-OpDef& OpDef::arg_validator(ffi::Function validator) {
-  DeclareValidator(std::move(validator), false);
-  return *this;
-}
-
-OpDef& OpDef::ty_arg_validator(ffi::Function validator) {
-  DeclareValidator(std::move(validator), true);
-  return *this;
-}
-
-OpDef::~OpDef() noexcept(false) {
-  if (std::uncaught_exceptions() != 0) return;
-  TVM_FFI_CHECK(!expected_args_ || !op_->args_signature_defined_, ValueError)
-      << "Operator '" << op_->name << "' argument constraints are already declared";
-  TVM_FFI_CHECK(!expected_ty_args_ || !op_->ty_args_signature_defined_, ValueError)
-      << "Operator '" << op_->name << "' type-argument constraints are already declared";
-  TVM_FFI_CHECK(!expected_args_ || *expected_args_ == op_->args_info.size(), ValueError)
-      << "Operator '" << op_->name << "' declares " << *expected_args_
-      << " argument constraints but has " << op_->args_info.size() << " descriptors";
-  TVM_FFI_CHECK(!expected_ty_args_ || *expected_ty_args_ == op_->ty_args_info.size(), ValueError)
-      << "Operator '" << op_->name << "' declares " << *expected_ty_args_
-      << " type-argument constraints but has " << op_->ty_args_info.size() << " descriptors";
-  if (expected_args_) {
-    get()->validate_args_ = std::move(pending_args_);
-    get()->args_signature_defined_ = true;
-  }
-  if (expected_ty_args_) {
-    get()->validate_ty_args_ = std::move(pending_ty_args_);
-    get()->ty_args_signature_defined_ = true;
-  }
-}
-
-TVMFFIAny OpDef::CallbackException() noexcept {
-  try {
-    throw;
-  } catch (const ffi::Error& error) {
-    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>(error));
-  } catch (const std::exception& error) {
-    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-        ffi::Expected<void>(ffi::Error("InternalError", error.what(), "")));
-  } catch (...) {
-    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
-        ffi::Expected<void>(ffi::Error("InternalError", "Unknown validation error", "")));
-  }
-}
-
-TVMFFIAny OpDef::ReportTypeMismatch(const CallNode* call, size_t index, const std::string& expected,
-                                    bool type_arg) {
-  const auto* op = static_cast<const OpNode*>(call->op.get());
-  const auto& info = type_arg ? op->ty_args_info[index] : op->args_info[index];
-  std::string actual;
-  if (type_arg) {
-    const Type& value = call->ty_args[index];
-    actual = value.defined() ? value->GetTypeKey() : "None";
-  } else {
-    const Expr& value = call->args[index];
-    actual = value.defined() ? value->GetTypeKey() : "None";
-    if (value.defined()) {
-      actual += " with ty ";
-      actual += value->ty.defined() ? value->ty->GetTypeKey() : "None";
-    }
-  }
-  try {
-    TVM_FFI_THROW(TypeError) << "Operator '" << op->name << "' "
-                             << (type_arg ? "type argument " : "argument ") << index << " ('"
-                             << info->name << "') expects " << expected << ", got " << actual;
-  } catch (const ffi::Error& error) {
-    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>(error));
-  }
-}
-
-OpDef& OpDef::arg(const ffi::String& name, const ffi::String& doc) {
-  TVM_FFI_CHECK(!op_->args_signature_defined_ &&
-                    pending_args_.type_index() != ffi::TypeIndex::kTVMFFIFunction,
-                ValueError)
-      << "Cannot append arguments to the declared signature of operator '" << op_->name << "'";
+OpDef& OpDef::add_arg(const ffi::String& name, const ffi::String& doc) {
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;
   node->doc = doc;
@@ -253,11 +116,7 @@ OpDef& OpDef::arg(const ffi::String& name, const ffi::String& doc) {
   return *this;
 }
 
-OpDef& OpDef::ty_arg(const ffi::String& name, const ffi::String& doc) {
-  TVM_FFI_CHECK(!op_->ty_args_signature_defined_ &&
-                    pending_ty_args_.type_index() != ffi::TypeIndex::kTVMFFIFunction,
-                ValueError)
-      << "Cannot append type arguments to the declared signature of operator '" << op_->name << "'";
+OpDef& OpDef::add_ty_arg(const ffi::String& name, const ffi::String& doc) {
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;
   node->doc = doc;
@@ -292,11 +151,6 @@ void OpNode::RegisterReflection() {
       .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("allow_extra_args", &OpNode::allow_extra_args, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("ty_args_info", &OpNode::ty_args_info, refl::AttachFieldFlag::SEqHashIgnore())
-      .def_ro("validate_args", &OpNode::validate_args_, refl::AttachFieldFlag::SEqHashIgnore())
-      .def_ro("validate_ty_args", &OpNode::validate_ty_args_, refl::AttachFieldFlag::SEqHashIgnore())
-      .def("validate", [](Op op, Call call) { op.Validate(call.get()); },
-           "validate(call: Call) -> None\n\nCheck argument counts and declared IR constraints; "
-           "raise on mismatch without changing the call or inferring its result type.")
       .def_static("get", &Op::Get,
                   "get(op_name: str) -> Op\n\nReturn the canonical named Op; raise AttributeError "
                   "if unregistered.")
@@ -326,13 +180,13 @@ void OpNode::RegisterReflection() {
           "reset_attr(attr_name: str) -> None\n\nRemove this Op's current value; missing values "
           "are ignored and cached views observe removal.")
       .def(
-          "add_argument",
+          "add_arg",
           [](Op op, ffi::String name, ffi::String doc) {
             OpDef(op->name)
-                .arg(name, doc);
+                .add_arg(name, doc);
           },
-          "add_argument(name: str, doc: str) -> None\n\nAppend an argument's "
-          "name and documentation; defaults to the Expr representation.")
+          "add_arg(name: str, doc: str) -> None\n\nAppend an argument's "
+          "name and documentation.")
       .def(
           "set_allow_extra_args", [](Op op) {
             OpDef(op->name)
@@ -340,12 +194,12 @@ void OpNode::RegisterReflection() {
           },
           "set_allow_extra_args() -> None\n\nAllow value arguments after the required prefix.")
       .def(
-          "add_type_argument",
+          "add_ty_arg",
           [](Op op, ffi::String name, ffi::String doc) {
             OpDef(op->name)
-                .ty_arg(name, doc);
+                .add_ty_arg(name, doc);
           },
-          "add_type_argument(name: str, doc: str) -> None\n\nAppend a "
+          "add_ty_arg(name: str, doc: str) -> None\n\nAppend a "
           "type-argument "
           "name and documentation without imposing a count rule.")
       .def(

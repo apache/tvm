@@ -136,7 +136,7 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_dtype_code")
-      .arg("tensor", "The tensor to be inspected")
+      .add_arg("tensor", "The tensor to be inspected")
       .set_attr<FInferType>("FInferType", InferTypeTensorDtypeCode)
       .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeCode)
       .set_attr<bool>("RequiresArgumentShapes", false)
@@ -166,7 +166,7 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_dtype_bits")
-      .arg("tensor", "The tensor to be inspected")
+      .add_arg("tensor", "The tensor to be inspected")
       .set_attr<FInferType>("FInferType", InferTypeTensorDtypeBits)
       .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeBits)
       .set_attr<bool>("RequiresArgumentShapes", false)
@@ -196,7 +196,7 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_dtype_lanes")
-      .arg("tensor", "The tensor to be inspected")
+      .add_arg("tensor", "The tensor to be inspected")
       .set_attr<FInferType>("FInferType", InferTypeTensorDtypeLanes)
       .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeLanes)
       .set_attr<bool>("RequiresArgumentShapes", false)
@@ -226,7 +226,7 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_ndim")
-      .arg("tensor", "The tensor to be inspected")
+      .add_arg("tensor", "The tensor to be inspected")
       .set_attr<FInferType>("FInferType", InferTypeTensorNDim)
       .set_attr<FLegalize>("FLegalize", LegalizeTensorNDim)
       .set_attr<bool>("RequiresArgumentShapes", false)
@@ -306,9 +306,8 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_shape_i")
-      .arg_types<Expr, PrimExpr>()
-      .arg("tensor", "The tensor to be inspected")
-      .arg("axis", "The axis whose extent should be returned")
+      .add_arg("tensor", "The tensor to be inspected")
+      .add_arg("axis", "The axis whose extent should be returned")
       .set_attr<FInferType>("FInferType", InferTypeTensorShape)
       .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
       .set_attr<bool>("RequiresArgumentShapes", false)
@@ -356,9 +355,8 @@ Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_stride_i")
-      .arg_types<Expr, PrimExpr>()
-      .arg("tensor", "The tensor to be inspected")
-      .arg("axis", "The axis whose extent should be returned")
+      .add_arg("tensor", "The tensor to be inspected")
+      .add_arg("axis", "The axis whose extent should be returned")
       .set_attr<FInferType>("FInferType", InferTypeTensorStride)
       .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
@@ -390,7 +388,7 @@ Type InferTypeTensorByteOffset(const Call& call, const BlockBuilder&) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_byte_offset")
-      .arg("tensor", "The tensor to be inspected")
+      .add_arg("tensor", "The tensor to be inspected")
       .set_attr<FInferType>("FInferType", InferTypeTensorByteOffset)
       .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
@@ -422,7 +420,7 @@ Type InferTypeTensorElemOffset(const Call& call, const BlockBuilder&) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_elem_offset")
-      .arg("tensor", "The tensor to be inspected")
+      .add_arg("tensor", "The tensor to be inspected")
       .set_attr<FInferType>("FInferType", InferTypeTensorElemOffset)
       .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)

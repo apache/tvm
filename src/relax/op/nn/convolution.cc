@@ -198,9 +198,9 @@ Call InferMixedPrecisionConv1d(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv1d")
-      .arg("data", "The input tensor.")
-      .arg("weight", "The weight tensor.")
-      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .add_arg("data", "The input tensor.")
+      .add_arg("weight", "The weight tensor.")
+      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .attrs_type<Conv1DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv1d)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
@@ -412,9 +412,9 @@ Call InferMixedPrecisionConv2d(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv2d")
-      .arg("data", "The input tensor.")
-      .arg("weight", "The weight tensor.")
-      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .add_arg("data", "The input tensor.")
+      .add_arg("weight", "The weight tensor.")
+      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .attrs_type<Conv2DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv2d)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
@@ -600,9 +600,9 @@ Call InferMixedPrecisionConv3d(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv3d")
-      .arg("data", "The input tensor.")
-      .arg("weight", "The weight tensor.")
-      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .add_arg("data", "The input tensor.")
+      .add_arg("weight", "The weight tensor.")
+      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .attrs_type<Conv3DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv3d)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
@@ -782,9 +782,9 @@ Call InferMixedPrecisionConv1dTranspose(const Call& call, DLDataType out_dtype) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv1d_transpose")
-      .arg("data", "The input tensor.")
-      .arg("weight", "The weight tensor.")
-      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .add_arg("data", "The input tensor.")
+      .add_arg("weight", "The weight tensor.")
+      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .attrs_type<Conv1DTransposeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv1dTranspose)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
@@ -1013,9 +1013,9 @@ Call InferMixedPrecisionConv2dTranspose(const Call& call, DLDataType out_dtype) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv2d_transpose")
-      .arg("data", "The input tensor.")
-      .arg("weight", "The weight tensor.")
-      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .add_arg("data", "The input tensor.")
+      .add_arg("weight", "The weight tensor.")
+      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .attrs_type<Conv2DTransposeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv2dTranspose)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
@@ -1255,9 +1255,9 @@ Call InferMixedPrecisionConv3dTranspose(const Call& call, DLDataType out_dtype) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv3d_transpose")
-      .arg("data", "The input tensor.")
-      .arg("weight", "The weight tensor.")
-      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .add_arg("data", "The input tensor.")
+      .add_arg("weight", "The weight tensor.")
+      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .attrs_type<Conv3DTransposeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv3dTranspose)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)

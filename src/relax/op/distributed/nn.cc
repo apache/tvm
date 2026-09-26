@@ -51,25 +51,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.softmax")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeSoftmax);
 
-  /* relax.nn.relu */
+  RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.relu, /*require_float_dtype=*/false);
 
-  OpDef("relax.nn.relu")
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
+  RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.gelu, /*require_float_dtype=*/true);
 
-  /* relax.nn.gelu */
+  RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.gelu_tanh, /*require_float_dtype=*/true);
 
-  OpDef("relax.nn.gelu")
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
-
-  /* relax.nn.gelu_tanh */
-
-  OpDef("relax.nn.gelu_tanh")
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
-
-  /* relax.nn.silu */
-
-  OpDef("relax.nn.silu")
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+  RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(nn.silu, /*require_float_dtype=*/true);
   // clang-format on
 }
 

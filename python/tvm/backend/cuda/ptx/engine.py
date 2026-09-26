@@ -115,8 +115,8 @@ def register_addr() -> None:
     """Register the pure address-expression op consumed by PTX instructions."""
     register_op_attr(_ADDR_OP_NAME, "TCallEffectKind", _EFFECT_PURE)
     op = Op.get(_ADDR_OP_NAME)
-    op.add_argument("base", "")
-    op.add_argument("byte_offset", "")
+    op.add_arg("base", "The base pointer.")
+    op.add_arg("byte_offset", "The offset in bytes.")
     register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "ptx.addr")
     register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
     register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")

@@ -97,8 +97,8 @@ Type InferTypeFull(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.full")
-      .arg("shape", "The shape of the created tensor.")
-      .arg("fill_value", "The scalar tensor, denoting the value to fill.")
+      .add_arg("shape", "The shape of the created tensor.")
+      .add_arg("fill_value", "The scalar tensor, denoting the value to fill.")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeFull)
       .set_attr<bool>("RequiresArgumentShapes", false)
@@ -142,8 +142,8 @@ Type InferTypeFullLike(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.full_like")
-      .arg("x", "The input tensor.")
-      .arg("fill_value", "The scalar value to fill.")
+      .add_arg("x", "The input tensor.")
+      .add_arg("fill_value", "The scalar value to fill.")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeFullLike)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -201,14 +201,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ones", ones).def("relax.op.ones_like", ones_like);
 
   OpDef("relax.ones")
-      .arg("shape", "The shape of the created tensor.")
+      .add_arg("shape", "The shape of the created tensor.")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeOnesZeros)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.ones_like")
-      .arg("x", "The input tensor.")
+      .add_arg("x", "The input tensor.")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeOnesLikeZerosLike)
       .set_attr<bool>("FPurity", true);
@@ -235,14 +235,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.zeros", zeros).def("relax.op.zeros_like", zeros_like);
 
   OpDef("relax.zeros")
-      .arg("shape", "The shape of the created tensor.")
+      .add_arg("shape", "The shape of the created tensor.")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeOnesZeros)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.zeros_like")
-      .arg("x", "The input tensor.")
+      .add_arg("x", "The input tensor.")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeOnesLikeZerosLike)
       .set_attr<bool>("FPurity", true);
@@ -321,19 +321,17 @@ Type InferTypeEyeLike(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.eye")
-      .arg_types<PrimExpr, PrimExpr, PrimExpr>()
-      .arg("n", "Number of rows in the output.")
-      .arg("m", "Number of columns in the output.")
-      .arg("k", "Index of the diagonal.")
+      .add_arg("n", "Number of rows in the output.")
+      .add_arg("m", "Number of columns in the output.")
+      .add_arg("k", "Index of the diagonal.")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeEye)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.eye_like")
-      .arg_types<Expr, PrimExpr>()
-      .arg("x", "The input tensor.")
-      .arg("k", "Index of the diagonal.")
+      .add_arg("x", "The input tensor.")
+      .add_arg("k", "Index of the diagonal.")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeEyeLike)
       .set_attr<bool>("FPurity", true);
@@ -390,10 +388,9 @@ Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.arange")
-      .arg_types<PrimExpr, PrimExpr, PrimExpr>()
-      .arg("start", "The starting value for the set of points.")
-      .arg("end", "The ending value for the set of points.")
-      .arg("step", "The gap between each pair of adjacent points.")
+      .add_arg("start", "The starting value for the set of points.")
+      .add_arg("end", "The ending value for the set of points.")
+      .add_arg("step", "The gap between each pair of adjacent points.")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeArange)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -446,13 +443,12 @@ Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.hamming_window")
-      .arg_types<PrimExpr, PrimExpr, PrimExpr, PrimExpr>()
-      .arg("window_size", "The size of the window")
-      .arg("periodic",
-           "If True, returns a window to be used as periodic function. If False, return a "
-           "symmetric window")
-      .arg("alpha", "The coefficient alpha")
-      .arg("beta", "The coefficient beta")
+      .add_arg("window_size", "The size of the window")
+      .add_arg("periodic",
+               "If True, returns a window to be used as periodic function. If False, return a "
+               "symmetric window")
+      .add_arg("alpha", "The coefficient alpha")
+      .add_arg("beta", "The coefficient beta")
       .attrs_type<InitAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeHammingWindow)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -492,16 +488,14 @@ Type InferTypeTrilTriu(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.tril")
-      .arg_types<Expr, PrimExpr>()
-      .arg("x", "The input tensor.")
-      .arg("k", "The offset of the diagonal.")
+      .add_arg("x", "The input tensor.")
+      .add_arg("k", "The offset of the diagonal.")
       .set_attr<FInferType>("FInferType", InferTypeTrilTriu)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.triu")
-      .arg_types<Expr, PrimExpr>()
-      .arg("x", "The input tensor.")
-      .arg("k", "The offset of the diagonal.")
+      .add_arg("x", "The input tensor.")
+      .add_arg("k", "The offset of the diagonal.")
       .set_attr<FInferType>("FInferType", InferTypeTrilTriu)
       .set_attr<bool>("FPurity", true);
 }

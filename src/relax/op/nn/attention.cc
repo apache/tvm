@@ -151,9 +151,9 @@ Call InferMixedPrecisionAttention(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.attention")
-      .arg("query", "The input queries tensor.")
-      .arg("key", "The input keys tensor.")
-      .arg("value", "The input values tensor.")
+      .add_arg("query", "The input queries tensor.")
+      .add_arg("key", "The input keys tensor.")
+      .add_arg("value", "The input values tensor.")
       .attrs_type<AttentionAttrs>()
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
@@ -161,10 +161,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.nn.attention_bias")
-      .arg("query", "The input queries tensor.")
-      .arg("key", "The input keys tensor.")
-      .arg("value", "The input values tensor.")
-      .arg("bias", "The input bias tensor.")
+      .add_arg("query", "The input queries tensor.")
+      .add_arg("key", "The input keys tensor.")
+      .add_arg("value", "The input values tensor.")
+      .add_arg("bias", "The input bias tensor.")
       .attrs_type<AttentionAttrs>()
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
@@ -172,13 +172,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.nn.attention_var_len")
-      .arg("query", "The input queries tensor.")
-      .arg("key", "The input keys tensor.")
-      .arg("value", "The input values tensor.")
-      .arg("seqstart_q", "The cumsum of query sequence lengths, prepended with 0.")
-      .arg("seqstart_k", "The cumsum of key sequence lengths, prepended with 0.")
-      .arg("max_seqlen_q", "The maximum query sequence length in the batch.")
-      .arg("max_seqlen_k", "The maximum key sequence length in the batch.")
+      .add_arg("query", "The input queries tensor.")
+      .add_arg("key", "The input keys tensor.")
+      .add_arg("value", "The input values tensor.")
+      .add_arg("seqstart_q", "The cumsum of query sequence lengths, prepended with 0.")
+      .add_arg("seqstart_k", "The cumsum of key sequence lengths, prepended with 0.")
+      .add_arg("max_seqlen_q", "The maximum query sequence length in the batch.")
+      .add_arg("max_seqlen_k", "The maximum key sequence length in the batch.")
       .attrs_type<AttentionAttrs>()
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)

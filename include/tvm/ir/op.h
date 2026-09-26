@@ -25,16 +25,12 @@
 #define TVM_IR_OP_H_
 
 #include <tvm/ffi/container/list.h>
-#include <tvm/ffi/error.h>
-#include <tvm/ffi/expected.h>
-#include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 
-#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -100,14 +96,6 @@ class OpNode : public ExprNode {
   friend class OpRegistry;
   friend class OpDef;
   friend class Op;
-  friend class Call;
-  TVM_DLL void Validate(const CallNode* call) const;
-  // None means no validator. An opaque callback returns None or an owned Error.
-  ffi::Any validate_args_;
-  ffi::Any validate_ty_args_;
-  // A null callback can still denote an explicitly declared all-base or empty signature.
-  bool args_signature_defined_{false};
-  bool ty_args_signature_defined_{false};
   template <typename>
   friend class OpAttrMap;
 };
@@ -119,15 +107,12 @@ class OpNode : public ExprNode {
  * registrations may attach different attributes; replacing an existing attribute
  * requires explicit override. Cached attribute maps observe subsequent changes.
  * args_info describes required value operands; allow_extra_args permits a suffix.
- * arg_types/ty_arg_types optionally constrain IR representations with native strict checks.
- * ty_args_info describes type arguments without imposing a runtime count. Op Calls validate
- * on construction; validation neither infers result types nor checks call attributes.
+ * ty_args_info describes type arguments without imposing a runtime count.
  *
  * \code
  * TVM_FFI_STATIC_INIT_BLOCK() {
  *   OpDef("example.identity", "Return the input expression.")
- *       .arg_types<PrimExpr>()
- *       .arg("value", "The input expression.")
+ *       .add_arg("value", "The input expression.")
  *       .set_attr<bool>("FPurity", true);
  * }
  * // Copies the handle; the canonical node is shared.
@@ -166,15 +151,6 @@ class Op : public Expr {
   TVM_DLL static Op Get(const ffi::String& op_name);
   /*! \brief List registered operator names. \return Names in unspecified order. */
   TVM_DLL static ffi::Array<ffi::String> ListNames();
-  /*!
-   * \brief Validate a call to this Op without inferring or changing its result type.
-   * \param call The call, with all fields populated; a missing result type is permitted.
-   * \throws ValueError for the wrong callee or value-argument count; TypeError for a
-   * representation mismatch. Optional type arguments are checked only when present.
-   * Call attributes and type-argument counts remain the responsibility of existing inference.
-   */
-  TVM_DLL void Validate(const CallNode* call) const;
-
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Op, Expr, OpNode);
 
  private:
@@ -195,11 +171,6 @@ class OpDef {
    * \param doc Operator documentation, replacing any existing documentation.
    */
   TVM_DLL OpDef(const ffi::String& name, const ffi::String& doc);
-  /*!
-   * \brief Check declared descriptor counts, then install compiled constraints.
-   * \throws ValueError for a signature/descriptor mismatch. Does nothing while unwinding.
-   */
-  TVM_DLL ~OpDef() noexcept(false);
   OpDef(const OpDef&) = delete;
   OpDef& operator=(const OpDef&) = delete;
   OpDef(OpDef&&) = delete;
@@ -207,36 +178,12 @@ class OpDef {
   /*! \brief Get the canonical operator. \return A copied handle, safe after this builder dies. */
   Op op() const { return op_; }
   /*!
-   * \brief Declare strict IR constraints before describing the required value arguments.
-   * \tparam Types Ordered operand representation types; Expr adds no constraint.
-   * \return This builder. Omission defaults every operand to Expr.
-   * Exactly sizeof...(Types) descriptors must follow in this chain. A signature can only
-   * be declared once, before any descriptors; later descriptor appends are rejected.
-   */
-  template <typename... Types>
-  OpDef& arg_types() {
-    ffi::Any validate;
-    if constexpr (!(std::is_same_v<Types, Expr> && ...)) {
-      validate = reinterpret_cast<void*>(&ValidateArgs<Types...>);
-    }
-    DeclareTypes(sizeof...(Types), std::move(validate), false);
-    return *this;
-  }
-  /*!
    * \brief Append a required value-argument descriptor.
    * \param name Argument name.
    * \param doc Argument documentation.
    * \return This builder. Without allow_extra_args(), this is part of the complete list.
-   * \throws ValueError if an earlier chain already declared the signature.
    */
-  TVM_DLL OpDef& arg(const ffi::String& name, const ffi::String& doc);
-  /*!
-   * \brief Register a Function validator for the complete value-argument signature.
-   * \param validator Function accepting a Call and returning None or an Error.
-   * \return This builder. Descriptors must precede this declaration; later appends are rejected.
-   * \throws ValueError if a validator is already declared or the Function is null.
-   */
-  TVM_DLL OpDef& arg_validator(ffi::Function validator);
+  TVM_DLL OpDef& add_arg(const ffi::String& name, const ffi::String& doc);
   /*!
    * \brief Set the attribute object type key and runtime index together.
    * \tparam AttrsType The attribute object node type.
@@ -264,37 +211,12 @@ class OpDef {
     return *this;
   }
   /*!
-   * \brief Declare strict constraints before describing Call.ty_args.
-   * \tparam Types Ordered type-argument representations; Type adds no constraint.
-   * \return This builder. Omission defaults every type descriptor to Type.
-   * Exactly sizeof...(Types) descriptors must follow in this chain. Present entries of
-   * this prefix are checked, without imposing counts on optional or repeated arguments.
-   * A signature can only be declared once, before descriptors; later appends are rejected.
-   */
-  template <typename... Types>
-  OpDef& ty_arg_types() {
-    ffi::Any validate;
-    if constexpr (!(std::is_same_v<Types, Type> && ...)) {
-      validate = reinterpret_cast<void*>(&ValidateTyArgs<Types...>);
-    }
-    DeclareTypes(sizeof...(Types), std::move(validate), true);
-    return *this;
-  }
-  /*!
    * \brief Append a descriptor for a type argument in Call.ty_args.
    * \param name Type-argument name.
    * \param doc Type-argument documentation.
    * \return This builder. Inference retains responsibility for type-argument counts.
-   * \throws ValueError if an earlier chain already declared the signature.
    */
-  TVM_DLL OpDef& ty_arg(const ffi::String& name, const ffi::String& doc);
-  /*!
-   * \brief Register a Function validator for the complete type-argument signature.
-   * \param validator Function accepting a Call and returning None or an Error.
-   * \return This builder. Descriptors must precede this declaration; later appends are rejected.
-   * \throws ValueError if a validator is already declared or the Function is null.
-   */
-  TVM_DLL OpDef& ty_arg_validator(ffi::Function validator);
+  TVM_DLL OpDef& add_ty_arg(const ffi::String& name, const ffi::String& doc);
   /*!
    * \brief Register an extensible attribute, rejecting duplicates unless overridden.
    * \tparam ValueType The attribute value type.
@@ -316,73 +238,9 @@ class OpDef {
   TVM_DLL OpDef& reset_attr(const ffi::String& attr_name);
 
  private:
-  template <typename T>
-  static bool ValidateArg(const CallNode* call, size_t index, TVMFFIAny* error) {
-    if constexpr (!std::is_same_v<T, Expr>) {
-      TVMFFIAny value;
-      ffi::TypeTraits<Expr>::CopyToAnyView(call->args[index], &value);
-      if (!ffi::TypeTraits<T>::CheckAnyStrict(&value)) {
-        std::string expected;
-        if constexpr (std::is_same_v<T, PrimExpr>) {
-          expected = "PrimExpr (Expr with PrimType)";
-        } else {
-          expected = ffi::TypeTraits<T>::TypeStr();
-        }
-        *error = ReportTypeMismatch(call, index, expected, false);
-        return false;
-      }
-    }
-    return true;
-  }
-  template <typename T>
-  static bool ValidateTyArg(const CallNode* call, size_t index, TVMFFIAny* error) {
-    if constexpr (!std::is_same_v<T, Type>) {
-      if (index < call->ty_args.size()) {
-        TVMFFIAny value;
-        ffi::TypeTraits<Type>::CopyToAnyView(call->ty_args[index], &value);
-        if (!ffi::TypeTraits<T>::CheckAnyStrict(&value)) {
-          *error = ReportTypeMismatch(call, index, ffi::TypeTraits<T>::TypeStr(), true);
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-  template <typename... Types>
-  static TVMFFIAny ValidateArgs(const CallNode* call) noexcept {
-    try {
-      TVMFFIAny error;
-      size_t index = 0;
-      if (!(ValidateArg<Types>(call, index++, &error) && ...)) return error;
-      return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>());
-    } catch (...) {
-      return CallbackException();
-    }
-  }
-  template <typename... Types>
-  static TVMFFIAny ValidateTyArgs(const CallNode* call) noexcept {
-    try {
-      TVMFFIAny error;
-      size_t index = 0;
-      if (!(ValidateTyArg<Types>(call, index++, &error) && ...)) return error;
-      return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>());
-    } catch (...) {
-      return CallbackException();
-    }
-  }
-  TVM_FFI_COLD_CODE TVM_DLL static TVMFFIAny CallbackException() noexcept;
-  TVM_FFI_COLD_CODE TVM_DLL static TVMFFIAny ReportTypeMismatch(const CallNode* call, size_t index,
-                                                                const std::string& expected,
-                                                                bool type_arg);
-  TVM_DLL void DeclareTypes(size_t count, ffi::Any validate, bool type_args);
-  TVM_DLL void DeclareValidator(ffi::Function validate, bool type_args);
   OpNode* get() { return const_cast<OpNode*>(op_.operator->()); }
   TVM_DLL void UpdateAttr(const ffi::String& attr_name, ffi::Any value, bool override);
   Op op_;
-  std::optional<size_t> expected_args_;
-  std::optional<size_t> expected_ty_args_;
-  ffi::Any pending_args_;
-  ffi::Any pending_ty_args_;
 };
 
 /*!

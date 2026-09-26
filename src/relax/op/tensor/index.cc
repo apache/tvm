@@ -129,8 +129,8 @@ Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.take")
-      .arg("x", "The source tensor.")
-      .arg("indices", "The indices of the values to extract.")
+      .add_arg("x", "The source tensor.")
+      .add_arg("indices", "The indices of the values to extract.")
       .attrs_type<TakeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeTake)
       .set_attr<bool>("FPurity", true);
@@ -489,10 +489,10 @@ InferLayoutOutput InferLayoutStridedSlice(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.strided_slice")
-      .arg("x", "The source tensor to be sliced.")
-      .arg("axes", "")
-      .arg("begin", "")
-      .arg("end", "")
+      .add_arg("x", "The source tensor to be sliced.")
+      .add_arg("axes", "The axes.")
+      .add_arg("begin", "The start index.")
+      .add_arg("end", "The end index.")
       .allow_extra_args()
       .attrs_type<StridedSliceAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeStridedSlice)
@@ -591,10 +591,10 @@ InferLayoutOutput InferLayoutDynStridedSlice(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dynamic_strided_slice")
-      .arg("x", "The source tensor to be sliced.")
-      .arg("begin", "The indices to begin with in the slicing.")
-      .arg("end", "Indices indicating end of the slice.")
-      .arg("strides", "The stride values.")
+      .add_arg("x", "The source tensor to be sliced.")
+      .add_arg("begin", "The indices to begin with in the slicing.")
+      .add_arg("end", "Indices indicating end of the slice.")
+      .add_arg("strides", "The stride values.")
       .set_attr<FInferType>("FInferType", InferTypeDynStridedSlice)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)

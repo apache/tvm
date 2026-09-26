@@ -58,7 +58,7 @@ Type InferTypeAllReduce(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.allreduce")
-      .arg("x", "Input to which allreduce will be applied.")
+      .add_arg("x", "Input to which allreduce will be applied.")
       .attrs_type<AllReduceAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAllReduce)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
@@ -99,7 +99,7 @@ Type InferTypeAllGather(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.allgather")
-      .arg("x", "Input to which allgather will be applied.")
+      .add_arg("x", "Input to which allgather will be applied.")
       .set_attr<FInferType>("FInferType", InferTypeAllGather)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<bool>("FPurity", true);
@@ -123,7 +123,7 @@ Type InferTypeBroadcastFromZero(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.broadcast_from_worker0")
-      .arg("x", "Input to be broadcast.")
+      .add_arg("x", "Input to be broadcast.")
       .set_attr<FInferType>("FInferType", InferTypeBroadcastFromZero)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<bool>("FPurity", true);
@@ -171,7 +171,8 @@ Type InferTypeScatter(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.scatter_from_worker0")
-      .arg("x", "The buffer to be divided into equal parts and sent to each worker accordingly.")
+      .add_arg("x",
+               "The buffer to be divided into equal parts and sent to each worker accordingly.")
       .attrs_type<ScatterCollectiveAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeScatter)
       .set_attr<bool>("FPurity", true);

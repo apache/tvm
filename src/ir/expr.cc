@@ -1140,9 +1140,6 @@ Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<
   n->attrs = std::move(attrs);
   n->ty_args = std::move(ty_args);
   n->span = std::move(span);
-  if (const auto* callee = n->op.as<OpNode>()) {
-    callee->Validate(n.get());
-  }
   data_ = std::move(n);
 }
 

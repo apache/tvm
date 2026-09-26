@@ -29,6 +29,32 @@
 namespace tvm {
 namespace relax {
 
+/* Register a binary constructor and its Op metadata together. */
+#define RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName, ...)                                      \
+  Expr OpName(Expr x1, Expr x2) {                                                           \
+    static const Op op = Op::Get("relax." #OpName);                                         \
+    return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});                                \
+  }                                                                                         \
+  TVM_FFI_STATIC_INIT_BLOCK() {                                                             \
+    tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);                     \
+    OpDef("relax." #OpName)                                                                 \
+        .add_arg("x1", "The first input tensor.")                                           \
+        .add_arg("x2", "The second input tensor.")                                          \
+        .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.") \
+        .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)           \
+        .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy",                           \
+                                         MixedPrecisionPolicyKind::kFollow)                 \
+        .set_attr<bool>("FPurity", true) __VA_ARGS__;                                       \
+  }
+
+#define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName) \
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName,                 \
+                                    .set_attr<FInferType>("FInferType", InferTypeBroadcastArith))
+
+#define RELAX_REGISTER_CMP_OP_AND_IMPL(OpName) \
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName,    \
+                                    .set_attr<FInferType>("FInferType", InferTypeBroadcastCMP))
+
 /***************** Arithmetic operators *****************/
 
 /*! \brief Addition with numpy-style broadcasting. */

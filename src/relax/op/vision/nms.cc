@@ -104,11 +104,12 @@ Type InferTypeAllClassNMS(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.all_class_non_max_suppression")
-      .arg("boxes", "The input boxes in the format [batch, num_boxes, 4].")
-      .arg("scores", "Scores for each box and class in the format [batch, num_classes, num_boxes].")
-      .arg("max_output_boxes_per_class", "The maximum number of output boxes per class.")
-      .arg("iou_threshold", "The IoU threshold for box the overlap test.")
-      .arg("score_threshold", "The score threshold to filter out low score boxes early.")
+      .add_arg("boxes", "The input boxes in the format [batch, num_boxes, 4].")
+      .add_arg("scores",
+               "Scores for each box and class in the format [batch, num_classes, num_boxes].")
+      .add_arg("max_output_boxes_per_class", "The maximum number of output boxes per class.")
+      .add_arg("iou_threshold", "The IoU threshold for box the overlap test.")
+      .add_arg("score_threshold", "The score threshold to filter out low score boxes early.")
       .attrs_type<AllClassNonMaximumSuppressionAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAllClassNMS)
       .set_attr<bool>("FPurity", true);
@@ -183,7 +184,7 @@ Type InferTypeGetValidCounts(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.get_valid_counts")
-      .arg("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
+      .add_arg("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
       .attrs_type<GetValidCountsAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeGetValidCounts)
       .set_attr<bool>("FPurity", true);
@@ -354,9 +355,9 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.non_max_suppression")
-      .arg("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
-      .arg("valid_count", "1-D tensor for valid number of boxes.")
-      .arg("indices", "2-D tensor with shape [batch_size, num_anchors].")
+      .add_arg("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
+      .add_arg("valid_count", "1-D tensor for valid number of boxes.")
+      .add_arg("indices", "2-D tensor with shape [batch_size, num_anchors].")
       .attrs_type<NonMaximumSuppressionAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeNMS)
       .set_attr<bool>("FPurity", true);

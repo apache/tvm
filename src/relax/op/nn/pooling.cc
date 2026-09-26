@@ -146,7 +146,7 @@ InferLayoutOutput InferLayoutPool1d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool1d")
-      .arg("data", "The input tensor")
+      .add_arg("data", "The input tensor")
       .attrs_type<Pool1DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypePool1D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
@@ -301,7 +301,7 @@ InferLayoutOutput InferLayoutPool2d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool2d")
-      .arg("data", "The input tensor")
+      .add_arg("data", "The input tensor")
       .attrs_type<Pool2DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypePool2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
@@ -451,7 +451,7 @@ InferLayoutOutput InferLayoutPool3d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool3d")
-      .arg("data", "The input tensor")
+      .add_arg("data", "The input tensor")
       .attrs_type<Pool3DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypePool3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
@@ -472,7 +472,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.avg_pool1d", avg_pool1d);
 
   OpDef("relax.nn.avg_pool1d")
-      .arg("data", "The input tensor")
+      .add_arg("data", "The input tensor")
       .attrs_type<Pool1DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypePool1D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
@@ -493,7 +493,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.avg_pool2d", avg_pool2d);
 
   OpDef("relax.nn.avg_pool2d")
-      .arg("data", "The input tensor")
+      .add_arg("data", "The input tensor")
       .attrs_type<Pool2DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypePool2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
@@ -514,7 +514,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.avg_pool3d", avg_pool3d);
 
   OpDef("relax.nn.avg_pool3d")
-      .arg("data", "The input tensor")
+      .add_arg("data", "The input tensor")
       .attrs_type<Pool3DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypePool3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
@@ -597,7 +597,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool1d")
-      .arg("data", "The input tensor")
+      .add_arg("data", "The input tensor")
       .attrs_type<AdaptivePool1DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool1D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool1D)
@@ -701,7 +701,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool2d")
-      .arg("data", "The input tensor")
+      .add_arg("data", "The input tensor")
       .attrs_type<AdaptivePool2DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
@@ -789,7 +789,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool3d")
-      .arg("data", "The input tensor")
+      .add_arg("data", "The input tensor")
       .attrs_type<AdaptivePool3DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool3D)

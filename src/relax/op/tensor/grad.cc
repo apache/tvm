@@ -47,7 +47,7 @@ Type InferTypeNoGrad(const Call& call, const BlockBuilder& ctx) { return GetType
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.no_grad")
-      .arg("x", "The corresponding input tensor.")
+      .add_arg("x", "The corresponding input tensor.")
       .set_attr<FInferType>("FInferType", InferTypeNoGrad)
       .set_attr<bool>("FPurity", true);
 }
@@ -73,7 +73,7 @@ Type InferTypeStartCheckpoint(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.start_checkpoint")
-      .arg("x", "The tensor marking the input of the checkpoint stage.")
+      .add_arg("x", "The tensor marking the input of the checkpoint stage.")
       .set_attr<FInferType>("FInferType", InferTypeStartCheckpoint)
       .set_attr<bool>("FPurity", true);
 }
@@ -99,7 +99,7 @@ Type InferTypeEndCheckpoint(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.end_checkpoint")
-      .arg("x", "The output of the checkpoint stage.")
+      .add_arg("x", "The output of the checkpoint stage.")
       .set_attr<FInferType>("FInferType", InferTypeEndCheckpoint)
       .set_attr<bool>("FPurity", true);
 }
@@ -136,9 +136,9 @@ Type InferTypeNLLLossBackward(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.nll_loss_backward", "Optional weights: The weight of each target values.")
-      .arg("output_grad", "The output gradient.")
-      .arg("predictions", "The prediction tensor.")
-      .arg("targets", "The target tensor.")
+      .add_arg("output_grad", "The output gradient.")
+      .add_arg("predictions", "The prediction tensor.")
+      .add_arg("targets", "The target tensor.")
       .allow_extra_args()
       .attrs_type<NLLLossAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeNLLLossBackward)
@@ -174,8 +174,8 @@ Type InferTypeMaxPool2DBackward(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.max_pool2d_backward")
-      .arg("output_grad", "The output gradient.")
-      .arg("data", "The input tensor")
+      .add_arg("output_grad", "The output gradient.")
+      .add_arg("data", "The input tensor")
       .attrs_type<Pool2DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeMaxPool2DBackward)
       .set_attr<bool>("FPurity", true);
@@ -210,8 +210,8 @@ Type InferTypeAvgPool2DBackward(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.avg_pool2d_backward")
-      .arg("output_grad", "The output gradient.")
-      .arg("data", "The input tensor")
+      .add_arg("output_grad", "The output gradient.")
+      .add_arg("data", "The input tensor")
       .attrs_type<Pool2DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAvgPool2DBackward)
       .set_attr<bool>("FPurity", true);
@@ -239,9 +239,9 @@ Type InferTypeTakeBackward(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.take_backward")
-      .arg("output_grad", "The output gradient.")
-      .arg("x", "The source tensor.")
-      .arg("indices", "The indices of the values to extract.")
+      .add_arg("output_grad", "The output gradient.")
+      .add_arg("x", "The source tensor.")
+      .add_arg("indices", "The indices of the values to extract.")
       .attrs_type<TakeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeTakeBackward)
       .set_attr<bool>("FPurity", true);
