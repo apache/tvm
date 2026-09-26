@@ -57,8 +57,6 @@ struct VMFuncInfo {
     kPackedFunc = 0,
     /*! \brief VM function. */
     kVMFunc = 1,
-    /*! \brief VMTIR function. */
-    kVMTIRFunc = 2,
   };
   /*! \brief The kind of function. */
   FuncKind kind;

@@ -92,9 +92,9 @@ class Module:
 # fmt: on
 
 
-def codegen(mod, target, exec_mode="bytecode"):
+def codegen(mod, target):
     builder = relax.ExecBuilder()
-    leftover_mod = relax.vm_build._vmcodegen(builder, mod, exec_mode=exec_mode)
+    leftover_mod = relax.vm_build._vmcodegen(builder, mod)
     tir_mod = relax.vm_build._filter_tir(leftover_mod)
     return relax.vm_build._vmlink(builder, target, tir_mod)
 

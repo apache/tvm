@@ -34,17 +34,14 @@ from tvm.script import relax as R
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
-EXEC_MODE = ["bytecode", "compiled"]
 
-
-def codegen(mod, target, exec_mode="bytecode"):
+def codegen(mod, target):
     builder = relax.ExecBuilder()
-    tir_mod = relax.vm_build._vmcodegen(builder, mod, exec_mode=exec_mode)
+    tir_mod = relax.vm_build._vmcodegen(builder, mod)
     return relax.vm_build._vmlink(builder, target, tir_mod)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_vm_copy(exec_mode):
+def test_vm_copy():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function(pure=False)
@@ -55,15 +52,14 @@ def test_vm_copy(exec_mode):
 
     mod = TestVMMove
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     inp = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = check_saved_func(vm, "foo", inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_vm_to_device(exec_mode):
+def test_vm_to_device():
     @tvm.script.ir_module
     class TestVMToDevice:
         @R.function(pure=False)
@@ -77,7 +73,7 @@ def test_vm_to_device(exec_mode):
 
     mod = TestVMToDevice
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     inp = tvm.runtime.tensor(np.random.rand(3, 4).astype(np.float32))
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = check_saved_func(vm, "foo", inp)
@@ -88,8 +84,7 @@ def test_vm_to_device(exec_mode):
     assert res.device.index == 0
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_if_cond_const(exec_mode):
+def test_if_cond_const():
     @tvm.script.ir_module
     class TestVMIfCondConst:
         @R.function
@@ -103,15 +98,14 @@ def test_if_cond_const(exec_mode):
 
     mod = TestVMIfCondConst
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.runtime.tensor(np.random.rand(3, 4))
     res = vm["main"](inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy())
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_vm_exec_serialize_export_library(exec_mode):
+def test_vm_exec_serialize_export_library():
     @tvm.script.ir_module
     class TestVMMove:
         @R.function(pure=False)
@@ -133,8 +127,7 @@ def test_vm_exec_serialize_export_library(exec_mode):
     assert ex.as_text() == loaded_exec["as_text"]()
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_if_cond(exec_mode):
+def test_if_cond():
     @tvm.script.ir_module
     class TestVMCompileIf:
         @R.function(pure=False)
@@ -148,7 +141,7 @@ def test_if_cond(exec_mode):
 
     mod = TestVMCompileIf
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.runtime.tensor(np.random.rand(3, 4))
     res = vm["ife"](tvm.runtime.tensor(1), inp)
@@ -161,8 +154,7 @@ def test_if_cond(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), inp.numpy() * inp.numpy(), rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_vm_return_const_tuple(exec_mode):
+def test_vm_return_const_tuple():
     @tvm.script.ir_module
     class ReturnConstTuple:
         @R.function
@@ -174,7 +166,7 @@ def test_vm_return_const_tuple(exec_mode):
 
     mod = ReturnConstTuple
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.runtime.tensor(np.random.rand(2, 3))
     res0, res1, res2 = vm["main"](inp)
@@ -183,8 +175,7 @@ def test_vm_return_const_tuple(exec_mode):
     tvm.testing.assert_allclose(res2.numpy(), inp.numpy())
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_vm_const_as_call_arg(exec_mode):
+def test_vm_const_as_call_arg():
     @tvm.script.ir_module
     class TestVMConstAsCallArg:
         @R.function(pure=False)
@@ -206,15 +197,14 @@ def test_vm_const_as_call_arg(exec_mode):
 
     mod = TestVMConstAsCallArg
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     inp = tvm.runtime.tensor(np.random.rand(1, 2))
     res = vm["main"](inp)
     tvm.testing.assert_allclose(res.numpy(), np.array([4, 6]) + inp.numpy())
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_shape_check_builtin(exec_mode):
+def test_shape_check_builtin():
     MS = MatchShapeCode
     MK = MakeShapeCode
     # slot assignment:
@@ -267,7 +257,7 @@ def test_shape_check_builtin(exec_mode):
 
     mod = TestVMShapeCheck
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     x = tvm.runtime.tensor(np.zeros((1, 2)).astype("float32"))
     res = vm["main"](x)
@@ -286,8 +276,7 @@ def test_shape_check_builtin(exec_mode):
         vm["main"](tvm.runtime.tensor(np.zeros((1, 2)).astype("int32")))
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_prim_value(exec_mode):
+def test_prim_value():
     @tvm.script.ir_module
     class TestVMPrimExpr:
         @R.function
@@ -298,14 +287,13 @@ def test_prim_value(exec_mode):
 
     mod = TestVMPrimExpr
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["main"]()
     assert res == 1
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_string_imm(exec_mode):
+def test_string_imm():
     @tvm.script.ir_module
     class TestVMStringImm:
         @R.function
@@ -316,14 +304,13 @@ def test_string_imm(exec_mode):
 
     mod = TestVMStringImm
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["main"]()
     assert res == "hello"
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_datatype_imm(exec_mode):
+def test_datatype_imm():
     @tvm.script.ir_module
     class TestDataTypeImm:
         @R.function
@@ -334,14 +321,13 @@ def test_datatype_imm(exec_mode):
 
     mod = TestDataTypeImm
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["main"]()
     assert res == "float32"
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_vm_builtin_reshape(exec_mode):
+def test_vm_builtin_reshape():
     @tvm.script.ir_module
     class TestVMBuiltinReshape:
         @R.function(pure=False)
@@ -354,7 +340,7 @@ def test_vm_builtin_reshape(exec_mode):
 
     mod = TestVMBuiltinReshape
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     dev = tvm.cpu()
     vm = relax.VirtualMachine(ex, dev)
 
@@ -365,8 +351,7 @@ def test_vm_builtin_reshape(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), expected, rtol=1e-7, atol=1e-7)
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_vm_kill_object(exec_mode):
+def test_vm_kill_object():
     @I.ir_module
     class TestKillObject:
         @Ts.prim_func
@@ -418,7 +403,7 @@ def test_vm_kill_object(exec_mode):
 
     mod = TestKillObject
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     dev = tvm.cpu()
     vm = relax.VirtualMachine(ex, dev)
 
@@ -426,8 +411,7 @@ def test_vm_kill_object(exec_mode):
     tvm.testing.assert_allclose(res.numpy(), np.ones((4,), "float32"))
 
 
-@pytest.mark.parametrize("exec_mode", EXEC_MODE)
-def test_preserve_trivial_bindings(exec_mode):
+def test_preserve_trivial_bindings():
     @I.ir_module
     class mod:
         @R.function(pure=False)
@@ -464,7 +448,7 @@ def test_preserve_trivial_bindings(exec_mode):
             )
 
     target = tvm.target.Target("llvm", host="llvm")
-    ex = codegen(mod, target, exec_mode)
+    ex = codegen(mod, target)
     dev = tvm.cpu()
     vm = relax.VirtualMachine(ex, dev)
 

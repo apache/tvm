@@ -51,7 +51,6 @@ class VMExecutable(Executable):
 def _vmcodegen(
     builder: "relax.ExecBuilder",
     mod: tvm.IRModule,
-    exec_mode: str = "bytecode",
 ) -> tvm.IRModule:
     """Running VM codegen.
 
@@ -63,20 +62,13 @@ def _vmcodegen(
     mod: IRModule
         The input IRModule to be built.
 
-    exec_mode: {"bytecode", "compiled"}
-        The execution mode.
-
     Return
     ------
     leftover: IRModule
         Left over IRModule that may contain extra functions.
     """
 
-    if exec_mode == "bytecode":
-        return _ffi_api.VMCodeGen(builder, mod)  # type:ignore
-    if exec_mode == "compiled":
-        return _ffi_api.VMTIRCodeGen(builder, mod)  # type: ignore
-    raise ValueError(f"Unknown exec_mode {exec_mode}")
+    return _ffi_api.VMCodeGen(builder, mod)  # type: ignore
 
 
 def _auto_attach_system_lib_prefix(
@@ -175,7 +167,6 @@ def build(
     params: dict[str, list] | None = None,
     relax_pipeline: None | str | tvm.transform.Pass = "default",
     tir_pipeline: None | str | tvm.transform.Pass = "default",
-    exec_mode: str = "bytecode",
     *,
     system_lib: bool | None = None,
 ) -> Executable:
@@ -205,9 +196,6 @@ def build(
 
     tir_pipelinie : str = "default"
         The TIR compilation pipeline to use.
-
-    exec_mode: {"bytecode", "compiled"}
-        The execution mode.
 
     system_lib: Optional[bool]
         Whether to build system lib that is being packed statically and
@@ -272,7 +260,7 @@ def build(
     ext_libs, constants = _extract_attrs(mod)
     params.update(dict(constants))
     builder = relax.ExecBuilder()
-    mod = _vmcodegen(builder, mod, exec_mode)
+    mod = _vmcodegen(builder, mod)
     return _vmlink(
         builder=builder,
         target=target,

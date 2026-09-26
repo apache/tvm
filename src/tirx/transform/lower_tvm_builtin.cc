@@ -434,10 +434,6 @@ class BuiltinLower : public StmtExprMutator {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered());
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
       return MakeCallPackedGeneric(op, 0, builtin::tvm_call_cpacked_lowered());
-    } else if (op->op.same_as(builtin::anylist_setitem_call_packed())) {
-      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_packed_lowered());
-    } else if (op->op.same_as(builtin::anylist_setitem_call_cpacked())) {
-      return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_cpacked_lowered());
     } else if (op->op.same_as(builtin::tvm_stack_make_shape())) {
       return MakeShape(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
@@ -538,78 +534,53 @@ class BuiltinLower : public StmtExprMutator {
 
   void SetPackedArg(Expr arg, const Var& args_stack, size_t stack_offset,
                     std::vector<tirx::Stmt>* prep_seq) {
-    auto* call_pattern = arg.as<CallNode>();
-    if (call_pattern && call_pattern->op.same_as(builtin::anylist_getitem())) {
-      // call runtime function to set anylist
-      static const Op& anylist_set_packed_arg_op = Op::Get("tirx.TVMBackendAnyListSetPackedArg");
-      prep_seq->emplace_back(Evaluate(Call(
-          PrimType::Int(32), anylist_set_packed_arg_op,
-          {call_pattern->args[0], call_pattern->args[1], args_stack, ConstInt32(stack_offset)})));
+    int arg_type_index;
+    if (arg.as<StringImmNode>()) {
+      arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
+      arg = reinterpret(PointerType::VoidPointerTy(), std::move(arg));
+    } else if (arg->ty.as<PointerTypeNode>()) {
+      arg_type_index = IsArrayHandle(arg) ? ffi::TypeIndex::kTVMFFIDLTensorPtr
+                                          : ffi::TypeIndex::kTVMFFIOpaquePtr;
     } else {
-      int arg_type_index;
-      if (arg.as<StringImmNode>()) {
-        arg_type_index = ffi::TypeIndex::kTVMFFIRawStr;
-        arg = reinterpret(PointerType::VoidPointerTy(), std::move(arg));
-      } else if (arg->ty.as<PointerTypeNode>()) {
-        arg_type_index = IsArrayHandle(arg) ? ffi::TypeIndex::kTVMFFIDLTensorPtr
-                                            : ffi::TypeIndex::kTVMFFIOpaquePtr;
-      } else {
-        PrimExpr prim_arg = arg.as_or_throw<PrimExpr>();
-        PrimType arg_ty = prim_arg.ty();
-        PrimType api_ty = APIType(arg_ty);
-        if (arg_ty != api_ty) {
-          arg = prim::Cast(api_ty, prim_arg);
-        }
-        if (api_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
-          arg_type_index = ffi::TypeIndex::kTVMFFIBool;
-        } else if (api_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-          arg_type_index = ffi::TypeIndex::kTVMFFIInt;
-        } else if (api_ty.code() == DLDataTypeCode::kDLFloat) {
-          arg_type_index = ffi::TypeIndex::kTVMFFIFloat;
-        } else {
-          TVM_FFI_THROW(InternalError) << "Unsupported type: " << api_ty;
-        }
+      PrimExpr prim_arg = arg.as_or_throw<PrimExpr>();
+      PrimType arg_ty = prim_arg.ty();
+      PrimType api_ty = APIType(arg_ty);
+      if (arg_ty != api_ty) {
+        arg = prim::Cast(api_ty, prim_arg);
       }
-
-      // opaque handle need to set the kind properly
-      if (arg_type_index == ffi::TypeIndex::kTVMFFIOpaquePtr) {
-        prep_seq->emplace_back(
-            IfThenElse(Call(PrimType::Bool(), builtin::isnullptr(), {arg}).as_or_throw<PrimExpr>(),
-                       TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
-                                    ConstInt32(ffi::TypeIndex::kTVMFFINone)),
-                       TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
-                                    ConstInt32(ffi::TypeIndex::kTVMFFIOpaquePtr))));
+      if (api_ty.MatchesCode(DLDataTypeCode::kDLBool)) {
+        arg_type_index = ffi::TypeIndex::kTVMFFIBool;
+      } else if (api_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+        arg_type_index = ffi::TypeIndex::kTVMFFIInt;
+      } else if (api_ty.code() == DLDataTypeCode::kDLFloat) {
+        arg_type_index = ffi::TypeIndex::kTVMFFIFloat;
       } else {
-        prep_seq->emplace_back(TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
-                                            ConstInt32(arg_type_index)));
+        TVM_FFI_THROW(InternalError) << "Unsupported type: " << api_ty;
       }
-      // set zero padding to ensure compatibility with FFI convention
-      prep_seq->emplace_back(
-          TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyZeroPadding, ConstInt32(0)));
-      // handle arg value
-      // NOTE: the intrinsic codegen will handle padding value clear for 32bit
-      // types or types that are smaller than 64 bits.
-      prep_seq->emplace_back(
-          TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyUnionValue, arg));
     }
+
+    // opaque handle need to set the kind properly
+    if (arg_type_index == ffi::TypeIndex::kTVMFFIOpaquePtr) {
+      prep_seq->emplace_back(
+          IfThenElse(Call(PrimType::Bool(), builtin::isnullptr(), {arg}).as_or_throw<PrimExpr>(),
+                     TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                  ConstInt32(ffi::TypeIndex::kTVMFFINone)),
+                     TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                  ConstInt32(ffi::TypeIndex::kTVMFFIOpaquePtr))));
+    } else {
+      prep_seq->emplace_back(TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyTypeIndex,
+                                          ConstInt32(arg_type_index)));
+    }
+    // set zero padding to ensure compatibility with FFI convention
+    prep_seq->emplace_back(
+        TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyZeroPadding, ConstInt32(0)));
+    // handle arg value
+    // NOTE: the intrinsic codegen will handle padding value clear for 32bit
+    // types or types that are smaller than 64 bits.
+    prep_seq->emplace_back(
+        TVMStructSet(args_stack, stack_offset, builtin::kTVMFFIAnyUnionValue, arg));
   }
 
-  PrimExpr MakeAnyListSetItemCallPacked(const CallNode* op, const Op& lowered_op) {
-    Expr list_handle = op->args[0];
-    PrimExpr list_index = op->args[1].as_or_throw<PrimExpr>();
-
-    Call call = MakeCallPackedGeneric(op, 2, lowered_op);
-    Expr args_stack = call->args[1];
-    // The stack offset of return value stack_end
-    PrimExpr ret_offset = call->args[3].as_or_throw<PrimExpr>();
-    auto& prep_seq = prep_seq_stack_.back();
-    prep_seq.emplace_back(Evaluate(call.as_or_throw<PrimExpr>()));
-    static const Op& anylist_move_from_packed_return_op =
-        Op::Get("tirx.TVMBackendAnyListMoveFromPackedReturn");
-    return Call(PrimType::Int(32), anylist_move_from_packed_return_op,
-                {list_handle, list_index, args_stack, ret_offset})
-        .as_or_throw<PrimExpr>();
-  }
   /*!
    * \brief Generic tool to make low-level
    *  packed_call(other_args..., func_name, packed_arg0, packed_arg1...)
