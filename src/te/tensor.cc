@@ -35,7 +35,7 @@ namespace te {
 namespace {
 
 const Op& TensorLoadOp() {
-  static const Op& op = Op::Get("te.tensor_load");
+  static const Op op = Op::Get("te.tensor_load");
   return op;
 }
 
@@ -97,8 +97,14 @@ IterVar reduce_axis(Range dom, std::string name) {
 
 PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }
 
-TVM_REGISTER_OP("te.tensor_load")
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState));
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("te.tensor_load")
+      .arg_types<Tensor>()
+      .arg("tensor", "")
+      .allow_extra_args()
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kReadState));
+}
 
 // Tensor
 inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
@@ -194,12 +200,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "te.Tensor", [](ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index) {
         return Tensor(shape, dtype, op, value_index);
       });
-}
 
-// Pattern A (RM): auto-default repr from reflection.
+  // Pattern A (RM): auto-default repr from reflection.
 
-// Other tensor ops.
-TVM_FFI_STATIC_INIT_BLOCK() {
+  // Other tensor ops.
+
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("te.TensorEqual", &Tensor::operator==)

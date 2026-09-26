@@ -22,37 +22,58 @@
 namespace tvm {
 namespace prim {
 namespace builtin {
-#define PRIM_DEFINE_BUILTIN_FUNC(OpName)            \
-  const Op& OpName() {                              \
-    static const Op& op = Op::Get("prim." #OpName); \
-    return op;                                      \
-  }                                                 \
-  TVM_REGISTER_OP("prim." #OpName)
 
-PRIM_DEFINE_BUILTIN_FUNC(likely)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kExprAnnotation))
-    .set_attr<bool>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(if_then_else)
-    .set_num_inputs(3)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-PRIM_DEFINE_BUILTIN_FUNC(vscale).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+#define TVM_DEFINE_CACHED_OP_GETTER(Name, RegisteredName) \
+  const Op& Name() {                                      \
+    static const Op op = Op::Get(RegisteredName);         \
+    return op;                                            \
+  }
 
-PRIM_DEFINE_BUILTIN_FUNC(ceil)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<bool>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(log2)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<bool>("TVectorizable", true);
+TVM_DEFINE_CACHED_OP_GETTER(likely, "prim.likely")
+TVM_DEFINE_CACHED_OP_GETTER(if_then_else, "prim.if_then_else")
+TVM_DEFINE_CACHED_OP_GETTER(vscale, "prim.vscale")
+TVM_DEFINE_CACHED_OP_GETTER(ceil, "prim.ceil")
+TVM_DEFINE_CACHED_OP_GETTER(log2, "prim.log2")
+TVM_DEFINE_CACHED_OP_GETTER(clz, "prim.clz")
 
-PRIM_DEFINE_BUILTIN_FUNC(clz).set_num_inputs(1).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+#undef TVM_DEFINE_CACHED_OP_GETTER
 
-#undef PRIM_DEFINE_BUILTIN_FUNC
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("prim.likely")
+      .arg_types<PrimExpr>()
+      .arg("x", "")
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kExprAnnotation))
+      .set_attr<bool>("TVectorizable", true);
+
+  OpDef("prim.if_then_else")
+      .arg_types<PrimExpr, Expr, Expr>()
+      .arg("condition", "")
+      .arg("true_value", "")
+      .arg("false_value", "")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("prim.vscale")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("prim.ceil")
+      .arg_types<PrimExpr>()
+      .arg("x", "")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<bool>("TVectorizable", true);
+
+  OpDef("prim.log2")
+      .arg_types<PrimExpr>()
+      .arg("x", "")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<bool>("TVectorizable", true);
+
+  OpDef("prim.clz")
+      .arg_types<PrimExpr>()
+      .arg("x", "")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+}
+
 }  // namespace builtin
 }  // namespace prim
 }  // namespace tvm

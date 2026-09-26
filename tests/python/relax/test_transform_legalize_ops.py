@@ -329,6 +329,9 @@ def custom_op(emit_legalization_through_builder):
         tvm.ir.register_op_attr(op_name, key, value)
 
     op = tvm.ir.Op.get(op_name)
+    if not op.args_info:
+        for name in ("activations", "weight", "bias"):
+            op.add_argument(name, "")
     yield op
 
     for key in op_attrs:

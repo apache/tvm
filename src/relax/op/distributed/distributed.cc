@@ -49,7 +49,7 @@ Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
-  static const Op& op = Op::Get("relax.dist.annotate_sharding");
+  static const Op op = Op::Get("relax.dist.annotate_sharding");
   return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
 }
 
@@ -62,12 +62,13 @@ Type InferTypeAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
   return GetType(call->args[0]);
 }
 
-TVM_REGISTER_OP("relax.dist.annotate_sharding")
-    .set_num_inputs(1)
-    .add_argument("input", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeAnnotateSharding)
-    .set_attr<FInferType>("dist.FInferType", InferTypeAnnotateSharding)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.dist.annotate_sharding")
+      .arg("input", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeAnnotateSharding)
+      .set_attr<FInferType>("dist.FInferType", InferTypeAnnotateSharding)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.dist.redistribute */
 
@@ -77,7 +78,7 @@ Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
   attrs->device_mesh = device_mesh;
   attrs->placement = placement;
 
-  static const Op& op = Op::Get("relax.dist.redistribute");
+  static const Op op = Op::Get("relax.dist.redistribute");
   return Call(Type::Missing(), op, {std::move(input)}, Attrs(attrs), {});
 }
 
@@ -93,11 +94,12 @@ Type InferDistTypeRedistribute(const Call& call, const BlockBuilder& ctx) {
   return distributed::DTensorType(ty->tensor_ty, attrs->device_mesh, attrs->placement);
 }
 
-TVM_REGISTER_OP("relax.dist.redistribute")
-    .set_num_inputs(1)
-    .add_argument("input", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("dist.FInferType", InferDistTypeRedistribute)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.dist.redistribute")
+      .arg("input", "The input tensor.")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeRedistribute)
+      .set_attr<bool>("FPurity", true);
+}
 
 Type InferTypeCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
   if (call->ty_args.size() != 1) {
@@ -110,12 +112,14 @@ Type InferTypeCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
   return call->ty_args[0];
 }
 
-TVM_REGISTER_OP("relax.dist.call_tir_local_view")
-    .set_num_inputs(2)
-    .add_argument("func", "Expr", "The destination-passing-style function.")
-    .add_argument("args", "Tuple", "The input arguments.")
-    .set_attr<FInferType>("FInferType", InferTypeCallTIRLocalView)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.dist.call_tir_local_view")
+      .arg("func", "The destination-passing-style function.")
+      .arg("args", "The input arguments.")
+      .ty_arg("out_type", "The output type.")
+      .set_attr<FInferType>("FInferType", InferTypeCallTIRLocalView)
+      .set_attr<bool>("FPurity", true);
+}
 
 Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensorType> out_ty_list) {
   for (const distributed::DTensorType& ty : out_ty_list) {
@@ -133,7 +137,7 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args, ffi::Array<distributed::DTensor
     out_ty = TupleType({out_ty_list.begin(), out_ty_list.end()});
   }
 
-  static const Op& op = Op::Get("relax.dist.call_tir_local_view");
+  static const Op op = Op::Get("relax.dist.call_tir_local_view");
   return Call(Type::Missing(), op, {func, args}, {}, {out_ty});
 }
 
@@ -204,7 +208,7 @@ Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
   ffi::ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
   attrs->num_workers = std::move(num_workers);
   attrs->axis = std::move(axis);
-  static const Op& op = Op::Get("relax.dist.redistribute_replica_to_shard");
+  static const Op op = Op::Get("relax.dist.redistribute_replica_to_shard");
 
   return Call(Type::Missing(), op, {std::move(input)}, Attrs{attrs}, {});
 }
@@ -213,15 +217,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.op.dist.redistribute_replica_to_shard",
                         redistribute_replica_to_shard);
-}
 
-TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")
-    .set_num_inputs(1)
-    .add_argument("input", "Tensor", "The buffer to be sliced.")
-    .set_attrs_type<ScatterCollectiveAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypeRtoS)
-    .set_attr<FInferType>("dist.FInferType", InferDistTypeRtoS)
-    .set_attr<bool>("FPurity", true);
+  OpDef("relax.dist.redistribute_replica_to_shard")
+      .arg("input", "The buffer to be sliced.")
+      .attrs_type<ScatterCollectiveAttrs>()
+      .set_attr<FInferType>("FInferType", InferTypeRtoS)
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeRtoS)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

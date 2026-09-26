@@ -33,14 +33,14 @@ using tirx::FLowerIntrinsic;
 struct MetalWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
     if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
-      static const Op& metal_simd_shuffle_op = Op::Get("tirx.metal.simd_shuffle");
+      static const Op metal_simd_shuffle_op = Op::Get("tirx.metal.simd_shuffle");
       return metal_simd_shuffle_op;
     } else if (orig_op.same_as(builtin::tvm_warp_shuffle_up())) {
-      static const Op& metal_simd_shuffle_up_op = Op::Get("tirx.metal.simd_shuffle_up");
+      static const Op metal_simd_shuffle_up_op = Op::Get("tirx.metal.simd_shuffle_up");
       return metal_simd_shuffle_up_op;
     } else {
       TVM_FFI_ICHECK(orig_op.same_as(builtin::tvm_warp_shuffle_down()));
-      static const Op& metal_simd_shuffle_down_op = Op::Get("tirx.metal.simd_shuffle_down");
+      static const Op metal_simd_shuffle_down_op = Op::Get("tirx.metal.simd_shuffle_down");
       return metal_simd_shuffle_down_op;
     }
   }
@@ -58,128 +58,122 @@ static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
 
 void RegisterMetalIntrinRules() {
   // clang-format off
-TVM_REGISTER_OP("prim.clz")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("prim.clz")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.floor")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.floor")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("prim.ceil")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("prim.ceil")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.trunc")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.trunc")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.fabs")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.fabs")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.round")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
-      // Metal's rint() uses ties-to-even, matching constant-folding semantics.
-      const CallNode* call = e.as<CallNode>();
-      TVM_FFI_ICHECK(call != nullptr);
-      ffi::Array<Expr> new_args = {StringImm("rint")};
-      for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
-        new_args.push_back(arg);
-      }
-      return Call(e.ty(), tirx::builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
-    });
+  OpDef("tirx.round")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", [](const PrimExpr& e) -> PrimExpr {
+        // Metal's rint() uses ties-to-even, matching constant-folding semantics.
+        const CallNode* call = e.as<CallNode>();
+        TVM_FFI_ICHECK(call != nullptr);
+        ffi::Array<Expr> new_args = {StringImm("rint")};
+        for (const PrimExpr& arg : call->args.as_or_throw<ffi::Array<PrimExpr>>()) {
+          new_args.push_back(arg);
+        }
+        return Call(e.ty(), tirx::builtin::call_pure_extern(), new_args).as_or_throw<PrimExpr>();
+      });
 
-TVM_REGISTER_OP("tirx.nearbyint")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.nearbyint")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.exp")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.exp")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.exp2")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.exp2")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.exp10")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.exp10")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.log")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.log")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("prim.log2")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("prim.log2")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.log10")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.log10")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.tanh")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchNumericalStableTanh);
+  OpDef("tirx.tanh")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchNumericalStableTanh);
 
-TVM_REGISTER_OP("tirx.sqrt")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.sqrt")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.pow")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.pow")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.popcount")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.popcount")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.fmod")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.fmod")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.sin")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.sin")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.sinh")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.sinh")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.cos")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.cos")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.cosh")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
+  OpDef("tirx.cosh")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
-TVM_REGISTER_OP("tirx.erf").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchFastErf);
+  OpDef("tirx.erf")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchFastErf);
 
-TVM_REGISTER_OP("tirx.tvm_warp_shuffle")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
+  OpDef("tirx.tvm_warp_shuffle")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
 
-TVM_REGISTER_OP("tirx.tvm_warp_shuffle_up")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
+  OpDef("tirx.tvm_warp_shuffle_up")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
 
-TVM_REGISTER_OP("tirx.tvm_warp_shuffle_down")
-    .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
+  OpDef("tirx.tvm_warp_shuffle_down")
+      .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchMetalShuffle<MetalWarpIntrinsic>);
 
-// Register low-level Metal device intrinsics.
-TVM_REGISTER_OP("tirx.metal.simd_shuffle")
-    .set_num_inputs(2)
-    .add_argument("var", "Expr", "The variable to sync.")
-    .add_argument("lane", "Expr", "The source thread id.")
-    .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"), 10)
-    .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"),
-                                               10)
-    .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simd_shuffle"),
-                                        10)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle")
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  // Register low-level Metal device intrinsics.
+  OpDef("tirx.metal.simd_shuffle")
+      .arg("var", "The variable to sync.")
+      .arg("lane", "The source thread id.")
+      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
+      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simd_shuffle"))
+      .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TVM_REGISTER_OP("tirx.metal.simd_shuffle_up")
-    .set_num_inputs(2)
-    .add_argument("var", "Expr", "The variable to sync.")
-    .add_argument("delta", "Expr", "The source lane id offset to be added.")
-    .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"), 10)
-    .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"),
-                                               10)
-    .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                        ffi::String("metal.simd_shuffle_up"), 10)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_up")
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.metal.simd_shuffle_up")
+      .arg("var", "The variable to sync.")
+      .arg("delta", "The source lane id offset to be added.")
+      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
+      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+                                          ffi::String("metal.simd_shuffle_up"))
+      .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_up")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TVM_REGISTER_OP("tirx.metal.simd_shuffle_down")
-    .set_num_inputs(2)
-    .add_argument("var", "Expr", "The variable to sync.")
-    .add_argument("delta", "Expr", "The source lane id offset to be subtracted.")
-    .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"), 10)
-    .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"),
-                                               10)
-    .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                        ffi::String("metal.simd_shuffle_down"), 10)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_down")
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.metal.simd_shuffle_down")
+      .arg("var", "The variable to sync.")
+      .arg("delta", "The source lane id offset to be subtracted.")
+      .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
+      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+                                          ffi::String("metal.simd_shuffle_down"))
+      .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_down")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
   // clang-format on
 }
 

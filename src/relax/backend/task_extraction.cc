@@ -101,7 +101,7 @@ class TaskExtractor : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
 
     // TODO(@tvm-team): When we differentiate the call for tirx function and packed function,
     // this logic should be changed accordingly.

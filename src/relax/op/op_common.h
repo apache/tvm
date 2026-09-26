@@ -142,49 +142,23 @@ std::tuple<ArgTypes...> GetArgTypeHelper(const Call& call, const Op& op, const B
 template <typename... ArgTypes>
 std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
-  size_t n_input = op->arguments.size();
+  size_t n_input = op->args_info.size();
 
-  // Unfortunately, because the `.add_argument()` calls in
-  // TVM_REGISTER_OP occur during initialization of globals and are
+  // Unfortunately, because the `.arg()` calls in
+  // OpDef occur during initialization of globals and are
   // not available at compile-time, this cannot be a static_assert.
-  TVM_FFI_ICHECK_EQ(n_input, sizeof...(ArgTypes))
-      << "Internal error: " << op << " op defines " << n_input
-      << " arguments in its TVM_REGISTER_OP() call, "
+  TVM_FFI_ICHECK(op->allow_extra_args ? sizeof...(ArgTypes) >= n_input
+                                      : sizeof...(ArgTypes) == n_input)
+      << "Internal error: " << op << " op defines " << n_input << " arguments in its OpDef() call, "
       << "but GetArgType was given " << sizeof...(ArgTypes) << " template arguments.";
 
+  CheckNumArguments(call, ctx);
+  TVM_FFI_ICHECK_GE(call->args.size(), sizeof...(ArgTypes));
   return detail::GetArgTypeHelper<ArgTypes...>(call, op, ctx,
                                                std::make_index_sequence<sizeof...(ArgTypes)>());
 }
 
 /************ Op registration macro ************/
-
-/*!
- * \brief Quick helper macro to register the operator to registry
- * \param OpRegName The name of operator to register. The name passed in will
- * be prepended with a prefix "relax." as the identifier string in the operator registry.
- */
-#define RELAX_REGISTER_UNARY_OP(OpRegName)                                                         \
-  TVM_REGISTER_OP("relax." OpRegName)                                                              \
-      .set_num_inputs(1)                                                                           \
-      .add_argument("x", "Tensor", "The input tensor.")                                            \
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)                     \
-      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow) \
-      .set_attr<bool>("FPurity", true)
-
-/*!
- * \brief Quick helper macro to expose a make-function to construct the operator.
- * \param OpName The name of the operator as well as the make-function name, which will
- * be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
- * \param OpRegName The identifier of the operator in the registry.
- */
-#define RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                       \
-  Expr OpName(Expr x) {                                                   \
-    static const Op& op = Op::Get("relax." OpRegName);                    \
-    return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});        \
-  }                                                                       \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                           \
-    tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); \
-  }
 
 /*!
  * \brief Infer the type for unary elementwise ops.
@@ -231,10 +205,8 @@ inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_co
 template <int arg_index>
 Type ReturnTypeFromArg(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
-  int n_input = op->arguments.size();
-  if (static_cast<int>(call->args.size()) != n_input) {
-    TVM_FFI_VISIT_THROW(ValueError, call) << op << " op should have " << n_input << " arguments";
-  }
+  CheckNumArguments(call, ctx);
+  int n_input = call->args.size();
   if (arg_index >= n_input) {
     TVM_FFI_VISIT_THROW(IndexError, call)
         << op << " op has only " << n_input << "arguments, but try to get the arg with index "

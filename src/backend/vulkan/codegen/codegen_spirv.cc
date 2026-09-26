@@ -467,10 +467,10 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     return spirv::Value();
   }
 
-  static const Op& tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
-  static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-  static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-  static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+  static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
+  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+  static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
+  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
 
   if (op->op.same_as(tvm_fill_fragment_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 6U);

@@ -19,404 +19,437 @@
 
 /*!
  * \file tvm/ir/op.h
- * \brief Primitive operators(builtin intrinsics)
- *        and registry for them.
+ * \brief Canonical primitive operators and their registration.
  */
 #ifndef TVM_IR_OP_H_
 #define TVM_IR_OP_H_
 
+#include <tvm/ffi/container/list.h>
 #include <tvm/ffi/error.h>
+#include <tvm/ffi/expected.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/attr_registry_map.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 
-#include <string>
+#include <optional>
+#include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace tvm {
 
-// forward declare name.
 template <typename>
 class OpAttrMap;
 
-/*!
- * \brief Information about an input field of an Op (name, type, description).
- *
- *  Populated via OpRegEntry::add_argument and consumed both by
- *  internal sanity checks / error messages and by external tooling
- *  that wants to introspect an Op's argument schema.
- */
+/*! \brief An operator argument's name and documentation. */
 class ArgumentInfoNode : public ffi::Object {
  public:
-  /*! \brief name of the field */
+  /*! \brief Argument name. */
   ffi::String name;
-  /*! \brief type docstring information in str. */
-  ffi::String type_info;
-  /*! \brief detailed description of the type */
-  ffi::String description;
+  /*! \brief Argument documentation. */
+  ffi::String doc;
 
   static void RegisterReflection() {
-    namespace rfl = ffi::reflection;
-    rfl::ObjectDef<ArgumentInfoNode>()
+    namespace refl = ffi::reflection;
+    refl::ObjectDef<ArgumentInfoNode>()
         .def_ro("name", &ArgumentInfoNode::name)
-        .def_ro("type_info", &ArgumentInfoNode::type_info)
-        .def_ro("description", &ArgumentInfoNode::description);
+        .def_ro("doc", &ArgumentInfoNode::doc);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.ArgumentInfo", ArgumentInfoNode, ffi::Object);
 };
 
-/*! \brief Managed reference to ArgumentInfoNode. */
+/*! \brief Managed reference to an argument descriptor. */
 class ArgumentInfo : public ffi::ObjectRef {
  public:
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ArgumentInfo, ffi::ObjectRef, ArgumentInfoNode);
 };
 
-// TODO(tvm-team): migrate low-level intrinsics to use Op
-/*!
- * \brief Primitive Op(builtin intrinsics)
- *
- * This data structure stores the meta-data
- * about primitive operators that can be invoked via Call.
- *
- * Low-level IR intrinsics(such as libc.expf) are also
- * implemented via Op.
- *
- * \sa Op
- */
+/*! \brief Metadata for a canonical primitive operator invoked through Call. */
 class OpNode : public ExprNode {
  public:
-  /*! \brief name of the operator */
+  /*! \brief Canonical operator name. */
   ffi::String name;
-  /*!
-   * \brief detailed description of the operator
-   *  This can be used to generate docstring automatically for the operator.
-   */
-  ffi::String description;
-  /* \brief Information of input arguments to the operator */
-  ffi::Array<ArgumentInfo> arguments;
-  /*!
-   * \brief The type key of the attribute field
-   *  This can be empty, in which case it defaults to anything.
-   */
+  /*! \brief Operator documentation. */
+  ffi::String doc;
+  /*! \brief Descriptors for the ordered required value-argument prefix. */
+  ffi::Array<ArgumentInfo> args_info;
+  /*! \brief Accept at least args_info.size() value arguments when true, exactly that count
+   * otherwise. */
+  bool allow_extra_args{false};
+  /*! \brief Descriptors for Call.ty_args; inference owns optional/variable type-argument checks. */
+  ffi::Array<ArgumentInfo> ty_args_info;
+  /*! \brief Attribute object type key, or empty when unrestricted. */
   ffi::String attrs_type_key;
-  /*!
-   * \brief attribute type index,
-   * this field varies in each run and is not exposed to frontend.
-   */
+  /*! \brief Runtime index corresponding to attrs_type_key; not serialized. */
   uint32_t attrs_type_index{0};
-  /*!
-   * \brief number of input arguments to the operator,
-   * -1 means it is variable length
-   */
-  int32_t num_inputs = -1;
-  /*!
-   * \brief support level of the operator,
-   *  The lower the more priority it contains.
-   *  This is in analogies to BLAS levels.
-   */
-  int32_t support_level = 10;
 
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<OpNode>()
-        .def_ro("name", &OpNode::name)
-        .def_ro("description", &OpNode::description, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("arguments", &OpNode::arguments, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("num_inputs", &OpNode::num_inputs, refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("support_level", &OpNode::support_level, refl::AttachFieldFlag::SEqHashIgnore());
-  }
+  TVM_DLL static void RegisterReflection();
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
   TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.Op", OpNode, ExprNode);
 
  private:
-  /*! \return the internal attr registry index. */
-  uint32_t AttrRegistryIndex() const { return index_; }
-  /*! \brief repr to be printed in registry*/
-  std::string AttrRegistryName() const { return name; }
-
-  // friend class
+  friend class OpRegistry;
+  friend class OpDef;
+  friend class Op;
+  friend class Call;
+  TVM_DLL void Validate(const CallNode* call) const;
+  // None means no validator. An opaque callback returns None or an owned Error.
+  ffi::Any validate_args_;
+  ffi::Any validate_ty_args_;
+  // A null callback can still denote an explicitly declared all-base or empty signature.
+  bool args_signature_defined_{false};
+  bool ty_args_signature_defined_{false};
   template <typename>
-  friend class AttrRegistryMapContainerMap;
-  template <typename, typename>
-  friend class AttrRegistry;
-  friend class OpRegEntry;
-
-  // Program internal unique index of operator.
-  // Used to help index the program.
+  friend class OpAttrMap;
+  // Dense process-local index into attribute columns; never serialized.
   uint32_t index_{0};
 };
 
 /*!
- * \brief Managed reference class to OpNode.
- * \sa OpNode
+ * \brief Reference-counted handle to a canonical named operator.
+ *
+ * OpDef temporarily builds metadata on the same Op returned by Get. Independent
+ * registrations may attach different attributes; replacing an existing attribute
+ * requires explicit override. Cached attribute maps observe subsequent changes.
+ * args_info describes required value operands; allow_extra_args permits a suffix.
+ * arg_types/ty_arg_types optionally constrain IR representations with native strict checks.
+ * ty_args_info describes type arguments without imposing a runtime count. Op Calls validate
+ * on construction; validation neither infers result types nor checks call attributes.
+ *
+ * \code
+ * TVM_FFI_STATIC_INIT_BLOCK() {
+ *   OpDef("example.identity", "Return the input expression.")
+ *       .arg_types<PrimExpr>()
+ *       .arg("value", "The input expression.")
+ *       .set_attr<bool>("FPurity", true);
+ * }
+ * // Copies the handle; the canonical node is shared.
+ * Op op = Op::Get("example.identity");
+ * bool pure = Op::GetAttrMap<bool>("FPurity")[op];
+ * \endcode
  */
 class Op : public Expr {
  public:
+  /*! \brief Construct a handle from a defined node. \param n The operator node. */
   explicit Op(ffi::ObjectPtr<OpNode> n) : Expr(std::move(n)) {
     TVM_FFI_CHECK(defined(), ValueError) << "Op expects a defined OpNode";
   }
 
   /*!
-   * \brief Get additional registered attribute about operators.
-   *  If nothing has been registered, an empty OpAttrMap will be returned.
-   * \param attr_name The name of the attribute.
-   * \return An OpAttrMap of specified attr_name.
-   * \tparam ValueType The type of the attribute.
+   * \brief Get a typed live view of a registered attribute column.
+   * \tparam ValueType The attribute value type.
+   * \param attr_name The column name.
+   * \return A shared view that observes registration, replacement, reset, and growth.
+   * \throws InternalError if the column has never been registered.
    */
   template <typename ValueType>
-  inline static OpAttrMap<ValueType> GetAttrMap(const ffi::String& attr_name);
+  static OpAttrMap<ValueType> GetAttrMap(const ffi::String& attr_name);
   /*!
-   * \brief Checks if an attr map is present in the registry.
-   * \param attr_name The name of the attribute.
-   * \return bool True if the attr is present.
+   * \brief Check whether an attribute column exists, even if some Ops lack a value.
+   * \param attr_name The column name.
+   * \return Whether the column has been registered.
    */
   TVM_DLL static bool HasAttrMap(const ffi::String& attr_name);
   /*!
-   * \brief Get an Op for a given operator name.
-   *  Will raise an error if the op has not been registered.
-   * \param op_name Name of the operator.
-   * \return Pointer to a Op, valid throughout program lifetime.
+   * \brief Look up a registered operator by name.
+   * \param op_name The canonical name.
+   * \return A copy of the reference-counted handle to the canonical node.
+   * \throws AttributeError if the operator is not registered.
    */
-  TVM_DLL static const Op& Get(const ffi::String& op_name);
+  TVM_DLL static Op Get(const ffi::String& op_name);
+  /*! \brief List registered operator names. \return Names in unspecified order. */
+  TVM_DLL static ffi::Array<ffi::String> ListNames();
+  /*!
+   * \brief Validate a call to this Op without inferring or changing its result type.
+   * \param call The call, with all fields populated; a missing result type is permitted.
+   * \throws ValueError for the wrong callee or value-argument count; TypeError for a
+   * representation mismatch. Optional type arguments are checked only when present.
+   * Call attributes and type-argument counts remain the responsibility of existing inference.
+   */
+  TVM_DLL void Validate(const CallNode* call) const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Op, Expr, OpNode);
 
  private:
-  /*!
-   * \brief Get generic attrmap given attr name
-   * \param key The attribute key
-   * \return The attr map.
-   */
-  TVM_DLL static const AttrRegistryMapContainerMap<Op>& GetAttrMapContainer(const ffi::String& key);
+  TVM_DLL static ffi::List<ffi::Any> GetAttrColumn(const ffi::String& attr_name);
 };
 
-/*!
- * \brief Helper structure to register operators
- * \sa TVM_REGISTER_OP
- */
-class OpRegEntry {
+/*! \brief Noncopyable temporary builder for a canonical Op; see Op for the example. */
+class OpDef {
  public:
-  /*! \return the operator */
-  const Op& op() const { return op_; }
   /*!
-   * \brief setter function during registration
-   *  Set the description of operator
-   * \param descr the description string.
-   * \return reference to self.
+   * \brief Get or create the named Op without changing its documentation.
+   * \param name The canonical operator name.
    */
-  inline OpRegEntry& describe(const std::string& descr);  // NOLINT(*)
+  TVM_DLL explicit OpDef(const ffi::String& name);
   /*!
-   * \brief Add argument information to the function.
-   * \param name Name of the argument.
-   * \param type Type of the argument.
-   * \param description Description of the argument.
-   * \return reference to self.
+   * \brief Get or create the named Op and set its documentation.
+   * \param name The canonical operator name.
+   * \param doc Operator documentation, replacing any existing documentation.
    */
-  inline OpRegEntry& add_argument(const std::string& name, const std::string& type,
-                                  const std::string& description);
+  TVM_DLL OpDef(const ffi::String& name, const ffi::String& doc);
   /*!
-   * \brief Set the attrs type key and index to be AttrsType.
-   * \tparam AttrsType the attribute type to b set.
-   * \return reference to self.
+   * \brief Check declared descriptor counts, then install compiled constraints.
+   * \throws ValueError for a signature/descriptor mismatch. Does nothing while unwinding.
    */
-  template <typename AttrsType>
-  inline OpRegEntry& set_attrs_type();
+  TVM_DLL ~OpDef() noexcept(false);
+  OpDef(const OpDef&) = delete;
+  OpDef& operator=(const OpDef&) = delete;
+  OpDef(OpDef&&) = delete;
+  OpDef& operator=(OpDef&&) = delete;
+  /*! \brief Get the canonical operator. \return A copied handle, safe after this builder dies. */
+  Op op() const { return op_; }
   /*!
-   * \brief Set the attrs type key and index to be AttrsType.
-   * \param key The attribute type key to be set.
-   * \return reference to self.
+   * \brief Declare strict IR constraints before describing the required value arguments.
+   * \tparam Types Ordered operand representation types; Expr adds no constraint.
+   * \return This builder. Omission defaults every operand to Expr.
+   * Exactly sizeof...(Types) descriptors must follow in this chain. A signature can only
+   * be declared once, before any descriptors; later descriptor appends are rejected.
    */
-  inline OpRegEntry& set_attrs_type_key(const ffi::String& key);
-  /*!
-   * \brief Set the num_inputs
-   * \param n The number of inputs to be set.
-   * \return reference to self.
-   */
-  inline OpRegEntry& set_num_inputs(int32_t n);  // NOLINT(*)
-  /*!
-   * \brief Set the support level of op.
-   * \param level The support level.
-   * \return reference to self.
-   */
-  inline OpRegEntry& set_support_level(int32_t level);  // NOLINT(*)
-  /*!
-   * \brief Register additional attributes to operator.
-   * \param attr_name The name of the attribute.
-   * \param value The value to be set.
-   * \param plevel The priority level of this set,
-   *  an higher priority level attribute
-   *  will replace lower priority level attribute.
-   *  Must be bigger than 0.
-   *
-   *  Cannot set with same plevel twice in the code.
-   *
-   * \tparam ValueType The type of the value to be set.
-   */
-  template <typename ValueType>
-  inline OpRegEntry& set_attr(const std::string& attr_name,  // NOLINT(*)
-                              const ValueType& value, int plevel = 10);
-
-  /*!
-   * \brief Resets an attr of the registry.
-   * \param attr_name The name of the attribute.
-   */
-  inline void reset_attr(const std::string& attr_name);
-
-  // set the name of the op to be the same as registry
-  inline OpRegEntry& set_name() {  // NOLINT(*)
-    if (get()->name.length() == 0) {
-      get()->name = name;
+  template <typename... Types>
+  OpDef& arg_types() {
+    ffi::Any validate;
+    if constexpr (!(std::is_same_v<Types, Expr> && ...)) {
+      validate = reinterpret_cast<void*>(&ValidateArgs<Types...>);
     }
+    DeclareTypes(sizeof...(Types), std::move(validate), false);
     return *this;
   }
   /*!
-   * \brief Register or get a new entry.
-   * \param name The name of the operator.
-   * \return the corresponding entry.
+   * \brief Append a required value-argument descriptor.
+   * \param name Argument name.
+   * \param doc Argument documentation.
+   * \return This builder. Without allow_extra_args(), this is part of the complete list.
+   * \throws ValueError if an earlier chain already declared the signature.
    */
-  TVM_DLL static OpRegEntry& RegisterOrGet(const ffi::String& name);
+  TVM_DLL OpDef& arg(const ffi::String& name, const ffi::String& doc);
+  /*!
+   * \brief Register a Function validator for the complete value-argument signature.
+   * \param validator Function accepting a Call and returning None or an Error.
+   * \return This builder. Descriptors must precede this declaration; later appends are rejected.
+   * \throws ValueError if a validator is already declared or the Function is null.
+   */
+  TVM_DLL OpDef& arg_validator(ffi::Function validator);
+  /*!
+   * \brief Set the attribute object type key and runtime index together.
+   * \tparam AttrsType The attribute object node type.
+   * \return This builder.
+   */
+  template <typename AttrsType>
+  OpDef& attrs_type() {
+    uint32_t index = AttrsType::RuntimeTypeIndex();
+    get()->attrs_type_key = AttrsType::_type_key;
+    get()->attrs_type_index = index;
+    return *this;
+  }
+  /*!
+   * \brief Resolve and set the attribute object type key and runtime index together.
+   * \param key A registered attribute object type key.
+   * \return This builder. An unknown key raises an error before modifying metadata.
+   */
+  TVM_DLL OpDef& set_attrs_type_key(const ffi::String& key);
+  /*!
+   * \brief Allow value arguments after the required prefix described by args_info.
+   * \return This builder. An empty prefix accepts any number of value arguments.
+   */
+  OpDef& allow_extra_args() {
+    get()->allow_extra_args = true;
+    return *this;
+  }
+  /*!
+   * \brief Declare strict constraints before describing Call.ty_args.
+   * \tparam Types Ordered type-argument representations; Type adds no constraint.
+   * \return This builder. Omission defaults every type descriptor to Type.
+   * Exactly sizeof...(Types) descriptors must follow in this chain. Present entries of
+   * this prefix are checked, without imposing counts on optional or repeated arguments.
+   * A signature can only be declared once, before descriptors; later appends are rejected.
+   */
+  template <typename... Types>
+  OpDef& ty_arg_types() {
+    ffi::Any validate;
+    if constexpr (!(std::is_same_v<Types, Type> && ...)) {
+      validate = reinterpret_cast<void*>(&ValidateTyArgs<Types...>);
+    }
+    DeclareTypes(sizeof...(Types), std::move(validate), true);
+    return *this;
+  }
+  /*!
+   * \brief Append a descriptor for a type argument in Call.ty_args.
+   * \param name Type-argument name.
+   * \param doc Type-argument documentation.
+   * \return This builder. Inference retains responsibility for type-argument counts.
+   * \throws ValueError if an earlier chain already declared the signature.
+   */
+  TVM_DLL OpDef& ty_arg(const ffi::String& name, const ffi::String& doc);
+  /*!
+   * \brief Register a Function validator for the complete type-argument signature.
+   * \param validator Function accepting a Call and returning None or an Error.
+   * \return This builder. Descriptors must precede this declaration; later appends are rejected.
+   * \throws ValueError if a validator is already declared or the Function is null.
+   */
+  TVM_DLL OpDef& ty_arg_validator(ffi::Function validator);
+  /*!
+   * \brief Register an extensible attribute, rejecting duplicates unless overridden.
+   * \tparam ValueType The attribute value type.
+   * \param attr_name Attribute column name.
+   * \param value Non-null attribute value.
+   * \param override Whether to replace an existing value; no prior value is retained.
+   * \return This builder. Existing cached maps observe the new value.
+   */
+  template <typename ValueType>
+  OpDef& set_attr(const ffi::String& attr_name, const ValueType& value, bool override = false) {
+    UpdateAttr(attr_name, ffi::Any(value), override);
+    return *this;
+  }
+  /*!
+   * \brief Remove the current attribute value, with no priority fallback.
+   * \param attr_name Attribute column name; missing columns and values are ignored.
+   * \return This builder. Existing cached maps observe the removal.
+   */
+  TVM_DLL OpDef& reset_attr(const ffi::String& attr_name);
 
  private:
-  template <typename, typename>
-  friend class AttrRegistry;
-  // the name
-  std::string name;
-  /*! \brief The operator */
+  template <typename T>
+  static bool ValidateArg(const CallNode* call, size_t index, TVMFFIAny* error) {
+    if constexpr (!std::is_same_v<T, Expr>) {
+      TVMFFIAny value;
+      ffi::TypeTraits<Expr>::CopyToAnyView(call->args[index], &value);
+      if (!ffi::TypeTraits<T>::CheckAnyStrict(&value)) {
+        std::string expected;
+        if constexpr (std::is_same_v<T, PrimExpr>) {
+          expected = "PrimExpr (Expr with PrimType)";
+        } else {
+          expected = ffi::TypeTraits<T>::TypeStr();
+        }
+        *error = ReportTypeMismatch(call, index, expected, false);
+        return false;
+      }
+    }
+    return true;
+  }
+  template <typename T>
+  static bool ValidateTyArg(const CallNode* call, size_t index, TVMFFIAny* error) {
+    if constexpr (!std::is_same_v<T, Type>) {
+      if (index < call->ty_args.size()) {
+        TVMFFIAny value;
+        ffi::TypeTraits<Type>::CopyToAnyView(call->ty_args[index], &value);
+        if (!ffi::TypeTraits<T>::CheckAnyStrict(&value)) {
+          *error = ReportTypeMismatch(call, index, ffi::TypeTraits<T>::TypeStr(), true);
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  template <typename... Types>
+  static TVMFFIAny ValidateArgs(const CallNode* call) noexcept {
+    try {
+      TVMFFIAny error;
+      size_t index = 0;
+      if (!(ValidateArg<Types>(call, index++, &error) && ...)) return error;
+      return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>());
+    } catch (...) {
+      return CallbackException();
+    }
+  }
+  template <typename... Types>
+  static TVMFFIAny ValidateTyArgs(const CallNode* call) noexcept {
+    try {
+      TVMFFIAny error;
+      size_t index = 0;
+      if (!(ValidateTyArg<Types>(call, index++, &error) && ...)) return error;
+      return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>());
+    } catch (...) {
+      return CallbackException();
+    }
+  }
+  TVM_FFI_COLD_CODE TVM_DLL static TVMFFIAny CallbackException() noexcept;
+  TVM_FFI_COLD_CODE TVM_DLL static TVMFFIAny ReportTypeMismatch(const CallNode* call, size_t index,
+                                                                const std::string& expected,
+                                                                bool type_arg);
+  TVM_DLL void DeclareTypes(size_t count, ffi::Any validate, bool type_args);
+  TVM_DLL void DeclareValidator(ffi::Function validate, bool type_args);
+  OpNode* get() { return const_cast<OpNode*>(op_.operator->()); }
+  TVM_DLL void UpdateAttr(const ffi::String& attr_name, ffi::Any value, bool override);
   Op op_;
-  /*! \brief Construct the non-null Op for this registry entry. */
-  static Op MakeOp(uint32_t reg_index);
-  // private constructor
-  TVM_DLL OpRegEntry(uint32_t reg_index);
-  // return internal pointer to op.
-  inline OpNode* get();
-  // update the attribute OpAttrMap
-  TVM_DLL void UpdateAttr(const ffi::String& key, ffi::Any value, int plevel);
+  std::optional<size_t> expected_args_;
+  std::optional<size_t> expected_ty_args_;
+  ffi::Any pending_args_;
+  ffi::Any pending_ty_args_;
 };
 
 /*!
- * \brief ffi::Map<Op,ValueType> used to store meta-information about Op.
- * \tparam ValueType The type of the value stored in map.
+ * \brief Typed live view of an Op attribute column.
+ *
+ * Copies share the retained mutable column and observe later registrations,
+ * replacements, resets, and growth. Values are returned by value, never as
+ * references into a backing array. Registration is not synchronized with readers.
+ * \tparam ValueType The attribute value type.
  */
 template <typename ValueType>
-class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
+class OpAttrMap {
  public:
   /*!
-   * \brief get the corresponding value element at op with default value.
-   * \param expr The key to the map
-   * \param def_value The default value when the key does not exist
-   *         or if expr is not an Op.
-   * \return the const reference to the content value.
+   * \brief Check whether an operator has a value in this column.
+   * \param op The operator.
+   * \return 1 if present, 0 otherwise.
    */
-  inline ValueType get(const Expr& expr, ValueType def_value) const;
-
-  using TParent = AttrRegistryMap<Op, ValueType>;
-  using TParent::count;
-  using TParent::get;
-  using TParent::operator[];
+  int count(const Op& op) const {
+    return op->index_ < column_.size() && column_[op->index_] != nullptr;
+  }
+  /*!
+   * \brief Look up an operator's attribute, raising InternalError if absent.
+   * \param op The operator.
+   * \return The value converted to ValueType.
+   */
+  ValueType operator[](const Op& op) const {
+    TVM_FFI_ICHECK(count(op)) << "Attribute " << attr_name_ << " has not been registered for "
+                              << op->name;
+    if constexpr (std::is_same_v<ValueType, ffi::Any>) {
+      return column_[op->index_];
+    } else {
+      return column_[op->index_].template cast<ValueType>();
+    }
+  }
+  /*!
+   * \brief Look up an operator's attribute with a fallback.
+   * \param op The operator.
+   * \param def_value Fallback when the attribute is absent.
+   * \return The registered value or def_value.
+   */
+  ValueType get(const Op& op, ValueType def_value) const {
+    return count(op) ? (*this)[op] : def_value;
+  }
+  /*!
+   * \brief Look up an expression's attribute with a fallback.
+   * \param expr A defined expression.
+   * \param def_value Fallback when expr is not an Op or its attribute is absent.
+   * \return The registered value or def_value.
+   */
+  ValueType get(const Expr& expr, ValueType def_value) const {
+    TVM_FFI_ICHECK(expr.defined());
+    if (const auto* op = expr.as<OpNode>()) {
+      return get(ffi::GetRef<Op>(op), def_value);
+    }
+    return def_value;
+  }
 
  private:
   friend class Op;
-  // constructor
-  explicit OpAttrMap(const AttrRegistryMapContainerMap<Op>& map) : TParent(map) {}
+  OpAttrMap(ffi::List<ffi::Any> column, ffi::String attr_name)
+      : column_(std::move(column)), attr_name_(std::move(attr_name)) {}
+  ffi::List<ffi::Any> column_;
+  ffi::String attr_name_;
 };
 
-// internal macros to make
-#define TVM_OP_REGISTER_VAR_DEF [[maybe_unused]] static ::tvm::OpRegEntry& __make_##Op
-
-/*!
- * \def TVM_REGISTER_OP
- * \brief Register a new operator, or set attribute of the corresponding op.
- *
- * \param OpName The name of registry
- *
- * \code
- *
- *  TVM_REGISTER_OP("add")
- *  .describe("add two inputs together")
- *  .set_num_inputs(2)
- *  .set_attr<OpKernel>("gpu_kernel", AddKernel);
- *
- * \endcode
- */
-#define TVM_REGISTER_OP(OpName)                              \
-  TVM_FFI_STR_CONCAT(TVM_OP_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::OpRegEntry::RegisterOrGet(OpName).set_name()
-
-// implementations
-
 template <typename ValueType>
-inline OpAttrMap<ValueType> Op::GetAttrMap(const ffi::String& key) {
-  return OpAttrMap<ValueType>(Op::GetAttrMapContainer(key));
-}
-
-inline OpNode* OpRegEntry::get() { return const_cast<OpNode*>(op_.operator->()); }
-
-inline OpRegEntry& OpRegEntry::describe(const std::string& descr) {  // NOLINT(*)
-  get()->description = descr;
-  return *this;
-}
-
-inline OpRegEntry& OpRegEntry::add_argument(const std::string& name, const std::string& type,
-                                            const std::string& description) {
-  auto n = ffi::make_object<ArgumentInfoNode>();
-  n->name = name;
-  n->type_info = type;
-  n->description = description;
-  get()->arguments.push_back(ArgumentInfo(n));
-  return *this;
-}
-
-inline OpRegEntry& OpRegEntry::set_num_inputs(int32_t n) {  // NOLINT(*)
-  get()->num_inputs = n;
-  return *this;
-}
-
-template <typename AttrsType>
-inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
-  get()->attrs_type_key = AttrsType::_type_key;
-  get()->attrs_type_index = AttrsType::RuntimeTypeIndex();
-  return *this;
-}
-
-inline OpRegEntry& OpRegEntry::set_attrs_type_key(const ffi::String& key) {  // NOLINT(*)
-  get()->attrs_type_key = key;
-  get()->attrs_type_index = tvm::ffi::TypeKeyToIndex(key.c_str());
-  return *this;
-}
-
-inline OpRegEntry& OpRegEntry::set_support_level(int32_t n) {  // NOLINT(*)
-  get()->support_level = n;
-  return *this;
-}
-
-template <typename ValueType>
-inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
-    const std::string& attr_name, const ValueType& value, int plevel) {
-  TVM_FFI_ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  UpdateAttr(attr_name, Any(value), plevel);
-  return *this;
-}
-
-// member functions of OpAttrMap
-
-template <typename ValueType>
-inline ValueType OpAttrMap<ValueType>::get(const Expr& expr, ValueType def_value) const {
-  TVM_FFI_ICHECK(expr.defined());
-  if (const OpNode* op = expr.as<OpNode>()) {
-    return this->map_.get(ffi::GetRef<Op>(op), def_value);
-  } else {
-    return def_value;
-  }
+OpAttrMap<ValueType> Op::GetAttrMap(const ffi::String& attr_name) {
+  return OpAttrMap<ValueType>(GetAttrColumn(attr_name), attr_name);
 }
 
 }  // namespace tvm

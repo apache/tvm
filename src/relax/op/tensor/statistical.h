@@ -35,32 +35,6 @@ namespace tvm {
 namespace relax {
 
 /*!
- * \brief Quick helper macro
- * - Expose a make function to construct the node.
- * - Register op to the registry.
- * \param OpName The name of operator to register. The name passed in will
- *  1. be prepended with a prefix "relax.op." as the FFI identifier string for the make function,
- *  2. be prepended with a prefix "relax." as the identifier string in the operator registry.
- */
-#define RELAX_REGISTER_STATISTICAL_OP_INTERFACE(OpName)                            \
-  Expr OpName(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {    \
-    ffi::ObjectPtr<StatisticalAttrs> attrs = ffi::make_object<StatisticalAttrs>(); \
-    attrs->axis = std::move(axis);                                                 \
-    attrs->keepdims = keepdims;                                                    \
-    static const Op& op = Op::Get("relax." #OpName);                               \
-    return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});            \
-  }                                                                                \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                    \
-    tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName);            \
-  }                                                                                \
-  TVM_REGISTER_OP("relax." #OpName)                                                \
-      .set_num_inputs(1)                                                           \
-      .add_argument("x", "Tensor", "The input data tensor")                        \
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)                    \
-      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)    \
-      .set_attr<bool>("FPurity", true)
-
-/*!
  * \brief Computes the maximum value of tensor elements over given axes.
  * \param x The input data tensor
  * \param axis Axis or axes along which a max is performed. Being `std::nullopt` means to max all

@@ -616,8 +616,8 @@ class AutoPadder {
     ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
       if (const auto* eval = op->body.as<EvaluateNode>()) {
         if (const auto* call = eval->value.as<CallNode>()) {
-          static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-          static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+          static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+          static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
           if (call->op.same_as(tvm_load_matrix_sync_op) ||
               call->op.same_as(tvm_store_matrix_sync_op)) {
             for (const MatchBufferRegion& r : op->match_buffers) {

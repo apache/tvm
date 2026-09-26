@@ -196,16 +196,18 @@ Call InferMixedPrecisionConv1d(const Call& call, DLDataType out_dtype) {
       .as_or_throw<Call>();
 }
 
-TVM_REGISTER_OP("relax.nn.conv1d")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_attrs_type<Conv1DAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypeConv1d)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.conv1d")
+      .arg("data", "The input tensor.")
+      .arg("weight", "The weight tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .attrs_type<Conv1DAttrs>()
+      .set_attr<FInferType>("FInferType", InferTypeConv1d)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1d)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.conv2d */
 
@@ -408,16 +410,18 @@ Call InferMixedPrecisionConv2d(const Call& call, DLDataType out_dtype) {
       .as_or_throw<Call>();
 }
 
-TVM_REGISTER_OP("relax.nn.conv2d")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_attrs_type<Conv2DAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypeConv2d)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2d)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.conv2d")
+      .arg("data", "The input tensor.")
+      .arg("weight", "The weight tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .attrs_type<Conv2DAttrs>()
+      .set_attr<FInferType>("FInferType", InferTypeConv2d)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2d)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.conv3d */
 
@@ -594,16 +598,18 @@ Call InferMixedPrecisionConv3d(const Call& call, DLDataType out_dtype) {
       .as_or_throw<Call>();
 }
 
-TVM_REGISTER_OP("relax.nn.conv3d")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_attrs_type<Conv3DAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypeConv3d)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3d)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.conv3d")
+      .arg("data", "The input tensor.")
+      .arg("weight", "The weight tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .attrs_type<Conv3DAttrs>()
+      .set_attr<FInferType>("FInferType", InferTypeConv3d)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3d)
+      .set_attr<bool>("FPurity", true);
+}
 
 Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
                       ffi::Array<int64_t> padding, ffi::Array<int64_t> output_padding,
@@ -636,7 +642,7 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
-  const Op& op = Op::Get("relax.nn.conv1d_transpose");
+  const Op op = Op::Get("relax.nn.conv1d_transpose");
   return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
@@ -774,16 +780,18 @@ Call InferMixedPrecisionConv1dTranspose(const Call& call, DLDataType out_dtype) 
       .as_or_throw<Call>();
 }
 
-TVM_REGISTER_OP("relax.nn.conv1d_transpose")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_attrs_type<Conv1DTransposeAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypeConv1dTranspose)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1dTranspose)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.conv1d_transpose")
+      .arg("data", "The input tensor.")
+      .arg("weight", "The weight tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .attrs_type<Conv1DTransposeAttrs>()
+      .set_attr<FInferType>("FInferType", InferTypeConv1dTranspose)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv1dTranspose)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.conv2d_transpose */
 
@@ -827,7 +835,7 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
-  const Op& op = Op::Get("relax.nn.conv2d_transpose");
+  const Op op = Op::Get("relax.nn.conv2d_transpose");
   return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
@@ -1003,16 +1011,18 @@ Call InferMixedPrecisionConv2dTranspose(const Call& call, DLDataType out_dtype) 
       .as_or_throw<Call>();
 }
 
-TVM_REGISTER_OP("relax.nn.conv2d_transpose")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_attrs_type<Conv2DTransposeAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypeConv2dTranspose)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2dTranspose)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.conv2d_transpose")
+      .arg("data", "The input tensor.")
+      .arg("weight", "The weight tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .attrs_type<Conv2DTransposeAttrs>()
+      .set_attr<FInferType>("FInferType", InferTypeConv2dTranspose)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv2dTranspose)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.nn.conv3d_transpose */
 
@@ -1059,7 +1069,7 @@ Expr conv3d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
-  const Op& op = Op::Get("relax.nn.conv3d_transpose");
+  const Op op = Op::Get("relax.nn.conv3d_transpose");
   return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
@@ -1243,16 +1253,18 @@ Call InferMixedPrecisionConv3dTranspose(const Call& call, DLDataType out_dtype) 
       .as_or_throw<Call>();
 }
 
-TVM_REGISTER_OP("relax.nn.conv3d_transpose")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("weight", "Tensor", "The weight tensor.")
-    .set_attrs_type<Conv3DTransposeAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypeConv3dTranspose)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3dTranspose)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.conv3d_transpose")
+      .arg("data", "The input tensor.")
+      .arg("weight", "The weight tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .attrs_type<Conv3DTransposeAttrs>()
+      .set_attr<FInferType>("FInferType", InferTypeConv3dTranspose)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3dTranspose)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

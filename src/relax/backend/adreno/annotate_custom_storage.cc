@@ -337,7 +337,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     GlobalVar gv;
     ffi::Array<Attrs> op_attrs;
     ffi::Optional<int64_t> op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);
@@ -495,7 +495,7 @@ class CollectProducerScopeInfo : public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     ExprVisitor::VisitBinding_(binding, call);
 
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     Type out_ty = Type::Missing();
 
     if (call->op.same_as(call_tir_op)) {
@@ -621,7 +621,7 @@ class DefineVDevice : ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) override {
     auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
 
     GlobalVar gv;
     Tuple func_args;
@@ -749,7 +749,7 @@ class DefineVDevice : ExprMutator {
     return std::nullopt;
   }
 
-  const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
+  const Op hint_on_device_op_ = Op::Get("relax.hint_on_device");
   IRModule mod_;
   IRModule updates_;
   Target target_;

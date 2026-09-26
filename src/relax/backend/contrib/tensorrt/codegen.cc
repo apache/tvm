@@ -125,7 +125,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   void SetArgumentAttributes(const CallNode* call_node) {
     const auto* op_node = call_node->op.as<OpNode>();
     if (op_node == nullptr) return;
-    const ffi::Array<ArgumentInfo>& arg_infos = op_node->arguments;
+    const ffi::Array<ArgumentInfo>& arg_infos = op_node->args_info;
     for (size_t i = 0; i < call_node->args.size() && i < arg_infos.size(); ++i) {
       const Expr& arg = call_node->args[i];
       const std::string key = "arg_" + std::string(arg_infos[i]->name);

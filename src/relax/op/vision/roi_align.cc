@@ -51,7 +51,7 @@ Expr roi_align(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spa
   attrs->layout = layout;
   attrs->mode = mode;
 
-  static const Op& op = Op::Get("relax.vision.roi_align");
+  static const Op op = Op::Get("relax.vision.roi_align");
   return Call(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
 }
 
@@ -128,15 +128,15 @@ Type InferTypeROIAlign(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.vision.roi_align")
-    .set_attrs_type<ROIAlignAttrs>()
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("rois", "Tensor",
-                  "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
-    .set_attr<FInferType>("FInferType", InferTypeROIAlign)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.vision.roi_align")
+      .arg("data", "The input tensor.")
+      .arg("rois", "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
+      .attrs_type<ROIAlignAttrs>()
+      .set_attr<FInferType>("FInferType", InferTypeROIAlign)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

@@ -75,13 +75,30 @@ Type InferDistTypeStatistical(const Call& call, const BlockBuilder& ctx) {
 
   return InferShardingSpec(call, ctx, output_tensor_ty, distributed::BuildAxisGraphReduce);
 }
-RELAX_REGISTER_STATISTICAL_DIST_INFER_TYPE(max);
-RELAX_REGISTER_STATISTICAL_DIST_INFER_TYPE(mean);
-RELAX_REGISTER_STATISTICAL_DIST_INFER_TYPE(min);
-RELAX_REGISTER_STATISTICAL_DIST_INFER_TYPE(prod);
-RELAX_REGISTER_STATISTICAL_DIST_INFER_TYPE(std);
-RELAX_REGISTER_STATISTICAL_DIST_INFER_TYPE(sum);
-RELAX_REGISTER_STATISTICAL_DIST_INFER_TYPE(variance);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.max")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical);
+
+  OpDef("relax.mean")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical);
+
+  OpDef("relax.min")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical);
+
+  OpDef("relax.prod")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical);
+
+  OpDef("relax.std")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical);
+
+  OpDef("relax.sum")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical);
+
+  OpDef("relax.variance")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeStatistical);
+  // clang-format on
+}
 
 }  // namespace distributed
 }  // namespace relax

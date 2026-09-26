@@ -117,7 +117,7 @@ Expr NormalizeToKnownPrimExpr(const BlockBuilder&, Call call) { return call; }
 //// relax.tensor_dtype_code
 
 Expr tensor_dtype_code(Expr expr) {
-  static const Op& op = Op::Get("relax.inspect.tensor_dtype_code");
+  static const Op op = Op::Get("relax.inspect.tensor_dtype_code");
   return Call(Type::Missing(), op, {expr});
 }
 
@@ -134,19 +134,20 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
   return Call(Type::Missing(), gvar_getter, {arg});
 }
 
-TVM_REGISTER_OP("relax.inspect.tensor_dtype_code")
-    .set_num_inputs(1)
-    .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferType>("FInferType", InferTypeTensorDtypeCode)
-    .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeCode)
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.inspect.tensor_dtype_code")
+      .arg("tensor", "The tensor to be inspected")
+      .set_attr<FInferType>("FInferType", InferTypeTensorDtypeCode)
+      .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeCode)
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
+      .set_attr<bool>("FPurity", true);
+}
 
 //// relax.tensor_dtype_bits
 
 Expr tensor_dtype_bits(Expr expr) {
-  static const Op& op = Op::Get("relax.inspect.tensor_dtype_bits");
+  static const Op op = Op::Get("relax.inspect.tensor_dtype_bits");
   return Call(Type::Missing(), op, {expr});
 }
 
@@ -163,19 +164,20 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
   return Call(Type::Missing(), gvar_getter, {arg});
 }
 
-TVM_REGISTER_OP("relax.inspect.tensor_dtype_bits")
-    .set_num_inputs(1)
-    .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferType>("FInferType", InferTypeTensorDtypeBits)
-    .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeBits)
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.inspect.tensor_dtype_bits")
+      .arg("tensor", "The tensor to be inspected")
+      .set_attr<FInferType>("FInferType", InferTypeTensorDtypeBits)
+      .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeBits)
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
+      .set_attr<bool>("FPurity", true);
+}
 
 //// relax.tensor_dtype_lanes
 
 Expr tensor_dtype_lanes(Expr expr) {
-  static const Op& op = Op::Get("relax.inspect.tensor_dtype_lanes");
+  static const Op op = Op::Get("relax.inspect.tensor_dtype_lanes");
   return Call(Type::Missing(), op, {expr});
 }
 
@@ -192,19 +194,20 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
   return Call(Type::Missing(), gvar_getter, {arg});
 }
 
-TVM_REGISTER_OP("relax.inspect.tensor_dtype_lanes")
-    .set_num_inputs(1)
-    .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferType>("FInferType", InferTypeTensorDtypeLanes)
-    .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeLanes)
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.inspect.tensor_dtype_lanes")
+      .arg("tensor", "The tensor to be inspected")
+      .set_attr<FInferType>("FInferType", InferTypeTensorDtypeLanes)
+      .set_attr<FLegalize>("FLegalize", LegalizeTensorDtypeLanes)
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
+      .set_attr<bool>("FPurity", true);
+}
 
 //// relax.tensor_ndim
 
 Expr tensor_ndim(Expr expr) {
-  static const Op& op = Op::Get("relax.inspect.tensor_ndim");
+  static const Op op = Op::Get("relax.inspect.tensor_ndim");
   return Call(Type::Missing(), op, {expr});
 }
 
@@ -221,19 +224,20 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
   return Call(Type::Missing(), gvar_getter, {arg});
 }
 
-TVM_REGISTER_OP("relax.inspect.tensor_ndim")
-    .set_num_inputs(1)
-    .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferType>("FInferType", InferTypeTensorNDim)
-    .set_attr<FLegalize>("FLegalize", LegalizeTensorNDim)
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.inspect.tensor_ndim")
+      .arg("tensor", "The tensor to be inspected")
+      .set_attr<FInferType>("FInferType", InferTypeTensorNDim)
+      .set_attr<FLegalize>("FLegalize", LegalizeTensorNDim)
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
+      .set_attr<bool>("FPurity", true);
+}
 
 //// relax.tensor_shape_i
 
 Expr tensor_shape_i(Expr expr) {
-  static const Op& op = Op::Get("relax.inspect.tensor_shape_i");
+  static const Op op = Op::Get("relax.inspect.tensor_shape_i");
   return Call(Type::Missing(), op, {expr});
 }
 
@@ -300,20 +304,22 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   return Call(Type::Missing(), gvar_getter, call->args);
 }
 
-TVM_REGISTER_OP("relax.inspect.tensor_shape_i")
-    .set_num_inputs(2)
-    .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
-    .set_attr<FInferType>("FInferType", InferTypeTensorShape)
-    .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.inspect.tensor_shape_i")
+      .arg_types<Expr, PrimExpr>()
+      .arg("tensor", "The tensor to be inspected")
+      .arg("axis", "The axis whose extent should be returned")
+      .set_attr<FInferType>("FInferType", InferTypeTensorShape)
+      .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
+      .set_attr<bool>("FPurity", true);
+}
 
 //// relax.tensor_stride_i
 
 Expr tensor_stride_i(Expr expr) {
-  static const Op& op = Op::Get("relax.inspect.tensor_stride_i");
+  static const Op op = Op::Get("relax.inspect.tensor_stride_i");
   return Call(Type::Missing(), op, {expr});
 }
 
@@ -348,19 +354,21 @@ Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
   }
 }
 
-TVM_REGISTER_OP("relax.inspect.tensor_stride_i")
-    .set_num_inputs(2)
-    .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .add_argument("axis", "Prim(int64)", "The axis whose extent should be returned")
-    .set_attr<FInferType>("FInferType", InferTypeTensorStride)
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.inspect.tensor_stride_i")
+      .arg_types<Expr, PrimExpr>()
+      .arg("tensor", "The tensor to be inspected")
+      .arg("axis", "The axis whose extent should be returned")
+      .set_attr<FInferType>("FInferType", InferTypeTensorStride)
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
+      .set_attr<bool>("FPurity", true);
+}
 
 //// relax.tensor_byte_offset
 
 Expr tensor_byte_offset(Expr expr) {
-  static const Op& op = Op::Get("relax.inspect.tensor_byte_offset");
+  static const Op op = Op::Get("relax.inspect.tensor_byte_offset");
   return Call(Type::Missing(), op, {expr});
 }
 
@@ -380,18 +388,19 @@ Type InferTypeTensorByteOffset(const Call& call, const BlockBuilder&) {
   }
 }
 
-TVM_REGISTER_OP("relax.inspect.tensor_byte_offset")
-    .set_num_inputs(1)
-    .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferType>("FInferType", InferTypeTensorByteOffset)
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.inspect.tensor_byte_offset")
+      .arg("tensor", "The tensor to be inspected")
+      .set_attr<FInferType>("FInferType", InferTypeTensorByteOffset)
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
+      .set_attr<bool>("FPurity", true);
+}
 
 //// relax.tensor_elem_offset
 
 Expr tensor_elem_offset(Expr expr) {
-  static const Op& op = Op::Get("relax.inspect.tensor_elem_offset");
+  static const Op op = Op::Get("relax.inspect.tensor_elem_offset");
   return Call(Type::Missing(), op, {expr});
 }
 
@@ -411,13 +420,14 @@ Type InferTypeTensorElemOffset(const Call& call, const BlockBuilder&) {
   }
 }
 
-TVM_REGISTER_OP("relax.inspect.tensor_elem_offset")
-    .set_num_inputs(1)
-    .add_argument("tensor", "Tensor", "The tensor to be inspected")
-    .set_attr<FInferType>("FInferType", InferTypeTensorElemOffset)
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.inspect.tensor_elem_offset")
+      .arg("tensor", "The tensor to be inspected")
+      .set_attr<FInferType>("FInferType", InferTypeTensorElemOffset)
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace inspect
 }  // namespace relax

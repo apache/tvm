@@ -1399,7 +1399,7 @@ bool HasIfThenElse(const Stmt& stmt) {
     return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
   };
   auto visit_call = [](const Call& call) -> ffi::Expected<ffi::WalkResult> {
-    static const Op& if_then_else_op = Op::Get("prim.if_then_else");
+    static const Op if_then_else_op = Op::Get("prim.if_then_else");
     if (call->op.same_as(if_then_else_op)) {
       return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
     }

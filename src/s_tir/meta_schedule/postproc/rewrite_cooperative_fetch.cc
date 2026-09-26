@@ -102,8 +102,8 @@ size_t GetMaxUsedDtypeBytes(SBlock block) {
     return ffi::WalkResult::Advance();
   };
   auto visit_call = [&](const Call& call) -> ffi::Expected<ffi::WalkResult> {
-    static const Op& q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");
-    static const Op& q_multiply_shift_op = Op::Get("tirx.q_multiply_shift");
+    static const Op q_multiply_shift_per_axis_op = Op::Get("tirx.q_multiply_shift_per_axis");
+    static const Op q_multiply_shift_op = Op::Get("tirx.q_multiply_shift");
     if (call->op.same_as(q_multiply_shift_per_axis_op) || call->op.same_as(q_multiply_shift_op)) {
       // q_multiply_shift uses 64 bit multiply
       max_bytes = std::max<size_t>(max_bytes, 8);

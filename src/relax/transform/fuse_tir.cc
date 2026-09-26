@@ -346,8 +346,8 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) {
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
     TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_))
         << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
@@ -558,8 +558,8 @@ class FusedTIRConstructor : public ExprVisitor {
 
   void VisitExpr_(const CallNode* call) final {
     ExprVisitor::VisitExpr_(call);
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
     TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_))
         << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
@@ -636,8 +636,8 @@ class FusedTIRConstructor : public ExprVisitor {
    * \return The number of outputs.
    */
   static ffi::Array<ffi::Array<PrimExpr>> GetCallTIROutputShapes(const CallNode* call) {
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
     TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_));
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1);
     auto get_tensor_shape =
@@ -1073,8 +1073,8 @@ class TIRFuseMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
     Call call = builder_->Normalize(ExprMutator::VisitExpr_(op)).as_or_throw<Call>();
 

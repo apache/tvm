@@ -36,42 +36,89 @@ Type InferDistTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
 
 /***************** Arithmetic operators *****************/
 
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(add);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(divide);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(floor_divide);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(multiply);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(power);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(subtract);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(mod);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(floor_mod);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.add")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
 
-/***************** Comparison operators *****************/
+  OpDef("relax.divide")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
 
-RELAX_REGISTER_CMP_DIST_INFER_TYPE(equal);
-RELAX_REGISTER_CMP_DIST_INFER_TYPE(greater);
-RELAX_REGISTER_CMP_DIST_INFER_TYPE(greater_equal);
-RELAX_REGISTER_CMP_DIST_INFER_TYPE(less);
-RELAX_REGISTER_CMP_DIST_INFER_TYPE(less_equal);
-RELAX_REGISTER_CMP_DIST_INFER_TYPE(not_equal);
+  OpDef("relax.floor_divide")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
 
-/***************** Min/Max operators *****************/
+  OpDef("relax.multiply")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
 
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(minimum);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(maximum);
+  OpDef("relax.power")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
 
-/***************** Logical operators *****************/
+  OpDef("relax.subtract")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
 
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(logical_and);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(logical_or);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(logical_xor);
+  OpDef("relax.mod")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
 
-/***************** Bitwise operators *****************/
+  OpDef("relax.floor_mod")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
 
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(bitwise_and);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(bitwise_or);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(bitwise_xor);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(left_shift);
-RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(right_shift);
+  /***************** Comparison operators *****************/
+
+  OpDef("relax.equal")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP);
+
+  OpDef("relax.greater")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP);
+
+  OpDef("relax.greater_equal")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP);
+
+  OpDef("relax.less")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP);
+
+  OpDef("relax.less_equal")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP);
+
+  OpDef("relax.not_equal")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP);
+
+  /***************** Min/Max operators *****************/
+
+  OpDef("relax.minimum")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+
+  OpDef("relax.maximum")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+
+  /***************** Logical operators *****************/
+
+  OpDef("relax.logical_and")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+
+  OpDef("relax.logical_or")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+
+  OpDef("relax.logical_xor")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+
+  /***************** Bitwise operators *****************/
+
+  OpDef("relax.bitwise_and")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+
+  OpDef("relax.bitwise_or")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+
+  OpDef("relax.bitwise_xor")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+
+  OpDef("relax.left_shift")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+
+  OpDef("relax.right_shift")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith);
+  // clang-format on
+}
 
 }  // namespace distributed
 }  // namespace relax

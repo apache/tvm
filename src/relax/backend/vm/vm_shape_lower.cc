@@ -933,8 +933,8 @@ class VMShapeLowerMutator
    */
   std::vector<PrimExprSlot*> ready_vars_;
   // call builtin cop
-  const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
-  const Op& null_value_op_ = Op::Get("relax.null_value");
+  const Op call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
+  const Op null_value_op_ = Op::Get("relax.null_value");
   // common type
   const Type object_ty_ = AnyType();
   const Type void_ty_ = TupleType(ffi::Array<Type>({}));

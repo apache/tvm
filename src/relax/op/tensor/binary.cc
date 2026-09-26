@@ -35,12 +35,7 @@ using namespace tvm::prim;
 
 template <typename FType>
 Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
-  Op op = call->op.as_or_throw<Op>();
-  size_t n_input = op->arguments.size();
-  if (call->args.size() != n_input) {
-    TVM_FFI_VISIT_THROW(ValueError, call)
-        << call->op << " op should have " << n_input << " arguments";
-  }
+  CheckNumArguments(call, ctx);
 
   auto lhs_ty = GetType(call->args[0]);
   auto rhs_ty = GetType(call->args[1]);
@@ -194,44 +189,431 @@ InferLayoutOutput InferLayoutBinaryEwise(
 
 /***************** Arithmetic operators *****************/
 
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(add);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(divide);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(floor_divide);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(log_add_exp);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(multiply);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(power);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(atan2);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(subtract);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(mod);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(floor_mod);
+Expr add(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.add");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
 
-/***************** Comparison operators *****************/
+Expr divide(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.divide");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
 
-RELAX_REGISTER_CMP_OP_AND_IMPL(equal);
-RELAX_REGISTER_CMP_OP_AND_IMPL(greater);
-RELAX_REGISTER_CMP_OP_AND_IMPL(greater_equal);
-RELAX_REGISTER_CMP_OP_AND_IMPL(less);
-RELAX_REGISTER_CMP_OP_AND_IMPL(less_equal);
-RELAX_REGISTER_CMP_OP_AND_IMPL(not_equal);
+Expr floor_divide(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.floor_divide");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
 
-/***************** Min/Max operators *****************/
+Expr log_add_exp(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.log_add_exp");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
 
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(minimum);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(maximum);
+Expr multiply(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.multiply");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
 
-/***************** Logical operators *****************/
+Expr power(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.power");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
 
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(logical_and);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(logical_or);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(logical_xor);
+Expr atan2(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.atan2");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
 
-/***************** Bitwise operators *****************/
+Expr subtract(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.subtract");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
 
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(bitwise_and);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(bitwise_or);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(bitwise_xor);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(left_shift);
-RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(right_shift);
+Expr mod(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.mod");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr floor_mod(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.floor_mod");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr equal(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.equal");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr greater(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.greater");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr greater_equal(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.greater_equal");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr less(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.less");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr less_equal(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.less_equal");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr not_equal(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.not_equal");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr minimum(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.minimum");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr maximum(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.maximum");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr logical_and(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.logical_and");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr logical_or(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.logical_or");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr logical_xor(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.logical_xor");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr bitwise_and(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.bitwise_and");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr bitwise_or(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.bitwise_or");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr bitwise_xor(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.bitwise_xor");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr left_shift(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.left_shift");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+Expr right_shift(Expr x1, Expr x2) {
+  static const Op op = Op::Get("relax.right_shift");
+  return Call(Type::Missing(), op, {x1, x2}, Attrs(), {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  tvm::ffi::reflection::GlobalDef().def("relax.op.add", add);
+
+  OpDef("relax.add")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.divide", divide);
+
+  OpDef("relax.divide")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.floor_divide", floor_divide);
+
+  OpDef("relax.floor_divide")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.log_add_exp", log_add_exp);
+
+  OpDef("relax.log_add_exp")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.multiply", multiply);
+
+  OpDef("relax.multiply")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.power", power);
+
+  OpDef("relax.power")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.atan2", atan2);
+
+  OpDef("relax.atan2")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.subtract", subtract);
+
+  OpDef("relax.subtract")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.mod", mod);
+
+  OpDef("relax.mod")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.floor_mod", floor_mod);
+
+  OpDef("relax.floor_mod")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  /***************** Comparison operators *****************/
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.equal", equal);
+
+  OpDef("relax.equal")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastCMP);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.greater", greater);
+
+  OpDef("relax.greater")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastCMP);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.greater_equal", greater_equal);
+
+  OpDef("relax.greater_equal")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastCMP);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.less", less);
+
+  OpDef("relax.less")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastCMP);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.less_equal", less_equal);
+
+  OpDef("relax.less_equal")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastCMP);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.not_equal", not_equal);
+
+  OpDef("relax.not_equal")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastCMP);
+
+  /***************** Min/Max operators *****************/
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.minimum", minimum);
+
+  OpDef("relax.minimum")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.maximum", maximum);
+
+  OpDef("relax.maximum")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  /***************** Logical operators *****************/
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.logical_and", logical_and);
+
+  OpDef("relax.logical_and")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.logical_or", logical_or);
+
+  OpDef("relax.logical_or")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.logical_xor", logical_xor);
+
+  OpDef("relax.logical_xor")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  /***************** Bitwise operators *****************/
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.bitwise_and", bitwise_and);
+
+  OpDef("relax.bitwise_and")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.bitwise_or", bitwise_or);
+
+  OpDef("relax.bitwise_or")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.bitwise_xor", bitwise_xor);
+
+  OpDef("relax.bitwise_xor")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.left_shift", left_shift);
+
+  OpDef("relax.left_shift")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+
+  tvm::ffi::reflection::GlobalDef().def("relax.op.right_shift", right_shift);
+
+  OpDef("relax.right_shift")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBinaryEwise)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastArith);
+}
 
 }  // namespace relax
 }  // namespace tvm

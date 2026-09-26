@@ -1197,11 +1197,7 @@ def opt_conv_tensorcore_mod_host():
         stack_tcode[0] = 0
         T.evaluate(T.tvm_struct_set(stack_value, 1, 12, T.cast(dev_id, "int64"), dtype="int32"))
         stack_tcode[1] = 0
-        T.evaluate(
-            T.tvm_call_packed_lowered(
-                "__tvm_set_device", stack_value, stack_tcode.data, 0, 2, dtype="int32"
-            )
-        )
+        T.evaluate(T.tvm_call_packed_lowered("__tvm_set_device", stack_value, 0, 2, dtype="int32"))
         T.attr(0, "compute_scope", "default_function_compute_")
         T.evaluate(T.tvm_struct_set(stack_value, 0, 12, A, dtype="int32"))
         stack_tcode[0] = 3
@@ -1222,9 +1218,7 @@ def opt_conv_tensorcore_mod_host():
         T.evaluate(T.tvm_struct_set(stack_value, 8, 12, T.cast(32, "int64"), dtype="int32"))
         stack_tcode[8] = 0
         T.evaluate(
-            T.tvm_call_packed_lowered(
-                "default_function_kernel0", stack_value, stack_tcode.data, 0, 9, dtype="int32"
-            )
+            T.tvm_call_packed_lowered("default_function_kernel0", stack_value, 0, 9, dtype="int32")
         )
 
     return opt_conv_tensorcore_mod_host
