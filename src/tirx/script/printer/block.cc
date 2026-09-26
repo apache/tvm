@@ -237,8 +237,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(s_tir::SBlockNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(s_tir::SBlockRealizeNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<s_tir::SBlockNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<s_tir::SBlockRealizeNode>(ReprPrintTIR);
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::ScopeIdDefStmt>(
@@ -283,7 +285,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::ScopeIdDefStmtNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() { TVMScriptPrinter::Register<tirx::ScopeIdDefStmtNode>(ReprPrintTIR); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::ExecScope>(
@@ -292,7 +294,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return doc;
       });
 }
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::ExecScopeNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() { TVMScriptPrinter::Register<tirx::ExecScopeNode>(ReprPrintTIR); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::ScopeIdDef>(
@@ -308,7 +310,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return doc;
       });
 }
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::ScopeIdDefNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() { TVMScriptPrinter::Register<tirx::ScopeIdDefNode>(ReprPrintTIR); }
 
 }  // namespace printer
 }  // namespace script
