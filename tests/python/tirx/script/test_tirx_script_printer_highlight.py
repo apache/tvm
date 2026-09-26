@@ -14,41 +14,31 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
 
-import pytest
+"""TIRx script printer highlight."""
 
 import tvm
 import tvm.testing
-from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.script.highlight import _format, cprint
 
 
 def test_highlight_script():
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func
+        @T.prim_func
         def main(  # type: ignore
             A: T.Buffer([16, 128, 128]),
             B: T.Buffer([16, 128, 128]),
             C: T.Buffer([16, 128, 128]),
         ) -> None:  # pylint: disable=no-self-argument
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-
-            for n, i, j, k in T.grid(16, 128, 128, 128):
-                with Ts.sblock("matmul"):
-                    vn, vi, vj, vk = Ts.axis.remap("SSSR", [n, i, j, k])
-                    with Ts.init():
-                        C[vn, vi, vj] = 0.0  # type: ignore
-                    C[vn, vi, vj] = C[vn, vi, vj] + A[vn, vi, vk] * B[vn, vj, vk]
+            for n, i, j in T.grid(16, 128, 128):
+                C[n, i, j] = 0.0  # type: ignore
+                for k in T.serial(128):
+                    C[n, i, j] = C[n, i, j] + A[n, i, k] * B[n, j, k]
 
     Module.show()
     Module["main"].show()
     Module["main"].show(style="light")
     Module["main"].show(style="dark")
     Module["main"].show(style="ansi")
-
-
-if __name__ == "__main__":
-    tvm.testing.main()
