@@ -172,7 +172,11 @@ class Axis : public ffi::Enum {
  public:
   Axis() = default;
 
-  /*! \brief Get the axis object by name. */
+  /*!
+   * \brief Get or create the axis with the given name.
+   * \param name Name of the axis to look up or register.
+   * \return The registered axis singleton.
+   */
   TVM_DLL static Axis Get(const ffi::String& name);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Axis, ffi::Enum, AxisNode);

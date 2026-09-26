@@ -39,7 +39,7 @@ def test_axis_enum_identity_and_attributes():
     assert Axis.m.is_memory()
     assert Axis.bx.get_scope().name == "thread"
     assert Axis.bx.get_subscope().name == "cta"
-    assert TileLayout(S[4: 1 @ axis]).shard[0].axis.same_as(axis)
+    assert TileLayout(S[4 : 1 @ axis]).shard[0].axis.same_as(axis)
 
 
 def test_axis_unknown_name_and_json_roundtrip():

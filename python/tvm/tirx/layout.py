@@ -519,7 +519,10 @@ class Axis(Enum, metaclass=_AxisMeta, type_key="tirx.Axis", init=False):
 
     @classmethod
     def get(cls, name: str) -> "Axis":
-        """Get or create an axis by name. Unknown names are auto-registered."""
+        """Get or create the axis singleton named `name`.
+
+        Unknown names are registered without thread or memory attributes.
+        """
         return _ffi_api.AxisGet(name)  # pylint: disable=no-member
 
     def is_thread(self) -> bool:

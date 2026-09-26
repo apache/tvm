@@ -495,8 +495,9 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
     // (`ffi::Map` iteration order is implementation-defined).
     std::vector<std::pair<tirx::Axis, PrimExpr>> sorted_offset(layout->offset.begin(),
                                                                layout->offset.end());
-    std::sort(sorted_offset.begin(), sorted_offset.end(),
-              [](const auto& a, const auto& b) { return a.first->_str_index < b.first->_str_index; });
+    std::sort(sorted_offset.begin(), sorted_offset.end(), [](const auto& a, const auto& b) {
+      return a.first->_str_index < b.first->_str_index;
+    });
 
     // Build the offset as a single arithmetic expression first, then add it
     // to the spec in one `+`. Chaining `spec + term1 + term2` would re-enter

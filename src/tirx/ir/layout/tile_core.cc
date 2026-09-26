@@ -318,7 +318,8 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) con
     if (it == result.end()) {
       result[shard[i]->axis->_str_index] = analyzer->Simplify(coord[i] * shard[i]->stride);
     } else {
-      result[shard[i]->axis->_str_index] = analyzer->Simplify(it->second + coord[i] * shard[i]->stride);
+      result[shard[i]->axis->_str_index] =
+          analyzer->Simplify(it->second + coord[i] * shard[i]->stride);
     }
   }
   // Add offset to the result
