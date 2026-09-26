@@ -43,7 +43,6 @@
 #include <unordered_set>
 #include <utility>
 
-#include "../../ir/attr_registry.h"
 #include "../../runtime/thread_storage_scope.h"
 #include "../../sym/pattern_match.h"
 #include "../support/array_utils.h"

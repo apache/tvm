@@ -31,7 +31,6 @@
 #include <numeric>
 #include <vector>
 
-#include "../../../ir/attr_registry.h"
 
 namespace tvm {
 namespace tirx {
