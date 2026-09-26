@@ -952,7 +952,7 @@ def test_datatype_value_roundtrip(language):
     spelling = 'I.dtype("float32")'
     source = f"@M.function\ndef main():\n    M.record({spelling})\n"
     value = entry.parse(source, extra_vars={"M": language.M, "I": I}).body[0][1]
-    ir.assert_structural_equal(value, ir.GenericConst(DataType("float32"), ir.AnyType()))
+    ir.assert_structural_equal(value, ir.DataTypeImm(DataType("float32")))
     printed = ir.IRModule(attrs={"dtype": value}).script()
     assert f'I.module_attrs({{"dtype": {spelling}}})' in printed
 

@@ -38,6 +38,7 @@ from .expr import (
     Call,
     Constant,
     GenericConst,
+    DataTypeImm,
     StringImm,
     Expr,
     ExprOperand,

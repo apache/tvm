@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 """The builtin Relax operators."""
 
-import tvm
-from tvm.ir import Call, GenericConst, StringImm
+from tvm.ir import Call, DataTypeImm, GenericConst, StringImm
 
 from ...expr import Expr, prim_value
 from ...utils import convert_to_expr
@@ -53,8 +52,8 @@ def alloc_tensor(
     """
     if not isinstance(shape, Expr):
         shape = convert_to_expr(shape)
-    if isinstance(dtype, str):
-        dtype = GenericConst(tvm.DataType(dtype), tvm.relax.AnyType())
+    if isinstance(dtype, str | GenericConst):
+        dtype = DataTypeImm(dtype.value if isinstance(dtype, GenericConst) else dtype)
     if isinstance(runtime_device_index, int):
         runtime_device_index = prim_value(runtime_device_index)
     if isinstance(storage_scope, str):

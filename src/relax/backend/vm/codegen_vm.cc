@@ -260,6 +260,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const StringImmNode* op) final {
     return builder_->ConvertConstant(op->value);
   }
+  Instruction::Arg VisitExpr_(const DataTypeImmNode* op) final {
+    return builder_->ConvertConstant(op->value);
+  }
 
   Instruction::Arg VisitExpr_(const TupleNode* op) final {
     Tuple tuple = ffi::GetRef<Tuple>(op);

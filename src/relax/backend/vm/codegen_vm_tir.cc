@@ -358,6 +358,9 @@ class CodeGenVMTIR : public ExprFunctor<ffi::Optional<Expr>(const Expr&)> {
   ffi::Optional<Expr> VisitExpr_(const StringImmNode* op) final {
     return ConstListGet(builder_->ConvertConstant(op->value).value());
   }
+  ffi::Optional<Expr> VisitExpr_(const DataTypeImmNode* op) final {
+    return ConstListGet(builder_->ConvertConstant(op->value).value());
+  }
 
   ffi::Optional<Expr> VisitExpr_(const TupleNode* op) final {
     Tuple tuple = ffi::GetRef<Tuple>(op);

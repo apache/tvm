@@ -68,6 +68,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       Dispatch_(constant, path);
     } else if (auto* str = obj.as<StringImmNode>()) {
       Dispatch_(str, path);
+    } else if (auto* str = obj.as<DataTypeImmNode>()) {
+      Dispatch_(str, path);
     } else if (auto* var = obj.as<VarNode>()) {
       Dispatch_(var, path);
     } else if (auto* call = obj.as<CallNode>()) {
@@ -169,6 +171,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const IntImmNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const FloatImmNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const StringImmNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const DataTypeImmNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const GenericConstNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::LetNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const prim::AddNode* op, ffi::reflection::AccessPath path) override;

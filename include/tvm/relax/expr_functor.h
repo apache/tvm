@@ -163,6 +163,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
   virtual R VisitExpr_(const OpNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const TupleGetItemNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const StringImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const DataTypeImmNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::LetNode* op, Args...) EXPR_FUNCTOR_DISABLED;
   virtual R VisitExpr_(const prim::AddNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const prim::LShiftNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -251,6 +252,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(OpNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(TupleGetItemNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(StringImmNode);
+    RELAX_EXPR_FUNCTOR_DISPATCH(DataTypeImmNode);
     vtable.Finalize();
     return vtable;
   }
@@ -285,6 +287,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   void VisitExpr_(const OpNode* op) override;
   void VisitExpr_(const TupleGetItemNode* op) override;
   void VisitExpr_(const StringImmNode* op) override;
+  void VisitExpr_(const DataTypeImmNode* op) override;
   void VisitExpr_(const prim::AddNode* op) override;
   void VisitExpr_(const prim::LShiftNode* op) override;
   void VisitExpr_(const prim::RShiftNode* op) override;
@@ -341,6 +344,7 @@ class ExprVisitor : public ExprFunctor<void(const Expr&)> {
   virtual void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const ExprNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const StringImmNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const DataTypeImmNode* val);
   /*!
    * \brief Generic dispatcher for binding blocks.
    * \param block The binding block to be visited.
@@ -443,6 +447,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   Expr VisitExpr_(const OpNode* op) override;
   Expr VisitExpr_(const TupleGetItemNode* op) override;
   Expr VisitExpr_(const StringImmNode* op) override;
+  Expr VisitExpr_(const DataTypeImmNode* op) override;
   Expr VisitExpr_(const prim::AddNode* op) override;
   Expr VisitExpr_(const prim::LShiftNode* op) override;
   Expr VisitExpr_(const prim::RShiftNode* op) override;
@@ -594,6 +599,7 @@ class ExprMutator : public ExprMutatorBase {
   virtual void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const ExprNode* val);
   virtual void VisitBinding_(const VarBindingNode* binding, const StringImmNode* val);
+  virtual void VisitBinding_(const VarBindingNode* binding, const DataTypeImmNode* val);
   /*!
    * \brief Generic dispatcher for binding blocks.
    * \param block The binding block to be visited.

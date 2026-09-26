@@ -132,7 +132,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<::tvm::GenericConst>(  //
       "relax", [](::tvm::GenericConst n, AccessPath n_p, IRDocsifier d) -> Doc {
         if (n->value.as<DLDataType>()) {
-          // DataType values use the shared spelling.
           return IRDocsifier::vtable()("", n, n_p, d);
         }
         auto data = n->value.cast<runtime::Tensor>();
@@ -180,6 +179,7 @@ TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeExprNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(VarNode, ReprPrintVar);
 TVM_REGISTER_SCRIPT_AS_REPR(relax::DataflowVarNode, ReprPrintRelax);
 TVM_REGISTER_SCRIPT_AS_REPR(::tvm::GenericConstNode, ReprPrintRelax);
+TVM_REGISTER_SCRIPT_AS_REPR(::tvm::DataTypeImmNode, ReprPrintRelax);
 
 }  // namespace printer
 }  // namespace script

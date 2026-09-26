@@ -26,6 +26,14 @@ namespace script {
 namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<DataTypeImm>(
+      "", [](DataTypeImm n, AccessPath p, IRDocsifier d) -> Doc {
+        return TIR(d, "dtype")->Call({LiteralDoc::DataType(n->value, p->Attr("value"))});
+      });
+  IRDocsifier::vtable().set_dispatch<DataTypeImm>(
+      "ir", [](DataTypeImm n, AccessPath p, IRDocsifier d) -> Doc {
+        return IR(d, "dtype")->Call({LiteralDoc::DataType(n->value, p->Attr("value"))});
+      });
   IRDocsifier::vtable().set_dispatch<GenericConst>(
       "", [](GenericConst n, AccessPath p, IRDocsifier d) -> Doc {
         if (auto dtype = n->value.as<DLDataType>()) {

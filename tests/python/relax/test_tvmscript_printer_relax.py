@@ -434,7 +434,7 @@ def test_string_imm():
 
 
 def test_data_type_imm():
-    obj = tvm.ir.GenericConst(tvm.DataType("float32"), tvm.relax.AnyType())
+    obj = tvm.ir.DataTypeImm(tvm.DataType("float32"))
     _assert_print(obj, 'T.dtype("float32")')
 
 

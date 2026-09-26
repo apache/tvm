@@ -681,11 +681,11 @@ def test_string_imm():
 
 
 def test_datatype_imm():
-    data_type_imm = tvm.ir.GenericConst(tvm.DataType("int32"), tvm.relax.AnyType())
+    data_type_imm = tvm.ir.DataTypeImm(tvm.DataType("int32"))
     data_type_str = strip_whitespace(dump_ast(data_type_imm))
     assert data_type_str == strip_whitespace(
         """
-        GenericConst(
+        DataTypeImm(
             value=int32,
             ty=AnyType()
         )

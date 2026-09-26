@@ -141,6 +141,16 @@ def upgrade_json(json_str):
     nodes = data.get("nodes", [])
     buffer_region_type = None
     for node in nodes:
+        if node.get("type") == "ir.GenericConst":
+            fields = node.get("data", {})
+            value_index = fields.get("value")
+            if (
+                isinstance(value_index, int)
+                and 0 <= value_index < len(nodes)
+                and nodes[value_index].get("type") == "DataType"
+            ):
+                node["type"] = "ir.DataTypeImm"
+                fields["value"] = nodes[value_index]["data"]
         if node.get("type") == "tirx.BufferRegion":
             fields = node.get("data")
             if not isinstance(fields, dict) or "buffer" not in fields:

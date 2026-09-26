@@ -364,6 +364,7 @@ DEFINE_BINOP_VISIT_(prim::BitwiseXorNode);
 void TIRVisitorWithPath::Dispatch_(const IntImmNode* op, AccessPath path) {}
 void TIRVisitorWithPath::Dispatch_(const FloatImmNode* op, AccessPath path) {}
 void TIRVisitorWithPath::Dispatch_(const StringImmNode* op, AccessPath path) {}
+void TIRVisitorWithPath::Dispatch_(const DataTypeImmNode* op, AccessPath path) {}
 void TIRVisitorWithPath::Dispatch_(const GenericConstNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const prim::CastNode* op, AccessPath path) {

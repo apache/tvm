@@ -86,14 +86,14 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   Expr MakeMemAllocStorage(const Call& call) {
     PrimExpr runtime_device_index = call->args[1].as_or_throw<PrimExpr>();
     StringImm storage_scope = call->args[2].as_or_throw<StringImm>();
-    GenericConst output_dtype = GenericConst((DLDataType{kDLUInt, 8, 1}), AnyType());
+    DataTypeImm output_dtype = DataTypeImm((DLDataType{kDLUInt, 8, 1}));
     return Call(Type::Missing(), vm_alloc_storage_op_,
                 {call->args[0], runtime_device_index, output_dtype, storage_scope}, Attrs());
   }
 
   Expr MakeMemAllocTensor(const Call& call) {
     PrimExpr offset = call->args[1].as_or_throw<PrimExpr>();
-    GenericConst dtype = call->args[3].as_or_throw<GenericConst>();
+    DataTypeImm dtype = call->args[3].as_or_throw<DataTypeImm>();
 
     ffi::Array<Expr> call_args = {call->args[0], offset, call->args[2], dtype};
     if (5 == call->args.size()) {
