@@ -142,11 +142,6 @@ using FAxisSplitter = ffi::TypedFunction<ffi::Array<Iter, void>(Target, ffi::Str
 // Axis
 class AxisNode : public ffi::EnumObj {
  public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AxisNode>().def_ro("name", &AxisNode::_str_index);
-  }
-
   /*! \brief Check if the axis is a thread axis. */
   bool IsThreadAxis() const;
 
@@ -171,6 +166,9 @@ class AxisNode : public ffi::EnumObj {
 class Axis : public ffi::Enum {
  public:
   Axis() = default;
+
+  /*! \brief Return the canonical axis name. */
+  const ffi::String& name() const { return get()->_str_index; }
 
   /*!
    * \brief Get or create the axis with the given name.

@@ -34,11 +34,16 @@ ffi::ObjectPtr<ffi::Object> CreateAxis(const std::string& name) {
   return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<ffi::Object>(axis);
 }
 
+const ffi::EnumState& AxisEnumState() {
+  static refl::TypeAttrColumn state_column(refl::type_attr::kEnumState);
+  static ffi::EnumState state =
+      ffi::Any(state_column[AxisNode::_GetOrAllocRuntimeTypeIndex()]).as_or_throw<ffi::EnumState>();
+  return state;
+}
+
 template <typename T>
 ffi::Optional<T> AxisAttr(const AxisNode* axis, const char* key) {
-  static refl::TypeAttrColumn state_column(refl::type_attr::kEnumState);
-  ffi::EnumState state =
-      state_column[AxisNode::_GetOrAllocRuntimeTypeIndex()].cast<ffi::EnumState>();
+  const ffi::EnumState& state = AxisEnumState();
   auto column = state->attrs.Get(ffi::String(key));
   if (!column) return std::nullopt;
   auto value = column.value().Get(ffi::GetRef<Axis>(axis));
@@ -71,7 +76,6 @@ ffi::Optional<FAxisSplitter> AxisNode::GetSplitter() const {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  AxisNode::RegisterReflection();
   refl::TypeAttrDef<AxisNode>()
       .def("__data_to_json__", [](const AxisNode* node) -> ffi::String { return node->_str_index; })
       .def("__data_from_json__", [](const ffi::String& name) -> Axis { return Axis::Get(name); });
@@ -86,15 +90,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Axis
 Axis Axis::Get(const ffi::String& name) {
-  static refl::TypeAttrColumn state_column(refl::type_attr::kEnumState);
-  ffi::EnumState state =
-      state_column[AxisNode::_GetOrAllocRuntimeTypeIndex()].cast<ffi::EnumState>();
+  const ffi::EnumState& state = AxisEnumState();
   auto existing = state->indexes.Get(ffi::Any(name));
   if (!existing) {
     refl::EnumDef<AxisNode>(name.c_str());
     existing = state->indexes.Get(ffi::Any(name));
   }
-  return ffi::Any(existing.value()).cast<Axis>();
+  return existing.value().as_or_throw<Axis>();
 }
 
 // register thread axis split/fuse helpers

@@ -515,7 +515,10 @@ class _AxisMeta(type(Enum)):
 class Axis(Enum, metaclass=_AxisMeta, type_key="tirx.Axis", init=False):
     """Layout axis wrapper."""
 
-    name: str
+    @property
+    def name(self) -> str:
+        """Return the canonical axis name."""
+        return self._str_index
 
     @classmethod
     def get(cls, name: str) -> "Axis":

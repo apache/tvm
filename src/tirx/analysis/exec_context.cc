@@ -77,8 +77,8 @@ std::vector<std::pair<std::string, AxisRange>> AxisRanges(const ActiveSet& A) {
   std::vector<std::pair<std::string, AxisRange>> axes;
   for (const auto& iter : A.layout->shard) {
     AxisRange range;
-    TVM_FFI_ICHECK(A.GetAxis(iter->axis->_str_index.operator std::string(), &range));
-    axes.push_back({iter->axis->_str_index.operator std::string(), range});
+    TVM_FFI_ICHECK(A.GetAxis(iter->axis.name().operator std::string(), &range));
+    axes.push_back({iter->axis.name().operator std::string(), range});
   }
   return axes;
 }
@@ -381,10 +381,10 @@ bool AxisRange::Modulo(int64_t modulus, int64_t residue, AxisRange* out) const {
 bool ActiveSet::GetAxis(const std::string& axis, AxisRange* out) const {
   if (!layout.defined()) return false;
   for (const auto& iter : layout->shard) {
-    if (iter->axis->_str_index != axis) continue;
+    if (iter->axis.name() != axis) continue;
     PrimExpr off = I64(0);
     for (const auto& kv : layout->offset) {
-      if (kv.first->_str_index == axis) {
+      if (kv.first.name() == axis) {
         off = kv.second;
         break;
       }
@@ -418,7 +418,7 @@ std::vector<std::string> ActiveSet::AxisNames() const {
   std::vector<std::string> names;
   if (!layout.defined()) return names;
   for (const auto& iter : layout->shard) {
-    names.push_back(iter->axis->_str_index.operator std::string());
+    names.push_back(iter->axis.name().operator std::string());
   }
   return names;
 }
