@@ -109,23 +109,6 @@ ffi::Map<ffi::String, ffi::Any> UpdateROCmAttrs(ffi::Map<ffi::String, ffi::Any> 
   return target;
 }
 
-void RegisterTargetKind() {
-  namespace refl = tvm::ffi::reflection;
-
-  TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
-      .add_attr_option<ffi::String>("mcpu")
-      .add_attr_option<ffi::String>("mtriple")
-      .add_attr_option<ffi::Array<ffi::String>>("mattr")
-      // TODO(masahi): Support querying from a target device
-      // On RDNA cards, thread_warp_size should be 32
-      .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
-      .add_attr_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
-      .add_attr_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(65536))
-      .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(64))
-      .set_default_keys({"rocm", "gpu"})
-      .set_target_canonicalizer(UpdateROCmAttrs);
-}
-
 }  // namespace rocm
 }  // namespace backend
 
@@ -140,7 +123,23 @@ void RegisterROCMIntrinRules();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::rocm::RegisterTargetKind();
+  using namespace tvm;
+  using namespace tvm::backend::rocm;
+  namespace refl = tvm::ffi::reflection;
+
+  TargetKindDef("rocm")
+      .set_default_device_type(kDLROCM)
+      .def_option<ffi::String>("mcpu")
+      .def_option<ffi::String>("mtriple")
+      .def_option<ffi::Array<ffi::String>>("mattr")
+      // TODO(masahi): Support querying from a target device
+      // On RDNA cards, thread_warp_size should be 32
+      .def_option<int64_t>("max_num_threads", refl::DefaultValue(256))
+      .def_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
+      .def_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(65536))
+      .def_option<int64_t>("thread_warp_size", refl::DefaultValue(64))
+      .set_default_keys({"rocm", "gpu"})
+      .set_target_canonicalizer(UpdateROCmAttrs);
 #ifdef TVM_LLVM_VERSION
   tvm::codegen::llvm::RegisterROCMIntrinRules();
   tvm::codegen::RegisterAMDGPUCodegen();

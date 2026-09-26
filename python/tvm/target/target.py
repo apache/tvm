@@ -210,21 +210,6 @@ class Target(Object):
             return str(value) if isinstance(value, String) else value
         raise AttributeError(f"'Target' object has no attribute '{name}'")
 
-    def get_kind_attr(self, attr_name):
-        """Get additional attribute about the target kind.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name.
-
-        Returns
-        -------
-        value : object
-            The attribute value
-        """
-        return _ffi_api.TargetKindGetAttr(self.kind, attr_name)
-
     def get_target_device_type(self):
         """Returns the device_type for this target."""
         return _ffi_api.TargetGetDeviceType(self)
