@@ -17,12 +17,37 @@
  * under the License.
  */
 #include <tvm/ffi/container/shape.h>
+#include <tvm/runtime/tensor.h>
 
 #include "./utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<GenericConst>(
+      "", [](GenericConst n, AccessPath p, IRDocsifier d) -> Doc {
+        if (auto dtype = n->value.as<DLDataType>()) {
+          return TIR(d, "dtype")->Call({LiteralDoc::DataType(*dtype, p->Attr("value"))});
+        }
+        if (n->value.as<runtime::Tensor>()) {
+          // Tensor-valued constants are Relax constants and keep the Relax spelling.
+          return IRDocsifier::vtable()("relax", n, p, d);
+        }
+        return d->AddMetadata(n);
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<GenericConst>(
+      "ir", [](GenericConst n, AccessPath p, IRDocsifier d) -> Doc {
+        if (auto dtype = n->value.as<DLDataType>()) {
+          return IR(d, "dtype")->Call({LiteralDoc::DataType(*dtype, p->Attr("value"))});
+        }
+        return IRDocsifier::vtable()("", n, p, d);
+      });
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<ffi::Array<Any>>(  //

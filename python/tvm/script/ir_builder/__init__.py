@@ -30,6 +30,7 @@ from .frame import IRModuleFrame
 from .ir import _get_dialect_builder as __getattr__
 from .ir import (
     constexpr,
+    dtype,
     dynamic,
     meta_var,
     module_attrs,
@@ -59,6 +60,7 @@ __all__ = [
     "check_well_formed_",
     "constexpr",
     "decl_function",
+    "dtype",
     "dynamic",
     "ir_module",
     "meta_var",

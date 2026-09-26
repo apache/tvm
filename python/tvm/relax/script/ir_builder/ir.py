@@ -25,8 +25,8 @@ import numbers as _numbers
 import re as _re
 
 import tvm
-from tvm import DataType, relax
 from tvm import ir as _ir
+from tvm import relax
 from tvm import relax as _relax
 from tvm.ir import IRModule
 from tvm.relax import Expr, ExternFunc, ShapeExpr, TupleGetItem, const
@@ -52,6 +52,7 @@ from tvm.runtime._tensor import (
 from tvm.script.ir_builder.base import SpanEntry as _SpanEntry
 from tvm.script.ir_builder.base import resolve_global_info_args as _resolve_global_info_args
 from tvm.script.ir_builder.ir import _global_infos
+from tvm.script.ir_builder.ir import dtype as dtype
 from tvm.script.ir_builder.parser_protocol import resolve_global_info_ as _resolve_global_info
 
 from . import _ffi_api
@@ -289,20 +290,6 @@ def str(value: py_str) -> Expr:
         The result str.
     """
     return tvm.ir.StringImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def dtype(value: py_str | DataType) -> Expr:
-    """Create a dtype imm expression.
-    Parameters
-    ----------
-    value : dtype
-        The value of the dtype.
-    Returns
-    -------
-    res : Expr
-        The result dtype.
-    """
-    return tvm.ir.GenericConst(tvm.DataType(value), tvm.relax.AnyType())  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 @_resolve_global_info_args("vdevice", resolver=resolve_global_info_)

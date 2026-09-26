@@ -18,7 +18,8 @@
 
 from typing import NoReturn, TypeVar
 
-from tvm.ir import GlobalInfo, Span, Var
+from tvm import DataType
+from tvm.ir import AnyType, GenericConst, GlobalInfo, Span, Var
 from tvm.runtime import Object as tvm_Object
 
 from . import _ffi_api
@@ -26,6 +27,15 @@ from .base import IRBuilder, SpanEntry
 from .frame import IRModuleFrame
 
 T = TypeVar("T")
+
+
+def dtype(value: str | DataType) -> GenericConst:
+    """Construct a DataType-valued constant for an ordinary operation argument.
+
+    Unlike scalar constructors such as ``T.float32``, this constructs a dtype
+    value, rather than a scalar value or variable of that dtype.
+    """
+    return GenericConst(DataType(value), AnyType())
 
 
 def dynamic(name: str, dtype: str = "int64", *, span: SpanEntry | Span | None = None) -> Var:

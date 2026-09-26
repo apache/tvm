@@ -29,11 +29,12 @@ import inspect
 import pytest
 from minilang import Value
 
-from tvm import ir
+from tvm import DataType, ir
 from tvm.ir import prim
 from tvm.ir._overload_prim_expr import EqualOp
 from tvm.script import ir as I
 from tvm.script import tirx as T
+from tvm.script.parser import entry
 
 
 def test_function(language):
@@ -943,6 +944,17 @@ def test_module_string_constants_keep_common_constructor_values():
     ir.assert_structural_equal(expected, Module)
     assert Module.attrs["tag"].value == "label"
     assert isinstance(Module.attrs["type"], ir.StringType)
+
+
+def test_datatype_value_roundtrip(language):
+    # A DataType value needs only shared IR: the minimal language parses its shared spelling
+    # into a root-typed constant, and the shared printer reproduces that spelling.
+    spelling = 'I.dtype("float32")'
+    source = f"@M.function\ndef main():\n    M.record({spelling})\n"
+    value = entry.parse(source, extra_vars={"M": language.M, "I": I}).body[0][1]
+    ir.assert_structural_equal(value, ir.GenericConst(DataType("float32"), ir.AnyType()))
+    printed = ir.IRModule(attrs={"dtype": value}).script()
+    assert f'I.module_attrs({{"dtype": {spelling}}})' in printed
 
 
 def test_mutating_stores_and_loop_control_keep_effect_order(language):
