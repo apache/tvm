@@ -208,6 +208,32 @@ def test_target_tag_override():
     assert tgt.tag == "nvidia/nvidia-a100"
 
 
+def test_target_tag_registration_and_listing():
+    name = "test/tag-registry-singleton"
+    first = tvm.target.register_tag(name, {"kind": "llvm", "model": "first"})
+    assert first.attrs["model"] == "first"
+    assert tvm.target.Target(name).attrs["model"] == "first"
+    assert tvm.target.list_tags()[name].attrs["model"] == "first"
+
+    with pytest.raises(Exception, match="previously defined"):
+        tvm.target.register_tag(name, {"kind": "llvm", "model": "duplicate"})
+
+    second = tvm.target.register_tag(name, {"kind": "llvm", "model": "second"}, override=True)
+    assert second.attrs["model"] == "second"
+    assert tvm.target.Target(name).attrs["model"] == "second"
+    assert tvm.target.list_tags()[name].attrs["model"] == "second"
+
+
+def test_target_tag_config_override_and_round_trip():
+    name = "test/tag-registry-round-trip"
+    tvm.target.register_tag(name, {"kind": "llvm", "model": "base"})
+    target = tvm.target.Target({"tag": name, "model": "override"})
+    assert target.tag == name
+    assert target.attrs["model"] == "override"
+    assert tvm.target.Target(target.export()).tag == name
+    assert tvm.target.Target(str(target)).attrs["model"] == "override"
+
+
 def test_list_kinds():
     targets = tvm.target.Target.list_kinds()
     assert len(targets) != 0
