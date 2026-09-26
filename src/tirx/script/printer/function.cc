@@ -229,7 +229,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::PrimFuncNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() { TVMScriptPrinter::Register<tirx::PrimFuncNode>(ReprPrintTIR); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tvm::GlobalVar>(                       //

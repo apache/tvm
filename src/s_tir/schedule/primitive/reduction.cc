@@ -1530,8 +1530,10 @@ struct RFactorTraits : public UnpackedInstTraits<RFactorTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(RFactorTraits);
-TVM_REGISTER_INST_KIND_TRAITS(DecomposeReductionTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<RFactorTraits>();
+  RegisterInstructionKind<DecomposeReductionTraits>();
+}
 
 /******** FFI ********/
 

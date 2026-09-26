@@ -137,9 +137,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::DeviceMeshNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::PlacementNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::distributed::DTensorTypeNode, ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<relax::distributed::DeviceMeshNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::distributed::PlacementNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::distributed::DTensorTypeNode>(ReprPrintRelax);
+}
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

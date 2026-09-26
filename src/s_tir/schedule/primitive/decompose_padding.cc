@@ -609,7 +609,7 @@ struct DecomposPaddingTraits : public UnpackedInstTraits<DecomposPaddingTraits> 
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(DecomposPaddingTraits);
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<DecomposPaddingTraits>(); }
 
 }  // namespace s_tir
 }  // namespace tvm

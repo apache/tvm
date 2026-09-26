@@ -151,10 +151,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(AnyTypeNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeTypeNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::TensorTypeNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::FuncTypeNode, ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<AnyTypeNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::ShapeTypeNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::TensorTypeNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::FuncTypeNode>(ReprPrintRelax);
+}
 
 }  // namespace printer
 }  // namespace script

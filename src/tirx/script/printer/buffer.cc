@@ -559,14 +559,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(tvm::TensorRegionNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(TensorLoadNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferStoreNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferTypeNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::IterNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::TileLayoutNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(s_tir::MatchBufferRegionNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<tvm::TensorRegionNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<TensorLoadNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::BufferStoreNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::BufferTypeNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::IterNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::TileLayoutNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::ComposeLayoutNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<s_tir::MatchBufferRegionNode>(ReprPrintTIR);
+}
 
 }  // namespace printer
 }  // namespace script

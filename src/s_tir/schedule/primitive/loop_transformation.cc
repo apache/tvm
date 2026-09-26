@@ -1476,12 +1476,14 @@ struct AddUnitLoopTraits : public UnpackedInstTraits<AddUnitLoopTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(SplitTraits);
-TVM_REGISTER_INST_KIND_TRAITS(LoopPartitionTraits);
-TVM_REGISTER_INST_KIND_TRAITS(MergeTraits);
-TVM_REGISTER_INST_KIND_TRAITS(FuseTraits);
-TVM_REGISTER_INST_KIND_TRAITS(ReorderTraits);
-TVM_REGISTER_INST_KIND_TRAITS(AddUnitLoopTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<SplitTraits>();
+  RegisterInstructionKind<LoopPartitionTraits>();
+  RegisterInstructionKind<MergeTraits>();
+  RegisterInstructionKind<FuseTraits>();
+  RegisterInstructionKind<ReorderTraits>();
+  RegisterInstructionKind<AddUnitLoopTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

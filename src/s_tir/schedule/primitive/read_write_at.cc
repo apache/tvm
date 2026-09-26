@@ -452,8 +452,10 @@ struct WriteAtTraits : public UnpackedInstTraits<WriteAtTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(ReadAtTraits);
-TVM_REGISTER_INST_KIND_TRAITS(WriteAtTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<ReadAtTraits>();
+  RegisterInstructionKind<WriteAtTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm
