@@ -39,7 +39,6 @@ namespace codegen {
 class CodeGenCUDA final : public CodeGenC {
  public:
   CodeGenCUDA(Target target);
-  void Init(bool output_ssa);
   std::string Finish();
   bool need_include_path() {
     std::vector<std::string> tag_list{"fp16", "bf16", "int8",           "fp8",
@@ -96,13 +95,6 @@ class CodeGenCUDA final : public CodeGenC {
 
   // Whether scope such as "__shared__" or "__constant__"  is part of type.
   bool IsScopePartOfType() const final { return false; }
-
-  // Whether global barrier is needed.
-  bool need_global_barrier_{false};
-  // Global barrier state
-  std::string vid_global_barrier_state_;
-  // Global barrier expected node.
-  std::string vid_global_barrier_expect_;
 
   // Whether clusterCtaIdx.x can be emitted as the linear cluster CTA rank.
   // This is only semantics-preserving for effectively 1-D clusters where the

@@ -61,8 +61,6 @@ def default_tir_pipeline(*, prepare_only=False):
         ]
         if not bool(config.get("tirx.disable_storage_rewrite", False)):
             passes.append(tirx.transform.StorageRewrite())
-        if config.get("tirx.use_async_copy", False):
-            passes.append(s_tir.transform.LowerAsyncDMA())
         passes.extend(
             [
                 s_tir.transform.HoistIfThenElse(),
@@ -80,8 +78,6 @@ def default_tir_pipeline(*, prepare_only=False):
             passes.append(s_tir.transform.InjectPTXLDG32(True))
         if not bool(config.get("tirx.disable_cse_tir", False)):
             passes.append(tirx.transform.CommonSubexprElim())
-        if bool(config.get("tirx.instrument_lwp", False)):
-            passes.append(s_tir.transform.InstrumentProfileIntrinsics())
         passes.extend(
             [
                 # Bind the target first so that target-specific attributes are available.

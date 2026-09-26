@@ -93,16 +93,6 @@ TIR_DEFINE_BUILTIN_FUNC(thread_return)
                                static_cast<int64_t>(CallEffectKind::kControlJump))
     .set_num_inputs(0);
 
-TIR_DEFINE_BUILTIN_FUNC(continue_loop)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kControlJump))
-    .set_num_inputs(0);
-
-TIR_DEFINE_BUILTIN_FUNC(break_loop)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kControlJump))
-    .set_num_inputs(0);
-
 // tirx.filter: escape hatch for non-canonical thread-set filter predicates
 // used as an IfThenElse condition. (var, cond) -- ``var`` names the
 // active-set axis the compiler should collapse to a singleton if it cannot
@@ -186,13 +176,6 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_static_handle)
     .set_attr<TCallEffectKind>("TCallEffectKind",
                                static_cast<int64_t>(CallEffectKind::kSpecialCallArg));
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_context_id)
-    .set_num_inputs(0)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState));
-
-TIR_DEFINE_BUILTIN_FUNC(tvm_tuple).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kEmbedInfo));
-
 TIR_DEFINE_BUILTIN_FUNC(handle_add_byte_offset)
     .set_num_inputs(2)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
@@ -204,11 +187,6 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_struct_get)
                                          static_cast<int64_t>(ScriptDtypePrintLocation::kLast));
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_struct_set)
-    .set_num_inputs(4)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kUpdateState));
-
-TIR_DEFINE_BUILTIN_FUNC(lookup_param)
     .set_num_inputs(4)
     .set_attr<TCallEffectKind>("TCallEffectKind",
                                static_cast<int64_t>(CallEffectKind::kUpdateState));
@@ -243,9 +221,6 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_call_cpacked)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
     .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("call_cpacked"), /*plevel=*/20);
 
-TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
 TIR_DEFINE_BUILTIN_FUNC(tvm_thread_invariant)
     .set_num_inputs(1)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
@@ -259,9 +234,6 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_call_cpacked_lowered)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
     .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("call_cpacked_lowered"),
                                   /*plevel=*/20);
-
-TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed_lowered)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 // TODO(tvm-team) revisit storage sync once we have a good memory hierachy structure.
 TIR_DEFINE_BUILTIN_FUNC(tvm_storage_sync)
@@ -284,9 +256,6 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_warp_shuffle_xor)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_warp_activemask)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(tvm_global_barrier_kinit)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_thread_allreduce)
@@ -337,18 +306,6 @@ TIR_DEFINE_BUILTIN_FUNC(texture2d_load)
     .set_attr<TVectorizable>("TVectorizable", true)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIR_DEFINE_BUILTIN_FUNC(dma_copy).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(dma_wait).set_attr<TCallEffectKind>(
-    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(dma_start_group)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(dma_end_group)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
 TIR_DEFINE_BUILTIN_FUNC(assume)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kEmbedInfo))
     .set_num_inputs(1);
@@ -356,12 +313,6 @@ TIR_DEFINE_BUILTIN_FUNC(assume)
 TIR_DEFINE_BUILTIN_FUNC(undef)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState))
     .set_num_inputs(0);
-
-TIR_DEFINE_BUILTIN_FUNC(start_profile_intrinsic)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
-
-TIR_DEFINE_BUILTIN_FUNC(end_profile_intrinsic)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
 TIR_DEFINE_BUILTIN_FUNC(anylist_getitem)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState));

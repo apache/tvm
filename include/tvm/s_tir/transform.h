@@ -296,12 +296,6 @@ TVM_DLL Pass InstrumentBoundCheckers();
 TVM_DLL Pass InjectPTXLDG32(bool enable_inject = true);
 
 /*!
- * \brief Insert intrinsic calls to instrument function and loop level profiling.
- * \return The pass.
- */
-TVM_DLL Pass InstrumentProfileIntrinsics();
-
-/*!
  * \brief Lower VTCM allocations.
  * \return The pass.
  */
@@ -325,12 +319,6 @@ TVM_DLL Pass InferFragment();
  * \return The pass.
  */
 TVM_DLL Pass LowerThreadAllreduce();
-
-/*!
- * \brief Lower Async TIR primitives to DMA copy and wait builtins.
- * \return The pass.
- */
-TVM_DLL Pass LowerAsyncDMA();
 
 /*!
  * \brief Rewrite global to shared memory copy on CUDA with asynchronous copy.

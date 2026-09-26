@@ -46,7 +46,7 @@ def test_vthread():
                         "int32",
                         "Run",
                         B.access_ptr("r"),
-                        T.call_intrin("int32", "tirx.tvm_context_id"),
+                        vt_x,
                     )
                 )
                 C_buf[i * nthread + vt_x] = B[i] + T.float32(1)

@@ -62,11 +62,10 @@ from .function import PrimFunc, IndexMap
 from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
 from .op import CallFFIKernelAttr, call_ffi_kernel, TensorMapEncodeTiledAttr, tensormap_encode_tiled
-from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value, trace
+from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
-from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
-from .op import address_of, lookup_param, assume, undef
-from .op import continue_loop, break_loop
+from .op import handle_add_byte_offset, tvm_struct_get, tvm_struct_set
+from .op import address_of, assume, undef
 from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, ptr_byte_offset
 from .op import tvm_throw_last_error
 from .op import (
@@ -90,7 +89,6 @@ from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod,
 from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
-from .op import start_profile_intrinsic, end_profile_intrinsic
 from .op import vscale, get_active_lane_mask, get_vscale_expr
 from .op import dp4a
 from .op import ignore_loop_partition

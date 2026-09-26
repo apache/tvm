@@ -336,9 +336,9 @@ constexpr const char* manifest_shared_memory_local_stage =
 
 /*!
  * \brief Mark alignment of buffer dimension
- *  stmt.node is Tensor
- *  stmt.value is tvm_tuple(dim, align, offset)
- *  This gives hint to require stride of dim to be k * align + offset.
+ *  The annotation value is an array of explicit tuples
+ *  (buffer_index, axis, factor, offset).
+ *  This requires the stride of an axis to be k * factor + offset.
  */
 constexpr const char* buffer_dim_align = "buffer_dim_align";
 

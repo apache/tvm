@@ -223,7 +223,6 @@ def test_buffer_region_call_wrappers_reject():
         lambda: tvm.tirx.call_cpacked("consume", region, 0),
         lambda: tvm.tirx.call_packed_lowered("consume", region),
         lambda: tvm.tirx.call_cpacked_lowered("consume", region, 0),
-        lambda: tvm.tirx.trace([region]),
         lambda: T.evaluate(region),
     ]
     for call in calls:

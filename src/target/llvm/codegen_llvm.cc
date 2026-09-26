@@ -1457,26 +1457,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     value->addIncoming(then_value, then_value_block);
     value->addIncoming(else_value, else_value_block);
     return value;
-  } else if (op->op.same_as(tirx::builtin::continue_loop())) {
-    TVM_FFI_ICHECK(!loop_frame_jump_tgts_.empty())
-        << "the tirx.continue_loop should be inserted under at least one For or While stmts.";
-    builder_->CreateBr(loop_frame_jump_tgts_.back().first);
-    // LLVM allows exactly one terminator in a single basic block
-    // append a new dummy basic block to avoid error.
-    llvm::BasicBlock* post_dummy =
-        llvm::BasicBlock::Create(*llvm_target_->GetContext(), "post_cont_dummy", function_);
-    builder_->SetInsertPoint(post_dummy);
-    return post_dummy;
-  } else if (op->op.same_as(tirx::builtin::break_loop())) {
-    TVM_FFI_ICHECK(!loop_frame_jump_tgts_.empty())
-        << "the tirx.break_loop should be inserted under at least one For or While stmts.";
-    builder_->CreateBr(loop_frame_jump_tgts_.back().second);
-    // LLVM allows exactly one terminator in a single basic block
-    // append a new dummy basic block to avoid error.
-    llvm::BasicBlock* post_dummy =
-        llvm::BasicBlock::Create(*llvm_target_->GetContext(), "post_break_dummy", function_);
-    builder_->SetInsertPoint(post_dummy);
-    return post_dummy;
   } else if (op->op.same_as(tirx::builtin::reinterpret())) {
     llvm::Type* target = GetLLVMType(ret_type);
     llvm::Value* value = MakeValue(args[0]);
@@ -1510,10 +1490,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(tirx::builtin::atomic_add())) {
     // TODO(masahi): Support atomic for CPU backend
     TVM_FFI_THROW(InternalError) << "CPU backend does not support atomic add yet.";
-  } else if (op->op.same_as(tirx::builtin::start_profile_intrinsic()) ||
-             op->op.same_as(tirx::builtin::end_profile_intrinsic())) {
-    LOG(INFO) << "Ignoring profile_intrinsic ... " << op->op;
-    return nullptr;
   } else if (op->op.same_as(tirx::builtin::assume())) {
     llvm::Value* cond = MakeValue(args[0]);
     return builder_->CreateAssumption(cond);
@@ -2190,6 +2166,22 @@ void CodeGenLLVM::Dispatch_(const ReturnNode* op) {
   llvm::BasicBlock* ret_dummy =
       llvm::BasicBlock::Create(*llvm_target_->GetContext(), "ret_dummy", function_);
   builder_->SetInsertPoint(ret_dummy);
+}
+
+void CodeGenLLVM::Dispatch_(const BreakNode* op) {
+  TVM_FFI_ICHECK(!loop_frame_jump_tgts_.empty()) << "Break requires an enclosing loop.";
+  builder_->CreateBr(loop_frame_jump_tgts_.back().second);
+  llvm::BasicBlock* post_dummy =
+      llvm::BasicBlock::Create(*llvm_target_->GetContext(), "post_break_dummy", function_);
+  builder_->SetInsertPoint(post_dummy);
+}
+
+void CodeGenLLVM::Dispatch_(const ContinueNode* op) {
+  TVM_FFI_ICHECK(!loop_frame_jump_tgts_.empty()) << "Continue requires an enclosing loop.";
+  builder_->CreateBr(loop_frame_jump_tgts_.back().first);
+  llvm::BasicBlock* post_dummy =
+      llvm::BasicBlock::Create(*llvm_target_->GetContext(), "post_cont_dummy", function_);
+  builder_->SetInsertPoint(post_dummy);
 }
 
 void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {

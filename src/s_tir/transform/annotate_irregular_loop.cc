@@ -77,13 +77,13 @@ class IrregularLoopAnnotator : public StmtExprMutator {
     return res;
   }
 
-  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
-    if (const CallNode* call = op->value.as<CallNode>()) {
-      if (call->op.same_as(tirx::builtin::continue_loop()) ||
-          call->op.same_as(tirx::builtin::break_loop())) {
-        has_jump_ = true;
-      }
-    }
+  UnchangedOr<Stmt> Mutate_(const BreakNode* op, InplaceMode inplace_mode) final {
+    has_jump_ = true;
+    return ffi::Unchanged();
+  }
+
+  UnchangedOr<Stmt> Mutate_(const ContinueNode* op, InplaceMode inplace_mode) final {
+    has_jump_ = true;
     return ffi::Unchanged();
   }
 

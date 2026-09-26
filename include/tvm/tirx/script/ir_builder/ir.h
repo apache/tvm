@@ -274,13 +274,15 @@ tvm::tirx::Stmt Return(Expr value);
 
 /*!
  * \brief Create a break statement.
+ * \return The same statement that was added to the parent frame.
  */
-void Break();
+tvm::tirx::Stmt Break();
 
 /*!
  * \brief Create a continue statement.
+ * \return The same statement that was added to the parent frame.
  */
-void Continue();
+tvm::tirx::Stmt Continue();
 
 /*!
  * \brief Create an if statement.

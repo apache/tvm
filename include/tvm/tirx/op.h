@@ -77,26 +77,12 @@ TVM_DLL Type GetType(const PrimExpr& expr);
 TVM_DLL Type GetTypeFromRuntimeDataType(DLDataType dtype);
 
 /*!
- * \brief Return from a thread.
+ * \brief Return from a GPU thread without returning a function value.
  *
  * \param span The location of this operation in the source.
- * \return The return expression.
+ * \return The thread return expression.
  */
 TVM_DLL PrimExpr thread_return(Span span = Span());
-
-/*!
- * \brief Continue current loop.
- * \param span The location of this operation in the source.
- * \return The continue loop expression.
- */
-TVM_DLL PrimExpr continue_loop(Span span = Span());
-
-/*!
- * \brief Break current loop.
- * \param span The location of this operation in the source.
- * \return The break loop expression.
- */
-TVM_DLL PrimExpr break_loop(Span span = Span());
 
 /*!
  * Get the value of infinity.

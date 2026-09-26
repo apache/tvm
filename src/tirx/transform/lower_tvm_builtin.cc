@@ -427,18 +427,13 @@ class BuiltinLower : public StmtExprMutator {
         args.push_back(IntImm(PrimType::Int(32), attr->force_cu_dtype));
       }
       Call packed(op->ty, builtin::tvm_call_packed(), args);
-      return MakeCallPackedGeneric(packed.get(), 0, builtin::tvm_call_packed_lowered(), false);
+      return MakeCallPackedGeneric(packed.get(), 0, builtin::tvm_call_packed_lowered());
     }
     if (op->op.same_as(builtin::tvm_call_packed()) ||
         (op->op.same_as(builtin::call_ffi_kernel()) && !preserve_ffi_kernel_)) {
-      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered(),
-                                   /* use_last_value_as_traced_value*/ false);
+      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_packed_lowered());
     } else if (op->op.same_as(builtin::tvm_call_cpacked())) {
-      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_cpacked_lowered(),
-                                   /* use_last_value_as_traced_value*/ false);
-    } else if (op->op.same_as(builtin::tvm_call_trace_packed())) {
-      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_trace_packed_lowered(),
-                                   /* use_last_value_as_traced_value*/ true);
+      return MakeCallPackedGeneric(op, 0, builtin::tvm_call_cpacked_lowered());
     } else if (op->op.same_as(builtin::anylist_setitem_call_packed())) {
       return MakeAnyListSetItemCallPacked(op, builtin::tvm_call_packed_lowered());
     } else if (op->op.same_as(builtin::anylist_setitem_call_cpacked())) {
@@ -447,16 +442,6 @@ class BuiltinLower : public StmtExprMutator {
       return MakeShape(op);
     } else if (op->op.same_as(builtin::tvm_stack_make_array())) {
       return MakeArray(op);
-    } else if (op->op.same_as(builtin::tvm_context_id())) {
-      return IntImm(op->ty.as_or_throw<PrimType>(), 0);
-    } else if (op->op.same_as(builtin::dma_copy())) {
-      return MakeDMACopy(op);
-    } else if (op->op.same_as(builtin::dma_wait())) {
-      return MakeDMAWait(op);
-    } else if (op->op.same_as(builtin::dma_start_group())) {
-      return MakeDMAStartGroup(op);
-    } else if (op->op.same_as(builtin::dma_end_group())) {
-      return MakeDMAEndGroup(op);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
@@ -474,49 +459,6 @@ class BuiltinLower : public StmtExprMutator {
 
     ffi::String device_name = runtime::DLDeviceType2Str(as_int->value.as<int>().value());
     return StringImm("device_api." + device_name + "." + method_name);
-  }
-
-  PrimExpr MakeDMACopy(const CallNode* op) {
-    PrimExpr queue_id = op->args[0].as_or_throw<PrimExpr>();
-    Expr dst = op->args[1];
-    Expr src = op->args[2];
-    PrimExpr size = op->args[3].as_or_throw<PrimExpr>();
-    PrimExpr bypass_cache = op->args[4].as_or_throw<PrimExpr>();
-
-    auto method_name = GetDeviceMethodName("dma_copy");
-    Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(),
-                            {method_name, queue_id, dst, src, size, bypass_cache});
-    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
-        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
-  }
-
-  PrimExpr MakeDMAWait(const CallNode* op) {
-    PrimExpr queue_id = op->args[0].as_or_throw<PrimExpr>();
-    PrimExpr inflight = op->args[1].as_or_throw<PrimExpr>();
-
-    auto method_name = GetDeviceMethodName("dma_wait");
-    Call call_packed =
-        Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id, inflight});
-    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
-        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
-  }
-
-  PrimExpr MakeDMAStartGroup(const CallNode* op) {
-    PrimExpr queue_id = op->args[0].as_or_throw<PrimExpr>();
-
-    auto method_name = GetDeviceMethodName("dma_start_group");
-    Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id});
-    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
-        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
-  }
-
-  PrimExpr MakeDMAEndGroup(const CallNode* op) {
-    PrimExpr queue_id = op->args[0].as_or_throw<PrimExpr>();
-
-    auto method_name = GetDeviceMethodName("dma_end_group");
-    Call call_packed = Call(PrimType::Int(32), builtin::tvm_call_packed(), {method_name, queue_id});
-    return Mutate(call_packed.as_or_throw<PrimExpr>(), InplaceMode::kDisallow)
-        .ValueOrUnchanged(call_packed.as_or_throw<PrimExpr>());
   }
 
   // call shape
@@ -656,7 +598,7 @@ class BuiltinLower : public StmtExprMutator {
     Expr list_handle = op->args[0];
     PrimExpr list_index = op->args[1].as_or_throw<PrimExpr>();
 
-    Call call = MakeCallPackedGeneric(op, 2, lowered_op, false);
+    Call call = MakeCallPackedGeneric(op, 2, lowered_op);
     Expr args_stack = call->args[1];
     // The stack offset of return value stack_end
     PrimExpr ret_offset = call->args[3].as_or_throw<PrimExpr>();
@@ -675,10 +617,8 @@ class BuiltinLower : public StmtExprMutator {
    * \param op The call
    * \param name_offset The beginning of function name and call packed section.
    * \param lowered_packed_op The target lowered op.
-   * \param pass_last_arg_as_traced_value Whether to pass last argument as traced value
    */
-  Call MakeCallPackedGeneric(const CallNode* op, size_t name_offset, const Op& lowered_packed_op,
-                             bool pass_last_arg_as_traced_value) {
+  Call MakeCallPackedGeneric(const CallNode* op, size_t name_offset, const Op& lowered_packed_op) {
     auto& scope = alloca_scope_.back();
     auto& prep_seq = prep_seq_stack_.back();
 
@@ -725,11 +665,6 @@ class BuiltinLower : public StmtExprMutator {
     ffi::Array<Expr> packed_args = {op->args[name_offset], scope.stack_ffi_any,
                                     ConstInt32(arg_stack_begin),
                                     ConstInt32(arg_stack_begin + num_args)};
-    if (pass_last_arg_as_traced_value) {
-      // pass in last element as traced value
-      // used by call_packed_traced
-      packed_args.push_back(op->args[op->args.size() - 1]);
-    }
     return Call(op->ty, lowered_packed_op, packed_args);
   }
 

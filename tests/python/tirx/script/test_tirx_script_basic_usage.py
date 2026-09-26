@@ -515,22 +515,33 @@ def test_module_string_constants_keep_common_constructor_values():
     assert isinstance(Module.attrs["type"], ir.StringType)
 
 
+def test_thread_return_is_distinct_from_function_return():
+    @T.prim_func
+    def thread_exit():
+        T.thread_return()
+
+    @T.prim_func
+    def function_exit():
+        return 0
+
+    assert isinstance(thread_exit.body, tirx.Evaluate)
+    assert thread_exit.body.value.op.name == "tirx.thread_return"
+    assert isinstance(function_exit.body, tirx.Return)
+    assert isinstance(function_exit.body.value, tirx.IntImm)
+    assert function_exit.body.value.value == 0
+
+
 def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     # Invalid loop placement must be rejected, while disabled checks preserve the original IR.
-    from tvm import ir, tirx
+    from tvm import error, ir, tirx
 
-    @T.prim_func(check_well_formed=False)
-    def invalid():
-        T.evaluate(tirx.break_loop())
+    invalid = tirx.PrimFunc(params=[], body=tirx.Break())
 
-    # This is exactly the native node emitted by source `break`; constructing
-    # the intrinsic explicitly keeps the surrounding Python definition valid.
-    ir.assert_structural_equal(invalid.body, tirx.Evaluate(tirx.break_loop()))
-    with pytest.raises(ValueError, match="requires an enclosing loop"):
-
-        @T.prim_func
-        def rejected():
-            T.evaluate(tirx.break_loop())
+    # Direct construction retains the native statement for an explicit verifier pass.
+    ir.assert_structural_equal(invalid.body, tirx.Break())
+    assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
+    with pytest.raises(error.InternalError, match="requires an enclosing loop"):
+        tirx.analysis.verify_well_formed(invalid)
 
     @T.prim_func
     def valid():

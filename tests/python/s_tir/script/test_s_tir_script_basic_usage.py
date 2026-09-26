@@ -1018,15 +1018,7 @@ def test_return_statement():
 
 
 def test_loop_jump_statement():
-    """`break` and `continue` evaluates to TIR intrinsics"""
-
-    @Ts.prim_func
-    def explicit():
-        for i in range(16):
-            if i % 2 == 0:
-                T.evaluate(T.continue_loop())
-            if i < 15:
-                T.evaluate(T.break_loop())
+    """`break` and `continue` emit native TIR statements."""
 
     @Ts.prim_func
     def implicit():
@@ -1036,7 +1028,13 @@ def test_loop_jump_statement():
             if i < 15:
                 break
 
-    assert_structural_equal_ignore_global_symbol(implicit, explicit)
+    jumps = []
+    tvm_ffi.structural_walk(
+        implicit.body,
+        lambda node: jumps.append(node) if isinstance(node, tirx.Break | tirx.Continue) else None,
+    )
+    assert sum(isinstance(node, tirx.Break) for node in jumps) == 1
+    assert sum(isinstance(node, tirx.Continue) for node in jumps) == 1
 
 
 @pytest.mark.parametrize(
