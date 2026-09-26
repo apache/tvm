@@ -16,7 +16,7 @@
 # under the License.
 """Shared TVMScript construction APIs and lazy language variant builders."""
 
-from tvm.ir import GenericConst, Range, StringImm, StringType
+from tvm.ir import DataTypeImm, GenericConst, Range, StringImm, StringType
 
 from .base import (
     MISSING,
@@ -30,6 +30,7 @@ from .frame import IRModuleFrame
 from .ir import _get_dialect_builder as __getattr__
 from .ir import (
     constexpr,
+    dtype,
     dynamic,
     meta_var,
     module_attrs,
@@ -49,6 +50,7 @@ from .parser_protocol import (
 __all__ = [
     "MISSING",
     "AlreadyEmitted",
+    "DataTypeImm",
     "GenericConst",
     "IRBuilder",
     "IRModuleFrame",
@@ -59,6 +61,7 @@ __all__ = [
     "check_well_formed_",
     "constexpr",
     "decl_function",
+    "dtype",
     "dynamic",
     "ir_module",
     "meta_var",

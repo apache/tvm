@@ -17,6 +17,7 @@
 """Concrete TIRx construction operations over the shared native IRBuilder stack."""
 
 from tvm.script.ir_builder.ir import constexpr as constexpr
+from tvm.script.ir_builder.ir import dtype as dtype
 from tvm.script.ir_builder.ir import dynamic as dynamic
 from tvm.tirx.lang.alloc_pool import SMEMPool as SMEMPool
 from tvm.tirx.lang.alloc_pool import TMEMPool as TMEMPool
@@ -66,6 +67,7 @@ __all__ = [
     *_op_exports,
     *_protocol_exports,
     "dynamic",
+    "dtype",
     "constexpr",
     "SMEMPool",
     "TMEMPool",
