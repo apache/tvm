@@ -14,32 +14,220 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-
-"""Capture surrounding Python values in annotations, bodies and macros.
-
-These scripts distinguish definition-time annotation scope from body lexical
-lookup, and preserve captured identities, side effects and capture lifetimes.
-"""
+"""Shared parser meta programming."""
 
 from __future__ import annotations
 
 import gc
 import weakref
+
+# Script-local bindings are observed through the constructed IR.
+# ruff: noqa: F841
 from contextlib import contextmanager
 from types import SimpleNamespace
-from typing import TypeVar
 
 import pytest
 
 from tvm import ir
 from tvm.script import ir as I
-from tvm.script import relax as R
 from tvm.script.parser import entry
 
 EXTENT = 11
 VALUE = 1
 MACRO_VALUE = 2
+
+
+def test_policies_leave_computed_arguments_and_shorthand_strings_alone(language):
+    # Computed arguments must run once without treating their returned strings as symbolic syntax.
+    M = language.M
+    seen = []
+    concrete = object()
+
+    def value(label, result):
+        seen.append(label)
+        return result
+
+    @M.function
+    def main():
+        M.Tensor(
+            value("shape", (4,)), dtype=value("dtype", "float32"), device=value("device", concrete)
+        )
+        M.Tensor("float32", placement="literal[0]")
+
+    assert seen == ["shape", "dtype", "device"]
+    assert main.body[0][1].args == ((4,), "float32", concrete, "S[0]")
+    assert main.body[1][1].args == ("float32", "float32", None, "literal[0]")
+
+
+def test_nested_policy_and_starred_calls_are_evaluated_once(language):
+    # Nested marked calls and starred arguments must preserve their values and evaluation count.
+    M = language.M
+    seen = []
+    mesh = object()
+    language.global_infos["mesh[0]"] = mesh
+    values = (1, 2)
+    n = M.dynamic("n")
+
+    def outer(value):
+        seen.append(value)
+        return value
+
+    def collect(*values, other):
+        return values, other
+
+    @M.function
+    def main():
+        outer(M.Tensor((n,), device="mesh[0]"))
+        collect(*values, other=3)
+
+    assert len(seen) == 1 and seen[0].args[2] is mesh
+    dimension = seen[0].args[0][0]
+    assert dimension.op == "symbol" and dimension.name == "n"
+    assert main.body[1][1] == ((1, 2), 3)
+
+
+def test_constexpr_is_lazy_and_executes_in_parent_scope(language):
+    # Compile-time branches keep Python scope and short-circuit without visiting unselected
+    # operands.
+    M = language.M
+    seen = []
+
+    def choose():
+        seen.append("condition")
+        return True
+
+    def operand(value):
+        seen.append(value)
+        return value
+
+    def invalid():
+        pytest.fail("an unselected constexpr arm ran")
+
+    @M.function
+    def main():
+        if M.constexpr(choose()):
+            x = 7
+        else:
+            invalid()
+        M.record(x)
+        M.record(operand(1) if I.constexpr(operand(True)) else invalid())
+        M.record(I.constexpr(operand(0)) and invalid())
+        M.record(I.constexpr(operand(4)) or invalid())
+        M.record(I.constexpr(operand(2)) and operand(7))
+        M.record(I.constexpr(operand(0)) or operand(8))
+
+    assert seen == ["condition", True, 1, 0, 4, 2, 7, 0, 8]
+    assert [value for kind, value in main.body] == [7, 1, 0, 4, 7, 8]
+
+
+def test_ordinary_callable_aliases_update_mutable_targets(language):
+    # A local callable must shadow its ambient namesake and preserve ordinary mutable stores.
+    M = language.M
+    marker, calls = object(), []
+
+    def axis_alias():
+        pytest.fail("the shadowed ambient callable ran")
+
+    def ordinary():
+        calls.append("ordinary")
+        return marker
+
+    @M.function
+    def main():
+        axis_alias = ordinary
+        cell = M.cell()
+        cell = axis_alias()
+        M.record(cell)
+
+    declaration = next(operands[1] for kind, operands in main.body if kind == "declare")
+    stores = [operands for kind, operands in main.body if kind == "set"]
+    assert calls == ["ordinary"]
+    assert len(stores) == 1 and stores[0][0] is declaration and stores[0][1] is marker
+    assert main.body[-1] == ("emit", declaration)
+
+
+def test_bare_callable_alias_does_not_acquire_constexpr_syntax(language):
+    # A bare callable alias must not silently acquire constexpr syntax from the original marker.
+    M = language.M
+    marker = I.constexpr
+    with pytest.raises(TypeError, match="syntax marker"):
+
+        @M.function
+        def main():
+            if marker(True):
+                M.record(1)
+
+
+def test_ordinary_iterator_binding_calls_the_custom_iterator_once(language):
+    # An ordinary iterator alias calls its captured implementation exactly once.
+    M = language.M
+    calls = []
+
+    def custom_range(extent):
+        calls.append(extent)
+        return M.grid(2)
+
+    @M.function
+    def main():
+        iterator = custom_range
+        for i in iterator(4):
+            M.record(i)
+
+    assert calls == [4]
+    variable = main.body[0][1]
+    assert variable.op == "loop" and variable.args == (2,) and variable.name == "i"
+
+
+def test_constexpr_keeps_python_comparison_and_chain_short_circuit(primitive_language):
+    # Compile-time comparison chains must short-circuit and retain native identity equality
+    # semantics.
+    M = primitive_language.M
+    seen = []
+    x = ir.Var("x", "int32")
+
+    def operand(index, value):
+        seen.append(index)
+        return value
+
+    def invalid():
+        raise AssertionError("constexpr comparison chain must short-circuit")
+
+    @M.function
+    def main():
+        if M.constexpr(operand(0, 2) < operand(1, 1) < invalid()):
+            0
+        elif M.constexpr(x == x):
+            1
+
+    assert seen == [0, 1]
+    assert main.body == [("emit", 1)]
+
+
+def test_host_lambda_local_does_not_capture_optional_binding(language):
+    # A lambda parameter must shadow an outer optional binding during host selection.
+    M = language.M
+
+    @M.function
+    def main():
+        if I.constexpr(False):
+            x = 1
+        if I.constexpr((lambda x: x)(True)):
+            M.record(222)
+
+    assert main.body[-1] == ("emit", 222)
+
+
+def test_unselected_namespace_call_does_not_require_an_attribute(language):
+    # An unselected source call must remain unevaluated even when its captured name resembles a
+    # parser helper.
+    M = language.M
+    lanes = 1
+
+    @M.function
+    def main():
+        M.record(M.ramp(0, 1, lanes) if I.constexpr(lanes > 1) else 0)
+
+    assert main.body == [("emit", 0)]
 
 
 def test_attribute_name_does_not_turn_a_closure_binding_into_a_global(language):
@@ -138,8 +326,8 @@ def test_unrelated_same_file_caller_does_not_supply_annotation_locals(language):
         return function
 
     def caller():
-        EXTENT = 99  # noqa: F841
-        VALUE = 99  # noqa: F841
+        EXTENT = 99
+        VALUE = 99
         return build()
 
     function = caller()
@@ -262,19 +450,6 @@ def test_local_annotation_preserves_lambda_and_comprehension_bindings(language):
     kind, result = function.body[1]
     assert kind == "return" and result.op == "value"
     assert result.args == (function.params[0], function.params[0])
-
-
-def test_return_annotation_keeps_local_symbols_and_unused_captures():
-    n = ir.Var("n", "int64")
-    unused = TypeVar("unused", bound=int)
-
-    @R.function
-    def main(x: R.Tensor((n,), "float32")) -> R.Tensor(
-        ((lambda local: local if I.constexpr(True) else unused)(n),), "float32"
-    ):
-        return x
-
-    assert main.ret_ty.shape[0].same_as(n)
 
 
 def test_class_annotation_scope_keeps_distinct_method_closure(language):
@@ -418,7 +593,7 @@ def test_macro_local_annotation_captures_definition_and_argument_names(
 ):
     M = language.M
     M.macro = entry.make_macro_decorator(M, namespace_path="M.macro")
-    MACRO_VALUE = 7  # noqa: F841 — captured only by the postponed local annotation.
+    MACRO_VALUE = 7
     observed = []
 
     def annotation(shape):

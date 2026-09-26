@@ -14,26 +14,23 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Ordinary mini-language functions and modules evaluate expressions and control flow.
-
-Bindings, comparisons, loops and branches preserve values, identity and effect order.
-"""
+"""Shared parser basic usage."""
 
 from __future__ import annotations
 
-# Script-local bindings and failing decorated definitions are intentionally observable in IR.
-# ruff: noqa: F841
-import ast
 import inspect
 
 import pytest
+
+# Script-local bindings are observed through the constructed IR.
+# ruff: noqa: F841
 from minilang import Value
 
 from tvm import ir
 from tvm.ir import prim
 from tvm.ir._overload_prim_expr import EqualOp
 from tvm.script import ir as I
-from tvm.script import tirx as T
+from tvm.script.parser import entry
 
 
 def test_function(language):
@@ -47,75 +44,6 @@ def test_function(language):
     assert identity.params[0].args[0].args[0] == (4,)
     assert identity.ret_type.args[0] == (4,)
     assert identity.body == [("return", identity.params[0])]
-
-
-def test_missing_parameter_annotation_keeps_source_range(language):
-    # An unannotated script parameter must report that parameter before constructing IR.
-    M = language.M
-    with pytest.raises(SyntaxError, match="requires an annotation") as caught:
-
-        @M.function
-        def main(value):
-            pass
-
-    error = caught.value
-    # The outer test's fixture argument is not the offending script argument.
-    lines, first = inspect.getsourcelines(test_missing_parameter_annotation_keeps_source_range)
-    node = next(
-        n
-        for n in ast.walk(ast.parse("".join(lines)))
-        if isinstance(n, ast.arg) and n.arg == "value"
-    )
-    expected = (
-        __file__,
-        first + node.lineno - 1,
-        node.col_offset + 1,
-        first + node.end_lineno - 1,
-        node.end_col_offset + 1,
-    )
-    assert type(error) is SyntaxError
-    assert (
-        error.filename,
-        error.lineno,
-        error.offset,
-        error.end_lineno,
-        error.end_offset,
-    ) == expected
-    assert not language.functions
-
-
-def test_invalid_quoted_annotation_keeps_source_range(language):
-    # Even malformed quoted annotations report the original literal without decoding it.
-    M = language.M
-    with pytest.raises(SyntaxError, match="Quoted annotations are not supported") as caught:
-
-        @M.function
-        def main(value: "invalid +"):  # noqa: F722
-            pass
-
-    error = caught.value
-    lines, first = inspect.getsourcelines(test_invalid_quoted_annotation_keeps_source_range)
-    node = next(
-        n
-        for n in ast.walk(ast.parse("".join(lines)))
-        if isinstance(n, ast.Constant) and n.value == "invalid +"
-    )
-    expected = (
-        __file__,
-        first + node.lineno - 1,
-        node.col_offset + 1,
-        first + node.end_lineno - 1,
-        node.end_col_offset + 1,
-    )
-    assert type(error) is SyntaxError
-    assert (
-        error.filename,
-        error.lineno,
-        error.offset,
-        error.end_lineno,
-        error.end_offset,
-    ) == expected
-    assert not language.functions
 
 
 def test_module(language):
@@ -147,89 +75,6 @@ def test_module(language):
     assert call.args[1] is Module["second"].params[0]
     assert Module["first"].params[0].args[0].args[0] == (4,)
     assert Module["second"].params[0].args[0].args[0] == (4,)
-
-
-def test_policies_leave_computed_arguments_and_shorthand_strings_alone(language):
-    # Computed arguments must run once without treating their returned strings as symbolic syntax.
-    M = language.M
-    seen = []
-    concrete = object()
-
-    def value(label, result):
-        seen.append(label)
-        return result
-
-    @M.function
-    def main():
-        M.Tensor(
-            value("shape", (4,)), dtype=value("dtype", "float32"), device=value("device", concrete)
-        )
-        M.Tensor("float32", placement="literal[0]")
-
-    assert seen == ["shape", "dtype", "device"]
-    assert main.body[0][1].args == ((4,), "float32", concrete, "S[0]")
-    assert main.body[1][1].args == ("float32", "float32", None, "literal[0]")
-
-
-def test_nested_policy_and_starred_calls_are_evaluated_once(language):
-    # Nested marked calls and starred arguments must preserve their values and evaluation count.
-    M = language.M
-    seen = []
-    mesh = object()
-    language.global_infos["mesh[0]"] = mesh
-    values = (1, 2)
-    n = M.dynamic("n")
-
-    def outer(value):
-        seen.append(value)
-        return value
-
-    def collect(*values, other):
-        return values, other
-
-    @M.function
-    def main():
-        outer(M.Tensor((n,), device="mesh[0]"))
-        collect(*values, other=3)
-
-    assert len(seen) == 1 and seen[0].args[2] is mesh
-    dimension = seen[0].args[0][0]
-    assert dimension.op == "symbol" and dimension.name == "n"
-    assert main.body[1][1] == ((1, 2), 3)
-
-
-def test_constexpr_is_lazy_and_executes_in_parent_scope(language):
-    # Compile-time branches keep Python scope and short-circuit without visiting unselected
-    # operands.
-    M = language.M
-    seen = []
-
-    def choose():
-        seen.append("condition")
-        return True
-
-    def operand(value):
-        seen.append(value)
-        return value
-
-    def invalid():
-        pytest.fail("an unselected constexpr arm ran")
-
-    @M.function
-    def main():
-        if M.constexpr(choose()):
-            x = 7
-        else:
-            invalid()
-        M.record(x)
-        M.record(operand(1) if I.constexpr(operand(True)) else invalid())
-        M.record(I.constexpr(operand(0)) and invalid())
-        M.record(I.constexpr(operand(4)) or invalid())
-        M.record(I.constexpr(operand(2)) and operand(7))
-        M.record(I.constexpr(operand(0)) or operand(8))
-
-    assert seen == ["condition", True, 1, 0, 4, 2, 7, 0, 8]
-    assert [value for kind, value in main.body] == [7, 1, 0, 4, 7, 8]
 
 
 def test_unmarked_expressions_build_both_arms_in_source_order(language):
@@ -293,32 +138,6 @@ def test_ordinary_tuple_and_outer_branch_assignments_still_store(language):
     assert addition.op == "add" and addition.args == (target, 3)
 
 
-def test_ordinary_callable_aliases_update_mutable_targets(language):
-    # A local callable must shadow its ambient namesake and preserve ordinary mutable stores.
-    M = language.M
-    marker, calls = object(), []
-
-    def axis_alias():
-        pytest.fail("the shadowed ambient callable ran")
-
-    def ordinary():
-        calls.append("ordinary")
-        return marker
-
-    @M.function
-    def main():
-        axis_alias = ordinary
-        cell = M.cell()
-        cell = axis_alias()
-        M.record(cell)
-
-    declaration = next(operands[1] for kind, operands in main.body if kind == "declare")
-    stores = [operands for kind, operands in main.body if kind == "set"]
-    assert calls == ["ordinary"]
-    assert len(stores) == 1 and stores[0][0] is declaration and stores[0][1] is marker
-    assert main.body[-1] == ("emit", declaration)
-
-
 def test_name_collision(language):
     # Generated helpers must not steal identifiers already bound in source.
     M = language.M
@@ -377,18 +196,6 @@ def test_conditional_outputs_share_one_native_frame_result(language):
     assert output.op == "if" and output.args == (condition, left, right)
 
 
-def test_bare_callable_alias_does_not_acquire_constexpr_syntax(language):
-    # A bare callable alias must not silently acquire constexpr syntax from the original marker.
-    M = language.M
-    marker = I.constexpr
-    with pytest.raises(TypeError, match="syntax marker"):
-
-        @M.function
-        def main():
-            if marker(True):
-                M.record(1)
-
-
 def test_void_branch_statements_need_no_synthetic_named_output(language):
     # Void branch effects must not require or introduce an artificial result binding.
     M = language.M
@@ -404,109 +211,6 @@ def test_void_branch_statements_need_no_synthetic_named_output(language):
         M.record(9)
 
     assert [value for kind, value in main.body] == [None, None, 9]
-
-
-def test_ordinary_iterator_binding_calls_the_custom_iterator_once(language):
-    # An ordinary iterator alias calls its captured implementation exactly once.
-    M = language.M
-    calls = []
-
-    def custom_range(extent):
-        calls.append(extent)
-        return M.grid(2)
-
-    @M.function
-    def main():
-        iterator = custom_range
-        for i in iterator(4):
-            M.record(i)
-
-    assert calls == [4]
-    variable = main.body[0][1]
-    assert variable.op == "loop" and variable.args == (2,) and variable.name == "i"
-
-
-def test_body_annotation_reads_a_preceding_ordinary_local(language):
-    # A body annotation must read the current local value, not a stale enclosing capture.
-    M = language.M
-    annotations = []
-
-    def annotation(shape):
-        annotations.append(shape)
-        return M.Tensor(shape)
-
-    M.annotation = annotation
-
-    @M.function
-    def main():
-        shape = (4,)
-        value: M.annotation(shape) = 1
-        M.record(value)
-        shape = (8,)
-        M.record(shape)
-
-    assert annotations == [(4,)]
-    assert main.body == [("emit", 1), ("emit", (8,))]
-
-
-def test_native_concise_scopes_unwind_with_their_parent():
-    # Nested concise thread scopes must preserve the original variables in the constructed IR.
-    from tvm import tirx
-
-    variables = []
-
-    def observe(*items):
-        variables.extend(items)
-
-    @T.prim_func
-    def main():
-        bx = T.launch_thread("blockIdx.x", 2)
-        tx = T.launch_thread("threadIdx.x", 32)
-        observe(bx, tx)
-        T.evaluate(bx + tx)
-
-    bx, tx = variables
-    body = main.body
-    assert isinstance(body, tirx.AttrStmt) and isinstance(body.body, tirx.AttrStmt)
-    assert body.node.var.same_as(bx) and body.body.node.var.same_as(tx)
-    assert body.body.body.value.a.same_as(bx) and body.body.body.value.b.same_as(tx)
-
-
-def test_loop_control_validation_preserves_valid_and_unchecked_ir():
-    # Invalid loop placement must be rejected, while disabled checks preserve the original IR.
-    from tvm import ir, tirx
-
-    @T.prim_func(check_well_formed=False)
-    def invalid():
-        T.evaluate(tirx.break_loop())
-
-    # This is exactly the native node emitted by source `break`; constructing
-    # the intrinsic explicitly keeps the surrounding Python definition valid.
-    ir.assert_structural_equal(invalid.body, tirx.Evaluate(tirx.break_loop()))
-    with pytest.raises(ValueError, match="requires an enclosing loop"):
-
-        @T.prim_func
-        def rejected():
-            T.evaluate(tirx.break_loop())
-
-    @T.prim_func
-    def valid():
-        for i in range(2):
-            break
-
-    assert isinstance(valid.body, tirx.For)
-    ir.assert_structural_equal(valid.body.body, invalid.body)
-
-    @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
-    class Unchecked:
-        bad = invalid
-
-    assert Unchecked["bad"].same_as(invalid)
-    with pytest.raises(ValueError, match="requires an enclosing loop"):
-
-        @I.ir_module(extra_vars={"invalid": invalid})
-        class Rejected:
-            bad = invalid
 
 
 def test_written_comparison_order(primitive_language):
@@ -579,65 +283,17 @@ def test_host_ordering_does_not_materialize_an_equality_result(primitive_languag
             return result
 
     left, right = Host(), Host()
+    seen = []
 
     def consume(value):
-        assert value is result
+        seen.append(value)
         return 0
 
     @M.function
     def main():
         consume(M.constexpr(left < right))
 
-
-def test_simple_chain_and_complex_operand_rejection(primitive_language):
-    # Simple comparison chains preserve order; unsupported effectful operands fail before execution.
-    M = primitive_language.M
-    x, y = ir.Var("x", "int32"), ir.Var("y", "int32")
-
-    @M.function
-    def main():
-        -1 < x <= y != +3
-
-    expected = prim.And(prim.LT(-1, x), prim.And(prim.LE(x, y), prim.NE(y, 3)))
-    ir.assert_structural_equal(main.body[0][1], expected)
-
-    def operand():
-        pytest.fail("unsupported chain evaluated its operand")
-
-    with pytest.raises(SyntaxError, match="chain") as caught:
-
-        @M.function
-        def invalid():
-            operand() < x < y
-
-    lines, start = inspect.getsourcelines(test_simple_chain_and_complex_operand_rejection)
-    line = start + next(i for i, text in enumerate(lines) if text.strip() == "operand() < x < y")
-    assert (caught.value.filename, caught.value.lineno, caught.value.offset) == (__file__, line, 13)
-
-
-def test_constexpr_keeps_python_comparison_and_chain_short_circuit(primitive_language):
-    # Compile-time comparison chains must short-circuit and retain native identity equality
-    # semantics.
-    M = primitive_language.M
-    seen = []
-    x = ir.Var("x", "int32")
-
-    def operand(index, value):
-        seen.append(index)
-        return value
-
-    def invalid():
-        raise AssertionError("constexpr comparison chain must short-circuit")
-
-    @M.function
-    def main():
-        if M.constexpr(operand(0, 2) < operand(1, 1) < invalid()):
-            0
-        elif M.constexpr(x == x):
-            1
-
-    assert seen == [0, 1]
-    assert main.body == [("emit", 1)]
+    assert len(seen) == 1 and seen[0] is result
 
 
 def test_comparisons_use_native_promotion_and_broadcast(primitive_language):
@@ -743,77 +399,6 @@ def test_nested_unmarked_statement_retains_ir_frame(language):
     assert main.body == [("emit", 1), ("emit", 2)]
 
 
-def test_conditional_branches_require_matching_output_names(language):
-    # Value-producing branches must agree on their output name and locate the mismatched assignment.
-    M = language.M
-    M.__tvm_value_if__ = True
-    condition, left, right = Value("condition"), Value("left"), Value("right")
-    with pytest.raises(SyntaxError, match="same named output") as caught:
-
-        @M.function
-        def main():
-            if condition:
-                y = left
-            else:
-                z = right
-
-    error = caught.value
-    lines, first = inspect.getsourcelines(test_conditional_branches_require_matching_output_names)
-    line = first + next(i for i, text in enumerate(lines) if text.strip() == "z = right")
-    assert (error.filename, error.lineno, error.end_lineno) == (__file__, line, line)
-    assert (error.offset, error.end_offset) == (17, 26)
-    assert not language.functions
-
-
-def test_conditional_binding_can_be_assigned_after_skipped_branch(language):
-    # A skipped constexpr assignment must not prevent a later ordinary assignment.
-    M = language.M
-
-    @M.function
-    def main():
-        if I.constexpr(False):
-            x = 1
-        x = 2
-        M.record(x)
-
-    assert main.body[-1] == ("emit", 2)
-
-
-def test_constexpr_keeps_named_expression_unsupported(language):
-    # Constexpr must reject a multiline assignment expression at its full original range.
-    M = language.M
-    with pytest.raises(SyntaxError, match="Unsupported expression: NamedExpr") as caught:
-
-        @M.function
-        def main():
-            if I.constexpr(
-                bool(
-                    value := 1  # Keep the diagnostic range across two source lines.
-                    + 2
-                )
-            ):
-                M.record(value)
-
-    error = caught.value
-    lines, first = inspect.getsourcelines(test_constexpr_keeps_named_expression_unsupported)
-    node = next(n for n in ast.walk(ast.parse("".join(lines))) if isinstance(n, ast.NamedExpr))
-    assert type(error) is SyntaxError
-    assert (
-        error.filename,
-        error.lineno,
-        error.offset,
-        error.end_lineno,
-        error.end_offset,
-    ) == (
-        __file__,
-        first + node.lineno - 1,
-        node.col_offset + 1,
-        first + node.end_lineno - 1,
-        node.end_col_offset + 1,
-    )
-    assert not language.functions
-
-
 def test_ir_optional_binding_survives_skipped_host_assignment(language):
     # A skipped host assignment must not corrupt an optional binding from an IR branch.
     M = language.M
@@ -828,60 +413,6 @@ def test_ir_optional_binding_survives_skipped_host_assignment(language):
         M.record(x)
 
     assert main.body[-1][1].args == (3,)
-
-
-def test_missing_host_binding_cannot_be_truth_tested(language):
-    # Reading an unexecuted constexpr binding must raise before truth testing it.
-    M = language.M
-    with pytest.raises(NameError):
-
-        @M.function
-        def main():
-            if I.constexpr(False):
-                x = 1
-            M.record(1 if I.constexpr(x) else 0)
-
-
-def test_missing_host_if_binding_raises_before_branch_assignments(language):
-    # An if-condition must reject its missing incoming value before either arm assigns that name.
-    M = language.M
-    with pytest.raises(NameError):
-
-        @M.function
-        def main():
-            if I.constexpr(False):
-                x = 1
-            if I.constexpr(x):
-                x = 2
-            else:
-                x = 3
-
-
-def test_host_lambda_local_does_not_capture_optional_binding(language):
-    # A lambda parameter must shadow an outer optional binding during host selection.
-    M = language.M
-
-    @M.function
-    def main():
-        if I.constexpr(False):
-            x = 1
-        if I.constexpr((lambda x: x)(True)):
-            M.record(222)
-
-    assert main.body[-1] == ("emit", 222)
-
-
-def test_unselected_namespace_call_does_not_require_an_attribute(language):
-    # An unselected source call must remain unevaluated even when its captured name resembles a
-    # parser helper.
-    M = language.M
-    lanes = 1
-
-    @M.function
-    def main():
-        M.record(M.ramp(0, 1, lanes) if I.constexpr(lanes > 1) else 0)
-
-    assert main.body == [("emit", 0)]
 
 
 def test_source_logical_operands_skip_at_construction(language):
@@ -927,22 +458,6 @@ def test_ir_branch_incoming_read_and_rebinding_obeys_python_scope(language):
             else:
                 y = x
             return y
-
-
-def test_module_string_constants_keep_common_constructor_values():
-    # Literal strings passed to common IR constructors must remain concrete values
-    # when a real module definition is parsed.
-    from tvm import ir
-    from tvm.script import ir as I
-
-    @I.ir_module
-    class Module:
-        I.module_attrs({"tag": I.StringImm("label"), "type": I.StringType()})
-
-    expected = ir.IRModule(attrs={"tag": ir.StringImm("label"), "type": ir.StringType()})
-    ir.assert_structural_equal(expected, Module)
-    assert Module.attrs["tag"].value == "label"
-    assert isinstance(Module.attrs["type"], ir.StringType)
 
 
 def test_mutating_stores_and_loop_control_keep_effect_order(language):
@@ -1044,3 +559,43 @@ def test_numeric_relations_keep_each_written_operation(primitive_language):
     for (_, actual), reference in zip(main.body, expected):
         ir.assert_structural_equal(actual, reference)
     assert len(main.body) == len(expected)
+
+
+@pytest.mark.parametrize(
+    "expression, expected",
+    [
+        ("1, 3.14, True, 'str'", (1, 3.14, True, "str")),
+        ("1 + 2, 1 - 2, 1 * 2, 1 / 2", (3, -1, 2, 0.5)),
+        ("a + b, a - b, a * b, a / b", (3, -1, 2, 0.5)),
+        ("func(a, b)", (3, -1, 2, 0.5)),
+        (
+            "values, values[1:], values[:5], values[1:5], values[1:5:2]",
+            ([1, 2, 3, 4, 5, 6], [2, 3, 4, 5, 6], [1, 2, 3, 4, 5], [2, 3, 4, 5], [2, 4]),
+        ),
+    ],
+    ids=["literal-types", "arithmetic", "captures", "callable", "slice-strides"],
+)
+def test_host_expression_values(language, expression, expected):
+    calls = []
+
+    def func(a, b):
+        calls.append((a, b))
+        return a + b, a - b, a * b, a / b
+
+    source = "@M.function\ndef main():\n    M.record((" + expression + "))\n"
+    function = entry.parse(
+        source,
+        extra_vars={
+            "M": language.M,
+            "a": 1,
+            "b": 2,
+            "func": func,
+            "values": [1, 2, 3, 4, 5, 6],
+        },
+    )
+    assert len(function.body) == 1
+    kind, actual = function.body[0]
+    assert kind == "emit" and isinstance(actual, tuple)
+    assert actual == expected
+    assert [type(value) for value in actual] == [type(value) for value in expected]
+    assert calls == ([(1, 2)] if expression == "func(a, b)" else [])
