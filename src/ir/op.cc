@@ -27,6 +27,8 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 
+#include <exception>
+
 namespace tvm {
 
 // Owns canonical Ops and mutable attribute columns for the lifetime of the process.
@@ -108,21 +110,90 @@ OpDef::OpDef(const ffi::String& name) : op_(OpRegistry::Global()->GetOrCreate(na
 
 OpDef::OpDef(const ffi::String& name, const ffi::String& doc) : OpDef(name) { get()->doc = doc; }
 
-OpDef& OpDef::arg(const ffi::String& name, const ffi::String& ir_type_schema,
-                  const ffi::String& doc) {
+void Op::Validate(const CallNode* call) const { (*this)->Validate(call); }
+
+void OpNode::Validate(const CallNode* call) const {
+  TVM_FFI_CHECK(call != nullptr && call->op.get() == this, ValueError)
+      << "Expected a Call to operator '" << name << "'";
+  const auto* op = this;
+  const size_t expected = op->args_info.size();
+  TVM_FFI_CHECK(
+      op->allow_extra_args ? call->args.size() >= expected : call->args.size() == expected,
+      ValueError)
+      << "Operator '" << op->name << "' expects " << (op->allow_extra_args ? "at least " : "")
+      << expected << " arguments, got " << call->args.size();
+  if (op->validate_args_) op->validate_args_(op, call);
+  if (op->validate_ty_args_) op->validate_ty_args_(op, call);
+}
+
+void OpDef::DeclareTypes(size_t count, OpNode::CallValidator validate, bool type_args) {
+  const auto& infos = type_args ? op_->ty_args_info : op_->args_info;
+  auto& expected = type_args ? expected_ty_args_ : expected_args_;
+  bool defined = type_args ? op_->ty_args_signature_defined_ : op_->args_signature_defined_;
+  TVM_FFI_CHECK(!defined && !expected.has_value() && infos.empty(), ValueError)
+      << "Operator '" << op_->name << "' " << (type_args ? "type-argument" : "argument")
+      << " constraints must be declared once, before their descriptors";
+  expected = count;
+  (type_args ? pending_ty_args_ : pending_args_) = validate;
+}
+
+OpDef::~OpDef() noexcept(false) {
+  if (std::uncaught_exceptions() != 0) return;
+  TVM_FFI_CHECK(!expected_args_ || !op_->args_signature_defined_, ValueError)
+      << "Operator '" << op_->name << "' argument constraints are already declared";
+  TVM_FFI_CHECK(!expected_ty_args_ || !op_->ty_args_signature_defined_, ValueError)
+      << "Operator '" << op_->name << "' type-argument constraints are already declared";
+  TVM_FFI_CHECK(!expected_args_ || *expected_args_ == op_->args_info.size(), ValueError)
+      << "Operator '" << op_->name << "' declares " << *expected_args_
+      << " argument constraints but has " << op_->args_info.size() << " descriptors";
+  TVM_FFI_CHECK(!expected_ty_args_ || *expected_ty_args_ == op_->ty_args_info.size(), ValueError)
+      << "Operator '" << op_->name << "' declares " << *expected_ty_args_
+      << " type-argument constraints but has " << op_->ty_args_info.size() << " descriptors";
+  if (expected_args_) {
+    get()->validate_args_ = pending_args_;
+    get()->args_signature_defined_ = true;
+  }
+  if (expected_ty_args_) {
+    get()->validate_ty_args_ = pending_ty_args_;
+    get()->ty_args_signature_defined_ = true;
+  }
+}
+
+void OpDef::ReportTypeMismatch(const OpNode* op, const CallNode* call, size_t index,
+                               const std::string& expected, bool type_arg) {
+  const auto& info = type_arg ? op->ty_args_info[index] : op->args_info[index];
+  std::string actual;
+  if (type_arg) {
+    const Type& value = call->ty_args[index];
+    actual = value.defined() ? value->GetTypeKey() : "None";
+  } else {
+    const Expr& value = call->args[index];
+    actual = value.defined() ? value->GetTypeKey() : "None";
+    if (value.defined()) {
+      actual += " with ty ";
+      actual += value->ty.defined() ? value->ty->GetTypeKey() : "None";
+    }
+  }
+  TVM_FFI_THROW(TypeError) << "Operator '" << op->name << "' "
+                           << (type_arg ? "type argument " : "argument ") << index << " ('"
+                           << info->name << "') expects " << expected << ", got " << actual;
+}
+
+OpDef& OpDef::arg(const ffi::String& name, const ffi::String& doc) {
+  TVM_FFI_CHECK(!op_->args_signature_defined_, ValueError)
+      << "Cannot append arguments to the declared signature of operator '" << op_->name << "'";
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;
-  node->ir_type_schema = ir_type_schema;
   node->doc = doc;
   get()->args_info.push_back(ArgumentInfo(std::move(node)));
   return *this;
 }
 
-OpDef& OpDef::ty_arg(const ffi::String& name, const ffi::String& ir_type_schema,
-                     const ffi::String& doc) {
+OpDef& OpDef::ty_arg(const ffi::String& name, const ffi::String& doc) {
+  TVM_FFI_CHECK(!op_->ty_args_signature_defined_, ValueError)
+      << "Cannot append type arguments to the declared signature of operator '" << op_->name << "'";
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;
-  node->ir_type_schema = ir_type_schema;
   node->doc = doc;
   get()->ty_args_info.push_back(ArgumentInfo(std::move(node)));
   return *this;
@@ -154,6 +225,9 @@ void OpNode::RegisterReflection() {
       .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("allow_extra_args", &OpNode::allow_extra_args, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("ty_args_info", &OpNode::ty_args_info, refl::AttachFieldFlag::SEqHashIgnore())
+      .def("validate", [](Op op, Call call) { op.Validate(call.get()); },
+           "validate(call: Call) -> None\n\nCheck argument counts and declared IR constraints; "
+           "raise on mismatch without changing the call or inferring its result type.")
       .def_static("get", &Op::Get,
                   "get(op_name: str) -> Op\n\nReturn the canonical named Op; raise AttributeError "
                   "if unregistered.")
@@ -184,12 +258,12 @@ void OpNode::RegisterReflection() {
           "are ignored and cached views observe removal.")
       .def(
           "add_argument",
-          [](Op op, ffi::String name, ffi::String ir_type_schema, ffi::String doc) {
+          [](Op op, ffi::String name, ffi::String doc) {
             OpDef(op->name)
-                .arg(name, ir_type_schema, doc);
+                .arg(name, doc);
           },
-          "add_argument(name: str, ir_type_schema: str, doc: str) -> None\n\nAppend an argument's "
-          "name, IR representation schema, and documentation without validating operands.")
+          "add_argument(name: str, doc: str) -> None\n\nAppend an argument's "
+          "name and documentation; defaults to the Expr representation.")
       .def(
           "set_allow_extra_args", [](Op op) {
             OpDef(op->name)
@@ -198,13 +272,13 @@ void OpNode::RegisterReflection() {
           "set_allow_extra_args() -> None\n\nAllow value arguments after the required prefix.")
       .def(
           "add_type_argument",
-          [](Op op, ffi::String name, ffi::String ir_type_schema, ffi::String doc) {
+          [](Op op, ffi::String name, ffi::String doc) {
             OpDef(op->name)
-                .ty_arg(name, ir_type_schema, doc);
+                .ty_arg(name, doc);
           },
-          "add_type_argument(name: str, ir_type_schema: str, doc: str) -> None\n\nAppend a "
+          "add_type_argument(name: str, doc: str) -> None\n\nAppend a "
           "type-argument "
-          "name, IR representation schema, and documentation without imposing a count rule.")
+          "name and documentation without imposing a count rule.")
       .def(
           "set_attrs_type_key",
           [](Op op, ffi::String key) {

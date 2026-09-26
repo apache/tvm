@@ -71,7 +71,7 @@ void RegisterNKIIntrinsic(const NKIIntrinsicRegistration& reg) {
 
   OpDef def(canonical_op_name);
   for (const char* name : reg.args) {
-    def.arg<Expr>(name, "");
+    def.arg(name, "");
   }
   if (reg.allow_extra_args) {
     def.allow_extra_args();

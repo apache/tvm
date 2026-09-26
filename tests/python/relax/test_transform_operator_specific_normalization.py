@@ -68,6 +68,9 @@ def custom_op(define_normalization):
         tvm.ir.register_op_attr(op_name, key, value)
 
     op = tvm.ir.Op.get(op_name)
+    if not op.args_info:
+        op.add_argument("value", "")
+        op.set_allow_extra_args()
     yield op
 
     for key in op_attrs:

@@ -144,19 +144,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.unique",
         "Optional axis: The dimension to apply unique. If it is std::nullopt, the unique values of "
         "the flattened input are returned.")
-      .arg<Expr>("x", "The input tensor")
-      .arg<Expr>(
-          "sorted",
-          "Whether to sort the unique elements in ascending order before returning as output.")
-      .arg<Expr>(
-          "return_index",
-          "Whether to return an additional tensor with indices for where elements in the unique "
-          "tensor come from the original input.")
-      .arg<Expr>("return_inverse",
-                 "Whether to return an additional tensor with indices for where elements in the "
-                 "original input ended up in the returned unique list.")
-      .arg<Expr>("return_counts",
-                 "Whether to return an additional tensor with counts of each unique elements")
+      .arg("x", "The input tensor")
+      .arg("sorted",
+           "Whether to sort the unique elements in ascending order before returning as output.")
+      .arg("return_index",
+           "Whether to return an additional tensor with indices for where elements in the unique "
+           "tensor come from the original input.")
+      .arg("return_inverse",
+           "Whether to return an additional tensor with indices for where elements in the "
+           "original input ended up in the returned unique list.")
+      .arg("return_counts",
+           "Whether to return an additional tensor with counts of each unique elements")
       .allow_extra_args()
       .set_attr<FInferType>("FInferType", InferTypeUnique)
       .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
@@ -181,7 +179,7 @@ Type InferTypeNonzero(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nonzero")
-      .arg<Expr>("x", "The input tensor")
+      .arg("x", "The input tensor")
       .set_attr<FInferType>("FInferType", InferTypeNonzero)
       .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
       .set_attr<bool>("FPurity", true);

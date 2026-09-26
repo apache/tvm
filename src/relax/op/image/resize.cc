@@ -146,9 +146,9 @@ InferLayoutOutput InferLayoutResize2d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize2d")
-      .arg<Expr>("data", "The input tensor.")
-      .arg<Expr>("size", "The output image shape.")
-      .call_attrs_type<Resize2DAttrs>()
+      .arg("data", "The input tensor.")
+      .arg("size", "The output image shape.")
+      .attrs_type<Resize2DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeResize2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -261,9 +261,9 @@ InferLayoutOutput InferLayoutResize3d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize3d")
-      .arg<Expr>("data", "The input tensor.")
-      .arg<Expr>("size", "The output image shape.")
-      .call_attrs_type<Resize3DAttrs>()
+      .arg("data", "The input tensor.")
+      .arg("size", "The output image shape.")
+      .attrs_type<Resize3DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeResize3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize3d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -353,9 +353,9 @@ Type InferTypeGridSample(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.grid_sample")
-      .arg<Expr>("data", "The input tensor.")
-      .arg<Expr>("grid", "The grid tensor for sampling.")
-      .call_attrs_type<GridSampleAttrs>()
+      .arg("data", "The input tensor.")
+      .arg("grid", "The grid tensor for sampling.")
+      .attrs_type<GridSampleAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeGridSample)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -453,9 +453,9 @@ Type InferTypeAffineGrid(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.affine_grid")
-      .arg<Expr>("data", "The input affine matrix tensor.")
-      .arg<Expr>("size", "The target output shape (H, W).")
-      .call_attrs_type<AffineGridAttrs>()
+      .arg("data", "The input affine matrix tensor.")
+      .arg("size", "The target output shape (H, W).")
+      .attrs_type<AffineGridAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAffineGrid)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);

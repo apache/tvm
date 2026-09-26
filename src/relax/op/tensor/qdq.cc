@@ -157,10 +157,10 @@ Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.quantize")
-      .arg<Expr>("data", "The input tensor.")
-      .arg<Expr>("scale", "The quantization scale of the output tensor.")
-      .arg<Expr>("zero_point", "The quantization zero_point of the output tensor.")
-      .call_attrs_type<QuantizeAttrs>()
+      .arg("data", "The input tensor.")
+      .arg("scale", "The quantization scale of the output tensor.")
+      .arg("zero_point", "The quantization zero_point of the output tensor.")
+      .attrs_type<QuantizeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeQuantize)
       .set_attr<bool>("FPurity", true);
 }
@@ -280,10 +280,10 @@ Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dequantize")
-      .arg<Expr>("data", "The input tensor.")
-      .arg<Expr>("scale", "The quantization scale of the input tensor.")
-      .arg<Expr>("zero_point", "The quantization zero_point of the input tensor.")
-      .call_attrs_type<QuantizeAttrs>()
+      .arg("data", "The input tensor.")
+      .arg("scale", "The quantization scale of the input tensor.")
+      .arg("zero_point", "The quantization zero_point of the input tensor.")
+      .attrs_type<QuantizeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeDequantize)
       .set_attr<bool>("FPurity", true);
 }

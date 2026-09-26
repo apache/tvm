@@ -146,10 +146,10 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.multinomial_from_uniform")
-      .arg<Expr>("prob", "The probability tensor.")
-      .arg<Expr>("uniform_sample", "The uniform sample tensor.")
-      .arg<Expr>("sample_indices", "The sample indices tensor.")
-      .call_attrs_type<MultinomialFromUniformAttrs>()
+      .arg("prob", "The probability tensor.")
+      .arg("uniform_sample", "The uniform sample tensor.")
+      .arg("sample_indices", "The sample indices tensor.")
+      .attrs_type<MultinomialFromUniformAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeMultinomialFromUniform)
       .set_attr<bool>("FPurity", true);
 }

@@ -197,8 +197,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.abs", abs);
 
   OpDef("relax.abs")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -207,8 +207,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.acos", acos);
 
   OpDef("relax.acos")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -217,8 +217,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.acosh", acosh);
 
   OpDef("relax.acosh")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -227,8 +227,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.asin", asin);
 
   OpDef("relax.asin")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -237,8 +237,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.asinh", asinh);
 
   OpDef("relax.asinh")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -247,8 +247,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.atan", atan);
 
   OpDef("relax.atan")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -257,8 +257,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.atanh", atanh);
 
   OpDef("relax.atanh")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -267,8 +267,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.bitwise_not", bitwise_not);
 
   OpDef("relax.bitwise_not")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -277,8 +277,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.ceil", ceil);
 
   OpDef("relax.ceil")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -287,8 +287,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.cos", cos);
 
   OpDef("relax.cos")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -297,8 +297,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.cosh", cosh);
 
   OpDef("relax.cosh")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -307,8 +307,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.exp", exp);
 
   OpDef("relax.exp")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -317,8 +317,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.floor", floor);
 
   OpDef("relax.floor")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -327,8 +327,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.log", log);
 
   OpDef("relax.log")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -337,8 +337,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.logical_not", logical_not);
 
   OpDef("relax.logical_not")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -347,8 +347,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.negative", negative);
 
   OpDef("relax.negative")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -357,8 +357,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.round", round);
 
   OpDef("relax.round")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -367,8 +367,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.rsqrt", rsqrt);
 
   OpDef("relax.rsqrt")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -377,8 +377,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.sigmoid", sigmoid);
 
   OpDef("relax.sigmoid")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -387,8 +387,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.sign", sign);
 
   OpDef("relax.sign")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -397,8 +397,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.sin", sin);
 
   OpDef("relax.sin")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -407,8 +407,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.sinh", sinh);
 
   OpDef("relax.sinh")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -417,8 +417,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.square", square);
 
   OpDef("relax.square")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -427,8 +427,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.sqrt", sqrt);
 
   OpDef("relax.sqrt")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -437,8 +437,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.tan", tan);
 
   OpDef("relax.tan")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -447,8 +447,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.tanh", tanh);
 
   OpDef("relax.tanh")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -457,8 +457,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.trunc", trunc);
 
   OpDef("relax.trunc")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg_types<TensorType>()
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -467,8 +468,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.erf", erf);
 
   OpDef("relax.erf")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -477,9 +478,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   // relax.clip
 
   OpDef("relax.clip")
-      .arg<Expr>("x", "The input tensor.")
-      .arg<PrimExpr>("min", "The lower-bound of the range to be clipped to")
-      .arg<PrimExpr>("max", "The upper-bound of the range to be clipped to")
+      .arg_types<Expr, PrimExpr, PrimExpr>()
+      .arg("x", "The input tensor.")
+      .arg("min", "The lower-bound of the range to be clipped to")
+      .arg("max", "The upper-bound of the range to be clipped to")
       .set_attr<FInferType>("FInferType", ReturnTypeFromArg<0>)
       .set_attr<bool>("FPurity", true);
 }
@@ -504,8 +506,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.isfinite", isfinite);
 
   OpDef("relax.isfinite")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -515,8 +517,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.isinf", isinf);
 
   OpDef("relax.isinf")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -526,8 +528,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.isnan", isnan);
 
   OpDef("relax.isnan")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)

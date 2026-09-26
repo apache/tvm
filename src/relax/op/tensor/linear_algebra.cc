@@ -164,8 +164,8 @@ Call InferMixedPrecisionMatmul(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.matmul")
-      .arg<Expr>("x1", "The first input tensor.")
-      .arg<Expr>("x2", "The second input tensor.")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
       .set_attr<FInferType>("FInferType", InferTypeMatmul)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul)
@@ -254,8 +254,8 @@ Type InferTypeEinsum(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.einsum")
-      .arg<Expr>("operands", "The input tensors.")
-      .call_attrs_type<EinsumAttrs>()
+      .arg("operands", "The input tensors.")
+      .attrs_type<EinsumAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeEinsum)
       .set_attr<bool>("FPurity", true);
 }
@@ -294,8 +294,8 @@ Type InferTypeOuter(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.outer")
-      .arg<Expr>("x1", "The first input tensor.")
-      .arg<Expr>("x2", "The second input tensor.")
+      .arg("x1", "The first input tensor.")
+      .arg("x2", "The second input tensor.")
       .set_attr<FInferType>("FInferType", InferTypeOuter)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<bool>("FPurity", true);

@@ -191,10 +191,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         "Decode SSD/TFLite-style priors and offsets into boxes and class scores. If "
         "cls_pred shape is unknown, N-based loc/anchor shape checks are skipped in "
         "inference. Very large variances (w,h) can overflow exp in half box sizes.")
-      .arg<Expr>("cls_pred", "[B,C,N] class logits or scores.")
-      .arg<Expr>("loc_pred", "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh.")
-      .arg<Expr>("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom).")
-      .call_attrs_type<MultiboxTransformLocAttrs>()
+      .arg("cls_pred", "[B,C,N] class logits or scores.")
+      .arg("loc_pred", "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh.")
+      .arg("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom).")
+      .attrs_type<MultiboxTransformLocAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeMultiboxTransformLoc)
       .set_attr<bool>("FPurity", true);
 }

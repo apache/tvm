@@ -144,7 +144,7 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
   size_t n_input = op->args_info.size();
 
-  // Unfortunately, because the `.arg<T>()` calls in
+  // Unfortunately, because the `.arg()` calls in
   // OpDef occur during initialization of globals and are
   // not available at compile-time, this cannot be a static_assert.
   TVM_FFI_ICHECK(op->allow_extra_args ? sizeof...(ArgTypes) >= n_input

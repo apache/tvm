@@ -55,32 +55,37 @@ const Op& clz() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("prim.likely")
-      .arg<PrimExpr>("x", "")
+      .arg_types<PrimExpr>()
+      .arg("x", "")
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kExprAnnotation))
       .set_attr<bool>("TVectorizable", true);
 
   OpDef("prim.if_then_else")
-      .arg<PrimExpr>("condition", "")
-      .arg<PrimExpr>("true_value", "")
-      .arg<PrimExpr>("false_value", "")
+      .arg_types<PrimExpr, Expr, Expr>()
+      .arg("condition", "")
+      .arg("true_value", "")
+      .arg("false_value", "")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.vscale")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.ceil")
-      .arg<PrimExpr>("x", "")
+      .arg_types<PrimExpr>()
+      .arg("x", "")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<bool>("TVectorizable", true);
 
   OpDef("prim.log2")
-      .arg<PrimExpr>("x", "")
+      .arg_types<PrimExpr>()
+      .arg("x", "")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<bool>("TVectorizable", true);
 
   OpDef("prim.clz")
-      .arg<PrimExpr>("x", "")
+      .arg_types<PrimExpr>()
+      .arg("x", "")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }
 

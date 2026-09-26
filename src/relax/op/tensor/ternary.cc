@@ -133,9 +133,9 @@ InferLayoutOutput InferLayoutEwiseFMA(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ewise_fma")
-      .arg<Expr>("x1", "The left hand operand of the multiplication")
-      .arg<Expr>("x2", "The right hand operand of the multiplication")
-      .arg<Expr>("x3", "The operand of the addition")
+      .arg("x1", "The left hand operand of the multiplication")
+      .arg("x2", "The right hand operand of the multiplication")
+      .arg("x3", "The operand of the addition")
       .set_attr<FInferType>("FInferType", InferTypeEwiseFMA)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutEwiseFMA)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)

@@ -274,10 +274,10 @@ void RegisterCudaIntrinRules() {
   // Register low-level CUDA device intrinsics.
   // TODO(tvm-team): consider make CUDA its own subfolder and create a file for low-level builtins.
   OpDef("tirx.cuda.__shfl_sync")
-      .arg<Expr>("mask", "The thread mask.")
-      .arg<Expr>("var", "The variable to sync.")
-      .arg<Expr>("lane", "The source thread id.")
-      .arg<Expr>("width", "The warp thread width, must be a power of 2.")
+      .arg("mask", "The thread mask.")
+      .arg("var", "The variable to sync.")
+      .arg("lane", "The source thread id.")
+      .arg("width", "The warp thread width, must be a power of 2.")
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.__shfl_sync"))
@@ -286,10 +286,10 @@ void RegisterCudaIntrinRules() {
       .set_attr<bool>("cuda.need_warp_shuffle", true);
 
   OpDef("tirx.cuda.__shfl_up_sync")
-      .arg<Expr>("mask", "The thread mask.")
-      .arg<Expr>("var", "The variable to sync.")
-      .arg<Expr>("delta", "The source lane id offset to be added.")
-      .arg<Expr>("width", "The warp thread width, must be a power of 2.")
+      .arg("mask", "The thread mask.")
+      .arg("var", "The variable to sync.")
+      .arg("delta", "The source lane id offset to be added.")
+      .arg("width", "The warp thread width, must be a power of 2.")
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.__shfl_up_sync"))
@@ -298,10 +298,10 @@ void RegisterCudaIntrinRules() {
       .set_attr<bool>("cuda.need_warp_shuffle", true);
 
   OpDef("tirx.cuda.__shfl_down_sync")
-      .arg<Expr>("mask", "The thread mask.")
-      .arg<Expr>("var", "The variable to sync.")
-      .arg<Expr>("delta", "The source lane id offset to be subtracted.")
-      .arg<Expr>("width", "The warp thread width, must be a power of 2.")
+      .arg("mask", "The thread mask.")
+      .arg("var", "The variable to sync.")
+      .arg("delta", "The source lane id offset to be subtracted.")
+      .arg("width", "The warp thread width, must be a power of 2.")
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -311,10 +311,10 @@ void RegisterCudaIntrinRules() {
       .set_attr<bool>("cuda.need_warp_shuffle", true);
 
   OpDef("tirx.cuda.__shfl_xor_sync")
-      .arg<Expr>("mask", "The thread mask.")
-      .arg<Expr>("var", "The variable to sync.")
-      .arg<Expr>("lane_mask", "The lane mask.")
-      .arg<Expr>("width", "The warp thread width, must be a power of 2.")
+      .arg("mask", "The thread mask.")
+      .arg("var", "The variable to sync.")
+      .arg("lane_mask", "The lane mask.")
+      .arg("width", "The warp thread width, must be a power of 2.")
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.__shfl_xor_sync"))

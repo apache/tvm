@@ -64,7 +64,7 @@ Type InferTypeAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.annotate_sharding")
-      .arg<Expr>("input", "The input tensor.")
+      .arg("input", "The input tensor.")
       .set_attr<FInferType>("FInferType", InferTypeAnnotateSharding)
       .set_attr<FInferType>("dist.FInferType", InferTypeAnnotateSharding)
       .set_attr<bool>("FPurity", true);
@@ -96,7 +96,7 @@ Type InferDistTypeRedistribute(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.redistribute")
-      .arg<Expr>("input", "The input tensor.")
+      .arg("input", "The input tensor.")
       .set_attr<FInferType>("dist.FInferType", InferDistTypeRedistribute)
       .set_attr<bool>("FPurity", true);
 }
@@ -114,9 +114,9 @@ Type InferTypeCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.call_tir_local_view")
-      .arg<Expr>("func", "The destination-passing-style function.")
-      .arg<Expr>("args", "The input arguments.")
-      .ty_arg<Type>("out_type", "The output type.")
+      .arg("func", "The destination-passing-style function.")
+      .arg("args", "The input arguments.")
+      .ty_arg("out_type", "The output type.")
       .set_attr<FInferType>("FInferType", InferTypeCallTIRLocalView)
       .set_attr<bool>("FPurity", true);
 }
@@ -219,8 +219,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         redistribute_replica_to_shard);
 
   OpDef("relax.dist.redistribute_replica_to_shard")
-      .arg<Expr>("input", "The buffer to be sliced.")
-      .call_attrs_type<ScatterCollectiveAttrs>()
+      .arg("input", "The buffer to be sliced.")
+      .attrs_type<ScatterCollectiveAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeRtoS)
       .set_attr<FInferType>("dist.FInferType", InferDistTypeRtoS)
       .set_attr<bool>("FPurity", true);

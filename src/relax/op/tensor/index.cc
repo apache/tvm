@@ -129,9 +129,9 @@ Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.take")
-      .arg<Expr>("x", "The source tensor.")
-      .arg<Expr>("indices", "The indices of the values to extract.")
-      .call_attrs_type<TakeAttrs>()
+      .arg("x", "The source tensor.")
+      .arg("indices", "The indices of the values to extract.")
+      .attrs_type<TakeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeTake)
       .set_attr<bool>("FPurity", true);
 }
@@ -489,12 +489,12 @@ InferLayoutOutput InferLayoutStridedSlice(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.strided_slice")
-      .arg<Expr>("x", "The source tensor to be sliced.")
-      .arg<Expr>("axes", "")
-      .arg<Expr>("begin", "")
-      .arg<Expr>("end", "")
+      .arg("x", "The source tensor to be sliced.")
+      .arg("axes", "")
+      .arg("begin", "")
+      .arg("end", "")
       .allow_extra_args()
-      .call_attrs_type<StridedSliceAttrs>()
+      .attrs_type<StridedSliceAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeStridedSlice)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -591,10 +591,10 @@ InferLayoutOutput InferLayoutDynStridedSlice(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dynamic_strided_slice")
-      .arg<Expr>("x", "The source tensor to be sliced.")
-      .arg<Expr>("begin", "The indices to begin with in the slicing.")
-      .arg<Expr>("end", "Indices indicating end of the slice.")
-      .arg<Expr>("strides", "The stride values.")
+      .arg("x", "The source tensor to be sliced.")
+      .arg("begin", "The indices to begin with in the slicing.")
+      .arg("end", "Indices indicating end of the slice.")
+      .arg("strides", "The stride values.")
       .set_attr<FInferType>("FInferType", InferTypeDynStridedSlice)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)

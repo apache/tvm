@@ -130,10 +130,9 @@ Type InferTypeROIAlign(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.roi_align")
-      .arg<Expr>("data", "The input tensor.")
-      .arg<Expr>("rois",
-                 "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
-      .call_attrs_type<ROIAlignAttrs>()
+      .arg("data", "The input tensor.")
+      .arg("rois", "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
+      .attrs_type<ROIAlignAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeROIAlign)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);

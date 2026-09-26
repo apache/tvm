@@ -75,8 +75,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.relu", relu);
 
   OpDef("relax.nn.relu")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -87,8 +87,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.gelu", gelu);
 
   OpDef("relax.nn.gelu")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -99,8 +99,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.gelu_tanh", gelu_tanh);
 
   OpDef("relax.nn.gelu_tanh")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -111,8 +111,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.selu", selu);
 
   OpDef("relax.nn.selu")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg_types<TensorType>()
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -123,8 +124,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.silu", silu);
 
   OpDef("relax.nn.silu")
-      .arg<Expr>("x", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("x", "The input tensor.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -145,9 +146,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.leakyrelu", leakyrelu);
 
   OpDef("relax.nn.leakyrelu")
-      .arg<Expr>("data", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
-      .call_attrs_type<LeakyReluAttrs>()
+      .arg("data", "The input tensor.")
+      .ty_arg_types<TensorType>()
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .attrs_type<LeakyReluAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeUnaryArith</*require_float_dtype=*/true>)
       .set_attr<bool>("FPurity", true);
 }
@@ -167,9 +169,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.softplus", softplus);
 
   OpDef("relax.nn.softplus")
-      .arg<Expr>("data", "The input tensor.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
-      .call_attrs_type<SoftplusAttrs>()
+      .arg("data", "The input tensor.")
+      .ty_arg_types<TensorType>()
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .attrs_type<SoftplusAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeUnaryArith</*require_float_dtype=*/true>)
       .set_attr<bool>("FPurity", true);
 }
@@ -232,9 +235,9 @@ InferLayoutOutput InferLayoutPRelu(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.prelu")
-      .arg<Expr>("data", "The input tensor.")
-      .arg<Expr>("alpha", "The channel-wise learnable slope.")
-      .call_attrs_type<PReluAttrs>()
+      .arg("data", "The input tensor.")
+      .arg("alpha", "The channel-wise learnable slope.")
+      .attrs_type<PReluAttrs>()
       .set_attr<FInferType>("FInferType", InferTypePRelu)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPRelu)
       .set_attr<bool>("FPurity", true);
@@ -299,8 +302,8 @@ InferLayoutOutput InferLayoutSoftmax(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.softmax")
-      .arg<Expr>("data", "The input tensor.")
-      .call_attrs_type<SoftmaxAttrs>()
+      .arg("data", "The input tensor.")
+      .attrs_type<SoftmaxAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeSoftmax)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax)
       .set_attr<bool>("FPurity", true);
@@ -319,8 +322,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.log_softmax", log_softmax);
 
   OpDef("relax.nn.log_softmax")
-      .arg<Expr>("data", "The input tensor.")
-      .call_attrs_type<SoftmaxAttrs>()
+      .arg("data", "The input tensor.")
+      .attrs_type<SoftmaxAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeSoftmax)
       .set_attr<bool>("FPurity", true);
 }
@@ -367,8 +370,8 @@ Type InferTypePad(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pad")
-      .arg<Expr>("data", "The input tensor.")
-      .call_attrs_type<PadAttrs>()
+      .arg("data", "The input tensor.")
+      .attrs_type<PadAttrs>()
       .set_attr<FInferType>("FInferType", InferTypePad)
       .set_attr<bool>("FPurity", true);
 }
@@ -440,8 +443,8 @@ Type InferTypePixelShuffle(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pixel_shuffle")
-      .arg<Expr>("data", "The input tensor.")
-      .call_attrs_type<PixelShuffleAttrs>()
+      .arg("data", "The input tensor.")
+      .attrs_type<PixelShuffleAttrs>()
       .set_attr<FInferType>("FInferType", InferTypePixelShuffle)
       .set_attr<bool>("FPurity", true);
 }
@@ -588,12 +591,12 @@ InferLayoutOutput InferLayoutBatchNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.batch_norm")
-      .arg<Expr>("data", "Input to which batch_norm will be applied.")
-      .arg<Expr>("gamma", "The gamma scale factor.")
-      .arg<Expr>("beta", "The beta offset factor.")
-      .arg<Expr>("moving_mean", "Running mean of input.")
-      .arg<Expr>("moving_var", "Running variance of input.")
-      .call_attrs_type<BatchNormAttrs>()
+      .arg("data", "Input to which batch_norm will be applied.")
+      .arg("gamma", "The gamma scale factor.")
+      .arg("beta", "The beta offset factor.")
+      .arg("moving_mean", "Running mean of input.")
+      .arg("moving_var", "Running variance of input.")
+      .attrs_type<BatchNormAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeBatchNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBatchNorm)
       .set_attr<bool>("FPurity", true);
@@ -658,10 +661,10 @@ InferLayoutOutput InferLayoutLayerNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.layer_norm")
-      .arg<Expr>("data", "Input to which layer_norm will be applied.")
-      .arg<Expr>("gamma", "The gamma scale factor.")
-      .arg<Expr>("beta", "The beta offset factor.")
-      .call_attrs_type<LayerNormAttrs>()
+      .arg("data", "Input to which layer_norm will be applied.")
+      .arg("gamma", "The gamma scale factor.")
+      .arg("beta", "The beta offset factor.")
+      .attrs_type<LayerNormAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeLayerNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -773,10 +776,10 @@ InferLayoutOutput InferLayoutGroupNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.group_norm")
-      .arg<Expr>("data", "Input to which group_norm will be applied.")
-      .arg<Expr>("gamma", "The gamma scale factor.")
-      .arg<Expr>("beta", "The beta offset factor.")
-      .call_attrs_type<GroupNormAttrs>()
+      .arg("data", "Input to which group_norm will be applied.")
+      .arg("gamma", "The gamma scale factor.")
+      .arg("beta", "The beta offset factor.")
+      .attrs_type<GroupNormAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeGroupNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -876,10 +879,10 @@ InferLayoutOutput InferLayoutInstanceNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.instance_norm")
-      .arg<Expr>("data", "Input to which instance_norm will be applied.")
-      .arg<Expr>("gamma", "The gamma scale factor.")
-      .arg<Expr>("beta", "The beta offset factor.")
-      .call_attrs_type<InstanceNormAttrs>()
+      .arg("data", "Input to which instance_norm will be applied.")
+      .arg("gamma", "The gamma scale factor.")
+      .arg("beta", "The beta offset factor.")
+      .attrs_type<InstanceNormAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeInstanceNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutInstanceNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -937,9 +940,9 @@ InferLayoutOutput InferLayoutRMSNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.rms_norm")
-      .arg<Expr>("data", "Input to which rms_norm will be applied.")
-      .arg<Expr>("weight", "The scale factor.")
-      .call_attrs_type<RMSNormAttrs>()
+      .arg("data", "Input to which rms_norm will be applied.")
+      .arg("weight", "The scale factor.")
+      .attrs_type<RMSNormAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeRMSNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRMSNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -968,8 +971,8 @@ Type InferTypeDropout(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.dropout")
-      .arg<Expr>("data", "Input to which dropout will be applied.")
-      .call_attrs_type<DropoutAttrs>()
+      .arg("data", "Input to which dropout will be applied.")
+      .attrs_type<DropoutAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeDropout)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -1031,9 +1034,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.cross_entropy_with_logits", cross_entropy_with_logits);
 
   OpDef("relax.nn.cross_entropy_with_logits")
-      .arg<Expr>("predictions", "The predictions.")
-      .arg<Expr>("labels", "The labels.")
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .arg("predictions", "The predictions.")
+      .arg("labels", "The labels.")
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
       .set_attr<FInferType>("FInferType", InferTypeCrossEntropy)
       .set_attr<bool>("FPurity", true);
 }
@@ -1259,11 +1262,11 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.nll_loss", "Optional weights: The weight of each target values.")
-      .arg<Expr>("predictions", "The prediction tensor.")
-      .arg<Expr>("targets", "The target tensor.")
+      .arg("predictions", "The prediction tensor.")
+      .arg("targets", "The target tensor.")
       .allow_extra_args()
-      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
-      .call_attrs_type<NLLLossAttrs>()
+      .ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .attrs_type<NLLLossAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeNLLLoss)
       .set_attr<bool>("FPurity", true);
 }
@@ -1313,7 +1316,7 @@ Type InferTypeBatchFlatten(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.batch_flatten")
-      .arg<Expr>("data", "The input tensor.")
+      .arg("data", "The input tensor.")
       .set_attr<FInferType>("FInferType", InferTypeBatchFlatten)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
