@@ -16,6 +16,8 @@
 # under the License.
 """S-TIR script dynamic shape."""
 
+from __future__ import annotations
+
 import pytest
 
 import tvm.testing
