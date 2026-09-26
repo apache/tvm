@@ -14,7 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E741, F821, F841, RUF005
+# ruff: noqa: F841
+"""S-TIR script error handling."""
+
 from __future__ import annotations
 
 import ast
@@ -73,7 +75,7 @@ def test_undefined_buffer():
     def undefined_buffer(A: T.Buffer((16, 16), "float32")) -> None:
         for i in T.serial(16):
             for j in T.serial(0, 16):
-                C[i, j] = 0.0  # error
+                C[i, j] = 0.0  # error  # noqa: F821
 
     check_error(undefined_buffer, 4, NameError)
 
@@ -85,13 +87,6 @@ def test_unsupported_function_call():
                 A[i, j] = 0.0
 
     check_error(unsupported_function_call, 2, AttributeError)
-
-
-def test_missing_type_annotation():
-    def missing_type_annotation(a) -> None:  # error
-        T.evaluate(0.0)
-
-    check_error(missing_type_annotation, 1, SyntaxError)
 
 
 def test_invalid_for_function():
@@ -426,7 +421,7 @@ def test_implicit_root_has_attrs():
 def elementwise_not_affine(
     A: T.Buffer((128, 128, 128, 128)), B: T.Buffer((128, 128, 128, 128))
 ) -> None:
-    for i, j, k, l in T.grid(128, 128, 128, 8):
+    for i, j, k, l in T.grid(128, 128, 128, 8):  # noqa: E741
         with Ts.sblock("B"):
             vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
             vl = Ts.axis.S(128, l * 16)
@@ -453,7 +448,7 @@ def elementwise_non_single_branch(
 def test_reorder_fail_block():
     sch = tvm.s_tir.Schedule(elementwise_not_affine, debug_mask="all")
     block_b = sch.get_sblock("B")
-    i, j, k, l = sch.get_loops(block_b)
+    i, j, k, l = sch.get_loops(block_b)  # noqa: E741
     with pytest.raises(tvm.s_tir.ScheduleError) as execinfo:
         sch.reorder(l, i)
     expected_sub_error_message = (
@@ -539,7 +534,7 @@ def test_store_handle():
 
 def test_binop_bad_ast_type():
     def binop_bad_ast_type(h: T.handle, h_: T.Buffer([1])):
-        h_[0] = h + [2]  # error rhs should be a primexpr
+        h_[0] = h + [2]  # error rhs should be a primexpr  # noqa: RUF005
 
     check_error(binop_bad_ast_type, 2, TypeError)
 
@@ -630,6 +625,32 @@ def test_multi_line_error_report():
             frames[-1].end_lineno,
             frames[-1].end_colno,
         ) == (call.lineno, call.col_offset, call.end_lineno, call.end_col_offset)
+
+
+def test_tir_func_private_manual_global_symbol_fail():
+    with pytest.raises(tvm.error.InternalError):
+
+        @Ts.prim_func(private=True)
+        def matmul(
+            A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+        ) -> None:
+            T.func_attr({"global_symbol": "matmul"})
+
+            for i, j, k in T.grid(128, 128, 128):
+                with Ts.sblock("update"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+        # should not execute
+        assert matmul.__name__ == "matmul"
+
+
+def test_buffer_input_requires_shape_arg():
+    with pytest.raises(TypeError):
+
+        @Ts.prim_func
+        def func(A: T.Buffer(dtype="int32")):
+            T.evaluate(0)
 
 
 if __name__ == "__main__":

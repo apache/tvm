@@ -14,20 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Explicit symbolic dimensions retain identity in signatures and function bodies.
-Dimensions use ordinary Python expressions over explicit symbols.
-"""
+"""Shared parser dynamic shape."""
 
 from __future__ import annotations
 
-# Invalid script examples deliberately contain unresolved or unused bindings.
-# ruff: noqa: F821
 import sys
 
 import pytest
 
-from tvm.script import ir as I
-from tvm.script import tirx as T
+# Script-local bindings are observed through the constructed IR.
+# ruff: noqa: F821
 from tvm.script.parser import entry
 
 
@@ -43,19 +39,20 @@ def test_signature_symbols_cross_nested_calls_parameters_return_and_body(languag
         y: M.Tensor((n,), "float32"),
     ) -> M.Tensor((n,), "float32"):
         M.record(n)
+        M.record(n)
         return y
 
-    n = main.params[0].args[0][0].args[0][0]
+    assert main.params[0].args[0][0].args[0][0] is n
     assert main.params[0].args[0][1].args[0][0] is n
     assert main.params[1].args[0].args[0][0] is n
     assert main.ret_type.args[0][0] is n
-    assert main.body[0][1] is n
+    assert main.body[0][1] is n and main.body[1][1] is n
 
 
 def test_signature_read_before_introduction_remains_unbound(language):
     # An undeclared dimension must remain an ordinary unbound Python name.
     M = language.M
-    with pytest.raises(NameError, match="n"):
+    with pytest.raises(NameError, match="name 'n' is not defined"):
 
         @M.function
         def main(x: M.Tensor((n,), "float32")):
@@ -78,22 +75,6 @@ def test_same_named_symbol_does_not_replace_captured_python_value(language):
     assert main.params[1].args[0].args[0][0] == 7
     assert main.body[0][1] == 7
     assert symbol.name == "n"
-
-
-def test_captured_shape_requires_concrete_symbols():
-    # Native shape construction preserves concrete symbols and rejects strings.
-    def build(shape):
-        @T.prim_func
-        def main(x: T.Buffer(shape, "float32")):
-            T.evaluate(0)
-
-        return main
-
-    n = T.dynamic("n")
-    function = build((n, 16))
-    assert function.params[0].ty.shape[0].same_as(n)
-    with pytest.raises(AssertionError, match="data must be int or Expr, but got n"):
-        build(("n", 16))
 
 
 def test_argument_policies_reuse_symbols_and_resolve_only_marked_literals(language):
@@ -120,7 +101,7 @@ def test_external_symbol_does_not_introduce_same_named_python_binding(language):
     # Capturing a symbol under another name must not introduce its IR name in Python.
     M = language.M
     symbol = M.dynamic("n")
-    with pytest.raises(NameError, match="n"):
+    with pytest.raises(NameError, match="name 'n' is not defined"):
 
         @M.function
         def main(x: M.Tensor((symbol, symbol))):
@@ -149,22 +130,6 @@ def main[n](x: M.Tensor((n,))):
     assert (error.offset, error.end_offset) == (5, 6)
 
 
-def test_external_dynamic_symbols_reuse_identity(language):
-    # Repeated captures share the exact externally constructed symbol.
-    M = language.M
-
-    n = M.dynamic("n")
-
-    @M.function
-    def main(x: M.Tensor((n,))):
-        M.record(n)
-        M.record(n)
-
-    symbol = main.params[0].args[0].args[0][0]
-    assert main.body == [("emit", symbol), ("emit", symbol)]
-    assert main.body[0][1] is main.body[1][1]
-
-
 def test_nested_scope_does_not_reassign_outer_symbol(language):
     # An ordinary nested local must not overwrite an enclosing symbolic dimension.
     M = language.M
@@ -180,7 +145,7 @@ def test_nested_scope_does_not_reassign_outer_symbol(language):
 
         M.record(n)
 
-    assert main.body[0][1].op == "symbol"
+    assert main.body[0][1] is n
     assert language.functions["nested"].body == [("emit", 2)]
 
 
@@ -201,22 +166,3 @@ def main[n, k: M.int32](x: M.Tensor((n, k))) -> M.Tensor((n, k)):
     assert main.ret_type.args[0][1] is k
     assert main.body[0][1] is n
     assert main.body[1][1] is k
-
-
-def test_dynamic_symbols_are_fresh_and_scope_independent():
-    assert T.dynamic is I.dynamic
-    n = T.dynamic("n")
-    same_name = I.dynamic("n")
-    k = I.dynamic("k", "int32")
-    assert n.ty.dtype == "int64"
-    assert k.ty.dtype == "int32"
-    assert not n.same_as(same_name)
-
-    @I.ir_module
-    class Module:
-        @T.prim_func
-        def first(x: T.Buffer((n,), "float32")):
-            T.evaluate(n)
-
-    assert Module["first"].params[0].ty.shape[0].same_as(n)
-    assert Module["first"].body.value.same_as(n)

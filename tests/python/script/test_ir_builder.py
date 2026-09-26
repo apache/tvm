@@ -14,16 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
-"""Unittests for tvm.script.ir_builder.ir"""
+"""Common IRBuilder scopes and module construction."""
 
 import pytest
 
-import tvm.testing
 from tvm import ir
 from tvm.ir.base import assert_structural_equal
 from tvm.script import ir_builder as I
 from tvm.script.ir_builder import IRBuilder
+
+
+def test_ir_builder_multi_scope():
+    with IRBuilder() as ib:  # pylint: disable=invalid-name
+        with IRBuilder() as ib2:  # pylint: disable=invalid-name
+            assert IRBuilder.current() == ib2
+        assert IRBuilder.current() == ib
+
+
+def test_ir_builder_no_scope():
+    with pytest.raises(ValueError):
+        IRBuilder.current()
 
 
 def test_ir_builder_irmodule():
@@ -39,7 +49,3 @@ def test_ir_builder_irmodule():
     ir_module_expected = ir.IRModule(None, None)
 
     assert_structural_equal(ir_module_actual, ir_module_expected, map_free_vars=True)
-
-
-if __name__ == "__main__":
-    tvm.testing.main()

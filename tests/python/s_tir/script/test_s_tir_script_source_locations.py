@@ -14,25 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401
-"""Unittests for tvm.script.parser.ir"""
+"""S-TIR script source locations."""
 
-import inspect
-
-import pytest
-
+import tvm
 import tvm.testing
-from tvm.ir import IRModule
-from tvm.script.parser import ir_module
+from tvm.script import s_tir as Ts
+from tvm.script import tirx as T
 
 
-def test_ir_base():
-    @ir_module
-    class BlankIRModule:
+def test_nesting_parsing():
+    class dummy:
         pass
 
-    assert isinstance(BlankIRModule, IRModule) and len(BlankIRModule.functions.items()) == 0
-    assert BlankIRModule.__name__ == "BlankIRModule"
+    for i in range(1):
+
+        @tvm.script.ir_module
+        class Module:
+            @Ts.prim_func
+            def impl(
+                A: T.Buffer((12, 196, 64), "float32"),
+            ) -> None:
+                T.evaluate(0)
 
 
 if __name__ == "__main__":

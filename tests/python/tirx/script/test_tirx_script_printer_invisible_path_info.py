@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+"""TIRx script printer invisible path info."""
+
 from tvm_ffi.access_path import AccessPath
 
 import tvm
@@ -62,7 +64,3 @@ def test_render_invisible_path_info_without_visible_path():
         "Note: No visible object for this path is rendered in TVMScript.\n\n"
         "Shape(1, 2)"
     )
-
-
-if __name__ == "__main__":
-    tvm.testing.main()
