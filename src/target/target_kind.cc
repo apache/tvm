@@ -65,7 +65,6 @@ TargetKindRegistry* TargetKindRegistry::Global() {
 }
 
 TargetKind TargetKindRegistry::RegisterOrGet(const ffi::String& name) {
-  std::lock_guard<std::mutex> lock(mutex_);
   if (auto it = kinds_.find(name); it != kinds_.end()) {
     return (*it).second;
   }
@@ -86,7 +85,6 @@ TargetKind TargetKindRegistry::RegisterOrGet(const ffi::String& name) {
 }
 
 ffi::Optional<TargetKind> TargetKindRegistry::Get(const ffi::String& name) {
-  std::lock_guard<std::mutex> lock(mutex_);
   if (auto it = kinds_.find(name); it != kinds_.end()) {
     return (*it).second;
   }
@@ -94,7 +92,6 @@ ffi::Optional<TargetKind> TargetKindRegistry::Get(const ffi::String& name) {
 }
 
 ffi::Array<ffi::String> TargetKindRegistry::ListTargetKinds() {
-  std::lock_guard<std::mutex> lock(mutex_);
   ffi::Array<ffi::String> names;
   for (const auto& entry : kinds_) {
     names.push_back(entry.first);
@@ -187,7 +184,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_default_keys({"cpu"})
       .set_target_canonicalizer(tvm::target::canonicalizer::llvm::Canonicalize);
 
-  TargetKindDef("ext_dev").set_default_device_type(kDLExtDev);
+  TargetKindDef("ext_dev")  // line break
+      .set_default_device_type(kDLExtDev);
 
   TargetKindDef("composite")
       .set_default_device_type(kDLCPU)  // line break

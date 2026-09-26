@@ -30,7 +30,6 @@
 #include <tvm/ir/config_schema.h>
 #include <tvm/runtime/base.h>
 
-#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -149,7 +148,6 @@ class TargetKindRegistry {
   TVM_DLL ffi::Map<ffi::String, ffi::String> ListTargetKindOptions(const TargetKind& kind);
 
  private:
-  std::mutex mutex_;
   ffi::Map<ffi::String, TargetKind> kinds_;
 };
 
@@ -159,8 +157,12 @@ class TargetKindRegistry {
  * The registry retains the canonical kind after this builder is destroyed.
  * Group related definitions inside TVM_FFI_STATIC_INIT_BLOCK():
  * \code
- * TargetKindDef("llvm").set_default_device_type(kDLCPU)
- *     .set_default_keys({"cpu"}).def_option<ffi::String>("mcpu");
+ * TVM_FFI_STATIC_INIT_BLOCK() {
+ *   TargetKindDef("llvm")
+ *       .set_default_device_type(kDLCPU)
+ *       .set_default_keys({"cpu"})
+ *       .def_option<ffi::String>("mcpu");
+ * }
  * \endcode
  */
 class TargetKindDef {

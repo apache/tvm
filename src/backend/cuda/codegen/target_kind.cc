@@ -120,7 +120,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   using namespace tvm::backend::cuda;
   namespace refl = tvm::ffi::reflection;
 
-  TargetKindDef("cuda_host").set_default_device_type(kDLCPU).set_default_keys({"cpu"});
+  TargetKindDef("cuda_host")
+      .set_default_device_type(kDLCPU)  // line break
+      .set_default_keys({"cpu"});
 
   TargetKindDef("cuda")
       .set_default_device_type(kDLCUDA)
