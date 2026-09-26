@@ -64,6 +64,7 @@ _PRIM_TYPE_KEY_RENAMES = {
     "tirx.Shuffle": "ir.prim.Shuffle",
     "tirx.CommReducer": "te.CommReducer",
     "tirx.Reduce": "te.Reduce",
+    "relax.AnyType": "ir.AnyType",
 }
 
 

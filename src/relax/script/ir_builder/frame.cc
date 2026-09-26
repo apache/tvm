@@ -86,7 +86,7 @@ void FunctionFrameNode::ExitWithScope() {
     RelaxFrameNode::ExitWithScope();
     block_builder->EndScope();
     function =
-        tvm::relax::Function::CreateEmpty(params, ret_ty.value_or(tvm::relax::AnyType()),
+        tvm::relax::Function::CreateEmpty(params, ret_ty.value_or(tvm::AnyType()),
                                           is_pure.value_or(true), DictAttrs(attrs), source_span);
     if (local) {
       auto ty = tvm::relax::GetType(function.value());
