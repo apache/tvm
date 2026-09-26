@@ -868,34 +868,6 @@ llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
   return pc.ret_value;
 }
 
-llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
-  TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
-  PackedCall pc = MakeCallPackedLowered(
-      op->args, op->ty, static_cast<int64_t>(op->args[2].as<IntImmNode>()->value),
-      static_cast<int64_t>(op->args[3].as<IntImmNode>()->value), true);
-  llvm::LLVMContext* ctx = llvm_target_->GetContext();
-  // Get traced value.
-  llvm::Value* traced_value = MakeValue(op->args[4]);
-  // The update_block handles case when we need to update the return value.
-  llvm::BasicBlock* update_block = llvm::BasicBlock::Create(*ctx, "update_block", function_);
-  // The continue_block handles case when we need to return original
-  // traced value.
-  llvm::BasicBlock* continue_block = llvm::BasicBlock::Create(*ctx, "continue_block", function_);
-
-  // Check the ret_type_code and create cmp instruction.
-  llvm::Value* cmp = builder_->CreateICmpNE(
-      pc.ret_type_index, llvm::ConstantInt::get(t_int_, ffi::TypeIndex::kTVMFFINone));
-  builder_->CreateCondBr(cmp, update_block, continue_block);
-  builder_->SetInsertPoint(update_block);
-  builder_->CreateBr(continue_block);
-  builder_->SetInsertPoint(continue_block);
-  // The return value depends on from what bb we come from.
-  llvm::PHINode* phi_rvalue = builder_->CreatePHI(traced_value->getType(), 2);
-  phi_rvalue->addIncoming(pc.ret_value, update_block);
-  phi_rvalue->addIncoming(traced_value, pc.end_block);
-  return phi_rvalue;
-}
-
 llvm::Value* CodeGenCPU::RuntimeTVMFFIFunctionCall() {
   if (f_tvm_ffi_func_call_ != nullptr) return f_tvm_ffi_func_call_;
   return GetContextPtr(gv_tvm_ffi_func_call_);
@@ -1026,8 +998,6 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   const ffi::Array<Expr>& args = op->args;
   if (op->op.same_as(tirx::builtin::tvm_call_packed_lowered())) {
     return CreateCallPacked(op);
-  } else if (op->op.same_as(tirx::builtin::tvm_call_trace_packed_lowered())) {
-    return CreateCallTracePacked(op);
   } else if (op->op.same_as(tirx::builtin::tvm_call_cpacked_lowered())) {
     return CreateCallPacked(op);
   } else if (op->op.same_as(tirx::builtin::tvm_static_handle())) {

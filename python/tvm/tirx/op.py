@@ -668,50 +668,6 @@ def undef():
     return call_intrin("int32", "tirx.undef")
 
 
-def start_profile_intrinsic(id):
-    """Start profile intrinsic.
-    Parameters
-    ----------
-    id : int
-        The intrinsic id.
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin("void", "tirx.start_profile_intrinsic", id)
-
-
-def end_profile_intrinsic(id):
-    """End profile intrinsic.
-    Parameters
-    ----------
-    id : int
-        The intrinsic id.
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin("void", "tirx.end_profile_intrinsic", id)
-
-
-def tvm_tuple(*value):
-    """Create a tuple structure in value field of AttrStmt
-
-    Parameters
-    ----------
-    value : Expr
-        The value in tuple.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin("void", "tirx.tvm_tuple", *value)
-
-
 def handle_add_byte_offset(handle, offset):
     """Add offset to handle
 
@@ -839,25 +795,6 @@ def address_of(obj: Buffer | TensorLoad | Var, span: Span | None = None) -> Expr
         raise ValueError(f"Invalid object type: {type(obj)}")
 
 
-def lookup_param(param_name, span=None):
-    """Returns the param by name
-
-    Parameters
-    ----------
-    param_name : str
-        The name of param.
-
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin("handle", "tirx.lookup_param", param_name, span=span)
-
-
 def tvm_thread_allreduce(*freduce_args):
     """Perform allreduce inside threadblock.
 
@@ -916,17 +853,6 @@ def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1):
 def tvm_kernel_replace_point():
     """Mark where a transform should replace generated kernel initialization."""
     return call_intrin("void", "tirx.tvm_kernel_replace_point")
-
-
-def tvm_global_barrier_kinit():
-    """Initialize the global barrier.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin("void", "tirx.tvm_global_barrier_kinit")
 
 
 def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
@@ -1382,47 +1308,6 @@ def all(*args, span=None):
     for i in range(2, len(args)):
         val = _prim_ffi_api._OpAnd(val, args[i], span)  # type: ignore
     return val
-
-
-@tvm_ffi.register_global_func("tvm.default_trace_action")
-def _tvm_default_trace_action(*args):
-    print(list(args))
-
-
-def trace(args, trace_action="tvm.default_trace_action"):
-    """Trace tensor data at the runtime.
-
-    The trace function allows to trace specific tensor at the
-    runtime. The tracing value should come as last argument.
-    The trace action should be specified, by default
-    tvm.default_trace_action is used.
-
-    Parameters
-    ----------
-    args : list of Expr or Buffers.
-        Positional arguments.
-
-    trace_action : str.
-        The name of the trace action.
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
-
-    See Also
-    --------
-    tvm.tirx.call_packed : Creates packed function.
-    """
-    if not isinstance(args, list):
-        raise Exception("tvm.tirx.trace consumes the args as list type")
-    call_args = [
-        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "trace") for x in args
-    ]
-    call_args.insert(0, tvm.ir.StringImm(trace_action))
-    tracing_value = args[-1]
-    ret_ty = tracing_value.ty if isinstance(tracing_value, Expr) else tracing_value.dtype
-    return tvm.ir.Call(Op.get("tirx.tvm_call_trace_packed"), call_args, ret_ty=ret_ty)
 
 
 def infinity(dtype: str, span: Span | None = None) -> Any:
@@ -3381,48 +3266,3 @@ def tvm_store_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):
     return call_intrin(
         "void", "tirx.tvm_store_matrix_sync", fragment, m, n, k, index, buffer_ptr, stride, layout
     )
-
-
-def thread_return():
-    """TVM intrinsic to call thread_return()
-
-    Returns
-    -------
-    call : Expr
-        The call expression.
-    """
-    return call_intrin("", "tirx.thread_return")
-
-
-def continue_loop(span=None):
-    """Create a tir intrinsic call to represent continue expression
-
-    Parameters
-    ----------
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    ret : Expr
-        The continue expression
-    """
-
-    return _ffi_api.continue_loop(span)
-
-
-def break_loop(span=None):
-    """Create a tir intrinsic call to represent break expression
-
-    Parameters
-    ----------
-    span : Optional[Span]
-        The location of this operator in the source code.
-
-    Returns
-    -------
-    ret : Expr
-        The break expression
-    """
-
-    return _ffi_api.break_loop(span)

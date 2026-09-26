@@ -1154,7 +1154,7 @@ def test_device_host_call_same_func():
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_thread_return():
+def test_kernel_early_return():
     @I.ir_module
     class Module:
         @T.prim_func
@@ -1162,7 +1162,7 @@ def test_thread_return():
             for bx in T.thread_binding(32, "blockIdx.x"):
                 for tx in T.thread_binding(32, "threadIdx.x"):
                     if bx >= 16 or tx >= 16:
-                        T.thread_return()
+                        return 0
                     B[bx, tx] = A[bx, tx]
 
     lib = tvm.compile(Module, target="cuda")

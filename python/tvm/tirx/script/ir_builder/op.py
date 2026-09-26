@@ -464,9 +464,6 @@ log2 = _op_wrapper(_tir_op.log2)
 log10 = _op_wrapper(_tir_op.log10)
 
 
-lookup_param = _op_wrapper(_tir_op.lookup_param)
-
-
 max_value = _op_wrapper(_tir_op.max_value)
 
 
@@ -489,12 +486,6 @@ q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
 
 
 q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
-
-
-continue_loop = _op_wrapper(_tir_op.continue_loop)
-
-
-break_loop = _op_wrapper(_tir_op.break_loop)
 
 
 round = _op_wrapper(_tir_op.round)  # pylint: disable=redefined-builtin
@@ -525,9 +516,6 @@ tan = _op_wrapper(_tir_op.tan)
 
 
 tanh = _op_wrapper(_tir_op.tanh)
-
-
-thread_return = _op_wrapper(_tir_op.thread_return)
 
 
 trunc = _op_wrapper(_tir_op.trunc)
@@ -578,9 +566,6 @@ call_packed_lowered = _op_wrapper(_tir_op.call_packed_lowered)
 call_cpacked_lowered = _op_wrapper(_tir_op.call_cpacked_lowered)
 
 
-tvm_tuple = _op_wrapper(_tir_op.tvm_tuple)
-
-
 handle_add_byte_offset = _op_wrapper(_tir_op.handle_add_byte_offset)
 
 
@@ -615,9 +600,6 @@ tvm_storage_sync = _tir_op.tvm_storage_sync
 
 
 tvm_kernel_replace_point = _op_wrapper(_tir_op.tvm_kernel_replace_point)
-
-
-tvm_global_barrier_kinit = _tir_op.tvm_global_barrier_kinit
 
 
 tvm_warp_shuffle = _tir_op.tvm_warp_shuffle
@@ -657,12 +639,6 @@ TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
 
 
 TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
-
-
-start_profile_intrinsic = _op_wrapper(_tir_op.start_profile_intrinsic)
-
-
-end_profile_intrinsic = _op_wrapper(_tir_op.end_profile_intrinsic)
 
 
 anylist_getitem = _op_wrapper(_tir_op.anylist_getitem)
@@ -929,7 +905,6 @@ __all__ = [
     "bitwise_not",
     "bitwise_or",
     "bitwise_xor",
-    "break_loop",
     "broadcast",
     "call_cpacked",
     "call_cpacked_lowered",
@@ -947,7 +922,6 @@ __all__ = [
     "ceildiv",
     "clz",
     "comm_reducer",
-    "continue_loop",
     "cooperative_tensor_fill",
     "cooperative_tensor_load",
     "cooperative_tensor_multiply_accumulate",
@@ -956,7 +930,6 @@ __all__ = [
     "cos",
     "cosh",
     "dp4a",
-    "end_profile_intrinsic",
     "erf",
     "exp",
     "exp2",
@@ -988,7 +961,6 @@ __all__ = [
     "logical_and",
     "logical_not",
     "logical_or",
-    "lookup_param",
     "masked_load",
     "masked_store",
     "max",
@@ -1016,11 +988,9 @@ __all__ = [
     "sin",
     "sinh",
     "sqrt",
-    "start_profile_intrinsic",
     "tan",
     "tanh",
     "tensormap_encode_tiled",
-    "thread_return",
     "trunc",
     "truncdiv",
     "truncmod",
@@ -1031,7 +1001,6 @@ __all__ = [
     "tvm_call_packed",
     "tvm_call_packed_lowered",
     "tvm_fill_fragment",
-    "tvm_global_barrier_kinit",
     "tvm_kernel_replace_point",
     "tvm_load_matrix_sync",
     "tvm_mma_sync",
@@ -1045,7 +1014,6 @@ __all__ = [
     "tvm_thread_allreduce",
     "tvm_thread_invariant",
     "tvm_throw_last_error",
-    "tvm_tuple",
     "tvm_warp_activemask",
     "tvm_warp_shuffle",
     "tvm_warp_shuffle_down",

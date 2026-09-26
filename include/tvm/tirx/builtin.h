@@ -42,18 +42,6 @@ namespace tirx {
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
 /*!
- * \brief Return from a GPU thread.
- */
-TVM_DLL const Op& thread_return();
-/*!
- * \brief Loop continue.
- */
-TVM_DLL const Op& continue_loop();
-/*!
- * \brief Loop break.
- */
-TVM_DLL const Op& break_loop();
-/*!
  * \brief Reinterpret the value using the target type.
  */
 TVM_DLL const Op& reinterpret();
@@ -231,21 +219,6 @@ TVM_DLL const Op& ptr_byte_offset();
 TVM_DLL const Op& tvm_static_handle();
 
 /*!
- * \brief Return a unique context id, used for hint of workspace separation.
- *  Different context id ganrantees not having overlapping workspace.
- */
-TVM_DLL const Op& tvm_context_id();
-
-/*!
- * \brief tvm_tuple is not an actual function and cannot codegen.
- *  It is used to represent tuple structure in value field of AttrStmt,
- *  for the sake of giving hint to optimization.
- *
- *  void tvm_tuple(value0, value1, ..., value_n);
- */
-TVM_DLL const Op& tvm_tuple();
-
-/*!
  * \brief See pesudo code
  *
  *  void* handle_add_byte_offset(void* handle, int offset) {
@@ -273,14 +246,6 @@ TVM_DLL const Op& tvm_struct_get();
  * \sa TVMStructFieldKind
  */
 TVM_DLL const Op& tvm_struct_set();
-
-/*!
- * \brief See pseudo code
- * Type lookup_param(ffi::String param_name) {
- *     return __tvm_param__param_name;
- * }
- */
-TVM_DLL const Op& lookup_param();
 
 /*!
  * \brief See pesudo code
@@ -379,19 +344,6 @@ TVM_DLL const Op& tensormap_encode_tiled();
 TVM_DLL const Op& tvm_call_cpacked();
 
 /*!
- * \brief See pesudo code
- *
- *  return_type tvm_call_trace_packed(name, TVMFFIAny* args) {
- *     ModuleNode* env = GetCurrentEnv();
- *     const ffi::Function* f = env->GetFuncFromEnv(name);
- *     (*f)(args, args, len(args));
- *     // return type can be int, float, handle.
- *     return cast(return_type, result);
- *  }
- */
-TVM_DLL const Op& tvm_call_trace_packed();
-
-/*!
  * \brief Mark a condition to be thread invariant.
  *  This means the condition must be the same for all threads.
  */
@@ -429,25 +381,6 @@ TVM_DLL const Op& tvm_call_packed_lowered();
  *  }
  */
 TVM_DLL const Op& tvm_call_cpacked_lowered();
-
-/*!
- * \brief Lowered version of trace intrinsic, the space of value and
- *  type codes are explicitly allocated. The return value is the
- *  (end - 1) value on the stack.
- *
- *  return_type tvm_call_trace_packed_lowered(name,
- *                                            TVMFFIAny* args_stack,
- *                                            int begin,
- *                                            int end) {
- *     ModuleNode* env = GetCurrentEnv();
- *     const ffi::Function* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(ffi::PackedArgs(args_stack[begin:end]),
- *                   ffi::Any(args_stack + end));
- *     // return type can be int, float, handle.
- *     return cast(return_type, load_return_from(args_stack + end))
- *  }
- */
-TVM_DLL const Op& tvm_call_trace_packed_lowered();
 
 /*!
  * \brief See pseudo code
@@ -500,12 +433,6 @@ TVM_DLL const Op& tvm_warp_shuffle_up();
 TVM_DLL const Op& tvm_warp_shuffle_down();
 TVM_DLL const Op& tvm_warp_shuffle_xor();
 TVM_DLL const Op& tvm_warp_activemask();
-
-/*!
- * \brief Initialize the global barrier.
- *  Call this at beginning of kernel that need global barrier.
- */
-TVM_DLL const Op& tvm_global_barrier_kinit();
 
 /*!
  * \brief See pesudo code
@@ -605,51 +532,6 @@ TVM_DLL const Op& texture2d_store();
 TVM_DLL const Op& texture2d_load();
 
 /*!
- * \brief Initiate a non-blocking DMA copy from source to destination
- *
- * The copy is launched immediately.
- *
- * If a `dma_start_group()` call is active, the copy will be added
- * to the current group for tracking of in-flight group counts.
- *
- * If no `dma_start_group()` call is active, the copy will be tracked
- * individually i.e. as a group with size 1.
- */
-TVM_DLL const Op& dma_copy();
-
-/*!
- * \brief Wait until the number of DMA groups in flight is less than
- * or equal to some maximum
- *
- * Calling `dma_wait()` while a group is active is unsupported.
- */
-TVM_DLL const Op& dma_wait();
-
-/*!
- * \brief Start a group of DMA copies
- *
- * Any call to `dma_copy()` that occurs after `dma_start_group()` will
- * be added to the current group for tracking of in-flight group counts.
- *
- * Only one DMA group may be active at a given time.  Calling
- * `dma_start_group()` while a group is active is unsupported.
- */
-TVM_DLL const Op& dma_start_group();
-
-/*!
- * \brief End a group of DMA copies
- *
- * Track all calls to `dma_copy()` that occurred since the preceding
- * `dma_start_group()` as a single group in-flight.
- *
- * Calling `dma_end_group()` without an active group is unsupported.
- *
- * Note: A group of DMA calls may be empty, and will still contribute
- * to the count of in-flight groups used by `dma_wait()`.
- */
-TVM_DLL const Op& dma_end_group();
-
-/*!
  * \brief Provide a true statement that can be used for simplifications
  *
  * Compile-time representation of known constraints about function
@@ -665,16 +547,6 @@ TVM_DLL const Op& assume();
  * altered as a result of optimizations.
  */
 TVM_DLL const Op& undef();
-
-/*!
- * \brief Profiling intrinsic
- */
-TVM_DLL const Op& start_profile_intrinsic();
-
-/*!
- * \brief Profiling intrinsic
- */
-TVM_DLL const Op& end_profile_intrinsic();
 
 /*!
  * \brief Get a item from any list and return it.

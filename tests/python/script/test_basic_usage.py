@@ -26,7 +26,7 @@ import pytest
 # ruff: noqa: F841
 from minilang import Value
 
-from tvm import DataType, ir
+from tvm import DataType, error, ir
 from tvm.ir import prim
 from tvm.ir._overload_prim_expr import EqualOp
 from tvm.script import ir as I
@@ -211,6 +211,102 @@ def test_void_branch_statements_need_no_synthetic_named_output(language):
         M.record(9)
 
     assert [value for kind, value in main.body] == [None, None, 9]
+
+
+def test_ordinary_iterator_binding_calls_the_custom_iterator_once(language):
+    # An ordinary iterator alias calls its captured implementation exactly once.
+    M = language.M
+    calls = []
+
+    def custom_range(extent):
+        calls.append(extent)
+        return M.grid(2)
+
+    @M.function
+    def main():
+        iterator = custom_range
+        for i in iterator(4):
+            M.record(i)
+
+    assert calls == [4]
+    variable = main.body[0][1]
+    assert variable.op == "loop" and variable.args == (2,) and variable.name == "i"
+
+
+def test_body_annotation_reads_a_preceding_ordinary_local(language):
+    # A body annotation must read the current local value, not a stale enclosing capture.
+    M = language.M
+    annotations = []
+
+    def annotation(shape):
+        annotations.append(shape)
+        return M.Tensor(shape)
+
+    M.annotation = annotation
+
+    @M.function
+    def main():
+        shape = (4,)
+        value: M.annotation(shape) = 1
+        M.record(value)
+        shape = (8,)
+        M.record(shape)
+
+    assert annotations == [(4,)]
+    assert main.body == [("emit", 1), ("emit", (8,))]
+
+
+def test_native_concise_scopes_unwind_with_their_parent():
+    # Nested concise thread scopes must preserve the original variables in the constructed IR.
+    from tvm import tirx
+
+    variables = []
+
+    def observe(*items):
+        variables.extend(items)
+
+    @T.prim_func
+    def main():
+        bx = T.launch_thread("blockIdx.x", 2)
+        tx = T.launch_thread("threadIdx.x", 32)
+        observe(bx, tx)
+        T.evaluate(bx + tx)
+
+    bx, tx = variables
+    body = main.body
+    assert isinstance(body, tirx.AttrStmt) and isinstance(body.body, tirx.AttrStmt)
+    assert body.node.var.same_as(bx) and body.body.node.var.same_as(tx)
+    assert body.body.body.value.a.same_as(bx) and body.body.body.value.b.same_as(tx)
+
+
+def test_loop_control_validation_preserves_valid_and_unchecked_ir():
+    # Invalid loop placement must be rejected, while direct IR construction preserves the node.
+    from tvm import ir, tirx
+
+    invalid = tirx.PrimFunc(params=[], body=tirx.Break())
+    ir.assert_structural_equal(invalid.body, tirx.Break())
+    assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
+    with pytest.raises(error.InternalError, match="requires an enclosing loop"):
+        tirx.analysis.verify_well_formed(invalid)
+
+    @T.prim_func
+    def valid():
+        for i in range(2):
+            break
+
+    assert isinstance(valid.body, tirx.For)
+    ir.assert_structural_equal(valid.body.body, invalid.body)
+
+    @I.ir_module(check_well_formed=False, extra_vars={"invalid": invalid})
+    class Unchecked:
+        bad = invalid
+
+    assert Unchecked["bad"].same_as(invalid)
+    with pytest.raises(ValueError, match="requires an enclosing loop"):
+
+        @I.ir_module(extra_vars={"invalid": invalid})
+        class Rejected:
+            bad = invalid
 
 
 def test_written_comparison_order(primitive_language):

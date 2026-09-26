@@ -340,8 +340,6 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
                       : op->args[1];
 
       return Call(op->ty, op->op, {op->args[0], data, offset, extent, op->args[4]});
-    } else if (op->op.same_as(tirx::builtin::tvm_context_id())) {
-      return allow_share_ ? Expr(ffi::GetRef<Call>(op)) : Expr(var_);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }

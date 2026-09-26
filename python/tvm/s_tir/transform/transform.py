@@ -342,17 +342,6 @@ def InjectPTXLDG32(enable_inject_ptx_intrin=True):
     return _ffi_api.InjectPTXLDG32(enable_inject_ptx_intrin)  # type: ignore
 
 
-def InstrumentProfileIntrinsics():
-    """Insert intrinsic calls to instrument function and loop level profiling.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InstrumentProfileIntrinsics()  # type: ignore
-
-
 def VerifyVTCMLimit(default_target=None):
     """Verify if the size of the allocated vtcm memory satisfies the limit.
 
@@ -418,17 +407,6 @@ def LowerThreadAllreduce():
         The result pass
     """
     return _ffi_api.LowerThreadAllreduce()  # type: ignore
-
-
-def LowerAsyncDMA():
-    """Lower async DMA to DMA.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LowerAsyncDMA()  # type: ignore
 
 
 def InjectPTXAsyncCopy():

@@ -39,7 +39,6 @@ extern "C" {
 #include "../../../../../runtime/rpc/minrpc/minrpc_server.h"
 #include "../../hexagon_common.h"
 #include "../../hexagon_device_api.h"
-#include "../../profiler/prof_utils.h"
 #include "hexagon_rpc.h"
 
 namespace tvm {
@@ -330,25 +329,12 @@ __attribute__((weak)) void _Parse_fde_instr() {}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def_packed("tvm.hexagon.load_module",
-                  [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
-                    auto soname = args[0].cast<std::string>();
-                    auto floader =
-                        tvm::ffi::Function::GetGlobalRequired("ffi.Module.load_from_file.so");
-                    *rv = floader(soname, "so");
-                  })
-      .def_packed(
-          "tvm.hexagon.get_profile_output", [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
-            auto profiling_mode = args[0].cast<std::string>();
-            auto out_file = args[1].cast<std::string>();
-            if (profiling_mode.compare("lwp") == 0) {
-              *rv = WriteLWPOutput(out_file);
-            } else {
-              HEXAGON_PRINT(ERROR, "ERROR: Unsupported profiling mode: %s", profiling_mode.c_str());
-              *rv = false;
-            }
-          });
+  refl::GlobalDef().def_packed(
+      "tvm.hexagon.load_module", [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+        auto soname = args[0].cast<std::string>();
+        auto floader = tvm::ffi::Function::GetGlobalRequired("ffi.Module.load_from_file.so");
+        *rv = floader(soname, "so");
+      });
 }
 
 void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
