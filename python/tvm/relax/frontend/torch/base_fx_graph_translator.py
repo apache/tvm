@@ -1942,6 +1942,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 )
             )
 
+    def _amax_amin(self, op: Callable) -> Callable:
+        """torch.amax / torch.amin: reduce over ``dim`` (a list; empty means every axis)."""
+        from torch import fx
+
+        def convert(node: fx.Node) -> relax.Var:
+            args = self.retrieve_args(node)
+            x = args[0]
+            dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", [])
+            keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+            if isinstance(dim, list | tuple) and len(dim) == 0:
+                dim = None
+            return self.block_builder.emit(op(x, dim, keepdims=keepdim))
+
+        return convert
+
     def _prod(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
