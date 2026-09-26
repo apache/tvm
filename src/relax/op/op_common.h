@@ -147,10 +147,13 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
   // Unfortunately, because the `.arg<T>()` calls in
   // OpDef occur during initialization of globals and are
   // not available at compile-time, this cannot be a static_assert.
-  TVM_FFI_ICHECK_EQ(n_input, sizeof...(ArgTypes))
+  TVM_FFI_ICHECK(op->allow_extra_args ? sizeof...(ArgTypes) >= n_input
+                                      : sizeof...(ArgTypes) == n_input)
       << "Internal error: " << op << " op defines " << n_input << " arguments in its OpDef() call, "
       << "but GetArgType was given " << sizeof...(ArgTypes) << " template arguments.";
 
+  CheckNumArguments(call, ctx);
+  TVM_FFI_ICHECK_GE(call->args.size(), sizeof...(ArgTypes));
   return detail::GetArgTypeHelper<ArgTypes...>(call, op, ctx,
                                                std::make_index_sequence<sizeof...(ArgTypes)>());
 }
@@ -202,10 +205,8 @@ inline Type InferTypeUnary(const Call& call, const BlockBuilder& ctx, FType f_co
 template <int arg_index>
 Type ReturnTypeFromArg(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
-  int n_input = op->args_info.size();
-  if (static_cast<int>(call->args.size()) != n_input) {
-    TVM_FFI_VISIT_THROW(ValueError, call) << op << " op should have " << n_input << " arguments";
-  }
+  CheckNumArguments(call, ctx);
+  int n_input = call->args.size();
   if (arg_index >= n_input) {
     TVM_FFI_VISIT_THROW(IndexError, call)
         << op << " op has only " << n_input << "arguments, but try to get the arg with index "

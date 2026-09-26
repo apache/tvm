@@ -104,14 +104,13 @@ Type InferTypeAllClassNMS(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.all_class_non_max_suppression")
-      .set_attrs_type<AllClassNonMaximumSuppressionAttrs>()
-      .set_num_inputs(5)
       .arg<Expr>("boxes", "The input boxes in the format [batch, num_boxes, 4].")
       .arg<Expr>("scores",
                  "Scores for each box and class in the format [batch, num_classes, num_boxes].")
       .arg<Expr>("max_output_boxes_per_class", "The maximum number of output boxes per class.")
       .arg<Expr>("iou_threshold", "The IoU threshold for box the overlap test.")
       .arg<Expr>("score_threshold", "The score threshold to filter out low score boxes early.")
+      .call_attrs_type<AllClassNonMaximumSuppressionAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAllClassNMS)
       .set_attr<bool>("FPurity", true);
 }
@@ -185,9 +184,8 @@ Type InferTypeGetValidCounts(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.get_valid_counts")
-      .set_attrs_type<GetValidCountsAttrs>()
-      .set_num_inputs(1)
       .arg<Expr>("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
+      .call_attrs_type<GetValidCountsAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeGetValidCounts)
       .set_attr<bool>("FPurity", true);
 }
@@ -357,11 +355,10 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.non_max_suppression")
-      .set_attrs_type<NonMaximumSuppressionAttrs>()
-      .set_num_inputs(3)
       .arg<Expr>("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
       .arg<Expr>("valid_count", "1-D tensor for valid number of boxes.")
       .arg<Expr>("indices", "2-D tensor with shape [batch_size, num_anchors].")
+      .call_attrs_type<NonMaximumSuppressionAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeNMS)
       .set_attr<bool>("FPurity", true);
 }

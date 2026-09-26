@@ -43,9 +43,11 @@ ffi::Array<Expr> GetCallArgs(const Call& call) {
 void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
   int expected_input = op->args_info.size();
-  if (static_cast<int>(call->args.size()) != expected_input) {
+  if (op->allow_extra_args ? call->args.size() < op->args_info.size()
+                           : call->args.size() != op->args_info.size()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
-        << "Operator " << op << " expects " << expected_input << " arguments"
+        << "Operator " << op << " expects " << (op->allow_extra_args ? "at least " : "")
+        << expected_input << " arguments"
         << ", but was called with " << call->args.size() << " arguments";
   }
 }
@@ -53,10 +55,11 @@ void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
 TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
 
-  TVM_FFI_ICHECK_EQ(op->args_info.size(), call->args.size())
+  TVM_FFI_ICHECK(op->allow_extra_args ? call->args.size() >= op->args_info.size()
+                                      : call->args.size() == op->args_info.size())
       << "Failure caught by this check "
       << "should have previously been caught by `CheckNumArguments`";
-  TVM_FFI_ICHECK_LT(i_arg, op->args_info.size());
+  TVM_FFI_ICHECK_LT(i_arg, call->args.size());
 
   auto arg = call->args[i_arg];
   auto ty = GetType(arg);
@@ -65,8 +68,10 @@ TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder
     return tensor_ty.value();
   } else {
     TVM_FFI_VISIT_THROW(TypeError, call)
-        << "Operator " << op << " requires argument " << i_arg << " (" << op->args_info[i_arg]->name
-        << ") to be a tensor.  "
+        << "Operator " << op << " requires argument " << i_arg
+        << (i_arg < op->args_info.size() ? " (" + std::string(op->args_info[i_arg]->name) + ")"
+                                         : "")
+        << " to be a tensor.  "
         << "However, the argument " << arg << " is instead of type " << ty;
     TVM_FFI_UNREACHABLE();
   }

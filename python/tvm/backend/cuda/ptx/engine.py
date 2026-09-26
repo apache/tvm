@@ -37,10 +37,14 @@ per-instruction generated or hand-written code:
   ``T.ptx.ld.acquire.gpu.global_.b32(val, ptr)``.
 """
 
+import json
+
+from tvm_ffi.core import TypeSchema
+
 from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
-from tvm.ir import Call, TensorLoad
+from tvm.ir import Call, Expr, Op, TensorLoad
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType
 from tvm.runtime import const
@@ -92,6 +96,9 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # First attr call implicitly creates the Op registry entry. Effect
         # kind must exist before any side-effect analysis sees the op.
         register_op_attr(entry.op_name, "TCallEffectKind", _EFFECT_OPAQUE)
+        # Encoded variants have no shared named operand prefix; codegen checks
+        # each variant's operands, predicate, modifier tokens, and marker.
+        Op.get(entry.op_name).set_allow_extra_args()
         # The printer name is the *surface* path a user can type, which is the
         # mnemonic (several `mov_*` entries all answer to `T.ptx.mov`), not the
         # table key. Reparsing re-dispatches on the operand shape.
@@ -111,6 +118,10 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
 def register_addr() -> None:
     """Register the pure address-expression op consumed by PTX instructions."""
     register_op_attr(_ADDR_OP_NAME, "TCallEffectKind", _EFFECT_PURE)
+    op = Op.get(_ADDR_OP_NAME)
+    schema = json.dumps(TypeSchema.from_annotation(Expr).to_json())
+    op.add_argument("base", schema, "")
+    op.add_argument("byte_offset", schema, "")
     register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "ptx.addr")
     register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
     register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")

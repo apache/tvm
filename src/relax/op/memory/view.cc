@@ -394,7 +394,6 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.memory.view")
-      .set_num_inputs(4)
       .arg<Expr>("x", "The input tensor.")
       .arg<Expr>("shape", "The view's shape.")
       .arg<Expr>("dtype", "The view's data type.")
@@ -432,7 +431,6 @@ Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.memory.ensure_zero_offset")
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input tensor.")
       .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<FInferType>("FInferType", InferTypeEnsureZeroOffset)

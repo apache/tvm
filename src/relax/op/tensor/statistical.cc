@@ -256,9 +256,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.cumprod", cumprod);
 
   OpDef("relax.cumprod")
-      .set_attrs_type<ScanopAttrs>()
-      .set_num_inputs(1)
       .arg<Expr>("data", "The input tensor.")
+      .call_attrs_type<ScanopAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeScan)
       .set_attr<bool>("FPurity", true);
 }
@@ -280,9 +279,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.cumsum", cumsum);
 
   OpDef("relax.cumsum")
-      .set_attrs_type<ScanopAttrs>()
-      .set_num_inputs(1)
       .arg<Expr>("data", "The input tensor.")
+      .call_attrs_type<ScanopAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeScan)
       .set_attr<bool>("FPurity", true);
 }
@@ -301,7 +299,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.median", median);
 
   OpDef("relax.median")
-      .set_num_inputs(1)
       .arg<Expr>("data", "The input tensor.")
       .set_attr<FInferType>("FInferType", InferTypeStatisticalExtension)
       .set_attr<bool>("FPurity", true);
@@ -367,7 +364,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.max", max);
 
   OpDef("relax.max")
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input data tensor")
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
@@ -376,7 +372,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.mean", mean);
 
   OpDef("relax.mean")
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input data tensor")
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
@@ -385,7 +380,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.min", min);
 
   OpDef("relax.min")
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input data tensor")
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
@@ -394,7 +388,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.prod", prod);
 
   OpDef("relax.prod")
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input data tensor")
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
@@ -403,7 +396,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.std", std);
 
   OpDef("relax.std")
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input data tensor")
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
@@ -412,7 +404,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.sum", sum);
 
   OpDef("relax.sum")
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input data tensor")
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
@@ -421,7 +412,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.variance", variance);
 
   OpDef("relax.variance")
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input data tensor")
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)

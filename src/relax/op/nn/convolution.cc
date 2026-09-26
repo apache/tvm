@@ -198,10 +198,10 @@ Call InferMixedPrecisionConv1d(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv1d")
-      .set_num_inputs(2)
       .arg<Expr>("data", "The input tensor.")
       .arg<Expr>("weight", "The weight tensor.")
-      .set_attrs_type<Conv1DAttrs>()
+      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .call_attrs_type<Conv1DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv1d)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -412,10 +412,10 @@ Call InferMixedPrecisionConv2d(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv2d")
-      .set_num_inputs(2)
       .arg<Expr>("data", "The input tensor.")
       .arg<Expr>("weight", "The weight tensor.")
-      .set_attrs_type<Conv2DAttrs>()
+      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .call_attrs_type<Conv2DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv2d)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -600,10 +600,10 @@ Call InferMixedPrecisionConv3d(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv3d")
-      .set_num_inputs(2)
       .arg<Expr>("data", "The input tensor.")
       .arg<Expr>("weight", "The weight tensor.")
-      .set_attrs_type<Conv3DAttrs>()
+      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .call_attrs_type<Conv3DAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv3d)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -782,10 +782,10 @@ Call InferMixedPrecisionConv1dTranspose(const Call& call, DLDataType out_dtype) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv1d_transpose")
-      .set_num_inputs(2)
       .arg<Expr>("data", "The input tensor.")
       .arg<Expr>("weight", "The weight tensor.")
-      .set_attrs_type<Conv1DTransposeAttrs>()
+      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .call_attrs_type<Conv1DTransposeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv1dTranspose)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -1013,10 +1013,10 @@ Call InferMixedPrecisionConv2dTranspose(const Call& call, DLDataType out_dtype) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv2d_transpose")
-      .set_num_inputs(2)
       .arg<Expr>("data", "The input tensor.")
       .arg<Expr>("weight", "The weight tensor.")
-      .set_attrs_type<Conv2DTransposeAttrs>()
+      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .call_attrs_type<Conv2DTransposeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv2dTranspose)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -1255,10 +1255,10 @@ Call InferMixedPrecisionConv3dTranspose(const Call& call, DLDataType out_dtype) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv3d_transpose")
-      .set_num_inputs(2)
       .arg<Expr>("data", "The input tensor.")
       .arg<Expr>("weight", "The weight tensor.")
-      .set_attrs_type<Conv3DTransposeAttrs>()
+      .ty_arg<TensorType>("out_type", "Optional output tensor type carrying the virtual device.")
+      .call_attrs_type<Conv3DTransposeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeConv3dTranspose)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)

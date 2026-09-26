@@ -282,122 +282,229 @@ const Op& gemm_async() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tile.zero")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("zero"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.sqrt")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
+      .allow_extra_args()
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("sqrt"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.exp")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
+      .allow_extra_args()
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("exp"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.exp2")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
+      .allow_extra_args()
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("exp2"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.log2")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
+      .allow_extra_args()
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("log2"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.add")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src1", "")
+      .arg<Expr>("src2", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("add"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.sub")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src1", "")
+      .arg<Expr>("src2", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("sub"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.mul")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src1", "")
+      .arg<Expr>("src2", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("mul"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.fdiv")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src1", "")
+      .arg<Expr>("src2", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("fdiv"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.minimum")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src1", "")
+      .arg<Expr>("src2", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("minimum"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.maximum")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src1", "")
+      .arg<Expr>("src2", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("maximum"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.copy")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("copy"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.fill")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("value", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("fill"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.gemm")
+      .arg<Expr>("D", "")
+      .arg<Expr>("A", "")
+      .arg<Expr>("B", "")
+      .arg<Expr>("C", "")
+      .arg<Expr>("transpose_A", "")
+      .arg<Expr>("transpose_B", "")
+      .arg<Expr>("alpha", "")
+      .arg<Expr>("beta", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("gemm"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.reciprocal")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("reciprocal"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.sum")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
+      .arg<Expr>("axes", "")
+      .arg<Expr>("accum", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("sum"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.max")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
+      .arg<Expr>("axes", "")
+      .arg<Expr>("accum", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("max"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.min")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
+      .arg<Expr>("axes", "")
+      .arg<Expr>("accum", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("min"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.memset")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("value", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("memset"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.reduce_negate")
+      .arg<Expr>("output", "")
+      .arg<Expr>("input", "")
+      .arg<Expr>("reduce_axes", "")
+      .arg<Expr>("accum", "")
+      .arg<Expr>("reduce_op", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("reduce_negate"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.binary_reduce")
+      .arg<Expr>("binary_output", "")
+      .arg<Expr>("reduce_output", "")
+      .arg<Expr>("binary_input1", "")
+      .arg<Expr>("binary_input2", "")
+      .arg<Expr>("binary_op", "")
+      .arg<Expr>("reduce_op", "")
+      .arg<Expr>("reduce_axes", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("binary_reduce"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.unary_reduce")
+      .arg<Expr>("unary_output", "")
+      .arg<Expr>("reduce_output", "")
+      .arg<Expr>("unary_input", "")
+      .arg<Expr>("unary_op", "")
+      .arg<Expr>("reduce_op", "")
+      .arg<Expr>("bias", "")
+      .arg<Expr>("scale", "")
+      .arg<Expr>("reduce_axes", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("unary_reduce"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.binary_chain")
+      .arg<Expr>("output", "")
+      .arg<Expr>("data", "")
+      .arg<Expr>("operand0", "")
+      .arg<Expr>("operand1", "")
+      .arg<Expr>("op0", "")
+      .arg<Expr>("op1", "")
+      .arg<Expr>("reverse1", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("binary_chain"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.select")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("true_value", "")
+      .arg<Expr>("false_value", "")
+      .arg<Expr>("pred", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("select"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.cast")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cast"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.fma")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
+      .arg<Expr>("scale", "")
+      .arg<Expr>("bias", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("fma"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.silu")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("silu"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.permute_layout")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("permute_layout"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.copy_async")
+      .arg<Expr>("dst", "")
+      .arg<Expr>("src", "")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("copy_async"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 
   OpDef("tirx.tile.gemm_async")
+      .arg<Expr>("C", "")
+      .arg<Expr>("A", "")
+      .arg<Expr>("B", "")
+      .allow_extra_args()
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("gemm_async"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("tile_primitive"));
 }

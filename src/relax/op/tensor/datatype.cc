@@ -61,9 +61,8 @@ Type InferTypeAstype(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.astype")
-      .set_attrs_type<AstypeAttrs>()
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input tensor")
+      .call_attrs_type<AstypeAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeAstype)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -95,9 +94,8 @@ Type InferTypeWrapParam(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.wrap_param")
-      .set_attrs_type<WrapParamAttrs>()
-      .set_num_inputs(1)
       .arg<Expr>("data", "The input tensor")
+      .call_attrs_type<WrapParamAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeWrapParam)
       .set_attr<bool>("FPurity", true);
 }

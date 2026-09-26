@@ -133,7 +133,6 @@ InferLayoutOutput InferLayoutEwiseFMA(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ewise_fma")
-      .set_num_inputs(3)
       .arg<Expr>("x1", "The left hand operand of the multiplication")
       .arg<Expr>("x2", "The right hand operand of the multiplication")
       .arg<Expr>("x3", "The operand of the addition")

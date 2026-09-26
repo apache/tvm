@@ -141,8 +141,9 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("relax.unique")
-      .set_num_inputs(6)
+  OpDef("relax.unique",
+        "Optional axis: The dimension to apply unique. If it is std::nullopt, the unique values of "
+        "the flattened input are returned.")
       .arg<Expr>("x", "The input tensor")
       .arg<Expr>(
           "sorted",
@@ -156,10 +157,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  "original input ended up in the returned unique list.")
       .arg<Expr>("return_counts",
                  "Whether to return an additional tensor with counts of each unique elements")
-      .arg<Expr>("axis",
-                 "The dimension to apply unique. If it is std::nullopt, the unique values of the "
-                 "flattened input "
-                 "are returned.")
+      .allow_extra_args()
       .set_attr<FInferType>("FInferType", InferTypeUnique)
       .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
       .set_attr<bool>("FPurity", true);
@@ -183,7 +181,6 @@ Type InferTypeNonzero(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nonzero")
-      .set_num_inputs(1)
       .arg<Expr>("x", "The input tensor")
       .set_attr<FInferType>("FInferType", InferTypeNonzero)
       .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")

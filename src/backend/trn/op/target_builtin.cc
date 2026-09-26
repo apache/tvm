@@ -30,6 +30,7 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
+#include <initializer_list>
 #include <string>
 
 namespace tvm {
@@ -50,9 +51,15 @@ void RegisterTRNTargetBuiltins() {
 
 namespace {
 
-void RegisterNKIIntrinsic(const char* name) {
+struct NKIIntrinsicRegistration {
+  const char* name;
+  std::initializer_list<const char*> args;
+  bool allow_extra_args;
+};
+
+void RegisterNKIIntrinsic(const NKIIntrinsicRegistration& reg) {
   std::string prefix = "nki_";
-  std::string suffix(name);
+  std::string suffix(reg.name);
   if (suffix.rfind(prefix, 0) == 0) {
     suffix = suffix.substr(prefix.size());
   }
@@ -62,39 +69,50 @@ void RegisterNKIIntrinsic(const char* name) {
   ffi::String printer_name("nki." + suffix);
   int64_t effect = static_cast<int64_t>(CallEffectKind::kOpaque);
 
-  auto register_one = [&](const std::string& op_name) {
-    OpDef(op_name)
-        .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
-        .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", namespace_attr)
-        .set_attr<TCallEffectKind>("TCallEffectKind", effect)
-        .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name);
-  };
-
-  register_one(canonical_op_name);
+  OpDef def(canonical_op_name);
+  for (const char* name : reg.args) {
+    def.arg<Expr>(name, "");
+  }
+  if (reg.allow_extra_args) {
+    def.allow_extra_args();
+  }
+  def.set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", namespace_attr)
+      .set_attr<TCallEffectKind>("TCallEffectKind", effect)
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name);
 }
 
-const char* kNKIIntrinsics[] = {
-    "nki_activation",
-    "nki_activation_reduce",
-    "nki_affine_select",
-    "nki_identity",
-    "nki_load",
-    "nki_matmul",
-    "nki_memset",
-    "nki_reciprocal",
-    "nki_scalar_tensor_scalar",
-    "nki_scalar_tensor_tensor",
-    "nki_store",
-    "nki_tensor_copy",
-    "nki_tensorreduce",
-    "nki_tensorscalar",
-    "nki_tensorscalar_reduce",
-    "nki_tensortensor",
+const NKIIntrinsicRegistration kNKIIntrinsics[] = {
+    {"nki_activation", {"result", "data", "opcode", "bias", "scale"}, false},
+    {"nki_activation_reduce",
+     {"reduce_res", "act_res", "data", "opcode", "reduce_opcode", "bias", "scale"},
+     false},
+    {"nki_affine_select", {"result", "pred", "true_value", "false_value"}, false},
+    {"nki_identity", {"result", "size"}, false},
+    {"nki_load", {"res", "data"}, false},
+    {"nki_matmul", {"res", "lhs", "rhs", "accum"}, false},
+    {"nki_memset", {"result", "value"}, false},
+    {"nki_reciprocal", {"result", "data"}, false},
+    {"nki_scalar_tensor_scalar",
+     {"result", "data", "operand0", "operand1", "opcode0", "opcode1", "reverse0", "reverse1"},
+     false},
+    {"nki_scalar_tensor_tensor",
+     {"result", "data", "operand0", "operand1", "opcode0", "opcode1", "reverse0", "reverse1"},
+     false},
+    {"nki_store", {"res", "data"}, false},
+    {"nki_tensor_copy", {"res", "data"}, false},
+    {"nki_tensorreduce", {"result", "data", "opcode", "negate"}, true},
+    {"nki_tensorscalar", {"result", "operand0", "operand1", "opcode", "reverse"}, false},
+    {"nki_tensorscalar_reduce",
+     {"reduce_res", "tensorscalar_res", "operand0", "operand1", "opcode", "reduce_opcode",
+      "reverse"},
+     false},
+    {"nki_tensortensor", {"result", "operand0", "operand1", "opcode"}, false},
 };
 
 void RegisterNKIIntrinsicAliases() {
-  for (const char* op_name : kNKIIntrinsics) {
-    RegisterNKIIntrinsic(op_name);
+  for (const auto& reg : kNKIIntrinsics) {
+    RegisterNKIIntrinsic(reg);
   }
 }
 

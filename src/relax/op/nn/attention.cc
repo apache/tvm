@@ -151,31 +151,27 @@ Call InferMixedPrecisionAttention(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.attention")
-      .set_attrs_type<AttentionAttrs>()
-      .set_num_inputs(3)
       .arg<Expr>("query", "The input queries tensor.")
       .arg<Expr>("key", "The input keys tensor.")
       .arg<Expr>("value", "The input values tensor.")
+      .call_attrs_type<AttentionAttrs>()
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
       .set_attr<FInferType>("FInferType", InferTypeAttention)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.nn.attention_bias")
-      .set_attrs_type<AttentionAttrs>()
-      .set_num_inputs(4)
       .arg<Expr>("query", "The input queries tensor.")
       .arg<Expr>("key", "The input keys tensor.")
       .arg<Expr>("value", "The input values tensor.")
       .arg<Expr>("bias", "The input bias tensor.")
+      .call_attrs_type<AttentionAttrs>()
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
       .set_attr<FInferType>("FInferType", InferTypeAttention)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.nn.attention_var_len")
-      .set_attrs_type<AttentionAttrs>()
-      .set_num_inputs(7)
       .arg<Expr>("query", "The input queries tensor.")
       .arg<Expr>("key", "The input keys tensor.")
       .arg<Expr>("value", "The input values tensor.")
@@ -183,6 +179,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .arg<Expr>("seqstart_k", "The cumsum of key sequence lengths, prepended with 0.")
       .arg<Expr>("max_seqlen_q", "The maximum query sequence length in the batch.")
       .arg<Expr>("max_seqlen_k", "The maximum key sequence length in the batch.")
+      .call_attrs_type<AttentionAttrs>()
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
       .set_attr<FInferType>("FInferType", InferTypeAttention)

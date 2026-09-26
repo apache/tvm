@@ -146,7 +146,6 @@ void RegisterMetalIntrinRules() {
 
   // Register low-level Metal device intrinsics.
   OpDef("tirx.metal.simd_shuffle")
-      .set_num_inputs(2)
       .arg<Expr>("var", "The variable to sync.")
       .arg<Expr>("lane", "The source thread id.")
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
@@ -156,7 +155,6 @@ void RegisterMetalIntrinRules() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.metal.simd_shuffle_up")
-      .set_num_inputs(2)
       .arg<Expr>("var", "The variable to sync.")
       .arg<Expr>("delta", "The source lane id offset to be added.")
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
@@ -167,7 +165,6 @@ void RegisterMetalIntrinRules() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.metal.simd_shuffle_down")
-      .set_num_inputs(2)
       .arg<Expr>("var", "The variable to sync.")
       .arg<Expr>("delta", "The source lane id offset to be subtracted.")
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))

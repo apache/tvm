@@ -59,9 +59,8 @@ Type InferTypeSort(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.sort")
-      .set_attrs_type<SortAttrs>()
-      .set_num_inputs(1)
       .arg<Expr>("data", "The input tensor.")
+      .call_attrs_type<SortAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeSort)
       .set_attr<bool>("FPurity", true);
 }
@@ -97,9 +96,8 @@ Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.argsort")
-      .set_attrs_type<ArgsortAttrs>()
-      .set_num_inputs(1)
       .arg<Expr>("data", "The input tensor.")
+      .call_attrs_type<ArgsortAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeArgsort)
       .set_attr<bool>("FPurity", true);
 }
@@ -167,9 +165,8 @@ Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.topk")
-      .set_attrs_type<TopKAttrs>()
-      .set_num_inputs(1)
       .arg<Expr>("data", "The input tensor.")
+      .call_attrs_type<TopKAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeTopK)
       .set_attr<bool>("FPurity", true);
 }

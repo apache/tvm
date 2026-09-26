@@ -116,6 +116,16 @@ OpDef& OpDef::arg(const ffi::String& name, const ffi::String& type_schema, const
   return *this;
 }
 
+OpDef& OpDef::ty_arg(const ffi::String& name, const ffi::String& type_schema,
+                     const ffi::String& doc) {
+  auto node = ffi::make_object<ArgumentInfoNode>();
+  node->name = name;
+  node->type_schema = type_schema;
+  node->doc = doc;
+  get()->ty_args_info.push_back(ArgumentInfo(std::move(node)));
+  return *this;
+}
+
 OpDef& OpDef::set_attrs_type_key(const ffi::String& key) {
   uint32_t index = ffi::TypeKeyToIndex(key.c_str());
   get()->attrs_type_key = key;
@@ -139,7 +149,8 @@ void OpNode::RegisterReflection() {
       .def_ro("doc", &OpNode::doc, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("args_info", &OpNode::args_info, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
-      .def_ro("num_inputs", &OpNode::num_inputs, refl::AttachFieldFlag::SEqHashIgnore())
+      .def_ro("allow_extra_args", &OpNode::allow_extra_args, refl::AttachFieldFlag::SEqHashIgnore())
+      .def_ro("ty_args_info", &OpNode::ty_args_info, refl::AttachFieldFlag::SEqHashIgnore())
       .def_static("get", &Op::Get,
                   "get(op_name: str) -> Op\n\nReturn the canonical named Op; raise AttributeError "
                   "if unregistered.")
@@ -157,15 +168,12 @@ void OpNode::RegisterReflection() {
           "has_attr", [](Op, ffi::String name) { return Op::HasAttrMap(name); },
           "has_attr(attr_name: str) -> bool\n\nReturn whether the attribute column exists in the "
           "registry.")
-      .def("_set_attr", [](Op op, ffi::String name, ffi::Any value, bool override) {
-        OpDef(op->name)
-            .set_attr(name, value, override);
-      })
+      .def("_set_attr", [](Op op, ffi::String name, ffi::Any value,
+                           bool override) { OpDef(op->name)
+                               .set_attr(name, value, override); })
       .def(
-          "reset_attr", [](Op op, ffi::String name) {
-            OpDef(op->name)
-                .reset_attr(name);
-          },
+          "reset_attr", [](Op op, ffi::String name) { OpDef(op->name)
+              .reset_attr(name); },
           "reset_attr(attr_name: str) -> None\n\nRemove this Op's current value; missing values "
           "are ignored and cached views observe removal.")
       .def(
@@ -177,17 +185,22 @@ void OpNode::RegisterReflection() {
           "add_argument(name: str, type_schema: str, doc: str) -> None\n\nAppend an argument's "
           "name, JSON FFI type schema, and documentation without validating operands.")
       .def(
-          "set_num_inputs", [](Op op, int32_t n) {
+          "set_allow_extra_args", [](Op op) { OpDef(op->name)
+              .allow_extra_args(); },
+          "set_allow_extra_args() -> None\n\nAllow value arguments after the required prefix.")
+      .def(
+          "add_type_argument",
+          [](Op op, ffi::String name, ffi::String type_schema, ffi::String doc) {
             OpDef(op->name)
-                .set_num_inputs(n);
+                .ty_arg(name, type_schema, doc);
           },
-          "set_num_inputs(n: int) -> None\n\nSet the number of inputs, or -1 for variable length.")
+          "add_type_argument(name: str, type_schema: str, doc: str) -> None\n\nAppend a "
+          "type-argument "
+          "name, JSON FFI type schema, and documentation without imposing a count rule.")
       .def(
           "set_attrs_type_key",
-          [](Op op, ffi::String key) {
-            OpDef(op->name)
-                .set_attrs_type_key(key);
-          },
+          [](Op op, ffi::String key) { OpDef(op->name)
+              .set_attrs_type_key(key); },
           "set_attrs_type_key(key: str) -> None\n\nResolve and set the attribute object type key "
           "and runtime index together; an unknown key raises before updating.");
 }

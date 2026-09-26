@@ -76,14 +76,17 @@ class OpNode : public ExprNode {
   ffi::String name;
   /*! \brief Operator documentation. */
   ffi::String doc;
-  /*! \brief Argument descriptors in declaration order; these do not validate calls. */
+  /*! \brief Descriptors for the ordered required value-argument prefix. */
   ffi::Array<ArgumentInfo> args_info;
+  /*! \brief Accept at least args_info.size() value arguments when true, exactly that count
+   * otherwise. */
+  bool allow_extra_args{false};
+  /*! \brief Descriptors for Call.ty_args; inference owns optional/variable type-argument checks. */
+  ffi::Array<ArgumentInfo> ty_args_info;
   /*! \brief Attribute object type key, or empty when unrestricted. */
   ffi::String attrs_type_key;
   /*! \brief Runtime index corresponding to attrs_type_key; not serialized. */
   uint32_t attrs_type_index{0};
-  /*! \brief Input count, or -1 for variable length. */
-  int32_t num_inputs = -1;
 
   TVM_DLL static void RegisterReflection();
 
@@ -105,12 +108,13 @@ class OpNode : public ExprNode {
  * OpDef temporarily builds metadata on the same Op returned by Get. Independent
  * registrations may attach different attributes; replacing an existing attribute
  * requires explicit override. Cached attribute maps observe subsequent changes.
+ * args_info describes required value operands; allow_extra_args permits a suffix.
+ * ty_args_info describes type arguments without changing their inference rules.
  *
  * \code
  * TVM_FFI_STATIC_INIT_BLOCK() {
  *   OpDef("example.identity", "Return the input expression.")
  *       .arg<Expr>("value", "The input expression.")
- *       .set_num_inputs(1)
  *       .set_attr<bool>("FPurity", true);
  * }
  * // Copies the handle; the canonical node is shared.
@@ -173,11 +177,11 @@ class OpDef {
   /*! \brief Get the canonical operator. \return A copied handle, safe after this builder dies. */
   Op op() const { return op_; }
   /*!
-   * \brief Append an argument descriptor using the native FFI schema for T.
+   * \brief Append a required value-argument descriptor using the native FFI schema for T.
    * \tparam T The operand representation type, not its runtime tensor value type.
    * \param name Argument name.
    * \param doc Argument documentation.
-   * \return This builder. Descriptors do not impose additional call validation.
+   * \return This builder. Without allow_extra_args(), the prefix is the complete argument list.
    */
   template <typename T>
   OpDef& arg(const ffi::String& name, const ffi::String& doc) {
@@ -197,7 +201,7 @@ class OpDef {
    * \return This builder.
    */
   template <typename AttrsType>
-  OpDef& set_attrs_type() {
+  OpDef& call_attrs_type() {
     uint32_t index = AttrsType::RuntimeTypeIndex();
     get()->attrs_type_key = AttrsType::_type_key;
     get()->attrs_type_index = index;
@@ -210,14 +214,33 @@ class OpDef {
    */
   TVM_DLL OpDef& set_attrs_type_key(const ffi::String& key);
   /*!
-   * \brief Set the operator's input count.
-   * \param n Input count, or -1 for variable length.
-   * \return This builder.
+   * \brief Allow value arguments after the required prefix described by args_info.
+   * \return This builder. An empty prefix accepts any number of value arguments.
    */
-  OpDef& set_num_inputs(int32_t n) {
-    get()->num_inputs = n;
+  OpDef& allow_extra_args() {
+    get()->allow_extra_args = true;
     return *this;
   }
+  /*!
+   * \brief Append a descriptor for a type argument in Call.ty_args.
+   * \tparam T The type-argument representation type.
+   * \param name Type-argument name.
+   * \param doc Type-argument documentation.
+   * \return This builder. Inference retains responsibility for type-argument counts.
+   */
+  template <typename T>
+  OpDef& ty_arg(const ffi::String& name, const ffi::String& doc) {
+    return ty_arg(name, ffi::details::TypeSchema<T>::v(), doc);
+  }
+  /*!
+   * \brief Append a type-argument descriptor with an already generated FFI schema.
+   * \param name Type-argument name.
+   * \param type_schema JSON type schema.
+   * \param doc Type-argument documentation.
+   * \return This builder; does not validate type-argument counts.
+   */
+  TVM_DLL OpDef& ty_arg(const ffi::String& name, const ffi::String& type_schema,
+                        const ffi::String& doc);
   /*!
    * \brief Register an extensible attribute, rejecting duplicates unless overridden.
    * \tparam ValueType The attribute value type.

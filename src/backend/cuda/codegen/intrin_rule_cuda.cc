@@ -273,7 +273,6 @@ void RegisterCudaIntrinRules() {
   // Register low-level CUDA device intrinsics.
   // TODO(tvm-team): consider make CUDA its own subfolder and create a file for low-level builtins.
   OpDef("tirx.cuda.__shfl_sync")
-      .set_num_inputs(4)
       .arg<Expr>("mask", "The thread mask.")
       .arg<Expr>("var", "The variable to sync.")
       .arg<Expr>("lane", "The source thread id.")
@@ -286,7 +285,6 @@ void RegisterCudaIntrinRules() {
       .set_attr<bool>("cuda.need_warp_shuffle", true);
 
   OpDef("tirx.cuda.__shfl_up_sync")
-      .set_num_inputs(4)
       .arg<Expr>("mask", "The thread mask.")
       .arg<Expr>("var", "The variable to sync.")
       .arg<Expr>("delta", "The source lane id offset to be added.")
@@ -299,7 +297,6 @@ void RegisterCudaIntrinRules() {
       .set_attr<bool>("cuda.need_warp_shuffle", true);
 
   OpDef("tirx.cuda.__shfl_down_sync")
-      .set_num_inputs(4)
       .arg<Expr>("mask", "The thread mask.")
       .arg<Expr>("var", "The variable to sync.")
       .arg<Expr>("delta", "The source lane id offset to be subtracted.")
@@ -313,7 +310,6 @@ void RegisterCudaIntrinRules() {
       .set_attr<bool>("cuda.need_warp_shuffle", true);
 
   OpDef("tirx.cuda.__shfl_xor_sync")
-      .set_num_inputs(4)
       .arg<Expr>("mask", "The thread mask.")
       .arg<Expr>("var", "The variable to sync.")
       .arg<Expr>("lane_mask", "The lane mask.")
@@ -326,7 +322,6 @@ void RegisterCudaIntrinRules() {
       .set_attr<bool>("cuda.need_warp_shuffle", true);
 
   OpDef("tirx.cuda.__activemask")
-      .set_num_inputs(0)
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.__activemask"))

@@ -108,6 +108,7 @@ void RegisterHexagonIntrinRules() {
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::nearbyint, 1>);
 
   OpDef("tirx.ctpop")
+      .arg<Expr>("x", "")
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<FLowerIntrinsic>("hexagon.FLowerIntrinsic",
                                  DispatchLLVMPureIntrin<::llvm::Intrinsic::ctpop, 1>);
