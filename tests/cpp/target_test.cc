@@ -27,11 +27,13 @@
 
 using namespace tvm;
 
-TVM_REGISTER_TARGET_KIND("TestTargetKind", kDLCPU)
-    .set_attr<std::string>("Attr1", "Value1")
-    .add_attr_option<bool>("my_bool")
-    .add_attr_option<ffi::Array<ffi::String>>("your_names")
-    .add_attr_option<ffi::Map<ffi::String, int64_t>>("her_maps");
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TargetKindDef("TestTargetKind")
+      .set_default_device_type(kDLCPU)
+      .def_option<bool>("my_bool")
+      .def_option<ffi::Array<ffi::String>>("your_names")
+      .def_option<ffi::Map<ffi::String, int64_t>>("her_maps");
+}
 
 ffi::Map<ffi::String, ffi::Any> TestTargetParser(ffi::Map<ffi::String, ffi::Any> target) {
   ffi::String mcpu = target.at("mcpu").as_or_throw<ffi::String>();
@@ -46,28 +48,26 @@ ffi::Map<ffi::String, ffi::Any> TestAttrsPreProcessor(ffi::Map<ffi::String, ffi:
   return attrs;
 }
 
-TVM_REGISTER_TARGET_KIND("TestTargetParser", kDLCPU)
-    .add_attr_option<ffi::String>("mattr")
-    .add_attr_option<ffi::String>("mcpu")
-    .set_default_keys({"cpu"})
-    .set_target_canonicalizer(TestTargetParser);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TargetKindDef("TestTargetParser")
+      .set_default_device_type(kDLCPU)
+      .def_option<ffi::String>("mattr")
+      .def_option<ffi::String>("mcpu")
+      .set_default_keys({"cpu"})
+      .set_target_canonicalizer(TestTargetParser);
 
-TVM_REGISTER_TARGET_KIND("TestAttrsPreprocessor", kDLCPU)
-    .add_attr_option<ffi::String>("mattr")
-    .set_default_keys({"cpu"})
-    .set_target_canonicalizer(TestAttrsPreProcessor);
+  TargetKindDef("TestAttrsPreprocessor")
+      .set_default_device_type(kDLCPU)
+      .def_option<ffi::String>("mattr")
+      .set_default_keys({"cpu"})
+      .set_target_canonicalizer(TestAttrsPreProcessor);
 
-TVM_REGISTER_TARGET_KIND("TestClashingPreprocessor", kDLCPU)
-    .add_attr_option<ffi::String>("mattr")
-    .add_attr_option<ffi::String>("mcpu")
-    .set_default_keys({"cpu"})
-    .set_target_canonicalizer(TestTargetParser);
-
-TEST(TargetKind, GetAttrMap) {
-  auto map = tvm::TargetKind::GetAttrMap<std::string>("Attr1");
-  auto target_kind = tvm::TargetKind::Get("TestTargetKind").value();
-  std::string result = map[target_kind];
-  TVM_FFI_ICHECK_EQ(result, "Value1");
+  TargetKindDef("TestClashingPreprocessor")
+      .set_default_device_type(kDLCPU)
+      .def_option<ffi::String>("mattr")
+      .def_option<ffi::String>("mcpu")
+      .set_default_keys({"cpu"})
+      .set_target_canonicalizer(TestTargetParser);
 }
 
 TEST(TargetCreation, NestedConfig) {
@@ -277,11 +277,14 @@ TEST(TargetCreationFail, UnknownNonFeatureKeyStillFails) {
   ASSERT_THROW({ Target{config}; }, tvm::ffi::Error);
 }
 
-TVM_REGISTER_TARGET_KIND("TestStringKind", kDLCPU)
-    .add_attr_option<ffi::String>("single")
-    .add_attr_option<ffi::Array<ffi::String>>("array")
-    .add_attr_option<ffi::Array<ffi::Array<ffi::String>>>("nested-array")
-    .add_attr_option<ffi::Array<ffi::Array<ffi::Array<ffi::String>>>>("nested2-array");
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TargetKindDef("TestStringKind")
+      .set_default_device_type(kDLCPU)
+      .def_option<ffi::String>("single")
+      .def_option<ffi::Array<ffi::String>>("array")
+      .def_option<ffi::Array<ffi::Array<ffi::String>>>("nested-array")
+      .def_option<ffi::Array<ffi::Array<ffi::Array<ffi::String>>>>("nested2-array");
+}
 
 TEST(TargetCreation, ProcessStrings) {
   // Test single string attribute
@@ -384,13 +387,14 @@ TEST(TargetCreation, DeduplicateKeys) {
 }
 
 TEST(TargetKindRegistry, ListTargetKinds) {
-  ffi::Array<ffi::String> names = TargetKindRegEntry::ListTargetKinds();
+  ffi::Array<ffi::String> names = TargetKindRegistry::Global()->ListTargetKinds();
   TVM_FFI_ICHECK_EQ(names.empty(), false);
   TVM_FFI_ICHECK_EQ(std::count(std::begin(names), std::end(names), "llvm"), 1);
 }
 
 TEST(TargetKindRegistry, ListTargetOptions) {
   TargetKind llvm = TargetKind::Get("llvm").value();
-  ffi::Map<ffi::String, ffi::String> attrs = TargetKindRegEntry::ListTargetKindOptions(llvm);
+  ffi::Map<ffi::String, ffi::String> attrs =
+      TargetKindRegistry::Global()->ListTargetKindOptions(llvm);
   TVM_FFI_ICHECK_EQ(attrs.empty(), false);
 }
