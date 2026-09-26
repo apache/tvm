@@ -112,6 +112,20 @@ OpDef::OpDef(const ffi::String& name, const ffi::String& doc) : OpDef(name) { ge
 
 void Op::Validate(const CallNode* call) const { (*this)->Validate(call); }
 
+namespace {
+
+TVMFFIAny InvokeValidator(const ffi::Any& validator, const CallNode* call) noexcept {
+  if (TVM_FFI_PREDICT_TRUE(validator.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr)) {
+    using CallValidator = TVMFFIAny (*)(const CallNode*) noexcept;
+    return (*reinterpret_cast<CallValidator>(validator.cast<void*>()))(call);
+  }
+  // A Function receives the Call handle and returns None or raises/returns an Error.
+  return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
+      validator.cast<ffi::Function>().CallExpected<void>(ffi::GetRef<Call>(call)));
+}
+
+}  // namespace
+
 void OpNode::Validate(const CallNode* call) const {
   TVM_FFI_CHECK(call != nullptr && call->op.get() == this, ValueError)
       << "Expected a Call to operator '" << name << "'";
@@ -122,15 +136,18 @@ void OpNode::Validate(const CallNode* call) const {
       ValueError)
       << "Operator '" << op->name << "' expects " << (op->allow_extra_args ? "at least " : "")
       << expected << " arguments, got " << call->args.size();
-  if (op->validate_args_) {
-    ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(op->validate_args_(call)).value();
+  if (op->validate_args_ != nullptr) {
+    ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(InvokeValidator(op->validate_args_, call))
+        .value();
   }
-  if (op->validate_ty_args_) {
-    ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(op->validate_ty_args_(call)).value();
+  if (op->validate_ty_args_ != nullptr) {
+    ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(
+        InvokeValidator(op->validate_ty_args_, call))
+        .value();
   }
 }
 
-void OpDef::DeclareTypes(size_t count, OpNode::CallValidator validate, bool type_args) {
+void OpDef::DeclareTypes(size_t count, ffi::Any validate, bool type_args) {
   const auto& infos = type_args ? op_->ty_args_info : op_->args_info;
   auto& expected = type_args ? expected_ty_args_ : expected_args_;
   bool defined = type_args ? op_->ty_args_signature_defined_ : op_->args_signature_defined_;
@@ -138,7 +155,29 @@ void OpDef::DeclareTypes(size_t count, OpNode::CallValidator validate, bool type
       << "Operator '" << op_->name << "' " << (type_args ? "type-argument" : "argument")
       << " constraints must be declared once, before their descriptors";
   expected = count;
-  (type_args ? pending_ty_args_ : pending_args_) = validate;
+  (type_args ? pending_ty_args_ : pending_args_) = std::move(validate);
+}
+
+void OpDef::DeclareValidator(ffi::Function validate, bool type_args) {
+  const auto& infos = type_args ? op_->ty_args_info : op_->args_info;
+  auto& expected = type_args ? expected_ty_args_ : expected_args_;
+  bool defined = type_args ? op_->ty_args_signature_defined_ : op_->args_signature_defined_;
+  TVM_FFI_CHECK(validate.defined(), ValueError) << "Cannot register a null operator validator";
+  TVM_FFI_CHECK(!defined && !expected.has_value(), ValueError)
+      << "Operator '" << op_->name << "' " << (type_args ? "type-argument" : "argument")
+      << " constraints are already declared";
+  expected = infos.size();
+  (type_args ? pending_ty_args_ : pending_args_) = std::move(validate);
+}
+
+OpDef& OpDef::arg_validator(ffi::Function validator) {
+  DeclareValidator(std::move(validator), false);
+  return *this;
+}
+
+OpDef& OpDef::ty_arg_validator(ffi::Function validator) {
+  DeclareValidator(std::move(validator), true);
+  return *this;
 }
 
 OpDef::~OpDef() noexcept(false) {
@@ -154,11 +193,11 @@ OpDef::~OpDef() noexcept(false) {
       << "Operator '" << op_->name << "' declares " << *expected_ty_args_
       << " type-argument constraints but has " << op_->ty_args_info.size() << " descriptors";
   if (expected_args_) {
-    get()->validate_args_ = pending_args_;
+    get()->validate_args_ = std::move(pending_args_);
     get()->args_signature_defined_ = true;
   }
   if (expected_ty_args_) {
-    get()->validate_ty_args_ = pending_ty_args_;
+    get()->validate_ty_args_ = std::move(pending_ty_args_);
     get()->ty_args_signature_defined_ = true;
   }
 }
@@ -203,7 +242,9 @@ TVMFFIAny OpDef::ReportTypeMismatch(const CallNode* call, size_t index, const st
 }
 
 OpDef& OpDef::arg(const ffi::String& name, const ffi::String& doc) {
-  TVM_FFI_CHECK(!op_->args_signature_defined_, ValueError)
+  TVM_FFI_CHECK(!op_->args_signature_defined_ &&
+                    pending_args_.type_index() != ffi::TypeIndex::kTVMFFIFunction,
+                ValueError)
       << "Cannot append arguments to the declared signature of operator '" << op_->name << "'";
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;
@@ -213,7 +254,9 @@ OpDef& OpDef::arg(const ffi::String& name, const ffi::String& doc) {
 }
 
 OpDef& OpDef::ty_arg(const ffi::String& name, const ffi::String& doc) {
-  TVM_FFI_CHECK(!op_->ty_args_signature_defined_, ValueError)
+  TVM_FFI_CHECK(!op_->ty_args_signature_defined_ &&
+                    pending_ty_args_.type_index() != ffi::TypeIndex::kTVMFFIFunction,
+                ValueError)
       << "Cannot append type arguments to the declared signature of operator '" << op_->name << "'";
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;

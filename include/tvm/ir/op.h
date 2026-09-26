@@ -98,10 +98,9 @@ class OpNode : public ExprNode {
   friend class Op;
   friend class Call;
   TVM_DLL void Validate(const CallNode* call) const;
-  // None means success; an owned Error is returned on failure.
-  using CallValidator = TVMFFIAny (*)(const CallNode*) noexcept;
-  CallValidator validate_args_{nullptr};
-  CallValidator validate_ty_args_{nullptr};
+  // None means no validator. An opaque callback returns None or an owned Error.
+  ffi::Any validate_args_;
+  ffi::Any validate_ty_args_;
   // A null callback can still denote an explicitly declared all-base or empty signature.
   bool args_signature_defined_{false};
   bool ty_args_signature_defined_{false};
@@ -214,11 +213,11 @@ class OpDef {
    */
   template <typename... Types>
   OpDef& arg_types() {
-    OpNode::CallValidator validate = nullptr;
+    ffi::Any validate;
     if constexpr (!(std::is_same_v<Types, Expr> && ...)) {
-      validate = &ValidateArgs<Types...>;
+      validate = reinterpret_cast<void*>(&ValidateArgs<Types...>);
     }
-    DeclareTypes(sizeof...(Types), validate, false);
+    DeclareTypes(sizeof...(Types), std::move(validate), false);
     return *this;
   }
   /*!
@@ -229,6 +228,13 @@ class OpDef {
    * \throws ValueError if an earlier chain already declared the signature.
    */
   TVM_DLL OpDef& arg(const ffi::String& name, const ffi::String& doc);
+  /*!
+   * \brief Register a Function validator for the complete value-argument signature.
+   * \param validator Function accepting a Call and returning None or an Error.
+   * \return This builder. Descriptors must precede this declaration; later appends are rejected.
+   * \throws ValueError if a validator is already declared or the Function is null.
+   */
+  TVM_DLL OpDef& arg_validator(ffi::Function validator);
   /*!
    * \brief Set the attribute object type key and runtime index together.
    * \tparam AttrsType The attribute object node type.
@@ -265,11 +271,11 @@ class OpDef {
    */
   template <typename... Types>
   OpDef& ty_arg_types() {
-    OpNode::CallValidator validate = nullptr;
+    ffi::Any validate;
     if constexpr (!(std::is_same_v<Types, Type> && ...)) {
-      validate = &ValidateTyArgs<Types...>;
+      validate = reinterpret_cast<void*>(&ValidateTyArgs<Types...>);
     }
-    DeclareTypes(sizeof...(Types), validate, true);
+    DeclareTypes(sizeof...(Types), std::move(validate), true);
     return *this;
   }
   /*!
@@ -280,6 +286,13 @@ class OpDef {
    * \throws ValueError if an earlier chain already declared the signature.
    */
   TVM_DLL OpDef& ty_arg(const ffi::String& name, const ffi::String& doc);
+  /*!
+   * \brief Register a Function validator for the complete type-argument signature.
+   * \param validator Function accepting a Call and returning None or an Error.
+   * \return This builder. Descriptors must precede this declaration; later appends are rejected.
+   * \throws ValueError if a validator is already declared or the Function is null.
+   */
+  TVM_DLL OpDef& ty_arg_validator(ffi::Function validator);
   /*!
    * \brief Register an extensible attribute, rejecting duplicates unless overridden.
    * \tparam ValueType The attribute value type.
@@ -359,14 +372,15 @@ class OpDef {
   TVM_FFI_COLD_CODE TVM_DLL static TVMFFIAny ReportTypeMismatch(const CallNode* call, size_t index,
                                                                 const std::string& expected,
                                                                 bool type_arg);
-  TVM_DLL void DeclareTypes(size_t count, OpNode::CallValidator validate, bool type_args);
+  TVM_DLL void DeclareTypes(size_t count, ffi::Any validate, bool type_args);
+  TVM_DLL void DeclareValidator(ffi::Function validate, bool type_args);
   OpNode* get() { return const_cast<OpNode*>(op_.operator->()); }
   TVM_DLL void UpdateAttr(const ffi::String& attr_name, ffi::Any value, bool override);
   Op op_;
   std::optional<size_t> expected_args_;
   std::optional<size_t> expected_ty_args_;
-  OpNode::CallValidator pending_args_{nullptr};
-  OpNode::CallValidator pending_ty_args_{nullptr};
+  ffi::Any pending_args_;
+  ffi::Any pending_ty_args_;
 };
 
 /*!
