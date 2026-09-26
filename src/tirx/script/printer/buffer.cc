@@ -419,7 +419,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::Axis>(
       "", [](tirx::Axis axis, AccessPath p, IRDocsifier d) -> Doc {
-        return LiteralDoc::Str(axis->name, p->Attr("name"));
+        return LiteralDoc::Str(axis.name(), p->Attr("name"));
       });
 }
 
@@ -428,7 +428,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "", [](tirx::Iter iter, AccessPath p, IRDocsifier d) -> Doc {
         return TIR(d, "Iter")->Call({d->AsDoc<ExprDoc>(iter->extent, p->Attr("extent")),
                                      d->AsDoc<ExprDoc>(iter->stride, p->Attr("stride")),
-                                     d->AsDoc<ExprDoc>(iter->axis->name, p->Attr("axis"))},
+                                     d->AsDoc<ExprDoc>(iter->axis.name(), p->Attr("axis"))},
                                     {}, {});
       });
 }
@@ -438,8 +438,8 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
 
   // `value @ Axis.<name>`, but elide `@m` (the default memory axis).
   auto bind_axis = [&](ExprDoc value, const tirx::Axis& axis) -> ExprDoc {
-    if (axis->name == "m") return value;
-    return OperationDoc(OpKind::kMatMul, {value, IdDoc("Axis")->Attr(axis->name)});
+    if (axis.name() == "m") return value;
+    return OperationDoc(OpKind::kMatMul, {value, IdDoc("Axis")->Attr(axis.name())});
   };
 
   // Build `head[(e0, e1, ...) : (s0@a0, s1@a1, ...)]` (or 1D shorthand
@@ -465,7 +465,7 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
     if (layout->offset.size() > 0) {
       ffi::Array<ExprDoc> offset_keys, offset_values;
       for (const auto& [axis, off] : layout->offset) {
-        offset_keys.push_back(LiteralDoc::Str(axis->name, p->Attr("axis")));
+        offset_keys.push_back(LiteralDoc::Str(axis.name(), p->Attr("axis")));
         offset_values.push_back(d->AsDoc<ExprDoc>(off, p->Attr("offset")));
       }
       keys.push_back("offset");
@@ -496,7 +496,7 @@ Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
     std::vector<std::pair<tirx::Axis, PrimExpr>> sorted_offset(layout->offset.begin(),
                                                                layout->offset.end());
     std::sort(sorted_offset.begin(), sorted_offset.end(),
-              [](const auto& a, const auto& b) { return a.first->name < b.first->name; });
+              [](const auto& a, const auto& b) { return a.first.name() < b.first.name(); });
 
     // Build the offset as a single arithmetic expression first, then add it
     // to the spec in one `+`. Chaining `spec + term1 + term2` would re-enter
@@ -559,14 +559,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(tvm::TensorRegionNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(TensorLoadNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferStoreNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::BufferTypeNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::IterNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::TileLayoutNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::ComposeLayoutNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(s_tir::MatchBufferRegionNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<tvm::TensorRegionNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<TensorLoadNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::BufferStoreNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::BufferTypeNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::IterNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::TileLayoutNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::ComposeLayoutNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<s_tir::MatchBufferRegionNode>(ReprPrintTIR);
+}
 
 }  // namespace printer
 }  // namespace script

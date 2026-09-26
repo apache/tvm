@@ -2814,12 +2814,14 @@ struct ReindexCacheWriteTraits : public UnpackedInstTraits<ReindexCacheWriteTrai
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(CacheReadTraits);
-TVM_REGISTER_INST_KIND_TRAITS(CacheWriteTraits);
-TVM_REGISTER_INST_KIND_TRAITS(CacheInplaceTraits);
-TVM_REGISTER_INST_KIND_TRAITS(ReIndexTraits);
-TVM_REGISTER_INST_KIND_TRAITS(ReindexCacheReadTraits);
-TVM_REGISTER_INST_KIND_TRAITS(ReindexCacheWriteTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<CacheReadTraits>();
+  RegisterInstructionKind<CacheWriteTraits>();
+  RegisterInstructionKind<CacheInplaceTraits>();
+  RegisterInstructionKind<ReIndexTraits>();
+  RegisterInstructionKind<ReindexCacheReadTraits>();
+  RegisterInstructionKind<ReindexCacheWriteTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

@@ -98,9 +98,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::SeqExprNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::BindingBlockNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::DataflowBlockNode, ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<relax::SeqExprNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::BindingBlockNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::DataflowBlockNode>(ReprPrintRelax);
+}
 
 }  // namespace printer
 }  // namespace script

@@ -172,7 +172,7 @@ struct UnsafeHideBufferAccessTraits : public UnpackedInstTraits<UnsafeHideBuffer
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(UnsafeHideBufferAccessTraits);
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<UnsafeHideBufferAccessTraits>(); }
 
 }  // namespace s_tir
 }  // namespace tvm

@@ -304,10 +304,12 @@ struct UnrollTraits : public UnpackedInstTraits<UnrollTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(ParallelTraits);
-TVM_REGISTER_INST_KIND_TRAITS(VectorizeTraits);
-TVM_REGISTER_INST_KIND_TRAITS(BindTraits);
-TVM_REGISTER_INST_KIND_TRAITS(UnrollTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<ParallelTraits>();
+  RegisterInstructionKind<VectorizeTraits>();
+  RegisterInstructionKind<BindTraits>();
+  RegisterInstructionKind<UnrollTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

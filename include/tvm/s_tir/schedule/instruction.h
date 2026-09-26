@@ -26,10 +26,6 @@
 
 namespace tvm {
 
-// Forward declaration
-template <typename, typename>
-class AttrRegistry;
-
 namespace s_tir {
 
 // Forward declaration
@@ -201,85 +197,65 @@ class Instruction : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Instruction, ffi::ObjectRef, InstructionNode);
 };
 
-/*!
- * \brief A helper macro to register InstructionKind, only used in `TVM_REGISTER_INST_KIND`
- * \note This macro is not user-facing.
- * \sa TVM_REGISTER_INST_KIND
- */
-#define TVM_INST_KIND_REGISTER_VAR_DEF \
-  [[maybe_unused]] static ::tvm::s_tir::InstructionKindRegEntry& __make_##InstructionKind
-
-/*!
- * \brief Register an InstructionKind
- * \param InstructionKindName The name of the InstructionKind
- *
- * Example:
- *
- * \code
- *
- * TVM_REGISTER_INST_KIND("ComputeInline")
- *     .set_is_pure(false)
- *     .set_apply_to_schedule(ApplyToSchedule)
- *     .set_attrs_as_json(AttrsAsJSON)
- *     .set_attrs_from_json(AttrsFromJSON)
- *     .set_as_python(AsPython);
- *
- * \endcode
- */
-#define TVM_REGISTER_INST_KIND(InstructionKindName)                 \
-  TVM_FFI_STR_CONCAT(TVM_INST_KIND_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::s_tir::InstructionKindRegEntry::RegisterOrGet(InstructionKindName).set_name()
-
-/*! \brief An entry in the registry of InstructionKind */
-class InstructionKindRegEntry {
+/*! \brief Temporary builder for a canonical named instruction kind. */
+class InstructionKindDef {
  public:
-  static InstructionKindRegEntry& RegisterOrGet(const ffi::String& name);
+  /*! \brief Find or create the canonical kind and assign its name.
+   * \param name The instruction kind name.
+   */
+  explicit InstructionKindDef(const ffi::String& name);
 
-  InstructionKindRegEntry& set_name() {
-    get_mutable()->name = this->name;
-    return *this;
-  }
-
-  InstructionKindRegEntry& set_is_pure(bool is_pure) {
+  /*! \brief Set whether removing this instruction leaves schedule state unchanged.
+   * \param is_pure Whether the instruction is pure.
+   * \return This builder for chaining.
+   */
+  InstructionKindDef& set_is_pure(bool is_pure) {
     get_mutable()->is_pure = is_pure;
     return *this;
   }
 
-  InstructionKindRegEntry& set_apply_to_schedule(FInstructionApply f_apply_to_schedule) {
+  /*! \brief Set the schedule application callback.
+   * \param f_apply_to_schedule Callback that applies the instruction.
+   * \return This builder for chaining.
+   */
+  InstructionKindDef& set_apply_to_schedule(FInstructionApply f_apply_to_schedule) {
     get_mutable()->f_apply_to_schedule = std::move(f_apply_to_schedule);
     return *this;
   }
 
-  InstructionKindRegEntry& set_as_python(FInstructionAsPython f_as_python) {
+  /*! \brief Set the Python trace formatting callback.
+   * \param f_as_python Callback that formats an instruction.
+   * \return This builder for chaining.
+   */
+  InstructionKindDef& set_as_python(FInstructionAsPython f_as_python) {
     get_mutable()->f_as_python = std::move(f_as_python);
     return *this;
   }
 
-  InstructionKindRegEntry& set_attrs_as_json(FInstructionAttrsAsJSON f_attrs_as_json) {
+  /*! \brief Set the optional JSON serialization callback.
+   * \param f_attrs_as_json Callback, or null when conversion is unnecessary.
+   * \return This builder for chaining.
+   */
+  InstructionKindDef& set_attrs_as_json(FInstructionAttrsAsJSON f_attrs_as_json) {
     get_mutable()->f_attrs_as_json = std::move(f_attrs_as_json);
     return *this;
   }
 
-  InstructionKindRegEntry& set_attrs_from_json(FInstructionAttrsFromJSON f_attrs_from_json) {
+  /*! \brief Set the optional JSON deserialization callback.
+   * \param f_attrs_from_json Callback, or null when conversion is unnecessary.
+   * \return This builder for chaining.
+   */
+  InstructionKindDef& set_attrs_from_json(FInstructionAttrsFromJSON f_attrs_from_json) {
     get_mutable()->f_attrs_from_json = std::move(f_attrs_from_json);
     return *this;
   }
 
  private:
-  /*! \brief Private constructor, used only by AttrRegistry */
-  explicit InstructionKindRegEntry(uint32_t reg_index);
-  /*! \brief Get the mutable reference to the internal InstructionKind */
   InstructionKindNode* get_mutable() const {
     return const_cast<InstructionKindNode*>(inst_kind_.get());
   }
 
-  /*! \brief The name of the registry entry */
-  ffi::String name;
-  /*! \brief The instruction kind */
   InstructionKind inst_kind_;
-  template <typename, typename>
-  friend class ::tvm::AttrRegistry;
-  friend class InstructionKind;
 };
 
 }  // namespace s_tir

@@ -559,7 +559,7 @@ struct CacheIndexTraits : public UnpackedInstTraits<CacheIndexTraits> {
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(CacheIndexTraits);
+TVM_FFI_STATIC_INIT_BLOCK() { RegisterInstructionKind<CacheIndexTraits>(); }
 
 }  // namespace s_tir
 }  // namespace tvm

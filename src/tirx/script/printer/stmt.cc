@@ -144,7 +144,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                          d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
       });
 }
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<tirx::TilePrimitiveCallNode>(ReprPrintTIR);
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::Evaluate>(
@@ -840,18 +842,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::BindNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::AttrStmtNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::AssertStmtNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::WhileNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::AllocBufferNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::ReturnNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::BreakNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::ContinueNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::DeclBufferNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::SeqStmtNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::IfThenElseNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::EvaluateNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<tirx::BindNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::AttrStmtNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::AssertStmtNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::WhileNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::AllocBufferNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::ReturnNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::BreakNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::ContinueNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::DeclBufferNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::SeqStmtNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::IfThenElseNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::EvaluateNode>(ReprPrintTIR);
+}
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

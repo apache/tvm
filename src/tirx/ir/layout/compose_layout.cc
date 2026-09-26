@@ -246,7 +246,7 @@ ffi::Map<ffi::String, PrimExpr> ApplyStructured(const ComposeLayoutNode* layout,
   }
 
   for (const auto& [axis, offset] : tile->offset) {
-    if (axis->name != "m") return fallback();
+    if (axis.name() != "m") return fallback();
     std::vector<PrimExpr> dynamic_terms;
     bool valid = true;
     CollectOffsetTerms(offset, 1, &dynamic_terms, &constant, &valid, analyzer);
