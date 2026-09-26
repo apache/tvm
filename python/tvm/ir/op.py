@@ -30,6 +30,33 @@ class Op(Expr):
     def __init__(self):
         raise RuntimeError("Cannot create op, use get instead")
 
+    @staticmethod
+    def get(op_name):
+        """Get a registered operator by name.
+
+        Parameters
+        ----------
+        op_name : str
+            The canonical operator name.
+
+        Returns
+        -------
+        Op
+            A handle to the registered operator.
+        """
+        return _ffi_api.GetOp(op_name)
+
+    @staticmethod
+    def list_op_names():
+        """List registered operator names in unspecified order.
+
+        Returns
+        -------
+        list[str]
+            The registered operator names.
+        """
+        return _ffi_api.ListOpNames()
+
     def set_attr(self, attr_name, value, override=False):
         """Set an operator attribute.
 

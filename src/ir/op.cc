@@ -343,6 +343,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("__data_from_json__", &Op::Get);
   // clang-format off
   refl::GlobalDef()
+      .def("ir.GetOp", &Op::Get)
+      .def("ir.ListOpNames", &Op::ListNames)
       .def("ir.RegisterOp",
            [](ffi::String name, ffi::String doc) {
              TVM_FFI_CHECK(!OpRegistry::Global()->Contains(name), AttributeError)
