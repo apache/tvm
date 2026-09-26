@@ -23,9 +23,9 @@ Callers that want sync semantics should issue the matching wait after the copy.
 """
 
 import tvm
-from tvm.arith import Analyzer
 from tvm.runtime import DataType
 from tvm.script import tirx as T
+from tvm.sym import Analyzer
 from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.layout import (
     S,
@@ -225,8 +225,8 @@ def _tmem_window(tmem_buf, tmem_region, atom_kind, frag_rows, analyzer):
 def copy_tmem_local_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     op_call = TilePrimitiveCall.downcast(op_call)
     dst_buffer_region, src_buffer_region = op_call.dst, op_call.src
-    dst: Buffer = dst_buffer_region.buffer
-    src: Buffer = src_buffer_region.buffer
+    dst: Buffer = dst_buffer_region.source
+    src: Buffer = src_buffer_region.source
 
     if src.scope() == "tmem" and dst.scope() == "local":
         direction = "tmem2local"
@@ -237,7 +237,7 @@ def copy_tmem_local_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> P
     else:
         raise ValueError(f"Unsupported src scope {src.scope()} and dst scope {dst.scope()}")
 
-    tmem_buf, local_buf = tmem_region.buffer, local_region.buffer
+    tmem_buf, local_buf = tmem_region.source, local_region.source
 
     assert tmem_buf.layout is not None
     assert local_buf.layout is not None

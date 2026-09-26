@@ -23,7 +23,7 @@ from numbers import Integral as _Integral
 
 from tvm_ffi import Array
 
-import tvm.arith._ffi_api
+import tvm.sym._ffi_api
 import tvm.tirx
 import tvm.tirx._ffi_api
 from tvm.ir import is_prim_expr
@@ -377,13 +377,13 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
         A = te.placeholder((128, 128), name="A")
         B = te.placeholder((128, 128), name="B")
 
-        @T.prim_func(s_tir=True)
-        def before_split(a: T.handle, b: T.handle) -> None:
-            A = T.match_buffer(a, (128, 128))
-            B = T.match_buffer(b, (128, 128))
+        @Ts.prim_func
+        def before_split(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
             for i, j in T.grid(128, 128):
-                with T.sblock("B"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("B"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] * 2.0
 
         C = te.extern_primfunc([A, B], func)
@@ -569,16 +569,15 @@ def create_prim_func(
 
     .. code-block:: python
 
-        @T.prim_func(s_tir=True)
-        def tir_matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-            A = T.match_buffer(a, (128, 128))
-            B = T.match_buffer(b, (128, 128))
-            C = T.match_buffer(c, (128, 128))
+        @Ts.prim_func
+        def tir_matmul(
+            A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+        ) -> None:
 
             for i, j, k in T.grid(128, 128, 128):
-                with T.sblock():
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock():
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = 0.0
                     C[vi, vj] += A[vi, vk] * B[vj, vk]
 

@@ -19,8 +19,8 @@
 
 from dataclasses import dataclass
 
-from tvm.arith.analyzer import Analyzer
 from tvm.script import tirx as T
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx import PrimFunc
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import (
@@ -252,8 +252,8 @@ def _full_active_lanes(op: TilePrimitiveCall, sctx: DispatchContext):
 def _no_replica(op: TilePrimitiveCall, sctx: DispatchContext):
     """All operand layouts must have no replica (no broadcast/duplicated axes)."""
     for region, name in zip(op.args[:4], ("D", "A", "B", "C")):
-        if region.buffer.layout.replica:
-            return False, f"{name} layout has replica {region.buffer.layout.replica}"
+        if region.source.layout.replica:
+            return False, f"{name} layout has replica {region.source.layout.replica}"
     return True
 
 
@@ -279,7 +279,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
     # gemm op args: D = alpha * A @ B + beta * C
     # D (args[0]) is the output; C (args[3]) is the beta-accumulator input.
     D_region, A_region, B_region, C_region, transpose_A, transpose_B, alpha, beta = op.args
-    D, A, B, C = D_region.buffer, A_region.buffer, B_region.buffer, C_region.buffer
+    D, A, B, C = D_region.source, A_region.source, B_region.source, C_region.source
 
     # Pure-register mma path: A/B fragments and C/D accumulators all live in
     # registers ("local"). The caller is responsible for staging A/B into

@@ -25,6 +25,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/tensor.h>
 
@@ -33,19 +34,26 @@ namespace te {
 
 namespace {
 
+const Op& TensorLoadOp() {
+  static const Op& op = Op::Get("te.tensor_load");
+  return op;
+}
+
 ffi::Array<PrimExpr> ValidateTensorLoad(const Call& call, Tensor* tensor_out) {
-  const auto* tensor_node = call->op.as<TensorNode>();
-  TVM_FFI_ICHECK(tensor_node != nullptr) << "Expected a Call whose callee is a TE Tensor";
+  TVM_FFI_ICHECK(call->op.same_as(TensorLoadOp())) << "Expected a te.tensor_load Call";
+  TVM_FFI_ICHECK(!call->args.empty()) << "Tensor-load Call requires a Tensor argument";
+  const auto* tensor_node = call->args[0].as<TensorNode>();
+  TVM_FFI_ICHECK(tensor_node != nullptr) << "Tensor-load first argument must be a TE Tensor";
   Tensor tensor = ffi::GetRef<Tensor>(tensor_node);
-  TVM_FFI_ICHECK_EQ(call->args.size(), tensor->shape.size())
+  TVM_FFI_ICHECK_EQ(call->args.size() - 1, tensor->shape.size())
       << "Tensor-load index count must match tensor rank";
   TVM_FFI_ICHECK(call->ty.as<PrimTypeNode>() != nullptr && call->ty == tensor->dtype)
       << "Tensor-load result type must match the tensor element type";
 
   ffi::Array<PrimExpr> indices;
-  indices.reserve(call->args.size());
-  for (const Expr& arg : call->args) {
-    auto index = arg.as<PrimExpr>();
+  indices.reserve(call->args.size() - 1);
+  for (size_t i = 1; i < call->args.size(); ++i) {
+    auto index = call->args[i].as<PrimExpr>();
     TVM_FFI_ICHECK(index.has_value()) << "Tensor-load indices must have primitive type";
     indices.push_back(index.value());
   }
@@ -89,6 +97,9 @@ IterVar reduce_axis(Range dom, std::string name) {
 
 PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }
 
+TVM_REGISTER_OP("te.tensor_load")
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState));
+
 // Tensor
 inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
                                     bool support_negative_indices) const {
@@ -106,11 +117,12 @@ inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
     }
   }
   ffi::Array<Expr> args;
-  args.reserve(indices.size());
+  args.reserve(indices.size() + 1);
+  args.push_back(*this);
   for (const PrimExpr& index : indices) {
     args.push_back(index);
   }
-  return PrimExpr(Call((*this)->dtype, *this, args));
+  return PrimExpr(Call((*this)->dtype, TensorLoadOp(), args));
 }
 
 PrimExpr Tensor::operator()(ffi::Array<PrimVar> indices) const {
@@ -163,7 +175,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 bool IsTensorLoad(const Expr& expr) {
   const auto* call = expr.as<CallNode>();
-  return call != nullptr && call->op.as<TensorNode>() != nullptr;
+  return call != nullptr && call->op.same_as(TensorLoadOp());
 }
 
 Tensor GetTensorFromLoad(const Call& call) {

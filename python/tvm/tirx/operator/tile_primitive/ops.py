@@ -169,7 +169,7 @@ class FMA(TilePrimitiveCall):
 
     fma(output, input, scale, bias)
 
-    scale and bias can each be either a BufferRegion or a Expr scalar.
+    scale and bias can each be either a TensorRegion or an Expr scalar.
     """
 
     op = get_tirx_op("fma")
@@ -517,31 +517,6 @@ class ReduceNegate(ReduceOp):
     op = get_tirx_op("reduce_negate")
 
     reduce_op = ArgProperty(4)
-
-
-class ComposeOp(TilePrimitiveCall):
-    """Generic operator for composition of multiple operations.
-
-    Must be lowered to specific compose operations before operator-level passes.
-    """
-
-    # TODO: add a pass to lower generic compose_op to specific compose ops
-
-    op = get_tirx_op("compose_op")
-
-    @property
-    def srcs(self) -> list[Expr]:
-        """Get the source expressions (inputs) of the operator."""
-        raise NotImplementedError(
-            "Generic compose_op must be lowered to specific compose ops before operator-level passes"  # noqa: E501
-        )
-
-    @property
-    def dsts(self) -> list[Expr]:
-        """Get the destination expressions (outputs) of the operator."""
-        raise NotImplementedError(
-            "Generic compose_op must be lowered to specific compose ops before operator-level passes"  # noqa: E501
-        )
 
 
 class PermuteLayout(TilePrimitiveCall):

@@ -18,10 +18,10 @@
 """Relax script for attention module."""
 
 import tvm
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.script import relax as R
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 def get_relax_attention_module(
@@ -45,13 +45,13 @@ def get_relax_attention_module(
 
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            q = R.arg("q", R.Tensor(q_shape, dtype))
-            k = R.arg("k", R.Tensor(k_shape, dtype))
-            v = R.arg("v", R.Tensor(v_shape, dtype))
+            R.func_name_("main")
+            q = R.arg_("q", R.Tensor(q_shape, dtype))
+            k = R.arg_("k", R.Tensor(k_shape, dtype))
+            v = R.arg_("v", R.Tensor(v_shape, dtype))
             bias = None
             if bias_shape is not None and bias_shape != "none":
-                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
+                bias = R.arg_("bias", R.Tensor(bias_shape, dtype))
 
             with R.dataflow() as frame:
                 result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal_mask, window_size))
@@ -108,10 +108,10 @@ def get_relax_stacked_attention_module(
 
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            qkv = R.arg("qkv", R.Tensor(qkv.shape, dtype))
+            R.func_name_("main")
+            qkv = R.arg_("qkv", R.Tensor(qkv.shape, dtype))
             if bias is not None:
-                bias = R.arg("bias", R.Tensor(bias.shape, dtype))
+                bias = R.arg_("bias", R.Tensor(bias.shape, dtype))
             with R.dataflow() as frame:
                 if op == "split":
                     qkv_tuple = R.split(qkv, split_sections, axis=split_axis)

@@ -40,7 +40,7 @@ def generate_intermediate_buffer(
     Returns:
         Tuple[Optional[buffer], int]: The intermediate buffer and reduction factor size.
     """
-    intermediate_shape = [dst_buffer_region.buffer.ty.layout.size("P"), rfactor_size]
+    intermediate_shape = [dst_buffer_region.source.ty.layout.size("P"), rfactor_size]
 
     if "partial_reduce" in workspace:
         intermediate_buffer = workspace["partial_reduce"]
@@ -51,7 +51,7 @@ def generate_intermediate_buffer(
         )
         intermediate_buffer = T.buffer(
             intermediate_shape,
-            dtype=dst_buffer_region.buffer.ty.dtype,
+            dtype=dst_buffer_region.source.ty.dtype,
             scope="trn.sbuf",
             buffer_name="partial_reduce",
         )
@@ -83,8 +83,8 @@ def reduction_trn(
     assert reduce_op in reduce_ops, f"Unsupported reduce operation {reduce_op}"
 
     # Extract buffers
-    dst = dst_buffer_region.buffer
-    src = src_buffer_region.buffer
+    dst = dst_buffer_region.source
+    src = src_buffer_region.source
     axes = [i if i >= 0 else len(src.ty.shape) + i for i in axes]
     dim_map = get_reduction_dim_map(src_buffer_region, dst_buffer_region, axes, analyzer)
 
@@ -130,7 +130,8 @@ def reduction_trn(
     # fmt: off
     # Single-stage reduction implementation
     if reduction_b_extent == 1:
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 with T.attr(0, "tensorized_nki_instruction", 1):
@@ -144,7 +145,8 @@ def reduction_trn(
         return impl
     # Two-stage reduction implementation
     else:
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def two_stage_reduction():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):

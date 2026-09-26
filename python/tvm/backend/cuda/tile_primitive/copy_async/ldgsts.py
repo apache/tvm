@@ -110,7 +110,7 @@ def _divides_thread_cnt_ldgsts(
     thread_cnt = _thread_cnt(sctx)
     if thread_cnt <= 0:
         return False, f"degenerate thread_cnt={thread_cnt} (scope has empty intra)"
-    g_br = op_call.src if op_call.src.buffer.scope() == "global" else op_call.dst
+    g_br = op_call.src if op_call.src.source.scope() == "global" else op_call.dst
     n_elements = 1
     for r in g_br.region:
         ext = r.extent
@@ -142,8 +142,8 @@ def _is_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool,
 
 def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.buffer
-    dst: Buffer = op_call.dst.buffer
+    src: Buffer = op_call.src.source
+    dst: Buffer = op_call.dst.source
     # Predicate above guarantees src is global, dst is shared.
     g_buf, g_br = src, op_call.src
     s_buf, s_br = dst, op_call.dst

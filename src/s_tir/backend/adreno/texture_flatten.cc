@@ -33,23 +33,24 @@
 
 #include <unordered_map>
 
-#include "../../../arith/ir_visitor_with_analyzer.h"
 #include "../../../backend/opencl/runtime/texture.h"
 #include "../../../runtime/thread_storage_scope.h"
+#include "../../../s_tir/ir/ir_visitor_with_analyzer.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 using namespace tvm::tirx;
-using arith::IRVisitorWithAnalyzer;
 using runtime::ApplyTexture2DFlattening;
 using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;
 
 class TextureLoweringBase : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   explicit TextureLoweringBase(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
       : bound_analyzer_{bound_analyzer} {
     for (const Var& param : params) {
@@ -86,12 +87,14 @@ class TextureLoweringBase : public StmtExprMutator {
 // specified by the buffers storage scope.
 class TextureFlattener : public TextureLoweringBase {
  public:
-  using StmtExprMutator::VisitStmt_;
+  using TextureLoweringBase::Mutate;
+  using TextureLoweringBase::Mutate_;
+
   explicit TextureFlattener(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
       : TextureLoweringBase(params, bound_analyzer) {}
 
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    Stmt stmt = StmtExprMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BufferStoreNode>();
     std::string storage_scope = GetStorageScope(op->buffer);
     // Lower to two dimensional access
@@ -104,8 +107,9 @@ class TextureFlattener : public TextureLoweringBase {
     return stmt;
   }
 
-  Expr VisitExpr_(const TensorLoadNode* op) final {
-    PrimExpr expr = StmtExprMutator::VisitExpr_(op).as_or_throw<PrimExpr>();
+  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
+    PrimExpr expr =
+        StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = expr.as<TensorLoadNode>();
     // Lower to two dimensional access
     std::string storage_scope = GetStorageScope(op->source.as_or_throw<tvm::tirx::BufferVar>());
@@ -147,8 +151,9 @@ class TextureFlattener : public TextureLoweringBase {
     PrimExpr row_offset = SimplifyOffset(row_dims, row_indices);
     PrimExpr col_offset = SimplifyOffset(col_dims, col_indices);
     PrimExpr depth_offset = SimplifyOffset(depth_dims, depth_indices);
-    PrimExpr channel_size = IntImm(
-        PrimType::Int(32, 1), *tirx::as_const_int(buffer->shape.back()) * buffer->dtype.bits());
+    PrimExpr channel_size =
+        IntImm(PrimType::Int(32, 1),
+               buffer->shape.back().as_or_throw<IntImm>()->value * buffer->dtype.bits());
     args.push_back(row_offset);
     args.push_back(col_offset);
     args.push_back(depth_offset);
@@ -162,9 +167,11 @@ class TextureFlattener : public TextureLoweringBase {
 
 PrimFunc TextureFlattenHandler(PrimFunc func) {
   auto fptr = func.CopyOnWrite();
-  IRVisitorWithAnalyzer bound_analyzer;
-  bound_analyzer(fptr->body);
-  fptr->body = TextureFlattener(fptr->params, &bound_analyzer)(std::move(fptr->body));
+  auto bound_analyzer = ffi::make_object<IRVisitorWithAnalyzer>();
+  bound_analyzer->Visit(fptr->body);
+  fptr->body = ffi::make_object<TextureFlattener>(fptr->params, bound_analyzer.get())
+                   ->Mutate(fptr->body, InplaceMode::kAllow)
+                   .ValueOrUnchanged(std::move(fptr->body));
   return func;
 }
 

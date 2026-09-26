@@ -34,7 +34,7 @@ _ir = None
 def _get_ir():
     global _ir
     if _ir is None:
-        from tvm.tirx.script.builder import ir as _mod
+        from tvm.tirx.script.ir_builder import ir as _mod
 
         _ir = _mod
     return _ir
@@ -59,8 +59,9 @@ def _default_tmem_layout(rows, cols):
 
 
 def _emit_stmt(expr):
-    ir = _get_ir()
-    ir.add_to_parent(ir.evaluate(expr))
+    from tvm.tirx.script.ir_builder.parser_protocol import evaluate
+
+    evaluate(expr)
 
 
 def _shape_product(shape):
@@ -233,8 +234,8 @@ class TMEMPool:
         from tvm.script import tirx as T
 
         warp_id = T.warp_id()
-        with T.If(warp_id == target_warp):
-            with T.Then():
+        with T.if_(warp_id == target_warp):
+            with T.then_():
                 emit()
 
     def _resolve_cols(self, shape, dtype, cols, layout=None):
@@ -494,9 +495,9 @@ class SMEMPool:
             f"the pool high-water mark ({self.max_offset})"
         )
         import tvm.tirx
+        from tvm.tirx.script.ir_builder.parser_protocol import add_to_parent
 
-        ir = _get_ir()
-        ir.add_to_parent(
+        add_to_parent(
             tvm.tirx.AttrStmt(
                 0, "tirx.dyn_smem_bytes", tvm.tirx.IntImm("int64", resolved), tvm.tirx.Evaluate(0)
             )

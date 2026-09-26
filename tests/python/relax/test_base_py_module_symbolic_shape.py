@@ -23,8 +23,8 @@ import tvm
 from tvm import relax, tirx
 from tvm.ir import IRModule
 from tvm.relax.base_py_module import BasePyModule
-from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -63,23 +63,27 @@ def test_infer_concrete_shape_error_when_uninferrable():
         bpm._infer_concrete_shape_from_args([k, 8], in_args=[])
 
 
-@I.ir_module
-class AddModuleSymbolic(BasePyModule):
-    @T.prim_func(s_tir=True)
-    def add_tir(var_x: T.handle, var_y: T.handle, var_out: T.handle):
-        T.func_attr({"global_symbol": "add_tir"})
-        n = T.int64()
-        x = T.match_buffer(var_x, (n,), dtype="float32")
-        y = T.match_buffer(var_y, (n,), dtype="float32")
-        out = T.match_buffer(var_out, (n,), dtype="float32")
+n_add_tir = T.dynamic("n")
+n_main_relax = T.dynamic("n")
 
-        for i in T.serial(n):
+
+@R.py_module
+class AddModuleSymbolic(BasePyModule):
+    @Ts.prim_func
+    def add_tir(
+        x: T.Buffer((n_add_tir,), dtype="float32"),
+        y: T.Buffer((n_add_tir,), dtype="float32"),
+        out: T.Buffer((n_add_tir,), dtype="float32"),
+    ):
+        T.func_attr({"global_symbol": "add_tir"})
+
+        for i in T.serial(n_add_tir):
             out[i] = x[i] + y[i]
 
     @R.function
-    def main_relax(x: R.Tensor(("n",), "float32"), y: R.Tensor(("n",), "float32")) -> R.Tensor(
-        ("n",), "float32"
-    ):
+    def main_relax(
+        x: R.Tensor((n_main_relax,), "float32"), y: R.Tensor((n_main_relax,), "float32")
+    ) -> R.Tensor((n_main_relax,), "float32"):
         return R.add(x, y)
 
 
@@ -193,28 +197,35 @@ def test_infer_concrete_shape_wrong_ndim():
         bpm._infer_concrete_shape_from_args(sym_shape, [x])
 
 
-@I.ir_module
-class MatrixModuleSymbolic(BasePyModule):
-    @T.prim_func(s_tir=True)
-    def matmul_tir(var_a: T.handle, var_b: T.handle, var_c: T.handle):
-        T.func_attr({"global_symbol": "matmul_tir"})
-        m = T.int64()
-        n = T.int64()
-        k = T.int64()
-        a = T.match_buffer(var_a, (m, k), dtype="float32")
-        b = T.match_buffer(var_b, (k, n), dtype="float32")
-        c = T.match_buffer(var_c, (m, n), dtype="float32")
+m_matmul_tir = T.dynamic("m")
+n_matmul_tir = T.dynamic("n")
+k_matmul_tir = T.dynamic("k")
+m_matmul_relax = T.dynamic("m")
+k_matmul_relax = T.dynamic("k")
+n_matmul_relax = T.dynamic("n")
 
-        for i in T.serial(m):
-            for j in T.serial(n):
+
+@R.py_module
+class MatrixModuleSymbolic(BasePyModule):
+    @Ts.prim_func
+    def matmul_tir(
+        a: T.Buffer((m_matmul_tir, k_matmul_tir), dtype="float32"),
+        b: T.Buffer((k_matmul_tir, n_matmul_tir), dtype="float32"),
+        c: T.Buffer((m_matmul_tir, n_matmul_tir), dtype="float32"),
+    ):
+        T.func_attr({"global_symbol": "matmul_tir"})
+
+        for i in T.serial(m_matmul_tir):
+            for j in T.serial(n_matmul_tir):
                 c[i, j] = 0.0
-                for l in T.serial(k):
+                for l in T.serial(k_matmul_tir):
                     c[i, j] = c[i, j] + a[i, l] * b[l, j]
 
     @R.function
     def matmul_relax(
-        a: R.Tensor(("m", "k"), "float32"), b: R.Tensor(("k", "n"), "float32")
-    ) -> R.Tensor(("m", "n"), "float32"):
+        a: R.Tensor((m_matmul_relax, k_matmul_relax), "float32"),
+        b: R.Tensor((k_matmul_relax, n_matmul_relax), "float32"),
+    ) -> R.Tensor((m_matmul_relax, n_matmul_relax), "float32"):
         return R.matmul(a, b)
 
 

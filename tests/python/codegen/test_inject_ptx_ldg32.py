@@ -23,21 +23,18 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func(s_tir=True)
+@T.prim_func
 def vector_add(A: T.Buffer((16), "float32"), B: T.Buffer((32), "float32")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.sblock():
-        A_local = T.sblock_alloc_buffer((32), "float32", scope="local")
-
-        with T.sblock():
-            T.reads(A[0:16])
-            T.writes(A_local[0:32])
-            A_local[tx] = T.if_then_else(tx % 2 == 0, A[tx // 2], T.float32(0), dtype="float32")
-            B[tx] = A_local[tx] + 1.0
+    A_local = T.alloc_buffer(32, "float32", scope="local")
+    T.evaluate(
+        T.call_intrin("float32", "tirx.s_tir.ldg32", A_local.data, tx % 2 == 0, A[tx // 2], tx)
+    )
+    B[tx] = A_local[tx] + 1.0
 
 
 @pytest.mark.gpu
@@ -49,8 +46,7 @@ def test_inject_ptx_intrin():
     if major < 8:
         # Require at least SM80
         return
-    with tvm.transform.PassContext(config={"tirx.s_tir.ldg32": True}):
-        mod = tvm.compile(f, target="cuda")
+    mod = tvm.compile(f, target="cuda")
     A_np = np.random.rand(16).astype("float32")
     B_np = np.zeros(32).astype("float32")
     C_np = np.zeros(32).astype("float32")

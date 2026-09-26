@@ -27,13 +27,14 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
 # fmt: off
 
 
-@I.ir_module(s_tir=True)
+@I.ir_module
 class Module:
     @R.function(pure=False)
     def main(x: R.Tensor((16, 16), dtype="float32")) -> R.Tensor((16, 16), dtype="float32"):
@@ -53,14 +54,14 @@ class Module:
         lv5: R.Tensor(dtype="float32") = alloc3
         return lv5
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def add(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
         T.func_attr({"global_symbol": "add"})
-        with T.sblock("root"):
+        with Ts.sblock("root"):
             for i in T.thread_binding(16, thread="threadIdx.x"):
                 for j in range(16):
-                    with T.sblock("update"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("update"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] + T.float32(1)
 
     @R.function
@@ -139,7 +140,7 @@ def test_capture_error_is_recoverable():
 
     target = tvm.target.Target("cuda")
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
         @R.function
         def main(A: R.Tensor([16], "float16")):

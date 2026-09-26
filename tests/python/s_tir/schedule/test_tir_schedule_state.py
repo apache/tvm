@@ -26,66 +26,62 @@ import tvm
 import tvm.testing
 from tvm import tirx
 from tvm.ir import IRModule
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
-def elementwise(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
-    B = T.sblock_alloc_buffer((128, 128), "float32")
+@Ts.prim_func
+def elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
+    B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+@Ts.prim_func
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j in T.grid(128, 128):
-        with T.sblock("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with T.sblock("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
-def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    B = T.match_buffer(b, (128, 128), "float32")
+@Ts.prim_func
+def block_in_opaque_block(
+    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+) -> None:
     for i in range(128):
-        with T.sblock("B"):
-            vi = T.axis.S(128, i)
-            T.reads([A[0:128, 0:128]])
-            T.writes([B[0:128, 0:128]])
+        with Ts.sblock("B"):
+            vi = Ts.axis.S(128, i)
+            Ts.reads([A[0:128, 0:128]])
+            Ts.writes([B[0:128, 0:128]])
             B[vi, 0] = A[vi, 0]
             if A[vi, 0] == 0.0:
-                with T.sblock("C"):
-                    T.reads([A[0:128, 0:128]])
-                    T.writes([B[0:128, 0:128]])
+                with Ts.sblock("C"):
+                    Ts.reads([A[0:128, 0:128]])
+                    Ts.writes([B[0:128, 0:128]])
                     for j in range(128):
-                        with T.sblock("D"):
-                            vj = T.axis.S(128, j)
+                        with Ts.sblock("D"):
+                            vj = Ts.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 3.0
             else:
-                with T.sblock("E"):
-                    T.reads([A[0:128, 0:128]])
-                    T.writes([B[0:128, 0:128]])
+                with Ts.sblock("E"):
+                    Ts.reads([A[0:128, 0:128]])
+                    Ts.writes([B[0:128, 0:128]])
                     for j in range(128):
-                        with T.sblock("F"):
-                            vj = T.axis.S(128, j)
+                        with Ts.sblock("F"):
+                            vj = Ts.axis.S(128, j)
                             B[vi, vj] = A[vi, vj] * 2.0
 
 
@@ -93,9 +89,12 @@ def block_in_opaque_block(a: T.handle, b: T.handle) -> None:
 
 
 def replace_ir_builder(deep_copy=False, realize=False):
-    new_func = tvm.script.from_source(elementwise.script())
+    new_func = tvm.script.from_source(
+        elementwise.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
     s = tvm.s_tir.ScheduleState(new_func, debug_mask="all")
-    target = tvm.tirx.SBlock(
+    target = tvm.s_tir.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -107,7 +106,7 @@ def replace_ir_builder(deep_copy=False, realize=False):
         annotations=None,
     )
     if realize:
-        target = tvm.tirx.SBlockRealize(
+        target = tvm.s_tir.SBlockRealize(
             iter_values=[],
             predicate=True,
             block=target,
@@ -119,11 +118,17 @@ def replace_ir_builder(deep_copy=False, realize=False):
 
 
 def replace_ir_builder_module(deep_copy=False, realize=False):
-    new_func = tvm.script.from_source(elementwise.script())
-    other_func = tvm.script.from_source(elementwise.script())
+    new_func = tvm.script.from_source(
+        elementwise.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
+    other_func = tvm.script.from_source(
+        elementwise.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
     mod = IRModule(functions={"main": new_func, "other": other_func})
     s = tvm.s_tir.ScheduleState(mod, debug_mask="all")
-    target = tvm.tirx.SBlock(
+    target = tvm.s_tir.SBlock(
         iter_vars=[],
         reads=[],
         writes=[],
@@ -135,7 +140,7 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
         annotations=None,
     )
     if realize:
-        target = tvm.tirx.SBlockRealize(
+        target = tvm.s_tir.SBlockRealize(
             iter_values=[],
             predicate=True,
             block=target,
@@ -147,7 +152,10 @@ def replace_ir_builder_module(deep_copy=False, realize=False):
 
 
 def replace_ir_builder_with_opaque():
-    func = tvm.script.from_source(block_in_opaque_block.script())
+    func = tvm.script.from_source(
+        block_in_opaque_block.script(),
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir},
+    )
     s = tvm.s_tir.ScheduleState(func, debug_mask="all")
     gc.collect()
     return s

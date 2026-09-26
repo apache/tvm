@@ -119,8 +119,7 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
         return gemm
 
     @T.prim_func
-    def gemm(D_ptr: T.handle):
-        D_g = T.match_buffer(D_ptr, (M, N), "float32")
+    def gemm(D_g: T.Buffer((M, N), "float32")):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])
@@ -193,8 +192,7 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
         return gemm
 
     @T.prim_func
-    def gemm(D_ptr: T.handle):
-        D_g = T.match_buffer(D_ptr, (16, 8), "float32")
+    def gemm(D_g: T.Buffer((16, 8), "float32")):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])
@@ -254,11 +252,12 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
     kHi_n = kinst // (4 * KP)
 
     @T.prim_func
-    def gemm(A_ptr: T.handle, B_ptr: T.handle, C_ptr: T.handle, D_ptr: T.handle):
-        A_g = T.match_buffer(A_ptr, (M, K), dtype)
-        B_g = T.match_buffer(B_ptr, (K, N), dtype)
-        C_g = T.match_buffer(C_ptr, (M, N), "float32")
-        D_g = T.match_buffer(D_ptr, (M, N), "float32")
+    def gemm(
+        A_g: T.Buffer((M, K), dtype),
+        B_g: T.Buffer((K, N), dtype),
+        C_g: T.Buffer((M, N), "float32"),
+        D_g: T.Buffer((M, N), "float32"),
+    ):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])
@@ -306,10 +305,11 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
     B_shape = (8, 16) if transpose_B else (16, 8)
 
     @T.prim_func
-    def gemm(A_ptr: T.handle, B_ptr: T.handle, D_ptr: T.handle):
-        A_g = T.match_buffer(A_ptr, A_shape, dtype)
-        B_g = T.match_buffer(B_ptr, B_shape, dtype)
-        D_g = T.match_buffer(D_ptr, (16, 8), "float32")
+    def gemm(
+        A_g: T.Buffer(A_shape, dtype),
+        B_g: T.Buffer(B_shape, dtype),
+        D_g: T.Buffer((16, 8), "float32"),
+    ):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])
@@ -440,10 +440,11 @@ def test_cuda_gemm_mma_numerical(dtype):
         np_dtype = np.float16
 
     @T.prim_func
-    def gemm(A_ptr: T.handle, B_ptr: T.handle, D_ptr: T.handle):
-        A_g = T.match_buffer(A_ptr, (16, 16), dtype)
-        B_g = T.match_buffer(B_ptr, (16, 8), dtype)
-        D_g = T.match_buffer(D_ptr, (16, 8), "float32")
+    def gemm(
+        A_g: T.Buffer((16, 16), dtype),
+        B_g: T.Buffer((16, 8), dtype),
+        D_g: T.Buffer((16, 8), "float32"),
+    ):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])

@@ -62,7 +62,7 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
        axis is declared once
    * - 3
      - ``StmtSimplify``
-     - statement-level arithmetic simplification (the arith analyzer)
+     - statement-level arithmetic simplification (the sym analyzer)
    * - 4
      - ``LowerTIRxOpaque``
      - lowers remaining opaque constructs to lower-level TIRx forms
@@ -157,10 +157,11 @@ Take a one-line scale kernel:
 .. code-block:: python
 
     @Tx.prim_func
-    def scale(A_ptr: Tx.handle, B_ptr: Tx.handle):
-        A = Tx.match_buffer(A_ptr, (256,), "float32")
-        B = Tx.match_buffer(B_ptr, (256,), "float32")
-        Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
+    def scale(A: Tx.Buffer((256,), "float32"), B: Tx.Buffer((256,), "float32")):
+
+        Tx.device_entry()
+        bx = Tx.cta_id([1])
+        tx = Tx.thread_id([256])
         B[tx] = A[tx] * Tx.float32(2.0)
 
 **After ``LowerTIRx``** the scope ids are real thread axes and the layout is applied

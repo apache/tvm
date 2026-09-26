@@ -26,12 +26,12 @@ import tvm_ffi
 
 import tvm
 import tvm.testing
-from tvm.arith import Analyzer
 from tvm.ir import PointerType, PrimType, Range
 from tvm.script import tirx as T
 from tvm.script.tirx import tile as Tx
+from tvm.sym import Analyzer
 from tvm.testing import env
-from tvm.tirx import IntImm, StringImm, Var
+from tvm.tirx import IntImm, Var
 from tvm.tirx.cuda.tile_primitive.copy_async.tma import (
     AutoIssueAxis,
     IssueCoord,
@@ -123,12 +123,7 @@ class _EncodeCollector:
         self.calls = []
 
     def _visit_call(self, op):
-        if (
-            isinstance(op.op, tvm.ir.Op)
-            and op.op.name == "tirx.tvm_call_packed"
-            and isinstance(op.args[0], StringImm)
-            and op.args[0].value == "runtime.cuTensorMapEncodeTiled"
-        ):
+        if isinstance(op.op, tvm.ir.Op) and op.op.name == "tirx.tensormap_encode_tiled":
             self.calls.append(op)
 
     def visit_stmt(self, stmt):
@@ -271,8 +266,8 @@ def _collect_encodes(stmts):
 
 
 def _encode_signature(call):
-    rank = int(call.args[3])
-    cursor = 5
+    rank = call.attrs.rank
+    cursor = 2
     dims = tuple(call.args[cursor : cursor + rank])
     cursor += rank
     strides = tuple(call.args[cursor : cursor + rank - 1])
@@ -281,13 +276,17 @@ def _encode_signature(call):
     cursor += rank
     element_strides = tuple(call.args[cursor : cursor + rank])
     cursor += rank
-    enums = tuple(call.args[cursor : cursor + 4])
-    cursor += 4
-    forced_dtype = call.args[cursor] if cursor < len(call.args) else None
+    enums = (
+        call.attrs.interleave,
+        call.attrs.swizzle,
+        call.attrs.l2_promotion,
+        call.attrs.oob_fill,
+    )
+    forced_dtype = call.attrs.force_cu_dtype if call.attrs.force_cu_dtype >= 0 else None
     return {
-        "dtype": call.args[2].value,
+        "dtype": str(call.attrs.descriptor_dtype),
         "rank": rank,
-        "base": call.args[4],
+        "base": call.args[1],
         "dims": dims,
         "strides": strides,
         "boxes": boxes,
@@ -391,7 +390,6 @@ _BASELINE_AUTO_CASES = [
     ("g2s-2d-8x256-fp8e4m3", "float8_e4m3fn", 3),
     ("g2s-2d-8x256-fp8e5m2", "float8_e5m2", 3),
 ]
-
 
 TMA_CASES = [
     *[
@@ -908,7 +906,6 @@ _TMA_CASE_GOLDENS = {
     "s2g-oob-none": _tma_golden("float16", (64, 256), (128,), (64, 128)),
 }
 
-
 _TMA_EXPLICIT_CASES = {
     "g2s-oob-zero",
     "g2s-oob-nan",
@@ -918,7 +915,6 @@ _TMA_EXPLICIT_CASES = {
     "reject-g2s-nan-on-non-float",
     "reject-s2g-nan-on-non-float",
 }
-
 
 _TMA_CASE_ERRORS = {
     "g2s-2d-32x512-atom": r"stage=prefix-search: rank: .*got 6",
@@ -1122,8 +1118,8 @@ def test_dispatch_propagates_flat_bind_to_auto_coordinate_proof():
     func = _from_source(
         """
 @T.prim_func
-def bind_coordinate(D_ptr: T.handle):
-    D = T.match_buffer(D_ptr, (33360, 6144), "bfloat16")
+def bind_coordinate(D: T.Buffer((33360, 6144), 'bfloat16')):
+
     T.device_entry()
     block = T.cta_id([192])
     tid = T.thread_id([1])
@@ -1226,7 +1222,7 @@ def test_auto_maximum_prefix_and_mixed_radix_issue_pointer():
     assert _count_tma(impl).total == 512
 
 
-def test_copy_tma_host_init_dtype_is_string():
+def test_copy_tma_host_init_dtype_is_attribute():
     """The host-init encode call must carry the dtype as a StringImm, not a
     packed enum -- ``_encode_signature`` reads ``args[2].value`` as a str."""
     _, host_init_stmts, _ = _lower_direct(
@@ -1238,8 +1234,7 @@ def test_copy_tma_host_init_dtype_is_string():
         dtype="float16",
     )
     encode_call = _collect_encodes(host_init_stmts)[0]
-    assert isinstance(encode_call.args[2], StringImm)
-    assert encode_call.args[2].value == "float16"
+    assert str(encode_call.attrs.descriptor_dtype) == "float16"
 
 
 @pytest.mark.parametrize(
@@ -1531,8 +1526,8 @@ def test_explicit_allows_different_operand_ranks_with_equal_payload_bytes():
     source = _from_source(
         """
 @T.prim_func
-def rank_change(A_ptr: T.handle):
-    A = T.match_buffer(A_ptr, (8, 8), "float16")
+def rank_change(A: T.Buffer((8, 8), 'float16')):
+
     T.device_entry()
     T.cta_id([1])
     tid = T.thread_id([1])
@@ -1553,12 +1548,12 @@ def rank_change(A_ptr: T.handle):
 _SELECTOR_SOURCE = """
 @T.prim_func
 def selector_gather(
-    A_ptr: T.handle,
-    B_ptr: T.handle,
+    A: T.Buffer((256, 64), 'bfloat16'),
+    B: T.Buffer((512, 80), 'bfloat16'),
     flag: T.int32,
 ):
-    A = T.match_buffer(A_ptr, (256, 64), "bfloat16")
-    B = T.match_buffer(B_ptr, (512, 80), "bfloat16")
+
+
     B_view = B.sub[16:512, 8:72]
     T.device_entry()
     T.cta_id([1])
@@ -1703,8 +1698,8 @@ def _build_sparse_decode_qo_tma_regression():
     # fmt: off
     @T.prim_func
     def kernel(
-        Q_ptr: T.handle,
-        O_ptr: T.handle,
+        Q_storage: T.Buffer((64 * 576,), 'bfloat16'),
+        O_storage: T.Buffer((64 * 512,), 'bfloat16'),
         q_stride_b: T.int64,
         q_stride_s: T.int64,
         q_stride_h: T.int64,
@@ -1712,8 +1707,7 @@ def _build_sparse_decode_qo_tma_regression():
         o_stride_s: T.int64,
         o_stride_h: T.int64,
     ):
-        Q_storage = T.match_buffer(Q_ptr, (64 * 576,), "bfloat16")
-        O_storage = T.match_buffer(O_ptr, (64 * 512,), "bfloat16")
+
         Q = Q_storage.view(
             1,
             1,
@@ -2000,14 +1994,12 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
     # fmt: off
     @T.prim_func
     def kernel(
-        A_ptr: T.handle,
-        B_ptr: T.handle,
+        A: T.Buffer((rows, cols), dtype),
+        B: T.Buffer((rows, cols), dtype),
         flag: T.int32,
-        Out_ptr: T.handle,
+        Out: T.Buffer((4, cols), dtype),
     ):
-        A = T.match_buffer(A_ptr, (rows, cols), dtype)
-        B = T.match_buffer(B_ptr, (rows, cols), dtype)
-        Out = T.match_buffer(Out_ptr, (4, cols), dtype)
+
         T.device_entry()
         T.cta_id([1])
         tid = T.thread_id([128])

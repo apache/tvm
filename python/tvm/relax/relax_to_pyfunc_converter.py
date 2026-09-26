@@ -88,8 +88,8 @@ class RelaxToPyFuncConverter:
         new_ir_mod = self.ir_module.clone()
 
         # Initialize pyfuncs if not exists
-        if not hasattr(new_ir_mod, "pyfuncs"):
-            new_ir_mod.pyfuncs = {}
+        if not hasattr(new_ir_mod, "__pyfuncs__"):
+            new_ir_mod.__pyfuncs__ = {}
 
         # Get Relax function names from IRModule
         relax_func_names = []
@@ -116,7 +116,7 @@ class RelaxToPyFuncConverter:
             py_func = self._convert_relax_func_to_python(relax_func, func_name)
 
             # Store in pyfuncs
-            new_ir_mod.pyfuncs[func_name] = py_func
+            new_ir_mod.__pyfuncs__[func_name] = py_func
 
         return new_ir_mod
 
@@ -395,7 +395,7 @@ class RelaxExpressionConverter:
             return self._convert_var(expr, args)
         elif isinstance(expr, relax.Call):
             return self._convert_call(expr, args)
-        elif isinstance(expr, relax.Constant):
+        elif isinstance(expr, tvm.ir.GenericConst):
             return self._convert_constant(expr)
         elif isinstance(expr, relax.SeqExpr):
             return self._convert_seq_expr(expr, args)
@@ -778,10 +778,10 @@ class RelaxExpressionConverter:
             # Fallback: return the first argument
             return converted_args[0] if converted_args else torch.tensor([])
 
-    def _convert_constant(self, const: relax.Constant) -> Any:
+    def _convert_constant(self, const: tvm.ir.GenericConst) -> Any:
         """Convert a Relax constant to Python equivalent."""
-        if hasattr(const, "data"):
-            data = const.data
+        if hasattr(const, "value"):
+            data = const.value
             # Convert TVM NDArray to Python scalar if it's a scalar
             if hasattr(data, "numpy"):
                 numpy_data = data.numpy()
@@ -1043,9 +1043,9 @@ class RelaxExpressionConverter:
                 )
             else:
                 shape = (int(shape_arg),)
-        elif isinstance(shape_arg, relax.Constant):
+        elif isinstance(shape_arg, tvm.ir.GenericConst):
             # Constant tensor case
-            shape_data = shape_arg.data.numpy()
+            shape_data = shape_arg.value.numpy()
             shape = tuple(int(v) for v in shape_data)
         else:
             # Try to convert as expression

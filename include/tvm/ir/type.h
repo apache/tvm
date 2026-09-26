@@ -34,6 +34,20 @@
 
 namespace tvm {
 
+/*! \brief Semantic string type; its physical representation is context dependent. */
+class StringTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<StringTypeNode>(); }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.StringType", StringTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to StringTypeNode. */
+class StringType : public Type {
+ public:
+  TVM_DLL StringType();
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StringType, Type, StringTypeNode);
+};
+
 /*!
  * \brief Low-level raw pointer type.
  *
@@ -177,30 +191,6 @@ class FuncType : public Type {
   TVM_DLL FuncType(ffi::Array<Type> arg_types, Type ret_type, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FuncType, Type, FuncTypeNode);
-};
-
-/*!
- * \brief The type of tensor map.
- * \sa TensorMapType
- */
-class TensorMapTypeNode : public TypeNode {
- public:
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TensorMapTypeNode>();
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorMapType", TensorMapTypeNode, TypeNode);
-};
-
-/*!
- * \brief Managed reference to TensorMapTypeNode.
- * \sa TensorMapTypeNode
- */
-class TensorMapType : public Type {
- public:
-  TVM_DLL TensorMapType(Span span = Span());
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorMapType, Type, TensorMapTypeNode);
 };
 
 }  // namespace tvm

@@ -113,9 +113,8 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
     # fmt: off
     if direction == "ld":
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        def kernel(A: T.Buffer((M, N), 'float16'), B: T.Buffer((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.lane_id([32])
@@ -137,9 +136,8 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
                     B[gr, gc] = r_view[t * 2 + w]
     else:  # direction == "st"
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        def kernel(A: T.Buffer((M, N), 'float16'), B: T.Buffer((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.lane_id([32])
@@ -181,9 +179,8 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
     # fmt: off
     if direction == "ld":
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        def kernel(A: T.Buffer((M, N), 'float16'), B: T.Buffer((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.warpgroup_id([1])
@@ -210,9 +207,8 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
                     B[gr, gc] = r_view[t * 2 + w]
     else:
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        def kernel(A: T.Buffer((M, N), 'float16'), B: T.Buffer((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.warpgroup_id([1])
@@ -259,9 +255,8 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
     # fmt: off
     if direction == "ld":
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        def kernel(A: T.Buffer((M, N), 'float16'), B: T.Buffer((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.warp_id([4])
@@ -286,9 +281,8 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
                     B[gr, gc] = r_view[t * 2 + w]
     else:
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, (M, N), "float16")
-            B = T.match_buffer(B_ptr, (M, N), "float16")
+        def kernel(A: T.Buffer((M, N), 'float16'), B: T.Buffer((M, N), 'float16')) -> None:
+
             T.device_entry()
             T.cta_id([1])
             T.warp_id([4])
@@ -400,9 +394,7 @@ def _build_multi_iter_kernel(outer_ext: int):
     full = tuple(slice(0, e) for e in shape)
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, "float16")
-        B = T.match_buffer(B_ptr, shape, "float16")
+    def kernel(A: T.Buffer(shape, "float16"), B: T.Buffer(shape, "float16")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.lane_id([32])
@@ -481,8 +473,7 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
     smem_layout = mma_shared_layout("bfloat16", 3, (m, k))
 
     @T.prim_func
-    def kernel(s_ptr: T.handle) -> None:
-        smem = T.match_buffer(s_ptr, (m, k), "bfloat16", scope="shared", layout=smem_layout)
+    def kernel(smem: T.Buffer((m, k), "bfloat16", scope="shared", layout=smem_layout)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.warpgroup_id([1])

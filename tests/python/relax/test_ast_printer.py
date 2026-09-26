@@ -27,6 +27,7 @@ from tvm import tirx
 from tvm.relax.testing import dump_ast
 from tvm.relax.testing.ast_printer import ASTPrinter
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # Overload dump_ast to test both type and type annotations
@@ -104,14 +105,14 @@ def test_dataflow_var() -> None:
 
 def test_match_cast() -> None:
     # match_cast([16, 8], [m, n])
-    m = tirx.Var("m", ty="int64")
-    n = tirx.Var("n", ty="int64")
+    m = T.dynamic("m", dtype="int64")
+    n = T.dynamic("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     var = rx.Var("v0", R.Shape())
     b0 = rx.MatchCast(var, shape, R.Tensor([m, n], "int32"))
     b0_str = dump_ast(b0)
     assert b0_str.startswith("MatchCast(")
-    assert "Constant" in b0_str
+    assert "GenericConst" in b0_str
     assert "Expr(value=`m" in b0_str
     assert "Expr(value=`n" in b0_str
     assert "16" in b0_str
@@ -137,12 +138,12 @@ def test_var_binding() -> None:
     assert b0_str.startswith("VarBinding(")
     assert 'var=Var(name="v0")' in b0_str
     assert "value=" in b0_str
-    assert "Constant(" in b0_str
+    assert "GenericConst(" in b0_str
 
 
 def test_binding_block() -> None:
-    m = tirx.Var("m", ty="int64")
-    n = tirx.Var("n", ty="int64")
+    m = T.dynamic("m", dtype="int64")
+    n = T.dynamic("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -160,8 +161,8 @@ def test_binding_block() -> None:
 
 
 def test_dataflow_block() -> None:
-    m = tirx.Var("m", ty="int64")
-    n = tirx.Var("n", ty="int64")
+    m = T.dynamic("m", dtype="int64")
+    n = T.dynamic("n", dtype="int64")
     shape = rx.const([16, 8], "int32")
     b0 = rx.MatchCast(rx.Var("v0"), shape, R.Tensor([m, n], "int32"))
 
@@ -188,15 +189,15 @@ def test_seq_expr() -> None:
     assert "blocks=" in seqe_str
     assert "BindingBlock(" in seqe_str
     assert "VarBinding(" in seqe_str
-    assert "Constant(" in seqe_str
+    assert "GenericConst(" in seqe_str
     assert 'var=Var(name="foo")' in seqe_str
-    assert "value=Constant(data" in strip_whitespace(seqe_str)
+    assert "value=GenericConst(value" in strip_whitespace(seqe_str)
     assert "body=" in seqe_str
 
 
 def test_shape_expr() -> None:
-    m = tirx.Var("m", ty="int32")
-    n = tirx.Var("n", ty="int32")
+    m = T.dynamic("m", dtype="int32")
+    n = T.dynamic("n", dtype="int32")
     s = rx.ShapeExpr([m, n])
     s_str = dump_ast(s)
     assert s_str.startswith("ShapeExpr(")
@@ -349,13 +350,14 @@ def test_ty():
 
 def test_call_packed():
     # test case from test_parser
+    m = T.dynamic("m")
+
     @R.function(pure=False)
     def f(
-        x: R.Tensor((32, "m"), "float32"),
-        y: R.Tensor(("m",), "float32"),
+        x: R.Tensor((32, m), "float32"),
+        y: R.Tensor((m,), "float32"),
         r: R.Tensor(dtype="int64"),
     ) -> R.Any:
-        m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
         w: R.Tensor(ndim=2) = R.multiply(z, z)
         q: R.Tensor = R.add(w, w)
@@ -437,24 +439,27 @@ def test_op_attrs():
 
 def test_call_tir():
     # also from test_parser
+    m_addone = T.dynamic("m")
+    n_addone = T.dynamic("n")
+    m_foo = T.dynamic("m")
+    n_foo = T.dynamic("n")
+
     @tvm.script.ir_module
     class TestCallTIR:
-        @T.prim_func(s_tir=True)
-        def addone(A_handle: T.handle, B_handle: T.handle) -> None:
-            m = T.int64()
-            n = T.int64()
-            A = T.match_buffer(A_handle, (m, n), "float32")
-            B = T.match_buffer(B_handle, (m, n), "float32")
+        @Ts.prim_func
+        def addone(
+            A: T.Buffer((m_addone, n_addone), "float32"),
+            B: T.Buffer((m_addone, n_addone), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "addone"})
-            for i, j in T.grid(m, n):
-                with T.sblock("addone"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+            for i, j in T.grid(m_addone, n_addone):
+                with Ts.sblock("addone"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.int32(1)
 
         @R.function
-        def foo(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.int64(), T.int64()
-            gv0 = R.call_tir(TestCallTIR.addone, (x,), R.Tensor((m, n), dtype="float32"))
+        def foo(x: R.Tensor((m_foo, n_foo), "float32")):
+            gv0 = R.call_tir(TestCallTIR.addone, (x,), R.Tensor((m_foo, n_foo), dtype="float32"))
             return gv0
 
     mod = TestCallTIR
@@ -503,9 +508,11 @@ def test_call_tir():
 
 
 def test_call_dps_packed():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @R.function
-    def foo(x: R.Tensor(("m", "n"), "float32")):
-        m, n = T.int64(), T.int64()
+    def foo(x: R.Tensor((m, n), "float32")):
         gv0 = R.call_dps_packed("test.op.identity", (x,), R.Tensor((m, n), dtype="float32"))
         return gv0
 
@@ -661,24 +668,24 @@ def test_prim_value():
 
 
 def test_string_imm():
-    string_imm = rx.StringImm("test")
+    string_imm = tvm.ir.StringImm("test")
     str_str = strip_whitespace(dump_ast(string_imm))
     assert str_str == strip_whitespace(
         """
         StringImm(
             value="test",
-            ty=AnyType()
+            ty=StringType()
         )
     """
     )
 
 
 def test_datatype_imm():
-    data_type_imm = rx.DataTypeImm("int32")
+    data_type_imm = tvm.ir.GenericConst(tvm.DataType("int32"), tvm.relax.AnyType())
     data_type_str = strip_whitespace(dump_ast(data_type_imm))
     assert data_type_str == strip_whitespace(
         """
-        DataTypeImm(
+        GenericConst(
             value=int32,
             ty=AnyType()
         )

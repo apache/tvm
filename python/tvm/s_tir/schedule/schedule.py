@@ -25,7 +25,8 @@ from tvm_ffi import register_object as _register_object
 from tvm.error import register_error
 from tvm.ir import Expr, GlobalVar, IRModule, is_prim_expr
 from tvm.runtime import DataTypeCode, Object
-from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, SBlock, is_buffer_var
+from tvm.s_tir import SBlock
+from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, is_buffer_var
 from tvm.tirx.function import IndexMap
 
 from . import _ffi_api
@@ -621,18 +622,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_merge(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.prim_func
+            def before_merge(
+                A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+            ) -> None:
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do fuse:
@@ -649,25 +650,26 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_fuse(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.prim_func
+            def after_fuse(
+                A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+            ) -> None:
+
                 # the 2 loops are merged into 1
                 for i_m in range(128):
                     for j in range(128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i_m, j])
-                            T.reads(A[vi, vj])
-                            T.writes(B[vi, vj])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i_m, j])
+                            Ts.reads(A[vi, vj])
+                            Ts.writes(B[vi, vj])
                             B[vi, vj] = A[vi, vj] * T.float32(2)
                     for j in range(128):
-                        with T.sblock("C"):
-                            vi, vj = T.axis.remap("SS", [i_m, j])
-                            T.reads(A[vi, vj])
-                            T.writes(C[vi, vj])
+                        with Ts.sblock("C"):
+                            vi, vj = Ts.axis.remap("SS", [i_m, j])
+                            Ts.reads(A[vi, vj])
+                            Ts.writes(C[vi, vj])
                             C[vi, vj] = A[vi, vj] * T.float32(2)
+
         """
         return _ffi_api.ScheduleMerge(self, loops)  # type: ignore # pylint: disable=no-member
 
@@ -697,13 +699,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_fuse(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_fuse(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do fuse:
@@ -719,15 +721,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_fuse(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def after_fuse(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 # the 2 loops are fused into 1
                 for i_j_fused in T.serial(0, 16384):
-                    with T.sblock("B"):
-                        vi = T.axis.S(128, T.floordiv(i_j_fused, 128))
-                        vj = T.axis.S(128, T.floormod(i_j_fused, 128))
+                    with Ts.sblock("B"):
+                        vi = Ts.axis.S(128, T.floordiv(i_j_fused, 128))
+                        vj = Ts.axis.S(128, T.floormod(i_j_fused, 128))
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -787,13 +789,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_split(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_split(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do split:
@@ -809,15 +811,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_split(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def after_split(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 # the original loop is split into 2 loops
                 for i0, i1, j in T.grid(2, 64, 128):
-                    with T.sblock("B"):
-                        vi = T.axis.S(128, i0 * 64 + i1)
-                        vj = T.axis.S(128, j)
+                    with Ts.sblock("B"):
+                        vi = Ts.axis.S(128, i0 * 64 + i1)
+                        vj = Ts.axis.S(128, j)
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -874,13 +876,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_partition(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_partition(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do partition:
@@ -896,44 +898,44 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            def after_partition(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            def after_partition(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 # the original loop is partition into 3 loops
-                with T.sblock("root"):
-                    T.reads()
-                    T.writes()
-                    with T.sblock("B_i_common"):
-                        T.reads()
-                        T.writes()
-                        with T.sblock("B_i0_partition"):
-                            T.reads()
-                            T.writes()
+                with Ts.sblock("root"):
+                    Ts.reads()
+                    Ts.writes()
+                    with Ts.sblock("B_i_common"):
+                        Ts.reads()
+                        Ts.writes()
+                        with Ts.sblock("B_i0_partition"):
+                            Ts.reads()
+                            Ts.writes()
                             for i0, j in T.grid(2, 128):
-                                with T.sblock("B_i0"):
-                                    vi, vj = T.axis.remap("SS", [i0, j])
-                                    T.reads(A[0:2, 0:128])
-                                    T.writes(B[0:2, 0:128])
+                                with Ts.sblock("B_i0"):
+                                    vi, vj = Ts.axis.remap("SS", [i0, j])
+                                    Ts.reads(A[0:2, 0:128])
+                                    Ts.writes(B[0:2, 0:128])
                                     B[vi, vj] = A[vi, vj] * T.float32(2)
-                        with T.sblock("B_i1_partition"):
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("B_i1_partition"):
+                            Ts.reads()
+                            Ts.writes()
                             for i1 in range(2, 66):
                                 for j in range(128):
-                                    with T.sblock("B_i1"):
-                                        vi, vj = T.axis.remap("SS", [i1, j])
-                                        T.reads(A[2:66, 0:128])
-                                        T.writes(B[2:66, 0:128])
+                                    with Ts.sblock("B_i1"):
+                                        vi, vj = Ts.axis.remap("SS", [i1, j])
+                                        Ts.reads(A[2:66, 0:128])
+                                        Ts.writes(B[2:66, 0:128])
                                         B[vi, vj] = A[vi, vj] * T.float32(2)
-                        with T.sblock("B_partition_2"):
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("B_partition_2"):
+                            Ts.reads()
+                            Ts.writes()
                             for i2 in range(66, 128):
                                 for j in range(128):
-                                    with T.sblock("B_i2"):
-                                        vi, vj = T.axis.remap("SS", [i2, j])
-                                        T.reads(A[66:128, 0:128])
-                                        T.writes(B[66:128, 0:128])
+                                    with Ts.sblock("B_i2"):
+                                        vi, vj = Ts.axis.remap("SS", [i2, j])
+                                        Ts.reads(A[66:128, 0:128])
+                                        Ts.writes(B[66:128, 0:128])
                                         B[vi, vj] = A[vi, vj] * T.float32(2)
         """
         return list(
@@ -968,13 +970,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_reorder(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_reorder(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do reorder:
@@ -990,14 +992,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_reorder(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def after_reorder(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 # Here j and i are reordered
                 for j, i in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1021,16 +1023,16 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def matmul(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32"),
                 C: T.Buffer((128, 128), "float32"),
             ) -> None:
                 for i, j, k in T.grid(128, 128, 128):
-                    with T.sblock("C"):
-                        vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                        with T.init():
+                    with Ts.sblock("C"):
+                        vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                        with Ts.init():
                             C[vi, vj] = 0.0
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -1046,18 +1048,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def matmul_after_reorder_block_iter_var(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32"),
                 C: T.Buffer((128, 128), "float32"),
             ):
                 for i, j, k in T.grid(128, 128, 128):
-                    with T.sblock("C"):
-                        vk, vj, vi = T.axis.remap("RSS", [k, j, i])
-                        T.reads(A[vi, vk], B[vj, vk])
-                        T.writes(C[vi, vj])
-                        with T.init():
+                    with Ts.sblock("C"):
+                        vk, vj, vi = Ts.axis.remap("RSS", [k, j, i])
+                        Ts.reads(A[vi, vk], B[vj, vk])
+                        Ts.writes(C[vi, vj])
+                        with Ts.init():
                             C[vi, vj] = T.float32(0)
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -1089,14 +1091,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_add_unit_loop(
                 A: T.Buffer((), "int32"),
                 B: T.Buffer((), "int32"),
                 C: T.Buffer((), "int32"),
             ) -> None:
-                with T.sblock("C"):
-                    vi = T.axis.spatial(1, 0)
+                with Ts.sblock("C"):
+                    vi = Ts.axis.spatial(1, 0)
                     C[()] = A[()] + B[()]
 
         Create the schedule and do add-unit-loop:
@@ -1111,15 +1113,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_add_unit_loop(
                 A: T.Buffer((), "int32"),
                 B: T.Buffer((), "int32"),
                 C: T.Buffer((), "int32"),
             ) -> None:
                 for u in T.serial(1):
-                    with T.sblock("C"):
-                        vi = T.axis.spatial(1, 0)
+                    with Ts.sblock("C"):
+                        vi = Ts.axis.spatial(1, 0)
                         C[()] = A[()] + B[()]
         """
         # pylint: disable-next=no-member
@@ -1149,13 +1151,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_parallel(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_parallel(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do parallel:
@@ -1170,14 +1172,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_parallel(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def after_parallel(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i in T.parallel(0, 128):
                     for j in T.serial(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1205,13 +1207,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_vectorize(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_vectorize(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do vectorize:
@@ -1226,14 +1228,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_vectorize(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def after_vectorize(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i in T.serial(0, 128):
                     for j in T.vectorized(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1266,13 +1268,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_bind(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_bind(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do bind:
@@ -1288,14 +1290,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_bind(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def after_bind(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i in T.thread_binding(0, 128, thread = "blockIdx.x"):
                     for j in T.thread_binding(0, 128, thread = "threadIdx.x"):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1317,13 +1319,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_unroll(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_unroll(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do unroll:
@@ -1338,14 +1340,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_unroll(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def after_unroll(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i in T.unroll(0, 128):
                     for j in T.serial(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -1396,13 +1398,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_cache_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and cache_read:
@@ -1418,18 +1420,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                A_local = T.sblock_alloc_buffer((128, 128), scope="local")
+            @Ts.prim_func
+            def after_cache_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
+                A_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_local"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_local"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         A_local[vi, vj] = A[vi, vj]
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A_local[vi, vj] * 2.0
 
         """
@@ -1491,13 +1493,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_cache_write(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and cache_write:
@@ -1513,18 +1515,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                B_local = T.sblock_alloc_buffer((128, 128), scope="local")
+            @Ts.prim_func
+            def after_cache_write(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
+                B_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_local"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_local"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B_local[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = B_local[vi, vj]
 
         """
@@ -1584,13 +1586,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_reindex_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_reindex_cache_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and reindex_cache_read:
@@ -1606,18 +1608,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_reindex_cache_read(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
-                A_local = T.sblock_alloc_buffer((128, 128), scope="local")
+            @Ts.prim_func
+            def after_reindex_cache_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
+                A_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_local"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_local"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         A_local[vj, vi] = A[vi, vj]
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A_local[vj, vi] * 2.0
 
         See Also
@@ -1684,13 +1686,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_reindex_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_reindex_cache_write(
+                A: T.Buffer((128, 128)), B: T.Buffer((128, 128))
+            ) -> None:
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and reindex_cache_write:
@@ -1706,18 +1709,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_cache_write(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (64, 2, 128))
-                B_local = T.sblock_alloc_buffer((128, 128), scope="local")
+            @Ts.prim_func
+            def after_cache_write(A: T.Buffer((128, 128)), B: T.Buffer((64, 2, 128))) -> None:
+
+
+                B_local = Ts.sblock_alloc_buffer((128, 128), scope="local")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_local"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_local"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B_local[vi % 2, vi // 2, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = B_local[vi % 2, vi // 2, vj]
 
         See Also
@@ -1776,12 +1779,12 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_cache_inplace(data_io: T.Buffer((64), "int32")):
                 for i0 in T.serial(1):
-                    with T.sblock("A"):
-                        T.reads(data_io[:64])
-                        T.writes(data_io[:64])
+                    with Ts.sblock("A"):
+                        Ts.reads(data_io[:64])
+                        Ts.writes(data_io[:64])
                         T.evaluate(T.call_extern("call_impl", data_io.data, dtype=""))
 
         Create the schedule and cache_inplace:
@@ -1797,25 +1800,25 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def cache_inplace(data_io: T.Buffer(64, "int32")) -> None:
-                data_io_local = T.sblock_alloc_buffer([64], dtype="int32", scope="local")
+                data_io_local = Ts.sblock_alloc_buffer([64], dtype="int32", scope="local")
                 for i0 in T.serial(1):
                     for ax0 in T.serial(64):
-                        with T.sblock("data_io_local"):
-                            v0 = T.axis.spatial(64, ax0)
-                            T.reads(data_io[v0])
-                            T.writes(data_io_local[v0])
+                        with Ts.sblock("data_io_local"):
+                            v0 = Ts.axis.spatial(64, ax0)
+                            Ts.reads(data_io[v0])
+                            Ts.writes(data_io_local[v0])
                             data_io_local[v0] = data_io[v0]
-                    with T.sblock("A"):
-                        T.reads(data_io_local[0 : 64])
-                        T.writes(data_io_local[0 : 64])
+                    with Ts.sblock("A"):
+                        Ts.reads(data_io_local[0 : 64])
+                        Ts.writes(data_io_local[0 : 64])
                         T.evaluate(T.call_extern("call_impl", data_io_local.data, dtype=""))
                     for ax0 in T.serial(64):
-                        with T.sblock("data_io_local"):
-                            v0 = T.axis.spatial(64, ax0)
-                            T.reads(data_io_local[v0])
-                            T.writes(data_io[v0])
+                        with Ts.sblock("data_io_local"):
+                            v0 = Ts.axis.spatial(64, ax0)
+                            Ts.reads(data_io_local[v0])
+                            Ts.writes(data_io[v0])
                             data_io[v0] = data_io_local[v0]
 
         """
@@ -1860,13 +1863,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def resize(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (1, 3, 40, 40))
-                B = T.match_buffer(b, (1, 3, 80, 80))
+            @Ts.prim_func
+            def resize(A: T.Buffer((1, 3, 40, 40)), B: T.Buffer((1, 3, 80, 80))) -> None:
+
+
                 for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-                    with T.sblock("A"):
-                        n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    with Ts.sblock("A"):
+                        n, c, vi, vj = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                         B[n, c, vi, vj] = A[n, c, vi//4 + vj//4, vj//2]
 
         Create the schedule and cache_index:
@@ -1882,30 +1885,30 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def resize_cache_index(
                 A: T.Buffer((1, 3, 40, 40), "float32"), B: T.Buffer((1, 3, 80, 80), "float32")
             ) -> None:
-                index_var_0 = T.sblock_alloc_buffer([80, 80], dtype="int32", strides=[1])
-                index_var_1 = T.sblock_alloc_buffer([80], dtype="int32", strides=[1])
+                index_var_0 = Ts.sblock_alloc_buffer([80, 80], dtype="int32", strides=[1])
+                index_var_1 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])
                 for ax0, ax1 in T.grid(80, 80):
-                    with T.sblock("index_0"):
-                        v0 = T.axis.spatial(80, ax0)
-                        v1 = T.axis.spatial(80, ax1)
-                        T.reads()
-                        T.writes(index_var_0[v0, v1])
+                    with Ts.sblock("index_0"):
+                        v0 = Ts.axis.spatial(80, ax0)
+                        v1 = Ts.axis.spatial(80, ax1)
+                        Ts.reads()
+                        Ts.writes(index_var_0[v0, v1])
                         index_var_0[v0, v1] = v0 // 4 + v1 // 4
                 for ax0 in T.serial(80):
-                    with T.sblock("index_1"):
-                        v0 = T.axis.spatial(80, ax0)
-                        T.reads()
-                        T.writes(index_var_1[v0])
+                    with Ts.sblock("index_1"):
+                        v0 = Ts.axis.spatial(80, ax0)
+                        Ts.reads()
+                        Ts.writes(index_var_1[v0])
                         index_var_1[v0] = v0 // 2
                 for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
-                    with T.sblock("A"):
-                        n, c, vi, vj = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                        T.reads(A[n, c, vi // 4 + vj // 4, vj // 2])
-                        T.writes(B[n, c, vi, vj])
+                    with Ts.sblock("A"):
+                        n, c, vi, vj = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                        Ts.reads(A[n, c, vi // 4 + vj // 4, vj // 2])
+                        Ts.writes(B[n, c, vi, vj])
                         B[n, c, vi, vj] = A[n, c, index_var_0[vi, vj], index_var_1[vj]]
 
         """
@@ -1960,14 +1963,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_reindex(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32")
             ) -> None:
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vj, vi] * 2.0
 
         Create the schedule and do reindex:
@@ -1982,19 +1985,19 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_reindex(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32")
             ) -> None:
-                A_reindex = T.sblock_alloc_buffer((128, 128), "float32")
+                A_reindex = Ts.sblock_alloc_buffer((128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("A_reindex"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("A_reindex"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         A_reindex[vi, vj] = A[vj, vi]
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A_reindex[vi, vj] * 2.0
 
         """
@@ -2074,18 +2077,20 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.prim_func
+            def before_compute_at(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do compute-at:
@@ -2102,19 +2107,21 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.prim_func
+            def after_compute_at(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
                     for j in T.serial(0, 128):
-                        with T.sblock("C"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("C"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
@@ -2170,18 +2177,20 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_reverse_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.prim_func
+            def before_reverse_compute_at(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do reverse-compute-at:
@@ -2198,19 +2207,21 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_reverse_compute_at(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.prim_func
+            def after_reverse_compute_at(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+
                 for i in T.serial(0, 128):
                     for j in T.serial(0, 128):
-                        with T.sblock("B"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("B"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             B[vi, vj] = A[vi, vj] * 2.0
                     for j in T.serial(0, 128):
-                        with T.sblock("C"):
-                            vi, vj = T.axis.remap("SS", [i, j])
+                        with Ts.sblock("C"):
+                            vi, vj = Ts.axis.remap("SS", [i, j])
                             C[vi, vj] = B[vi, vj] + 1.0
 
         """
@@ -2246,18 +2257,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.prim_func
+            def before_inline(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
+                B = Ts.sblock_alloc_buffer((128, 128))
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do compute-inline:
@@ -2272,13 +2283,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.prim_func
+            def after_inline(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
@@ -2315,18 +2326,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.prim_func
+            def before_inline(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
+                B = Ts.sblock_alloc_buffer((128, 128))
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do reverse-compute-inline:
@@ -2341,13 +2352,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_inline(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.prim_func
+            def after_inline(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
         """
@@ -2448,14 +2459,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-                A = tirx.match_buffer(a, [128, 128])
-                B = tirx.match_buffer(b, [128, 128])
-                C = tirx.match_buffer(c, [128, 128])
-                for i, j, k in tirx.grid(128, 128, 128):
-                    with tirx.block([128, 128, tirx.reduce_axis(0, 128)], "C") as [vi, vj, vk]:
-                        with tirx.init():
+            @Ts.prim_func
+            def before_decompose(
+                A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+            ) -> None:
+
+                for i, j, k in T.grid(128, 128, 128):
+                    with Ts.sblock("C"):
+                        vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                        with Ts.init():
                             C[vi, vj] = 0.0
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
@@ -2473,11 +2485,11 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_decompose(a: ty.handle, b: ty.handle, c: ty.handle) -> None:
-                A = tirx.match_buffer(a, [128, 128])
-                B = tirx.match_buffer(b, [128, 128])
-                C = tirx.match_buffer(c, [128, 128])
+            @Ts.prim_func
+            def after_decompose(
+                A: tirx.Buffer([128, 128]), B: tirx.Buffer([128, 128]), C: tirx.Buffer([128, 128])
+            ) -> None:
+
                 for i in tirx.serial(128):
                     for j in tirx.serial(128):
                         with tirx.block([128, 128]) as [vi, vj]:
@@ -2572,16 +2584,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_rfactor(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128, 128))
-                B = T.match_buffer(b, (128,))
+            @Ts.prim_func
+            def before_rfactor(A: T.Buffer((128, 128, 128)), B: T.Buffer((128,))) -> None:
                 for ii, i, j in T.grid(128, 128, 128):
-                with T.sblock("B"):
-                    vii, vi, vj = T.axis.remap("SRR", [ii, i, j])
-                    with T.init():
-                        B[vii] = 0.0
-                    B[vii] = B[vii] + A[vii, vi, vj]
+                    with Ts.sblock("B"):
+                        vii, vi, vj = Ts.axis.remap("SRR", [ii, i, j])
+                        with Ts.init():
+                            B[vii] = 0.0
+                        B[vii] = B[vii] + A[vii, vi, vj]
 
         Create the schedule and do rfactor:
 
@@ -2596,21 +2606,21 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_rfactor(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, [128, 128, 128])
-                B = T.match_buffer(b, [128])
-                B_rf = T.sblock_alloc_buffer([128, 128])
+            @Ts.prim_func
+            def after_rfactor(A: T.Buffer([128, 128, 128]), B: T.Buffer([128])) -> None:
+
+
+                B_rf = Ts.sblock_alloc_buffer([128, 128])
                 for i2, ii, i in T.grid(128, 128, 128):
-                    with T.sblock("B_rf"):
-                        vi2, vii, vi = T.axis.remap("SSR", [i2, ii, i])
-                        with T.init():
+                    with Ts.sblock("B_rf"):
+                        vi2, vii, vi = Ts.axis.remap("SSR", [i2, ii, i])
+                        with Ts.init():
                             B_rf[vi2, vii] = 0.0
                         B_rf[vi2, vii] = (B_rf[vi2, vii] + A[vii, vi, vi2])
                 for ii, i2 in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vii, vi2 = T.axis.remap("SR", [ii, i2])
-                        with T.init():
+                    with Ts.sblock("B"):
+                        vii, vi2 = Ts.axis.remap("SR", [ii, i2])
+                        with Ts.init():
                             B[vii] = 0.0
                         B[vii] = B[vii] + B_rf[vi2, vii]
 
@@ -2672,18 +2682,18 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_storage_align(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.prim_func
+            def before_storage_align(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
+                B = Ts.sblock_alloc_buffer((128, 128))
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do storage_align:
@@ -2698,19 +2708,19 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_storage_align(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.sblock_alloc_buffer((128, 128))
-                C = T.match_buffer(c, (128, 128))
+            @Ts.prim_func
+            def after_storage_align(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+
+                B = Ts.sblock_alloc_buffer((128, 128))
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        T.sblock_attr({"buffer_dim_align": [[[0, 128, 1]]]})
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        Ts.sblock_attr({"buffer_dim_align": [[[0, 128, 1]]]})
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         After lowering passes, buffer B will have strides as [129, 1].
@@ -2747,19 +2757,19 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_set_scope(
                 A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), dtype="float32")
+                B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do set_scope:
@@ -2774,19 +2784,19 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_set_scope(
                 A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
-                B_shared = T.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
+                B_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
 
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B_shared[vi, vj] = A[vi, vj] * T.float32(2)
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B_shared[vi, vj] + T.float32(1)
 
         Note
@@ -2826,19 +2836,19 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_set_dtype(
                 A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), dtype="float32")
+                B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j]
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j]
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do unsafe_set_dtype:
@@ -2853,19 +2863,19 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_set_dtype(
                 A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), dtype="float16")
+                B = Ts.sblock_alloc_buffer((128, 128), dtype="float16")
 
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = T.cast(A[vi, vj] * 2.0, "float16")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j]
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j]
                         C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
 
         Note
@@ -2905,17 +2915,17 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_blockize(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32")
             ) -> None:
                 for i_0, j_0, i_1, j_1 in T.grid(8, 8, 16, 16):
-                    with T.sblock("B"):
-                        vi = T.axis.spatial(128, i_0 * 16 + i_1)
-                        vj = T.axis.spatial(128, j_0 * 16 + j_1)
-                        T.reads(A[vi, vj])
-                        T.writes(B[vi, vj])
+                    with Ts.sblock("B"):
+                        vi = Ts.axis.spatial(128, i_0 * 16 + i_1)
+                        vj = Ts.axis.spatial(128, j_0 * 16 + j_1)
+                        Ts.reads(A[vi, vj])
+                        Ts.writes(B[vi, vj])
                         B[vi, vj] = A[vi, vj] * T.float32(2)
 
         Create the schedule and do set_scope:
@@ -2932,21 +2942,21 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_blockize(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32")
             )-> None:
                 for i_0, j_0 in T.grid(8, 8):
-                    with T.sblock("B_o"):
-                        vio, vjo = T.axis.remap("SS", [i_0, j_0])
-                        T.reads(A[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-                        T.writes(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                    with Ts.sblock("B_o"):
+                        vio, vjo = Ts.axis.remap("SS", [i_0, j_0])
+                        Ts.reads(A[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                        Ts.writes(B[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
                         for i_1, j_1 in T.grid(16, 16):
-                            with T.sblock("B"):
-                                vi, vj = T.axis.remap("SS", [i_1, j_1])
-                                T.reads(A[vio * 16 + vi, vjo * 16 + vj])
-                                T.writes(B[vio * 16 + vi, vjo * 16 + vj])
+                            with Ts.sblock("B"):
+                                vi, vj = Ts.axis.remap("SS", [i_1, j_1])
+                                Ts.reads(A[vio * 16 + vi, vjo * 16 + vj])
+                                Ts.writes(B[vio * 16 + vi, vjo * 16 + vj])
                                 B[vio * 16 + vi, vjo * 16 + vj] = A[vio * 16 + vi, vjo * 16 + vj] \
                                                                   * T.float32(2)
 
@@ -2984,51 +2994,52 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_tensorize(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32"),
                 C: T.Buffer((128, 128), "float32"),
             ) -> None:
                 # body
-                # with T.sblock("root")
+                # with Ts.sblock("root")
                 for i_0, j_0, k_0, i_1, j_1, k_1 in T.grid(8, 8, 8, 16, 16, 16):
-                    with T.sblock("update"):
-                        vi = T.axis.spatial(128, i_0 * 16 + i_1)
-                        vj = T.axis.spatial(128, j_0 * 16 + j_1)
-                        vk = T.axis.reduce(128, k_0 * 16 + k_1)
-                        T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
-                        T.writes(C[vi, vj])
+                    with Ts.sblock("update"):
+                        vi = Ts.axis.spatial(128, i_0 * 16 + i_1)
+                        vj = Ts.axis.spatial(128, j_0 * 16 + j_1)
+                        vk = Ts.axis.reduce(128, k_0 * 16 + k_1)
+                        Ts.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+                        Ts.writes(C[vi, vj])
                         C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
         Declare and register the tensor intrinsic:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def mma_desc(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
+            @Ts.prim_func
+            def mma_desc(
+                A: T.Buffer((16, 16), align=128, offset_factor=1),
+                B: T.Buffer((16, 16), align=128, offset_factor=1),
+                C: T.Buffer((16, 16), align=128, offset_factor=1),
+            ) -> None:
 
-                with T.sblock("root"):
-                    T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
-                    T.writes(C[0 : 16, 0 : 16])
+                with Ts.sblock("root"):
+                    Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+                    Ts.writes(C[0:16, 0:16])
                     for i, j, k in T.grid(16, 16, 16):
-                        with T.sblock("update"):
-                            vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                        with Ts.sblock("update"):
+                            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
+            @Ts.prim_func
+            def mma_intrin(
+                A: T.Buffer((16, 16), align=128, offset_factor=1),
+                B: T.Buffer((16, 16), align=128, offset_factor=1),
+                C: T.Buffer((16, 16), align=128, offset_factor=1),
+            ) -> None:
 
-            @T.prim_func(s_tir=True)
-            def mma_intrin(a: T.handle, b: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (16, 16), align=128, offset_factor=1)
-                B = T.match_buffer(b, (16, 16), align=128, offset_factor=1)
-                C = T.match_buffer(c, (16, 16), align=128, offset_factor=1)
-
-                with T.sblock("root"):
-                    T.reads(C[0 : 16, 0 : 16], A[0 : 16, 0 : 16], B[0 : 16, 0 : 16])
-                    T.writes(C[0 : 16, 0 : 16])
+                with Ts.sblock("root"):
+                    Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
+                    Ts.writes(C[0:16, 0:16])
                     T.evaluate(
                         T.tvm_mma_sync(
                             C.data,
@@ -3043,7 +3054,7 @@ class Schedule(Object):
                         )
                     )
 
-            tirx.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
+            tvm.s_tir.TensorIntrin.register("test_mma_intrin", mma_desc, mma_intrin)
 
         Create the schedule and do tensorize:
 
@@ -3059,36 +3070,36 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_tensorize(
                 A: T.Buffer((128, 128), "float32"),
                 B: T.Buffer((128, 128), "float32"),
                 C: T.Buffer((128, 128), "float32"),
             ) -> None:
                 # body
-                # with T.sblock("root")
+                # with Ts.sblock("root")
                 for i_0, j_0, k_0 in T.grid(8, 8, 8):
-                    with T.sblock("update_o"):
-                        vio, vjo, vko = T.axis.remap("SSR", [i_0, j_0, k_0])
-                        T.reads(
+                    with Ts.sblock("update_o"):
+                        vio, vjo, vko = Ts.axis.remap("SSR", [i_0, j_0, k_0])
+                        Ts.reads(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                             A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                         )
-                        T.writes(C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
-                        A_1 = T.match_buffer(
+                        Ts.writes(C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16])
+                        A_1 = Ts.match_buffer(
                             A[vio * 16 : vio * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
                             offset_factor=1,
                         )
-                        B_1 = T.match_buffer(
+                        B_1 = Ts.match_buffer(
                             B[vjo * 16 : vjo * 16 + 16, vko * 16 : vko * 16 + 16],
                             [16, 16],
                             dtype="float32",
                             offset_factor=1,
                         )
-                        C_1 = T.match_buffer(
+                        C_1 = Ts.match_buffer(
                             C[vio * 16 : vio * 16 + 16, vjo * 16 : vjo * 16 + 16],
                             [16, 16],
                             dtype="float32",
@@ -3143,13 +3154,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_annotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_annotate(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do annotate:
@@ -3164,14 +3175,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_annotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def after_annotate(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        T.sblock_attr({"ann_key", "ann_value"})
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
+                        Ts.sblock_attr({"ann_key", "ann_value"})
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -3197,14 +3208,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_unannotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def before_unannotate(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        T.sblock_attr({"ann_key", "ann_value"})
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
+                        Ts.sblock_attr({"ann_key", "ann_value"})
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do annotate:
@@ -3219,13 +3230,13 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def after_unannotate(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128))
-                B = T.match_buffer(b, (128, 128))
+            @Ts.prim_func
+            def after_unannotate(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
@@ -3252,9 +3263,9 @@ class Schedule(Object):
 
         def iter_buffers():
             for i, read in enumerate(block_obj.reads):
-                yield "read", i, read.buffer
+                yield "read", i, read.source
             for i, write in enumerate(block_obj.writes):
-                yield "write", i, write.buffer
+                yield "write", i, write.source
 
         if isinstance(buffer, int):
             buffer = (required_buffer_type, buffer)
@@ -3295,7 +3306,7 @@ class Schedule(Object):
                 f"Block {block_name} has only "
                 f"{len(buffer_list)} {buffer_index_type} buffers."
             )
-            buffer_obj = buffer_list[buffer_index].buffer
+            buffer_obj = buffer_list[buffer_index].source
 
         else:
             raise TypeError(f"Invalid type for argument 'buffer': {type(buffer)}")
@@ -3392,18 +3403,20 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def before_transform_layout(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((128, 128), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.prim_func
+            def before_transform_layout(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_buffer((128, 128), "float32")
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do transform_layout:
@@ -3419,18 +3432,20 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def two_elementwise_transformed_intermediate_buffer(a: T.handle, c: T.handle) -> None:
-                A = T.match_buffer(a, (128, 128), "float32")
-                B = T.sblock_alloc_buffer((8, 8, 16, 16), "float32")
-                C = T.match_buffer(c, (128, 128), "float32")
+            @Ts.prim_func
+            def two_elementwise_transformed_intermediate_buffer(
+                A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+            ) -> None:
+
+                B = Ts.sblock_alloc_buffer((8, 8, 16, 16), "float32")
+
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi // 16, vj // 16, vi % 16, vj % 16] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi // 16, vj // 16, vi % 16, vj % 16] + 1.0
 
         """
@@ -3502,14 +3517,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_transform_block_layout(
                 A: T.Buffer((16, 16), "float32"),
                 B: T.Buffer((16, 16), "float32")
             ) -> None:
                 for i, j in T.grid(16, 16):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
 
         Create the schedule and do transform_block_layout:
@@ -3524,14 +3539,14 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_transform_block_layout(
                 A: T.Buffer((16, 16), "float32"),
                 B: T.Buffer((16, 16), "float32")
             ) -> None:
                 for i in range(256):
-                    with T.sblock("B"):
-                        vi, = T.axis.remap("S", [i])
+                    with Ts.sblock("B"):
+                        vi, = Ts.axis.remap("S", [i])
                         B[vi // 16, vi % 16] = A[vi // 16, vi % 16] * 2.0
         """
         block = self._normalize_block_arg(block)
@@ -3581,11 +3596,11 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
                 for i in range(140):
-                    with T.sblock("block"):
-                        vi = T.axis.remap("S", [i])
+                    with Ts.sblock("block"):
+                        vi = Ts.axis.remap("S", [i])
                         y[vi] = T.if_then_else(vi >= 6 and vi < 134, x[vi - 6], 0, dtype="int32")
 
         Create the schedule and do decompose-padding with specified loop:
@@ -3601,15 +3616,15 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
                 for i in T.serial(140):
-                    with T.sblock("block_pad_const"):
-                        vi = T.axis.spatial(140, i)
+                    with Ts.sblock("block_pad_const"):
+                        vi = Ts.axis.spatial(140, i)
                         y[vi] = 0
                 for i in T.serial(128):
-                    with T.sblock("block"):
-                        vi = T.axis.spatial(128, i)
+                    with Ts.sblock("block"):
+                        vi = Ts.axis.spatial(128, i)
                         y[vi + 6] = x[vi]
         """
         block = self._normalize_block_arg(block)
@@ -3650,16 +3665,16 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_pad_einsum(
                 A: T.Buffer((127, 127), "float32"),
                 B: T.Buffer((127, 127), "float32"),
                 C: T.Buffer((127, 127), "float32"),
             ) -> None:
                 for i0, i1, i2 in T.grid(127, 127, 127):
-                    with T.sblock("C_shared"):
-                        i, j, k = T.axis.remap("SSR", [i0, i1, i2])
-                        with T.init():
+                    with Ts.sblock("C_shared"):
+                        i, j, k = Ts.axis.remap("SSR", [i0, i1, i2])
+                        with Ts.init():
                             C[i, j] = T.float32(0)
                         C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
@@ -3676,41 +3691,41 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def main(
                 A: T.Buffer((127, 127), "float32"),
                 B: T.Buffer((127, 127), "float32"),
                 C: T.Buffer((127, 127), "float32"),
             ):
-                # with T.sblock("root"):
-                A_pad = T.sblock_alloc_buffer((128, 128))
-                B_pad = T.sblock_alloc_buffer((128, 128))
-                C_pad = T.sblock_alloc_buffer((128, 128))
+                # with Ts.sblock("root"):
+                A_pad = Ts.sblock_alloc_buffer((128, 128))
+                B_pad = Ts.sblock_alloc_buffer((128, 128))
+                C_pad = Ts.sblock_alloc_buffer((128, 128))
                 for i0, i1 in T.grid(128, 128):
-                    with T.sblock("A_pad"):
-                        v0, v1 = T.axis.remap("SS", [i0, i1])
+                    with Ts.sblock("A_pad"):
+                        v0, v1 = Ts.axis.remap("SS", [i0, i1])
                         A_pad[v0, v1] = T.if_then_else(
                             v0 < 127 and v1 < 127,
                             A[v0, v1],
                             T.float32(0),
                         )
                 for i0, i1 in T.grid(128, 128):
-                    with T.sblock("B_pad"):
-                        v0, v1 = T.axis.remap("SS", [i0, i1])
+                    with Ts.sblock("B_pad"):
+                        v0, v1 = Ts.axis.remap("SS", [i0, i1])
                         B_pad[v0, v1] = T.if_then_else(
                             v0 < 127 and v1 < 127,
                             B[v0, v1],
                             T.float32(0),
                         )
                 for i0, i1, i2 in T.grid(128, 128, 128):
-                    with T.sblock("C_shared"):
-                        i, j, k = T.axis.remap("SSR", [i0, i1, i2])
-                        with T.init():
+                    with Ts.sblock("C_shared"):
+                        i, j, k = Ts.axis.remap("SSR", [i0, i1, i2])
+                        with Ts.init():
                             C_pad[i, j] = T.float32(0)
                         C_pad[i, j] = C_pad[i, j] + A_pad[i, k] * B_pad[k, j]
                 for i0, i1 in T.grid(127, 127):
-                    with T.sblock("C_pad"):
-                        v0, v1 = T.axis.remap("SS", [i0, i1])
+                    with Ts.sblock("C_pad"):
+                        v0, v1 = Ts.axis.remap("SS", [i0, i1])
                         C[v0, v1] = C_pad[v0, v1]
 
         """
@@ -3753,27 +3768,27 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_rolling_buffer(
                 A: T.Buffer((12, 12), "int8"), C: T.Buffer((8, 8), "int8")
             ) -> None:
                 # body
-                # with T.sblock("root")
-                B = T.sblock_alloc_buffer([10, 10], dtype="int8")
+                # with Ts.sblock("root")
+                B = Ts.sblock_alloc_buffer([10, 10], dtype="int8")
                 for i0, i1 in T.grid(2, 2):
                     for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
-                        with T.sblock("B"):
-                            ax0_1 = T.axis.spatial(10, i0 * 4 + ax0)
-                            ax1_1 = T.axis.spatial(10, i1 * 4 + ax1)
-                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                        with Ts.sblock("B"):
+                            ax0_1 = Ts.axis.spatial(10, i0 * 4 + ax0)
+                            ax1_1 = Ts.axis.spatial(10, i1 * 4 + ax1)
+                            rv0, rv1 = Ts.axis.remap("RR", [ax2, ax3])
                             B[ax0_1, ax1_1] = T.max(
                                 B[ax0_1, ax1_1], A[ax0_1 + rv0, ax1_1 + rv1]
                             )
                     for ax0, ax1, ax2, ax3 in T.grid(4, 4, 3, 3):
-                        with T.sblock("C"):
-                            ax0_1 = T.axis.spatial(8, i0 * 4 + ax0)
-                            ax1_1 = T.axis.spatial(8, i1 * 4 + ax1)
-                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                        with Ts.sblock("C"):
+                            ax0_1 = Ts.axis.spatial(8, i0 * 4 + ax0)
+                            ax1_1 = Ts.axis.spatial(8, i1 * 4 + ax1)
+                            rv0, rv1 = Ts.axis.remap("RR", [ax2, ax3])
                             C[ax0_1, ax1_1] = T.max(
                                 C[ax0_1, ax1_1], B[ax0_1 + rv0, ax1_1 + rv1]
                             )
@@ -3790,29 +3805,29 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_rolling_buffer(
                 A: T.Buffer((12, 12), "int8"),
                 C: T.Buffer((8, 8), "int8")
             ) -> None:
                 # body
-                # with T.sblock("root")
-                B = T.sblock_alloc_buffer([6, 10], dtype="int8")
+                # with Ts.sblock("root")
+                B = Ts.sblock_alloc_buffer([6, 10], dtype="int8")
                 for i0, i1 in T.grid(2, 2):
                     for ax0, ax1, ax2, ax3 in T.grid(6, 6, 3, 3):
-                        with T.sblock("B"):
-                            T.where((i0 < 1 or 2 <= ax0) and (i1 < 1 or 2 <= ax1))
-                            ax0_1 = T.axis.spatial(10, i0 * 4 + ax0)
-                            ax1_1 = T.axis.spatial(10, i1 * 4 + ax1)
-                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                        with Ts.sblock("B"):
+                            Ts.where((i0 < 1 or 2 <= ax0) and (i1 < 1 or 2 <= ax1))
+                            ax0_1 = Ts.axis.spatial(10, i0 * 4 + ax0)
+                            ax1_1 = Ts.axis.spatial(10, i1 * 4 + ax1)
+                            rv0, rv1 = Ts.axis.remap("RR", [ax2, ax3])
                             B[ax0_1 % 6, ax1_1] = T.max(
                                 B[ax0_1 % 6, ax1_1], A[ax0_1 + rv0, ax1_1 + rv1]
                             )
                     for ax0, ax1, ax2, ax3 in T.grid(4, 4, 3, 3):
-                        with T.sblock("C"):
-                            ax0_1 = T.axis.spatial(8, i0 * 4 + ax0)
-                            ax1_1 = T.axis.spatial(8, i1 * 4 + ax1)
-                            rv0, rv1 = T.axis.remap("RR", [ax2, ax3])
+                        with Ts.sblock("C"):
+                            ax0_1 = Ts.axis.spatial(8, i0 * 4 + ax0)
+                            ax1_1 = Ts.axis.spatial(8, i1 * 4 + ax1)
+                            rv0, rv1 = Ts.axis.remap("RR", [ax2, ax3])
                             C[ax0_1, ax1_1] = T.max(
                                 C[ax0_1, ax1_1], B[ax0_1 % 6 + rv0, ax1_1 + rv1]
                             )
@@ -3892,19 +3907,19 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def before_annotate_buffer_access(
                 A: T.Buffer((128, 128), "float32"),
                 C: T.Buffer((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_buffer((128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         Create the schedule and do annotate_buffer_access:
@@ -3921,22 +3936,22 @@ class Schedule(Object):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def after_annotate_buffer_access(
                 A: T.Buffer((128, 128), "float32"),
                 C: T.Buffer((128, 128), "float32")
             ) -> None:
-                B = T.sblock_alloc_buffer((128, 128), "float32")
+                B = Ts.sblock_alloc_buffer((128, 128), "float32")
                 for i, j in T.grid(128, 128):
-                    with T.sblock("B"):
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        T.reads(A[vi - 1:vi + 1, vj - 1:vj + 1])
-                        T.writes(B[vi, vj])
-                        T.sblock_attr({"explicit_read_region": 0})
+                    with Ts.sblock("B"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
+                        Ts.reads(A[vi - 1:vi + 1, vj - 1:vj + 1])
+                        Ts.writes(B[vi, vj])
+                        Ts.sblock_attr({"explicit_read_region": 0})
                         B[vi, vj] = A[vi, vj] * 2.0
                 for i, j in T.grid(128, 128):
-                    with T.sblock("C"):
-                        vi, vj = T.axis.remap("SS", [i, j])
+                    with Ts.sblock("C"):
+                        vi, vj = Ts.axis.remap("SS", [i, j])
                         C[vi, vj] = B[vi, vj] + 1.0
 
         This annotates the read region for buffer A (index 0) in block "B" to be

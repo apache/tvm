@@ -49,8 +49,8 @@ def test_cta_sum_4_warps():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    def func(out: T.Buffer((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
@@ -77,8 +77,8 @@ def test_cta_sum_8_warps():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    def func(out: T.Buffer((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
@@ -104,8 +104,8 @@ def test_cta_max_4_warps():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    def func(out: T.Buffer((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
@@ -130,8 +130,8 @@ def test_cta_min_4_warps():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    def func(out: T.Buffer((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
@@ -156,8 +156,8 @@ def test_cta_sum_1_warp():
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    def func(out: T.Buffer((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([NUM_WARPS])
@@ -183,8 +183,8 @@ def test_cta_sum_all_warp_counts(num_warps):
 
     # fmt: off
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (N,), "float32")
+    def func(out: T.Buffer((N,), 'float32')):
+
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([num_warps])

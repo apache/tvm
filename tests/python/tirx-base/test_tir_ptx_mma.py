@@ -24,12 +24,14 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m8n8k4_row_col_fp64pf64fp64(
+    A: T.Buffer([8, 4], dtype="float64"),
+    B: T.Buffer([8, 4], dtype="float64"),
+    C: T.Buffer([8, 8], dtype="float64"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 4], dtype="float64")
-    B = T.match_buffer(b, [8, 4], dtype="float64")
-    C = T.match_buffer(c, [8, 8], dtype="float64")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -69,8 +71,8 @@ def gemm_mma_m8n8k4_row_col_fp64pf64fp64(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m8n8k4_row_col_fp64pf64fp64():
-    sch = tvm.s_tir.Schedule(gemm_mma_m8n8k4_row_col_fp64pf64fp64)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m8n8k4_row_col_fp64pf64fp64)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [8, 4]).astype("float64")
     B_np = np.random.uniform(-1, 1, [8, 4]).astype("float64")
@@ -90,12 +92,14 @@ def test_gemm_mma_m8n8k4_row_col_fp64pf64fp64():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m8n8k4_row_row_fp16fp16fp16(
+    A: T.Buffer([16, 4], dtype="float16"),
+    B: T.Buffer([4, 16], dtype="float16"),
+    C: T.Buffer([16, 16], dtype="float16"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 4], dtype="float16")
-    B = T.match_buffer(b, [4, 16], dtype="float16")
-    C = T.match_buffer(c, [16, 16], dtype="float16")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -146,8 +150,8 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(7), reason="need cuda compute >= 7.0")
 def test_gemm_mma_m8n8k4_row_row_fp16fp16fp16():
-    sch = tvm.s_tir.Schedule(gemm_mma_m8n8k4_row_row_fp16fp16fp16)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m8n8k4_row_row_fp16fp16fp16)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 4]).astype("float16")
     B_np = np.random.uniform(-1, 1, [4, 16]).astype("float16")
@@ -167,12 +171,14 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp16():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m8n8k4_row_row_fp16fp16fp32(
+    A: T.Buffer([16, 4], dtype="float16"),
+    B: T.Buffer([4, 16], dtype="float16"),
+    C: T.Buffer([16, 16], dtype="float32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 4], dtype="float16")
-    B = T.match_buffer(b, [4, 16], dtype="float16")
-    C = T.match_buffer(c, [16, 16], dtype="float32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -230,8 +236,8 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(7), reason="need cuda compute >= 7.0")
 def test_gemm_mma_m8n8k4_row_row_fp16fp16fp32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m8n8k4_row_row_fp16fp16fp32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m8n8k4_row_row_fp16fp16fp32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 4]).astype("float16")
     B_np = np.random.uniform(-1, 1, [4, 16]).astype("float16")
@@ -251,12 +257,14 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m8n8k16_row_col_s8s8s32(
+    A: T.Buffer([8, 16], dtype="int8"),
+    B: T.Buffer([8, 16], dtype="int8"),
+    C: T.Buffer([8, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 16], dtype="int8")
-    B = T.match_buffer(b, [8, 16], dtype="int8")
-    C = T.match_buffer(c, [8, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -302,8 +310,8 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.skipif(not env.has_nvcc_version(11), reason="need nvcc >= 11")
 @pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_gemm_mma_m8n8k16_row_col_s8s8s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m8n8k16_row_col_s8s8s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m8n8k16_row_col_s8s8s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
@@ -323,12 +331,14 @@ def test_gemm_mma_m8n8k16_row_col_s8s8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m8n8k16_row_col_s8u8s32(
+    A: T.Buffer([8, 16], dtype="int8"),
+    B: T.Buffer([8, 16], dtype="uint8"),
+    C: T.Buffer([8, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 16], dtype="int8")
-    B = T.match_buffer(b, [8, 16], dtype="uint8")
-    C = T.match_buffer(c, [8, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -374,8 +384,8 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.skipif(not env.has_nvcc_version(11), reason="need nvcc >= 11")
 @pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_gemm_mma_m8n8k16_row_col_s8u8s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m8n8k16_row_col_s8u8s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m8n8k16_row_col_s8u8s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 16]).astype("uint8")
@@ -395,12 +405,14 @@ def test_gemm_mma_m8n8k16_row_col_s8u8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m8n8k32_row_col_s4s4s32(
+    A: T.Buffer([8, 32], dtype="int4"),
+    B: T.Buffer([8, 32], dtype="int4"),
+    C: T.Buffer([8, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 32], dtype="int4")
-    B = T.match_buffer(b, [8, 32], dtype="int4")
-    C = T.match_buffer(c, [8, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -446,8 +458,8 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.skipif(not env.has_nvcc_version(11), reason="need nvcc >= 11")
 @pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_gemm_mma_m8n8k32_row_col_s4s4s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m8n8k32_row_col_s4s4s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m8n8k32_row_col_s4s4s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     def run_and_check():
         ctx = tvm.cuda()
@@ -461,12 +473,14 @@ def test_gemm_mma_m8n8k32_row_col_s4s4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m8n8k32_row_col_s4u4s32(
+    A: T.Buffer([8, 32], dtype="int4"),
+    B: T.Buffer([8, 32], dtype="uint4"),
+    C: T.Buffer([8, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [8, 32], dtype="int4")
-    B = T.match_buffer(b, [8, 32], dtype="uint4")
-    C = T.match_buffer(c, [8, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -512,8 +526,8 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.skipif(not env.has_nvcc_version(11), reason="need nvcc >= 11")
 @pytest.mark.skipif(not env.has_cuda_compute(7, 5), reason="need cuda compute >= 7.5")
 def test_gemm_mma_m8n8k32_row_col_s4u4s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m8n8k32_row_col_s4u4s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m8n8k32_row_col_s4u4s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     def run_and_check():
         ctx = tvm.cuda()
@@ -527,12 +541,14 @@ def test_gemm_mma_m8n8k32_row_col_s4u4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k8_row_col_fp16fp16fp32(
+    A: T.Buffer([16, 8], dtype="float16"),
+    B: T.Buffer([8, 8], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 8], dtype="float16")
-    B = T.match_buffer(b, [8, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -580,8 +596,8 @@ def gemm_mma_m16n8k8_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle)
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k8_row_col_fp16fp16fp32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k8_row_col_fp16fp16fp32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k8_row_col_fp16fp16fp32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
     B_np = np.random.uniform(-1, 1, [8, 8]).astype("float16")
@@ -601,12 +617,14 @@ def test_gemm_mma_m16n8k8_row_col_fp16fp16fp32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k16_row_col_fp16fp16fp16(
+    A: T.Buffer([16, 16], dtype="float16"),
+    B: T.Buffer([8, 16], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float16"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="float16")
-    B = T.match_buffer(b, [8, 16], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float16")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -657,8 +675,8 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp16(a: T.handle, b: T.handle, c: T.handle
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k16_row_col_fp16fp16fp16():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k16_row_col_fp16fp16fp16)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k16_row_col_fp16fp16fp16)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
     B_np = np.random.uniform(-1, 1, [8, 16]).astype("float16")
@@ -678,12 +696,14 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp16():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k16_row_col_fp16fp16fp32(
+    A: T.Buffer([16, 16], dtype="float16"),
+    B: T.Buffer([8, 16], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="float16")
-    B = T.match_buffer(b, [8, 16], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -734,8 +754,8 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp32(a: T.handle, b: T.handle, c: T.handle
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k16_row_col_fp16fp16fp32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k16_row_col_fp16fp16fp32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k16_row_col_fp16fp16fp32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
     B_np = np.random.uniform(-1, 1, [8, 16]).astype("float16")
@@ -755,12 +775,14 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k16_row_col_s8s8s32(
+    A: T.Buffer([16, 16], dtype="int8"),
+    B: T.Buffer([8, 16], dtype="int8"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="int8")
-    B = T.match_buffer(b, [8, 16], dtype="int8")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -811,8 +833,8 @@ def gemm_mma_m16n8k16_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k16_row_col_s8s8s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k16_row_col_s8s8s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k16_row_col_s8s8s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 16]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 16]).astype("int8")
@@ -832,12 +854,14 @@ def test_gemm_mma_m16n8k16_row_col_s8s8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k16_row_col_s8u8s32(
+    A: T.Buffer([16, 16], dtype="int8"),
+    B: T.Buffer([8, 16], dtype="uint8"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="int8")
-    B = T.match_buffer(b, [8, 16], dtype="uint8")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -888,8 +912,8 @@ def gemm_mma_m16n8k16_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k16_row_col_s8u8s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k16_row_col_s8u8s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k16_row_col_s8u8s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 16]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 16]).astype("uint8")
@@ -909,12 +933,14 @@ def test_gemm_mma_m16n8k16_row_col_s8u8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k32_row_col_s8s8s32(
+    A: T.Buffer([16, 32], dtype="int8"),
+    B: T.Buffer([8, 32], dtype="int8"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 32], dtype="int8")
-    B = T.match_buffer(b, [8, 32], dtype="int8")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -965,8 +991,8 @@ def gemm_mma_m16n8k32_row_col_s8s8s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k32_row_col_s8s8s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k32_row_col_s8s8s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k32_row_col_s8s8s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 32]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 32]).astype("int8")
@@ -986,12 +1012,14 @@ def test_gemm_mma_m16n8k32_row_col_s8s8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k32_row_col_s8u8s32(
+    A: T.Buffer([16, 32], dtype="int8"),
+    B: T.Buffer([8, 32], dtype="uint8"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 32], dtype="int8")
-    B = T.match_buffer(b, [8, 32], dtype="uint8")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -1042,8 +1070,8 @@ def gemm_mma_m16n8k32_row_col_s8u8s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k32_row_col_s8u8s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k32_row_col_s8u8s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k32_row_col_s8u8s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     A_np = np.random.uniform(-10, 10, [16, 32]).astype("int8")
     B_np = np.random.uniform(-10, 10, [8, 32]).astype("uint8")
@@ -1063,12 +1091,14 @@ def test_gemm_mma_m16n8k32_row_col_s8u8s32():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k64_row_col_s4s4s32(
+    A: T.Buffer([16, 64], dtype="int4"),
+    B: T.Buffer([8, 64], dtype="int4"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 64], dtype="int4")
-    B = T.match_buffer(b, [8, 64], dtype="int4")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -1119,8 +1149,8 @@ def gemm_mma_m16n8k64_row_col_s4s4s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k64_row_col_s4s4s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k64_row_col_s4s4s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k64_row_col_s4s4s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     def run_and_check():
         ctx = tvm.cuda()
@@ -1134,12 +1164,14 @@ def test_gemm_mma_m16n8k64_row_col_s4s4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k64_row_col_s4u4s32(
+    A: T.Buffer([16, 64], dtype="int4"),
+    B: T.Buffer([8, 64], dtype="uint4"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 64], dtype="int4")
-    B = T.match_buffer(b, [8, 64], dtype="uint4")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -1190,8 +1222,8 @@ def gemm_mma_m16n8k64_row_col_s4u4s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k64_row_col_s4u4s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k64_row_col_s4u4s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k64_row_col_s4u4s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     def run_and_check():
         ctx = tvm.cuda()
@@ -1205,12 +1237,14 @@ def test_gemm_mma_m16n8k64_row_col_s4u4s32():
     # TODO: add correctness checking here.
 
 
-@T.prim_func(s_tir=True)
-def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
+@T.prim_func
+def gemm_mma_m16n8k256_row_col_b1b1s32(
+    A: T.Buffer([16, 256], dtype="int1"),
+    B: T.Buffer([8, 256], dtype="int1"),
+    C: T.Buffer([16, 8], dtype="int32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 256], dtype="int1")
-    B = T.match_buffer(b, [8, 256], dtype="int1")
-    C = T.match_buffer(c, [16, 8], dtype="int32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -1262,8 +1296,8 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(a: T.handle, b: T.handle, c: T.handle):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(8), reason="need cuda compute >= 8.0")
 def test_gemm_mma_m16n8k256_row_col_b1b1s32():
-    sch = tvm.s_tir.Schedule(gemm_mma_m16n8k256_row_col_b1b1s32)
-    cuda_mod = tvm.compile(sch.mod, target="cuda")
+    mod = tvm.IRModule.from_expr(gemm_mma_m16n8k256_row_col_b1b1s32)
+    cuda_mod = tvm.compile(mod, target="cuda")
 
     def run_and_check():
         ctx = tvm.cuda()

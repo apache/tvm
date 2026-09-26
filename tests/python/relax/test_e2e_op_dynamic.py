@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: E501, F401, F841
+# ruff: noqa: E501, F401
 import numpy as np
 import pytest
 
@@ -85,12 +85,13 @@ def test_dynamic_strided_slice(begin, end, strides):
 )
 def test_dynamic_strided_slice_symbolic(begin, end, strides):
     # fmt: off
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @tvm.script.ir_module
     class DynamicStridedSlice:
         @R.function
-        def main(x: R.Tensor(("m", "n", 10, 10), "float32"), begin: R.Tensor((4,),"int64"), end: R.Tensor((4,),"int64"), strides: R.Tensor((4,),"int64")) -> R.Tensor("float32", ndim=4):
-            m = T.int64()
-            n = T.int64()
+        def main(x: R.Tensor((m, n, 10, 10), "float32"), begin: R.Tensor((4,),"int64"), end: R.Tensor((4,),"int64"), strides: R.Tensor((4,),"int64")) -> R.Tensor("float32", ndim=4):
             gv: R.Tensor("float32", ndim=4) = R.dynamic_strided_slice(x, begin, end, strides)
             return gv
     # fmt: on

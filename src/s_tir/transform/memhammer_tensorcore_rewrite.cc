@@ -21,12 +21,12 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
+#include <tvm/s_tir/stmt.h>
 
 #include "./memhammer_rewrite_rule.h"
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /*!
@@ -46,7 +46,7 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
   PrimExpr extent_last1 = loops[n - 1]->extent;
   PrimExpr extent_last2 = loops[n - 2]->extent;
   {
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     if (!analyzer->CanProveEqual(floormod(extent_last1, 16), 0) ||
         !analyzer->CanProveEqual(floormod(extent_last2, 16), 0)) {
       return std::make_pair(stmt, std::nullopt);
@@ -97,11 +97,11 @@ std::pair<Stmt, ffi::Optional<For>> TileWmmaBlock(Stmt stmt) {
 
 ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
                                const ffi::Array<PrimExpr>& shape,
-                               const ffi::Map<Var, arith::IntSet>& var_dom) {
-  ffi::Array<arith::IntSet> int_set;
+                               const ffi::Map<Var, sym::IntSet>& var_dom) {
+  ffi::Array<sym::IntSet> int_set;
   int_set.reserve(indices.size());
   for (auto& indice : indices) {
-    int_set.push_back(arith::EvalSet(indice, var_dom));
+    int_set.push_back(sym::EvalSet(indice, var_dom));
   }
   int ndim = int_set.size();
   ffi::Array<Range> region;
@@ -118,7 +118,7 @@ ffi::Array<Range> RelaxIndices(const ffi::Array<PrimExpr>& indices,
  * \return The stmt after rewrite
  */
 Stmt RewriteWmmaLoad(Stmt stmt) {
-  using arith::IntSet;
+  using sym::IntSet;
   const PrimType dtype_ty = PrimType::Float(16);
   const PrimType& dtype = dtype_ty;
   const PrimType int32_ty = PrimType::Int(32);
@@ -217,7 +217,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
  * \return The stmt after rewrite
  */
 Stmt RewriteWmmaStore(Stmt stmt) {
-  using arith::IntSet;
+  using sym::IntSet;
   const PrimType int32_ty = PrimType::Int(32);
 
   Stmt body = stmt;
@@ -311,31 +311,34 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 Stmt SharedToWmma::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt after_tiling = TileWmmaBlock(stmt).first;
-  output->padding_min.Set(constraints.read_region->buffer, 8);
+  output->padding_min.Set(constraints.read_region->source.as_or_throw<tvm::tirx::BufferVar>(), 8);
   return RewriteWmmaLoad(after_tiling);
 }
 
 Stmt WmmaToShared::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt after_tiling = TileWmmaBlock(stmt).first;
-  output->padding_min.Set(constraints.write_region->buffer, 8);
+  output->padding_min.Set(constraints.write_region->source.as_or_throw<tvm::tirx::BufferVar>(), 8);
   return RewriteWmmaStore(after_tiling);
 }
 
 class WmmaToGlobalRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   WmmaToGlobalRewriter(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     if (op == tgt_stmt_) {
       TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       Stmt wmma_to_shared = RewriteWmmaStore(op->seq[0]);
       Stmt shared_to_global = CoalescedAccess().Rewrite(op->seq[1], constraints_, nullptr);
       return SeqStmt({wmma_to_shared, shared_to_global});
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
@@ -356,8 +359,8 @@ Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   output->alloc_buffer.push_back(cache_buffer);
   output->padding_min.Set(cache_buffer, 8);
   // Step 2. do coalesced rewrite and tensor core rewrite respectively for 2 parts
-  WmmaToGlobalRewriter rewriter(seq.get(), constraints);
-  return rewriter(body);
+  auto rewriter = ffi::make_object<WmmaToGlobalRewriter>(seq.get(), constraints);
+  return rewriter->Mutate(body).ValueOrUnchanged(body);
 }
 
 std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
@@ -375,7 +378,7 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
   PrimExpr extent_last1 = loops[n - 1]->extent;
   PrimExpr extent_last2 = loops[n - 2]->extent;
   {
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     // Only tile when both extent % 8 == 0
     if (!analyzer->CanProveEqual(floormod(extent_last1, 8), 0) ||
         !analyzer->CanProveEqual(floormod(extent_last2, 8), 0)) {
@@ -431,7 +434,7 @@ std::pair<Stmt, ffi::Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
  * \return The stmt after rewrite
  */
 Stmt RewriteMmaStore(Stmt stmt) {
-  using arith::IntSet;
+  using sym::IntSet;
   const PrimType int32_ty = PrimType::Int(32);
 
   // Step 1. Get inner loop body
@@ -535,11 +538,14 @@ Stmt RewriteMmaStore(Stmt stmt) {
 
 class MmaToGlobalRewriter : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+
   MmaToGlobalRewriter(const SeqStmtNode* tgt_stmt, const ConstraintSet& constraints)
       : tgt_stmt_(tgt_stmt), constraints_(constraints) {}
 
  private:
-  Stmt VisitStmt_(const SeqStmtNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) final {
     if (op == tgt_stmt_) {
       TVM_FFI_ICHECK_EQ(op->seq.size(), 2);
       // Rewrite for local to shared.dyn
@@ -549,7 +555,7 @@ class MmaToGlobalRewriter : public StmtExprMutator {
       Stmt shared_to_global = CoalescedAccess().Rewrite(op->seq[1], constraints_, nullptr);
       return SeqStmt({mma_to_shared, shared_to_global});
     } else {
-      return StmtMutator::VisitStmt_(op);
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     }
   }
 
@@ -570,8 +576,8 @@ Stmt MmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   output->alloc_buffer.push_back(cache_buffer);
   output->padding_min.Set(cache_buffer, 8);
   // Step 2. do coalesced rewrite and tensor core rewrite respectively for 2 parts
-  MmaToGlobalRewriter rewriter(seq.get(), constraints);
-  return rewriter(body);
+  auto rewriter = ffi::make_object<MmaToGlobalRewriter>(seq.get(), constraints);
+  return rewriter->Mutate(body).ValueOrUnchanged(body);
 }
 
 }  // namespace s_tir

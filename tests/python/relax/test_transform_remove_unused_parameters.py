@@ -68,34 +68,40 @@ def test_replace_symbolic_variables():
     parameter, which actually *defines* the variable.
     """
 
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    m_func = T.dynamic("m")
+    n_func = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
+        def main(A: R.Tensor([m_main, n_main], "float32")) -> R.Tensor([m_main, n_main], "float32"):
             return Before.func(A)
 
         @R.function(private=True)
-        def func(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
-            return R.zeros(R.shape([m, n]), dtype="float32")
+        def func(A: R.Tensor([m_func, n_func], "float32")) -> R.Tensor([m_func, n_func], "float32"):
+            return R.zeros(R.shape([m_func, n_func]), dtype="float32")
+
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    m_func = T.dynamic("m")
+    n_func = T.dynamic("n")
 
     @I.ir_module
     class Expected:
         @R.function
-        def main(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
-            out: R.Tensor([m, n], "float32") = Expected.func(R.shape([n]), R.shape([m]))
+        def main(A: R.Tensor([m_main, n_main], "float32")) -> R.Tensor([m_main, n_main], "float32"):
+            out: R.Tensor([m_main, n_main], "float32") = Expected.func(
+                R.shape([n_main]), R.shape([m_main])
+            )
             return out
 
         @R.function(private=True)
-        def func(param_n: R.Shape(["n"]), param_m: R.Shape(["m"])) -> R.Tensor(
-            ["m", "n"], "float32"
+        def func(param_n: R.Shape([n_func]), param_m: R.Shape([m_func])) -> R.Tensor(
+            [m_func, n_func], "float32"
         ):
-            m = T.int64()
-            n = T.int64()
-            return R.zeros(R.shape([m, n]), dtype="float32")
+            return R.zeros(R.shape([m_func, n_func]), dtype="float32")
 
     After = tvm.relax.transform.RemoveUnusedParameters()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
@@ -109,17 +115,20 @@ def test_no_extra_symbolic_variables():
     distinct parameter.
     """
 
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    m_func = T.dynamic("m")
+    n_func = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
+        def main(A: R.Tensor([m_main, n_main], "float32")) -> R.Tensor([m_main, n_main], "float32"):
             return Before.func(A)
 
         @R.function(private=True)
-        def func(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
-            zeros = R.zeros(R.shape([m, n]), dtype="float32")
+        def func(A: R.Tensor([m_func, n_func], "float32")) -> R.Tensor([m_func, n_func], "float32"):
+            zeros = R.zeros(R.shape([m_func, n_func]), dtype="float32")
             out = R.add(A, zeros)
             return out
 
@@ -136,37 +145,41 @@ def test_remove_extra_prim_parameters():
     dtype-only scalar parameters are unused by the private function.
     """
 
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    m_func = T.dynamic("m")
+    n_func = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
-            return Before.func(A, R.prim_value(m), R.prim_value(n))
+        def main(A: R.Tensor([m_main, n_main], "float32")) -> R.Tensor([m_main, n_main], "float32"):
+            return Before.func(A, R.prim_value(m_main), R.prim_value(n_main))
 
         @R.function(private=True)
         def func(
-            A: R.Tensor(["m", "n"], "float32"),
-            _m: R.Prim("int64"),
-            _n: R.Prim("int64"),
-        ) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
-            zeros = R.zeros(R.shape([m, n]), dtype="float32")
+            A: R.Tensor([m_func, n_func], "float32"),
+            _m: T.int64,
+            _n: T.int64,
+        ) -> R.Tensor([m_func, n_func], "float32"):
+            zeros = R.zeros(R.shape([m_func, n_func]), dtype="float32")
             out = R.add(A, zeros)
             return out
+
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    m_func = T.dynamic("m")
+    n_func = T.dynamic("n")
 
     @I.ir_module
     class Expected:
         @R.function
-        def main(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
+        def main(A: R.Tensor([m_main, n_main], "float32")) -> R.Tensor([m_main, n_main], "float32"):
             return Expected.func(A)
 
         @R.function(private=True)
-        def func(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
-            zeros = R.zeros(R.shape([m, n]), dtype="float32")
+        def func(A: R.Tensor([m_func, n_func], "float32")) -> R.Tensor([m_func, n_func], "float32"):
+            zeros = R.zeros(R.shape([m_func, n_func]), dtype="float32")
             out = R.add(A, zeros)
             return out
 
@@ -182,36 +195,40 @@ def test_remove_extra_shape_variables():
     different parameter, then the `R.Shape` parameter can be removed.
     """
 
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    m_func = T.dynamic("m")
+    n_func = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
-            return Before.func(A, R.shape([m, n]))
+        def main(A: R.Tensor([m_main, n_main], "float32")) -> R.Tensor([m_main, n_main], "float32"):
+            return Before.func(A, R.shape([m_main, n_main]))
 
         @R.function(private=True)
         def func(
-            A: R.Tensor(["m", "n"], "float32"),
-            _: R.Shape(["m", "n"]),
-        ) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
-            zeros = R.zeros(R.shape([m, n]), dtype="float32")
+            A: R.Tensor([m_func, n_func], "float32"),
+            _: R.Shape([m_func, n_func]),
+        ) -> R.Tensor([m_func, n_func], "float32"):
+            zeros = R.zeros(R.shape([m_func, n_func]), dtype="float32")
             out = R.add(A, zeros)
             return out
+
+    m_main = T.dynamic("m")
+    n_main = T.dynamic("n")
+    m_func = T.dynamic("m")
+    n_func = T.dynamic("n")
 
     @I.ir_module
     class Expected:
         @R.function
-        def main(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
+        def main(A: R.Tensor([m_main, n_main], "float32")) -> R.Tensor([m_main, n_main], "float32"):
             return Expected.func(A)
 
         @R.function(private=True)
-        def func(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
-            m = T.int64()
-            n = T.int64()
-            zeros = R.zeros(R.shape([m, n]), dtype="float32")
+        def func(A: R.Tensor([m_func, n_func], "float32")) -> R.Tensor([m_func, n_func], "float32"):
+            zeros = R.zeros(R.shape([m_func, n_func]), dtype="float32")
             out = R.add(A, zeros)
             return out
 

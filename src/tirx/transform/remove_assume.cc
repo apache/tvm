@@ -37,15 +37,17 @@ namespace tirx {
 // Remove any builtin::assume calls
 class AssumeRemover : public StmtExprMutator {
  public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
   using Parent = StmtExprMutator;
 
-  Stmt VisitStmt_(const EvaluateNode* op) final {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     if (auto* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::assume())) {
         return Evaluate(0);
       }
     }
-    return StmtExprMutator::VisitStmt_(op);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 };
 
@@ -53,7 +55,9 @@ namespace transform {
 Pass RemoveAssumeInternal() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = AssumeRemover()(std::move(n->body));
+    n->body = ffi::make_object<AssumeRemover>()
+                  ->Mutate(n->body, InplaceMode::kAllow)
+                  .ValueOrUnchanged(n->body);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.RemoveAssumeInternal", {});

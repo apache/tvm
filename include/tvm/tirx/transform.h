@@ -114,6 +114,15 @@ TVM_DLL Pass StmtSimplify();
 TVM_DLL Pass ConvertSSA();
 
 /*!
+ * \brief Unify loop and attribute bindings of each thread axis within a kernel.
+ * \return The pass.
+ */
+TVM_DLL Pass UnifyThreadBinding();
+
+/*! \brief Lower cross-thread reductions to target-specific communication. */
+TVM_DLL Pass LowerThreadAllreduce();
+
+/*!
  * \brief Transform the high-level PrimFunc to a low-level version
  *        that can be used as an API function.
  *
@@ -216,6 +225,9 @@ TVM_DLL Pass NarrowDataType(int target_bits);
 
 /*!
  * \brief Force to narrow down indexing expressions and integer buffers to int32 dtype.
+ *
+ * The function must not contain S-TIR blocks. Use s_tir::transform::ForceNarrowIndexToInt32
+ * before block lowering.
  *
  * \return The pass.
  * \note This pass should not be used in default cases.

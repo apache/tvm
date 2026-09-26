@@ -16,57 +16,40 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/op_attr_types.h>
 #include <tvm/ir/prim/builtin.h>
-#include <tvm/tirx/op.h>
-#include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
 namespace prim {
 namespace builtin {
-using namespace tvm::tirx;
-
-#define PRIM_DEFINE_BUILTIN_FUNC(OpName)                           \
-  const Op& OpName() {                                             \
-    static const Op& op = Op::Get("ir.prim." #OpName);             \
-    return op;                                                     \
-  }                                                                \
-  TVM_REGISTER_OP("ir.prim." #OpName)                              \
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", #OpName) \
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), 1)
+#define PRIM_DEFINE_BUILTIN_FUNC(OpName)            \
+  const Op& OpName() {                              \
+    static const Op& op = Op::Get("prim." #OpName); \
+    return op;                                      \
+  }                                                 \
+  TVM_REGISTER_OP("prim." #OpName)
 
 PRIM_DEFINE_BUILTIN_FUNC(likely)
     .set_num_inputs(1)
     .set_attr<TCallEffectKind>("TCallEffectKind",
                                static_cast<int64_t>(CallEffectKind::kExprAnnotation))
-    .set_attr<TVectorizable>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(bitwise_and)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(bitwise_or)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(bitwise_xor)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(bitwise_not)
-    .set_num_inputs(1)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(shift_left)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
-PRIM_DEFINE_BUILTIN_FUNC(shift_right)
-    .set_num_inputs(2)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TVectorizable>("TVectorizable", true);
+    .set_attr<bool>("TVectorizable", true);
 PRIM_DEFINE_BUILTIN_FUNC(if_then_else)
     .set_num_inputs(3)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 PRIM_DEFINE_BUILTIN_FUNC(vscale).set_attr<TCallEffectKind>(
+    "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+PRIM_DEFINE_BUILTIN_FUNC(ceil)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+    .set_attr<bool>("TVectorizable", true);
+PRIM_DEFINE_BUILTIN_FUNC(log2)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+    .set_attr<bool>("TVectorizable", true);
+
+PRIM_DEFINE_BUILTIN_FUNC(clz).set_num_inputs(1).set_attr<TCallEffectKind>(
     "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
 #undef PRIM_DEFINE_BUILTIN_FUNC

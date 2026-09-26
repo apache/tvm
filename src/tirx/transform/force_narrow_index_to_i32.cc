@@ -23,62 +23,33 @@
  * \note This pass is not used in default cases.
  */
 
+#include "force_narrow_index_to_i32.h"
+
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/op.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
-
-#include "../ir/data_type_rewriter.h"
 
 namespace tvm {
 namespace tirx {
 
-class Int32DTypeNarrower : public IndexDataTypeNormalizer {
+class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer> {
  public:
   static PrimFunc RewriteDataType(PrimFunc func) {
-    // Check if the integer parameter buffers have dtype other than int32.
-    for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>();
-          buffer && buffer.value()->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
-          buffer.value()->dtype.bits() > 32) {
-        TVM_FFI_THROW(InternalError) << "The buffer parameter " << buffer.value() << " has dtype "
-                                     << buffer.value()->dtype << ". The function is " << func;
-      }
+    // The TIRX normalizer does not rewrite S-TIR block iterators, regions, or match buffers, so
+    // narrowing a function that still contains blocks would leave their index types inconsistent.
+    if (ContainsNode<s_tir::SBlockRealizeNode>(func->body)) {
+      TVM_FFI_THROW(ValueError)
+          << "tirx.transform.ForceNarrowIndexToInt32 requires a function without S-TIR blocks. "
+          << "Use s_tir.transform.ForceNarrowIndexToInt32 before block lowering.";
     }
-
-    Int32DTypeNarrower narrower(func);
-    return narrower.Rewrite(func);
+    CheckBufferParams(func);
+    auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
+    return narrower->Rewrite(func);
   }
 
- private:
-  explicit Int32DTypeNarrower(PrimFunc func)
-      : IndexDataTypeNormalizer(PrimType::Int(32)), func_(std::move(func)) {}
-
-  bool ShouldClampShiftAmounts() const final { return true; }
-
-  Expr VisitExpr_(const IntImmNode* op) final {
-    // ignore the enabled condition and always rewrite i64
-    if (op->ty.as_or_throw<PrimType>() == PrimType::Int(64)) {
-      TVM_FFI_ICHECK_LE(op->value, max_value(target_data_type_).as_or_throw<IntImm>()->value);
-      return IntImm::Int32(op->value);
-    }
-    return ffi::GetRef<IntImm>(op);
-  }
-
-  Stmt VisitStmt_(const SBlockNode* block) final {
-    SBlock block_ = IndexDataTypeNormalizer::VisitStmt_(block).as_or_throw<SBlock>();
-    // Check if the allocated integer buffers have dtype other than int32.
-    for (const BufferVar& buf : block_->alloc_buffers) {
-      if (buf->dtype.MatchesCode(DLDataTypeCode::kDLInt) && buf->dtype.bits() > 32) {
-        TVM_FFI_THROW(InternalError)
-            << "The buffer " << buf << " allocated in the function has dtype " << buf->dtype
-            << ". The function is " << func_;
-      }
-    }
-    return block_;
-  }
-
-  PrimFunc func_;
+  explicit Int32DTypeNarrower(PrimFunc func) : Int32DTypeNarrowerBase(std::move(func)) {}
 };
 
 PrimFunc ForceNarrowIndexToInt32(PrimFunc func) {

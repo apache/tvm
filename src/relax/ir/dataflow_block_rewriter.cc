@@ -22,7 +22,6 @@
  * \brief A transform to match a Relax DataflowBlock and rewrite
  */
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -32,6 +31,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/type.h>
+#include <tvm/sym/analyzer.h>
 
 #include <optional>
 #include <unordered_map>
@@ -190,7 +190,7 @@ static std::optional<MatchState> TryMatch(const PNode& p, const RNode& r,
 static std::optional<MatchState> TryValidate(
     const MatchState& current_match,
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
-    const std::vector<DFConstraint>& validation_constraints, arith::AnalyzerObj* analyzer) {
+    const std::vector<DFConstraint>& validation_constraints, sym::AnalyzerObj* analyzer) {
   MatchState new_match;
 
   std::function<ffi::Optional<Var>(const DFPatternNode*)> query_match_state =
@@ -212,15 +212,15 @@ static std::optional<MatchState> TryValidate(
       auto [necessary_condition, is_sufficient] = constraint->AsCondition(query_match_state);
 
       necessary_condition = analyzer->Simplify(necessary_condition);
-      const auto* known = tirx::as_const_int(necessary_condition);
+      const auto* known = necessary_condition.as<IntImmNode>();
 
-      if (known && *known && is_sufficient) {
+      if (known && known->value != 0 && is_sufficient) {
         // The condition passes, and the expression provided is both
         // necessary and sufficient for the constraint to pass.  Mark
         // the constraint as passing, to avoid re-checking it unless
         // we backtrack.
         new_match.add(constraint.get());
-      } else if (known && !*known) {
+      } else if (known && known->value == 0) {
         // The condition fails.  Even if additional information would
         // be required to pass a constraint, it may bail out early as
         // a failure (e.g. shape mismatch in the first two items out
@@ -244,7 +244,7 @@ static std::optional<MatchState> MatchTree(
     const std::unordered_map<const DFPatternNode*, PNode>& pattern2node,
     const std::unordered_map<const VarNode*, RNode>& var2node, DFPatternMatcher* matcher,
     const std::vector<DFPattern>& roots, const std::vector<DFConstraint>& validation_constraints,
-    const MatcherUseDefAnalysis& ud_analysis, arith::AnalyzerObj* analyzer) {
+    const MatcherUseDefAnalysis& ud_analysis, sym::AnalyzerObj* analyzer) {
   auto get_next_root = [&](size_t root_idx) -> const PNode* {
     // Look for the next unmatched root node.
     for (; root_idx < roots.size(); ++root_idx) {
@@ -346,7 +346,7 @@ ffi::Optional<ffi::Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
     return std::nullopt;
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto match = MatchTree({}, 0, pattern2node, var2node, &matcher, roots,
                          ctx->validation_constraints, ud_analysis, analyzer.get());
   if (!match) {

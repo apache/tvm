@@ -23,6 +23,7 @@ import tvm
 import tvm.s_tir.tensor_intrin  # pylint: disable=unused-import
 import tvm.testing
 from tvm.s_tir.schedule import Schedule
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -35,16 +36,16 @@ np.random.seed(0)
 @tvm.script.ir_module
 class Gemm_F16F16F16:
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         A: T.Buffer((M, K), "float16"),  # type: ignore
         B: T.Buffer((K, N), "float16"),  # type: ignore
         C: T.Buffer((M, N), "float16"),  # type: ignore
     ):
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("C"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("C"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -52,16 +53,16 @@ class Gemm_F16F16F16:
 @tvm.script.ir_module
 class Gemm_F16F16F32:
     # fmt: off
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         A: T.Buffer((M, K), "float16"),  # type: ignore
         B: T.Buffer((K, N), "float16"),  # type: ignore
         C: T.Buffer((M, N), "float32"),  # type: ignore
     ):
         for i, j, k in T.grid(M, N, K):
-            with T.sblock("C"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("C"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = T.float32(0)
                 C[vi, vj] = C[vi, vj] + T.cast(A[vi, vk], "float32") * T.cast(B[vk, vj], "float32")
 

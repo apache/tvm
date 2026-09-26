@@ -25,9 +25,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from tvm.ir import is_prim_expr
+from tvm.ir import TensorRegion, is_prim_expr
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, TilePrimitiveCall
+from tvm.tirx import TilePrimitiveCall
 from tvm.tirx.expr import FloatImm
 
 from .._common import scalar_dtype
@@ -36,13 +36,13 @@ from . import OpSpec, Plan, SrcSpec
 
 def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
     """T.<unary>(dst, src[, bias, scale]) → Plan."""
-    _dst: BufferRegion = op.args[0]
+    _dst: TensorRegion = op.args[0]
     _src = op.args[1]
     _bias = op.args[2] if len(op.args) > 2 else None
     _scale = op.args[3] if len(op.args) > 2 else None
 
     srcs: list[SrcSpec] = []
-    if isinstance(_src, BufferRegion):
+    if isinstance(_src, TensorRegion):
         srcs.append(SrcSpec(buf_region=_src))
     elif is_prim_expr(_src):
         srcs.append(SrcSpec(scalar=_src))
@@ -53,7 +53,7 @@ def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
         "scale": _scale,
         "bias_const": _bias if isinstance(_bias, FloatImm) else None,
     }
-    if isinstance(_bias, BufferRegion):
+    if isinstance(_bias, TensorRegion):
         srcs.append(SrcSpec(buf_region=_bias))
         extras["has_bias_buf"] = True
     else:

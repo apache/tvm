@@ -74,8 +74,7 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
     if in_place:
         # fmt: off
         @T.prim_func
-        def unary_op(A_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, g_shape, src_dtype, layout=g_layout)
+        def unary_op(A: T.Buffer(g_shape, src_dtype, layout=g_layout)) -> None:
 
             T.device_entry()
             _bx = T.cta_id([1])
@@ -93,9 +92,10 @@ def test_unary_op_shared(input, op_type, src_dtype, dst_dtype):
     else:
         # fmt: off
         @T.prim_func
-        def unary_op(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, g_shape, src_dtype, layout=g_layout)
-            B = T.match_buffer(B_ptr, g_shape, dst_dtype, layout=g_layout)
+        def unary_op(
+            A: T.Buffer(g_shape, src_dtype, layout=g_layout),
+            B: T.Buffer(g_shape, dst_dtype, layout=g_layout),
+        ) -> None:
 
             T.device_entry()
             _bx = T.cta_id([1])
@@ -160,9 +160,7 @@ def test_unary_op_shared_subcta_scope(exec_scope):
     g_shape = (n_warps * 32, 8)
 
     @T.prim_func
-    def unary_op_subcta(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, dtype, layout=TileLayout(S[g_shape]))
-
+    def unary_op_subcta(A: T.Buffer(g_shape, dtype, layout=TileLayout(S[g_shape]))) -> None:
         T.device_entry()
         warp_id = T.warp_id([(256) // 32])
         wg_id = T.warpgroup_id([(256) // 128])
@@ -251,10 +249,10 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
     if in_place:
 
         @T.prim_func
-        def unary_op_with_bias(A_ptr: T.handle, bias_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, g_shape, src_dtype, layout=g_layout)
-            bias = T.match_buffer(bias_ptr, g_shape, src_dtype, layout=g_layout)
-
+        def unary_op_with_bias(
+            A: T.Buffer(g_shape, src_dtype, layout=g_layout),
+            bias: T.Buffer(g_shape, src_dtype, layout=g_layout),
+        ) -> None:
             T.device_entry()
             _bx = T.cta_id([1])
             _tx = T.thread_id([thread_cnt])
@@ -298,11 +296,11 @@ def test_unary_op_shared_with_bias_scale(input, op_type, bias_type, src_dtype, d
     else:
 
         @T.prim_func
-        def unary_op_with_bias(A_ptr: T.handle, B_ptr: T.handle, bias_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, g_shape, src_dtype, layout=g_layout)
-            B = T.match_buffer(B_ptr, g_shape, dst_dtype, layout=g_layout)
-            bias = T.match_buffer(bias_ptr, g_shape, src_dtype, layout=g_layout)
-
+        def unary_op_with_bias(
+            A: T.Buffer(g_shape, src_dtype, layout=g_layout),
+            B: T.Buffer(g_shape, dst_dtype, layout=g_layout),
+            bias: T.Buffer(g_shape, src_dtype, layout=g_layout),
+        ) -> None:
             T.device_entry()
             _bx = T.cta_id([1])
             _tx = T.thread_id([thread_cnt])
@@ -466,10 +464,10 @@ def test_unary_op_local(input, op_type, src_dtype, dst_dtype):
     acc_shape = red_shape = (16, NUM_COL)
 
     @T.prim_func
-    def test_unary(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape_a, src_dtype, layout=g_layout_a)
-        B = T.match_buffer(B_ptr, g_shape_b, dst_dtype, layout=g_layout_b)
-
+    def test_unary(
+        A: T.Buffer(g_shape_a, src_dtype, layout=g_layout_a),
+        B: T.Buffer(g_shape_b, dst_dtype, layout=g_layout_b),
+    ) -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
         wg_id = T.warpgroup_id([N_GROUPS])
@@ -603,11 +601,11 @@ def test_unary_op_local_with_bias_scale(input, op_type, bias_type, src_dtype, ds
     const_bias = T.float16(0.88) if src_dtype == "float16" else T.float32(0.88)
 
     @T.prim_func
-    def test_unary_with_bias(A_ptr: T.handle, B_ptr: T.handle, bias_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape_a, src_dtype, layout=g_layout_a)
-        B = T.match_buffer(B_ptr, g_shape_b, dst_dtype, layout=g_layout_b)
-        bias = T.match_buffer(bias_ptr, g_shape_bias, src_dtype, layout=g_layout_bias)
-
+    def test_unary_with_bias(
+        A: T.Buffer(g_shape_a, src_dtype, layout=g_layout_a),
+        B: T.Buffer(g_shape_b, dst_dtype, layout=g_layout_b),
+        bias: T.Buffer(g_shape_bias, src_dtype, layout=g_layout_bias),
+    ) -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
         wg_id = T.warpgroup_id([N_GROUPS])
@@ -730,8 +728,8 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
 
     # fmt: off
     @T.prim_func
-    def test_unary_thread(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, dtype, layout=TileLayout(S[shape]))
+    def test_unary_thread(A: T.Buffer(shape, dtype, layout=TileLayout(S[shape]))) -> None:
+
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([128])
@@ -749,8 +747,8 @@ def test_unary_op_vectorized(shape, op_type, exec_scope, storage_scope):
             Tx.copy(A[tx], a_local)
 
     @T.prim_func
-    def test_unary_cta(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, dtype, layout=TileLayout(S[shape]))
+    def test_unary_cta(A: T.Buffer(shape, dtype, layout=TileLayout(S[shape]))) -> None:
+
         T.device_entry()
         _bx = T.cta_id([1])
         _tid = T.thread_id([128])
@@ -788,8 +786,7 @@ def test_unary_op_local_thread_wise(op_type, dtype):
     local_shape = shape[1:]
 
     @T.prim_func
-    def kernel(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, dtype, layout=TileLayout(S[shape]))
+    def kernel(A: T.Buffer(shape, dtype, layout=TileLayout(S[shape]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tid = T.thread_id([64])
@@ -850,9 +847,10 @@ def test_cast_thread_local(shape, A_dtype, B_dtype):
 
     # fmt: off
     @T.prim_func
-    def test_cast(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, A_dtype, layout=TileLayout(S[shape]))
-        B = T.match_buffer(B_ptr, shape, B_dtype, layout=TileLayout(S[shape]))
+    def test_cast(
+        A: T.Buffer(shape, A_dtype, layout=TileLayout(S[shape])),
+        B: T.Buffer(shape, B_dtype, layout=TileLayout(S[shape])),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -904,9 +902,10 @@ def test_cast_warpgroup_local_view(A_dtype, B_dtype):
 
     # fmt: off
     @T.prim_func
-    def test_cast(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, A_dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, B_dtype, layout=g_layout)
+    def test_cast(
+        A: T.Buffer(g_shape, A_dtype, layout=g_layout),
+        B: T.Buffer(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -961,9 +960,10 @@ def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype)
 
     # fmt: off
     @T.prim_func
-    def test_cast(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, A_dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, B_dtype, layout=g_layout)
+    def test_cast(
+        A: T.Buffer(g_shape, A_dtype, layout=g_layout),
+        B: T.Buffer(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -974,9 +974,7 @@ def test_cast_warpgroup_src_layout_to_flat_uses_vec2_intrinsic(A_dtype, B_dtype)
             Dreg_chunk = T.alloc_buffer((LOCAL_LEN,), B_dtype, scope="local")
             for i in T.serial(LOCAL_LEN):
                 reg_src[i] = A[tid, no * LOCAL_LEN + i]
-            reg_src_view = reg_src.view(
-                N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN)
-            )
+            reg_src_view = reg_src.view(N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN))
             Dreg_chunk_view = Dreg_chunk.view(
                 N_THREADS, LOCAL_LEN, layout=wg_local_layout(LOCAL_LEN)
             )
@@ -1021,9 +1019,10 @@ def test_cast_cta_local_view(A_dtype, B_dtype):
 
     # fmt: off
     @T.prim_func
-    def test_cast(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, A_dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, B_dtype, layout=g_layout)
+    def test_cast(
+        A: T.Buffer(g_shape, A_dtype, layout=g_layout),
+        B: T.Buffer(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -1072,9 +1071,11 @@ def test_cast_local_view_sliced(A_dtype, B_dtype, slice_start, slice_end):
 
     # fmt: off
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, A_dtype, layout=g_layout)
-        B = T.match_buffer(B_ptr, g_shape, B_dtype, layout=g_layout)
+    def kernel(
+        A: T.Buffer(g_shape, A_dtype, layout=g_layout),
+        B: T.Buffer(g_shape, B_dtype, layout=g_layout),
+    ) -> None:
+
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([N_THREADS])
@@ -1182,9 +1183,10 @@ def test_cast_mixed_axes_and_subregion(slice_start, slice_end):
     B_ref[:, :, :, slice_start:slice_end] = A_ref[:, :, :, slice_start:slice_end].astype("float16")
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, full_shape, "float32", layout=g_layout)
-        B = T.match_buffer(B_ptr, full_shape, "float16", layout=g_layout)
+    def kernel(
+        A: T.Buffer(full_shape, "float32", layout=g_layout),
+        B: T.Buffer(full_shape, "float16", layout=g_layout),
+    ) -> None:
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([N_WARPS])
@@ -1263,9 +1265,10 @@ def test_cast_validate_extent_mismatch_rejected():
     )  # dim1 extent 8 != 4
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, view_shape, "float32", layout=g_layout)
-        B = T.match_buffer(B_ptr, view_shape, "float16", layout=g_layout)
+    def kernel(
+        A: T.Buffer(view_shape, "float32", layout=g_layout),
+        B: T.Buffer(view_shape, "float16", layout=g_layout),
+    ) -> None:
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([2])
@@ -1304,9 +1307,9 @@ def test_unary_exp_f16_shared_scalar_fallback_dispatch():
     lay = TileLayout(S[shape])
 
     @T.prim_func
-    def k(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, "float16", layout=lay)
-        B = T.match_buffer(B_ptr, shape, "float16", layout=lay)
+    def k(
+        A: T.Buffer(shape, "float16", layout=lay), B: T.Buffer(shape, "float16", layout=lay)
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([64])
@@ -1337,9 +1340,9 @@ def test_cast_vec2_packed_dispatch(src_dtype, dst_dtype, intrinsic):
     lay = TileLayout(S[shape])
 
     @T.prim_func
-    def k(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, src_dtype, layout=lay)
-        B = T.match_buffer(B_ptr, shape, dst_dtype, layout=lay)
+    def k(
+        A: T.Buffer(shape, src_dtype, layout=lay), B: T.Buffer(shape, dst_dtype, layout=lay)
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([64])
@@ -1376,13 +1379,10 @@ def test_cast_wg_rejects_thread_local_view():
     """Tx.wg.cast on a .local() (thread-axis-stripped) view is rejected."""
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
+    def kernel(
+        A: T.Buffer((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Buffer((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _wg = T.warpgroup_id([1])
@@ -1415,13 +1415,10 @@ def test_cast_cta_rejects_thread_local_view():
     """Tx.cta.cast on a .local() view is rejected (cta -> tx)."""
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
+    def kernel(
+        A: T.Buffer((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Buffer((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx_var = T.thread_id([_SL_ROWS])
@@ -1454,13 +1451,10 @@ def test_cast_wg_rejects_partial_thread_coverage():
     half = 64
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (half, _SL_COLS), "float32", layout=TileLayout(S[(half, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (half, _SL_COLS), "float16", layout=TileLayout(S[(half, _SL_COLS)])
-        )
+    def kernel(
+        A: T.Buffer((half, _SL_COLS), "float32", layout=TileLayout(S[half, _SL_COLS])),
+        B: T.Buffer((half, _SL_COLS), "float16", layout=TileLayout(S[half, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _wg = T.warpgroup_id([1])
@@ -1493,13 +1487,10 @@ def test_cast_wg_accepts_wg_level_layout():
     """Tx.wg.cast on a wg-level (tid_in_wg-distributed) layout compiles."""
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
+    def kernel(
+        A: T.Buffer((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Buffer((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _wg = T.warpgroup_id([1])
@@ -1531,13 +1522,10 @@ def test_cast_thread_accepts_local_view():
     """thread scope is exempt: a thread-axis-free local tile still compiles."""
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(
-            A_ptr, (_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
-        B = T.match_buffer(
-            B_ptr, (_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[(_SL_ROWS, _SL_COLS)])
-        )
+    def kernel(
+        A: T.Buffer((_SL_ROWS, _SL_COLS), "float32", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+        B: T.Buffer((_SL_ROWS, _SL_COLS), "float16", layout=TileLayout(S[_SL_ROWS, _SL_COLS])),
+    ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx_var = T.thread_id([_SL_ROWS])
@@ -1587,9 +1575,7 @@ def _tcgen05_cast_warpgroup_kernel():
     m, k = _TCGEN05_M, _TCGEN05_K
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, (m, k), "bfloat16")
-        B = T.match_buffer(B_ptr, (m, k), "float32")
+    def kernel(A: T.Buffer((m, k), "bfloat16"), B: T.Buffer((m, k), "float32")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.warpgroup_id([1])

@@ -29,13 +29,14 @@ def test_static_init():
         assert isinstance(sh, ctypes.c_void_p)
         return sh
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def ramp(A: T.handle):
+        @T.prim_func
+        def ramp(Ab: T.Buffer((n,), "int64")):
             T.func_attr({"global_symbol": "ramp"})
-            n = T.int64()
-            Ab = T.match_buffer(A, (n,), "int64")
+
             T.call_packed(
                 "test_static_callback",
                 T.call_intrin("handle", "tirx.tvm_static_handle"),
@@ -43,7 +44,7 @@ def test_static_init():
             )
 
     mod = Module
-    f = tvm.driver.build(mod, target="llvm")
+    f = tvm.tirx.build(mod, target="llvm")
     a = tvm.runtime.tensor(np.zeros(10, dtype="int64"))
     f(a)
 

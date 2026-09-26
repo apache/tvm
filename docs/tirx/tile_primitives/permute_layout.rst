@@ -79,16 +79,19 @@ canonical SF-transpose, from ``test_permute_layout.py``):
 
 .. code-block:: python
 
-    pipe, blk, dtype = 2, 128, "float32"; high = 1
+    pipe, blk, dtype = 2, 128, "float32"
+    high = 1
     shape = (pipe, high, 4, 32)
-    pre  = TileLayout(S[shape : (blk, 128, 32, 1)])   # source
-    post = TileLayout(S[shape : (blk, 128, 1, 4)])    # destination (4↔32 transposed)
+    pre = TileLayout(S[shape : (blk, 128, 32, 1)])  # source
+    post = TileLayout(S[shape : (blk, 128, 1, 4)])  # destination (4↔32 transposed)
+
 
     @Tx.prim_func
-    def f(A: Tx.handle, B: Tx.handle):
-        A_buf = Tx.match_buffer(A, shape, dtype, layout=pre)
-        B_buf = Tx.match_buffer(B, shape, dtype, layout=post)
-        Tx.device_entry(); Tx.cta_id([1]); Tx.thread_id([32])
+    def f(A_buf: Tx.Buffer(shape, dtype, layout=pre), B_buf: Tx.Buffer(shape, dtype, layout=post)):
+
+        Tx.device_entry()
+        Tx.cta_id([1])
+        Tx.thread_id([32])
         for s in Tx.serial(0, pipe):
             Tx.tile.warp.permute_layout(B_buf[s, 0:1, 0:4, 0:32], A_buf[s, 0:1, 0:4, 0:32])
 

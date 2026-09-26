@@ -24,10 +24,10 @@
 
 #include "create.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/visit_error_context.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/sym/analyzer.h>
 
 #include <string>
 #include <utility>
@@ -379,10 +379,11 @@ Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
       step.ty().code() == DLDataTypeCode::kDLInt) {
     num_elem = tvm::floordiv((end - start + step - 1), step);
   } else {
-    num_elem = tvm::cast(tvm::PrimType::Int(64),
-                         tvm::ceil(tvm::cast(tvm::PrimType::Float(32), end - start) / step));
+    num_elem =
+        tvm::prim::cast(tvm::PrimType::Int(64),
+                        tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), end - start) / step));
   }
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   num_elem = analyzer->Simplify(num_elem);
   return TensorType(ShapeExpr({num_elem}), PrimType(dtype));
 }
@@ -431,7 +432,7 @@ Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
   };
   PrimExpr window_size = get_prim_value(call->args[0], "window_size");
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   if (analyzer->CanProveLess(window_size, 1)) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Hamming_window expects the window_size must be greater than zero but got "
@@ -461,14 +462,10 @@ Expr tril(Expr x, Expr k) {
   return Call(Type::Missing(), op, {x, k});
 }
 
-Expr tril(Expr x, int k) { return tril(x, IntImm::Int64(k)); }
-
 Expr triu(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.triu");
   return Call(Type::Missing(), op, {x, k});
 }
-
-Expr triu(Expr x, int k) { return triu(x, IntImm::Int64(k)); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

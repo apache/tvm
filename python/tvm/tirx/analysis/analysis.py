@@ -27,43 +27,6 @@ from ..function import PrimFunc
 from . import _ffi_api
 
 
-def expr_deep_equal(lhs: Expr, rhs: Expr) -> bool:
-    """Deeply compare two nested expressions.
-
-    Parameters
-    ----------
-    lhs : Expr
-        The left operand.
-
-    rhs : Expr
-        The right operand.
-
-    Returns
-    -------
-    result : bool
-        The comparison result
-
-    Note
-    ----
-
-    This function does not remap variable bindings, it will not
-    return true for (let x = 1 in x + 1) vs (let y = 1 in y + 1), unless x.same_as(y).
-    Use py:func:`tvm_ffi.structural_equal` to handle structural variable remapping.
-
-    Due to the restriction of not remapping variables, this function can run
-    faster than StructuralEqual and can be used as a utility function during arithmetic
-    simplifications.
-
-    Always consider py:func:`tvm_ffi.structural_equal` first, which handles
-    the structural remapping.
-
-    See Also
-    --------
-    tvm_ffi.structural_equal
-    """
-    return _ffi_api.expr_deep_equal(lhs, rhs)  # type: ignore
-
-
 def verify_ssa(func: PrimFunc) -> bool:
     """Verify if the func is in SSA form.
 
@@ -117,8 +80,9 @@ def undefined_vars(node: Stmt | Expr, defs: list[Var] | None = None) -> list[Var
 
 
 def verify_well_formed(obj: PrimFunc | IRModule, assert_mode: bool = True) -> bool:
-    """Verify if the given TIR is well-formed. The verification includes:
-        - Check if expressions not contain vars that is defined outside the block.
+    """Verify definitions and buffer-load types in ordinary TIRX.
+
+    Use ``tvm.s_tir.analysis.verify_well_formed`` for schedulable blocks.
 
     Parameters
     ----------

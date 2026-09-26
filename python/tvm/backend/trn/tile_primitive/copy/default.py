@@ -38,7 +38,7 @@ def transpose_schedule(
     op: TilePrimitiveCall, inst_gen: InstructionGenerator, sctx: DispatchContext
 ) -> PrimFunc | None:
     dst_region, src_region = op.args
-    assert src_region.buffer.scope() != "trn.psum", "Transpose on psum buffer is not supported"
+    assert src_region.source.scope() != "trn.psum", "Transpose on psum buffer is not supported"
 
     inst_repr_dst, inst_repr_src = inst_gen.find_max_inst_size_transpose(dst_region, src_region)
 
@@ -47,8 +47,8 @@ def transpose_schedule(
     dst_f = T.Var("dst_F", "int32")
     b_var = T.Var("B", "int32")
     extend_b = T.Var("extend_B", "int32")
-    p_size = src_region.buffer.ty.layout.size("P")
-    lhs_f_size = dst_region.buffer.ty.layout.size("P")
+    p_size = src_region.source.ty.layout.size("P")
+    lhs_f_size = dst_region.source.ty.layout.size("P")
     rhs_f_size = p_size
     inst_gen.bind_inst_iter(
         src_region, lhs_f, inst_repr_src.size, inst_repr_src.stride, is_free_dim=True
@@ -62,7 +62,7 @@ def transpose_schedule(
         no_propagate=True,
     )
     inst_gen.bind_inst_iter(src_region, lhs_p, p_size, 1, is_free_dim=False, no_propagate=True)
-    if dst_region.buffer.scope() == "trn.sbuf":
+    if dst_region.source.scope() == "trn.sbuf":
         max_extend_num = (
             inst_gen.find_max_inst_size_from_one_region(
                 dst_region, min_stride=inst_repr_dst.stride
@@ -91,13 +91,14 @@ def transpose_schedule(
         )
         identity_tensor = T.buffer(
             (p_size, rhs_f_size),
-            src_region.buffer.ty.dtype,
+            src_region.source.ty.dtype,
             scope="trn.sbuf",
             buffer_name="identity",
         )
         sctx.add_alloc_buffer(identity_tensor)
 
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def identity_init():
             with T.attr(0, "tensorized_nki_instruction", 1):
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
@@ -110,11 +111,11 @@ def transpose_schedule(
         identity_tensor = op.workspace["identity"]
         check_workspace_buffer(identity_tensor, (p_size, rhs_f_size), "trn.sbuf")
 
-    dst_buffer = dst_region.buffer
-    src_buffer = src_region.buffer
+    dst_buffer = dst_region.source
+    src_buffer = src_region.source
     if dst_buffer.scope() == "trn.psum":
-
-        @T.prim_func
+        # This fragment captures buffers and indices from its insertion scope.
+        @T.prim_func(check_well_formed=False)
         def transpose_psum_output():
             for b_loop in T.serial(0, b_extent):
                 with T.attr(0, "tensorized_nki_instruction", 1):
@@ -132,9 +133,9 @@ def transpose_schedule(
                                 )
                                 src_indices = T.meta_var(inst_gen.generate_indices(src_region))
                                 dst_indices = T.meta_var(inst_gen.generate_indices(dst_region))
-                                src_guard = T.meta_var(inst_gen.make_guard(src_region))
-                                dst_guard = T.meta_var(inst_gen.make_guard(dst_region))
-                                if src_guard and dst_guard:
+                                if inst_gen.make_guard(src_region) and inst_gen.make_guard(
+                                    dst_region
+                                ):
                                     T.evaluate(
                                         T.nki.matmul(
                                             dst_buffer[tuple(dst_indices)],
@@ -164,7 +165,8 @@ def transpose_schedule(
         max_psum_slots = acc_psum.ty.shape[0]
 
     # fmt: off
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def transpose_sbuf_output():
         for b_loop in T.serial(0, b_extent):
             for extend_b_loop in T.serial(0, extend_len):
@@ -174,16 +176,14 @@ def transpose_schedule(
                             for rhs_f_loop in T.serial(0, rhs_f_size, annotations={nki_dim: "rhs_F"}):  # noqa: E501
                                 inst_gen.set_bind_map(src_region, {b_var: b_loop, lhs_f: lhs_f_loop, lhs_p: p_loop, extend_b: extend_b_loop})  # noqa: E501
                                 src_indices = T.meta_var(inst_gen.generate_indices(src_region))
-                                src_guard = T.meta_var(inst_gen.make_guard(src_region))
-                                if src_guard:
+                                if inst_gen.make_guard(src_region):
                                     T.evaluate(T.nki.matmul(acc_psum[b_loop % max_psum_slots, lhs_f_loop,extend_b_loop * rhs_f_size + rhs_f_loop], src_buffer[tuple(src_indices)], identity_tensor[p_loop, rhs_f_loop]))  # noqa: E501
             with T.attr(0, "tensorized_nki_instruction", 1):
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, rhs_f_size * extend_len, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map(dst_region, {b_var: b_loop, lhs_f: p_loop, dst_f: f_loop % rhs_f_size, extend_b: f_loop // rhs_f_size})  # noqa: E501
-                        dst_guard = T.meta_var(inst_gen.make_guard(dst_region))
                         dst_indices = T.meta_var(inst_gen.generate_indices(dst_region))
-                        if dst_guard:
+                        if inst_gen.make_guard(dst_region):
                             T.evaluate(T.nki.tensor_copy(dst_buffer[tuple(dst_indices)], acc_psum[b_loop % max_psum_slots, p_loop, f_loop]))  # noqa: E501
     # fmt: on
     return transpose_sbuf_output
@@ -196,7 +196,7 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         fail("requires thread exec_scope for TRN copy")
 
     dst_region, src_region = op.args
-    src, dst = src_region.buffer, dst_region.buffer
+    src, dst = src_region.source, dst_region.source
 
     # Check for valid buffer configurations
     valid_config = all(
@@ -265,13 +265,14 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         from_region, _to_region = src_region, dst_region
     else:
         from_region, _to_region = dst_region, src_region
-    p_size = from_region.buffer.ty.layout.size("P")
+    p_size = from_region.source.ty.layout.size("P")
     inst_gen.bind_inst_iter(from_region, p_var, p_size, 1, is_free_dim=False)
     inst_gen.bind_inst_iter(from_region, f_var, inst.size, inst.stride, is_free_dim=True)
     b_extent = inst_gen.fill_in_block_dim(from_region, b_var)
 
     # fmt: off
-    @T.prim_func
+    # This fragment captures buffers and indices from its insertion scope.
+    @T.prim_func(check_well_formed=False)
     def impl():
         # the additional b loop is to satisfy hardware instuction size limit
         for b_loop in T.serial(0, b_extent):

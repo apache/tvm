@@ -22,73 +22,59 @@
  * \brief Statement simplifier based on analyzer
  */
 
-#include "../../tirx/transform/stmt_simplify.h"
+#include "stmt_simplify.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/transform.h>
 
-#include "../../arith/ir_mutator_with_analyzer.h"
+#include "../ir/ir_mutator_with_analyzer.h"
 
 namespace tvm {
-namespace arith {
+namespace tirx {
+using namespace tvm::prim;
 
-using namespace tirx;
+void StmtSimplifyConfigNode::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<StmtSimplifyConfigNode>()
+      .def_ro("transitively_prove_inequalities",
+              &StmtSimplifyConfigNode::transitively_prove_inequalities,
+              "If true, simplify conditionals with transitive combinations of scoped constraints",
+              refl::DefaultValue(false))
+      .def_ro("convert_boolean_to_and_of_ors",
+              &StmtSimplifyConfigNode::convert_boolean_to_and_of_ors,
+              "If true, simplify conditionals into an AND of ORs", refl::DefaultValue(false))
+      .def_ro("apply_constraints_to_boolean_branches",
+              &StmtSimplifyConfigNode::apply_constraints_to_boolean_branches,
+              "If true, simplify each branch of AND/OR under constraints provided by the other "
+              "branch",
+              refl::DefaultValue(false));
+}
 
-struct StmtSimplifyConfigNode : public ffi::Object {
-  bool transitively_prove_inequalities;
-  bool convert_boolean_to_and_of_ors;
-  bool apply_constraints_to_boolean_branches;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StmtSimplifyConfigNode>()
-        .def_ro("transitively_prove_inequalities",
-                &StmtSimplifyConfigNode::transitively_prove_inequalities,
-                "If true, simplify conditionals with transitive combinations of scoped constraints",
-                refl::DefaultValue(false))
-        .def_ro("convert_boolean_to_and_of_ors",
-                &StmtSimplifyConfigNode::convert_boolean_to_and_of_ors,
-                "If true, simplify conditionals into an AND of ORs", refl::DefaultValue(false))
-        .def_ro("apply_constraints_to_boolean_branches",
-                &StmtSimplifyConfigNode::apply_constraints_to_boolean_branches,
-                "If true, simplify each branch of AND/OR under constraints provided by the other "
-                "branch",
-                refl::DefaultValue(false));
+sym::RewriteSimplifier::Extension StmtSimplifyConfigNode::GetEnabledExtensions() const {
+  sym::RewriteSimplifier::Extension flags = sym::RewriteSimplifier::kNone;
+  if (transitively_prove_inequalities) {
+    flags = sym::RewriteSimplifier::Extension(
+        flags | sym::RewriteSimplifier::kTransitivelyProveInequalities);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.transform.StmtSimplifyConfig", StmtSimplifyConfigNode,
-                                    ffi::Object);
-
-  RewriteSimplifier::Extension GetEnabledExtensions() const {
-    RewriteSimplifier::Extension flags = RewriteSimplifier::kNone;
-    if (transitively_prove_inequalities) {
-      flags =
-          RewriteSimplifier::Extension(flags | RewriteSimplifier::kTransitivelyProveInequalities);
-    }
-    if (convert_boolean_to_and_of_ors) {
-      flags = RewriteSimplifier::Extension(flags | RewriteSimplifier::kConvertBooleanToAndOfOrs);
-    }
-    if (apply_constraints_to_boolean_branches) {
-      flags = RewriteSimplifier::Extension(flags |
-                                           RewriteSimplifier::kApplyConstraintsToBooleanBranches);
-    }
-    return flags;
+  if (convert_boolean_to_and_of_ors) {
+    flags = sym::RewriteSimplifier::Extension(flags |
+                                              sym::RewriteSimplifier::kConvertBooleanToAndOfOrs);
   }
-};
-
-class StmtSimplifyConfig : public ffi::ObjectRef {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StmtSimplifyConfig, ffi::ObjectRef,
-                                                StmtSimplifyConfigNode);
-};
+  if (apply_constraints_to_boolean_branches) {
+    flags = sym::RewriteSimplifier::Extension(
+        flags | sym::RewriteSimplifier::kApplyConstraintsToBooleanBranches);
+  }
+  return flags;
+}
 
 static StmtSimplifyConfig MakeDefaultStmtSimplifyConfig() {
   return tvm::transform::PassConfigWithDefaults<StmtSimplifyConfig>();
@@ -98,187 +84,167 @@ TVM_FFI_STATIC_INIT_BLOCK() { StmtSimplifyConfigNode::RegisterReflection(); }
 
 TVM_REGISTER_PASS_CONFIG_OPTION("tirx.StmtSimplify", StmtSimplifyConfig);
 
-class StmtSimplifier : public IRMutatorWithAnalyzer {
- public:
-  static PrimFunc Apply(PrimFunc func, const Analyzer& analyzer,
-                        ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt) {
-    auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
-    analyzer->rewrite_simplify.SetEnabledExtensions(config->GetEnabledExtensions());
+PrimFunc StmtSimplifier::Apply(PrimFunc func, const sym::Analyzer& analyzer,
+                               ffi::Optional<StmtSimplifyConfig> config_opt) {
+  auto config = config_opt.value_or(MakeDefaultStmtSimplifyConfig());
 
-    StmtSimplifier simplifier(analyzer, config);
-    simplifier.MarkBufferParamShapes(func);
-    func.CopyOnWrite()->body = simplifier(func->body);
-    return func;
+  auto simplifier = ffi::make_object<StmtSimplifier>(analyzer, config);
+  return simplifier->Run(std::move(func));
+}
+
+PrimFunc StmtSimplifier::Run(PrimFunc func) {
+  analyzer_->rewrite_simplify.SetEnabledExtensions(config_->GetEnabledExtensions());
+  MarkBufferParamShapes(func);
+  auto* n = func.CopyOnWrite();
+  // Shared string literals no longer enter the primitive analyzer.  Inline their
+  // SSA bindings so existing literal arguments remain constants during lowering.
+  ffi::Map<Var, StringImm> string_bindings;
+  n->body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+                std::move(n->body),
+                [&](const Bind& bind) -> ffi::UnchangedOr<ffi::Any> {
+                  if (!bind.defined()) return ffi::Unchanged();
+                  if (auto value = bind->value.as<StringImm>()) {
+                    string_bindings.Set(bind->var, *value);
+                    return ffi::Any(Evaluate(0));
+                  }
+                  return ffi::Unchanged();
+                },
+                [&](const Var& var) -> ffi::UnchangedOr<ffi::Any> {
+                  if (auto value = string_bindings.Get(var)) return ffi::Any(*value);
+                  return ffi::Unchanged();
+                })
+                .as_or_throw<Stmt>();
+  n->body = Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(n->body);
+  return func;
+}
+
+UnchangedOr<ffi::Any> StmtSimplifier::Mutate(ffi::AnyView input, InplaceMode inplace_mode) {
+  if (input.as<BufferType>()) {
+    return ffi::Unchanged();
+  }
+  if (auto expr = input.as<PrimExpr>()) {
+    PrimExpr simplified = analyzer_->Simplify(*expr);
+    if (simplified.same_as(*expr)) return ffi::Unchanged();
+    return simplified;
+  }
+  return Parent::Mutate(input, inplace_mode);
+}
+
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace_mode) {
+  analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
+  With<sym::ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
+  With<sym::ConstraintContext> ctx2(analyzer_,
+                                    static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
+  return Parent::Mutate_(op, inplace_mode);
+}
+
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  auto prim_value = op->value.as<PrimExpr>();
+  if (!prim_value) {
+    return Parent::Mutate_(op, inplace_mode);
+  }
+  PrimExpr value =
+      this->Mutate(prim_value.value(), inplace_mode).ValueOrUnchanged(prim_value.value());
+  // Bind in analyzer for constraint proving and simplification of
+  // subsequent expressions.  Don't remove the Bind statement --
+  // with flat Bind there's no body to inspect for usage patterns,
+  // so we always keep the Bind.
+  if (SideEffect(value) <= CallEffectKind::kPure) {
+    analyzer_->Bind(op->var, value);
+    // Record the binding so we can substitute it into assert conditions
+    // (see Mutate_(const AssertStmtNode*, InplaceMode)).  Under SSA each var is
+    // bound exactly once, so the map grows monotonically without key
+    // conflicts.  No scope-based cleanup is needed because vars bound
+    // in inner scopes are only referenced within those scopes; stale
+    // entries are harmless and never consulted again.
+    non_inlined_bindings_.Set(op->var, value);
   }
 
- private:
-  explicit StmtSimplifier(const Analyzer& analyzer, StmtSimplifyConfig config)
-      : IRMutatorWithAnalyzer(analyzer), config_(config) {}
-
-  using Parent = IRMutatorWithAnalyzer;
-  using Parent::VisitExpr_;
-  using Parent::VisitStmt;
-  using Parent::VisitStmt_;
-
-  // Do not simplify buffer definition fields (shape, strides, elem_offset).
-  //
-  // The simplifier's VisitExpr override calls analyzer_->Simplify() directly,
-  // bypassing the normal ExprMutator dispatch. This means TensorLoad expressions
-  // inside values (e.g., BufferStore value) skip VisitExpr_(TensorLoadNode*) and
-  // thus skip VisitBufferUse. If VisitBufferDef remaps buffers at DeclBuffer sites,
-  // the TensorLoad use sites won't pick up the remap, causing DeclBuffer/BufferLoad
-  // buffer identity divergence and well-formedness violations.
-  //
-  // Instead, we keep buffer definitions unchanged and rely on used_in_buffer_def_
-  // to prevent inlining LetStmt vars that appear in buffer definitions.
-  BufferVar VisitBufferDef(const BufferVar& buffer, bool alloc_data) override { return buffer; }
-
-  Expr VisitExpr(const Expr& expr) final {
-    if (auto prim_expr = expr.as<PrimExpr>()) {
-      return analyzer_->Simplify(prim_expr.value());
-    }
-    return Parent::VisitExpr(expr);
-  }
-
-  Stmt Simplify(Stmt stmt) { return operator()(std::move(stmt)); }
-
-  Stmt VisitStmt_(const ForNode* op) final {
-    analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
-    With<ConstraintContext> ctx1(analyzer_, op->loop_var >= op->min);
-    With<ConstraintContext> ctx2(analyzer_,
-                                 static_cast<PrimExpr>(op->loop_var) < op->min + op->extent);
-    return Parent::VisitStmt_(op);
-  }
-
-  Stmt VisitStmt_(const BindNode* op) override {
-    auto prim_value = op->value.as<PrimExpr>();
-    if (!prim_value) {
-      return Parent::VisitStmt_(op);
-    }
-    PrimExpr value = this->VisitPrimExpr(prim_value.value());
-    // Bind in analyzer for constraint proving and simplification of
-    // subsequent expressions.  Don't remove the Bind statement --
-    // with flat Bind there's no body to inspect for usage patterns,
-    // so we always keep the Bind.
-    if (SideEffect(value) <= CallEffectKind::kPure) {
-      analyzer_->Bind(op->var, value);
-      // Record the binding so we can substitute it into assert conditions
-      // (see VisitStmt_(const AssertStmtNode*)).  Under SSA each var is
-      // bound exactly once, so the map grows monotonically without key
-      // conflicts.  No scope-based cleanup is needed because vars bound
-      // in inner scopes are only referenced within those scopes; stale
-      // entries are harmless and never consulted again.
-      non_inlined_bindings_.Set(op->var, value);
-    }
-
-    if (value.same_as(op->value)) {
-      return ffi::GetRef<Stmt>(op);
-    } else {
-      auto n = this->CopyOnWrite(op);
+  if (value.same_as(op->value)) {
+    return ffi::Unchanged();
+  } else {
+    if (inplace_mode == InplaceMode::kAllow) {
+      auto* n = const_cast<BindNode*>(op);
       n->value = std::move(value);
-      return Stmt(n);
+      return ffi::Unchanged();
     }
+    auto n = ffi::make_object<BindNode>(*op);
+    n->value = std::move(value);
+    return Stmt(n);
   }
+}
 
-  Stmt VisitStmt_(const IfThenElseNode* op) override {
-    if (ffi::Optional<bool> cond = ProveCondition(op->condition)) {
-      if (cond.value()) {
-        return this->VisitStmt(op->then_case);
-      } else if (op->else_case) {
-        return this->VisitStmt(op->else_case.value());
-      } else {
-        return Evaluate(0);
-      }
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
+  if (ffi::Optional<bool> cond = ProveCondition(op->condition)) {
+    if (cond.value()) {
+      return this->Mutate(op->then_case, inplace_mode).ValueOrUnchanged(op->then_case);
+    } else if (op->else_case) {
+      return this->Mutate(op->else_case.value(), inplace_mode)
+          .ValueOrUnchanged(op->else_case.value());
     } else {
-      return Parent::VisitStmt_(op);
+      return Evaluate(0);
+    }
+  } else {
+    return Parent::Mutate_(op, inplace_mode);
+  }
+}
+
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {
+  BufferStore store = Parent::Mutate_(op, inplace_mode)
+                          .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                          .as_or_throw<BufferStore>();
+  if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
+    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
+        prim::ExprDeepEqual()(buffer->elem_offset, store->buffer->elem_offset) &&
+        ArrayDeepEqual(buffer->shape, store->buffer->shape) &&
+        ArrayDeepEqual(buffer->strides, store->buffer->strides)) {
+      return Evaluate(0);
     }
   }
+  return store;
+}
 
-  Expr VisitExpr_(const CallNode* op) override {
-    if (op->op.same_as(prim::builtin::if_then_else())) {
-      if (ffi::Optional<bool> cond = ProveCondition(op->args[0].as_or_throw<PrimExpr>())) {
-        if (cond.value()) {
-          return this->VisitExpr(op->args[1]);
-        } else {
-          return this->VisitExpr(op->args[2]);
-        }
-      }
-    }
-    return Parent::VisitExpr_(op);
+bool StmtSimplifier::ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs,
+                                    const ffi::Array<PrimExpr>& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
   }
-
-  Expr VisitExpr_(const TensorLoadNode* op) override { return Parent::VisitExpr_(op); }
-
-  // eliminate useless stores
-  Stmt VisitStmt_(const BufferStoreNode* op) override {
-    BufferStore store = Parent::VisitStmt_(op).as_or_throw<BufferStore>();
-    if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
-      BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
-      if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
-          tirx::ExprDeepEqual()(buffer->elem_offset, store->buffer->elem_offset) &&
-          ArrayDeepEqual(buffer->shape, store->buffer->shape) &&
-          ArrayDeepEqual(buffer->strides, store->buffer->strides)) {
-        return Evaluate(0);
-      }
-    }
-    return store;
-  }
-
- private:
-  bool ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs) {
-    if (lhs.size() != rhs.size()) {
+  for (size_t i = 0; i < lhs.size(); i++) {
+    if (!prim::ExprDeepEqual()(lhs[i], rhs[i])) {
       return false;
     }
-    for (size_t i = 0; i < lhs.size(); i++) {
-      if (!tirx::ExprDeepEqual()(lhs[i], rhs[i])) {
-        return false;
-      }
-    }
-    return true;
   }
+  return true;
+}
 
-  /* \brief Internal utility for checking conditionals
-   *
-   * Substitutes any known Bind values and then simplifies with the analyzer.
-   */
-  ffi::Optional<bool> ProveCondition(PrimExpr condition) const {
-    auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-      if (auto repl = non_inlined_bindings_.Get(var)) return ffi::Any(*std::move(repl));
-      return ffi::Unchanged();
-    };
-    condition = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(condition, f_substitute)
-                    .as_or_throw<PrimExpr>();
-    condition = analyzer_->Simplify(condition);
-    if (const int64_t* as_int = as_const_int(condition)) {
-      return *as_int != 0;
-    } else {
-      return std::nullopt;
-    }
+ffi::Optional<bool> StmtSimplifier::ProveCondition(PrimExpr condition) const {
+  auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (auto repl = non_inlined_bindings_.Get(var)) return ffi::Any(*std::move(repl));
+    return ffi::Unchanged();
+  };
+  condition = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(condition, f_substitute)
+                  .as_or_throw<PrimExpr>();
+  condition = analyzer_->Simplify(condition);
+  if (const auto* as_int = condition.as<IntImmNode>()) {
+    return as_int->value != 0;
+  } else {
+    return std::nullopt;
   }
+}
 
-  StmtSimplifyConfig config_;
-
-  // Pure Bind values kept for substitution into assert conditions.
-  // Grows monotonically under SSA — no scope-based cleanup required.
-  ffi::Map<Var, PrimExpr> non_inlined_bindings_;
-};
-
-}  // namespace arith
-
-namespace tirx {
-
-PrimFunc StmtSimplify(PrimFunc func, const arith::Analyzer& analyzer) {
-  return arith::StmtSimplifier::Apply(std::move(func), analyzer);
+PrimFunc StmtSimplify(PrimFunc func, const sym::Analyzer& analyzer) {
+  return StmtSimplifier::Apply(std::move(func), analyzer);
 }
 
 namespace transform {
 
 Pass StmtSimplify() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    arith::Analyzer analyzer;
-    auto cfg = ctx->GetConfig<arith::StmtSimplifyConfig>("tirx.StmtSimplify");
+    sym::Analyzer analyzer;
+    auto cfg = ctx->GetConfig<StmtSimplifyConfig>("tirx.StmtSimplify");
 
-    return arith::StmtSimplifier::Apply(f, analyzer, cfg);
+    return StmtSimplifier::Apply(f, analyzer, cfg);
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.StmtSimplify", {});
 }

@@ -26,6 +26,7 @@
 
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/transform.h>
 
@@ -34,8 +35,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
-
 /*!
  * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
  *        This pass works as a simple DeepCopy to duplicate a function with different Vars and
@@ -50,6 +49,13 @@ namespace transform {
 using tirx::transform::CreatePrimFuncPass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
+
+/*! \brief De-duplicate definitions, including schedulable block iterators, across PrimFuncs. */
+TVM_DLL Pass ConvertSSA();
+
+/*! \brief Simplify schedulable TIR using block iteration constraints and shared simplifier options.
+ */
+TVM_DLL Pass StmtSimplify();
 
 /*!
  * \brief Canonicalize loop to start from zero .
@@ -368,6 +374,19 @@ TVM_DLL Pass DecorateDeviceScope();
  * \return The pass.
  */
 TVM_DLL Pass UseAssumeToReduceBranches();
+
+/*!
+ * \brief Force to narrow down indexing expressions and integer buffers to int32 dtype in
+ *        functions that may still contain S-TIR blocks.
+ *
+ * Unlike tirx::transform::ForceNarrowIndexToInt32, this pass also rewrites block iterators,
+ * block access regions, and match buffer regions, so it can run on scheduled functions before
+ * block lowering.
+ *
+ * \return The pass.
+ * \note This pass should not be used in default cases.
+ */
+TVM_DLL Pass ForceNarrowIndexToInt32();
 
 }  // namespace transform
 }  // namespace s_tir

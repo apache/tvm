@@ -402,7 +402,7 @@ class _BufferMethods:
         """Numpy-style view indexer: ``buf.sub[2, 4:8, ::4]``.
 
         Unlike plain ``buf[...]`` (BufferLoad for scalar indices, extent-1
-        BufferRegion dims for tile-primitive operands), ``sub`` follows numpy
+        TensorRegion dims for tile-primitive operands), ``sub`` follows numpy
         basic-indexing semantics as a *view constructor*: an integer index
         removes the dim (``select``), ``a:b`` narrows it, and ``a::s`` takes
         every s-th element (requires the extent divisible by ``s`` and
@@ -450,13 +450,17 @@ class _BufferMethods:
         the chunk index (int / Expr) and **narrows that dim** to the chunk's
         ``[c*E//n : (c+1)*E//n)`` range — the dim is kept at ``E // n``, no
         dimension is added; an unchunked dim's pick is a normal index (``:`` /
-        int / slice). The result is the *same BufferRegion* as the hand-written
+        int / slice). The result is the *same TensorRegion* as the hand-written
         slice — one line instead of the ``c*k : (c+1)*k`` arithmetic::
 
             X[.., c * k : (c + 1) * k, ..]        # before (k = E // n)
             X.chunk((None, .., n, ..))[.., c, ..]  # after (k inferred)
         """
         return _buffer_view.chunk(self, spec)
+
+
+# These results expose the complete buffer namespace defined above. Indexer
+# definitions precede this class to avoid a circular buffer/view import.
 
 
 def decl_buffer(

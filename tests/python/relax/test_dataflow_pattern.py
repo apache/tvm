@@ -16,6 +16,8 @@
 # under the License.
 # ruff: noqa: F403, F405, F841
 
+from __future__ import annotations
+
 import functools
 import math
 
@@ -28,43 +30,39 @@ from tvm import tirx
 from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func(s_tir=True)
-    def tir_matmul(x: T.handle, y: T.handle, z: T.handle) -> None:
+    @Ts.prim_func
+    def tir_matmul(A: T.Buffer((32, 32)), B: T.Buffer((32, 32)), C: T.Buffer((32, 32))) -> None:
         T.func_attr({"global_symbol": "tir_matmul"})
-        k = T.int32()
-        A = T.match_buffer(x, (32, 32))
-        B = T.match_buffer(y, (32, 32))
-        C = T.match_buffer(z, (32, 32))
 
         for i0, j0, k0 in T.grid(32, 32, 32):
-            with T.sblock():
-                i, j, k = T.axis.remap("SSR", [i0, j0, k0])
-                with T.init():
+            with Ts.sblock():
+                i, j, k = Ts.axis.remap("SSR", [i0, j0, k0])
+                with Ts.init():
                     C[i, j] = 0.0
                 C[i, j] += A[i, k] * B[j, k]
 
-    @T.prim_func(s_tir=True)
-    def tir_relu(x: T.handle, y: T.handle):
+    @Ts.prim_func
+    def tir_relu(A: T.Buffer((32, 32)), B: T.Buffer((32, 32))):
         T.func_attr({"global_symbol": "tir_relu"})
-        A = T.match_buffer(x, (32, 32))
-        B = T.match_buffer(y, (32, 32))
+
         for i, j in T.grid(32, 32):
-            with T.sblock():
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock():
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
-    @T.prim_func(s_tir=True)
-    def tir_zeros(n: T.int64, x: T.handle):
+    @Ts.prim_func
+    def tir_zeros(n: T.int64, A: T.Buffer([n])):
         T.func_attr({"global_symbol": "tir_zeros"})
-        A = T.match_buffer(x, [n])
+
         for i in range(n):
-            with T.sblock():
-                vi = T.axis.remap("S", [i])
+            with Ts.sblock():
+                vi = Ts.axis.remap("S", [i])
                 A[vi] = 1.0
 
     @R.function
@@ -671,16 +669,20 @@ def test_concat_mm_split():
 def test_self_attention():
     # The example comes from.
     # https://developer.nvidia.com/blog/nlu-with-tensorrt-bert/
+    b = T.dynamic("b")
+    s = T.dynamic("s")
+    n = T.dynamic("n")
+    h = T.dynamic("h")
+
     @tvm.script.ir_module
     class SelfAttention:
         @R.function
         def main(
-            x: R.Tensor(("b", "s", "n", "h"), "float32"),
-            wq: R.Tensor(("h", "h"), "float32"),
-            wk: R.Tensor(("h", "h"), "float32"),
-            wv: R.Tensor(("h", "h"), "float32"),
+            x: R.Tensor((b, s, n, h), "float32"),
+            wq: R.Tensor((h, h), "float32"),
+            wk: R.Tensor((h, h), "float32"),
+            wv: R.Tensor((h, h), "float32"),
         ) -> R.Tensor:
-            b, s, n, h = T.int64(), T.int64(), T.int64(), T.int64()
             with R.dataflow():
                 fcq = R.call_dps_packed("my_fc", (x, wq), R.Tensor((b, s, n, h), dtype="float32"))
                 tpq = R.call_dps_packed(
@@ -1362,7 +1364,7 @@ def test_commutative_pattern_match():
     def rewriter(expr, matches):
         op = matches[pattern_op]
         arg = matches[pattern_arg]
-        const = matches[pattern_const].data.numpy()
+        const = matches[pattern_const].value.numpy()
         if const.shape == tuple() and const[()] == 1.0:
             return rx.Call(op, [arg, rx.const(2.0)])
         else:
@@ -1506,11 +1508,12 @@ def test_same_shape_pattern(same_shape_func_type):
             return out
 
     elif same_shape_func_type == "same_dynamic_shape":
+        n = T.dynamic("n")
 
         @R.function(private=True)
         def func(
-            a: R.Tensor(("n", 128), "float32"),
-            b: R.Tensor(("n", 128), "float32"),
+            a: R.Tensor((n, 128), "float32"),
+            b: R.Tensor((n, 128), "float32"),
         ) -> R.Tensor:
             with R.dataflow():
                 c = R.multiply(a, R.const(2.0))
@@ -1534,11 +1537,13 @@ def test_same_shape_pattern(same_shape_func_type):
             return out
 
     elif same_shape_func_type == "different_dynamic_shape":
+        n = T.dynamic("n")
+        m = T.dynamic("m")
 
         @R.function(private=True)
         def func(
-            a: R.Tensor(("n", 128), "float32"),
-            b: R.Tensor(("m", 128), "float32"),
+            a: R.Tensor((n, 128), "float32"),
+            b: R.Tensor((m, 128), "float32"),
         ) -> R.Tensor:
             with R.dataflow():
                 c = R.multiply(a, R.const(2.0))
@@ -1889,8 +1894,8 @@ def test_wildcard_ty_with_symbolic_vars():
     broadcasted `R.add`.
     """
 
-    m = tirx.Var("m", "int64")
-    n = tirx.Var("n", "int64")
+    m = T.dynamic("m", "int64")
+    n = T.dynamic("n", "int64")
 
     pat_lhs = wildcard().has_ty(R.Tensor([m, n]))
     pat_rhs = wildcard().has_ty(R.Tensor([m, n]))

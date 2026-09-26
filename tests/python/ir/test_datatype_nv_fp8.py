@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 import tvm.tirx as tirx
 from tvm import te
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 try:
@@ -41,26 +42,19 @@ except ImportError:
 
 
 def fp8_unary(dtype: str):
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(
-        a: T.handle,
-        b: T.handle,
-        a_add_b: T.handle,
-        a_sub_b: T.handle,
-        a_mul_b: T.handle,
-        a_fp32: T.handle,
-        a_roundtrip: T.handle,
+        A: T.Buffer([128], dtype=dtype),
+        B: T.Buffer([128], dtype=dtype),
+        A_add_B: T.Buffer([128], dtype=dtype),
+        A_sub_B: T.Buffer([128], dtype=dtype),
+        A_mul_B: T.Buffer([128], dtype=dtype),
+        A_fp32: T.Buffer([128], dtype="float32"),
+        A_roundtrip: T.Buffer([128], dtype=dtype),
     ) -> None:
-        A = T.match_buffer(a, [128], dtype=dtype)
-        B = T.match_buffer(b, [128], dtype=dtype)
-        A_add_B = T.match_buffer(a_add_b, [128], dtype=dtype)
-        A_sub_B = T.match_buffer(a_sub_b, [128], dtype=dtype)
-        A_mul_B = T.match_buffer(a_mul_b, [128], dtype=dtype)
-        A_fp32 = T.match_buffer(a_fp32, [128], dtype="float32")
-        A_roundtrip = T.match_buffer(a_roundtrip, [128], dtype=dtype)
         for i in range(128):
-            with T.sblock("fp8_unary"):
-                vi = T.axis.spatial(128, i)
+            with Ts.sblock("fp8_unary"):
+                vi = Ts.axis.spatial(128, i)
                 A_add_B[vi] = A[vi] + B[vi]
                 A_sub_B[vi] = A[vi] - B[vi]
                 A_mul_B[vi] = A[vi] * B[vi]

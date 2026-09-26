@@ -20,6 +20,7 @@ import tvm_ffi
 import tvm
 import tvm.testing
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -31,7 +32,7 @@ def test_vthread():
 
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.handle("float32"), C: T.handle("float32")):
             A_buf = T.decl_buffer((n * nthread,), "float32", data=A)
             C_buf = T.decl_buffer((n * nthread,), "float32", data=C)
@@ -75,7 +76,7 @@ def test_vthread_extern():
 
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main():
             T.func_attr({"global_symbol": "main"})
             for i in range(n):
@@ -124,7 +125,7 @@ def test_vthread_if_then_else():
 
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.handle("float32")):
             T.func_attr({"global_symbol": "main"})
             A_buf = T.decl_buffer((100 * nthread,), "float32", data=A)
@@ -162,14 +163,14 @@ def test_vthread_simplified():
     not need to each simplify the indices.
     """
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before_func():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
         B = T.alloc_buffer((4,), "int32", scope="shared")
         B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def expected_func():
         B = T.alloc_buffer((16,), "int32", scope="shared")
         # The indices for B should each be a single Ramp node, and
@@ -189,7 +190,7 @@ def test_vthread_simplified():
 def test_vthread_vectorized():
     """Use of vthread is compatible with vector allocations"""
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before_func():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
@@ -216,7 +217,7 @@ def test_vthread_vectorized():
 
 
 def test_vthread_rewrites_masked_accesses():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def before_func():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 2)
@@ -241,7 +242,7 @@ def test_vthread_rewrites_masked_accesses():
     tvm_ffi.structural_walk(after.body, visitor)
     assert len(masked_calls) == 4
     assert all(list(call.args[0].ty.shape) == [8] for call in masked_calls)
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     assert sorted(int(analyzer.simplify(call.args[-2].base)) for call in masked_calls) == [
         0,
         0,

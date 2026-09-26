@@ -139,7 +139,7 @@ def test_fast_softmax_schedule_structure():
 def _codegen_llvm_ir(mod, target):
     """Lower and codegen to LLVM IR (no linking)."""
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
-    pipeline, finalize_host, _ = tirx.get_tir_pipeline("default")
+    pipeline, finalize_host, _ = tirx.get_tir_pipeline("s_tir")
     lowered = pipeline(bound)
     from tvm.tirx.build import split_host_device_mods
 
@@ -152,7 +152,7 @@ def _codegen_llvm_ir(mod, target):
 def _codegen_asm(mod, target):
     """Lower and codegen to assembly (no linking)."""
     bound = tirx.transform.BindTarget(target.with_host(target))(mod)
-    pipeline, finalize_host, _ = tirx.get_tir_pipeline("default")
+    pipeline, finalize_host, _ = tirx.get_tir_pipeline("s_tir")
     lowered = pipeline(bound)
     from tvm.tirx.build import split_host_device_mods
 
@@ -191,11 +191,11 @@ def test_rvv_code_size_reduction(fast):
     )
 
 
-# The arith analyzer no longer proves vscale-bearing inequalities via
+# The sym analyzer no longer proves vscale-bearing inequalities via
 # substitution (CanProveVscaleExpressionFromKnownValues was deleted). This
 # weakens simplification of scalable-vector index expressions, which can
 # prevent the RVV vectorization schedule from producing scalable vector ops.
-@pytest.mark.xfail(reason="arith no longer proves vscale-bearing inequalities via substitution")
+@pytest.mark.xfail(reason="sym no longer proves vscale-bearing inequalities via substitution")
 def test_rvv_fast_softmax_vectorizes_exp():
     """fast_softmax + schedule should produce RVV vector instructions
     for the polynomial exp approximation (no scalar exp calls)."""

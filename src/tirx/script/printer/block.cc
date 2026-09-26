@@ -16,18 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/s_tir/stmt.h>
+
 #include "./utils.h"
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
-Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
-               ffi::Optional<tirx::SBlockRealize> opt_realize,
+Doc PrintBlock(IRDocsifier d, s_tir::SBlock block, AccessPath block_p,  //
+               ffi::Optional<s_tir::SBlockRealize> opt_realize,
                ffi::Optional<AccessPath> opt_realize_p) {
   With<TIRFrame> frame(d, block);
   TVM_FFI_ICHECK_EQ(opt_realize.has_value(), opt_realize_p.has_value());
-  const tirx::SBlockRealizeNode* realize =
+  const s_tir::SBlockRealizeNode* realize =
       opt_realize.has_value() ? opt_realize.value().get() : nullptr;
   AccessPath realize_p = *opt_realize_p;
 
@@ -48,12 +51,12 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   std::vector<int> remap_vars_indices;
   auto add_remapped_iter_var = [&](int i) -> bool {
     if (realize && d->cfg->syntax_sugar) {
-      tirx::ExprDeepEqual expr_equal;
+      prim::ExprDeepEqual expr_equal;
       tirx::IterVar iter_var = block->iter_vars[i];
       PrimExpr value = realize->iter_values[i];
       if (iter_var->iter_type == tirx::IterVarType::kDataPar ||
           iter_var->iter_type == tirx::IterVarType::kCommReduce) {
-        if (auto var = value.as<tirx::PrimVar>()) {
+        if (auto var = value.as<PrimVar>()) {
           if (loop_vars.count(var.value().get())) {
             tirx::For for_loop = loop_vars.at(var.value().get());
             if (expr_equal(for_loop->min, iter_var->dom->min) &&
@@ -71,7 +74,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   auto print_single_iter_var = [&](int i) {
     tirx::IterVar iter_var = block->iter_vars[i];
     AccessPath iter_var_p = block_p->Attr("iter_var")->ArrayItem(i);
-    ExprDoc rhs = TIR(d, "axis");
+    ExprDoc rhs = STIR(d, "axis");
     if (iter_var->iter_type == tirx::IterVarType::kDataPar) {
       rhs = rhs->Attr("spatial");
     } else if (iter_var->iter_type == tirx::IterVarType::kCommReduce) {
@@ -85,7 +88,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
                                 << tirx::IterVarType2String(iter_var->iter_type);
     }
     ExprDoc dom{ffi::UnsafeInit()};
-    if (tirx::is_zero(iter_var->dom->min)) {
+    if (tvm::prim::is_zero(iter_var->dom->min)) {
       ExprDoc extent = d->AsDoc<ExprDoc>(iter_var->dom->extent,  //
                                          iter_var_p->Attr("dom")->Attr("extent"));
       dom = extent;
@@ -128,7 +131,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
         binding_paths.push_back(iter_var_p->Attr("iter_type"));
         binding_type += iter_var->iter_type == tirx::IterVarType::kDataPar ? "S" : "R";
       }
-      ExprDoc rhs = TIR(d, "axis")->Attr("remap");
+      ExprDoc rhs = STIR(d, "axis")->Attr("remap");
       ExprDoc binding_str = LiteralDoc::Str(binding_type, std::nullopt);
       binding_str->source_paths = std::move(binding_paths);
       rhs = rhs->Call({binding_str, ListDoc(loop_var_doc)});
@@ -152,9 +155,9 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
     PrimType predicate_ty = realize->predicate.ty();
     TVM_FFI_ICHECK(realize->predicate.defined() &&
                    predicate_ty.MatchesCode(DLDataTypeCode::kDLBool));
-    if (!tirx::is_one(realize->predicate)) {
+    if (!tvm::prim::is_one(realize->predicate)) {
       (*frame)->stmts.push_back(ExprStmtDoc(
-          TIR(d, "where")
+          STIR(d, "where")
               ->Call({d->AsDoc<ExprDoc>(realize->predicate, realize_p->Attr("predicate"))})));
     }
   }
@@ -164,17 +167,17 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
     for (int i = 0, n = block->reads.size(); i < n; ++i) {
       reads.push_back(d->AsDoc<ExprDoc>(block->reads[i], block_p->Attr("reads")->ArrayItem(i)));
     }
-    (*frame)->stmts.push_back(ExprStmtDoc(TIR(d, "reads")->Call(reads)));
+    (*frame)->stmts.push_back(ExprStmtDoc(STIR(d, "reads")->Call(reads)));
     ffi::Array<ExprDoc> writes;
     for (int i = 0, n = block->writes.size(); i < n; ++i) {
       writes.push_back(d->AsDoc<ExprDoc>(block->writes[i], block_p->Attr("writes")->ArrayItem(i)));
     }
-    (*frame)->stmts.push_back(ExprStmtDoc(TIR(d, "writes")->Call(writes)));
+    (*frame)->stmts.push_back(ExprStmtDoc(STIR(d, "writes")->Call(writes)));
   }
   // Step 4. Handle block attributes
   if (!block->annotations.empty()) {
     (*frame)->stmts.push_back(ExprStmtDoc(
-        TIR(d, "sblock_attr")
+        STIR(d, "sblock_attr")
             ->Call({d->AsDoc<ExprDoc>(block->annotations, block_p->Attr("annotations"))})));
   }
   // Step 5. Handle `alloc_buffer`
@@ -188,7 +191,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
   }
   // Step 6. Handle `match_buffer`
   for (int i = 0, n = block->match_buffers.size(); i < n; ++i) {
-    tirx::MatchBufferRegion buffer_region = block->match_buffers[i];
+    s_tir::MatchBufferRegion buffer_region = block->match_buffers[i];
     AccessPath buffer_region_p = block_p->Attr("match_buffers")->ArrayItem(i);
     StmtDoc doc = d->AsDoc<StmtDoc>(buffer_region, buffer_region_p);
     (*frame)->stmts.push_back(doc);
@@ -199,7 +202,7 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
     With<TIRFrame> init_frame(d, init);
     AsDocBody(init, block_p->Attr("init"), init_frame->get(), d);
     (*frame)->stmts.push_back(
-        ScopeDoc(std::nullopt, TIR(d, "init")->Call({}), (*init_frame)->stmts));
+        ScopeDoc(std::nullopt, STIR(d, "init")->Call({}), (*init_frame)->stmts));
   }
   // Step 8. Handle block body
   AsDocBody(block->body, block_p->Attr("body"), frame->get(), d);
@@ -210,15 +213,15 @@ Doc PrintBlock(IRDocsifier d, tirx::SBlock block, AccessPath block_p,  //
     kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
   }
   return ScopeDoc(std::nullopt,
-                  TIR(d, "sblock")  //
+                  STIR(d, "sblock")  //
                       ->Call({LiteralDoc::Str(block->name_hint, block_p->Attr("name_hint"))},
                              kwargs_keys, kwargs_values),
                   (*frame)->stmts);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::SBlockRealize>(
-      "", [](tirx::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<s_tir::SBlockRealize>(
+      "", [](s_tir::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
         Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
         // since we do not have d->AsDoc for realize->block,
         // we should add possible doc decoration manually.
@@ -228,14 +231,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::SBlock>(
-      "", [](tirx::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
+  IRDocsifier::vtable().set_dispatch<s_tir::SBlock>(
+      "", [](s_tir::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
         return PrintBlock(d, block, p, std::nullopt, std::nullopt);
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::SBlockRealizeNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(s_tir::SBlockNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(s_tir::SBlockRealizeNode, ReprPrintTIR);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::ScopeIdDefStmt>(
@@ -280,7 +283,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_SCRIPT_REPR(tirx::ScopeIdDefStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ScopeIdDefStmtNode, ReprPrintTIR);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::ExecScope>(
@@ -289,7 +292,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return doc;
       });
 }
-TVM_SCRIPT_REPR(tirx::ExecScopeNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ExecScopeNode, ReprPrintTIR);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::ScopeIdDef>(
@@ -305,7 +308,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return doc;
       });
 }
-TVM_SCRIPT_REPR(tirx::ScopeIdDefNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ScopeIdDefNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

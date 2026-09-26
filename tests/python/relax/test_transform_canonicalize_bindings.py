@@ -151,22 +151,26 @@ def test_casting():
 
 
 def test_match_cast():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class TestMatchCast:
         @R.function
         def main(x: R.Tensor):
             q = x
-            m, n = T.int64(), T.int64()
             z = R.match_cast(q, R.Tensor((m, n)))
             w = z
             return w
+
+    m = T.dynamic("m")
+    n = T.dynamic("n")
 
     @I.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor):
             # can't get rid of z because its ty is different from x's
-            m, n = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((m, n)))
             return z
 
@@ -174,11 +178,13 @@ def test_match_cast():
 
 
 def test_same_shape():
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class TestSameShape:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")):
-            m, n = T.int64(), T.int64()
+        def main(x: R.Tensor((m, n), "float32")):
             y = x
             # trivial check
             z = R.match_cast(x, R.Tensor((m, n), "float32"))
@@ -186,10 +192,13 @@ def test_same_shape():
             q = R.add(w, y)
             return R.add(q, w)
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "float32")):
+        def main(x: R.Tensor((m, n), "float32")):
             # the trivial check is canonicalized into a var binding
             # and then eliminated
             q = R.add(x, x)
@@ -199,6 +208,9 @@ def test_same_shape():
 
 
 def test_change_shape():
+    o = T.dynamic("o")
+    p = T.dynamic("p")
+
     @I.ir_module
     class TestChangeShape:
         @R.function
@@ -209,17 +221,18 @@ def test_change_shape():
             # rather than a symbolic shape, these new shape vars
             # cannot be expressed in terms of previous variables.
             # Therefore, the match cast must be retained.
-            o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((o, p)))
             w = z
             q = R.add(w, y)
             return R.add(q, w)
 
+    o = T.dynamic("o")
+    p = T.dynamic("p")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(x: R.Tensor(ndim=2)):
-            o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((o, p)))
             # the ty field on q will need to be updated
             q = R.add(z, x)
@@ -229,28 +242,33 @@ def test_change_shape():
 
 
 def test_replace_symbolic_variable_and_remove_match_cast():
+    o = T.dynamic("o")
+    p = T.dynamic("p")
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class TestChangeShape:
         @R.function
-        def main(x: R.Tensor(("m", "n"))):
+        def main(x: R.Tensor((m, n))):
             y = x
             # The MatchCast is non-trivial, as it introduces new shape
             # vars.  However, the new shape vars are redundant, and
             # are replaced by canonicalization.  After replacing the
             # new shape vars, the MatchCast is trivial and may be
             # removed.
-            o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((o, p)))
             w = z
             q = R.add(w, y)
             return R.add(q, w)
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("m", "n"))):
-            m = T.int64()
-            n = T.int64()
+        def main(x: R.Tensor((m, n))):
             q: R.Tensor([m, n]) = R.add(x, x)
             return R.add(q, x)
 
@@ -270,21 +288,28 @@ def test_replace_symbolic_variable_and_remove_match_cast_of_tuple():
 
     """
 
+    o = T.dynamic("o")
+    p = T.dynamic("p")
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function
-        def main(x: R.Tuple(R.Tensor(("m", "n")))):
+        def main(x: R.Tuple(R.Tensor((m, n)))):
             y = x
-            o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tuple(R.Tensor((o, p))))
             w = z
             q = R.add(w[0], y[0])
             return R.add(q, w[0])
 
+    m = T.dynamic("m")
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tuple(R.Tensor(("m", "n")))):
+        def main(x: R.Tuple(R.Tensor((m, n)))):
             q = R.add(x[0], x[0])
             return R.add(q, x[0])
 
@@ -368,6 +393,10 @@ def test_fold_variables_from_match_cast():
 
     """
 
+    N1 = T.dynamic("N1")
+    M = T.dynamic("M")
+    N2 = T.dynamic("N2")
+
     @I.ir_module
     class Before:
         @R.function
@@ -376,10 +405,6 @@ def test_fold_variables_from_match_cast():
             A: R.Tensor([16, 16], dtype="float32"),
             B: R.Tensor([16, 16], dtype="float32"),
         ):
-            N1 = T.int64()
-            M = T.int64()
-            N2 = T.int64()
-
             # The symbolic variables `N1`, `N2` and `M` are defined by
             # these `R.match_cast` statements.  Since the inputs have
             # a known shape, the values of these symbolic variables
@@ -407,6 +432,10 @@ def test_fold_variables_from_match_cast():
             )
             return (proj_A, proj_B)
 
+    N1 = T.dynamic("N1")
+    M = T.dynamic("M")
+    N2 = T.dynamic("N2")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -418,9 +447,6 @@ def test_fold_variables_from_match_cast():
             # Shape annotations use the inferred static values, but runtime
             # primitive arguments remain symbolic.  Keep the match-casts that
             # define the symbols used by those runtime arguments.
-            N1 = T.int64()
-            M = T.int64()
-            N2 = T.int64()
 
             lhs_A = R.match_cast(A, R.Tensor([N1, M], dtype="float32"))
             lhs_B = R.match_cast(B, R.Tensor([N2, M], dtype="float32"))
@@ -455,6 +481,10 @@ def test_inconsistent_match_cast_raises_error():
 
     """
 
+    N1 = T.dynamic("N1")
+    M = T.dynamic("M")
+    N2 = T.dynamic("N2")
+
     @I.ir_module
     class Before:
         @R.function
@@ -463,10 +493,6 @@ def test_inconsistent_match_cast_raises_error():
             A: R.Tensor([16, 16], dtype="float32"),
             B: R.Tensor([32, 32], dtype="float32"),
         ):
-            N1 = T.int64()
-            M = T.int64()
-            N2 = T.int64()
-
             # These R.match_cast statements define inconsistent values
             # for the symbolic shape parameters.
             lhs_A = R.match_cast(A, R.Tensor([N1, M], dtype="float32"))
@@ -503,18 +529,18 @@ def test_match_cast_may_have_distinct_values_in_branches():
 
     """
 
+    N = T.dynamic("N")
+    M = T.dynamic("M")
+
     @I.ir_module
     class Before:
         @R.function
         def main(
-            state: R.Tensor(["N"], dtype="float32"),
-            A: R.Tensor(["M", 16], dtype="float32"),
-            B: R.Tensor(["M", 32], dtype="float32"),
-            scale: R.Prim("float32"),
+            state: R.Tensor([N], dtype="float32"),
+            A: R.Tensor([M, 16], dtype="float32"),
+            B: R.Tensor([M, 32], dtype="float32"),
+            scale: T.float32,
         ):
-            N = T.int64()
-            M = T.int64()
-
             if N == 16:
                 weights: R.Tensor([M, 16], "float32") = A * scale
                 weights: R.Tensor([M, N], "float32") = R.match_cast(
@@ -534,18 +560,18 @@ def test_match_cast_may_have_distinct_values_in_branches():
 
             return out
 
+    N = T.dynamic("N")
+    M = T.dynamic("M")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            state: R.Tensor(["N"], dtype="float32"),
-            A: R.Tensor(["M", 16], dtype="float32"),
-            B: R.Tensor(["M", 32], dtype="float32"),
-            scale: R.Prim("float32"),
+            state: R.Tensor([N], dtype="float32"),
+            A: R.Tensor([M, 16], dtype="float32"),
+            B: R.Tensor([M, 32], dtype="float32"),
+            scale: T.float32,
         ):
-            N = T.int64()
-            M = T.int64()
-
             if N == 16:
                 # Prior to the R.match_cast, the
                 weights: R.Tensor([M, 16], "float32") = A * scale
@@ -870,10 +896,12 @@ def test_canonicalize_with_updated_ty():
     in order to provide better type.
     """
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Before:
         @R.function(private=True)
-        def main(A: R.Tensor(("n", 16), dtype="int32")) -> R.Tensor(("n", 16), dtype="int32"):
+        def main(A: R.Tensor((n, 16), dtype="int32")) -> R.Tensor((n, 16), dtype="int32"):
             # CanonicalizeBindings recognizes this trivial binding, and
             # replaces `B` with `A`.
             B = A
@@ -889,11 +917,12 @@ def test_canonicalize_with_updated_ty():
             # version of `C` with `ndim=2`.
             return C
 
+    n = T.dynamic("n")
+
     @I.ir_module
     class Expected:
         @R.function(private=True)
-        def main(A: R.Tensor(("n", 16), dtype="int32")) -> R.Tensor(("n", 16), dtype="int32"):
-            n = T.int64()
+        def main(A: R.Tensor((n, 16), dtype="int32")) -> R.Tensor((n, 16), dtype="int32"):
             C: R.Tensor([n, 16], "int32") = R.add(A, A)
             return C
 
@@ -1195,11 +1224,13 @@ def test_canonicalization_causes_ty_update():
     class.
     """
 
+    vocab_size = T.dynamic("vocab_size")
+
     @I.ir_module
     class Before:
         @R.function
         def transform_params(
-            A: R.Tensor(("vocab_size", 4096), dtype="float16"),
+            A: R.Tensor((vocab_size, 4096), dtype="float16"),
             B: R.Tensor((6144, 4096), dtype="float16"),
         ):
             with R.dataflow():
@@ -1230,14 +1261,15 @@ def test_canonicalization_causes_ty_update():
             # with `shape=[vocab_size,4096]`.
             return E
 
+    vocab_size = T.dynamic("vocab_size")
+
     @I.ir_module
     class Expected:
         @R.function
         def transform_params(
-            A: R.Tensor(("vocab_size", 4096), dtype="float16"),
+            A: R.Tensor((vocab_size, 4096), dtype="float16"),
             B: R.Tensor((6144, 4096), dtype="float16"),
         ):
-            vocab_size = T.int64()
             with R.dataflow():
                 E: R.Tuple(
                     R.Tensor((vocab_size, 4096), dtype="float16"),

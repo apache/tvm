@@ -22,12 +22,13 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/random_engine.h>
 #include <tvm/s_tir/schedule/state.h>
+#include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/tensor_intrin.h>
 
 #include <vector>
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 /******** Schedule: Sampling ********/

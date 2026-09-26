@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, RUF005
+# ruff: noqa: RUF005
 import tvm
 import tvm.testing
 from tvm import relax
@@ -81,28 +81,32 @@ def test_define_subroutine():
             state = relax.op.matmul(input, self.weights)
             return self.activation(state)
 
+    batch_size_main = T.dynamic("batch_size")
+    batch_size_layer = T.dynamic("batch_size")
+    batch_size_activation = T.dynamic("batch_size")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(
-            state: R.Tensor(("batch_size", 64), dtype="float32"),
+            state: R.Tensor((batch_size_main, 64), dtype="float32"),
             weights: R.Tensor((64, 32), dtype="float32"),
-        ) -> R.Tensor(("batch_size", 32), dtype="float32"):
+        ) -> R.Tensor((batch_size_main, 32), dtype="float32"):
             state = Expected.layer(state, weights)
             return state
 
         @R.function(private=True)
         def layer(
-            state: R.Tensor(("batch_size", 64), dtype="float32"),
+            state: R.Tensor((batch_size_layer, 64), dtype="float32"),
             weights: R.Tensor((64, 32), dtype="float32"),
-        ) -> R.Tensor(("batch_size", 32), dtype="float32"):
+        ) -> R.Tensor((batch_size_layer, 32), dtype="float32"):
             state = R.matmul(state, weights)
             state = Expected.activation(state)
             return state
 
         @R.function(private=True)
-        def activation(state: R.Tensor(("batch_size", 32), dtype="float32")) -> R.Tensor(
-            ("batch_size", 32), dtype="float32"
+        def activation(state: R.Tensor((batch_size_activation, 32), dtype="float32")) -> R.Tensor(
+            (batch_size_activation, 32), dtype="float32"
         ):
             state = R.nn.relu(state)
             return state

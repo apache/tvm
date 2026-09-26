@@ -52,31 +52,37 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
     from tvm.tirx.bench import CudaProfiler, export_to_perfetto_trace
 
     NUM_BLOCKS, BLOCK, NUM_GROUPS = 4, 128, 1
-    WRITE_STRIDE = NUM_BLOCKS * NUM_GROUPS   # >= number of (block, group) lanes
-    PROF_SIZE = 4096                         # uint64 slots in the profiler buffer
+    WRITE_STRIDE = NUM_BLOCKS * NUM_GROUPS  # >= number of (block, group) lanes
+    PROF_SIZE = 4096  # uint64 slots in the profiler buffer
     N = NUM_BLOCKS * BLOCK
+
 
     class Ev(Enum):
         Load = 0
         Compute = 1
         Store = 2
 
+
     EV_NAMES = ["load", "compute", "store"]
 
+
     @Tx.prim_func
-    def profiled_kernel(out_ptr: Tx.handle, inp_ptr: Tx.handle, prof_ptr: Tx.handle):
-        out = Tx.match_buffer(out_ptr, (N,), "float32")
-        inp = Tx.match_buffer(inp_ptr, (N,), "float32")
-        prof = Tx.match_buffer(prof_ptr, (PROF_SIZE,), "uint64")
+    def profiled_kernel(
+        out: Tx.Buffer((N,), "float32"),
+        inp: Tx.Buffer((N,), "float32"),
+        prof: Tx.Buffer((PROF_SIZE,), "uint64"),
+    ):
+
         Tx.device_entry()
         bid = Tx.cta_id([NUM_BLOCKS])
         tid = Tx.thread_id([BLOCK])
         idx = bid * BLOCK + tid
 
         # Construct the profiler inside the kernel; only the leader thread writes.
-        p = CudaProfiler(prof, write_stride=WRITE_STRIDE, num_groups=NUM_GROUPS,
-                         default_leader=(tid == 0))
-        p.init(0)                  # group_id = 0; also stamps the buffer header at slot 0
+        p = CudaProfiler(
+            prof, write_stride=WRITE_STRIDE, num_groups=NUM_GROUPS, default_leader=(tid == 0)
+        )
+        p.init(0)  # group_id = 0; also stamps the buffer header at slot 0
 
         p.start(Ev.Load)
         x: Tx.f32 = inp[idx]
@@ -92,7 +98,7 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
         out[idx] = acc
         p.end(Ev.Store)
 
-        p.finalize()               # mark this (block, group) lane done
+        p.finalize()  # mark this (block, group) lane done
 
 Run it and read the trace
 -------------------------

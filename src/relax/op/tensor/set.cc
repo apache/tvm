@@ -67,7 +67,7 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   if (!data_ty->IsUnknownNdim() && axis.defined()) {
     // Normalize the axis for sanity check purpose.
     if (const auto* axis_int = axis.as<IntImmNode>()) {
-      NormalizeAxis(call, ctx, data_ty->ndim, axis_int->value);
+      NormalizeAxis(call, ctx, data_ty->ndim, axis_int->value.as<int>().value());
     }
   }
   TVM_FFI_ICHECK(call->args[2].as<PrimExpr>());
@@ -83,7 +83,7 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
         << value << " expects to be IntImm, but gets " << value->GetTypeKey();
     const auto* val_node = value.as<IntImmNode>();
     auto val_imm = ffi::GetRef<IntImm>(val_node);
-    return val_imm->value;
+    return static_cast<int64_t>(val_imm->value);
   };
 
   int64_t n_int_return = f_convert_to_int64(return_index) + f_convert_to_int64(return_inverse) +

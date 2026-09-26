@@ -29,13 +29,15 @@ import tvm_ffi
 from tvm_ffi import Array, Map
 
 import tvm
+from tvm.ir import StringImm
+from tvm.relax.global_info import VDevice
 
 from .. import tirx
-from ..ir import Attrs, Type, VDevice
+from ..ir import Attrs, Type
 from ..te import Tensor as te_Tensor
 from ..te import create_prim_func
 from . import _ffi_api
-from .expr import Expr, Function, ShapeExpr, StringImm, te_tensor
+from .expr import Expr, Function, ShapeExpr, te_tensor
 from .expr import Tuple as rx_Tuple
 from .type import ShapeType, TensorType
 
@@ -94,13 +96,8 @@ def convert_to_expr(value: Any) -> Expr:
     """Helper function to convert the input to Expr, which follows the rules:
     1. Return the input itself if it's already a `relax.Expr`;
     2. Return `Expr` if the input is a primitive scalar;
-    3. Return `relax.StringImm` if the input is `tvm.String` or `str`;
+    3. Return `tvm.ir.StringImm` if the input is `tvm.String` or `str`;
     4. Return `relax.Tuple` if the input is a tuple/list of `Expr`.
-
-    Notes
-    -----
-    1. `tvm.tirx.StringImm` is not allowed because of ambiguity,
-       which can be either `relax.StringImm` or `Expr`.
     """
     if isinstance(value, int):
         return tirx.IntImm("int64", value)
@@ -112,12 +109,6 @@ def convert_to_expr(value: Any) -> Expr:
     # Case 1
     if tvm.ir.is_prim_expr(tvm_value):
         return tvm_value
-    # Note`` 1
-    if isinstance(tvm_value, tirx.StringImm):
-        raise TypeError(
-            "Cannot convert `tirx.StringImm` to `relax.Expr` because of ambiguity,"
-            "which can be either `relax.StringImm` or `Expr` "
-        )
     # Case 2
     if isinstance(tvm_value, Expr):
         return tvm_value

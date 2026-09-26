@@ -246,7 +246,7 @@ TEST(NestedMsg, NestedMsgToExpr) {
   NestedMsg<IntImm> msg = {c0, {c0, c1}, {c0, {c1, c2}}};
   auto expr = NestedMsgToExpr<IntImm>(msg, [&](ffi::Optional<IntImm> leaf) {
     TVM_FFI_ICHECK(leaf.has_value());
-    int value = leaf.value()->value;
+    int value = leaf.value()->value.as<int>().value();
     switch (value) {
       case 0:
         return x;
@@ -323,8 +323,8 @@ TEST(NestedMsg, TransformTupleLeaf) {
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
 
   auto ftransleaf = [&](Expr value, std::array<NInt, 2> msgs) -> Expr {
-    int lhs = msgs[0].LeafValue().as_or_throw<IntImm>()->value;
-    int rhs = msgs[1].LeafValue().as_or_throw<IntImm>()->value;
+    int lhs = msgs[0].LeafValue().as_or_throw<IntImm>()->value.as<int>().value();
+    int rhs = msgs[1].LeafValue().as_or_throw<IntImm>()->value.as<int>().value();
     if (lhs > rhs)
       return z;
     else if (lhs == rhs)

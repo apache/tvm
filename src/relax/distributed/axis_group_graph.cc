@@ -30,8 +30,10 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
+
 Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
-                            const arith::Analyzer& analyzer) {
+                            const sym::Analyzer& analyzer) {
   if (auto prim_var = index.as<PrimVar>()) {
     return prim_var.value();
   }
@@ -39,7 +41,7 @@ Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
   for (const auto& [var, range] : var_range) {
     primitive_var_range.Set(var.as_or_throw<PrimVar>(), range);
   }
-  arith::IterSumExpr iter_sum = arith::NormalizeToIterSum(index, primitive_var_range, analyzer);
+  sym::IterSumExpr iter_sum = sym::NormalizeToIterSum(index, primitive_var_range, analyzer);
   if (!is_zero(iter_sum->base)) {
     return Var();
   }
@@ -47,7 +49,7 @@ Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
     return Var();
   }
   // floormod(floordiv(source, lower_factor), extent) * scale
-  arith::IterSplitExpr highest_iter_split = iter_sum->args[0];
+  sym::IterSplitExpr highest_iter_split = iter_sum->args[0];
   auto source_var = highest_iter_split->source->source.as<PrimVar>();
   if (!source_var) {
     return Var();
@@ -126,7 +128,7 @@ void BuildAxisGraphBinary(const Var& output_var, const Call& call,
   const auto* x1_shape = x1_ty->shape.as<ShapeExprNode>();
   const auto* x2_shape = x2_ty->shape.as<ShapeExprNode>();
   TVM_FFI_ICHECK(x1_shape && x2_shape);
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (int i = 1; i <= std::min(x1_ndim, x2_ndim); ++i) {
     const PrimExpr& dim0 = x1_shape->values[x1_ndim - i];
     const PrimExpr& dim1 = x2_shape->values[x2_ndim - i];
@@ -239,7 +241,7 @@ void BuildAxisGraphMatmul(const Var& output_var, const Call& call,
 
   int x1_prefix_ndim = x1_shape_prefix.size();
   int x2_prefix_ndim = x2_shape_prefix.size();
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   for (int i = 1; i <= std::min(x1_prefix_ndim, x2_prefix_ndim); ++i) {
     const PrimExpr& dim0 = x1_shape_prefix[x1_prefix_ndim - i];
     const PrimExpr& dim1 = x2_shape_prefix[x2_prefix_ndim - i];
@@ -320,7 +322,7 @@ void BuildAxisGraphReshape(const Var& output_var, const Call& call,
   int i = old_shape_values.size();
   int j = new_shape_values.size();
   PrimExpr old_shape_product = 1, new_shape_product = 1;
-  arith::Analyzer analyzer_;
+  sym::Analyzer analyzer_;
   while (i > 0 && j > 0) {
     if (analyzer_->CanProve(new_shape_product > old_shape_product)) {
       i--;

@@ -21,9 +21,11 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, tirx
-from tvm.ir import Op, VDevice
+from tvm.ir import Op
+from tvm.relax import VDevice
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -176,7 +178,7 @@ def test_take_infer_ty_scalar_tensor_index():
 def test_take_infer_ty_prim_value_index():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", R.Tensor((4, 10), "float32"))
-    idx = relax.Var("idx", R.Prim("int64"))
+    idx = relax.Var("idx", tvm.ir.PrimType("int64"))
 
     _check_inference(bb, relax.op.take(x0, idx, axis=0), relax.TensorType([10], "float32"))
     _check_inference(bb, relax.op.take(x0, idx, axis=1), relax.TensorType([4], "float32"))
@@ -186,8 +188,8 @@ def test_take_infer_ty_shape_symbolic():
     bb = relax.BlockBuilder()
     m = tirx.Var("m", "int64")
     n = tirx.Var("n", "int64")
-    i = tirx.Var("i", "int64")
-    j = tirx.Var("j", "int64")
+    i = T.dynamic("i", "int64")
+    j = T.dynamic("j", "int64")
     k = tirx.Var("k", "int64")
     x0 = relax.Var("x", R.Tensor((m, n), "float32"))
     x1 = relax.Var("x", R.Tensor((m, n)))
@@ -779,8 +781,8 @@ def test_dynamic_strided_slice_infer_ty():
 
 def test_dynamic_strided_slice_infer_ty_symbolic():
     bb = relax.BlockBuilder()
-    i = tirx.Var("i", "int64")
-    j = tirx.Var("j", "int64")
+    i = T.dynamic("i", "int64")
+    j = T.dynamic("j", "int64")
     k = tirx.Var("k", "int64")
     l = tirx.Var("l", "int64")
     x0 = relax.Var("x", R.Tensor((i, j, k, l), "float32"))
@@ -897,34 +899,36 @@ def test_dynamic_strided_slice_infer_ty_arg_wrong_shape_info():
 def test_legalize_dynamic_begin_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    @I.ir_module(s_tir=True)
+    index = T.dynamic("index")
+
+    @I.ir_module
     class before:
         @R.function
-        def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
-            index = T.int64()
+        def main(A: R.Tensor((16, 16), "float32"), B: R.Shape([index])) -> R.Tensor((1, 16)):
             return R.strided_slice(A, [0], [index], [index + 1], assume_inbound=True)
 
-    @I.ir_module(s_tir=True)
+    index = T.dynamic("index")
+
+    @I.ir_module
     class expected:
         @R.function
-        def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
-            index = T.int64()
+        def main(A: R.Tensor((16, 16), "float32"), B: R.Shape([index])) -> R.Tensor((1, 16)):
             return R.call_tir(
                 expected.strided_slice,
                 (A, index),
                 out_ty=R.Tensor((1, 16), "float32"),
             )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def strided_slice(
             A: T.Buffer((T.int64(16), T.int64(16))),
             index: T.int64,
             B: T.Buffer((T.int64(1), T.int64(16))),
         ):
             T.func_attr({"tirx.noalias": True})
-            for iters in T.grid(*B.shape):
-                with T.sblock("T_dynamic_strided_slice"):
-                    i, j = T.axis.remap("SS", iters)
+            for (*iters,) in T.grid(*B.shape):
+                with Ts.sblock("T_dynamic_strided_slice"):
+                    i, j = Ts.axis.remap("SS", iters)
                     B[i, j] = A[i + index, j]
 
     after = tvm.relax.transform.LegalizeOps()(before)
@@ -934,33 +938,37 @@ def test_legalize_dynamic_begin_end():
 def test_legalize_dynamic_begin_inf_end():
     """relax.op.strided_slice FLegalize must support dynamic begin/end"""
 
-    @I.ir_module(s_tir=True)
+    index = T.dynamic("index")
+
+    @I.ir_module
     class before:
         @R.function
-        def main(A: R.Tensor((16, 16), "float32"), B: R.Shape(["index"])) -> R.Tensor((1, 16)):
-            index = T.int64()
+        def main(A: R.Tensor((16, 16), "float32"), B: R.Shape([index])) -> R.Tensor((1, 16)):
             return R.strided_slice(
                 A, [0], [index], [T.int64(np.iinfo(np.int64).max)], assume_inbound=False
             )
 
     # fmt: off
-    @I.ir_module(s_tir=True)
+    index = T.dynamic("index")
+
+    @I.ir_module
     class expected:
-        @T.prim_func(private=True, s_tir=True)
-        def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), index: T.int64, var_T_dynamic_strided_slice_with_axes: T.handle):
+        strided_slice_index = T.int64()
+
+        @Ts.prim_func(private=True)
+        def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), index: strided_slice_index, T_dynamic_strided_slice_with_axes: T.Buffer((T.max(T.int64(16) - T.max(T.if_then_else(strided_slice_index < T.int64(0), strided_slice_index + T.int64(16), strided_slice_index), T.int64(0)), T.int64(0)), T.int64(16)))):
             T.func_attr({"tirx.noalias": True})
-            T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)))
-            # with T.sblock("root"):
+
+            # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)):
-                with T.sblock("T_dynamic_strided_slice_with_axes"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0 : v_ax0 + T.int64(17), v_ax1])
-                    T.writes(T_dynamic_strided_slice_with_axes[v_ax0, v_ax1])
+                with Ts.sblock("T_dynamic_strided_slice_with_axes"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0 : v_ax0 + T.int64(17), v_ax1])
+                    Ts.writes(T_dynamic_strided_slice_with_axes[v_ax0, v_ax1])
                     T_dynamic_strided_slice_with_axes[v_ax0, v_ax1] = A[T.min(T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(16)) + v_ax0, v_ax1]
 
         @R.function
-        def main(A: R.Tensor((16, 16), dtype="float32"), B: R.Shape(["index"])) -> R.Tensor(("T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0)", 16), dtype="float32"):
-            index = T.int64()
+        def main(A: R.Tensor((16, 16), dtype="float32"), B: R.Shape([index])) -> R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"):
             cls = expected
             gv = R.call_tir(cls.strided_slice, (A, index), out_ty=R.Tensor((T.max(16 - T.max(T.if_then_else(index < 0, index + 16, index), 0), 0), 16), dtype="float32"))
             return gv

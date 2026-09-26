@@ -19,6 +19,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/sblock_dependence_info.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/utils.h>
 
 namespace tvm {
@@ -27,13 +28,20 @@ namespace tirx {
 TVM_FFI_STATIC_INIT_BLOCK() { SBlockDependenceInfoNode::RegisterReflection(); }
 
 /**
- * @brief A helper class to collect and build SBlock Dependences using SBlockScope class
+ * @brief A helper class to collect and build s_tir::SBlock Dependences using SBlockScope class
  */
-class SBlockDependenceInfoCollector : private StmtVisitor {
+class SBlockDependenceInfoCollector : public s_tir::StmtExprVisitor {
  public:
+  using s_tir::StmtExprVisitor::Visit_;
+
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
+    if (value.as<ExprNode>()) return std::nullopt;
+    return s_tir::StmtExprVisitor::Visit(value);
+  }
+
   static void Collect(SBlockDependenceInfoNode* self, const Stmt& stmt) {
-    SBlockDependenceInfoCollector collector(self);
-    collector.VisitStmt(stmt);
+    auto collector = ffi::make_object<SBlockDependenceInfoCollector>(self);
+    collector->Visit(stmt);
   }
 
   explicit SBlockDependenceInfoCollector(SBlockDependenceInfoNode* self)
@@ -46,23 +54,25 @@ class SBlockDependenceInfoCollector : private StmtVisitor {
     self_->sref2scope[scope] = SBlockScope(child_block_srefs);
   }
 
-  void VisitStmt_(const SBlockRealizeNode* realize) final {
+  ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockRealizeNode* realize) final {
     block_frames_.emplace_back();
-    const SBlockNode* block = realize->block.get();
+    const s_tir::SBlockNode* block = realize->block.get();
     // Recursive visit
-    VisitStmt(block->body);  // `block->init` is not visited
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(block->body));  // `block->init` is not visited
     // Create SBlockInfo for the block
     auto sref = self_->stmt2ref.at(block);
     MakeSBlockScope(sref);
     // Update parent scope
     block_frames_.pop_back();
     block_frames_.back().push_back(sref);
+    return std::nullopt;
   }
 
-  void VisitStmt_(const SeqStmtNode* seq_stmt) final {
+  ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* seq_stmt) final {
     // Set `seq_index` information for SeqStmtNode
-    StmtVisitor::VisitStmt_(seq_stmt);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(seq_stmt));
     SetSeqIndexInChildren(self_->stmt2ref, seq_stmt, false);
+    return std::nullopt;
   }
 
   SBlockDependenceInfoNode* self_;

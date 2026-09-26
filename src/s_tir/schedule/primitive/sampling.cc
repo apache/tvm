@@ -23,7 +23,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 struct PrimeTable {
@@ -313,9 +312,10 @@ std::vector<int64_t> SamplePerfectTile(LinearCongruentialEngine::TRandState* ran
                                        int32_t max_innermost_factor,
                                        ffi::Optional<ffi::Array<int64_t>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  const int64_t* extent = GetLoopIntExtent(loop);
+  const auto* extent_imm = loop->extent.as<IntImmNode>();
+  auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
   std::vector<int64_t> result;
-  if (extent == nullptr) {
+  if (!extent.has_value()) {
     // Case 1. Handle loops with non-constant length
     result = std::vector<int64_t>(n_splits, 1);
     result[0] = -1;
@@ -374,9 +374,10 @@ std::vector<int64_t> SamplePartitionedTile(LinearCongruentialEngine::TRandState*
                                            int32_t partition_pos, int32_t innerpart_factor,
                                            ffi::Optional<ffi::Array<int64_t>>* decision) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
-  const int64_t* extent = GetLoopIntExtent(loop);
+  const auto* extent_imm = loop->extent.as<IntImmNode>();
+  auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
   std::vector<int64_t> result;
-  if (extent == nullptr || *extent % innerpart_factor != 0) {
+  if (!extent.has_value() || *extent % innerpart_factor != 0) {
     // Case 1. Handle loops with non-constant length or non-divisible innerpart_factor
     result = std::vector<int64_t>(n_splits, 1);
     result[0] = -1;
@@ -497,7 +498,8 @@ struct SamplePerfectTileTraits : public UnpackedInstTraits<SamplePerfectTileTrai
   static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm n,
                                                     IntImm max_innermost_factor,
                                                     ffi::Optional<ffi::Array<int64_t>> decision) {
-    return sch->SamplePerfectTile(loop_rv, n->value, max_innermost_factor->value, decision);
+    return sch->SamplePerfectTile(loop_rv, n->value.as<int>().value(),
+                                  max_innermost_factor->value.as<int>().value(), decision);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
@@ -505,8 +507,8 @@ struct SamplePerfectTileTraits : public UnpackedInstTraits<SamplePerfectTileTrai
                                       ffi::Optional<ffi::Array<int64_t>> decision) {
     PythonAPICall py("sample_perfect_tile");
     py.Input("loop", loop_rv);
-    py.Input("n", n->value);
-    py.Input("max_innermost_factor", max_innermost_factor->value);
+    py.Input("n", n->value.as<int>().value());
+    py.Input("max_innermost_factor", max_innermost_factor->value.as<int>().value());
     py.Decision(decision);
     py.OutputList(outputs);
     return py.Str();
@@ -528,8 +530,9 @@ struct SamplePartitionedTileTraits : public UnpackedInstTraits<SamplePartitioned
   static ffi::Array<ExprRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv, IntImm n,
                                                     IntImm partition_pos, IntImm innerpart_factor,
                                                     ffi::Optional<ffi::Array<int64_t>> decision) {
-    return sch->SamplePartitionedTile(loop_rv, n->value, partition_pos->value,
-                                      innerpart_factor->value, decision);
+    return sch->SamplePartitionedTile(loop_rv, n->value.as<int>().value(),
+                                      partition_pos->value.as<int>().value(),
+                                      innerpart_factor->value.as<int>().value(), decision);
   }
 
   static ffi::String UnpackedAsPython(ffi::Array<ffi::String> outputs, ffi::String loop_rv,
@@ -537,9 +540,9 @@ struct SamplePartitionedTileTraits : public UnpackedInstTraits<SamplePartitioned
                                       ffi::Optional<ffi::Array<int64_t>> decision) {
     PythonAPICall py("sample_partitioned_tile");
     py.Input("loop", loop_rv);
-    py.Input("n", n->value);
-    py.Input("partition_pos", partition_pos->value);
-    py.Input("innerpart_factor", innerpart_factor->value);
+    py.Input("n", n->value.as<int>().value());
+    py.Input("partition_pos", partition_pos->value.as<int>().value());
+    py.Input("innerpart_factor", innerpart_factor->value.as<int>().value());
     py.Decision(decision);
     py.OutputList(outputs);
     return py.Str();

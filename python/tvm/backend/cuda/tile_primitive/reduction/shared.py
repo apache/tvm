@@ -57,9 +57,10 @@ import functools
 import math
 import operator
 
-from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion, PrimFunc
+from tvm.sym.analyzer import Analyzer
+from tvm.tirx import PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
@@ -84,7 +85,7 @@ def validate_reduction_shared(
         return False, f"unsupported exec_scope {sctx.scope_kind} for shared reduction"
 
     op = TilePrimitiveCall.downcast(op)
-    dst, src = op.output.buffer, op.input.buffer
+    dst, src = op.output.source, op.input.source
     if not (src.scope().startswith("shared") and dst.scope().startswith("shared")):
         return False, "expected shared scope for both src and dst"
     if src.dtype != dst.dtype:
@@ -117,8 +118,8 @@ def validate_reduction_shared(
 
 
 def _emit_reduction_shared_cta(
-    dst_br: BufferRegion,
-    src_br: BufferRegion,
+    dst_br: TensorRegion,
+    src_br: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     sctx: DispatchContext,
@@ -138,7 +139,7 @@ def _emit_reduction_shared_cta(
             return 1
 
     thread_cnt = get_thread_cnt()
-    dst, src = dst_br.buffer, src_br.buffer
+    dst, src = dst_br.source, src_br.source
     src_st, src_extent = get_st_extent(src_br)
     dst_st, dst_extent = get_st_extent(dst_br)
     dtype = src.dtype
@@ -215,15 +216,15 @@ def _emit_reduction_shared_cta(
 
 
 def _emit_reduction_shared_thread(
-    dst_br: BufferRegion,
-    src_br: BufferRegion,
+    dst_br: TensorRegion,
+    src_br: TensorRegion,
     accum: bool,
     reduce_op: ReduceOpType,
     sctx: DispatchContext,
     reduce_dims: list[int],
     spatial_dims: list[int],
 ) -> PrimFunc:
-    dst, src = dst_br.buffer, src_br.buffer
+    dst, src = dst_br.source, src_br.source
     src_st, src_extent = get_st_extent(src_br)
     dst_st, dst_extent = get_st_extent(dst_br)
     dtype = src.dtype

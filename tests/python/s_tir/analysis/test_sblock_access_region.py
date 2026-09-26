@@ -20,146 +20,149 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.ir import Range
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def func() -> None:
-    A = T.sblock_alloc_buffer((128, 128), "float32")
-    B = T.sblock_alloc_buffer((128, 128), "float32")
-    C = T.sblock_alloc_buffer((128, 128), "float32")
-    D = T.sblock_alloc_buffer((128, 128), "float32")
-    with T.sblock():
+    A = Ts.sblock_alloc_buffer((128, 128), "float32")
+    B = Ts.sblock_alloc_buffer((128, 128), "float32")
+    C = Ts.sblock_alloc_buffer((128, 128), "float32")
+    D = Ts.sblock_alloc_buffer((128, 128), "float32")
+    with Ts.sblock():
         # Need add read/write region manually to avoid triggering block access region detector
-        T.reads([B[0, 0], C[0:16, 0:16], A[4:12, 4:12]])
-        T.writes([A[0:12, 0:12]])
+        Ts.reads([B[0, 0], C[0:16, 0:16], A[4:12, 4:12]])
+        Ts.writes([A[0:12, 0:12]])
         for i, j in T.grid(8, 8):
             A[i, j] = B[0, 0] + C[0, 0]
         for i, j in T.grid(2, 2):
-            with T.sblock():
-                vi, vj = T.axis.remap("SS", [i, j])
-                T.reads([A[vi * 4 + 4 : vi * 4 + 8, vj * 4 + 4 : vj * 4 + 8], C[12:16, 12:16]])
-                T.writes([A[vi * 4 + 4 : vi * 4 + 8, vj * 4 + 4 : vj * 4 + 8]])
+            with Ts.sblock():
+                vi, vj = Ts.axis.remap("SS", [i, j])
+                Ts.reads([A[vi * 4 + 4 : vi * 4 + 8, vj * 4 + 4 : vj * 4 + 8], C[12:16, 12:16]])
+                Ts.writes([A[vi * 4 + 4 : vi * 4 + 8, vj * 4 + 4 : vj * 4 + 8]])
                 for i, j in T.grid(4, 4):
                     A[vi * 4 + 4 + i, vj * 4 + 4 + j] += C[i + 12, j + 12]
         T.evaluate(D.data)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def masked_access_func() -> None:
-    A = T.sblock_alloc_buffer((16,), "float32")
-    B = T.sblock_alloc_buffer((16,), "float32")
-    with T.sblock():
+    A = Ts.sblock_alloc_buffer((16,), "float32")
+    B = Ts.sblock_alloc_buffer((16,), "float32")
+    with Ts.sblock():
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
         value = T.meta_var(T.masked_load("float32x4", A, T.Ramp(4, 1, 4), mask))
         T.masked_store(B, value, T.Ramp(8, 1, 4), mask)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def match_buffer_func() -> None:
-    with T.sblock("root"):
-        A = T.sblock_alloc_buffer((128, 128), "float32")
-        B = T.sblock_alloc_buffer((128, 128), "float32")
-        T.reads([])
-        T.writes([])
+    with Ts.sblock("root"):
+        A = Ts.sblock_alloc_buffer((128, 128), "float32")
+        B = Ts.sblock_alloc_buffer((128, 128), "float32")
+        Ts.reads([])
+        Ts.writes([])
         # Need add read/write region manually to avoid triggering block access region detector
         for i, j in T.grid(8, 8):
-            with T.sblock("block"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                T.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
-                T.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
-                AA = T.match_buffer(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
-                B0 = T.match_buffer(B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4))
-                B1 = T.match_buffer(
+            with Ts.sblock("block"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
+                Ts.reads(B[vi * 16 + 2 : vi * 16 + 12, vj * 16 + 2 : vj * 16 + 16])
+                Ts.writes(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16])
+                AA = Ts.match_buffer(A[vi * 16 : vi * 16 + 16, vj * 16 : vj * 16 + 16], (16, 16))
+                B0 = Ts.match_buffer(
+                    B[vi * 16 + 2 : vi * 16 + 6, vj * 16 + 2 : vj * 16 + 6], (4, 4)
+                )
+                B1 = Ts.match_buffer(
                     B[vi * 16 + 8 : vi * 16 + 12, vj * 16 + 8 : vj * 16 + 16], (4, 8)
                 )
                 for ii, jj in T.grid(16, 16):
-                    with T.sblock("AAA"):
-                        vii, vjj = T.axis.remap("SS", [ii, jj])
-                        T.reads([])
-                        T.writes(AA[vii, vjj])
-                        AAA = T.match_buffer(AA[vii, vjj], ())
+                    with Ts.sblock("AAA"):
+                        vii, vjj = Ts.axis.remap("SS", [ii, jj])
+                        Ts.reads([])
+                        Ts.writes(AA[vii, vjj])
+                        AAA = Ts.match_buffer(AA[vii, vjj], ())
                         AAA[()] = 1.0
                 T.evaluate(B0.data)
                 T.evaluate(B1.data)
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_block_func() -> None:
-    with T.sblock("root"):
-        A = T.sblock_alloc_buffer((16, 16), "float32")
-        B = T.sblock_alloc_buffer((16, 16), "float32")
-        T.reads([])
-        T.writes([])
+    with Ts.sblock("root"):
+        A = Ts.sblock_alloc_buffer((16, 16), "float32")
+        B = Ts.sblock_alloc_buffer((16, 16), "float32")
+        Ts.reads([])
+        Ts.writes([])
         # Need add read/write region manually to avoid triggering block access region detector
         for i in range(0, 16):
-            with T.sblock():
-                T.reads(A[i, 0:16])
-                T.writes([B[i, 0:16]])
+            with Ts.sblock():
+                Ts.reads(A[i, 0:16])
+                Ts.writes([B[i, 0:16]])
                 for j in range(0, 16):
-                    with T.sblock():
-                        T.reads(A[i, j])
-                        T.writes(B[i, j])
+                    with Ts.sblock():
+                        Ts.reads(A[i, j])
+                        Ts.writes(B[i, j])
                         B[i, j] = A[i, j] + 1.0
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access_func() -> None:
-    A = T.sblock_alloc_buffer([1024])
-    B = T.sblock_alloc_buffer([1024])
+    A = Ts.sblock_alloc_buffer([1024])
+    B = Ts.sblock_alloc_buffer([1024])
     for i in T.serial(0, 8):
-        with T.sblock():
-            v = T.axis.S(8, i)
-            T.reads([A[v * 128 : v * 128 + 128]])
-            T.writes([B[v * 128 : v * 128 + 128]])
+        with Ts.sblock():
+            v = Ts.axis.S(8, i)
+            Ts.reads([A[v * 128 : v * 128 + 128]])
+            Ts.writes([B[v * 128 : v * 128 + 128]])
             T.evaluate(
                 T.call_extern("test", B.data, v * 128, 128, A.data, v * 128, 128, dtype="float32")
             )
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def opaque_access_with_tvm_access_ptr_func() -> None:
-    A = T.sblock_alloc_buffer([1024])
-    B = T.sblock_alloc_buffer([1024])
-    C = T.sblock_alloc_buffer([1024])
-    with T.sblock("opaque"):
-        T.reads(A[0:1024], C[0:1024])
-        T.writes(B[0:1024], C[0:1024])
+    A = Ts.sblock_alloc_buffer([1024])
+    B = Ts.sblock_alloc_buffer([1024])
+    C = Ts.sblock_alloc_buffer([1024])
+    with Ts.sblock("opaque"):
+        Ts.reads(A[0:1024], C[0:1024])
+        Ts.writes(B[0:1024], C[0:1024])
         T.evaluate(A.access_ptr("r"))
         T.evaluate(B.access_ptr("w"))
         T.evaluate(C.access_ptr("rw"))
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def decl_buffer_alias_func(
     A: T.Buffer((16,), "float32"),
     B: T.Buffer((16,), "float32"),
 ) -> None:
-    with T.sblock("alias"):
-        T.reads(A[0])
-        T.writes(B[0])
+    with Ts.sblock("alias"):
+        Ts.reads(A[0])
+        Ts.writes(B[0])
         A_view = T.decl_buffer((16,), "float32", data=A.data)
         B[0] = A[0] + A_view[0]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def access_in_if_then_else_func() -> None:
-    A = T.sblock_alloc_buffer([8])
-    B = T.sblock_alloc_buffer([8])
-    with T.sblock():
-        T.reads([A[0:5]])
-        T.writes([B[0:8]])
+    A = Ts.sblock_alloc_buffer([8])
+    B = Ts.sblock_alloc_buffer([8])
+    with Ts.sblock():
+        Ts.reads([A[0:5]])
+        Ts.writes([B[0:8]])
         for i in T.serial(0, 8):
             B[i] = T.if_then_else(i < 5, A[i], 0.0, dtype="float32")
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def access_in_branch_func() -> None:
-    A = T.sblock_alloc_buffer([8])
-    B = T.sblock_alloc_buffer([8])
-    with T.sblock():
-        T.reads([A[0:7]])
-        T.writes([B[0:8]])
+    A = Ts.sblock_alloc_buffer([8])
+    B = Ts.sblock_alloc_buffer([8])
+    with Ts.sblock():
+        Ts.reads([A[0:7]])
+        Ts.writes([B[0:8]])
         for i in T.serial(0, 8):
             if i < 5:
                 B[i] = A[i] + 1.0
@@ -167,63 +170,63 @@ def access_in_branch_func() -> None:
                 B[i] = A[i - 1]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def gemm() -> None:
-    A = T.sblock_alloc_buffer([16, 16], "float32")
-    B = T.sblock_alloc_buffer([16, 16], "float32")
-    C = T.sblock_alloc_buffer([16, 16], "float32")
+    A = Ts.sblock_alloc_buffer([16, 16], "float32")
+    B = Ts.sblock_alloc_buffer([16, 16], "float32")
+    C = Ts.sblock_alloc_buffer([16, 16], "float32")
     for i, j, k, ii, jj in T.grid(4, 4, 16, 4, 4):
-        with T.sblock("update"):
-            vi = T.axis.S(16, i * 4 + ii)
-            vj = T.axis.S(16, j * 4 + jj)
-            vk = T.axis.R(16, k)
-            T.reads(A[vi, vk], B[vj, vk])
-            T.writes(C[vi, vj])
-            with T.init():
+        with Ts.sblock("update"):
+            vi = Ts.axis.S(16, i * 4 + ii)
+            vj = Ts.axis.S(16, j * 4 + jj)
+            vk = Ts.axis.R(16, k)
+            Ts.reads(A[vi, vk], B[vj, vk])
+            Ts.writes(C[vi, vj])
+            with Ts.init():
                 C[vi, vj] = 0
             C[vi, vj] += A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def decomposed_gemm() -> None:
-    A = T.sblock_alloc_buffer([16, 16], "float32")
-    B = T.sblock_alloc_buffer([16, 16], "float32")
-    C = T.sblock_alloc_buffer([16, 16], "float32")
+    A = Ts.sblock_alloc_buffer([16, 16], "float32")
+    B = Ts.sblock_alloc_buffer([16, 16], "float32")
+    C = Ts.sblock_alloc_buffer([16, 16], "float32")
     for i, j in T.grid(4, 4):
         for ii, jj in T.grid(4, 4):
-            with T.sblock("init"):
-                vi = T.axis.S(16, i * 4 + ii)
-                vj = T.axis.S(16, j * 4 + jj)
-                T.reads([])
-                T.writes(C[vi, vj])
+            with Ts.sblock("init"):
+                vi = Ts.axis.S(16, i * 4 + ii)
+                vj = Ts.axis.S(16, j * 4 + jj)
+                Ts.reads([])
+                Ts.writes(C[vi, vj])
                 C[vi, vj] = 0
         for k, ii, jj in T.grid(16, 4, 4):
-            with T.sblock("update"):
-                vi = T.axis.S(16, i * 4 + ii)
-                vj = T.axis.S(16, j * 4 + jj)
-                vk = T.axis.R(16, k)
-                T.reads(C[vi, vj], A[vi, vk], B[vj, vk])
-                T.writes(C[vi, vj])
+            with Ts.sblock("update"):
+                vi = Ts.axis.S(16, i * 4 + ii)
+                vj = Ts.axis.S(16, j * 4 + jj)
+                vk = Ts.axis.R(16, k)
+                Ts.reads(C[vi, vj], A[vi, vk], B[vj, vk])
+                Ts.writes(C[vi, vj])
                 C[vi, vj] += A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
+@Ts.prim_func
 def access_of_padding_pattern() -> None:
-    X = T.sblock_alloc_buffer([28, 28])
-    X_pad = T.sblock_alloc_buffer([32, 32])
-    Y = T.sblock_alloc_buffer([28, 28])
+    X = Ts.sblock_alloc_buffer([28, 28])
+    X_pad = Ts.sblock_alloc_buffer([32, 32])
+    Y = Ts.sblock_alloc_buffer([28, 28])
     for i, j in T.grid(32, 32):
-        with T.sblock("padding"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads([X[vi - 2, vj - 2]])
-            T.writes([X_pad[vi, vj]])
+        with Ts.sblock("padding"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads([X[vi - 2, vj - 2]])
+            Ts.writes([X_pad[vi, vj]])
             X_pad[vi, vj] = T.if_then_else(
                 2 <= vi and vi < 30 and 2 <= vj and vj < 30, X[vi - 2, vj - 2], 0.0, dtype="float32"
             )
-        with T.sblock("padding_reverse"):
-            vi, vj = T.axis.remap("SS", [i, j])
-            T.reads([X_pad[vi, vj]])
-            T.writes([Y[vi - 2, vj - 2]])
+        with Ts.sblock("padding_reverse"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
+            Ts.reads([X_pad[vi, vj]])
+            Ts.writes([Y[vi - 2, vj - 2]])
             if 2 <= vi and vi < 30 and 2 <= vj and vj < 30:
                 Y[vi - 2, vj - 2] = X_pad[vi, vj]
 
@@ -363,8 +366,8 @@ def test_access_of_padding_pattern():
     buffer_var_map = {buf: buf for buf in alloc_buffers}
 
     def do_compare_buffer_region(region, expect):
-        assert region.buffer == expect.buffer
-        analyzer = tvm.arith.Analyzer()
+        assert region.source == expect.source
+        analyzer = tvm.sym.Analyzer()
         for observed_range, expected_range in zip(region.region, expect.region):
             analyzer.can_prove_equal(observed_range.min, expected_range.min)
             analyzer.can_prove_equal(observed_range.extent, expected_range.extent)
@@ -404,7 +407,7 @@ def test_access_of_decompose_reduction():
 
 
 def test_buffer_access_with_let_binding():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(
         storage: T.Buffer((16, 16, 16), "float32"),
         seq_slot_ids: T.Buffer((16,), "int32"),
@@ -412,14 +415,14 @@ def test_buffer_access_with_let_binding():
         output: T.Buffer((16, 16), "float32"),
     ):
         for i, s in T.grid(16, 16):
-            with T.sblock("copy"):
-                vi, vs = T.axis.remap("SS", [i, s])
-                T.reads(
+            with Ts.sblock("copy"):
+                vi, vs = Ts.axis.remap("SS", [i, s])
+                Ts.reads(
                     seq_slot_ids[vi],
                     history_slot_ids[vi],
                     storage[seq_slot_ids[vi], history_slot_ids[vi], vs],
                 )
-                T.writes(output[vi, vs])
+                Ts.writes(output[vi, vs])
                 seq_id: T.let[T.int32] = seq_slot_ids[vi]
                 history_id: T.let[T.int32] = history_slot_ids[vi]
                 output[vi, vs] = storage[seq_id, history_id, vs]
@@ -432,17 +435,17 @@ def test_buffer_access_with_let_binding():
 
 
 def test_buffer_access_with_nested_let_binding():
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def func(
         A: T.Buffer((16, 16), "float32"),
         B: T.Buffer((16, 16), "float32"),
         C: T.Buffer((16, 16), "float32"),
     ):
         for i, s in T.grid(16, 16):
-            with T.sblock("copy"):
-                vi, vs = T.axis.remap("SS", [i, s])
-                T.reads(A[vi, vs], B[vi, vs])
-                T.writes(C[vi, vs])
+            with Ts.sblock("copy"):
+                vi, vs = Ts.axis.remap("SS", [i, s])
+                Ts.reads(A[vi, vs], B[vi, vs])
+                Ts.writes(C[vi, vs])
                 vi1: T.let[T.int32] = vi
                 vi2: T.let[T.int32] = vi1
                 vs1: T.let[T.int32] = vs
@@ -455,6 +458,73 @@ def test_buffer_access_with_nested_let_binding():
     ret = s_tir.analysis.get_sblock_access_region(block, buffer_var_map)
     tvm.ir.assert_structural_equal(block.reads, ret[0])
     tvm.ir.assert_structural_equal(block.writes, ret[1])
+
+
+@pytest.mark.parametrize("case", ["coupled", "equal", "nonlinear", "empty", "unbounded", "rounded"])
+def test_conditional_inequality_access_regions(case):
+    # Retain the live cases from the former sym inequality solver tests through
+    # the block-access consumer, including its conservative unresolved fallback.
+    tirx = tvm.tirx
+    x, y, z = [tirx.Var(name, "int32") for name in ("x", "y", "z")]
+    free_var = tirx.Var("free_var", "int32")
+    unbounded_extent = tirx.Cast("int32", 1 + tirx.log(free_var))
+    cases = {
+        "coupled": (
+            [x, y],
+            [(-100, 200), (0, 10)],
+            tirx.all(x + y <= 20, x - y >= 10),
+            [(-100, 200), (0, 10)],
+        ),
+        "equal": (
+            [x, y],
+            [(-100, 200), (-100, 200)],
+            tirx.all(x + y >= 10, x - y >= 2, x <= 6),
+            [(6, 1), (4, 1)],
+        ),
+        "nonlinear": (
+            [x, y, z],
+            [(-100, 200)] * 3,
+            tirx.all(x <= 6, x >= 6, x - z * y >= 0, x - z * y <= 0),
+            [(-100, 200)] * 3,
+        ),
+        "empty": (
+            [x],
+            [(-20, 41)],
+            tirx.all(-x - 4 <= -5 * x + 2, x * 4 + 5 <= x * 5),
+            [(-20, 41)],
+        ),
+        "unbounded": ([x], [(0, unbounded_extent)], x > 3, [(0, 256)]),
+        "rounded": ([x], [(-20, 41)], tirx.all(x * 3 >= -7, x * 2 <= 9), [(-2, 7)]),
+    }
+    variables, domains, condition, expected = cases[case]
+    inside = tirx.decl_buffer([256] * len(variables), name="inside")
+    outside = tirx.decl_buffer([256] * len(variables), name="outside")
+    body = tirx.SeqStmt(
+        [
+            tirx.IfThenElse(condition, tirx.Evaluate(inside[tuple(variables)]), None),
+            tirx.Evaluate(outside[tuple(variables)]),
+        ]
+    )
+    for var, (minimum, extent) in reversed(list(zip(variables, domains))):
+        body = tirx.For(var, minimum, extent, tirx.ForKind.SERIAL, body)
+    block = s_tir.SBlock([], [], [], "conditional", body)
+    # Unbounded access sets conservatively cover the whole buffer.
+    outside_expected = [(0, 256)] if case == "unbounded" else domains
+    reads, writes, opaque = s_tir.analysis.get_sblock_access_region(
+        block, {inside: inside, outside: outside}
+    )
+    tvm.ir.assert_structural_equal(
+        reads,
+        [
+            tirx.BufferRegion(inside, [Range.from_min_extent(*bounds) for bounds in expected]),
+            # Leaving the conditional scope must restore the original domains.
+            tirx.BufferRegion(
+                outside, [Range.from_min_extent(*bounds) for bounds in outside_expected]
+            ),
+        ],
+    )
+    assert not writes
+    assert not opaque
 
 
 if __name__ == "__main__":

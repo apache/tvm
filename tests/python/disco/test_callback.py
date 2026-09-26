@@ -27,6 +27,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -42,34 +43,34 @@ def test_callback():
     callback to load the parameters.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def slice_A(
             A: T.Buffer((4, 4), "int32"),
             rank: T.int64,
             A_sharded: T.Buffer((2, 4), "int32"),
         ):
             for i, j in T.grid(2, 4):
-                with T.sblock("slice_A"):
-                    vi, vj = T.axis.remap("SS", [i, j])
+                with Ts.sblock("slice_A"):
+                    vi, vj = Ts.axis.remap("SS", [i, j])
                     A_sharded[vi, vj] = A[rank * 2 + vi, vj]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def slice_B(
             B: T.Buffer((2, 2), "float32"),
             rank: T.int64,
             B_sharded: T.Buffer((2, 1), "float32"),
         ):
             for i in range(2):
-                with T.sblock("slice_B"):
-                    vi = T.axis.spatial(2, i)
+                with Ts.sblock("slice_B"):
+                    vi = Ts.axis.spatial(2, i)
                     B_sharded[vi, 0] = B[vi, rank]
 
         @R.function
         def transform_params(
-            rank_arg: R.Prim("int64"),
-            fget_item: R.Callable([R.Any, R.Prim("int64")], R.Any),
+            rank_arg: T.int64,
+            fget_item: R.Callable([R.Any, T.int64], R.Any),
         ):
             cls = Module
 

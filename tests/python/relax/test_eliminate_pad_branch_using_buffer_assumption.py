@@ -26,12 +26,13 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
 class AddBefore:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def add(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -54,16 +55,16 @@ class AddBefore:
                 "tirx.noalias": True,
             }
         )
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_A_assumptions"):
-                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_A_assumptions"):
+                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     not (
                         (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
@@ -76,12 +77,12 @@ class AddBefore:
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_B_assumptions"):
-                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_B_assumptions"):
+                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     not (
                         (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
@@ -94,15 +95,15 @@ class AddBefore:
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("compute"):
-                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("compute"):
+                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(
+                Ts.reads(
                     a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                     b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
-                T.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
                     T.if_then_else(
                         (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
@@ -128,7 +129,7 @@ class AddBefore:
 
 @tvm.script.ir_module
 class AddExpected:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def add(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -151,17 +152,17 @@ class AddExpected:
                 "tirx.noalias": True,
             }
         )
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_A_assumptions"):
-                v_axis0 = T.axis.spatial(T.int64(1), T.int64(0))
-                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_A_assumptions"):
+                v_axis0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     (
                         (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
@@ -174,13 +175,13 @@ class AddExpected:
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_B_assumptions"):
-                v_axis0 = T.axis.spatial(T.int64(1), T.int64(0))
-                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_B_assumptions"):
+                v_axis0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     (
                         (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
@@ -194,20 +195,20 @@ class AddExpected:
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(2)
         ):
             for axis5_1_axis6_fused in T.vectorized(T.int64(128)):
-                with T.sblock("compute"):
-                    v_axis0 = T.axis.spatial(T.int64(1), T.int64(0))
-                    v_axis1, v_axis2, v_axis3, v_axis4 = T.axis.remap(
+                with Ts.sblock("compute"):
+                    v_axis0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                    v_axis1, v_axis2, v_axis3, v_axis4 = Ts.axis.remap(
                         "SSSS", [axis1, axis2, axis3, axis4]
                     )
-                    v_axis5 = T.axis.spatial(
+                    v_axis5 = Ts.axis.spatial(
                         T.int64(8), axis5_0 * T.int64(4) + axis5_1_axis6_fused // T.int64(32)
                     )
-                    v_axis6 = T.axis.spatial(T.int64(32), axis5_1_axis6_fused % T.int64(32))
-                    T.reads(
+                    v_axis6 = Ts.axis.spatial(T.int64(32), axis5_1_axis6_fused % T.int64(32))
+                    Ts.reads(
                         a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                         b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                     )
-                    T.writes(
+                    Ts.writes(
                         compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     )
                     compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
@@ -230,7 +231,7 @@ class AddExpected:
 
 @tvm.script.ir_module
 class SubBefore:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def sub(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -253,16 +254,16 @@ class SubBefore:
                 "tirx.noalias": True,
             }
         )
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_A_assumptions"):
-                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_A_assumptions"):
+                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     not (
                         (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
@@ -275,12 +276,12 @@ class SubBefore:
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_B_assumptions"):
-                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_B_assumptions"):
+                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     not (
                         (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
@@ -293,15 +294,15 @@ class SubBefore:
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("compute"):
-                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("compute"):
+                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(
+                Ts.reads(
                     a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                     b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
-                T.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
                     T.if_then_else(
                         (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
@@ -327,7 +328,7 @@ class SubBefore:
 
 @tvm.script.ir_module
 class SubExpected:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def sub(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -350,17 +351,17 @@ class SubExpected:
                 "tirx.noalias": True,
             }
         )
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_A_assumptions"):
-                v_axis0 = T.axis.spatial(T.int64(1), T.int64(0))
-                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_A_assumptions"):
+                v_axis0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     (
                         (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
@@ -373,13 +374,13 @@ class SubExpected:
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_B_assumptions"):
-                v_axis0 = T.axis.spatial(T.int64(1), T.int64(0))
-                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_B_assumptions"):
+                v_axis0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     (
                         (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
@@ -393,20 +394,20 @@ class SubExpected:
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(2)
         ):
             for axis5_1_axis6_fused in T.vectorized(T.int64(128)):
-                with T.sblock("compute"):
-                    v_axis0 = T.axis.spatial(T.int64(1), T.int64(0))
-                    v_axis1, v_axis2, v_axis3, v_axis4 = T.axis.remap(
+                with Ts.sblock("compute"):
+                    v_axis0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                    v_axis1, v_axis2, v_axis3, v_axis4 = Ts.axis.remap(
                         "SSSS", [axis1, axis2, axis3, axis4]
                     )
-                    v_axis5 = T.axis.spatial(
+                    v_axis5 = Ts.axis.spatial(
                         T.int64(8), axis5_0 * T.int64(4) + axis5_1_axis6_fused // T.int64(32)
                     )
-                    v_axis6 = T.axis.spatial(T.int64(32), axis5_1_axis6_fused % T.int64(32))
-                    T.reads(
+                    v_axis6 = Ts.axis.spatial(T.int64(32), axis5_1_axis6_fused % T.int64(32))
+                    Ts.reads(
                         a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                         b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                     )
-                    T.writes(
+                    Ts.writes(
                         compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     )
                     compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
@@ -429,7 +430,7 @@ class SubExpected:
 
 @tvm.script.ir_module
 class MulBefore:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def mul(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -452,16 +453,16 @@ class MulBefore:
                 "tirx.noalias": True,
             }
         )
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_A_assumptions"):
-                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_A_assumptions"):
+                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     not (
                         (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
@@ -474,12 +475,12 @@ class MulBefore:
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_B_assumptions"):
-                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_B_assumptions"):
+                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     not (
                         (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
@@ -492,15 +493,15 @@ class MulBefore:
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("compute"):
-                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("compute"):
+                v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(
+                Ts.reads(
                     a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                     b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
-                T.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
                     T.if_then_else(
                         (v_axis1 == T.int64(3) and T.int64(4) <= v_axis4)
@@ -526,7 +527,7 @@ class MulBefore:
 
 @tvm.script.ir_module
 class MulExpected:
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def mul(
         a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
@@ -549,17 +550,17 @@ class MulExpected:
                 "tirx.noalias": True,
             }
         )
-        # with T.sblock("root"):
+        # with Ts.sblock("root"):
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_A_assumptions"):
-                v_axis0 = T.axis.spatial(T.int64(1), T.int64(0))
-                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_A_assumptions"):
+                v_axis0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     (
                         (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
@@ -572,13 +573,13 @@ class MulExpected:
         for axis0, axis1, axis2, axis3, axis4, axis5, axis6 in T.grid(
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)
         ):
-            with T.sblock("buffer_B_assumptions"):
-                v_axis0 = T.axis.spatial(T.int64(1), T.int64(0))
-                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
+            with Ts.sblock("buffer_B_assumptions"):
+                v_axis0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = Ts.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
-                T.writes()
+                Ts.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                Ts.writes()
                 T.assume(
                     (
                         (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
@@ -592,20 +593,20 @@ class MulExpected:
             T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(2)
         ):
             for axis5_1_axis6_fused in T.vectorized(T.int64(128)):
-                with T.sblock("compute"):
-                    v_axis0 = T.axis.spatial(T.int64(1), T.int64(0))
-                    v_axis1, v_axis2, v_axis3, v_axis4 = T.axis.remap(
+                with Ts.sblock("compute"):
+                    v_axis0 = Ts.axis.spatial(T.int64(1), T.int64(0))
+                    v_axis1, v_axis2, v_axis3, v_axis4 = Ts.axis.remap(
                         "SSSS", [axis1, axis2, axis3, axis4]
                     )
-                    v_axis5 = T.axis.spatial(
+                    v_axis5 = Ts.axis.spatial(
                         T.int64(8), axis5_0 * T.int64(4) + axis5_1_axis6_fused // T.int64(32)
                     )
-                    v_axis6 = T.axis.spatial(T.int64(32), axis5_1_axis6_fused % T.int64(32))
-                    T.reads(
+                    v_axis6 = Ts.axis.spatial(T.int64(32), axis5_1_axis6_fused % T.int64(32))
+                    Ts.reads(
                         a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                         b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                     )
-                    T.writes(
+                    Ts.writes(
                         compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     )
                     compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (

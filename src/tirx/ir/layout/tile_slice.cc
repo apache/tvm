@@ -33,7 +33,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
     return std::nullopt;
   }
 
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
 
   int m = static_cast<int>(shard.size());
   std::vector<PrimExpr> B(m);
@@ -143,7 +143,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
 
 ffi::Optional<Layout> TileLayoutNode::Slice(const Array<PrimExpr>& shape,
                                             const Region& region) const {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   // Canonicalize the whole layout first so scope fusion (e.g. wid_in_wg+laneid
   // -> tid_in_wg) runs globally; otherwise grouping can split sibling thread
   // axes and SlicePerGroup's per-group fusion leaves an ill-formed mix.

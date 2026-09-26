@@ -43,7 +43,7 @@
  *    10. The IR is in ANF:
  *       (a) Expressions cannot contain nested complex expressions.
  *           Here are the expressions that may be nested inside other expressions:
- *           Var, DataflowVar, GlobalVar, Constant, ShapeExpr,
+ *           Var, DataflowVar, GlobalVar, GenericConst, ShapeExpr,
  *           Op, Tuple (we call these "leaf" expressions).
  *       (b) The right-hand side of a binding may contain a non-leaf expression
  *           (where all expressions nested in it are leaf expressions),
@@ -75,6 +75,7 @@
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
+#include <tvm/tirx/stmt_functor.h>
 
 #include <sstream>
 #include <string>
@@ -83,6 +84,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 // TODO(relax-team): Consider further refactor using
 // Scope Frame to store manage the var context.
@@ -133,14 +135,32 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     kMatchVarDef
   };
 
-  class PrimitiveExprChecker : public tirx::ExprVisitor {
+  class PrimitiveExprChecker : public tirx::StmtExprVisitor {
    public:
-    explicit PrimitiveExprChecker(WellFormedChecker* parent) : parent_(parent) {}
+    explicit PrimitiveExprChecker(WellFormedChecker* parent)
+        : tirx::StmtExprVisitor([] {
+            static const VTable table = [] {
+              VTable table;
+              PrimitiveExprChecker::InitVTable(&table);
+              table.Finalize();
+              return table;
+            }();
+            return &table;
+          }()),
+          parent_(parent) {}
 
    private:
-    void VisitExpr_(const tvm::VarNode* op) final { parent_->VisitExpr(ffi::GetRef<Expr>(op)); }
+    ffi::Optional<VisitInterrupt> Visit_(const tvm::VarNode* op) final {
+      parent_->VisitExpr(ffi::GetRef<Expr>(op));
+      return std::nullopt;
+    }
 
-    WellFormedChecker* parent_;
+    static void InitVTable(VTable* table) {
+      tirx::StmtExprVisitor::InitVTable(table);
+      SetDispatch<tirx::StmtExprVisitor, DataflowVarNode>(table);
+    }
+
+    WellFormedChecker* parent_{nullptr};
   };
 
   /*! \brief Get the name of a function for use in error messages. */
@@ -275,13 +295,23 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       }
     }
 
-    // Runtime parameters themselves are definitions only in source order.
+    // Primitive parameters may supply dimensions anywhere in the signature.
+    // Register each once so duplicate parameters remain an error.
+    for (Var param : op->params) {
+      if (GetType(param).as<PrimTypeNode>()) {
+        RegisterVarDefinition(param);
+      }
+    }
+
+    // Other runtime parameters retain source-order definition scope.
     for (Var param : op->params) {
       if (auto* dataflow_var = param.as<DataflowVarNode>()) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<DataflowVar>(dataflow_var))
             << "DataflowVar " << param << " is defined outside DataflowBlock.";
       }
-      RegisterVarDefinition(param);
+      if (!GetType(param).as<PrimTypeNode>()) {
+        RegisterVarDefinition(param);
+      }
 
       auto it = param_var_func_map_.find(param);
       if (it != param_var_func_map_.end() && it->second != cur_visited_func_) {
@@ -629,7 +659,9 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
     }
   }
 
-  void VisitPrimitiveExpr(const PrimExpr& expr) { PrimitiveExprChecker(this)(expr); }
+  void VisitPrimitiveExpr(const PrimExpr& expr) {
+    ffi::make_object<PrimitiveExprChecker>(this)->Visit(expr);
+  }
 
   void MarkTypeVarDefinition(const Var& var) {
     var_set_.insert(var);

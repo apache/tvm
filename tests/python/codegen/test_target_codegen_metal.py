@@ -31,20 +31,16 @@ def test_metal_inf_nan():
     target = "metal"
 
     def check_inf_nan(n, value, dtype):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
+            @T.prim_func
             def main(
                 A: T.Buffer((1,), dtype),
                 C: T.Buffer((1,), dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(1, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(1, i)
-                        T.reads()
-                        T.writes(C[v_i])
-                        C[v_i] = T.Cast(dtype, value)
+                    C[i] = T.Cast(dtype, value)
 
         fun = tvm.compile(Module, target=target)
 
@@ -69,14 +65,12 @@ def test_metal_inf_nan():
 def test_unaligned_vectorize():
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((2, 3), "float32"), B: T.Buffer((6,), "float32")):
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
                 for i0_0 in T.vectorized(2):
-                    with T.sblock("block"):
-                        vi0 = T.axis.spatial(6, i0_0 * 3 + i0_1)
-                        B[vi0] = A[vi0 // 3, vi0 % 3]
+                    B[i0_0 * 3 + i0_1] = A[(i0_0 * 3 + i0_1) // 3, (i0_0 * 3 + i0_1) % 3]
 
     target = "metal"
     a = (np.arange(6).reshape(2, 3)).astype("float32")
@@ -98,20 +92,16 @@ def test_metal_erf():
     target = "metal"
 
     def check_erf(n, dtype):
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
+            @T.prim_func
             def main(
                 A: T.Buffer((1,), dtype),
                 C: T.Buffer((1,), dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0 in T.thread_binding(1, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        v_i0 = T.axis.spatial(1, i0)
-                        T.reads(A[v_i0])
-                        T.writes(C[v_i0])
-                        C[v_i0] = T.erf(A[v_i0])
+                    C[i0] = T.erf(A[i0])
 
         fun = tvm.compile(Module, target=target)
 
@@ -134,14 +124,12 @@ def test_ramp():
 
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((1, 2), "int32")):
             T.func_attr({"global_symbol": "main"})
             for i in T.thread_binding(1, thread="threadIdx.x"):
-                with T.sblock("block"):
-                    tx = T.axis.spatial(1, i)
-                    r = T.ramp(tx, 3, 2)
-                    A[0, T.ramp(0, 1, 2)] = r
+                r: T.let = T.ramp(i, 3, 2)
+                A[0, T.ramp(0, 1, 2)] = r
 
     f = tvm.compile(IRModule, target=target)
 
@@ -159,14 +147,14 @@ def test_ramp():
 def test_select_vectorize():
     @tvm.script.ir_module
     class IRModule:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((6), "float32"), B: T.Buffer((6,), "float32")):
             T.func_attr({"global_symbol": "main"})
             for i0_1 in T.thread_binding(3, thread="threadIdx.x"):
                 for i0_0 in T.vectorized(2):
-                    with T.sblock("block"):
-                        vi0 = T.axis.spatial(6, i0_0 * 3 + i0_1)
-                        B[vi0] = T.Select((vi0 % 2) == 0, A[vi0], T.float32(0))
+                    B[i0_0 * 3 + i0_1] = T.Select(
+                        (i0_0 * 3 + i0_1) % 2 == 0, A[i0_0 * 3 + i0_1], T.float32(0)
+                    )
 
     target = "metal"
     a = np.arange(6).astype("float32")
@@ -186,13 +174,11 @@ def test_select_vectorize():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_metal(), reason="need metal")
 def test_vectorized_uint8():
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def func(A: T.Buffer((16), "uint8"), B: T.Buffer((16), "float32")):
         for i in T.thread_binding(4, thread="threadIdx.x"):
             for j in T.vectorized(4):
-                with T.sblock("block"):
-                    vi = T.axis.spatial(16, i * 4 + j)
-                    B[vi] = T.Cast("float32", A[vi])
+                B[i * 4 + j] = T.Cast("float32", A[i * 4 + j])
 
     a = np.arange(16).astype("uint8")
     f = tvm.compile(func, target="metal")
@@ -212,12 +198,10 @@ def test_vectorized_uint8():
 def test_func_with_trailing_pod_params():
     from tvm.support import xcode  # pylint: disable=import-outside-toplevel
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def func(A: T.Buffer((16), "float32"), B: T.Buffer((16), "float32"), x: T.float32):
         for i in T.thread_binding(16, thread="threadIdx.x"):
-            with T.sblock("block"):
-                vi = T.axis.spatial(16, i)
-                B[vi] = A[vi] + x
+            B[i] = A[i] + x
 
     @tvm.register_global_func("tvm_callback_metal_compile")
     def compile_metal(src, target):
@@ -236,18 +220,14 @@ def test_func_with_trailing_pod_params():
 def test_metal_compile_callback_source_passthrough():
     n = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.sblock("B"):
-                        v_i = T.axis.spatial(n, i_0 * 32 + i_1)
-                        T.reads(A[v_i])
-                        T.writes(B[v_i])
-                        B[v_i] = A[v_i] + 1.0
+                    B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     seen = {}
 
@@ -278,9 +258,9 @@ def test_metal_compile_callback_source_passthrough():
 def test_metal_compile_callback_mixed_formats_rejected():
     n = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(
             A: T.Buffer((n,), "float32"),
             B: T.Buffer((n,), "float32"),
@@ -291,18 +271,10 @@ def test_metal_compile_callback_mixed_formats_rejected():
             # compile callback is invoked twice within one module.
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.sblock("B"):
-                        v_i = T.axis.spatial(n, i_0 * 32 + i_1)
-                        T.reads(A[v_i])
-                        T.writes(B[v_i])
-                        B[v_i] = A[v_i] + 1.0
+                    B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
             for j_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for j_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        v_j = T.axis.spatial(n, j_0 * 32 + j_1)
-                        T.reads(A[v_j])
-                        T.writes(C[v_j])
-                        C[v_j] = A[v_j] + 2.0
+                    C[j_0 * 32 + j_1] = A[j_0 * 32 + j_1] + 2.0
 
     calls = {"n": 0}
 
@@ -328,18 +300,14 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     """Force the codegen wrapper into the fallback branch, then export."""
     n = 1024
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.sblock("B"):
-                        v_i = T.axis.spatial(n, i_0 * 32 + i_1)
-                        T.reads(A[v_i])
-                        T.writes(B[v_i])
-                        B[v_i] = A[v_i] + 1.0
+                    B[i_0 * 32 + i_1] = A[i_0 * 32 + i_1] + 1.0
 
     monkeypatch.setenv("TVM_COMPILE_FORCE_FALLBACK", "1")
     host_lib = tvm.compile(Module, target="metal")
@@ -352,9 +320,9 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 def test_codegen_simdgroup_buffer_data():
     """Simdgroup intrinsics should accept buffer_data projections."""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel():
             T.func_attr(
                 {
@@ -392,7 +360,7 @@ def _build_metal(mod):
 def test_bounded_symbolic_stack_allocation():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -410,10 +378,87 @@ def test_bounded_symbolic_stack_allocation():
     assert "thread float scratch[128]" in source
 
 
+@pytest.mark.parametrize("bounded", [True, False])
+def test_bound_symbolic_stack_allocation(bounded):
+    limit = 64 if bounded else 2147483647
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(n: T.int32):
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            # Common subexpression elimination can hoist the bounded extent.
+            extent: T.let[T.int32] = T.min(n, limit)
+            elements: T.let[T.int32] = extent * 2
+            scratch = T.alloc_buffer((elements,), "float32", scope="local")
+            T.evaluate(scratch.data)
+
+    if bounded:
+        source = _build_metal(Module).inspect_source()
+        assert "thread float scratch[128]" in source
+    else:
+        with pytest.raises(
+            tvm.error.InternalError,
+            match="Metal allocation extent requires a finite compile-time upper bound",
+        ):
+            _build_metal(Module)
+
+
+@pytest.mark.parametrize("scope", ["local", "shared"])
+@pytest.mark.parametrize("bounded", [True, False])
+def test_allocation_bound_does_not_substitute_buffer_load(scope, bounded):
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main():
+            T.func_attr(
+                {
+                    "calling_conv": 2,
+                    "global_symbol": "main",
+                    "target": T.target("metal"),
+                    "tirx.kernel_launch_params": [],
+                    "tirx.is_global_func": True,
+                }
+            )
+            state = T.alloc_buffer((1,), "int32", scope="local")
+            state[0] = 0
+            snapshot: T.let[T.int32] = state[0]
+            state[0] = 32
+            difference: T.let[T.int32] = state[0] - snapshot
+            # The snapshot is immutable, but the buffer it read has changed.
+            # Substituting the load would incorrectly reduce this extent to 1.
+            scratch = T.alloc_buffer(
+                (T.min(T.max(difference, 1), 32 if bounded else 2147483647),),
+                "float32",
+                scope=scope,
+            )
+            scratch[31] = 1.0
+
+    if bounded:
+        source = _build_metal(Module).inspect_source()
+        storage = "threadgroup" if scope == "shared" else "thread"
+        assert f"{storage} float scratch[32]" in source
+        assert "scratch[31] =" in source
+    else:
+        with pytest.raises(
+            tvm.error.InternalError,
+            match="Metal allocation extent requires a finite compile-time upper bound",
+        ):
+            _build_metal(Module)
+
+
 def test_bounded_uint64_symbolic_stack_allocation():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.uint64):
             T.func_attr(
                 {
@@ -434,7 +479,7 @@ def test_bounded_uint64_symbolic_stack_allocation():
 def test_unbounded_symbolic_stack_allocation_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32):
             T.func_attr(
                 {
@@ -459,7 +504,7 @@ def test_unbounded_symbolic_stack_allocation_rejected():
 def test_unbounded_uint64_symbolic_stack_allocation_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.uint64):
             T.func_attr(
                 {
@@ -485,7 +530,7 @@ def test_unbounded_uint64_symbolic_stack_allocation_rejected():
 def test_nonpositive_stack_allocation_rejected(extent):
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main():
             T.func_attr(
                 {
@@ -509,7 +554,7 @@ def test_nonpositive_stack_allocation_rejected(extent):
 def test_stack_allocation_element_count_overflow_rejected():
     @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(n: T.int32, m: T.int32, k: T.int32):
             T.func_attr(
                 {
@@ -536,9 +581,9 @@ def test_stack_allocation_element_count_overflow_rejected():
 def test_codegen_pointer_byte_offsets_preserve_storage_scope():
     """Pointer byte offsets should preserve the source Metal address space."""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel():
             T.func_attr(
                 {
@@ -569,9 +614,9 @@ def test_codegen_pointer_byte_offsets_preserve_storage_scope():
 def test_pointer_byte_offsets_execute_in_threadgroup_memory():
     """Pointer byte offsets should execute in Metal threadgroup memory."""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
             for bx in T.thread_binding(1, thread="blockIdx.x"):
                 for tx in T.thread_binding(1, thread="threadIdx.x"):

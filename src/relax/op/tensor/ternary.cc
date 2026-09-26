@@ -85,7 +85,7 @@ Type InferTypeEwiseFMA(const Call& call, const BlockBuilder& ctx) {
   auto* s1 = t1->shape.as<ShapeExprNode>();
   auto* s2 = t2->shape.as<ShapeExprNode>();
   auto* s3 = t3->shape.as<ShapeExprNode>();
-  arith::Analyzer analyzer = ctx->GetAnalyzer();
+  sym::Analyzer analyzer = ctx->GetAnalyzer();
   if (s1 && s2 && s3) {
     ffi::Array<PrimExpr> output_shape;
     for (int i = 0; i < ndim; ++i) {

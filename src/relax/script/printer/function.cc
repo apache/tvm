@@ -76,6 +76,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             prim_params.insert(param.get());
           }
         }
+        if (!prim_params.empty()) {
+          d->ir_usage.insert("future_annotations");
+        }
         // Step 1. Print params
         ffi::Array<AssignDoc> params;
         {
@@ -130,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         // Step 6. Print body
         ffi::Array<StmtDoc> body = PrintSeqExpr(n->body, n_p->Attr("body"), d, /*use_ret=*/true);
         (*f)->stmts.insert((*f)->stmts.end(), body.begin(), body.end());
-        auto type_var_docs = DefineTypeVarDocs(type_vars, ffi::GetRef<Frame>((*f).get()), d);
+        auto type_var_docs = DefineTypeVarDocs(type_vars, d);
         return WrapFunctionDocWithTypeVars(
             d, FunctionDoc(func_name, params, {decorator}, ret_type, (*f)->stmts), type_var_docs);
       });

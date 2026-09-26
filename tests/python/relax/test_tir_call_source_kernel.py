@@ -23,6 +23,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -39,48 +40,50 @@ extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_e
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_tir_call_source_kernel():
-    @I.ir_module(s_tir=True)
+    BLOCK_SIZE = 64
+
+    m_add = T.dynamic("m")
+    m_main = T.dynamic("m")
+
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle) -> None:
+        @Ts.prim_func
+        def add(
+            x: T.Buffer((m_add,), "float32"),
+            y: T.Buffer((m_add,), "float32"),
+            output: T.Buffer((m_add,), "float32"),
+        ) -> None:
             T.func_attr({"global_symbol": "add"})
-            m = T.int64()
-            x = T.match_buffer(x_handle, (m,), "float32")
-            y = T.match_buffer(y_handle, (m,), "float32")
-            output = T.match_buffer(output_handle, (m,), "float32")
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
-                BLOCK_SIZE = T.meta_var(64)
+
+            with Ts.sblock("root"):
+                Ts.reads(x[0:m_add], y[0:m_add])
+                Ts.writes(output[0:m_add])
                 T.call_kernel(
                     add_cuda_source,
-                    ((T.ceildiv(m, BLOCK_SIZE),), (BLOCK_SIZE,)),
+                    ((T.ceildiv(m_add, BLOCK_SIZE),), (BLOCK_SIZE,)),
                     x.data,
                     y.data,
                     output.data,
-                    m,
+                    m_add,
                     kernel_name="add_kernel",
                 )
 
         @R.function
-        def main(x: R.Tensor(("m",), "float32"), y: R.Tensor(("m",), "float32")):
-            m = T.int64()
+        def main(x: R.Tensor((m_main,), "float32"), y: R.Tensor((m_main,), "float32")):
             with R.dataflow():
-                output = R.call_tir(Module.add, [x, y], relax.TensorType((m,), "float32"))
+                output = R.call_tir(Module.add, [x, y], relax.TensorType((m_main,), "float32"))
                 R.output(output)
             return output
 
-    @I.ir_module(s_tir=True)
+    m = T.dynamic("m")
+
+    @I.ir_module
     class Parsed:
-        @T.prim_func(s_tir=True)
-        def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
-            m = T.int64()
-            x = T.match_buffer(x_handle, (m,))
-            y = T.match_buffer(y_handle, (m,))
-            output = T.match_buffer(output_handle, (m,))
-            with T.sblock("root"):
-                T.reads(x[0:m], y[0:m])
-                T.writes(output[0:m])
+        @Ts.prim_func
+        def add(x: T.Buffer((m,)), y: T.Buffer((m,)), output: T.Buffer((m,))):
+            with Ts.sblock("root"):
+                Ts.reads(x[0:m], y[0:m])
+                Ts.writes(output[0:m])
                 T.call_packed(
                     "add_kernel",
                     x.data,

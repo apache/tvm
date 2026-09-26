@@ -75,8 +75,7 @@ def _shared_scratch_copy_kernel(num_bytes: int):
     ld_chain, st_chain = f"ld.shared.{tail}", f"st.shared.{tail}"
 
     @T.prim_func
-    def func(out_ptr: T.handle):
-        out = T.match_buffer(out_ptr, (nelems,), smem_dtype)
+    def func(out: T.Buffer((nelems,), smem_dtype)):
         T.device_entry()
         T.cta_id([1])
         T.warp_id([1])
@@ -111,8 +110,8 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
 
     # fmt: off
     @T.prim_func
-    def copy_kernel(d_ptr: T.handle) -> None:
-        D = T.match_buffer(d_ptr, (4,), "uint32")
+    def copy_kernel(D: T.Buffer((4,), 'uint32')) -> None:
+
         T.device_entry()
         T.warp_id([4])
         T.cta_id([1])
@@ -185,9 +184,7 @@ def test_ptx_ld_global_nc_v8_codegen():
     """FlashMLA index loads need ``ld.global.nc`` with a 256B prefetch."""
 
     @T.prim_func
-    def copy_kernel(src_ptr: T.handle, out_ptr: T.handle) -> None:
-        src = T.match_buffer(src_ptr, (8,), "int32")
-        out = T.match_buffer(out_ptr, (8,), "int32")
+    def copy_kernel(src: T.Buffer((8,), "int32"), out: T.Buffer((8,), "int32")) -> None:
         T.device_entry()
         tx = T.thread_id([32])
         tmp = T.alloc_local((8,), "int32")
@@ -210,9 +207,7 @@ def test_ptx_ld_global_nc_v4_u64_256b_codegen():
     """FlashMLA 32-byte index loads may use four 64-bit PTX outputs."""
 
     @T.prim_func
-    def copy_kernel(src_ptr: T.handle, out_ptr: T.handle) -> None:
-        src = T.match_buffer(src_ptr, (4,), "uint64")
-        out = T.match_buffer(out_ptr, (4,), "uint64")
+    def copy_kernel(src: T.Buffer((4,), "uint64"), out: T.Buffer((4,), "uint64")) -> None:
         T.device_entry()
         tx = T.thread_id([32])
         tmp = T.alloc_local((4,), "uint64")
@@ -235,9 +230,7 @@ def test_ptx_ld_vector_scatter_dst_codegen():
     """Vector loads may write independent destination pointers."""
 
     @T.prim_func
-    def copy_kernel(src_ptr: T.handle, out_ptr: T.handle) -> None:
-        src = T.match_buffer(src_ptr, (4,), "int32")
-        out = T.match_buffer(out_ptr, (4,), "int32")
+    def copy_kernel(src: T.Buffer((4,), "int32"), out: T.Buffer((4,), "int32")) -> None:
         T.device_entry()
         tx = T.thread_id([32])
         tmp0 = T.alloc_local((1,), "int32")
