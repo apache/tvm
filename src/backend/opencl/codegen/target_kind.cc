@@ -28,27 +28,6 @@
 #include <tvm/target/target_kind.h>
 
 namespace tvm {
-namespace backend {
-namespace opencl {
-
-void RegisterTargetKind() {
-  namespace refl = tvm::ffi::reflection;
-
-  TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
-      .add_attr_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
-      .add_attr_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(16384))
-      .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
-      .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
-      .add_attr_option<int64_t>("texture_spatial_limit", refl::DefaultValue(16384))
-      .add_attr_option<int64_t>("texture_depth_limit", refl::DefaultValue(2048))
-      // Qualcomm OpenCL runtimes may crash when the number of kernel arguments is too large.
-      .add_attr_option<int64_t>("max_function_args", refl::DefaultValue(128))
-      .add_attr_option<int64_t>("image_base_address_alignment", refl::DefaultValue(64))
-      .set_default_keys({"opencl", "gpu"});
-}
-
-}  // namespace opencl
-}  // namespace backend
 
 namespace codegen {
 void RegisterOpenCLCodegen();
@@ -60,7 +39,21 @@ void RegisterOpenCLIntrinRules();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::opencl::RegisterTargetKind();
+  using namespace tvm;
+  namespace refl = tvm::ffi::reflection;
+
+  TargetKindDef("opencl")
+      .set_default_device_type(kDLOpenCL)
+      .def_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
+      .def_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(16384))
+      .def_option<int64_t>("max_num_threads", refl::DefaultValue(256))
+      .def_option<int64_t>("thread_warp_size", refl::DefaultValue(1))
+      .def_option<int64_t>("texture_spatial_limit", refl::DefaultValue(16384))
+      .def_option<int64_t>("texture_depth_limit", refl::DefaultValue(2048))
+      // Qualcomm OpenCL runtimes may crash when the number of kernel arguments is too large.
+      .def_option<int64_t>("max_function_args", refl::DefaultValue(128))
+      .def_option<int64_t>("image_base_address_alignment", refl::DefaultValue(64))
+      .set_default_keys({"opencl", "gpu"});
   tvm::codegen::intrin::RegisterOpenCLIntrinRules();
   tvm::codegen::RegisterOpenCLCodegen();
   tvm::codegen::RegisterOpenCLDeviceScopeCompatibility();

@@ -29,25 +29,6 @@
 
 namespace tvm {
 
-namespace backend {
-namespace metal {
-
-void RegisterTargetKind() {
-  namespace refl = tvm::ffi::reflection;
-
-  // Metal limits the number of kernel arguments.  `max_function_args` captures that bound.
-  TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
-      .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(256))
-      .add_attr_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
-      .add_attr_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(32768))
-      .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(16))
-      .add_attr_option<int64_t>("max_function_args", refl::DefaultValue(31))
-      .set_default_keys({"metal", "gpu"});
-}
-
-}  // namespace metal
-}  // namespace backend
-
 namespace codegen {
 void RegisterMetalCodegen();
 namespace intrin {
@@ -57,7 +38,18 @@ void RegisterMetalIntrinRules();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::metal::RegisterTargetKind();
+  using namespace tvm;
+  namespace refl = tvm::ffi::reflection;
+
+  // Metal limits the number of kernel arguments.  `max_function_args` captures that bound.
+  TargetKindDef("metal")
+      .set_default_device_type(kDLMetal)
+      .def_option<int64_t>("max_num_threads", refl::DefaultValue(256))
+      .def_option<int64_t>("max_threads_per_block", refl::DefaultValue(256))
+      .def_option<int64_t>("max_shared_memory_per_block", refl::DefaultValue(32768))
+      .def_option<int64_t>("thread_warp_size", refl::DefaultValue(16))
+      .def_option<int64_t>("max_function_args", refl::DefaultValue(31))
+      .set_default_keys({"metal", "gpu"});
   tvm::codegen::intrin::RegisterMetalIntrinRules();
   tvm::codegen::RegisterMetalCodegen();
 }

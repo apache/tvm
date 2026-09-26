@@ -28,22 +28,6 @@
 #include <tvm/target/target_kind.h>
 
 namespace tvm {
-namespace backend {
-namespace hexagon {
-
-void RegisterTargetKind() {
-  TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
-      .add_attr_option<ffi::Array<ffi::String>>("mattr")
-      .add_attr_option<ffi::String>("mcpu")
-      .add_attr_option<ffi::String>("mtriple")
-      .add_attr_option<ffi::Array<ffi::String>>("llvm-options")
-      .add_attr_option<int64_t>("num-cores")
-      .add_attr_option<int64_t>("vtcm-capacity")
-      .set_default_keys({"hexagon", "cpu"});
-}
-
-}  // namespace hexagon
-}  // namespace backend
 
 #ifdef TVM_LLVM_VERSION
 namespace codegen {
@@ -56,7 +40,16 @@ void RegisterHexagonIntrinRules();
 }  // namespace tvm
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  tvm::backend::hexagon::RegisterTargetKind();
+  using namespace tvm;
+  TargetKindDef("hexagon")
+      .set_default_device_type(kDLHexagon)
+      .def_option<ffi::Array<ffi::String>>("mattr")
+      .def_option<ffi::String>("mcpu")
+      .def_option<ffi::String>("mtriple")
+      .def_option<ffi::Array<ffi::String>>("llvm-options")
+      .def_option<int64_t>("num-cores")
+      .def_option<int64_t>("vtcm-capacity")
+      .set_default_keys({"hexagon", "cpu"});
 #ifdef TVM_LLVM_VERSION
   tvm::codegen::llvm::RegisterHexagonIntrinRules();
   tvm::codegen::RegisterHexagonCodegen();

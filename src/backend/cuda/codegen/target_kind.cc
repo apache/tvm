@@ -111,35 +111,37 @@ ffi::Map<ffi::String, ffi::Any> UpdateNVPTXAttrs(ffi::Map<ffi::String, ffi::Any>
   return target;
 }
 
-void RegisterTargetKinds() {
-  namespace refl = tvm::ffi::reflection;
-
-  TVM_REGISTER_TARGET_KIND("cuda_host", kDLCPU).set_default_keys({"cpu"});
-
-  TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
-      .add_attr_option<ffi::String>("mcpu")
-      .add_attr_option<ffi::String>("arch")
-      .add_attr_option<int64_t>("max_shared_memory_per_block")
-      .add_attr_option<int64_t>("max_threads_per_block")
-      .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(32))
-      .add_attr_option<int64_t>("registers_per_block")
-      .add_attr_option<int64_t>("l2_cache_size_bytes")
-      .add_attr_option<int64_t>("max_num_threads",
-                                refl::DefaultValue(1024))  // TODO(@zxybazh): deprecate it
-      .set_default_keys({"cuda", "gpu"})
-      .set_target_canonicalizer(UpdateCUDAAttrs);
-
-  TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
-      .add_attr_option<ffi::String>("mcpu")
-      .add_attr_option<ffi::String>("mtriple")
-      .add_attr_option<int64_t>("max_num_threads", refl::DefaultValue(1024))
-      .add_attr_option<int64_t>("thread_warp_size", refl::DefaultValue(32))
-      .set_default_keys({"cuda", "gpu"})
-      .set_target_canonicalizer(UpdateNVPTXAttrs);
-}
-
 }  // namespace cuda
 }  // namespace backend
 }  // namespace tvm
 
-TVM_FFI_STATIC_INIT_BLOCK() { tvm::backend::cuda::RegisterTargetKinds(); }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  using namespace tvm;
+  using namespace tvm::backend::cuda;
+  namespace refl = tvm::ffi::reflection;
+
+  TargetKindDef("cuda_host").set_default_device_type(kDLCPU).set_default_keys({"cpu"});
+
+  TargetKindDef("cuda")
+      .set_default_device_type(kDLCUDA)
+      .def_option<ffi::String>("mcpu")
+      .def_option<ffi::String>("arch")
+      .def_option<int64_t>("max_shared_memory_per_block")
+      .def_option<int64_t>("max_threads_per_block")
+      .def_option<int64_t>("thread_warp_size", refl::DefaultValue(32))
+      .def_option<int64_t>("registers_per_block")
+      .def_option<int64_t>("l2_cache_size_bytes")
+      .def_option<int64_t>("max_num_threads",
+                           refl::DefaultValue(1024))  // TODO(@zxybazh): deprecate it
+      .set_default_keys({"cuda", "gpu"})
+      .set_target_canonicalizer(UpdateCUDAAttrs);
+
+  TargetKindDef("nvptx")
+      .set_default_device_type(kDLCUDA)
+      .def_option<ffi::String>("mcpu")
+      .def_option<ffi::String>("mtriple")
+      .def_option<int64_t>("max_num_threads", refl::DefaultValue(1024))
+      .def_option<int64_t>("thread_warp_size", refl::DefaultValue(32))
+      .set_default_keys({"cuda", "gpu"})
+      .set_target_canonicalizer(UpdateNVPTXAttrs);
+}
