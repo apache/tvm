@@ -26,8 +26,6 @@
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/tile_primitive.h>
 
-#include "../../ir/op_getter.h"
-
 namespace tvm {
 namespace tirx {
 
@@ -132,6 +130,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 /********************* Tile Ops **********************/
+#define TVM_DEFINE_CACHED_OP_GETTER(Name, RegisteredName) \
+  const Op& Name() {                                      \
+    static const Op op = Op::Get(RegisteredName);         \
+    return op;                                            \
+  }
+
 TVM_DEFINE_CACHED_OP_GETTER(zero, "tirx.tile.zero")
 TVM_DEFINE_CACHED_OP_GETTER(sqrt, "tirx.tile.sqrt")
 TVM_DEFINE_CACHED_OP_GETTER(exp, "tirx.tile.exp")
@@ -162,6 +166,8 @@ TVM_DEFINE_CACHED_OP_GETTER(silu, "tirx.tile.silu")
 TVM_DEFINE_CACHED_OP_GETTER(permute_layout, "tirx.tile.permute_layout")
 TVM_DEFINE_CACHED_OP_GETTER(copy_async, "tirx.tile.copy_async")
 TVM_DEFINE_CACHED_OP_GETTER(gemm_async, "tirx.tile.gemm_async")
+
+#undef TVM_DEFINE_CACHED_OP_GETTER
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tile.zero")

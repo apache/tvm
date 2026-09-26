@@ -29,8 +29,6 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
-#include "../../ir/op_getter.h"
-
 namespace tvm {
 namespace tirx {
 namespace builtin {
@@ -85,6 +83,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("clz"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 }
+
+#define TVM_DEFINE_CACHED_OP_GETTER(Name, RegisteredName) \
+  const Op& Name() {                                      \
+    static const Op op = Op::Get(RegisteredName);         \
+    return op;                                            \
+  }
 
 TVM_DEFINE_CACHED_OP_GETTER(reinterpret, "tirx.reinterpret")
 TVM_DEFINE_CACHED_OP_GETTER(thread_return, "tirx.thread_return")
@@ -150,6 +154,8 @@ TVM_DEFINE_CACHED_OP_GETTER(ignore_loop_partition, "tirx.ignore_loop_partition")
 TVM_DEFINE_CACHED_OP_GETTER(buffer_offset, "tirx.buffer_offset")
 TVM_DEFINE_CACHED_OP_GETTER(buffer_data, "tirx.buffer_data")
 TVM_DEFINE_CACHED_OP_GETTER(print_buffer, "tirx.print_buffer")
+
+#undef TVM_DEFINE_CACHED_OP_GETTER
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.reinterpret")
