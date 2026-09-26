@@ -107,20 +107,21 @@ OpDef::OpDef(const ffi::String& name) : op_(OpRegistry::Global()->GetOrCreate(na
 
 OpDef::OpDef(const ffi::String& name, const ffi::String& doc) : OpDef(name) { get()->doc = doc; }
 
-OpDef& OpDef::arg(const ffi::String& name, const ffi::String& type_schema, const ffi::String& doc) {
+OpDef& OpDef::arg(const ffi::String& name, const ffi::String& ir_type_schema,
+                  const ffi::String& doc) {
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;
-  node->type_schema = type_schema;
+  node->ir_type_schema = ir_type_schema;
   node->doc = doc;
   get()->args_info.push_back(ArgumentInfo(std::move(node)));
   return *this;
 }
 
-OpDef& OpDef::ty_arg(const ffi::String& name, const ffi::String& type_schema,
+OpDef& OpDef::ty_arg(const ffi::String& name, const ffi::String& ir_type_schema,
                      const ffi::String& doc) {
   auto node = ffi::make_object<ArgumentInfoNode>();
   node->name = name;
-  node->type_schema = type_schema;
+  node->ir_type_schema = ir_type_schema;
   node->doc = doc;
   get()->ty_args_info.push_back(ArgumentInfo(std::move(node)));
   return *this;
@@ -178,25 +179,25 @@ void OpNode::RegisterReflection() {
           "are ignored and cached views observe removal.")
       .def(
           "add_argument",
-          [](Op op, ffi::String name, ffi::String type_schema, ffi::String doc) {
+          [](Op op, ffi::String name, ffi::String ir_type_schema, ffi::String doc) {
             OpDef(op->name)
-                .arg(name, type_schema, doc);
+                .arg(name, ir_type_schema, doc);
           },
-          "add_argument(name: str, type_schema: str, doc: str) -> None\n\nAppend an argument's "
-          "name, JSON FFI type schema, and documentation without validating operands.")
+          "add_argument(name: str, ir_type_schema: str, doc: str) -> None\n\nAppend an argument's "
+          "name, IR representation schema, and documentation without validating operands.")
       .def(
           "set_allow_extra_args", [](Op op) { OpDef(op->name)
               .allow_extra_args(); },
           "set_allow_extra_args() -> None\n\nAllow value arguments after the required prefix.")
       .def(
           "add_type_argument",
-          [](Op op, ffi::String name, ffi::String type_schema, ffi::String doc) {
+          [](Op op, ffi::String name, ffi::String ir_type_schema, ffi::String doc) {
             OpDef(op->name)
-                .ty_arg(name, type_schema, doc);
+                .ty_arg(name, ir_type_schema, doc);
           },
-          "add_type_argument(name: str, type_schema: str, doc: str) -> None\n\nAppend a "
+          "add_type_argument(name: str, ir_type_schema: str, doc: str) -> None\n\nAppend a "
           "type-argument "
-          "name, JSON FFI type schema, and documentation without imposing a count rule.")
+          "name, IR representation schema, and documentation without imposing a count rule.")
       .def(
           "set_attrs_type_key",
           [](Op op, ffi::String key) { OpDef(op->name)
