@@ -85,6 +85,44 @@ def verify(input):
     ValidateBufferScopes(True).visit(mod)
 
 
+def test_prim_scalar_arg():
+    @I.ir_module
+    class Input:
+        @T.prim_func
+        def add_scaled(
+            A: T.Buffer((T.int64(16),), "float16"),
+            scale: T.float32,
+            C: T.Buffer((T.int64(16),), "float16"),
+            B: T.Buffer((T.int64(16),), "float16"),
+        ):
+            for i in T.serial(16):
+                B[i] = A[i] + T.Cast("float16", scale) * C[i]
+
+        @R.function
+        def main(
+            A: R.Tensor((16,), "float16"),
+            scale: tvm.ir.PrimType("float32"),
+            C: R.Tensor((16,), "float16"),
+        ) -> R.Tensor((16,), "float16"):
+            cls = Input
+            with R.dataflow():
+                B = R.call_tir(
+                    cls.add_scaled,
+                    (A, scale, C),
+                    out_ty=R.Tensor((16,), "float16"),
+                )
+                R.output(B)
+            return B
+
+    mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(Input)
+    params = mod["add_scaled"].params
+    assert tvm.tirx.is_buffer_var(params[0])
+    assert not tvm.tirx.is_buffer_var(params[1])
+    tvm.ir.assert_structural_equal(params[1].ty, tvm.ir.PrimType("float32"))
+    assert tvm.tirx.is_buffer_var(params[2])
+    assert tvm.tirx.is_buffer_var(params[3])
+
+
 def test_single_arg_return():
     @I.ir_module
     class Input:
