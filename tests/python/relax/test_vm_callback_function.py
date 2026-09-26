@@ -23,12 +23,10 @@ import tvm
 import tvm.testing
 from tvm.script import relax as R
 
-exec_mode = tvm.testing.parameter("bytecode", "compiled")
-
 pytestmark = pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
 
 
-def test_pass_tensor_to_function(exec_mode):
+def test_pass_tensor_to_function():
     target = "llvm"
     dev = tvm.cpu()
 
@@ -44,7 +42,6 @@ def test_pass_tensor_to_function(exec_mode):
     ex = tvm.relax.build(
         tvm.IRModule.from_expr(relax_func),
         target=target,
-        exec_mode=exec_mode,
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
 
@@ -63,7 +60,7 @@ def test_pass_tensor_to_function(exec_mode):
     np.testing.assert_array_equal(np_A * 2, from_callback.numpy())
 
 
-def test_generate_tensor_in_function(exec_mode):
+def test_generate_tensor_in_function():
     target = "llvm"
     dev = tvm.cpu()
 
@@ -78,7 +75,6 @@ def test_generate_tensor_in_function(exec_mode):
     ex = tvm.relax.build(
         tvm.IRModule.from_expr(relax_func),
         target=target,
-        exec_mode=exec_mode,
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
 
@@ -92,7 +88,7 @@ def test_generate_tensor_in_function(exec_mode):
     np.testing.assert_array_equal(np_A * 2, output.numpy())
 
 
-def test_catch_exception_with_full_stack_trace(exec_mode):
+def test_catch_exception_with_full_stack_trace():
     target = "llvm"
     dev = tvm.cpu()
 
@@ -106,7 +102,6 @@ def test_catch_exception_with_full_stack_trace(exec_mode):
     ex = tvm.relax.build(
         tvm.IRModule.from_expr(relax_func),
         target=target,
-        exec_mode=exec_mode,
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
 

@@ -33,9 +33,6 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
 
-exec_mode = tvm.testing.parameter("bytecode", "compiled")
-
-
 m = T.dynamic("m")
 n = T.dynamic("n")
 
@@ -49,7 +46,7 @@ class InputModule:
         return y, y_sorted
 
 
-def run_cpu(mod, func_name, *args, exec_mode):
+def run_cpu(mod, func_name, *args):
     if isinstance(mod, relax.Function):
         func = mod
         args = [func_name, *args]
@@ -57,17 +54,17 @@ def run_cpu(mod, func_name, *args, exec_mode):
         mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.Target("llvm")
-    ex = relax.build(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     return vm[func_name](*args)
 
 
-def test_unique(exec_mode):
+def test_unique():
     # TODO(prakalp): also add test for compiling and running on CUDA device.
     data_numpy = np.random.randint(0, 16, (16, 16))
     data = tvm.runtime.tensor(data_numpy)
-    result, result_sorted = run_cpu(InputModule, "foo", data, exec_mode=exec_mode)
+    result, result_sorted = run_cpu(InputModule, "foo", data)
 
     expected_output_sorted, indices = np.unique(data_numpy, return_index=True)
     expected_output = [data_numpy.flatten()[index] for index in sorted(indices)]
@@ -93,7 +90,7 @@ class PrintTest:
         return x
 
 
-def test_print(exec_mode):
+def test_print():
     try:
         stdout = sys.stdout
         with tempfile.TemporaryFile(mode="w+") as test_out:
@@ -102,7 +99,6 @@ def test_print(exec_mode):
                 PrintTest,
                 "foo",
                 tvm.runtime.tensor(np.array(1).astype("int32")),
-                exec_mode=exec_mode,
             )
             test_out.seek(0)
             printed_text = str(test_out.read())
@@ -112,65 +108,65 @@ def test_print(exec_mode):
         sys.stdout = stdout
 
 
-def test_assert_passes(exec_mode):
+def test_assert_passes():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
         _ = R.assert_op(relax.const(True))
         return x
 
-    run_cpu(func, tvm.runtime.tensor(np.array(1).astype("int32")), exec_mode=exec_mode)
+    run_cpu(func, tvm.runtime.tensor(np.array(1).astype("int32")))
 
 
-def test_assert_passes_with_format_args(exec_mode):
+def test_assert_passes_with_format_args():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
         _ = R.assert_op(relax.const(True), x, format="You won't see me")
         return x
 
-    run_cpu(func, tvm.runtime.tensor(np.array(1).astype("int32")), exec_mode=exec_mode)
+    run_cpu(func, tvm.runtime.tensor(np.array(1).astype("int32")))
 
 
-def test_assert_fails(exec_mode):
+def test_assert_fails():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
         _ = R.assert_op(relax.const(False))
         return x
 
     with pytest.raises(AssertionError, match="Assertion Failed"):
-        run_cpu(func, tvm.runtime.tensor(np.array(1).astype("int32")), exec_mode=exec_mode)
+        run_cpu(func, tvm.runtime.tensor(np.array(1).astype("int32")))
 
 
-def test_assert_fails_with_message(exec_mode):
+def test_assert_fails_with_message():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
         _ = R.assert_op(relax.const(False), format="I failed...")
         return x
 
     with pytest.raises(AssertionError, match="I failed..."):
-        run_cpu(func, tvm.runtime.tensor(np.array(1).astype("int32")), exec_mode=exec_mode)
+        run_cpu(func, tvm.runtime.tensor(np.array(1).astype("int32")))
 
 
-def test_assert_fails_with_args(exec_mode):
+def test_assert_fails_with_args():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
         _ = R.assert_op(relax.const(False), [x, x])
         return x
 
     with pytest.raises(AssertionError, match="5, 5"):
-        run_cpu(func, tvm.runtime.tensor(np.array(5).astype("int32")), exec_mode=exec_mode)
+        run_cpu(func, tvm.runtime.tensor(np.array(5).astype("int32")))
 
 
-def test_assert_fails_with_formatted_args(exec_mode):
+def test_assert_fails_with_formatted_args():
     @R.function(pure=False)
     def func(x: R.Tensor((), "int32")):
         _ = R.assert_op(relax.const(False), x, format="Number: {}")
         return x
 
     with pytest.raises(AssertionError, match="Number: 6"):
-        run_cpu(func, tvm.runtime.tensor(np.array(6).astype("int32")), exec_mode=exec_mode)
+        run_cpu(func, tvm.runtime.tensor(np.array(6).astype("int32")))
 
 
-def test_assert_on_argument_passes(exec_mode):
+def test_assert_on_argument_passes():
     @R.function(pure=False)
     def func(condition: R.Tensor((), "bool"), x: R.Tensor((), "int32")):
         _ = R.assert_op(condition)
@@ -178,10 +174,10 @@ def test_assert_on_argument_passes(exec_mode):
 
     condition = tvm.runtime.tensor(np.array(True))
     x = tvm.runtime.tensor(np.array(5).astype("int32"))
-    run_cpu(func, condition, x, exec_mode=exec_mode)
+    run_cpu(func, condition, x)
 
 
-def test_assert_on_argument_fails(exec_mode):
+def test_assert_on_argument_fails():
     @R.function(pure=False)
     def func(condition: R.Tensor((), "bool"), x: R.Tensor((), "int32")):
         _ = R.assert_op(condition)
@@ -190,10 +186,10 @@ def test_assert_on_argument_fails(exec_mode):
     condition = tvm.runtime.tensor(np.array(False))
     x = tvm.runtime.tensor(np.array(5).astype("int32"))
     with pytest.raises(AssertionError):
-        run_cpu(func, condition, x, exec_mode=exec_mode)
+        run_cpu(func, condition, x)
 
 
-def test_assert_on_symbolic_var_passes(exec_mode):
+def test_assert_on_symbolic_var_passes():
     N = T.dynamic("N")
 
     @R.function(pure=False)
@@ -202,10 +198,10 @@ def test_assert_on_symbolic_var_passes(exec_mode):
         return x
 
     x = tvm.runtime.tensor(np.arange(8, dtype="int32"))
-    run_cpu(func, x, exec_mode=exec_mode)
+    run_cpu(func, x)
 
 
-def test_assert_on_symbolic_var_fails(exec_mode):
+def test_assert_on_symbolic_var_fails():
     N = T.dynamic("N")
 
     @R.function(pure=False)
@@ -215,7 +211,7 @@ def test_assert_on_symbolic_var_fails(exec_mode):
 
     x = tvm.runtime.tensor(np.arange(10, dtype="int32"))
     with pytest.raises(AssertionError):
-        run_cpu(func, x, exec_mode=exec_mode)
+        run_cpu(func, x)
 
 
 @tvm.script.ir_module
@@ -242,18 +238,17 @@ class ShapeOfTest:
         return R.shape_of(x)
 
 
-def test_op_shape_of(exec_mode):
-    unit_shape = run_cpu(ShapeOfTest, "get_scalar_shape", exec_mode=exec_mode)
+def test_op_shape_of():
+    unit_shape = run_cpu(ShapeOfTest, "get_scalar_shape")
     assert unit_shape == tvm_ffi.Shape([])
 
-    const_shape = run_cpu(ShapeOfTest, "get_constant_shape", exec_mode=exec_mode)
+    const_shape = run_cpu(ShapeOfTest, "get_constant_shape")
     assert const_shape == tvm_ffi.Shape([2, 2])
 
     scalar_shape = run_cpu(
         ShapeOfTest,
         "get_shape",
         tvm.runtime.tensor(np.array(1, dtype="int32")),
-        exec_mode=exec_mode,
     )
     assert scalar_shape == tvm_ffi.Shape([])
 
@@ -261,7 +256,6 @@ def test_op_shape_of(exec_mode):
         ShapeOfTest,
         "get_shape",
         tvm.runtime.tensor(np.zeros((1, 2, 3)).astype("int32")),
-        exec_mode=exec_mode,
     )
     assert tensor_shape == tvm_ffi.Shape([1, 2, 3])
 
@@ -269,7 +263,6 @@ def test_op_shape_of(exec_mode):
         ShapeOfTest,
         "get_constrained_shape",
         tvm.runtime.tensor(np.zeros((1,)).astype("int32")),
-        exec_mode=exec_mode,
     )
     assert constrained_shape == tvm_ffi.Shape([1])
 
@@ -289,7 +282,7 @@ class ShapeToTensorTest:
         return R.shape_to_tensor(shape)
 
 
-def test_op_shape_to_tensor(exec_mode):
+def test_op_shape_to_tensor():
     # Check type
     isinstance(ShapeToTensorTest["const_shape"].body.ty, tvm.relax.TensorType)
     assert ShapeToTensorTest["const_shape"].body.ty.ndim == 1
@@ -297,26 +290,24 @@ def test_op_shape_to_tensor(exec_mode):
     assert ShapeToTensorTest["symbolic_shape"].body.ty.ndim == 1
 
     # Check its functionality
-    out2d = run_cpu(ShapeToTensorTest, "const_shape", tvm_ffi.Shape([3, 2]), exec_mode=exec_mode)
+    out2d = run_cpu(ShapeToTensorTest, "const_shape", tvm_ffi.Shape([3, 2]))
     assert isinstance(out2d, tvm.runtime.Tensor)
     assert np.array_equal(out2d.numpy(), np.array([3, 2]))
 
-    out3d = run_cpu(ShapeToTensorTest, "const_shape", tvm_ffi.Shape([3, 3, 2]), exec_mode=exec_mode)
+    out3d = run_cpu(ShapeToTensorTest, "const_shape", tvm_ffi.Shape([3, 3, 2]))
     assert isinstance(out3d, tvm.runtime.Tensor)
     assert np.array_equal(out3d.numpy(), np.array([3, 3, 2]))
 
-    out4d = run_cpu(
-        ShapeToTensorTest, "const_shape", tvm_ffi.Shape([3, 3, 2, 2]), exec_mode=exec_mode
-    )
+    out4d = run_cpu(ShapeToTensorTest, "const_shape", tvm_ffi.Shape([3, 3, 2, 2]))
     assert isinstance(out4d, tvm.runtime.Tensor)
     assert np.array_equal(out4d.numpy(), np.array([3, 3, 2, 2]))
 
-    outs = run_cpu(ShapeToTensorTest, "symbolic_shape", tvm_ffi.Shape([3, 2]), exec_mode=exec_mode)
+    outs = run_cpu(ShapeToTensorTest, "symbolic_shape", tvm_ffi.Shape([3, 2]))
     assert isinstance(outs, tvm.runtime.Tensor)
     assert np.array_equal(outs.numpy(), np.array([3, 2]))
 
 
-def test_op_call_pure_packed(exec_mode):
+def test_op_call_pure_packed():
     @tvm.script.ir_module
     class CallPureTest:
         @R.function
@@ -328,11 +319,11 @@ def test_op_call_pure_packed(exec_mode):
 
     np.random.seed(0)  # to avoid flakiness
     arr = np.random.rand(3, 4).astype("float32")
-    copy_found = run_cpu(CallPureTest, "pure_copy", tvm.runtime.tensor(arr), exec_mode=exec_mode)
+    copy_found = run_cpu(CallPureTest, "pure_copy", tvm.runtime.tensor(arr))
     assert (copy_found.numpy() == arr).all()
 
 
-def test_op_call_inplace_packed(exec_mode):
+def test_op_call_inplace_packed():
     # in this case we can use the same test as above
     @tvm.script.ir_module
     class CallInplaceTest:
@@ -374,9 +365,7 @@ def test_op_call_inplace_packed(exec_mode):
     arr_b = np.random.rand(3, 4).astype("float32")
     sum = arr_a + arr_b
     tvm_arr_a = tvm.runtime.tensor(arr_a)
-    result = run_cpu(
-        CallInplaceAddTest, "inplace_add", tvm_arr_a, tvm.runtime.tensor(arr_b), exec_mode=exec_mode
-    )
+    result = run_cpu(CallInplaceAddTest, "inplace_add", tvm_arr_a, tvm.runtime.tensor(arr_b))
     assert result == tvm_arr_a
     assert (result.numpy() == sum).all()
 
@@ -410,14 +399,14 @@ def test_op_call_inplace_packed(exec_mode):
     sum = arr_a + arr_b
     tvm_arr_a = tvm.runtime.tensor(arr_a)
     tvm_arr_b = tvm.runtime.tensor(arr_b)
-    result = run_cpu(CallInplaceTuple, "inplace_tuple", tvm_arr_a, tvm_arr_b, exec_mode=exec_mode)
+    result = run_cpu(CallInplaceTuple, "inplace_tuple", tvm_arr_a, tvm_arr_b)
     assert result[0] == tvm_arr_a
     assert (result[0].numpy() == sum).all()
     assert result[1] != tvm_arr_a and result[1] != tvm_arr_b
     assert (result[1].numpy() == sum).all()
 
 
-def test_op_call_py_func(exec_mode):
+def test_op_call_py_func():
     """Test R.call_py_func operator functionality."""
     import torch
 
@@ -478,14 +467,14 @@ def test_op_call_py_func(exec_mode):
     x_data = np.array([-1.0, 0.0, 1.0], dtype=np.float32)
     x_tvm = tvm.runtime.tensor(x_data)
 
-    result = run_cpu(CallPyFuncTest, "simple_call", x_tvm, exec_mode=exec_mode)
+    result = run_cpu(CallPyFuncTest, "simple_call", x_tvm)
     expected = np.maximum(x_data, 0.0)
     assert (result.numpy() == expected).all()
 
     y_data = np.array([-0.5, 0.5], dtype=np.float32)
     y_tvm = tvm.runtime.tensor(y_data)
 
-    result2 = run_cpu(CallPyFuncTest, "multiple_calls", y_tvm, exec_mode=exec_mode)
+    result2 = run_cpu(CallPyFuncTest, "multiple_calls", y_tvm)
     expected2 = 1.0 / (1.0 + np.exp(-np.maximum(y_data, 0.0)))
     assert (result2.numpy() == expected2).all()
 
@@ -518,7 +507,7 @@ def test_py_func_registry_is_scoped_to_its_module():
     tvm.get_global_func("vm.builtin.unregister_py_func")("registry_probe")
 
 
-def test_op_to_device(exec_mode):
+def test_op_to_device():
     @tvm.script.ir_module
     class CallToDevice:
         @R.function
@@ -534,11 +523,11 @@ def test_op_to_device(exec_mode):
 
     np.random.seed(0)  # to avoid flakiness
     arr = np.random.rand(3, 4).astype("float32")
-    copy_found = run_cpu(CallToDevice, "to_dev", tvm.runtime.tensor(arr), exec_mode=exec_mode)
+    copy_found = run_cpu(CallToDevice, "to_dev", tvm.runtime.tensor(arr))
     assert (copy_found.numpy() == arr).all()
 
 
-def test_op_to_vdevice(exec_mode):
+def test_op_to_vdevice():
     @tvm.script.ir_module
     class ToVDevice:
         I.module_global_infos({"vdevice": [R.vdevice("llvm")]})
@@ -551,11 +540,11 @@ def test_op_to_vdevice(exec_mode):
 
     np.random.seed(0)
     arr = np.random.rand(3, 4).astype("float32")
-    copy_found = run_cpu(ToVDevice, "to_vdev", tvm.runtime.tensor(arr), exec_mode=exec_mode)
+    copy_found = run_cpu(ToVDevice, "to_vdev", tvm.runtime.tensor(arr))
     assert (copy_found.numpy() == arr).all()
 
 
-def test_scalar_tensor_as_branch_condition(exec_mode):
+def test_scalar_tensor_as_branch_condition():
     """The condition of a branch may be a scalar tensor"""
 
     @R.function
@@ -566,14 +555,14 @@ def test_scalar_tensor_as_branch_condition(exec_mode):
             out = R.prim_value(10)
         return out
 
-    res = run_cpu(func, tvm.runtime.tensor(np.array(True)), exec_mode=exec_mode)
+    res = run_cpu(func, tvm.runtime.tensor(np.array(True)))
     assert res == 5
 
-    res = run_cpu(func, tvm.runtime.tensor(np.array(False)), exec_mode=exec_mode)
+    res = run_cpu(func, tvm.runtime.tensor(np.array(False)))
     assert res == 10
 
 
-def test_prim_value_as_branch_condition(exec_mode):
+def test_prim_value_as_branch_condition():
     """The condition may be a Expr"""
 
     @R.function
@@ -584,14 +573,14 @@ def test_prim_value_as_branch_condition(exec_mode):
             out = R.prim_value(10)
         return out
 
-    res = run_cpu(func, True, exec_mode=exec_mode)
+    res = run_cpu(func, True)
     assert res == 5
 
-    res = run_cpu(func, False, exec_mode=exec_mode)
+    res = run_cpu(func, False)
     assert res == 10
 
 
-def test_computed_prim_value_as_branch_condition(exec_mode):
+def test_computed_prim_value_as_branch_condition():
     """The primitive scalar condition may be computed within the function"""
 
     N = T.dynamic("N")
@@ -604,10 +593,10 @@ def test_computed_prim_value_as_branch_condition(exec_mode):
             out = R.prim_value(10)
         return out
 
-    res = run_cpu(func, tvm.runtime.tensor(np.arange(16)), exec_mode=exec_mode)
+    res = run_cpu(func, tvm.runtime.tensor(np.arange(16)))
     assert res == 5
 
-    res = run_cpu(func, tvm.runtime.tensor(np.arange(20)), exec_mode=exec_mode)
+    res = run_cpu(func, tvm.runtime.tensor(np.arange(20)))
     assert res == 10
 
 

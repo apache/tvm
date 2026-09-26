@@ -314,19 +314,6 @@ TIR_DEFINE_BUILTIN_FUNC(undef)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState))
     .set_num_inputs(0);
 
-TIR_DEFINE_BUILTIN_FUNC(anylist_getitem)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState));
-
-TIR_DEFINE_BUILTIN_FUNC(anylist_resetitem)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAnyListResetItem");
-
-TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_packed)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_cpacked)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
 TIR_DEFINE_BUILTIN_FUNC(get_active_lane_mask)
     .set_num_inputs(2)
     .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))

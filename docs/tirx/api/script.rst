@@ -40,7 +40,7 @@ Core IR builder
 .. automodule:: tvm.tirx.script.ir_builder.ir
    :members:
    :no-index:
-   :exclude-members: LetAnnotation, alloc_tcgen05_ldst_frag, anylist_getitem, anylist_resetitem, anylist_setitem_call_packed, anylist_setitem_call_cpacked
+   :exclude-members: LetAnnotation, alloc_tcgen05_ldst_frag
 
 .. currentmodule:: tvm.tirx.script.ir_builder.ir
 
