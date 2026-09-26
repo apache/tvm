@@ -112,7 +112,7 @@ def test_lower_nested_access_ptr():
     assert len(address_calls) == 1
     load = address_calls[0].args[0]
     assert isinstance(load, tvm.ir.TensorLoad)
-    assert int(tvm.arith.Analyzer().simplify(load.indices[0])) == 5
+    assert int(tvm.sym.Analyzer().simplify(load.indices[0])) == 5
 
     targets = ["c"]
     if env.has_llvm():

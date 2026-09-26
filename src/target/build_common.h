@@ -32,6 +32,7 @@
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
+#include <tvm/tirx/type.h>
 
 #include <string>
 
@@ -64,7 +65,7 @@ inline ffi::Map<ffi::String, runtime::FunctionInfo> ExtractFuncInfo(const IRModu
         if (type == nullptr) {
           return false;
         }
-        return type->element_type.as<TensorMapTypeNode>() != nullptr;
+        return type->element_type.as<tirx::TensorMapTypeNode>() != nullptr;
       };
       arg_extra_tags.push_back(is_tensormap(f->params[i]) ? runtime::ArgExtraTags::kTensorMap
                                                           : runtime::ArgExtraTags::kNone);

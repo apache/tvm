@@ -14,12 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F401, F821, F841
+# ruff: noqa: F821, F841
 import pytest
 
 import tvm
 import tvm.testing
 from tvm import s_tir
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.testing import env
 
@@ -40,13 +41,13 @@ def run_passes(func: tvm.tirx.PrimFunc):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_read_thread_id_independent_location():
-    @T.prim_func(check_well_formed=False, s_tir=True)
+    @Ts.prim_func(check_well_formed=False)
     def func(p0_arg: T.Buffer((1, 2, 1, 1), "float32"), p1: T.Buffer(2, "float32")) -> None:
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
         p0 = T.Buffer([2], dtype="float32", data=p0_arg.data)
-        result_local = T.sblock_alloc_buffer([1], dtype="float32", scope="local")
-        temp_shared = T.sblock_alloc_buffer([1], dtype="float32", scope="shared")
+        result_local = Ts.sblock_alloc_buffer([1], dtype="float32", scope="local")
+        temp_shared = Ts.sblock_alloc_buffer([1], dtype="float32", scope="shared")
         T.launch_thread(blockIdx_x, 8)
         T.launch_thread(threadIdx_x, 4)
         result_local[0] = T.float32(0)
@@ -61,8 +62,50 @@ def test_sync_read_thread_id_independent_location():
     assert "T.tvm_storage_sync" in str(mod)
 
 
+def test_sync_inside_condition():
+    @Ts.prim_func
+    def func1(A: T.Buffer((4, 4), "float32")) -> None:
+        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        bx = T.launch_thread("blockIdx.x", 1)
+        tx = T.launch_thread("threadIdx.x", 32)
+        if A[0, 0] > 1.0:
+            for i, j in T.grid(4, 4):
+                A_shared[i, j] = A[i, j]
+            for i, j in T.grid(4, 4):
+                A[i, j] = A_shared[i, j] + 1.0
+
+    @Ts.prim_func
+    def func2(A: T.Buffer((4, 4), "float32")) -> None:
+        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        bx = T.launch_thread("blockIdx.x", 1)
+        tx = T.launch_thread("threadIdx.x", 32)
+        if T.tvm_thread_invariant(A[0, 0] > 1.0):
+            for i, j in T.grid(4, 4):
+                A_shared[i, j] = A[i, j]
+            for i, j in T.grid(4, 4):
+                A[i, j] = A_shared[i, j] + 1.0
+
+    @Ts.prim_func
+    def func3(A: T.Buffer((4, 4), "float32")) -> None:
+        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+        bx = T.launch_thread("blockIdx.x", 1)
+        tx = T.launch_thread("threadIdx.x", 32)
+        while T.tvm_thread_invariant(A[0, 0] > 1.0):
+            for i, j in T.grid(4, 4):
+                A_shared[i, j] = A[i, j]
+            for i, j in T.grid(4, 4):
+                A[i, j] = A_shared[i, j] + 1.0
+
+    with pytest.raises(tvm.error.InternalError):
+        s_tir.transform.ThreadSync("shared")(tvm.IRModule.from_expr(func1))
+
+    for func in (func2, func3):
+        mod = s_tir.transform.ThreadSync("shared")(tvm.IRModule.from_expr(func))
+        assert "T.tvm_storage_sync" in mod.script()
+
+
 def test_sync_shared_dyn():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(A: T.Buffer((4, 4), "float32"), E: T.Buffer((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         B = T.alloc_buffer((24,), "float32", scope="shared.dyn")
@@ -79,7 +122,7 @@ def test_sync_shared_dyn():
         E_1 = T.decl_buffer((16,), data=E.data)
         E_1[threadIdx_x] = D_1[threadIdx_x]
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32"), E: T.Buffer((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         B_1 = T.alloc_buffer((24,), "float32", scope="shared.dyn")
@@ -103,7 +146,7 @@ def test_sync_shared_dyn():
 
 
 def test_sync_shared_aliasing_buffer_views():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(A: T.Buffer((64,), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         shared_storage = T.alloc_buffer((32,), "float16", scope="shared")
@@ -128,7 +171,7 @@ def test_sync_shared_aliasing_buffer_views():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_bind():
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def func(A: T.Buffer((16 * 512), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
         A_shared = T.alloc_buffer((512,), "float32", scope="shared")
@@ -162,7 +205,7 @@ def test_sync_bind():
                 threadIdx_x,
             )
 
-    @T.prim_func(private=True, s_tir=True)
+    @Ts.prim_func(private=True)
     def expected(A: T.Buffer((8192,), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
         A_shared_1 = T.alloc_buffer((512,), "float32", scope="shared")

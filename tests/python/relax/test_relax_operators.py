@@ -16,8 +16,11 @@
 # under the License.
 # ruff: noqa: E501, F841
 
+import gc
 import sys
 import tempfile
+import weakref
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -33,10 +36,14 @@ from tvm.script import tirx as T
 exec_mode = tvm.testing.parameter("bytecode", "compiled")
 
 
+m = T.dynamic("m")
+n = T.dynamic("n")
+
+
 @tvm.script.ir_module
 class InputModule:
     @R.function
-    def foo(x: R.Tensor(("m", "n"), "int64")):
+    def foo(x: R.Tensor((m, n), "int64")):
         y = R.unique(x, sorted=False)
         y_sorted = R.unique(x)
         return y, y_sorted
@@ -187,9 +194,10 @@ def test_assert_on_argument_fails(exec_mode):
 
 
 def test_assert_on_symbolic_var_passes(exec_mode):
+    N = T.dynamic("N")
+
     @R.function(pure=False)
-    def func(x: R.Tensor(["N"], "int32")):
-        N = T.int64()
+    def func(x: R.Tensor([N], "int32")):
         _ = R.assert_op(R.prim_value(N % 8 == 0))
         return x
 
@@ -198,9 +206,10 @@ def test_assert_on_symbolic_var_passes(exec_mode):
 
 
 def test_assert_on_symbolic_var_fails(exec_mode):
+    N = T.dynamic("N")
+
     @R.function(pure=False)
-    def func(x: R.Tensor(["N"], "int32")):
-        N = T.int64()
+    def func(x: R.Tensor([N], "int32")):
         _ = R.assert_op(R.prim_value(N % 8 == 0))
         return x
 
@@ -265,6 +274,10 @@ def test_op_shape_of(exec_mode):
     assert constrained_shape == tvm_ffi.Shape([1])
 
 
+m = T.dynamic("m")
+n = T.dynamic("n")
+
+
 @tvm.script.ir_module
 class ShapeToTensorTest:
     @R.function
@@ -272,9 +285,7 @@ class ShapeToTensorTest:
         return R.shape_to_tensor(shape)
 
     @R.function
-    def symbolic_shape(shape: R.Shape(("m", "n"))) -> R.Tensor(ndim=-1):
-        m = T.int64()
-        n = T.int64()
+    def symbolic_shape(shape: R.Shape((m, n))) -> R.Tensor(ndim=-1):
         return R.shape_to_tensor(shape)
 
 
@@ -478,8 +489,33 @@ def test_op_call_py_func(exec_mode):
     expected2 = 1.0 / (1.0 + np.exp(-np.maximum(y_data, 0.0)))
     assert (result2.numpy() == expected2).all()
 
-    clear_func = tvm.get_global_func("vm.builtin.clear_py_func_registry")
-    clear_func()
+    unregister_func = tvm.get_global_func("vm.builtin.unregister_py_func")
+    unregister_func("torch_relu")
+    unregister_func("torch_sigmoid")
+
+
+def test_py_func_registry_is_scoped_to_its_module():
+    """A module's finalizer must drop its own registrations and nothing else."""
+    from tvm.relax.base_py_module import BasePyModule
+
+    get_func = tvm.get_global_func("vm.builtin.get_py_func")
+    tvm.get_global_func("vm.builtin.register_py_func")("registry_probe", lambda x: x)
+
+    # __new__ skips __init__'s JIT compilation; only the registration matters here.
+    module = BasePyModule.__new__(BasePyModule)
+    module.ir_mod = SimpleNamespace(__pyfuncs__={"registry_owned": lambda self, x: x})
+    module._register_python_functions()
+    assert get_func("registry_owned") is not None
+    module_ref = weakref.ref(module)
+
+    del module
+    gc.collect()
+
+    assert module_ref() is None, "the registry must not keep the module alive"
+    assert get_func("registry_probe") is not None, "another owner's function was dropped"
+    with pytest.raises(tvm.error.InternalError, match="not found in registry"):
+        get_func("registry_owned")
+    tvm.get_global_func("vm.builtin.unregister_py_func")("registry_probe")
 
 
 def test_op_to_device(exec_mode):
@@ -505,11 +541,11 @@ def test_op_to_device(exec_mode):
 def test_op_to_vdevice(exec_mode):
     @tvm.script.ir_module
     class ToVDevice:
-        I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+        I.module_global_infos({"vdevice": [R.vdevice("llvm")]})
 
         @R.function
         def to_vdev(x: R.Tensor((3, 4), "float32")):
-            dst_vdev = tvm.ir.VDevice("llvm", 0, "global")
+            dst_vdev = tvm.relax.VDevice("llvm", 0, "global")
             ret = R.to_vdevice(x, "llvm")
             return ret
 
@@ -541,7 +577,7 @@ def test_prim_value_as_branch_condition(exec_mode):
     """The condition may be a Expr"""
 
     @R.function
-    def func(condition: R.Prim("bool")):
+    def func(condition: T.bool):
         if condition:
             out = R.prim_value(5)
         else:
@@ -556,11 +592,12 @@ def test_prim_value_as_branch_condition(exec_mode):
 
 
 def test_computed_prim_value_as_branch_condition(exec_mode):
-    """The R.Prim condition may be computed within the function"""
+    """The primitive scalar condition may be computed within the function"""
+
+    N = T.dynamic("N")
 
     @R.function
-    def func(x: R.Tensor(["N"], "int64")):
-        N = T.int64()
+    def func(x: R.Tensor([N], "int64")):
         if R.prim_value(N % 16 == 0):
             out = R.prim_value(5)
         else:

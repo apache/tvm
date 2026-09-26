@@ -39,6 +39,29 @@ def test_const_saveload_json():
     tvm.ir.assert_structural_equal(zz, z, map_free_vars=True)
 
 
+def test_symbolic_analysis_legacy_json_load():
+    # Historical symbolic-analysis objects must load through the existing JSON upgrader.
+    graph = {
+        "root_index": 2,
+        "nodes": [
+            {"type": "arith.ConstIntBound", "data": {"min_value": 2, "max_value": 7}},
+            {"type": "arith.ModularSet", "data": {"coeff": 4, "base": 1}},
+            {"type": "ffi.Array", "data": [0, 1, 0]},
+        ],
+        "metadata": {"tvm_version": tvm.__version__},
+    }
+    restored = tvm.ir.load_json(json.dumps(graph))
+    bound, modular, shared_bound = restored
+    assert isinstance(bound, tvm.sym.ConstIntBound)
+    assert (bound.min_value, bound.max_value) == (2, 7)
+    assert isinstance(modular, tvm.sym.ModularSet)
+    assert (modular.coeff, modular.base) == (4, 1)
+    assert bound.same_as(shared_bound)
+    saved_types = {node["type"] for node in json.loads(tvm.ir.save_json(restored))["nodes"]}
+    assert {"sym.ConstIntBound", "sym.ModularSet"} <= saved_types
+    assert not any(key.startswith("arith.") for key in saved_types)
+
+
 def test_save_json_metadata_version():
     obj = tvm.runtime.convert([1, 2])
     json_str = tvm.ir.save_json(obj)
@@ -146,7 +169,7 @@ def test_var_exact_base_legacy_relax_json_load():
 
 
 def test_var_exact_base_legacy_tirx_json_load():
-    restored = tvm.ir.load_json(_LEGACY_TIRX_VAR_JSON)
+    restored = tvm.ir.load_json(_LEGACY_TIRX_VAR_JSON.replace("tirx.Add", "prim.Add"))
     assert isinstance(restored, tvm.tirx.Add)
     assert restored.a.same_as(restored.b)
     _check_legacy_var(restored.a, "legacy_tirx.py", 7, 9, 2, 14)

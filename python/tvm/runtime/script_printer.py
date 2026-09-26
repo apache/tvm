@@ -195,7 +195,7 @@ class Scriptable:
         """
         # Auto-switch to tirx (`T`/`tirx`) flavor only when explicitly
         # printing a PrimFunc / IRModule that has no s_tir-tagged content.
-        # Free objects (Buffer, BufferRegion, ...) keep the default `T`/`tir`
+        # Free objects (Buffer, buffer-backed TensorRegion, ...) keep the default `T`/`tir`
         # flavor -- they have no enclosing function to indicate tirx vs s_tir.
         merged_extra: dict = {}
         if extra_config is not None:
@@ -334,7 +334,7 @@ class Scriptable:
         ----------
         style : str, optional
             Pygmentize printing style, auto-detected if None.  See
-            `tvm.script.highlight.cprint` for more details.
+            `tvm.script.printer.highlight.cprint` for more details.
 
         black_format: Optional[bool]
 
@@ -396,7 +396,7 @@ class Scriptable:
             Object to be annotated
 
         """
-        from tvm.script.highlight import cprint  # pylint: disable=import-outside-toplevel
+        from tvm.script.printer.highlight import cprint  # pylint: disable=import-outside-toplevel
 
         if black_format is None:
             env = os.environ.get("TVM_BLACK_FORMAT")

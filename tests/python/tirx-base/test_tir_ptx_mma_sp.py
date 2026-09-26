@@ -42,13 +42,15 @@ def get_dense_mat_by_mask(val, mask):
     return ret.reshape(m, n_chunks * 4)
 
 
-@T.prim_func(s_tir=True)
-def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
+@T.prim_func
+def mma_sp_m16n8k16_f16f16f16(
+    A: T.Buffer([16, 8], dtype="float16"),
+    B: T.Buffer([16, 8], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float16"),
+    metadata: T.Buffer([8], dtype="uint32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 8], dtype="float16")
-    B = T.match_buffer(b, [16, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float16")
-    metadata = T.match_buffer(_metadata, [8], dtype="uint32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -90,13 +92,15 @@ def mma_sp_m16n8k16_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func(s_tir=True)
-def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
+@T.prim_func
+def mma_sp_m16n8k16_f16f16f32(
+    A: T.Buffer([16, 8], dtype="float16"),
+    B: T.Buffer([16, 8], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float32"),
+    metadata: T.Buffer([8], dtype="uint32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 8], dtype="float16")
-    B = T.match_buffer(b, [16, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float32")
-    metadata = T.match_buffer(_metadata, [8], dtype="uint32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -141,13 +145,15 @@ def mma_sp_m16n8k16_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func(s_tir=True)
-def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
+@T.prim_func
+def mma_sp_m16n8k32_f16f16f16(
+    A: T.Buffer([16, 16], dtype="float16"),
+    B: T.Buffer([32, 8], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float16"),
+    metadata: T.Buffer([16], dtype="uint32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="float16")
-    B = T.match_buffer(b, [32, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float16")
-    metadata = T.match_buffer(_metadata, [16], dtype="uint32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -193,13 +199,15 @@ def mma_sp_m16n8k32_f16f16f16(a: T.handle, b: T.handle, c: T.handle, _metadata: 
         C[i // 2 * 8 + tx // 4, tx % 4 * 2 + i % 2] = accum[i]
 
 
-@T.prim_func(s_tir=True)
-def mma_sp_m16n8k32_f16f16f32(a: T.handle, b: T.handle, c: T.handle, _metadata: T.handle):
+@T.prim_func
+def mma_sp_m16n8k32_f16f16f32(
+    A: T.Buffer([16, 16], dtype="float16"),
+    B: T.Buffer([32, 8], dtype="float16"),
+    C: T.Buffer([16, 8], dtype="float32"),
+    metadata: T.Buffer([16], dtype="uint32"),
+):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    A = T.match_buffer(a, [16, 16], dtype="float16")
-    B = T.match_buffer(b, [32, 8], dtype="float16")
-    C = T.match_buffer(c, [16, 8], dtype="float32")
-    metadata = T.match_buffer(_metadata, [16], dtype="uint32")
+
     brow = T.env_thread("blockIdx.y")
     bcol = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
@@ -266,8 +274,8 @@ def test_mma_sp_m16n8k16_f16():
 
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k16_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k16_f16f16f32
-        sch = tvm.s_tir.Schedule(func)
-        cuda_mod = tvm.compile(sch.mod, target="cuda")
+        mod = tvm.IRModule.from_expr(func)
+        cuda_mod = tvm.compile(mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
         B_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
@@ -308,8 +316,8 @@ def test_mma_sp_m16n8k32_f16():
 
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k32_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k32_f16f16f32
-        sch = tvm.s_tir.Schedule(func)
-        cuda_mod = tvm.compile(sch.mod, target="cuda")
+        mod = tvm.IRModule.from_expr(func)
+        cuda_mod = tvm.compile(mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
         B_np = np.random.uniform(-1, 1, [32, 8]).astype("float16")

@@ -17,6 +17,7 @@
 # pylint: disable=invalid-name,missing-function-docstring
 """Dot product related intrinsics."""
 
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 from .. import TensorIntrin
@@ -28,35 +29,35 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
     vec_type_a = "int8x4" if dtype_a == "int8" else "uint8x4"
     vec_type_b = "int8x4" if dtype_b == "int8" else "uint8x4"
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def dp4a_desc(
         A: T.Buffer((4,), dtype_a, offset_factor=1, align=4, scope="shared"),
         B: T.Buffer((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
         C: T.Buffer((1,), dtype_c, offset_factor=1, align=4, scope="local"),
     ) -> None:
-        with T.sblock("root"):
-            T.reads(C[0], A[0:4], B[0:4])
-            T.writes(C[0])
+        with Ts.sblock("root"):
+            Ts.reads(C[0], A[0:4], B[0:4])
+            Ts.writes(C[0])
             for i in range(0, 4):
-                with T.sblock("update"):
-                    vi = T.axis.remap("R", [i])
+                with Ts.sblock("update"):
+                    vi = Ts.axis.remap("R", [i])
                     C[0] = C[0] + T.cast(A[vi], dtype_c) * T.cast(B[vi], dtype_c)
 
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def dp4a_impl(
         A: T.Buffer((4,), dtype_a, offset_factor=1, align=4, scope="shared"),
         B: T.Buffer((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
         C: T.Buffer((1,), dtype_c, offset_factor=1, align=4, scope="local"),
     ) -> None:
-        with T.sblock("root"):
-            T.reads(C[0], A[0:4], B[0:4])
-            T.writes(C[0])
+        with Ts.sblock("root"):
+            Ts.reads(C[0], A[0:4], B[0:4])
+            Ts.writes(C[0])
 
             C[0] += T.call_pure_extern(
                 "__dp4a",
                 A.vload([0], vec_type_a),
                 B.vload([0], vec_type_b),
-                T.uint32(0) if dtype_c == "uint32" else T.int32(0),
+                T.uint32(0) if T.constexpr(dtype_c == "uint32") else T.int32(0),
                 dtype=dtype_c,
             )
 

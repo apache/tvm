@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/sym/analyzer.h>
+
 #include <algorithm>
 
 #include "../../../tirx/transform/ir_utils.h"  // For `GetPtrStorageScope`
@@ -106,74 +108,43 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         auto scoped_callee = [&](const ffi::String& op_name) -> ExprDoc {
           ffi::Optional<ffi::String> ns = scope_ns(op_call->scope->kind);
           if (ns.has_value()) {
-            return TIRx(d, ns.value())->Attr(op_name);
+            return TIR(d, ns.value())->Attr(op_name);
           }
-          return TIRx(d, "tile")->Attr(op_name);
+          return TIR(d, "tile")->Attr(op_name);
         };
-        if (!op.same_as(tirx::compose_op())) {
-          // Trim trailing None args (e.g. optional bias=None, scale=None)
-          size_t n_args = op_call->args.size();
-          while (n_args > 0 &&
-                 op_call->args[n_args - 1].type_index() == ffi::TypeIndex::kTVMFFINone) {
-            --n_args;
-          }
-          // Detect in-place unary ops: after trimming Nones, if exactly 2 args
-          // and args[0]/args[1] refer to the same buffer region, collapse to 1 arg
-          bool inplace_unary = false;
-          if (n_args == 2) {
-            auto dst_opt = op_call->args[0].as<tirx::BufferRegion>();
-            auto src_opt = op_call->args[1].as<tirx::BufferRegion>();
-            if (dst_opt.has_value() && src_opt.has_value() &&
-                dst_opt.value()->buffer.same_as(src_opt.value()->buffer) &&
-                StructuralEqual()(dst_opt.value()->region, src_opt.value()->region)) {
-              inplace_unary = true;
-            }
-          }
-          ffi::Array<Doc> args;
-          for (size_t i = 0; i < n_args; ++i) {
-            if (inplace_unary && i == 1) continue;  // skip duplicate src
-            args.push_back(d->AsDoc<Doc>(op_call->args[i], p->Attr("args")->ArrayItem(i)));
-          }
-          ffi::Optional<ExprDoc> disp = std::nullopt;
-          if (op_call->dispatch.has_value()) {
-            disp = LiteralDoc::Str(op_call->dispatch.value(), p->Attr("dispatch"));
-          }
-          return OpCallDoc(scoped_callee(name), args,
-                           d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")),
-                           d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
-        } else {
-          With<TIRFrame> f(d, op_call);
-          ffi::Array<tirx::Stmt> stmts;
-          for (size_t i = 0, n = op_call->args.size(); i < n; ++i) {
-            stmts.push_back(op_call->args[i].as_or_throw<tirx::Stmt>());
-          }
-          tirx::SeqStmt seq_stmt(stmts);
-          AsDocBody(seq_stmt, p->Attr("args"), f->get(), d);
-          // Build kwargs: workspace, dispatch, then flatten config
-          ffi::Array<ffi::String> kw_keys;
-          ffi::Array<ExprDoc> kw_values;
-          if (!op_call->workspace.empty()) {
-            kw_keys.push_back("workspace");
-            kw_values.push_back(d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")));
-          }
-          if (op_call->dispatch.has_value()) {
-            kw_keys.push_back("dispatch");
-            kw_values.push_back(LiteralDoc::Str(op_call->dispatch.value(), p->Attr("dispatch")));
-          }
-          using POO = std::pair<ffi::String, ffi::Any>;
-          std::vector<POO> items{op_call->config.begin(), op_call->config.end()};
-          std::sort(items.begin(), items.end(),
-                    [](const POO& a, const POO& b) { return a.first < b.first; });
-          for (const auto& kv : items) {
-            kw_keys.push_back(kv.first);
-            kw_values.push_back(d->AsDoc<ExprDoc>(kv.second, p->Attr("config")->MapItem(kv.first)));
-          }
-          return ScopeDoc(std::nullopt, scoped_callee("compose_op")->Call({}, kw_keys, kw_values),
-                          (*f)->stmts);
+        // Trim trailing None args (e.g. optional bias=None, scale=None)
+        size_t n_args = op_call->args.size();
+        while (n_args > 0 &&
+               op_call->args[n_args - 1].type_index() == ffi::TypeIndex::kTVMFFINone) {
+          --n_args;
         }
+        // Detect in-place unary ops: after trimming Nones, if exactly 2 args
+        // and args[0]/args[1] refer to the same buffer region, collapse to 1 arg
+        bool inplace_unary = false;
+        if (n_args == 2) {
+          auto dst_opt = op_call->args[0].as<tvm::TensorRegion>();
+          auto src_opt = op_call->args[1].as<tvm::TensorRegion>();
+          if (dst_opt.has_value() && src_opt.has_value() &&
+              dst_opt.value()->source.same_as(src_opt.value()->source) &&
+              StructuralEqual()(dst_opt.value()->region, src_opt.value()->region)) {
+            inplace_unary = true;
+          }
+        }
+        ffi::Array<Doc> args;
+        for (size_t i = 0; i < n_args; ++i) {
+          if (inplace_unary && i == 1) continue;  // skip duplicate src
+          args.push_back(d->AsDoc<Doc>(op_call->args[i], p->Attr("args")->ArrayItem(i)));
+        }
+        ffi::Optional<ExprDoc> disp = std::nullopt;
+        if (op_call->dispatch.has_value()) {
+          disp = LiteralDoc::Str(op_call->dispatch.value(), p->Attr("dispatch"));
+        }
+        return OpCallDoc(scoped_callee(name), args,
+                         d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")),
+                         d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
       });
 }
-TVM_SCRIPT_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::TilePrimitiveCallNode, ReprPrintTIR);
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::Evaluate>(
@@ -313,7 +284,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
   if (!parent_doc.has_value()) return std::nullopt;
   ExprDoc pdoc = parent_doc.value();
 
-  tirx::ExprDeepEqual expr_equal;
+  prim::ExprDeepEqual expr_equal;
 
   // Check elem_offset equality
   bool same_elem_offset = expr_equal(child->elem_offset, parent->elem_offset);
@@ -344,7 +315,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
 
   // NOTE: an earlier sugar printed rank-preserving aliases with a different
   // elem_offset as ``parent[slices]``. That print is not roundtrippable: it
-  // reparses as a BufferRegion, not a Buffer, so any later Buffer use of the
+  // reparses as a TensorRegion, not a Buffer, so any later Buffer use of the
   // alias (stores, views) breaks. Such aliases now print as plain
   // T.decl_buffer, which reparses exactly.
 
@@ -396,7 +367,7 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
         for (const PrimExpr& dim : child->shape) {
           child_total = child_total * dim;
         }
-        arith::Analyzer analyzer;
+        sym::Analyzer analyzer;
         bool default_physical =
             child_is_default && analyzer->CanProveEqual(child_total, storage_span);
         bool child_has_thread_axis = false;
@@ -558,7 +529,12 @@ ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child
     for (int i = static_cast<int>(ndim) - 1; i >= 0; --i) {
       parent_rm_strides[i] = stride;
       if (auto* s = parent->shape[i].as<IntImmNode>()) {
-        stride *= s->value;
+        auto product = (stride * s->value).as<int64_t>();
+        if (!product.has_value()) {
+          all_const = false;
+          break;
+        }
+        stride = *product;
       } else {
         all_const = false;
         break;
@@ -802,7 +778,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         ffi::Optional<tirx::Var> define_var = std::nullopt;
         tirx::Stmt body = stmt->body;
         AccessPath body_p = stmt_p->Attr("body");
-        if (stmt->attr_key == "thread_extent" || stmt->attr_key == "virtual_thread") {
+        if (stmt->attr_key == "thread_extent" ||
+            stmt->attr_key == tvm::tirx::attr::virtual_thread) {
           if (stmt->node.as<tirx::IterVarNode>()) {
             rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
           }
@@ -863,18 +840,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_SCRIPT_REPR(tirx::BindNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AttrStmtNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AssertStmtNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::WhileNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::AllocBufferNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ReturnNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::BreakNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::ContinueNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::DeclBufferNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::SeqStmtNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::IfThenElseNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tirx::EvaluateNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BindNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::AttrStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::AssertStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::WhileNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::AllocBufferNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ReturnNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::BreakNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::ContinueNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::DeclBufferNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::SeqStmtNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::IfThenElseNode, ReprPrintTIR);
+TVM_REGISTER_SCRIPT_AS_REPR(tirx::EvaluateNode, ReprPrintTIR);
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

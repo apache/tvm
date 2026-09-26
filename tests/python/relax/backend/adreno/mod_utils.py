@@ -26,11 +26,12 @@ import tvm
 import tvm.testing
 from tvm import relax, rpc
 from tvm.relax.backend.adreno import clml
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 def get_relax_conv2d_mod(
@@ -50,17 +51,17 @@ def get_relax_conv2d_mod(
 ):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
+            R.func_name_("main")
             if has_pad:
                 p = (0, 0, 0, 0, padding[0], padding[0], padding[1], padding[1])
-                orig_data = R.arg("data", R.Tensor(data_shape, dtype))
+                orig_data = R.arg_("data", R.Tensor(data_shape, dtype))
                 data = R.nn.pad(orig_data, pad_width=p, pad_value=0.0)
                 padding = (0, 0, 0, 0)
             else:
-                data = R.arg("data", R.Tensor(data_shape, dtype))
-            weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+                data = R.arg_("data", R.Tensor(data_shape, dtype))
+            weight = R.arg_("weight", R.Tensor(weight_shape, dtype))
             if has_bias:
-                bias = R.arg("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
+                bias = R.arg_("bias", R.Tensor((1, weight_shape[0], 1, 1), dtype))
 
             is_depthwise = data_shape[1] == weight_shape[0] == groups
 
@@ -81,10 +82,10 @@ def get_relax_conv2d_mod(
                 if has_bias:
                     output = R.emit(output + bias)
                 if has_bn:
-                    gamma = R.arg("gamma", R.Tensor((weight_shape[0],), dtype))
-                    beta = R.arg("beta", R.Tensor((weight_shape[0],), dtype))
-                    mean = R.arg("mean", R.Tensor((weight_shape[0],), dtype))
-                    variance = R.arg("variance", R.Tensor((weight_shape[0],), dtype))
+                    gamma = R.arg_("gamma", R.Tensor((weight_shape[0],), dtype))
+                    beta = R.arg_("beta", R.Tensor((weight_shape[0],), dtype))
+                    mean = R.arg_("mean", R.Tensor((weight_shape[0],), dtype))
+                    variance = R.arg_("variance", R.Tensor((weight_shape[0],), dtype))
                     output = R.emit(
                         R.nn.batch_norm(output, gamma, beta, mean, variance, axis=1, epsilon=1e-5)[
                             0
@@ -217,9 +218,9 @@ def get_relax_conv2d_transpose_mod(
 ):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
-            weight = R.arg("weight", R.Tensor(weight_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
+            weight = R.arg_("weight", R.Tensor(weight_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -284,12 +285,12 @@ def get_conv2d_transpose_expected_codegen(
 def get_batchnorm_mod(data_shape, channels, axis, epsilon, dtype):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
-            gamma = R.arg("gamma", R.Tensor((channels,), dtype))
-            beta = R.arg("beta", R.Tensor((channels,), dtype))
-            mean = R.arg("moving_mean", R.Tensor((channels,), dtype))
-            variance = R.arg("moving_var", R.Tensor((channels,), dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
+            gamma = R.arg_("gamma", R.Tensor((channels,), dtype))
+            beta = R.arg_("beta", R.Tensor((channels,), dtype))
+            mean = R.arg_("moving_mean", R.Tensor((channels,), dtype))
+            variance = R.arg_("moving_var", R.Tensor((channels,), dtype))
             with R.dataflow() as frame:
                 output = R.emit(
                     R.nn.batch_norm(data, gamma, beta, mean, variance, axis, epsilon)[0]
@@ -305,9 +306,9 @@ def get_batchnorm_mod(data_shape, channels, axis, epsilon, dtype):
 def get_binary_op_mod(a_shape, b_shape, op, dtype):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            a = R.arg("a", R.Tensor(a_shape, dtype))
-            b = R.arg("b", R.Tensor(b_shape, dtype))
+            R.func_name_("main")
+            a = R.arg_("a", R.Tensor(a_shape, dtype))
+            b = R.arg_("b", R.Tensor(b_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(op(a, b))
@@ -327,8 +328,8 @@ def get_binary_op_mod(a_shape, b_shape, op, dtype):
 def get_unary_op_mod(a_shape, op, dtype):
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            a = R.arg("a", R.Tensor(a_shape, dtype))
+            R.func_name_("main")
+            a = R.arg_("a", R.Tensor(a_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(op(a))
@@ -362,15 +363,15 @@ def get_relax_maxpool_mod(
     """
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
+            R.func_name_("main")
 
             if has_pad:
                 p = (0, 0, 0, 0, padding[0], padding[1], padding[0], padding[1])
-                orig_data = R.arg("data", R.Tensor(data_shape, dtype))
+                orig_data = R.arg_("data", R.Tensor(data_shape, dtype))
                 data = R.nn.pad(orig_data, pad_width=p, pad_value=float("-inf"))
                 padding = (0, 0)
             else:
-                data = R.arg("data", R.Tensor(data_shape, dtype))
+                data = R.arg_("data", R.Tensor(data_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -454,15 +455,15 @@ def get_relax_avgpool_mod(data_shape, dtype, pool_size, stride, dilation, paddin
     """
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
+            R.func_name_("main")
 
             if has_pad:
                 p = (0, 0, 0, 0, padding[0], padding[1], padding[0], padding[1])
-                orig_data = R.arg("data", R.Tensor(data_shape, dtype))
+                orig_data = R.arg_("data", R.Tensor(data_shape, dtype))
                 data = R.nn.pad(orig_data, pad_width=p, pad_value=0.0)
                 padding = (0, 0)
             else:
-                data = R.arg("data", R.Tensor(data_shape, dtype))
+                data = R.arg_("data", R.Tensor(data_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -541,8 +542,8 @@ def get_relax_reshape_mod(input_shape, output_shape, dtype):
     """
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(input_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(input_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(R.reshape(data, output_shape))
@@ -600,8 +601,8 @@ def get_relax_global_avgpool_mod(data_shape, keepdims, dtype):
     """
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(R.mean(data, axis=[2, 3], keepdims=keepdims))
@@ -663,8 +664,8 @@ def get_relax_global_maxpool_mod(data_shape, keepdims, dtype):
     N, C, H, W = data_shape
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor(data_shape, dtype))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor(data_shape, dtype))
 
             with R.dataflow() as frame:
                 output = R.emit(
@@ -726,15 +727,16 @@ def get_global_maxpool_expected_codegen(input_shape, pool_size, stride, padding,
 
 
 def get_dequant_matmul_module(K, N):
-    @I.ir_module(s_tir=True)
+    seq_len = T.dynamic("seq_len")
+
+    @I.ir_module
     class DequantMatmul:
         @R.function
         def main(
-            input: R.Tensor((1, "seq_len", K), dtype="float16"),
+            input: R.Tensor((1, seq_len, K), dtype="float16"),
             weight: R.Tensor((K // 8, N), dtype="uint32"),
             scale: R.Tensor((K // 32, N), dtype="float16"),
         ):
-            seq_len = T.int64()
             cls = DequantMatmul
             with R.dataflow():
                 lv2 = relax.call_tir(
@@ -748,19 +750,21 @@ def get_dequant_matmul_module(K, N):
                 R.output(gv)
             return gv
 
-        @T.prim_func(s_tir=True)
-        def dequantize(weight: T.handle, scale: T.handle, var_dequantize: T.handle):
+        @Ts.prim_func
+        def dequantize(
+            lm_head_q_weight1: T.Buffer((T.int64(K // 8), T.int64(N)), "uint32"),
+            lm_head_q_scale1: T.Buffer((T.int64(K // 32), T.int64(N)), "float16"),
+            dequantize: T.Buffer((T.int64(K), T.int64(N)), "float16"),
+        ):
             T.func_attr({"tirx.noalias": T.bool(True)})
-            lm_head_q_weight1 = T.match_buffer(weight, (T.int64(K // 8), T.int64(N)), "uint32")
-            lm_head_q_scale1 = T.match_buffer(scale, (T.int64(K // 32), T.int64(N)), "float16")
-            dequantize = T.match_buffer(var_dequantize, (T.int64(K), T.int64(N)), "float16")
-            # with T.sblock("root"):
+
+            # with Ts.sblock("root"):
             compute = T.alloc_buffer((T.int64(K), T.int64(N)), "float16")
             for i0, i1 in T.grid(T.int64(K), T.int64(N)):
-                with T.sblock("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
-                    T.writes(compute[v_i0, v_i1])
+                with Ts.sblock("compute"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
+                    Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.Cast(
                         "float16",
                         T.bitwise_and(
@@ -772,10 +776,10 @@ def get_dequant_matmul_module(K, N):
                         ),
                     )
             for i0, i1 in T.grid(T.int64(K), T.int64(N)):
-                with T.sblock("dequantize"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(compute[v_i0, v_i1], lm_head_q_scale1[v_i0 // T.int64(32), v_i1])
-                    T.writes(dequantize[v_i0, v_i1])
+                with Ts.sblock("dequantize"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(compute[v_i0, v_i1], lm_head_q_scale1[v_i0 // T.int64(32), v_i1])
+                    Ts.writes(dequantize[v_i0, v_i1])
                     dequantize[v_i0, v_i1] = (
                         compute[v_i0, v_i1] - T.float16(7.0)
                     ) * lm_head_q_scale1[v_i0 // T.int64(32), v_i1]
@@ -784,42 +788,45 @@ def get_dequant_matmul_module(K, N):
 
 
 def get_dequant_vec_matmul_module(K, N):
-    @I.ir_module(s_tir=True)
+    vocab_size_main = T.dynamic("vocab_size")
+    vocab_size_dequantize = T.dynamic("vocab_size")
+
+    @I.ir_module
     class DequantVecMatmul:
         @R.function
         def main(
             input: R.Tensor((1, 1, K), dtype="float16"),
-            weight: R.Tensor((K // 8, "vocab_size"), dtype="uint32"),
-            scale: R.Tensor((K // 32, "vocab_size"), dtype="float16"),
+            weight: R.Tensor((K // 8, vocab_size_main), dtype="uint32"),
+            scale: R.Tensor((K // 32, vocab_size_main), dtype="float16"),
         ):
-            vocab_size = T.int64()
             cls = DequantVecMatmul
             with R.dataflow():
                 lv2 = relax.call_tir(
                     cls.dequantize,
                     (weight, scale),
-                    out_ty=R.Tensor((K, vocab_size), dtype="float16"),
+                    out_ty=R.Tensor((K, vocab_size_main), dtype="float16"),
                 )
-                gv: R.Tensor((1, 1, vocab_size), dtype="float16") = relax.op.matmul(
+                gv: R.Tensor((1, 1, vocab_size_main), dtype="float16") = relax.op.matmul(
                     input, lv2, out_dtype="float16"
                 )
                 R.output(gv)
             return gv
 
-        @T.prim_func(s_tir=True)
-        def dequantize(weight: T.handle, scale: T.handle, var_dequantize: T.handle):
+        @Ts.prim_func
+        def dequantize(
+            lm_head_q_weight1: T.Buffer((T.int64(K // 8), vocab_size_dequantize), "uint32"),
+            lm_head_q_scale1: T.Buffer((T.int64(K // 32), vocab_size_dequantize), "float16"),
+            dequantize: T.Buffer((T.int64(K), vocab_size_dequantize), "float16"),
+        ):
             T.func_attr({"tirx.noalias": T.bool(True)})
-            vocab_size = T.int64()
-            lm_head_q_weight1 = T.match_buffer(weight, (T.int64(K // 8), vocab_size), "uint32")
-            lm_head_q_scale1 = T.match_buffer(scale, (T.int64(K // 32), vocab_size), "float16")
-            dequantize = T.match_buffer(var_dequantize, (T.int64(K), vocab_size), "float16")
-            # with T.sblock("root"):
-            compute = T.alloc_buffer((T.int64(K), vocab_size), "float16")
-            for i0, i1 in T.grid(T.int64(K), vocab_size):
-                with T.sblock("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
-                    T.writes(compute[v_i0, v_i1])
+
+            # with Ts.sblock("root"):
+            compute = T.alloc_buffer((T.int64(K), vocab_size_dequantize), "float16")
+            for i0, i1 in T.grid(T.int64(K), vocab_size_dequantize):
+                with Ts.sblock("compute"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(lm_head_q_weight1[v_i0 // T.int64(8), v_i1])
+                    Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.Cast(
                         "float16",
                         T.bitwise_and(
@@ -830,11 +837,11 @@ def get_dequant_vec_matmul_module(K, N):
                             T.uint32(15),
                         ),
                     )
-            for i0, i1 in T.grid(T.int64(K), vocab_size):
-                with T.sblock("dequantize"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(compute[v_i0, v_i1], lm_head_q_scale1[v_i0 // T.int64(32), v_i1])
-                    T.writes(dequantize[v_i0, v_i1])
+            for i0, i1 in T.grid(T.int64(K), vocab_size_dequantize):
+                with Ts.sblock("dequantize"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(compute[v_i0, v_i1], lm_head_q_scale1[v_i0 // T.int64(32), v_i1])
+                    Ts.writes(dequantize[v_i0, v_i1])
                     dequantize[v_i0, v_i1] = (
                         compute[v_i0, v_i1] - T.float16(7.0)
                     ) * lm_head_q_scale1[v_i0 // T.int64(32), v_i1]

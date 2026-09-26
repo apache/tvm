@@ -21,7 +21,7 @@ from math import pi
 
 from tvm import ir, te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 
 def stft(
@@ -82,31 +82,59 @@ def stft(
         col_loop = T.vectorized if loop_kind == "vectorize" else T.serial
 
         with IRBuilder() as ib:
-            data = T.buffer_proxy(data_ptr)
-            window = T.buffer_proxy(window_ptr)
-            output = T.buffer_proxy(output_ptr)
+            data = data_ptr
+            window = window_ptr
+            output = output_ptr
             # https://librosa.org/doc/0.7.2/_modules/librosa/core/spectrum.html#stft
             with T.parallel(0, output_ptr.shape[0] * output_ptr.shape[1]) as batch_row:
                 with col_loop(0, output_ptr.shape[2]) as col:
                     batch = tirx.floordiv(batch_row, output_ptr.shape[1])
                     row = tirx.floormod(batch_row, output_ptr.shape[1])
-                    output[batch, row, col, 0] = tirx.Cast(data_ptr.dtype, 0)
-                    output[batch, row, col, 1] = tirx.Cast(data_ptr.dtype, 0)
+                    T.buffer_store(
+                        output,
+                        tirx.Cast(data_ptr.dtype, 0),
+                        (batch, row, col, 0),
+                    )
+                    T.buffer_store(
+                        output,
+                        tirx.Cast(data_ptr.dtype, 0),
+                        (batch, row, col, 1),
+                    )
                     with T.serial(0, win_length) as wlen:
-                        output[batch, row, col, 0] += (
-                            window[wlen]
-                            * data[batch, col * hop_length + wlen]
-                            * tirx.cos(2 * pi * row * wlen / win_length)
+                        T.buffer_store(
+                            output,
+                            output[(batch, row, col, 0)]
+                            + (
+                                window[T.buffer_indices(window, wlen)]
+                                * data[(batch, col * hop_length + wlen)]
+                                * tirx.cos(2 * pi * row * wlen / win_length)
+                            ),
+                            (batch, row, col, 0),
                         )
-                        output[batch, row, col, 1] -= (
-                            window[wlen]
-                            * data[batch, col * hop_length + wlen]
-                            * tirx.sin(2 * pi * row * wlen / win_length)
+                        T.buffer_store(
+                            output,
+                            output[(batch, row, col, 1)]
+                            - (
+                                window[T.buffer_indices(window, wlen)]
+                                * data[(batch, col * hop_length + wlen)]
+                                * tirx.sin(2 * pi * row * wlen / win_length)
+                            ),
+                            (batch, row, col, 1),
                         )
-                    with T.If(normalized):
-                        with T.Then():
-                            output[batch, row, col, 0] /= tirx.sqrt(tirx.const(n_fft, "float32"))
-                            output[batch, row, col, 1] /= tirx.sqrt(tirx.const(n_fft, "float32"))
+                    with T.if_(normalized):
+                        with T.then_():
+                            T.buffer_store(
+                                output,
+                                output[(batch, row, col, 0)]
+                                / (tirx.sqrt(tirx.const(n_fft, "float32"))),
+                                (batch, row, col, 0),
+                            )
+                            T.buffer_store(
+                                output,
+                                output[(batch, row, col, 1)]
+                                / (tirx.sqrt(tirx.const(n_fft, "float32"))),
+                                (batch, row, col, 1),
+                            )
 
             return ib.get()
 
@@ -164,10 +192,10 @@ def dft(
         im_output_buf,
     ):
         with IRBuilder() as ib:
-            re_data_ptr = T.buffer_proxy(re_data_buf)
-            im_data_ptr = T.buffer_proxy(im_data_buf)
-            re_output_ptr = T.buffer_proxy(re_output_buf)
-            im_output_ptr = T.buffer_proxy(im_output_buf)
+            re_data_ptr = re_data_buf
+            im_data_ptr = im_data_buf
+            re_output_ptr = re_output_buf
+            im_output_ptr = im_output_buf
 
             shape = re_data.shape
             n_fft = shape[len(shape) - 1]
@@ -182,23 +210,53 @@ def dft(
                 base_idx = i * n_fft
                 with T.serial(0, n_fft) as n:
                     n_idx = base_idx + n
-                    re_output_ptr[n_idx] = tirx.Cast(re_output_ptr.dtype, 0)
-                    im_output_ptr[n_idx] = tirx.Cast(im_output_ptr.dtype, 0)
+                    T.buffer_store(
+                        re_output_ptr,
+                        tirx.Cast(re_output_ptr.dtype, 0),
+                        T.buffer_indices(re_output_ptr, n_idx),
+                    )
+                    T.buffer_store(
+                        im_output_ptr,
+                        tirx.Cast(im_output_ptr.dtype, 0),
+                        T.buffer_indices(im_output_ptr, n_idx),
+                    )
                     _w = sign * -2 * pi * n / n_fft
                     with T.serial(0, n_fft) as k:
                         k_idx = base_idx + k
                         w = _w * k
                         cos_w = tirx.Cast(re_output_ptr.dtype, tirx.cos(w))
                         sin_w = tirx.Cast(re_output_ptr.dtype, tirx.sin(w))
-                        re_output_ptr[n_idx] += (
-                            re_data_ptr[k_idx] * cos_w - im_data_ptr[k_idx] * sin_w
+                        T.buffer_store(
+                            re_output_ptr,
+                            re_output_ptr[T.buffer_indices(re_output_ptr, n_idx)]
+                            + (
+                                re_data_ptr[T.buffer_indices(re_data_ptr, k_idx)] * cos_w
+                                - im_data_ptr[T.buffer_indices(im_data_ptr, k_idx)] * sin_w
+                            ),
+                            T.buffer_indices(re_output_ptr, n_idx),
                         )
-                        im_output_ptr[n_idx] += (
-                            re_data_ptr[k_idx] * sin_w + im_data_ptr[k_idx] * cos_w
+                        T.buffer_store(
+                            im_output_ptr,
+                            im_output_ptr[T.buffer_indices(im_output_ptr, n_idx)]
+                            + (
+                                re_data_ptr[T.buffer_indices(re_data_ptr, k_idx)] * sin_w
+                                + im_data_ptr[T.buffer_indices(im_data_ptr, k_idx)] * cos_w
+                            ),
+                            T.buffer_indices(im_output_ptr, n_idx),
                         )
 
-                    re_output_ptr[n_idx] *= tirx.Cast(re_output_ptr.dtype, factor)
-                    im_output_ptr[n_idx] *= tirx.Cast(im_output_ptr.dtype, factor)
+                    T.buffer_store(
+                        re_output_ptr,
+                        re_output_ptr[T.buffer_indices(re_output_ptr, n_idx)]
+                        * (tirx.Cast(re_output_ptr.dtype, factor)),
+                        T.buffer_indices(re_output_ptr, n_idx),
+                    )
+                    T.buffer_store(
+                        im_output_ptr,
+                        im_output_ptr[T.buffer_indices(im_output_ptr, n_idx)]
+                        * (tirx.Cast(im_output_ptr.dtype, factor)),
+                        T.buffer_indices(im_output_ptr, n_idx),
+                    )
 
             return ib.get()
 

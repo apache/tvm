@@ -27,30 +27,8 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  VDeviceNode::RegisterReflection();
-  DummyGlobalInfoNode::RegisterReflection();
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.DummyGlobalInfo", []() {
-    auto n = DummyGlobalInfo(ffi::make_object<DummyGlobalInfoNode>());
-    return n;
-  });
+  refl::ObjectDef<GlobalInfoNode>();
 }
 
-VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
-  ffi::ObjectPtr<VDeviceNode> n = ffi::make_object<VDeviceNode>();
-  n->target = std::move(tgt);
-  n->vdevice_id = std::move(dev_id);
-  n->memory_scope = std::move(mem_scope);
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ir.VDevice", [](Target tgt, int dev_id, MemoryScope mem_scope) {
-    return VDevice(tgt, dev_id, mem_scope);
-  });
-}
 }  // namespace tvm

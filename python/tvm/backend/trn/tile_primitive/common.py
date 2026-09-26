@@ -17,7 +17,7 @@
 
 """Common utilities for TRN operator scheduling."""
 
-from tvm.arith.analyzer import Analyzer
+from tvm.sym.analyzer import Analyzer
 from tvm.tirx.operator.tile_primitive import DispatchContext
 
 # Used to generate the correct [:, None] for mask/predicate

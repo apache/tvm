@@ -335,16 +335,16 @@ def test_prim_value_helper_rejects_relax_expr():
 
 
 def test_string_imm():
-    s0 = rx.StringImm("hello")
-    s1 = rx.StringImm("hello")
+    s0 = tvm.ir.StringImm("hello")
+    s1 = tvm.ir.StringImm("hello")
     assert s0.value == "hello"
     _check_equal(s0, s1)
     _check_json_roundtrip(s0)
 
 
 def test_datatype_imm():
-    d0 = rx.DataTypeImm("int32")
-    d1 = rx.DataTypeImm("int32")
+    d0 = tvm.ir.GenericConst(tvm.DataType("int32"), tvm.relax.AnyType())
+    d1 = tvm.ir.GenericConst(tvm.DataType("int32"), tvm.relax.AnyType())
     assert d0.value == "int32"
     _check_equal(d0, d1)
     _check_json_roundtrip(d0)

@@ -41,9 +41,9 @@ def test_e2m1_vector_conversions(promoted_dtype):
     native_dtype = "float4_e2m1fnx2"
     vector_length = 64
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(
             A: T.Buffer((vector_length,), native_dtype),
             B: T.Buffer((vector_length,), native_dtype),
@@ -52,14 +52,11 @@ def test_e2m1_vector_conversions(promoted_dtype):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(vector_length // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
-                    with T.sblock("C"):
-                        v_i = T.axis.spatial(vector_length, i_0 * 32 + i_1)
-                        T.reads(A[v_i], B[v_i])
-                        T.writes(C[v_i])
-                        C[v_i] = T.Cast(
-                            native_dtype,
-                            T.Cast(promoted_dtype, A[v_i]) + T.Cast(promoted_dtype, B[v_i]),
-                        )
+                    C[i_0 * 32 + i_1] = T.Cast(
+                        native_dtype,
+                        T.Cast(promoted_dtype, A[i_0 * 32 + i_1])
+                        + T.Cast(promoted_dtype, B[i_0 * 32 + i_1]),
+                    )
 
     target = "cuda"
     fadd = tvm.compile(Module, target=target)
@@ -113,9 +110,9 @@ def test_e2m1_vector_conversions(promoted_dtype):
 
 
 def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(
             A: T.Buffer((n // num_elem_per_storage,), "uint32"),
             B: T.Buffer((n,), "float16"),
@@ -124,37 +121,46 @@ def _shuffle_reinterpret_module(n, num_blocks, vector_length, num_elem_per_stora
             for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     for i_2 in T.vectorized(vector_length):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(
-                                n, i_0 * 32 * vector_length + i_1 * vector_length + i_2
-                            )
-                            T.reads(A[v_i])
-                            T.writes(B[v_i])
-                            B[v_i] = T.Shuffle(
-                                [
-                                    T.reinterpret(
-                                        "float4_e2m1fnx2",
-                                        T.bitwise_and(
-                                            T.shift_right(
-                                                A[v_i // num_elem_per_storage],
-                                                ((v_i % num_elem_per_storage) // 2 * 4 * 2).astype(
-                                                    "uint32"
-                                                ),
-                                            ),
-                                            T.uint32((1 << (4 * 2)) - 1),
-                                        ).astype("uint8"),
-                                    ).astype("float16x2")
-                                ],
-                                indices=[v_i % 2],
-                            )
+                        B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.Shuffle(
+                            [
+                                T.reinterpret(
+                                    "float4_e2m1fnx2",
+                                    T.bitwise_and(
+                                        T.shift_right(
+                                            A[
+                                                (
+                                                    i_0 * 32 * vector_length
+                                                    + i_1 * vector_length
+                                                    + i_2
+                                                )
+                                                // num_elem_per_storage
+                                            ],
+                                            (
+                                                (
+                                                    i_0 * 32 * vector_length
+                                                    + i_1 * vector_length
+                                                    + i_2
+                                                )
+                                                % num_elem_per_storage
+                                                // 2
+                                                * 4
+                                                * 2
+                                            ).astype("uint32"),
+                                        ),
+                                        T.uint32((1 << 4 * 2) - 1),
+                                    ).astype("uint8"),
+                                ).astype("float16x2")
+                            ],
+                            indices=[(i_0 * 32 * vector_length + i_1 * vector_length + i_2) % 2],
+                        )
 
     return Module
 
 
 def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storage):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def main(
             A: T.Buffer((n // num_elem_per_storage,), "uint32"),
             B: T.Buffer((n,), "float16"),
@@ -163,22 +169,23 @@ def _scalar_reinterpret_module(n, num_blocks, vector_length, num_elem_per_storag
             for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     for i_2 in T.vectorized(vector_length):
-                        with T.sblock("C"):
-                            v_i = T.axis.spatial(
-                                n, i_0 * 32 * vector_length + i_1 * vector_length + i_2
-                            )
-                            T.reads(A[v_i])
-                            T.writes(B[v_i])
-                            B[v_i] = T.reinterpret(
-                                "float4_e2m1fn",
-                                T.bitwise_and(
-                                    T.shift_right(
-                                        A[v_i // num_elem_per_storage],
-                                        (v_i % num_elem_per_storage * 4).astype("uint32"),
-                                    ),
-                                    T.uint32((1 << 4) - 1),
-                                ).astype("uint8"),
-                            ).astype("float16")
+                        B[i_0 * 32 * vector_length + i_1 * vector_length + i_2] = T.reinterpret(
+                            "float4_e2m1fn",
+                            T.bitwise_and(
+                                T.shift_right(
+                                    A[
+                                        (i_0 * 32 * vector_length + i_1 * vector_length + i_2)
+                                        // num_elem_per_storage
+                                    ],
+                                    (
+                                        (i_0 * 32 * vector_length + i_1 * vector_length + i_2)
+                                        % num_elem_per_storage
+                                        * 4
+                                    ).astype("uint32"),
+                                ),
+                                T.uint32((1 << 4) - 1),
+                            ).astype("uint8"),
+                        ).astype("float16")
 
     return Module
 
@@ -224,26 +231,16 @@ def test_e2m1_scalar_buffer_offset():
     """
     n = 128
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def func(A_raw: T.Buffer((n // 2,), "uint8"), B: T.Buffer((n,), "float16")):
         T.func_attr({"tir.noalias": True})
         A = T.decl_buffer((n,), "float4_e2m1fn", data=A_raw.data)
-        for i in range(n):
-            with T.sblock("B"):
-                vi = T.axis.spatial(n, i)
-                T.reads(A[vi])
-                T.writes(B[vi])
-                B[vi] = T.Cast("float16", A[vi])
-
-    sch = tvm.s_tir.Schedule(func)
-    block = sch.get_sblock("B")
-    loops = sch.get_loops(block)
-    bx, tx = sch.split(loops[0], factors=[None, 32])
-    sch.bind(bx, "blockIdx.x")
-    sch.bind(tx, "threadIdx.x")
+        for bx in T.thread_binding(n // 32, thread="blockIdx.x"):
+            for tx in T.thread_binding(32, thread="threadIdx.x"):
+                B[bx * 32 + tx] = T.Cast("float16", A[bx * 32 + tx])
 
     target = "cuda"
-    fadd = tvm.compile(sch.mod, target=target)
+    fadd = tvm.compile(func, target=target)
 
     # float4_e2m1fn: 4-bit values 0..15, two packed per byte.
     # Encoding (sign | exp1 | man1 man0):

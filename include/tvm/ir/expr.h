@@ -24,6 +24,7 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/big_int.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -31,6 +32,7 @@
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/base_expr.h>
 #include <tvm/ir/cow.h>
+#include <tvm/ir/op_attr_types.h>
 #include <tvm/ir/source_map.h>
 
 #include <algorithm>
@@ -38,11 +40,9 @@
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
 
 namespace tvm {
-
-// Forward-declare VirtualDevice to avoid circular imports.
-class VirtualDevice;
 
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
@@ -388,6 +388,37 @@ class Var : public Expr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
 };
 
+/*!
+ * \brief Checked scalar view over a VarNode.
+ *
+ * PrimVar is a zero-state reference view over the same VarNode as Var.  It additionally
+ * guarantees that the inherited ExprNode::ty is PrimType.
+ */
+class PrimVar : public PrimExpr {
+ public:
+  /*! \brief Construct a scalar variable directly from a primitive type. */
+  explicit PrimVar(ffi::String name, PrimType dtype = PrimType::Int(32), Span span = Span())
+      : PrimExpr(Var(std::move(name), std::move(dtype), std::move(span)).as_or_throw<PrimExpr>()) {}
+
+  /*! \brief Construct a scalar variable directly from a checked type annotation. */
+  explicit PrimVar(ffi::String name, Type type_annotation, Span span = Span())
+      : PrimExpr(Var(std::move(name), std::move(type_annotation), std::move(span))
+                     .as_or_throw<PrimExpr>()) {}
+
+  /*! \brief Safe widening to a general Var view over the same node. */
+  operator Var() const { return this->as_or_throw<Var>(); }
+
+  PrimVar CopyWithSuffix(const ffi::String& suffix) const {
+    return this->as_or_throw<Var>().CopyWithSuffix(suffix).as_or_throw<PrimVar>();
+  }
+  PrimVar CopyWithDType(PrimType dtype) const {
+    return this->as_or_throw<Var>().CopyWithDType(dtype).as_or_throw<PrimVar>();
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimVar, PrimExpr, VarNode);
+  static constexpr bool _type_container_is_exact = false;
+};
+
 class GlobalVar;
 /*!
  * \brief Global variable that lives in the top-level module.
@@ -483,20 +514,74 @@ class Call : public Expr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
 
+/*! \brief Base node for literal constants. */
+class ConstantNode : public ExprNode {
+ public:
+  static constexpr uint32_t _type_child_slots = 4;
+  static void RegisterReflection() { ffi::reflection::ObjectDef<ConstantNode>(); }
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.Constant", ConstantNode, ExprNode);
+};
+
+/*! \brief Managed reference to a literal constant. */
+class Constant : public Expr {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, Expr, ConstantNode);
+};
+
+/*! \brief A constant whose payload is separate from its expression type. */
+class GenericConstNode : public ConstantNode {
+ public:
+  ffi::Any value;
+
+  static void RegisterReflection() {
+    ffi::reflection::ObjectDef<GenericConstNode>().def_ro("value", &GenericConstNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.GenericConst", GenericConstNode, ConstantNode);
+};
+
+/*! \brief Managed reference to a generic constant. */
+class GenericConst : public Constant {
+ public:
+  TVM_DLL GenericConst(ffi::Any value, Type ty, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GenericConst, Constant, GenericConstNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(GenericConstNode);
+};
+
+/*! \brief A string literal with shared semantic StringType. */
+class StringImmNode : public ConstantNode {
+ public:
+  ffi::String value;
+
+  static void RegisterReflection() {
+    ffi::reflection::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.StringImm", StringImmNode, ConstantNode);
+};
+
+/*! \brief Managed reference to a string literal. */
+class StringImm : public Constant {
+ public:
+  TVM_DLL explicit StringImm(ffi::String value, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, Constant, StringImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
+};
+
 /*!
  * \brief Constant integer literals in the program.
  * \sa IntImm
  */
-class IntImmNode : public ExprNode {
+class IntImmNode : public ConstantNode {
  public:
   /*! \brief the Internal value. */
-  int64_t value;
+  ffi::BigInt value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.IntImm", IntImmNode, ConstantNode);
 };
 
 /*!
@@ -512,7 +597,12 @@ class IntImm : public PrimExpr {
    * \param value The internal value.
    * \param span The location of this object in the source code.
    */
-  TVM_DLL IntImm(PrimType value_ty, int64_t value, Span span = Span());
+  TVM_DLL IntImm(PrimType value_ty, ffi::BigInt value, Span span = Span());
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  IntImm(PrimType value_ty, Enum value, Span span = Span())
+      : IntImm(std::move(value_ty), ffi::BigInt(static_cast<std::underlying_type_t<Enum>>(value)),
+               std::move(span)) {}
 
   /*!
    * \brief Construct a scalar boolean constant.
@@ -528,8 +618,13 @@ class IntImm : public PrimExpr {
    * \param value The integer value.
    * \param span The location of this object in the source code.
    */
-  static IntImm Int32(int64_t value, Span span = Span()) {
-    return IntImm(PrimType::Int(32), value, span);
+  static IntImm Int32(ffi::BigInt value, Span span = Span()) {
+    return IntImm(PrimType::Int(32), std::move(value), span);
+  }
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  static IntImm Int32(Enum value, Span span = Span()) {
+    return IntImm(PrimType::Int(32), value, std::move(span));
   }
 
   /*!
@@ -537,8 +632,13 @@ class IntImm : public PrimExpr {
    * \param value The integer value.
    * \param span The location of this object in the source code.
    */
-  static IntImm Int64(int64_t value, Span span = Span()) {
-    return IntImm(PrimType::Int(64), value, span);
+  static IntImm Int64(ffi::BigInt value, Span span = Span()) {
+    return IntImm(PrimType::Int(64), std::move(value), span);
+  }
+
+  template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+  static IntImm Int64(Enum value, Span span = Span()) {
+    return IntImm(PrimType::Int(64), value, std::move(span));
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntImm, PrimExpr, IntImmNode);
@@ -550,7 +650,7 @@ class IntImm : public PrimExpr {
  * \brief Constant floating point literals in the program.
  * \sa FloatImm
  */
-class FloatImmNode : public ExprNode {
+class FloatImmNode : public ConstantNode {
  public:
   /*! \brief The constant value content. */
   double value;
@@ -559,7 +659,7 @@ class FloatImmNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, ExprNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.FloatImm", FloatImmNode, ConstantNode);
 };
 
 /*!
@@ -634,7 +734,92 @@ class Range : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Range, ffi::ObjectRef, RangeNode);
 };
 
+/*! \brief A region of an indexed expression source. */
+class TensorRegionNode : public ExprNode {
+ public:
+  /*! \brief The indexed source expression. */
+  Expr source;
+  /*! \brief The ranges selected from the source. */
+  ffi::Array<Range> region;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    // A region's source and symbolic source type form a definition pattern;
+    // ranges then refer to those same identities.
+    refl::ObjectDef<TensorRegionNode>()
+        .def_ro("source", &TensorRegionNode::source, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("region", &TensorRegionNode::region);
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.TensorRegion", TensorRegionNode, ExprNode);
+};
+
+/*! \brief Managed reference to TensorRegionNode. */
+class TensorRegion : public Expr {
+ public:
+  TVM_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorRegion, Expr, TensorRegionNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorRegionNode);
+};
+
+/*!
+ * \brief Analyze the runtime effects of an expression.
+ *
+ * Accumulates effects of evaluated expression children, excluding type and vector
+ * lane-count metadata. Non-operator callees are conservatively opaque. Missing
+ * operator effect attributes are errors unless an earlier update effect stops
+ * traversal. Returns kPure, kReadState, or kUpdateState.
+ *
+ * Shared IR contains only minimal analyses of expression properties. Arithmetic
+ * reasoning, constraint solving, and target- or dialect-specific analyses belong
+ * in their respective modules.
+ * \param expr The expression to inspect.
+ * \return The strongest runtime effect of the expression.
+ */
+TVM_DLL CallEffectKind SideEffect(const Expr& expr);
+
 namespace ffi {
+
+template <>
+inline constexpr bool use_default_type_traits_v<PrimVar> = false;
+
+template <>
+struct TypeTraits<PrimVar> : public ObjectRefTypeTraitsBase<PrimVar> {
+  using Base = ObjectRefTypeTraitsBase<PrimVar>;
+  using Base::CopyFromAnyViewAfterCheck;
+  using Base::CopyToAnyView;
+  using Base::GetMismatchTypeInfo;
+  using Base::MoveFromAnyAfterCheck;
+  using Base::MoveToAny;
+  using Base::TypeSchema;
+  using Base::TypeStr;
+
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return PrimVar::_type_is_nullable;
+    }
+    if (src->type_index != VarNode::RuntimeTypeIndex()) {
+      return false;
+    }
+    const auto* var = static_cast<const VarNode*>(
+        details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
+    return details::AnyUnsafe::CheckAnyStrict<PrimType>(var->ExprNode::ty);
+  }
+
+  TVM_FFI_INLINE static std::optional<PrimVar> TryCastFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyStrict(src)) {
+      if (src->type_index == TypeIndex::kTVMFFINone) {
+        return details::ObjectUnsafe::ObjectRefFromObjectPtr<PrimVar>(nullptr);
+      }
+      return details::ObjectUnsafe::ObjectRefFromObjectPtr<PrimVar>(
+          details::ObjectUnsafe::ObjectPtrFromUnowned<VarNode>(src->v_obj));
+    }
+    return std::nullopt;
+  }
+};
+
 template <>
 inline constexpr bool object_ref_contains_v<PrimExpr, IntImmNode> = true;
 template <>
@@ -668,7 +853,18 @@ struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, d
     return FloatImm(PrimType::Float(32), value);
   }
 };
+template <>
+inline constexpr bool use_default_type_traits_v<tvm::StringImm> = false;
+
+template <>
+struct TypeTraits<tvm::StringImm>
+    : public ObjectRefWithFallbackTraitsBase<tvm::StringImm, ffi::String> {
+  TVM_FFI_INLINE static tvm::StringImm ConvertFallbackValue(ffi::String value) {
+    return tvm::StringImm(value);
+  }
+};
 }  // namespace ffi
+
 }  // namespace tvm
 
 /* \brief Allow tvm.Var and tvm.GlobalVar as keys in STL tables

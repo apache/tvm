@@ -20,8 +20,9 @@
 
 import tvm
 from tvm import relax as rx
-from tvm import te, tirx
+from tvm import te
 from tvm.ir.base import assert_structural_equal
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
@@ -29,7 +30,7 @@ from tvm.script.parser import tirx as T
 
 def test_emit_te_with_symbolic_arg():
     bb = rx.BlockBuilder()
-    m = tirx.Var("m", "int64")
+    m = T.dynamic("m", "int64")
     x = rx.Var("x", R.Tensor([10], "float32"))
     y = rx.Var("y", R.Shape([m]))
 
@@ -42,9 +43,11 @@ def test_emit_te_with_symbolic_arg():
 
     after = bb.get()
 
-    @I.ir_module(s_tir=True)
+    m = T.dynamic("m")
+
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_func(
             A: T.Buffer((T.int64(10),), "float32"),
             m: T.int64,
@@ -52,16 +55,15 @@ def test_emit_te_with_symbolic_arg():
         ):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(10)):
-                with T.sblock("B"):
-                    v_i = T.axis.spatial(T.int64(10), i)
-                    T.writes(B[v_i])
+                with Ts.sblock("B"):
+                    v_i = Ts.axis.spatial(T.int64(10), i)
+                    Ts.writes(B[v_i])
                     B[v_i] = A[v_i + m]
 
         @R.function
-        def main(x: R.Tensor((10,), dtype="float32"), y: R.Shape(["m"])) -> R.Tensor(
+        def main(x: R.Tensor((10,), dtype="float32"), y: R.Shape([m])) -> R.Tensor(
             (10,), dtype="float32"
         ):
-            m = T.int64()
             cls = Expected
             gv = R.call_tir(
                 cls.te_func,
@@ -90,9 +92,9 @@ def test_symbolic_shape_in_prim_value():
 
         return bb.get()
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Expected:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def te_slice(
             A: T.Buffer([T.int64(16), T.int64(16)], "float32"),
             row_index: T.int64,
@@ -101,14 +103,14 @@ def test_symbolic_shape_in_prim_value():
             T.func_attr({"tirx.noalias": True})
 
             for i in T.serial(T.int64(0), A.shape[1]):
-                with T.sblock("slice"):
-                    vi = T.axis.remap("S", [i])
+                with Ts.sblock("slice"):
+                    vi = Ts.axis.remap("S", [i])
                     Output[vi] = A[row_index, vi]
 
         @R.function
         def main(
             A: R.Tensor([16, 16], "float32"),
-            arg_row_index: R.Prim("int64"),
+            arg_row_index: T.int64,
         ):
             cls = Expected
 

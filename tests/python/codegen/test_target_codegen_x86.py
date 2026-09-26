@@ -38,9 +38,9 @@ def test_fp16_to_fp32():
     def fp16_to_fp32(target, width, match=None, not_match=None):
         elements = 64
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
-            @T.prim_func(s_tir=True)
+            @T.prim_func
             def main(
                 A: T.Buffer((elements, width), "float16"),
                 B: T.Buffer((elements, width), "float32"),
@@ -48,11 +48,7 @@ def test_fp16_to_fp32():
                 T.func_attr({"tirx.noalias": True})
                 for i0 in range(elements):
                     for i1 in T.vectorized(width):
-                        with T.sblock("B"):
-                            v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                            T.reads(A[v_i0, v_i1])
-                            T.writes(B[v_i0, v_i1])
-                            B[v_i0, v_i1] = T.Cast("float32", A[v_i0, v_i1])
+                        B[i0, i1] = T.Cast("float32", A[i0, i1])
 
         f = tvm.tirx.build(Module, target=target)
 

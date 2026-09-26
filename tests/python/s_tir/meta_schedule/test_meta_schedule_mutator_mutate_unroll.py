@@ -18,21 +18,19 @@
 
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
 # pylint: disable=invalid-name, no-member
 
 
-@T.prim_func(s_tir=True)
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [512, 512])
-    B = T.match_buffer(b, [512, 512])
-    C = T.match_buffer(c, [512, 512])
+@Ts.prim_func
+def matmul(A: T.Buffer([512, 512]), B: T.Buffer([512, 512]), C: T.Buffer([512, 512])) -> None:
     for i, j, k in T.grid(512, 512, 512):  # type: ignore
-        with T.sblock("C"):
-            vi, vj, vk = T.axis.remap("SSR", [i, j, k])  # type: ignore
-            with T.init():
+        with Ts.sblock("C"):
+            vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])  # type: ignore
+            with Ts.init():
                 C[vi, vj] = 0.0  # type: ignore
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 

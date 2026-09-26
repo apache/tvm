@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func(s_tir=True)
+@T.prim_func
 def ptx_scalar_f32_math(
     A: T.Buffer((32,), "float32"),
     B: T.Buffer((32,), "float32"),
@@ -37,12 +37,9 @@ def ptx_scalar_f32_math(
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    with T.sblock():
-        T.reads(A[0:32], B[0:32])
-        T.writes(C_add[0:32], C_mul[0:32], C_max[0:32])
-        T.ptx.add.rn.f32(C_add[tx], A[tx], B[tx])
-        T.ptx.mul.rn.f32(C_mul[tx], A[tx], B[tx])
-        T.ptx.max.f32(C_max[tx], A[tx], B[tx])
+    T.ptx.add.rn.f32(C_add[tx], A[tx], B[tx])
+    T.ptx.mul.rn.f32(C_mul[tx], A[tx], B[tx])
+    T.ptx.max.f32(C_max[tx], A[tx], B[tx])
 
 
 @pytest.mark.gpu

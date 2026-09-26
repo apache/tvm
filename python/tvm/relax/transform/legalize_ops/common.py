@@ -20,12 +20,12 @@ from collections.abc import Callable
 
 import tvm
 from tvm import te
-from tvm.ir import Call
+from tvm.ir import Call, GenericConst
 from tvm.runtime import DataTypeCode
 from tvm.tirx import FloatImm, IntImm
 
 from ...block_builder import BlockBuilder
-from ...expr import Constant, Expr
+from ...expr import Expr
 
 ##################### Types #####################
 
@@ -68,9 +68,13 @@ def _try_convert_to_scalar_const(
         if the python native flag is True.
         Or return the input itself if it is not a scalar constant.
     """
-    if isinstance(expr, Constant) and expr.ty.ndim == 0:
+    if (
+        isinstance(expr, GenericConst)
+        and isinstance(expr.value, tvm.runtime.Tensor)
+        and expr.ty.ndim == 0
+    ):
         # get the value of the scalar constant
-        value = expr.data.numpy()[()].item()
+        value = expr.value.numpy()[()].item()
         dtype = expr.ty.dtype
         dtype_str = str(dtype.dtype)
         if python_native:

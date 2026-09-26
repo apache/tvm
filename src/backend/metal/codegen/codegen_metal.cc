@@ -22,12 +22,12 @@
  */
 #include "codegen_metal.h"
 
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/tirx/analysis.h>
 #include <tvm/tirx/transform.h>
 
 #include <algorithm>
@@ -44,6 +44,7 @@
 
 namespace tvm {
 namespace codegen {
+using namespace tvm::prim;
 
 namespace {
 
@@ -66,6 +67,7 @@ Var GetSimdgroupBufferVar(const Expr& data) {
 
 void CodeGenMetal::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
+  analyzer_ = sym::Analyzer();
   // analyze the data;
   for (Var arg : f->params) {
     if (arg->ty.as<PointerTypeNode>()) {
@@ -293,7 +295,7 @@ void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*
 }
 
 void CodeGenMetal::PrintStorageSync(const CallNode* op) {
-  const std::string& sync = op->args[0].as<prim::StringImmNode>()->value;
+  const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     this->PrintIndent();
     this->stream << "simdgroup_barrier(mem_flags::mem_threadgroup);\n";
@@ -329,10 +331,15 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
   }
 }
 
-void CodeGenMetal::VisitStmt_(const BindNode* op) {
+void CodeGenMetal::Dispatch_(const BindNode* op) {
+  // Stateful reads cannot be substituted after the underlying state changes.
+  if (auto prim_value = op->value.as<PrimExpr>();
+      prim_value && SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
+    analyzer_->Bind(op->var, prim_value.value());
+  }
   const auto* pointer_type = op->var->ty.as<PointerTypeNode>();
   if (pointer_type == nullptr || pointer_type->storage_scope.empty()) {
-    return CodeGenC::VisitStmt_(op);
+    return CodeGenC::Dispatch_(op);
   }
 
   const std::string& storage_scope = pointer_type->storage_scope;
@@ -354,20 +361,20 @@ void CodeGenMetal::VisitStmt_(const BindNode* op) {
   stream << "*)" << value << ";\n";
 }
 
-void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
+void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
   TVM_FFI_ICHECK(op->buffer.defined());
   std::string vid = AllocVarID(op->buffer.get());
 
   this->PrintIndent();
   // Compute a compile-time upper bound on the number of buffer elements.
   size_t constant_size = 1;
-  arith::Analyzer analyzer;
   for (const auto& dim : op->buffer->shape) {
     const auto* dim_imm = dim.as<IntImmNode>();
-    int64_t dim_size = dim_imm ? dim_imm->value : analyzer->const_int_bound(dim)->max_value;
+    int64_t dim_size =
+        dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer_->const_int_bound(dim)->max_value;
     if (dim_imm == nullptr) {
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
-      TVM_FFI_ICHECK(dim_size != arith::ConstIntBound::kPosInf)
+      TVM_FFI_ICHECK(dim_size != sym::ConstIntBound::kPosInf)
           << "Metal allocation extent requires a finite compile-time upper bound, but got " << dim;
       if (const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>()) {
         TVM_FFI_ICHECK_LT(dim_size, dtype_max->value)
@@ -412,12 +419,12 @@ void CodeGenMetal::VisitStmt_(const AllocBufferNode* op) {
   }
 }
 
-void CodeGenMetal::VisitExpr_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::Dispatch_(const prim::SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "select(" << PrintExpr(op->false_value) << ", " << PrintExpr(op->true_value) << ", "
      << PrintExpr(op->condition) << ")";
 }
 
-void CodeGenMetal::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->ty.as_or_throw<PrimType>().lanes();
   PrintType(op->ty.as_or_throw<PrimType>(), os);
@@ -429,15 +436,15 @@ void CodeGenMetal::VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) {
   os << ')';
 }
 
-void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(!op->op.as<GlobalVarNode>())
       << "CodegenMetal does not support inter-function calls, "
       << "but expression " << ffi::GetRef<Call>(op) << " calls PrimFunc " << op->op;
   auto f_check_simdgroup_shape = [](PrimExpr col, PrimExpr row) {
     TVM_FFI_ICHECK(col->IsInstance<IntImmNode>() && row->IsInstance<IntImmNode>())
         << "Only constant shape is supported for simdgroup matrix, but got " << col << "x" << row;
-    int col_val = col.as<IntImmNode>()->value;
-    int row_val = row.as<IntImmNode>()->value;
+    int col_val = col.as<IntImmNode>()->value.as<int>().value();
+    int row_val = row.as<IntImmNode>()->value.as<int>().value();
     TVM_FFI_ICHECK(col_val == 8 && row_val == 8)
         << "Only 8x8 matrix is supported, but got " << col_val << "x" << row_val;
   };
@@ -487,15 +494,15 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
        << PrintExpr(a) << "[" << PrintExpr(op->args[3]) << "], "  //
        << PrintExpr(b) << "[" << PrintExpr(op->args[5]) << "], "  //
        << PrintExpr(c) << "[" << PrintExpr(op->args[7]) << "])";
-  } else if (op->op.same_as(builtin::ptr_byte_offset()) ||
-             op->op.same_as(builtin::handle_add_byte_offset())) {
-    bool is_typed_offset = op->op.same_as(builtin::ptr_byte_offset());
+  } else if (op->op.same_as(tirx::builtin::ptr_byte_offset()) ||
+             op->op.same_as(tirx::builtin::handle_add_byte_offset())) {
+    bool is_typed_offset = op->op.same_as(tirx::builtin::ptr_byte_offset());
     TVM_FFI_ICHECK_EQ(op->args.size(), is_typed_offset ? 3U : 2U);
     const auto* pointer_type = op->ty.as<PointerTypeNode>();
     TVM_FFI_ICHECK(pointer_type)
         << "Metal pointer byte offsets must have a pointer result type, but got " << op->ty;
     if (pointer_type->storage_scope.empty()) {
-      return CodeGenC::VisitExpr_(op, os);
+      return CodeGenC::Dispatch_(op, os);
     }
 
     os << "((";
@@ -508,9 +515,9 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     os << ") + ";
     PrintExpr(op->args[1], os);
     os << "))";
-  } else if (op->op.same_as(builtin::reinterpret())) {
+  } else if (op->op.same_as(tirx::builtin::reinterpret())) {
     if (!op->ty.as<PrimTypeNode>() || !op->args[0]->ty.as<PrimTypeNode>()) {
-      return CodeGenC::VisitExpr_(op, os);
+      return CodeGenC::Dispatch_(op, os);
     }
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
@@ -519,11 +526,11 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     this->PrintExpr(op->args[0], os);
     os << "))";
   } else {
-    CodeGenC::VisitExpr_(op, os);
+    CodeGenC::Dispatch_(op, os);
   }
 }
 
-void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenMetal::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   std::ostringstream temp;
   if (std::isinf(op->value)) {
     if (op->value < 0) {

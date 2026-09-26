@@ -78,14 +78,14 @@ def _emit(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # Step 1: identify reg / smem sides and pull their tensor shape + layout.
     src_br = op_call.src
     dst_br = op_call.dst
-    if src_br.buffer.scope() == "local":
+    if src_br.source.scope() == "local":
         r_br, s_br = src_br, dst_br
         direction = "st"  # reg -> smem (stmatrix)
     else:
         r_br, s_br = dst_br, src_br
         direction = "ld"  # smem -> reg (ldmatrix)
-    r_buf = r_br.buffer
-    s_buf = s_br.buffer
+    r_buf = r_br.source
+    s_buf = s_br.source
     r_shape = list(r_buf.shape)
     r_layout = r_buf.layout
     s_shape = list(s_buf.shape)

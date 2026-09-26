@@ -19,9 +19,9 @@
 
 from collections import namedtuple
 
-from tvm.arith.analyzer import Analyzer
+from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import BufferRegion
+from tvm.sym.analyzer import Analyzer
 
 # Represents the part of data iter covered by the buffer region
 RangeInfo = namedtuple(
@@ -56,15 +56,15 @@ def normalize_and_group(layout, shape):
 
 
 def get_ewise_dim_map(
-    buffer_region: BufferRegion, second_buffer_region: BufferRegion, analyzer: Analyzer
+    buffer_region: TensorRegion, second_buffer_region: TensorRegion, analyzer: Analyzer
 ):
     """Get the dimension map between two elementwise buffer regions.
 
     Parameters
     ----------
-    buffer_region : BufferRegion
+    buffer_region : TensorRegion
         The first buffer region
-    second_buffer_region : BufferRegion
+    second_buffer_region : TensorRegion
         The second buffer region
     analyzer : Analyzer
         The analyzer to use
@@ -108,8 +108,8 @@ def get_ewise_dim_map(
 
 
 def get_reduction_dim_map(
-    src_buffer_region: BufferRegion,
-    dst_buffer_region: BufferRegion,
+    src_buffer_region: TensorRegion,
+    dst_buffer_region: TensorRegion,
     axes: tuple[int],
     analyzer: Analyzer,
 ):
@@ -117,9 +117,9 @@ def get_reduction_dim_map(
 
     Parameters
     ----------
-    src_buffer_region : BufferRegion
+    src_buffer_region : TensorRegion
         The source buffer region
-    dst_buffer_region : BufferRegion
+    dst_buffer_region : TensorRegion
         The destination buffer region
     axes : Tuple[int]
         The reduction axes

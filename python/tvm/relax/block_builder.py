@@ -470,25 +470,27 @@ class BlockBuilder(Object):
 
         .. code-block:: python
 
+            m = T.dynamic("m")
+            n = T.dynamic("n")
+
             @tvm.script.ir_module
             class Module:
-                @T.prim_func(s_tir=True)
-                def te_func(var_rxplaceholder: T.handle, var_rxplaceholder_1: T.handle,
-                            var_compute: T.handle) -> None:
+                @Ts.prim_func
+                def te_func(
+                    rxplaceholder: T.Buffer([n, m], dtype="float32"),
+                    rxplaceholder_1: T.Buffer([n, m], dtype="float32"),
+                    compute: T.Buffer([128, 128], dtype="float32"),
+                ) -> None:
                     # function attr dict
                     T.func_attr({"tirx.noalias": True})
-                    m = T.int64()
-                    n = T.int64()
-                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n, m], dtype="float32")
-                    rxplaceholder_1 = T.match_buffer(var_rxplaceholder_1, [n, m], dtype="float32")
-                    compute = T.match_buffer(var_compute, [128, 128], dtype="float32")
+
                     # body
-                    # with T.sblock("root")
+                    # with Ts.sblock("root")
                     for i0, i1 in T.grid(128, 128):
-                        with T.sblock("compute"):
-                            i, j = T.axis.remap("SS", [i0, i1])
-                            T.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
-                            T.writes([compute[i, j]])
+                        with Ts.sblock("compute"):
+                            i, j = Ts.axis.remap("SS", [i0, i1])
+                            Ts.reads([rxplaceholder[i, j], rxplaceholder_1[i, j]])
+                            Ts.writes([compute[i, j]])
                             compute[i, j] = rxplaceholder[i, j] + rxplaceholder_1[i, j]
 
                 @R.function
@@ -519,20 +521,25 @@ class BlockBuilder(Object):
 
         .. code-block:: python
 
+            m = T.dynamic("m")
+            n = T.dynamic("n")
+
             @tvm.script.ir_module
             class Module:
-                @T.prim_func(s_tir=True)
-                def te_func(var_rxplaceholder: T.handle, var_compute: T.handle, n: T.int64) -> None:
-                    rxplaceholder = T.match_buffer(var_rxplaceholder, [n + T.int64(1)],
-                                                   dtype="float32")
-                    compute = T.match_buffer(var_compute, [n + T.int64(1)], dtype="float32")
+                @Ts.prim_func
+                def te_func(
+                    rxplaceholder: T.Buffer([n + T.int64(1)], dtype="float32"),
+                    compute: T.Buffer([n + T.int64(1)], dtype="float32"),
+                    n: T.int64,
+                ) -> None:
+
                     # body
-                    # with T.sblock("root")
+                    # with Ts.sblock("root")
                     for i0 in T.serial(0, n + T.int64(1)):
-                        with T.sblock("compute"):
-                            i = T.axis.spatial(n + T.int64(1), i0)
-                            T.reads([rxplaceholder[i]])
-                            T.writes([compute[i]])
+                        with Ts.sblock("compute"):
+                            i = Ts.axis.spatial(n + T.int64(1), i0)
+                            Ts.reads([rxplaceholder[i]])
+                            Ts.writes([compute[i]])
                             compute[i] = rxplaceholder[i]
 
                 @R.function
@@ -642,7 +649,7 @@ class BlockBuilder(Object):
         # `bb.function()`, then any variables provided from the params
         # are not in scope.  Otherwise, TIR variables used in dynamic
         # inputs are removed as undefined (e.g. Replacing
-        # `R.Tensor(["batch_size"])` with `R.Tensor(ndims=1)`).
+        # `R.Tensor([batch_size])` with `R.Tensor(ndims=1)`).
         self.begin_scope(self._func._params)
         try:
             seqe = self.normalize(seqe)

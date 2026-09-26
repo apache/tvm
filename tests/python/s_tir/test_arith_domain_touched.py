@@ -14,21 +14,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
 import pytest
 import tvm_ffi
 
 import tvm
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
+m = T.dynamic("m", "int32")
 
-@T.prim_func(s_tir=True)
-def scalar_func(a: T.handle, b: T.handle):
-    m = T.int32()
-    n = T.meta_var(100)
-    A = T.match_buffer(a, (n, m))
-    B = T.match_buffer(b, (n, m))
 
-    for i, j in T.grid(n, m):
+@Ts.prim_func
+def scalar_func(A: T.Buffer((100, m)), B: T.Buffer((100, m))):
+    for i, j in T.grid(100, m):
         A[i, j] = B[i - 1, j + 1] + A[i - 1, j - 1]
 
 
@@ -74,11 +74,8 @@ def test_domain_touched_vector():
     pytest.skip("BufferRegion arithmetic in expressions not supported")
     m = tvm.runtime.convert(128)
 
-    @T.prim_func(s_tir=True)
-    def func(a: T.handle, b: T.handle, n: T.int32):
-        A = T.match_buffer(a, (n * m,))
-        B = T.match_buffer(b, (n * m,))
-
+    @Ts.prim_func
+    def func(A: T.Buffer((n * m,)), B: T.Buffer((n * m,)), n: T.int32):  # noqa: F821
         for i in T.serial(n):
             A[i * m : (i + 1) * m : 1] = A[i * m : (i + 1) * m : 1] + B[i * m : (i + 1) * m : 1]
 

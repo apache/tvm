@@ -84,6 +84,11 @@ class PrimFunc(BaseFunc, Scriptable):
             span,
         )  # type: ignore
 
+    @property
+    def is_tirx(self):
+        """Whether this primitive function uses the TIRx dialect."""
+        return not bool(self.attrs.get("s_tir", False))
+
     def with_body(self, new_body, span=None):
         """Create a new PrimFunc with the same set signatures but a new body.
 
@@ -119,19 +124,22 @@ class PrimFunc(BaseFunc, Scriptable):
 
         Examples
         --------
-        We can define a Meta TIR function with symbolic shape:
+        We can define a TIRX function with symbolic shape:
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def mem_copy(a: T.handle, b: T.handle, m: T.int32, n: T.int32) -> None:
-                A = T.match_buffer(a, (m, n), "float32")
-                B = T.match_buffer(b, (m, n), "float32")
+            from __future__ import annotations
+
+            @T.prim_func
+            def mem_copy(
+                A: T.Buffer((m, n), "float32"),
+                B: T.Buffer((m, n), "float32"),
+                m: T.int32,
+                n: T.int32,
+            ) -> None:
 
                 for i, j in T.grid(m, n):
-                    with T.sblock():
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        B[vi, vj] = A[vi, vj]
+                    B[i, j] = A[i, j]
 
         Then we can make it specialized with given shapes or buffers.
 
@@ -146,15 +154,13 @@ class PrimFunc(BaseFunc, Scriptable):
 
         .. code-block:: python
 
-            @T.prim_func(s_tir=True)
-            def mem_copy_16_16(a: T.handle, b: T.handle) -> None:
-                A = T.match_buffer(a, (16, 16), "float32")
-                B = T.match_buffer(b, (16, 16), "float32")
+            @T.prim_func
+            def mem_copy_16_16(
+                A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")
+            ) -> None:
 
                 for i, j in T.grid(16, 16):
-                    with T.sblock():
-                        vi, vj = T.axis.remap("SS", [i, j])
-                        B[vi, vj] = A[vi, vj]
+                    B[i, j] = A[i, j]
 
         Returns
         -------
@@ -162,60 +168,6 @@ class PrimFunc(BaseFunc, Scriptable):
             The new function with parameter specialized
         """
         return _ffi_api.Specialize(self, param_map)  # type: ignore
-
-
-@tvm_ffi.register_object("tirx.TensorIntrin")
-class TensorIntrin(Object):
-    """A tensor intrinsic.
-
-    Parameters
-    ----------
-    desc : PrimFunc
-        The function to describe the computation.
-
-    impl : PrimFunc
-        The function of the implementation for the execution.
-    """
-
-    def __init__(self, desc, impl):
-        self.__init_handle_by_constructor__(_ffi_api.TensorIntrin, desc, impl)
-
-    @staticmethod
-    def register(name: str, desc: PrimFunc, impl: PrimFunc, override: bool = False):
-        """Register a tensor intrinsic with its name.
-
-        Parameters
-        ----------
-        name : str
-            The name of the TensorIntrin to register.
-        desc : PrimFunc
-            The function to describe the computation.
-        impl : PrimFunc
-            The function of the implementation for the execution.
-        override: bool
-            Whether override existing intrinsic.
-        """
-        return _ffi_api.TensorIntrinRegister(name, TensorIntrin(desc, impl), override)  # type: ignore
-
-    @staticmethod
-    def get(name: str, allow_missing: bool = False) -> Optional["TensorIntrin"]:
-        """Look up a tensor intrinsic by its name.
-
-        Parameters
-        ----------
-        name : str
-            The name of the TensorIntrin to look up.
-
-        allow_missing : bool
-            Whether to allow missing tensor intrin. If False, raise an error if the tensor intrin
-        doesn't exist.
-
-        Returns
-        -------
-        result : Optional[TensorIntrin]
-            The TensorIntrin with the specified name, or None if not found.
-        """
-        return _ffi_api.TensorIntrinGet(name, allow_missing)  # pylint: type: ignore
 
 
 @tvm_ffi.register_object("tirx.IndexMap")
@@ -361,7 +313,7 @@ class IndexMap(Object):
 
             The IndexMap to which the comparison should be made.
 
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
 
             The analyzer to use while comparing the mapped indices.  When
             provided, its accumulated bindings and constraints are reused so
@@ -381,7 +333,7 @@ class IndexMap(Object):
             return False
 
         if analyzer is None:
-            analyzer = tvm.arith.Analyzer()
+            analyzer = tvm.sym.Analyzer()
 
         mapped_other_final_indices = other_map.map_indices(self.initial_indices, analyzer=analyzer)
         for self_index, other_index in zip(self.final_indices, mapped_other_final_indices):
@@ -397,7 +349,7 @@ class IndexMap(Object):
         ----------
         indices : List[Expr]
             The indices to be mapped
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
             The analyzer to use while simplifying mapped indices.
 
         Returns
@@ -414,7 +366,7 @@ class IndexMap(Object):
         ----------
         shape : List[Expr]
             The buffer shape to be mapped
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
             The analyzer to use while simplifying mapped shape expressions.
 
         Returns
@@ -451,7 +403,7 @@ class IndexMap(Object):
             The region over which the inverse should be determined.
             Used for validating that the mapping is bijective over
             this range.
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
             The analyzer to use while deriving and validating the inverse.
 
         Returns
@@ -477,7 +429,7 @@ class IndexMap(Object):
 
             The region over which the inverse should be determined.
             Used for determining the predicate.
-        analyzer : Optional[tvm.arith.Analyzer]
+        analyzer : Optional[tvm.sym.Analyzer]
             The analyzer to use while deriving the inverse and padding predicate.
 
         Returns

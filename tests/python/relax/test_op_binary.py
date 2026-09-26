@@ -22,7 +22,8 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, tirx
-from tvm.ir import Op, VDevice
+from tvm.ir import Op
+from tvm.relax import VDevice
 from tvm.script import relax as R
 
 
@@ -129,7 +130,7 @@ def test_infer_ty_binary_arith_prim_value_with_tensor(binary_arith_op: Callable)
     bb = relax.BlockBuilder()
 
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
-    y = relax.Var("y", R.Prim("float32"))
+    y = relax.Var("y", tvm.ir.PrimType("float32"))
 
     _check_inference(bb, binary_arith_op(x, y), relax.TensorType((2, 3), "float32"))
 
@@ -138,8 +139,8 @@ def test_infer_ty_binary_arith_prim_value_with_tensor(binary_arith_op: Callable)
 def test_infer_ty_binary_arith_prim_value_with_prim_value(binary_arith_op: Callable):
     bb = relax.BlockBuilder()
 
-    x = relax.Var("x", R.Prim("float32"))
-    y = relax.Var("y", R.Prim("float32"))
+    x = relax.Var("x", tvm.ir.PrimType("float32"))
+    y = relax.Var("y", tvm.ir.PrimType("float32"))
 
     _check_inference(bb, binary_arith_op(x, y), tvm.ir.PrimType("float32"))
 
@@ -175,7 +176,7 @@ def test_binary_cmp_infer_ty(binary_cmp_op: Callable):
 def test_infer_ty_binary_cmp_prim_value_to_tensor(binary_cmp_op: Callable):
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
-    y = relax.Var("y", R.Prim("float32"))
+    y = relax.Var("y", tvm.ir.PrimType("float32"))
     _check_inference(bb, binary_cmp_op(x, y), relax.TensorType((2, 3), "bool"))
     _check_inference(bb, binary_cmp_op(y, x), relax.TensorType((2, 3), "bool"))
 
@@ -183,8 +184,8 @@ def test_infer_ty_binary_cmp_prim_value_to_tensor(binary_cmp_op: Callable):
 @pytest.mark.parametrize("binary_cmp_op", [row[0] for row in binary_cmp_ops])
 def test_infer_ty_binary_cmp_prim_value_to_prim_value(binary_cmp_op: Callable):
     bb = relax.BlockBuilder()
-    x = relax.Var("x", R.Prim("float32"))
-    y = relax.Var("y", R.Prim("float32"))
+    x = relax.Var("x", tvm.ir.PrimType("float32"))
+    y = relax.Var("y", tvm.ir.PrimType("float32"))
     _check_inference(bb, binary_cmp_op(x, y), tvm.ir.PrimType("bool"))
     _check_inference(bb, binary_cmp_op(y, x), tvm.ir.PrimType("bool"))
 

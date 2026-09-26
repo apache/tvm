@@ -40,9 +40,7 @@ def _build_kernel(scope, n_threads, shape, dtype):
     if scope == "warpgroup":
 
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, shape, dtype)
-            B = T.match_buffer(B_ptr, shape, dtype)
+        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.warpgroup_id([n_threads // 128])
@@ -58,9 +56,7 @@ def _build_kernel(scope, n_threads, shape, dtype):
     elif scope == "warp":
 
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, shape, dtype)
-            B = T.match_buffer(B_ptr, shape, dtype)
+        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.lane_id([32])
@@ -73,9 +69,7 @@ def _build_kernel(scope, n_threads, shape, dtype):
     elif scope == "cta":
 
         @T.prim_func
-        def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-            A = T.match_buffer(A_ptr, shape, dtype)
-            B = T.match_buffer(B_ptr, shape, dtype)
+        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.warp_id([n_threads // 32])
@@ -212,10 +206,9 @@ def test_copy_g2s_s2g(task, dtype, scope):
         thread_cnt = 1
 
     @T.prim_func
-    def copy_sync(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, g_shape, dtype, layout=layoutA)
-        B = T.match_buffer(B_ptr, g_shape, dtype, layout=layoutB)
-
+    def copy_sync(
+        A: T.Buffer(g_shape, dtype, layout=layoutA), B: T.Buffer(g_shape, dtype, layout=layoutB)
+    ) -> None:
         T.device_entry()
         T.cta_id([2])
         T.thread_id([thread_cnt])
@@ -361,8 +354,7 @@ def test_swizzled_smem_emit_must_be_swizzle_aware():
     s_layout = ComposeLayout(3, 3, 3, TileLayout(S[shape]))
 
     @T.prim_func
-    def kernel(A_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, "float16")
+    def kernel(A: T.Buffer(shape, "float16")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.warpgroup_id([1])
@@ -480,7 +472,7 @@ def test_layout_permute_copy_preserves_smem_strides():
     # S is K-tiled : s_off(tid) = (tid // 8) * 8 + (tid % 8) * 1024.
     # For tid=1 the two MUST differ — they're identical iff S was
     # collapsed to row-major (the regression).
-    analyzer = tvm.arith.Analyzer()
+    analyzer = tvm.sym.Analyzer()
     value_map = {tid_var: _IntImm("int32", 1)}
     s_off_at_1 = analyzer.simplify(
         tvm_ffi.structural_map(
@@ -526,9 +518,10 @@ def test_gmem_smem_swizzle_uses_structured_compose_apply():
     )
 
     @T.prim_func
-    def kernel(A_ptr: T.handle, B_ptr: T.handle) -> None:
-        A = T.match_buffer(A_ptr, shape, "float16", layout=g_layout)
-        B = T.match_buffer(B_ptr, shape, "float16", layout=g_layout)
+    def kernel(
+        A: T.Buffer(shape, "float16", layout=g_layout),
+        B: T.Buffer(shape, "float16", layout=g_layout),
+    ) -> None:
         T.device_entry()
         T.cta_id([1])
         T.lane_id([32])

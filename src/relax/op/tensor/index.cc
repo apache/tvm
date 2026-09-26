@@ -38,6 +38,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   TakeAttrs::RegisterReflection();
@@ -414,7 +415,7 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
 
     ffi::Array<int64_t> axes_tuple_i64;
     axes_tuple_i64.reserve(axes_tuple.size());
-    for (const IntImm& v : axes_tuple) axes_tuple_i64.push_back(v->value);
+    for (const IntImm& v : axes_tuple) axes_tuple_i64.push_back(static_cast<int64_t>(v->value));
     std::vector<int> axes = NormalizeAxes(call, ctx, data_ty->ndim, axes_tuple_i64);
     auto attrs = call->attrs.as<StridedSliceAttrs>();
 
@@ -428,8 +429,8 @@ Type InferTypeStridedSlice(const Call& call, const BlockBuilder& ctx) {
       PrimExpr output_dim =
           topi::GetLength(begin, end, strides_tuple[i], input_dim, attrs->assume_inbound);
 
-      arith::Analyzer analyzer = ctx->GetAnalyzer();
-      std::optional<With<arith::ConstraintContext>> context;
+      sym::Analyzer analyzer = ctx->GetAnalyzer();
+      std::optional<With<sym::ConstraintContext>> context;
       if (attrs->assume_inbound) {
         context.emplace(analyzer, 0 <= begin && begin <= input_dim && 0 <= end && end <= input_dim);
       }
@@ -477,7 +478,7 @@ InferLayoutOutput InferLayoutStridedSlice(
 
   ffi::Array<Expr> new_axes;
   for (const auto& axis : axes_tuple) {
-    int new_axis = FindAxis(existing_layout->layout, axis->value);
+    int new_axis = FindAxis(existing_layout->layout, axis->value.as<int>().value());
     new_axes.push_back(IntImm::Int64(new_axis));
   }
 

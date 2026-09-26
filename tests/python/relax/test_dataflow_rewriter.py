@@ -21,6 +21,7 @@ import pytest
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -80,7 +81,7 @@ def test_incorrect_function_type_of_pattern_raises_error():
 
         @R.rewriter
         class Rewriter:
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def pattern():
                 pass
 
@@ -112,7 +113,7 @@ def test_incorrect_function_type_of_replacement_raises_error():
             def pattern():
                 return R.tuple()
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def replacement():
                 pass
 
@@ -439,7 +440,7 @@ def test_rewrite_only_introduces_private_subroutines_when_required():
         def replacement(A: R.Tensor([16], "float32")):
             return R.call_tir(RewriteMul.subroutine_mul, [A], out_ty=R.Tensor([16], "float32"))
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def subroutine_mul(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
@@ -517,7 +518,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
         def replacement(A: R.Tensor([16], "float32")):
             return R.call_tir(RewriteMul.subroutine, [A], out_ty=R.Tensor([16], "float32"))
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def subroutine(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
@@ -542,7 +543,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
         def subroutine(A: R.Tensor([16], "float32")) -> R.Tensor([16], "float32"):
             return A * R.const(2.0, "float32")
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def subroutine_1(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
@@ -1182,7 +1183,7 @@ def test_rewrite_may_apply_within_conditional():
             )
 
     @R.function(private=True)
-    def before(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: R.Prim("bool")):
+    def before(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: T.bool):
         if cond:
             out = A + B
         else:
@@ -1191,7 +1192,7 @@ def test_rewrite_may_apply_within_conditional():
         return out
 
     @R.function(private=True)
-    def expected(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: R.Prim("bool")):
+    def expected(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: T.bool):
         if cond:
             out = R.call_pure_packed(
                 "my_optimized_add_impl", A, B, ty_args=R.Tensor([16], "float32")
@@ -1224,13 +1225,20 @@ def test_match_dynamic_shape():
 
     """
 
+    N1_pattern = T.dynamic("N1")
+    M_pattern = T.dynamic("M")
+    N2_pattern = T.dynamic("N2")
+    N1_replacement = T.dynamic("N1")
+    N2_replacement = T.dynamic("N2")
+    M_replacement = T.dynamic("M")
+
     @R.rewriter
     class Rewriter:
         @R.function
         def pattern(
-            lhs_A: R.Tensor(["N1", "M"], "float32"),
-            lhs_B: R.Tensor(["N2", "M"], "float32"),
-            rhs: R.Tensor(["M"], "float32"),
+            lhs_A: R.Tensor([N1_pattern, M_pattern], "float32"),
+            lhs_B: R.Tensor([N2_pattern, M_pattern], "float32"),
+            rhs: R.Tensor([M_pattern], "float32"),
         ):
             proj_A = R.matmul(lhs_A, rhs)
             proj_B = R.matmul(lhs_B, rhs)
@@ -1238,20 +1246,17 @@ def test_match_dynamic_shape():
 
         @R.function
         def replacement(
-            lhs_A: R.Tensor(["N1", "M"], "float32"),
-            lhs_B: R.Tensor(["N2", "M"], "float32"),
-            rhs: R.Tensor(["M"], "float32"),
+            lhs_A: R.Tensor([N1_replacement, M_replacement], "float32"),
+            lhs_B: R.Tensor([N2_replacement, M_replacement], "float32"),
+            rhs: R.Tensor([M_replacement], "float32"),
         ):
-            N1 = T.int64()
-            N2 = T.int64()
-
             lhs = R.concat([lhs_A, lhs_B])
             proj_concat = R.matmul(lhs, rhs)
-            proj_A: R.Tensor([N1], "float32") = R.strided_slice(
-                proj_concat, axes=[0], begin=[0], end=[N1]
+            proj_A: R.Tensor([N1_replacement], "float32") = R.strided_slice(
+                proj_concat, axes=[0], begin=[0], end=[N1_replacement]
             )
-            proj_B: R.Tensor([N2], "float32") = R.strided_slice(
-                proj_concat, axes=[0], begin=[N1], end=[N2 + N1]
+            proj_B: R.Tensor([N2_replacement], "float32") = R.strided_slice(
+                proj_concat, axes=[0], begin=[N1_replacement], end=[N2_replacement + N1_replacement]
             )
             return (proj_A, proj_B)
 
@@ -1266,15 +1271,16 @@ def test_match_dynamic_shape():
         out = proj_A + proj_B
         return out
 
+    N1 = T.dynamic("N1")
+    M = T.dynamic("M")
+    N2 = T.dynamic("N2")
+
     @R.function(private=True)
     def expected(
         state: R.Tensor([16], "float32"),
         A: R.Tensor([16, 16], "float32"),
         B: R.Tensor([16, 16], "float32"),
     ):
-        N1 = T.int64()
-        M = T.int64()
-        N2 = T.int64()
         with R.dataflow():
             lhs_A = R.match_cast(A, R.Tensor([N1, M], "float32"))
             lhs_B = R.match_cast(B, R.Tensor([N2, M], "float32"))
@@ -1297,49 +1303,53 @@ def test_match_dynamic_shape():
 def test_match_dynamic_pattern_against_dynamic_shape():
     """A dynamic pattern may match a static shape"""
 
+    M_pattern = T.dynamic("M")
+    N_pattern = T.dynamic("N")
+    M_replacement = T.dynamic("M")
+    N_replacement = T.dynamic("N")
+
     @R.rewriter
     class Rewriter:
         @R.function
         def pattern(
-            A: R.Tensor(["M", "N"], "float32"),
-            B: R.Tensor(["N", "N"], "float32"),
+            A: R.Tensor([M_pattern, N_pattern], "float32"),
+            B: R.Tensor([N_pattern, N_pattern], "float32"),
         ):
             return R.matmul(A, B)
 
         @R.function
         def replacement(
-            A: R.Tensor(["M", "N"], "float32"),
-            B: R.Tensor(["N", "N"], "float32"),
+            A: R.Tensor([M_replacement, N_replacement], "float32"),
+            B: R.Tensor([N_replacement, N_replacement], "float32"),
         ):
-            M = T.int64()
-            N = T.int64()
             return R.call_pure_packed(
                 "my_optimized_square_matmul",
                 A,
                 B,
-                ty_args=R.Tensor([M, N], "float32"),
+                ty_args=R.Tensor([M_replacement, N_replacement], "float32"),
             )
+
+    N = T.dynamic("N")
 
     @R.function(private=True)
     def before(
-        A: R.Tensor(["N", "N*2"], "float32"),
-        B: R.Tensor(["N*2", "N*2"], "float32"),
-        C: R.Tensor(["N", "N"], "float32"),
+        A: R.Tensor([N, N * 2], "float32"),
+        B: R.Tensor([N * 2, N * 2], "float32"),
+        C: R.Tensor([N, N], "float32"),
     ):
-        N = T.int64()
         D: R.Tensor([N, N * 2], "float32") = R.matmul(A, B)
         E: R.Tensor([N * 2, N], "float32") = R.permute_dims(D)
         F: R.Tensor([N * 2, N], "float32") = R.matmul(E, C)
         return F
 
+    N = T.dynamic("N")
+
     @R.function(private=True)
     def expected(
-        A: R.Tensor(["N", "N*2"], "float32"),
-        B: R.Tensor(["N*2", "N*2"], "float32"),
-        C: R.Tensor(["N", "N"], "float32"),
+        A: R.Tensor([N, N * 2], "float32"),
+        B: R.Tensor([N * 2, N * 2], "float32"),
+        C: R.Tensor([N, N], "float32"),
     ):
-        N = T.int64()
-
         D: R.Tensor([N, N * 2], "float32") = R.call_pure_packed(
             "my_optimized_square_matmul",
             A,

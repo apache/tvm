@@ -31,6 +31,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 namespace {
 
@@ -66,12 +67,14 @@ TVMFFIAny IterMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noe
 TVMFFIAny IterMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   IterNode* self = const_cast<IterNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_extent,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->extent));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_stride,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->stride));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<PrimExpr>, mapped_extent,
+      mutator->MutateExpected(self->extent, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<PrimExpr>, mapped_stride,
+      mutator->MutateExpected(self->stride, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Axis>, mapped_axis,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->axis));
+                                    mutator->MutateExpected(self->axis, ffi::InplaceMode::kAllow));
   if (mapped_extent.UnchangedOrSameAs(self->extent) &&
       mapped_stride.UnchangedOrSameAs(self->stride) && mapped_axis.UnchangedOrSameAs(self->axis)) {
     return ffi::Unchanged().CopyToTVMFFIAny();
@@ -118,12 +121,14 @@ TVMFFIAny TileLayoutMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   TileLayoutNode* self = const_cast<TileLayoutNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileLayoutNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Iter>>, mapped_shard,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->shard));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Iter>>, mapped_replica,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->replica));
+                                    mutator->MutateExpected(self->shard, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<Iter>>, mapped_replica,
+      mutator->MutateExpected(self->replica, ffi::InplaceMode::kAllow));
   using OffsetMap = ffi::Map<Axis, PrimExpr>;
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<OffsetMap>, mapped_offset,
-                                    mutator->MaybeInplaceMutateIfUniqueExpected(self->offset));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<OffsetMap>, mapped_offset,
+      mutator->MutateExpected(self->offset, ffi::InplaceMode::kAllow));
   if (mapped_shard.UnchangedOrSameAs(self->shard) &&
       mapped_replica.UnchangedOrSameAs(self->replica) &&
       mapped_offset.UnchangedOrSameAs(self->offset)) {
@@ -190,7 +195,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 bool TileLayoutNode::CompatibleWithShape(const Array<PrimExpr>& shape) const { return true; }
 
 bool VerifyCompactness(const std::vector<Iter>& iters) {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   PrimExpr stride_to_find = 1;
   for (size_t i = 0; i < iters.size(); ++i) {
     auto iter = std::find_if(iters.begin(), iters.end(), [&](const Iter& iter) {
@@ -246,7 +251,7 @@ PrimExpr TileLayoutNode::GetSize(ffi::Optional<ffi::String> axis_name) const {
 }
 
 PrimExpr TileLayoutNode::GetSpan(ffi::Optional<ffi::String> axis_name) const {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   PrimExpr result = 1;
   auto filter = [&](const Axis& axis) { return AxisMatchesFilter(axis, axis_name); };
 
@@ -276,7 +281,7 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(const ffi::Array<PrimExpr>
   // ``coord[d]`` against just that sub-range's *local* extents keeps the
   // symbolic form small (local mod/divs) and avoids the cross-dim noise of the
   // flatten+split-against-shard-shape round-trip. Equivalent numerical output,
-  // much friendlier for arith.Analyzer downstream.
+  // much friendlier for sym.Analyzer downstream.
   if (auto grouped_opt = TryGroup(ffi::GetRef<TileLayout>(this), shape); grouped_opt.has_value()) {
     auto& [grouped, seps] = *grouped_opt;
     ffi::Array<PrimExpr> per_shard_coords;
@@ -304,7 +309,7 @@ ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(const ffi::Array<PrimExpr>
 }
 
 ffi::Map<ffi::String, PrimExpr> TileLayoutNode::Apply(Array<PrimExpr> coord) const {
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   TVM_FFI_ICHECK_EQ(coord.size(), shard.size())
       << "Coordinate size must match the number of shard axes";
   std::unordered_map<ffi::String, PrimExpr> result;

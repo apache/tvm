@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_METAL_CODEGEN_METAL_H_
 #define TVM_TARGET_METAL_CODEGEN_METAL_H_
 
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/codegen.h>
 
 #include <string>
@@ -52,17 +53,18 @@ class CodeGenMetal final : public CodeGenC {
   void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                          const std::string& value) final;
   // overload visitor
-  void VisitStmt_(const BindNode* op) final;                               // NOLINT(*)
-  void VisitStmt_(const AllocBufferNode* op) final;                        // NOLINT(*)
-  void VisitExpr_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
-  void VisitExpr_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
-  void VisitExpr_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
-  void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
+  void Dispatch_(const BindNode* op) final;                               // NOLINT(*)
+  void Dispatch_(const AllocBufferNode* op) final;                        // NOLINT(*)
+  void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
+  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
 
   // reuse parent's function.
   using CodeGenC::PrintType;
 
  private:
+  sym::Analyzer analyzer_;
   std::unordered_map<const VarNode*, std::string> simdgroup_dtype_;
   int thread_index_bits_{32};
   int thread_work_dim_{0};

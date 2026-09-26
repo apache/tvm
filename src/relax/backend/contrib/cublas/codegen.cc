@@ -42,7 +42,8 @@ using backend::contrib::NodeEntries;
 
 class CublasJSONSerializer : public JSONSerializer {
  public:
-  CublasJSONSerializer(ffi::Map<Constant, ffi::String> constant_names, ffi::Map<Var, Expr> bindings)
+  CublasJSONSerializer(ffi::Map<GenericConst, ffi::String> constant_names,
+                       ffi::Map<Var, Expr> bindings)
       : JSONSerializer(constant_names), bindings_(bindings) {}
 
   using JSONSerializer::VisitExpr_;
@@ -68,13 +69,13 @@ class CublasJSONSerializer : public JSONSerializer {
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
-    inputs[0] = inputs_tmp[arg_idx["lhs"]->value];
-    inputs[1] = inputs_tmp[arg_idx["rhs"]->value];
+    inputs[0] = inputs_tmp[static_cast<int64_t>(arg_idx["lhs"]->value)];
+    inputs[1] = inputs_tmp[static_cast<int64_t>(arg_idx["rhs"]->value)];
     if (inputs_tmp.size() == 3) {
-      inputs[2] = inputs_tmp[arg_idx["bias"]->value];
+      inputs[2] = inputs_tmp[static_cast<int64_t>(arg_idx["bias"]->value)];
     } else if (inputs_tmp.size() == 4) {
-      inputs[2] = inputs_tmp[arg_idx["scaleA"]->value];
-      inputs[3] = inputs_tmp[arg_idx["scaleB"]->value];
+      inputs[2] = inputs_tmp[static_cast<int64_t>(arg_idx["scaleA"]->value)];
+      inputs[3] = inputs_tmp[static_cast<int64_t>(arg_idx["scaleB"]->value)];
     }
 
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */
@@ -82,16 +83,16 @@ class CublasJSONSerializer : public JSONSerializer {
                                                 inputs, 1 /* num_outputs_ */);
     if (composite_name.find("dequantize") != std::string::npos) {
       const CallNode* dequantize_call = backend::GetOpInFunction(fn, "relax.dequantize");
-      if (dequantize_call->args[1]->IsInstance<ConstantNode>()) {
-        const auto* const_expr = dequantize_call->args[1].as<ConstantNode>();
+      if (dequantize_call->args[1]->IsInstance<GenericConstNode>()) {
+        const auto* const_expr = dequantize_call->args[1].as<GenericConstNode>();
         auto ty = const_expr->ty.as_or_throw<TensorType>();
         float alpha = 1.0;
         if (ty->dtype == PrimType::Float(16)) {
           alpha = __extendXfYf2__<uint16_t, uint16_t, 10, float, uint32_t, 23>(
-              static_cast<uint16_t*>(const_expr->data->data)[0]);
+              static_cast<uint16_t*>(const_expr->value.cast<runtime::Tensor>()->data)[0]);
         } else {
           TVM_FFI_ICHECK(ty->dtype == PrimType::Float(32));
-          alpha = static_cast<float*>(const_expr->data->data)[0];
+          alpha = static_cast<float*>(const_expr->value.cast<runtime::Tensor>()->data)[0];
         }
 
         node->SetAttr("dq_scale", static_cast<double>(alpha));
@@ -110,7 +111,7 @@ class CublasJSONSerializer : public JSONSerializer {
 
 ffi::Array<ffi::Module> CublasCompiler(ffi::Array<Function> functions,
                                        ffi::Map<ffi::String, ffi::Any> /*unused*/,
-                                       ffi::Map<Constant, ffi::String> constant_names) {
+                                       ffi::Map<GenericConst, ffi::String> constant_names) {
   ffi::Array<ffi::Module> compiled_functions;
 
   for (const auto& func : functions) {

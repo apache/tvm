@@ -103,8 +103,10 @@ def test_cast():
     assert isinstance(z, tvm.tirx.Broadcast)
     assert z.lanes == 4
 
-    s = tvm.tirx.StringImm("s")
-    with pytest.raises(TypeError, match="Cannot cast an expression with the void sentinel type"):
+    s = tvm.ir.StringImm("s")
+    with pytest.raises(
+        TypeError, match="Operator overloading is not supported for expression type"
+    ):
         s.astype("int")
 
 
@@ -197,19 +199,19 @@ def test_all():
 def test_bitwise():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    assert str(x << y) == "T.shift_left(x, y)"
-    assert str(x >> y) == "T.shift_right(x, y)"
-    assert str(x & y) == "T.bitwise_and(x, y)"
-    assert str(x | y) == "T.bitwise_or(x, y)"
-    assert str(x ^ y) == "T.bitwise_xor(x, y)"
-    assert str(10 & x) == "T.bitwise_and(10, x)"
-    assert str(10 | x) == "T.bitwise_or(10, x)"
-    assert str(10 ^ x) == "T.bitwise_xor(10, x)"
-    assert str(10 >> x) == "T.shift_right(10, x)"
-    assert str(10 << x) == "T.shift_left(10, x)"
+    assert str(x << y) == "x << y"
+    assert str(x >> y) == "x >> y"
+    assert str(x & y) == "x & y"
+    assert str(x | y) == "x | y"
+    assert str(x ^ y) == "x ^ y"
+    assert str(10 & x) == "10 & x"
+    assert str(10 | x) == "10 | x"
+    assert str(10 ^ x) == "10 ^ x"
+    assert str(10 >> x) == "10 >> x"
+    assert str(10 << x) == "10 << x"
     assert str(10 % x) == "10 % x"
 
-    assert str(~x) == "T.bitwise_not(x)"
+    assert str(~x) == "~x"
     assert (tvm.tirx.const(1, "int8x2") >> 1).ty.dtype == "int8x2"
     assert (x >> tvm.tirx.const(1, "int32x2")).ty.dtype == "int32x2"
     assert (tvm.tirx.Var("z", "int8x2") << tvm.tirx.const(1, "int8x2")).ty.dtype == "int8x2"
@@ -296,7 +298,7 @@ def test_equality():
 
 def test_equality_string_imm():
     x = "a"
-    y = tvm.tirx.StringImm(x)
+    y = tvm.ir.StringImm(x)
     x == y.value
     x == y
 

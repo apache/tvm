@@ -78,16 +78,11 @@ def test_tir_invalid_intimm(dtype, literals):
     ],
 )
 def test_tir_large_py_int_literals(dtype, literals):
-    """
-    For large uint value, use LargeUIntImm intrin,
-    """
+    """Large unsigned values are ordinary integer immediates."""
     for l in literals:
         x = tirx.const(l, dtype)
-        if isinstance(x, tirx.IntImm | tirx.FloatImm):
-            assert x.value == literals[l]
-        else:
-            # LargeUIntImm(low32, hi32)
-            assert (int(x.args[1]) << 32) + int(x.args[0]) == literals[l]
+        assert isinstance(x, tirx.IntImm)
+        assert x.value == literals[l]
 
 
 def test_tir_intimm_overflow():
@@ -151,7 +146,7 @@ def test_tir_special_floatimms(dtype, literal):
 def test_tir_too_large_literal_f64():
     # Behavior check: if literal f64 value is out of dtype range, the
     # object is still constructed, and eval to infinity.
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_overflow_fp64() -> T.float64:
         return T.float64(1.7976e309)
 
@@ -261,19 +256,19 @@ def check_tir_const_fold(
 def test_tir_floatimm_const_fold():
     """Behavior check: folding fp32 match platform f32 arithmetic"""
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def float_imm_multiply(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x * y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def float_imm_add(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x + y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def float_imm_sub(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x - y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def float_imm_div(x: T.float32, y: T.float32, z: T.Buffer((), "float32")):
         z[()] = x / y
 
@@ -319,23 +314,23 @@ def test_tir_floatimm_const_fold():
 def test_tir_int8_const_fold():
     """Behavior check: folding i8 operation match platform i8 arithmetic"""
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_multiply(x: T.int8, y: T.int8) -> T.int8:
         return x * y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_add(x: T.int8, y: T.int8) -> T.int8:
         return x + y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_sub(x: T.int8, y: T.int8) -> T.int8:
         return x - y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_truncdiv(x: T.int8, y: T.int8) -> T.int8:
         return T.truncdiv(x, y)
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_floordiv(x: T.int8, y: T.int8) -> T.int8:
         return T.floordiv(x, y)
 
@@ -375,23 +370,23 @@ def test_tir_int8_const_fold():
 def test_tir_uint8_const_fold():
     """Behavior check: folding u8 operation match platform u8 arithmetic"""
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_multiply(x: T.uint8, y: T.uint8) -> T.uint8:
         return x * y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_add(x: T.uint8, y: T.uint8) -> T.uint8:
         return x + y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_sub(x: T.uint8, y: T.uint8) -> T.uint8:
         return x - y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_truncdiv(x: T.uint8, y: T.uint8) -> T.uint8:
         return T.truncdiv(x, y)
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_floordiv(x: T.uint8, y: T.uint8) -> T.uint8:
         return T.floordiv(x, y)
 
@@ -440,31 +435,31 @@ def test_tir_uint8_const_fold():
 def test_tir_int32_const_fold():
     """Behavior check: folding i32 operation match platform i32 arithmetic"""
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_multiply(x: T.int32, y: T.int32) -> T.int32:
         return x * y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_add(x: T.int32, y: T.int32) -> T.int32:
         return x + y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_sub(x: T.int32, y: T.int32) -> T.int32:
         return x - y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_truncdiv(x: T.int32, y: T.int32) -> T.int32:
         return T.truncdiv(x, y)
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_truncmod(x: T.int32, y: T.int32) -> T.int32:
         return T.truncmod(x, y)
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_floordiv(x: T.int32, y: T.int32) -> T.int32:
         return T.floordiv(x, y)
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_floormod(x: T.int32, y: T.int32) -> T.int32:
         return T.floormod(x, y)
 
@@ -528,23 +523,23 @@ def test_tir_int32_const_fold():
 def test_tir_uint32_const_fold():
     """Behavior check: folding u32 operation match platform u32 arithmetic"""
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_multiply(x: T.uint32, y: T.uint32) -> T.uint32:
         return x * y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_add(x: T.uint32, y: T.uint32) -> T.uint32:
         return x + y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_sub(x: T.uint32, y: T.uint32) -> T.uint32:
         return x - y
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_truncdiv(x: T.uint32, y: T.uint32) -> T.uint32:
         return T.truncdiv(x, y)
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def imm_floordiv(x: T.uint32, y: T.uint32) -> T.uint32:
         return T.floordiv(x, y)
 

@@ -23,187 +23,177 @@ import tvm_ffi
 
 import tvm
 from tvm import s_tir
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
 @tvm.script.ir_module
 class Transpose:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for ty in T.thread_binding(8, thread="threadIdx.y"):
-                with T.sblock():
-                    A_shared_dyn = T.sblock_alloc_buffer(
+                with Ts.sblock():
+                    A_shared_dyn = Ts.sblock_alloc_buffer(
                         [16, 128], dtype="float32", scope="shared.dyn"
                     )
-                    with T.sblock("A_shared"):
-                        T.sblock_attr({"auto_copy": True})
+                    with Ts.sblock("A_shared"):
+                        Ts.sblock_attr({"auto_copy": True})
                         for ax0, ax1 in T.grid(128, 16):
                             A_shared_dyn[ax1, ax0] = A[ax0, ax1]
-                    with T.sblock("B"):
-                        T.sblock_attr({"auto_copy": True})
+                    with Ts.sblock("B"):
+                        Ts.sblock_attr({"auto_copy": True})
                         for ax1, ax0 in T.grid(16, 128):
                             B[ax1, ax0] = A_shared_dyn[ax1, ax0]
 
 
 @tvm.script.ir_module
 class GlobalToShared:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            A_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            A_shared_dyn = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
-                            with T.sblock("A_shared"):
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                            with Ts.sblock("A_shared"):
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_shared_dyn[ax0, ax1] = A[bx * 128 + ax0, by * 128 + ax1]
-                            with T.sblock("B"):
+                            with Ts.sblock("B"):
                                 for ax0, ax1 in T.grid(128, 128):
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
 @tvm.script.ir_module
 class SharedToGlobal:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            A_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            A_shared_dyn = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
-                            with T.sblock("A_shared"):
+                            with Ts.sblock("A_shared"):
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_shared_dyn[ax1, ax0] = A[bx * 128 + ax0, by * 128 + ax1]
-                            with T.sblock("B"):
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                            with Ts.sblock("B"):
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax1, ax0 in T.grid(128, 128):
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax1, ax0]
 
 
 @tvm.script.ir_module
 class GlobalToSharedWithLocalStage:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            A_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            A_shared_dyn = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
-                            with T.sblock("A_shared"):
-                                T.sblock_attr(
+                            with Ts.sblock("A_shared"):
+                                Ts.sblock_attr(
                                     {"auto_copy": True, "vector_bytes": 16, "local_stage": True}
                                 )
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_shared_dyn[ax0, ax1] = A[bx * 128 + ax0, by * 128 + ax1]
-                            with T.sblock("B"):
+                            with Ts.sblock("B"):
                                 for ax0, ax1 in T.grid(128, 128):
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
 @tvm.script.ir_module
 class SharedToWmma:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main() -> None:
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            A_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            A_shared_dyn = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float16", scope="shared.dyn"
                             )
-                            A_wmma = T.sblock_alloc_buffer(
+                            A_wmma = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float16", scope="wmma.matrix_a"
                             )
-                            with T.sblock("A_wmma"):
-                                T.sblock_attr({"auto_copy": True})
+                            with Ts.sblock("A_wmma"):
+                                Ts.sblock_attr({"auto_copy": True})
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_wmma[ax0, ax1] = A_shared_dyn[ax0, ax1]
 
 
 @tvm.script.ir_module
 class WmmaToShared:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main() -> None:
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            C_accum = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            C_accum = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
-                            C_shared = T.sblock_alloc_buffer(
+                            C_shared = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
-                            with T.sblock("C_shared"):
-                                T.sblock_attr({"auto_copy": True})
+                            with Ts.sblock("C_shared"):
+                                Ts.sblock_attr({"auto_copy": True})
                                 for ax0, ax1 in T.grid(128, 128):
                                     C_shared[ax0, ax1] = C_accum[ax0, ax1]
 
 
 @tvm.script.ir_module
 class WmmaToGlobal:
-    @T.prim_func(s_tir=True)
-    def main(c: T.handle) -> None:
-        C = T.match_buffer(c, [1024, 1024])
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(C: T.Buffer([1024, 1024])) -> None:
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            C_accum = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            C_accum = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
-                            with T.sblock("C_global"):
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                            with Ts.sblock("C_global"):
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax0, ax1 in T.grid(128, 128):
                                     C[bx * 128 + ax0, by * 128 + ax1] = C_accum[ax0, ax1]
 
 
 @tvm.script.ir_module
 class WmmaToGlobalWithFusion:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, c: T.handle) -> None:
-        A = T.match_buffer(a, [1024])
-        C = T.match_buffer(c, [1024, 1024])
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(A: T.Buffer([1024]), C: T.Buffer([1024, 1024])) -> None:
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            C_accum = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            C_accum = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
-                            with T.sblock("C_global"):
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                            with Ts.sblock("C_global"):
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax0, ax1 in T.grid(128, 128):
                                     C[bx * 128 + ax0, by * 128 + ax1] = (
                                         C_accum[ax0, ax1] + A[bx * 128 + ax0]
@@ -212,41 +202,38 @@ class WmmaToGlobalWithFusion:
 
 @tvm.script.ir_module
 class MmaToGlobal:
-    @T.prim_func(s_tir=True)
-    def main(c: T.handle) -> None:
-        C = T.match_buffer(c, [1024, 1024])
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(C: T.Buffer([1024, 1024])) -> None:
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            C_accum = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            C_accum = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="m16n8k8.matrixC"
                             )
-                            with T.sblock("C_global"):
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                            with Ts.sblock("C_global"):
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax0, ax1 in T.grid(128, 128):
                                     C[bx * 128 + ax0, by * 128 + ax1] = C_accum[ax0, ax1]
 
 
 @tvm.script.ir_module
 class TransformedGlobalToShared:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            A_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            A_shared_dyn = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", strides=[128, 1], scope="shared.dyn"
                             )
-                            with T.sblock("A_shared"):
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                            with Ts.sblock("A_shared"):
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 for outer in T.serial(16):
                                     for ty_1 in T.thread_binding(8, thread="threadIdx.y"):
                                         for tx in T.thread_binding(32, thread="threadIdx.x"):
@@ -266,33 +253,31 @@ class TransformedGlobalToShared:
                                                     + (((outer * 8 + ty_1) * 32 + tx) * 4 + vec)
                                                     % 128,
                                                 ]
-                            with T.sblock("B"):
+                            with Ts.sblock("B"):
                                 for ax0, ax1 in T.grid(128, 128):
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
 @tvm.script.ir_module
 class TransformedSharedToGlobal:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle) -> None:
-        A = T.match_buffer(a, [1024, 1024])
-        B = T.match_buffer(b, [1024, 1024])
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(A: T.Buffer([1024, 1024]), B: T.Buffer([1024, 1024])) -> None:
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            A_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            A_shared_dyn = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", strides=[129, 1], scope="shared.dyn"
                             )
-                            with T.sblock("A_shared"):
-                                T.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                                T.writes(A_shared_dyn[0:128, 0:128])
+                            with Ts.sblock("A_shared"):
+                                Ts.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                                Ts.writes(A_shared_dyn[0:128, 0:128])
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_shared_dyn[ax1, ax0] = A[bx * 128 + ax0, by * 128 + ax1]
-                            with T.sblock("B"):
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                            with Ts.sblock("B"):
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
                                 for outer in T.serial(16):
                                     for ty_1 in T.thread_binding(8, thread="threadIdx.y"):
                                         for tx in T.thread_binding(32, thread="threadIdx.x"):
@@ -316,28 +301,26 @@ class TransformedSharedToGlobal:
 
 @tvm.script.ir_module
 class TransformedGlobalToSharedWithLocalStage:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle):
-        A = T.match_buffer(a, (1024, 1024))
-        B = T.match_buffer(b, (1024, 1024))
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+    @Ts.prim_func
+    def main(A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024))):
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock(""):
-                            T.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            T.writes(B[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            A_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock(""):
+                            Ts.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                            Ts.writes(B[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                            A_shared_dyn = Ts.sblock_alloc_buffer(
                                 (128, 128), strides=(128, 1), scope="shared.dyn"
                             )
-                            with T.sblock("A_shared"):
-                                T.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                                T.writes(A_shared_dyn[0:128, 0:128])
-                                T.sblock_attr(
+                            with Ts.sblock("A_shared"):
+                                Ts.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                                Ts.writes(A_shared_dyn[0:128, 0:128])
+                                Ts.sblock_attr(
                                     {"auto_copy": True, "local_stage": True, "vector_bytes": 16}
                                 )
-                                A_shared_dyn_local = T.sblock_alloc_buffer((16, 4), scope="local")
+                                A_shared_dyn_local = Ts.sblock_alloc_buffer((16, 4), scope="local")
                                 for ax0_ax1_fused_1 in T.thread_binding(8, thread="threadIdx.y"):
                                     for ax0_ax1_fused_2 in T.thread_binding(
                                         32, thread="threadIdx.x"
@@ -412,52 +395,54 @@ class TransformedGlobalToSharedWithLocalStage:
                                                     ax0_ax1_fused_0 * 8 * 32 * 4 // 128 % 128 // 8,
                                                     ax0_ax1_fused_3 % 128,
                                                 ]
-                            with T.sblock("B"):
-                                T.reads(A_shared_dyn[0:128, 0:128])
-                                T.writes(B[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                            with Ts.sblock("B"):
+                                Ts.reads(A_shared_dyn[0:128, 0:128])
+                                Ts.writes(B[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                                 for ax0 in range(128):
                                     for ax1 in range(128):
                                         B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax0, ax1]
 
 
+s0 = T.dynamic("s0", "int32")
+s1 = T.dynamic("s1", "int32")
+
+
 @tvm.script.ir_module
 class TransformedSharedToWmma:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main() -> None:
-        s0 = T.int32()
-        s1 = T.int32()
         # body
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            A_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            A_shared_dyn = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float16", strides=[136, 1], scope="shared.dyn"
                             )
-                            A_wmma = T.sblock_alloc_buffer(
+                            A_wmma = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float16", scope="wmma.matrix_a"
                             )
-                            with T.sblock("C_shared"):
-                                T.reads(A_shared_dyn[0:128, 0:128])
-                                T.writes(A_wmma[0:128, 0:128])
-                                T.sblock_attr({"auto_copy": True})
+                            with Ts.sblock("C_shared"):
+                                Ts.reads(A_shared_dyn[0:128, 0:128])
+                                Ts.writes(A_wmma[0:128, 0:128])
+                                Ts.sblock_attr({"auto_copy": True})
                                 for ax00, ax10 in T.grid(8, 8):
-                                    with T.sblock("wmma_load"):
-                                        T.reads(
+                                    with Ts.sblock("wmma_load"):
+                                        Ts.reads(
                                             A_shared_dyn[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
                                             ]
                                         )
-                                        T.writes(
+                                        Ts.writes(
                                             A_wmma[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
                                             ]
                                         )
-                                        src = T.match_buffer(
+                                        src = Ts.match_buffer(
                                             A_shared_dyn[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
@@ -468,7 +453,7 @@ class TransformedSharedToWmma:
                                             scope="shared.dyn",
                                             offset_factor=16,
                                         )
-                                        tgt = T.match_buffer(
+                                        tgt = Ts.match_buffer(
                                             A_wmma[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
@@ -501,44 +486,46 @@ class TransformedSharedToWmma:
                                         )
 
 
+s0 = T.dynamic("s0", "int32")
+s1 = T.dynamic("s1", "int32")
+
+
 @tvm.script.ir_module
 class TransformedWmmaToShared:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main() -> None:
-        s0 = T.int32()
-        s1 = T.int32()
         # body
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            C_accum = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            C_accum = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
-                            C_shared = T.sblock_alloc_buffer(
+                            C_shared = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", strides=[136, 1], scope="shared.dyn"
                             )
-                            with T.sblock("A_wmma"):
-                                T.reads(C_accum[0:128, 0:128])
-                                T.writes(C_shared[0:128, 0:128])
-                                T.sblock_attr({"auto_copy": True})
+                            with Ts.sblock("A_wmma"):
+                                Ts.reads(C_accum[0:128, 0:128])
+                                Ts.writes(C_shared[0:128, 0:128])
+                                Ts.sblock_attr({"auto_copy": True})
                                 for ax00, ax10 in T.grid(8, 8):
-                                    with T.sblock("wmma_store"):
-                                        T.reads(
+                                    with Ts.sblock("wmma_store"):
+                                        Ts.reads(
                                             C_accum[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
                                             ]
                                         )
-                                        T.writes(
+                                        Ts.writes(
                                             C_shared[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
                                             ]
                                         )
-                                        src = T.match_buffer(
+                                        src = Ts.match_buffer(
                                             C_accum[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
@@ -548,7 +535,7 @@ class TransformedWmmaToShared:
                                             scope="wmma.accumulator",
                                             offset_factor=16,
                                         )
-                                        tgt = T.match_buffer(
+                                        tgt = Ts.match_buffer(
                                             C_shared[
                                                 ax00 * 16 : ax00 * 16 + 16,
                                                 ax10 * 16 : ax10 * 16 + 16,
@@ -582,37 +569,41 @@ class TransformedWmmaToShared:
                                         )
 
 
+s1 = T.dynamic("s1", "int32")
+s0 = T.dynamic("s0", "int32")
+
+
 @tvm.script.ir_module
 class TransformedWmmaToGlobal:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(C: T.Buffer((1024, 1024), "float32")):
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock(""):
-                            T.reads()
-                            T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            C_accum = T.sblock_alloc_buffer((128, 128), scope="wmma.accumulator")
-                            with T.sblock("C_global"):
-                                T.reads(C_accum[0:128, 0:128])
-                                T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
-                                C_accum_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock(""):
+                            Ts.reads()
+                            Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                            C_accum = Ts.sblock_alloc_buffer((128, 128), scope="wmma.accumulator")
+                            with Ts.sblock("C_global"):
+                                Ts.reads(C_accum[0:128, 0:128])
+                                Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                                C_accum_shared_dyn = Ts.sblock_alloc_buffer(
                                     (8, 8, 16, 16), strides=(2048, 256, 16, 1), scope="shared.dyn"
                                 )
                                 for ax0_0 in range(8):
                                     for ax1_0 in range(8):
-                                        with T.sblock("wmma_store"):
-                                            T.reads(
+                                        with Ts.sblock("wmma_store"):
+                                            Ts.reads(
                                                 C_accum[
                                                     ax0_0 * 16 : ax0_0 * 16 + 16,
                                                     ax1_0 * 16 : ax1_0 * 16 + 16,
                                                 ]
                                             )
-                                            T.writes(C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16])
-                                            src = T.match_buffer(
+                                            Ts.writes(C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16])
+                                            src = Ts.match_buffer(
                                                 C_accum[
                                                     ax0_0 * 16 : ax0_0 * 16 + 16,
                                                     ax1_0 * 16 : ax1_0 * 16 + 16,
@@ -621,9 +612,7 @@ class TransformedWmmaToGlobal:
                                                 scope="wmma.accumulator",
                                                 offset_factor=16,
                                             )
-                                            s1 = T.int32()
-                                            s0 = T.int32()
-                                            tgt = T.match_buffer(
+                                            tgt = Ts.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
                                                 strides=(s1, s0),
@@ -779,42 +768,46 @@ class TransformedWmmaToGlobal:
                                                     ]
 
 
+s0_0 = T.dynamic("s0_0", "int32")
+s1_0 = T.dynamic("s1_0", "int32")
+s1_1 = T.dynamic("s1_1", "int32")
+s0_1 = T.dynamic("s0_1", "int32")
+
+
 @tvm.script.ir_module
 class TransformedWmmaToGlobalWithFusion:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(A: T.Buffer((1024,), "float32"), C: T.Buffer((1024, 1024), "float32")) -> None:
-        s0 = T.int32()
-        s1 = T.int32()
         # body
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock():
-                            T.reads(A[bx * 128 : bx * 128 + 128])
-                            T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            C_accum = T.sblock_alloc_buffer(
+                        with Ts.sblock():
+                            Ts.reads(A[bx * 128 : bx * 128 + 128])
+                            Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                            C_accum = Ts.sblock_alloc_buffer(
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
-                            with T.sblock("C_global"):
-                                T.reads(C_accum[0:128, 0:128], A[bx * 128 : bx * 128 + 128])
-                                T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
-                                C_accum_shared_dyn = T.sblock_alloc_buffer(
+                            with Ts.sblock("C_global"):
+                                Ts.reads(C_accum[0:128, 0:128], A[bx * 128 : bx * 128 + 128])
+                                Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                                C_accum_shared_dyn = Ts.sblock_alloc_buffer(
                                     (8, 8, 16, 16), strides=(2048, 256, 16, 1), scope="shared.dyn"
                                 )
                                 for ax0_0 in range(8):
                                     for ax1_0 in range(8):
-                                        with T.sblock("wmma_store"):
-                                            T.reads(
+                                        with Ts.sblock("wmma_store"):
+                                            Ts.reads(
                                                 C_accum[
                                                     ax0_0 * 16 : ax0_0 * 16 + 16,
                                                     ax1_0 * 16 : ax1_0 * 16 + 16,
                                                 ]
                                             )
-                                            T.writes(C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16])
-                                            src = T.match_buffer(
+                                            Ts.writes(C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16])
+                                            src = Ts.match_buffer(
                                                 C_accum[
                                                     ax0_0 * 16 : ax0_0 * 16 + 16,
                                                     ax1_0 * 16 : ax1_0 * 16 + 16,
@@ -823,12 +816,10 @@ class TransformedWmmaToGlobalWithFusion:
                                                 scope="wmma.accumulator",
                                                 offset_factor=16,
                                             )
-                                            s1 = T.int32()
-                                            s0 = T.int32()
-                                            tgt = T.match_buffer(
+                                            tgt = Ts.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:16, 0:16],
                                                 (16, 16),
-                                                strides=(s1, s0),
+                                                strides=(s1_1, s0_1),
                                                 scope="shared.dyn",
                                                 offset_factor=16,
                                             )
@@ -843,10 +834,10 @@ class TransformedWmmaToGlobalWithFusion:
                                                     T.type_annotation("float32"),
                                                     tgt.data,
                                                     tgt.elem_offset,
-                                                    s1 * 16,
+                                                    s1_1 * 16,
                                                     2,
                                                 ),
-                                                s1,
+                                                s1_1,
                                                 "row_major",
                                             )
                                     for (
@@ -1004,37 +995,41 @@ class TransformedWmmaToGlobalWithFusion:
                                                     )
 
 
+s1 = T.dynamic("s1", "int32")
+s0 = T.dynamic("s0", "int32")
+
+
 @tvm.script.ir_module
 class TransformedMmaToGlobal:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(C: T.Buffer((1024, 1024), "float32")):
-        with T.sblock("root"):
-            T.sblock_attr({"warp_execution": True})
+        with Ts.sblock("root"):
+            Ts.sblock_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):
-                        with T.sblock(""):
-                            T.reads()
-                            T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                            C_accum = T.sblock_alloc_buffer((128, 128), scope="m16n8k8.matrixC")
-                            with T.sblock("C_global"):
-                                T.reads(C_accum[0:128, 0:128])
-                                T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                                T.sblock_attr({"auto_copy": True, "vector_bytes": 16})
-                                C_accum_shared_dyn = T.sblock_alloc_buffer(
+                        with Ts.sblock(""):
+                            Ts.reads()
+                            Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                            C_accum = Ts.sblock_alloc_buffer((128, 128), scope="m16n8k8.matrixC")
+                            with Ts.sblock("C_global"):
+                                Ts.reads(C_accum[0:128, 0:128])
+                                Ts.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
+                                Ts.sblock_attr({"auto_copy": True, "vector_bytes": 16})
+                                C_accum_shared_dyn = Ts.sblock_alloc_buffer(
                                     (8, 16, 8, 8), strides=(1152, 72, 8, 1), scope="shared.dyn"
                                 )
                                 for ax0_0 in range(16):
                                     for ax1_0 in range(16):
-                                        with T.sblock("mma_store"):
-                                            T.reads(
+                                        with Ts.sblock("mma_store"):
+                                            Ts.reads(
                                                 C_accum[
                                                     ax0_0 * 8 : ax0_0 * 8 + 8,
                                                     ax1_0 * 8 : ax1_0 * 8 + 8,
                                                 ]
                                             )
-                                            T.writes(C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8])
-                                            src = T.match_buffer(
+                                            Ts.writes(C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8])
+                                            src = Ts.match_buffer(
                                                 C_accum[
                                                     ax0_0 * 8 : ax0_0 * 8 + 8,
                                                     ax1_0 * 8 : ax1_0 * 8 + 8,
@@ -1043,10 +1038,10 @@ class TransformedMmaToGlobal:
                                                 scope="m16n8k8.matrixC",
                                                 offset_factor=8,
                                             )
-                                            tgt = T.match_buffer(
+                                            tgt = Ts.match_buffer(
                                                 C_accum_shared_dyn[ty, ax1_0, 0:8, 0:8],
                                                 (8, 8),
-                                                strides=("s1", "s0"),
+                                                strides=(s1, s0),
                                                 scope="shared.dyn",
                                                 offset_factor=8,
                                             )
@@ -1138,14 +1133,9 @@ def verify_single_allocation(stmt, alloc_size=None):
     alloc_extents = []
 
     def verify(n):
-        if (
-            isinstance(n, tvm.tirx.SBlock)
-            and n.alloc_buffers is not None
-            and (True in ((buf.scope() == "shared.dyn") for buf in n.alloc_buffers))
-        ):
-            num_alloc[0] += len(n.alloc_buffers)
-            for buf in n.alloc_buffers:
-                alloc_extents.append(buf.shape)
+        if isinstance(n, tvm.tirx.AllocBuffer) and n.buffer.scope() == "shared.dyn":
+            num_alloc[0] += 1
+            alloc_extents.append(n.buffer.shape)
 
     tvm_ffi.structural_walk(stmt, verify)
     assert num_alloc[0] == 1
@@ -1163,6 +1153,7 @@ def verify_single_allocation(stmt, alloc_size=None):
 
 def test_auto_padding():
     mod = tvm.s_tir.transform.LowerAutoCopy()(Transpose)
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
     mod = tvm.tirx.transform.FlattenBuffer()(mod)
     verify_single_allocation(mod["main"].body, 16 * 130)
 

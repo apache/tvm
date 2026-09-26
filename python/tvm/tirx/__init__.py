@@ -20,7 +20,7 @@
 
 import tvm.script
 
-tvm.script.register_dialect("tirx", "tvm.tirx.script")
+tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.script.ir_builder")
 
 
 from tvm.ir import Expr
@@ -35,9 +35,11 @@ from .buffer import (
     decl_buffer,
     is_buffer_var,
 )
+from .type import TensorMapType
 from .expr import convert
-from .expr import Var, Reduce, FloatImm, IntImm, StringImm, Cast
+from .expr import Var, Reduce, FloatImm, IntImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
+from .expr import LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, Ramp, Broadcast, Shuffle
 from .expr import CallEffectKind, Let, IterVar, CommReducer
@@ -51,14 +53,15 @@ from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
-from .stmt import BufferRegion, BufferRegionType, MatchBufferRegion, SBlock, SBlockRealize
+from .stmt import BufferRegion, BufferRegionType
 from .stmt import ScopeIdDefStmt
 from .tile_primitive import DispatchContext, LambdaExpr, TilePrimitiveCall
 
-from .function import PrimFunc, TensorIntrin, IndexMap
+from .function import PrimFunc, IndexMap
 
-from .op import call_packed_lowered, call_cpacked_lowered, call_tir
+from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
+from .op import CallFFIKernelAttr, call_ffi_kernel, TensorMapEncodeTiledAttr, tensormap_encode_tiled
 from .op import call_llvm_intrin, call_llvm_pure_intrin, all, any, min_value, max_value, trace
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
 from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
@@ -114,4 +117,25 @@ if not _RUNTIME_ONLY_TIRX:
 
 import tvm.script
 
-tvm.script.register_dialect("tirx", "tvm.tirx.script")
+tvm.script.register_dialect("tirx", "tvm.tirx.script", builder_path="tvm.tirx.script.ir_builder")
+
+
+def _check_script_module(module: "tvm.ir.IRModule") -> None:
+    # Delay builder imports until validation, keeping dialect/runtime bootstrap safe.
+    from tvm.tirx.script.ir_builder.parser_protocol import _check_module_well_formed
+
+    _check_module_well_formed(module)
+
+
+tvm.script.register_module_validator(_check_script_module)
+
+
+def _initialize_script_namespace() -> None:
+    from . import script
+
+    script._initialize()
+
+
+from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
+
+_register_namespace_initializer(_initialize_script_namespace, aliases=("tirx", "Tx", "Axis"))

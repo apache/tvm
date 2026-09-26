@@ -35,7 +35,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 namespace transform {

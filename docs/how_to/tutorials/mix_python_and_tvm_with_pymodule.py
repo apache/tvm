@@ -61,17 +61,17 @@ from tvm import relax
 from tvm.relax.base_py_module import BasePyModule
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 IS_IN_CI = os.getenv("CI", "").lower() == "true"
 HAS_TORCH = torch is not None
 RUN_EXAMPLE = HAS_TORCH and not IS_IN_CI
 
-
 ######################################################################
 # Step 1: Your First Hybrid Module
 # ----------------------------------
-# The core idea: decorate a class with ``@I.ir_module``, inherit from ``BasePyModule``, and use
+# The core idea: decorate a class with ``@R.py_module``, inherit from ``BasePyModule``, and use
 # three decorators for three kinds of functions:
 #
 # - ``@T.prim_func`` — low-level TIR kernel (JIT-compiled on instantiation)
@@ -83,9 +83,9 @@ RUN_EXAMPLE = HAS_TORCH and not IS_IN_CI
 
 if RUN_EXAMPLE:
 
-    @I.ir_module
+    @R.py_module
     class MyFirstModule(BasePyModule):
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def add_tir(
             A: T.Buffer((4,), "float32"),
             B: T.Buffer((4,), "float32"),
@@ -118,7 +118,6 @@ if RUN_EXAMPLE:
     # list_functions() shows what is available in the module
     print("Available functions:", mod.list_functions())
 
-
 ######################################################################
 # Step 2: Debugging — The Main Selling Point
 # ---------------------------------------------
@@ -128,19 +127,20 @@ if RUN_EXAMPLE:
 # immediately — no recompilation needed.
 
 if RUN_EXAMPLE:
+    n = T.dynamic("n", "int32")
 
-    @I.ir_module
+    @R.py_module
     class DebugModule(BasePyModule):
-        @T.prim_func(s_tir=True)
-        def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            n = T.int32()
-            A = T.match_buffer(var_A, (n, 4), "float32")
-            B = T.match_buffer(var_B, (4, 3), "float32")
-            C = T.match_buffer(var_C, (n, 3), "float32")
+        @Ts.prim_func
+        def matmul_tir(
+            A: T.Buffer((n, 4), "float32"),
+            B: T.Buffer((4, 3), "float32"),
+            C: T.Buffer((n, 3), "float32"),
+        ):
             for i, j, k in T.grid(n, 3, 4):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -182,7 +182,6 @@ if RUN_EXAMPLE:
 # Users can also make quick, manual edits to Python functions and immediately observe the
 # results." No compilation cycle, no VM loading — just Python.
 
-
 ######################################################################
 # Step 3: A Realistic Pipeline — Python, TIR, and Packed Functions
 # -------------------------------------------------------------------
@@ -207,17 +206,18 @@ if RUN_EXAMPLE:
         out_np = x_np + b_np
         out[:] = out_np
 
-    @I.ir_module
+    @R.py_module
     class PipelineModule(BasePyModule):
-        @T.prim_func(s_tir=True)
-        def matmul_tir(var_A: T.handle, var_B: T.handle, var_C: T.handle):
-            A = T.match_buffer(var_A, (2, 4), "float32")
-            B = T.match_buffer(var_B, (4, 3), "float32")
-            C = T.match_buffer(var_C, (2, 3), "float32")
+        @Ts.prim_func
+        def matmul_tir(
+            A: T.Buffer((2, 4), "float32"),
+            B: T.Buffer((4, 3), "float32"),
+            C: T.Buffer((2, 3), "float32"),
+        ):
             for i, j, k in T.grid(2, 3, 4):
-                with T.sblock("matmul"):
-                    vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                    with Ts.init():
                         C[vi, vj] = T.float32(0)
                     C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
@@ -255,7 +255,6 @@ if RUN_EXAMPLE:
     print("Expected:       ", expected)
     assert torch.allclose(result, expected, atol=1e-4)
 
-
 ######################################################################
 # Step 4: Relax-to-Python Converter — Verify at Any Compilation Stage
 # ----------------------------------------------------------------------
@@ -273,11 +272,12 @@ if RUN_EXAMPLE:
     # A simple Relax module: matmul + bias + relu (a dense layer)
     @I.ir_module
     class DenseLayer:
-        @T.prim_func(s_tir=True)
-        def bias_add_tir(var_x: T.handle, var_b: T.handle, var_out: T.handle):
-            x = T.match_buffer(var_x, (2, 4), "float32")
-            b = T.match_buffer(var_b, (4,), "float32")
-            out = T.match_buffer(var_out, (2, 4), "float32")
+        @Ts.prim_func
+        def bias_add_tir(
+            x: T.Buffer((2, 4), "float32"),
+            b: T.Buffer((4,), "float32"),
+            out: T.Buffer((2, 4), "float32"),
+        ):
             for i, j in T.grid(2, 4):
                 out[i, j] = x[i, j] + b[j]
 
@@ -304,7 +304,7 @@ if RUN_EXAMPLE:
     w = torch.randn(4, 4)
     b = torch.randn(4)
 
-    py_result_early = converted_early.pyfuncs["main"](x, w, b)
+    py_result_early = converted_early.__pyfuncs__["main"](x, w, b)
     expected = F.relu(x @ w + b)
 
     print("Before optimization:")
@@ -320,13 +320,12 @@ if RUN_EXAMPLE:
     converter_late = RelaxToPyFuncConverter(optimized_mod)
     converted_late = converter_late.convert(["main"])
 
-    py_result_late = converted_late.pyfuncs["main"](x, w, b)
+    py_result_late = converted_late.__pyfuncs__["main"](x, w, b)
 
     print("\nAfter CanonicalizeBindings pass:")
     print("  Converted result:", py_result_late)
     print("  Still matches:   ", torch.allclose(py_result_late, expected, atol=1e-5))
     assert torch.allclose(py_result_late, expected, atol=1e-5)
-
 
 ######################################################################
 # Step 5: R.call_py_func — Python Callbacks in Compiled IR
@@ -345,7 +344,7 @@ if RUN_EXAMPLE:
 
 if RUN_EXAMPLE:
 
-    @I.ir_module
+    @R.py_module
     class HybridVMModule(BasePyModule):
         @I.pyfunc
         def silu(self, x):
@@ -378,7 +377,6 @@ if RUN_EXAMPLE:
     print("call_py_func result:", result)
     assert torch.allclose(torch.tensor(result.numpy()), expected, atol=1e-5)
 
-
 ######################################################################
 # Step 6: Cross-Level Calls and Symbolic Shapes
 # ------------------------------------------------
@@ -398,22 +396,20 @@ if RUN_EXAMPLE:
 # tensors at call time, so the same module handles different sizes without recompilation.
 
 if RUN_EXAMPLE:
+    n = T.dynamic("n", "int64")
 
-    @I.ir_module
+    @R.py_module
     class DynamicModule(BasePyModule):
-        @T.prim_func(s_tir=True)
-        def scale_tir(var_x: T.handle, var_out: T.handle):
-            n = T.int64()
-            x = T.match_buffer(var_x, (n,), "float32")
-            out = T.match_buffer(var_out, (n,), "float32")
+        @Ts.prim_func
+        def scale_tir(x: T.Buffer((n,), "float32"), out: T.Buffer((n,), "float32")):
             for i in T.serial(n):
                 out[i] = x[i] * T.float32(2.0)
 
         @R.function
         def add_relax(
-            x: R.Tensor(("n",), "float32"),
-            y: R.Tensor(("n",), "float32"),
-        ) -> R.Tensor(("n",), "float32"):
+            x: R.Tensor((n,), "float32"),
+            y: R.Tensor((n,), "float32"),
+        ) -> R.Tensor((n,), "float32"):
             return R.add(x, y)
 
     mod = DynamicModule(device=tvm.cpu(0), target="llvm")
@@ -434,12 +430,11 @@ if RUN_EXAMPLE:
     print("add_relax(len=10):", out10)
 
     # Python → TIR with symbolic output shape
-    n = T.int64()
+    n = T.dynamic("n", "int64")
     x7 = torch.randn(7)
     scaled = mod.call_tir("scale_tir", [x7], relax.TensorType((n,), "float32"))
     print("scale_tir(len=7):", scaled)
     assert torch.allclose(torch.tensor(scaled.numpy()), x7 * 2.0, atol=1e-5)
-
 
 ######################################################################
 # Summary

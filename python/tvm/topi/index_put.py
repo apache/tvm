@@ -19,7 +19,7 @@
 
 from tvm import te, tirx
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import tirx as T
+from tvm.tirx.script import ir_builder as T
 
 from . import utils
 
@@ -89,15 +89,15 @@ def index_put(data, indices, values, accumulate=False):
         index_len *= dim
 
     def gen_ir(data_ptr, index_ptrs, values_ptr, out_ptr, reduce_func):
-        data = T.buffer_proxy(data_ptr)
-        indices = [T.buffer_proxy(idx) for idx in index_ptrs]
-        values = T.buffer_proxy(values_ptr)
-        out = T.buffer_proxy(out_ptr)
+        data = data_ptr
+        indices = index_ptrs
+        values = values_ptr
+        out = out_ptr
 
         with IRBuilder() as ib:
             with T.seq_scope():
                 with T.parallel(0, full_range) as i:
-                    out[i] = data[i]
+                    T.buffer_store(out, data[T.buffer_indices(data, i)], T.buffer_indices(out, i))
 
                 with T.parallel(0, index_len) as k:
                     # Decompose k into multi-dimensional broadcast index
@@ -131,20 +131,24 @@ def index_put(data, indices, values, accumulate=False):
                                 idx_offset += idx_in_dim * idx_stride
                                 idx_stride *= dim_size
 
-                        idx_val = indices[dim][idx_offset]
+                        idx_val = indices[dim][T.buffer_indices(indices[dim], (idx_offset))]
                         shifted_idx = idx_val + (idx_val < 0) * shape[dim]
                         flat_index += shifted_idx * stride
                         stride *= shape[dim]
 
-                    reduce_func(out, flat_index, values[k])
+                    reduce_func(out, flat_index, values[T.buffer_indices(values, k)])
 
             return ib.get()
 
     def update_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] = update
+        T.buffer_store(dst_ptr, update, T.buffer_indices(dst_ptr, dst_index))
 
     def add_func(dst_ptr, dst_index, update):
-        dst_ptr[dst_index] += update
+        T.buffer_store(
+            dst_ptr,
+            dst_ptr[T.buffer_indices(dst_ptr, dst_index)] + (update),
+            T.buffer_indices(dst_ptr, dst_index),
+        )
 
     reduce_func = add_func if accumulate else update_func
 

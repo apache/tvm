@@ -21,7 +21,6 @@
 import functools
 import inspect
 import types
-import warnings
 from collections.abc import Callable, Mapping, Sequence
 from typing import Optional, Union
 
@@ -36,6 +35,7 @@ from tvm.runtime import Object, Tensor
 from tvm.tirx import IndexMap, PrimFunc
 
 from ..expr import Var
+from ..global_info import VDevice
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
 
@@ -111,7 +111,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -130,7 +130,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class After:
             @R.function
             def main(
@@ -169,7 +169,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -187,7 +187,7 @@ def Gradient(
 
     .. code-block:: python
 
-        @I.ir_module(s_tir=True)
+        @I.ir_module
         class Module:
             @R.function
             def main(
@@ -334,7 +334,7 @@ def LazyGetInput() -> tvm.ir.transform.Pass:
             ...
 
         @R.function
-        def after(fget_param: R.Callable([R.Prim('int64'), R.Any], R.Any)):
+        def after(fget_param: R.Callable([T.int64, R.Any], R.Any)):
             A_untyped = fget_param(0, R.str('A'))
             A = R.match_cast(A_untyped, R.Tensor([16,32], "float32")
             ...
@@ -372,7 +372,7 @@ def LazySetOutput() -> tvm.ir.transform.Pass:
             return (A, B)
 
         @R.function
-        def after(args, fset_param: R.Callable([R.Prim('int64'), R.Any])):
+        def after(args, fset_param: R.Callable([T.int64, R.Any])):
             ...
             fset_param(0, A)
             ...
@@ -483,12 +483,12 @@ def EliminateCommonSubexpr(call_only=False) -> FunctionPass:
     return _ffi_api.EliminateCommonSubexpr(call_only)  # type: ignore
 
 
-def UpdateVDevice(new_vdevice: tvm.ir.VDevice, index: int) -> tvm.ir.transform.Pass:
+def UpdateVDevice(new_vdevice: VDevice, index: int) -> tvm.ir.transform.Pass:
     """Update virtual device.
 
     Parameters
     ----------
-    new_vdevice : tvm.ir.VDevice
+    new_vdevice : tvm.relax.VDevice
         The new virtual device.
     index : int
         The device index indicates the device on which the update will be performed.
@@ -600,20 +600,6 @@ def LowerRuntimeBuiltin() -> tvm.ir.transform.Pass:
     return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
 
 
-def VMBuiltinLower() -> tvm.ir.transform.Pass:
-    """Lowering generic intrinsic to VM intrinsics.
-
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-    """
-    warnings.warn(
-        "tvm.relax.transform.VMBuiltinLower has been renamed to 'LowerRuntimeBuiltin'.  "
-        "This wrapper is for backwards compatibility, and will be removed in a later update."
-    )
-    return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
-
-
 def VMShapeLower(*, emit_err_ctx: bool = True) -> tvm.ir.transform.Pass:
     """Lower the symbolic shape and argument and match-cast structinfo matching.
 
@@ -661,9 +647,9 @@ def BindParams(
     for k, v in params.items():
         if isinstance(v, np.ndarray):
             v = tvm.runtime.tensor(v)
-        assert isinstance(v, tvm.runtime.Tensor | tvm.relax.Constant), (
+        assert isinstance(v, tvm.runtime.Tensor | tvm.ir.GenericConst), (
             f"param values are expected to be TVM.Tensor,"
-            f"numpy.ndarray or tvm.relax.Constant, but got {type(v)}"
+            f"numpy.ndarray or tvm.ir.GenericConst, but got {type(v)}"
         )
         tvm_params[k] = v
 
@@ -1146,7 +1132,7 @@ def LegalizeOps(
                 r = R.call_tir(multiply, (y, z), (2, 3), dtype="float32")
                 return r
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def add(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),
@@ -1154,13 +1140,13 @@ def LegalizeOps(
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.sblock("T_add"):
-                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                        T.writes(T_add[v_ax0, v_ax1])
+                    with Ts.sblock("T_add"):
+                        v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                        Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        Ts.writes(T_add[v_ax0, v_ax1])
                         T_add[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[v_ax0, v_ax1]
 
-            @T.prim_func(s_tir=True)
+            @Ts.prim_func
             def multiply(
                 A: T.Buffer((2, 3), "float32"),
                 B: T.Buffer((2, 3), "float32"),
@@ -1168,10 +1154,10 @@ def LegalizeOps(
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
-                    with T.sblock("T_multiply"):
-                        v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                        T.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
-                        T.writes(T_multiply[v_ax0, v_ax1])
+                    with Ts.sblock("T_multiply"):
+                        v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                        Ts.reads(A[v_ax0, v_ax1], B[v_ax0, v_ax1])
+                        Ts.writes(T_multiply[v_ax0, v_ax1])
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 

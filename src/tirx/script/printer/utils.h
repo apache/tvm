@@ -23,15 +23,15 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/buffer.h>
 #include <tvm/tirx/exec_scope.h>
+#include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
-#include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/tile_primitive.h>
 
 #include <string>
@@ -44,6 +44,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 using tvm::ffi::StructuralEqual;
@@ -145,7 +146,7 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       if (d->cfg->syntax_sugar && alloc != nullptr && alloc->buffer.IsScalar(true) && i + 1 < n) {
         const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
         bool can_merge_init = store != nullptr && store->buffer.same_as(alloc->buffer) &&
-                              store->indices.size() == 1 && tirx::is_zero(store->indices[0]) &&
+                              store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]) &&
                               !value_refs_buffer(store->value, alloc->buffer);
         if (can_merge_init) {
           Doc alloc_doc = d->AsDoc(body[i], item_p);
@@ -321,15 +322,10 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
  * \param p The object path
  * \param f The frame
  * \param d The IRDocsifier
- * \param stringify_shape_vars Variables whose first shape use must be stringified.  The set is
- *     passed by value so entries can be consumed as dimensions are emitted.
- * \param stringify_compound_shape_vars Variables whose compound shape expressions must be
- *     stringified while their bare-name uses remain direct.
  * \return The ExprDoc corresponding to the buffer declaration
  */
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d, std::unordered_set<tirx::Var> stringify_shape_vars = {},
-                   std::unordered_set<tirx::Var> stringify_compound_shape_vars = {});
+                   const IRDocsifier& d);
 
 /*!
  * \brief Print the creation of a Var
@@ -347,10 +343,6 @@ Used by the ``tirx.tile.select`` printer specialization. Defined in expr.cc.
 LambdaDoc PrintLambda(const ffi::ObjectRef& pred, const ffi::Array<tirx::Var>& vs,
                       const AccessPath& vs_p, const PrimExpr& p, const AccessPath& p_p,
                       const IRDocsifier& d);
-
-#ifndef TVM_SCRIPT_REPR
-#define TVM_SCRIPT_REPR(ObjectType, Method) TVM_REGISTER_SCRIPT_AS_REPR(ObjectType, Method)
-#endif
 
 }  // namespace printer
 }  // namespace script

@@ -45,7 +45,7 @@ Doc PrintCanonicalVar(Var n, AccessPath n_p, IRDocsifier d) {
   if (!n->ty.as<PrimTypeNode>()) {
     return PrintRelaxVar(n, n_p, d);
   }
-  tirx::PrimVar prim_var = n.as_or_throw<tirx::PrimVar>();
+  PrimVar prim_var = n.as_or_throw<PrimVar>();
   if (!d->IsVarDefined(n)) {
     PrimType n_ty = n->ty.as_or_throw<PrimType>();
     TVM_FFI_CHECK(!n_ty.IsScalableVector() && !n_ty.IsFixedLengthVector(), TypeError)
@@ -65,10 +65,11 @@ Doc PrintCanonicalVar(Var n, AccessPath n_p, IRDocsifier d) {
         f->type_vars->insert(n.get());
       }
     }
-    IdDoc var = d->Define(n, ffi::GetRef<Frame>(f), n->name.empty() ? "v" : n->name);
+    Frame frame = d->frames.front();
+    IdDoc var = d->Define(n, frame, n->name.empty() ? "v" : n->name);
     var->source_paths.push_back(n_p);
     if (!f->func_vars || f->prim_params->count(n.get()) || !f->type_vars->count(n.get())) {
-      f->stmts.push_back(AssignDoc(var, PrintVarCreation(prim_var, n_p, d), std::nullopt));
+      frame->stmts.push_back(AssignDoc(var, PrintVarCreation(prim_var, n_p, d), std::nullopt));
     }
   }
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(n)) {
@@ -85,9 +86,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "relax", [](tvm::IntImm n, AccessPath n_p, IRDocsifier d) -> Doc {  //
         // TODO(@junrushao): support non-int64 cases
         if (n->ty.as_or_throw<PrimType>().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
-          return LiteralDoc::Boolean(n->value, n_p);
+          return LiteralDoc::Boolean(static_cast<bool>(n->value), n_p);
         } else {
-          return LiteralDoc::Int(n->value, n_p);
+          return LiteralDoc::Int(n, n_p);
         }
       });
 }

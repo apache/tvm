@@ -31,8 +31,6 @@ template <typename, typename>
 class AttrRegistry;
 
 namespace s_tir {
-using namespace tvm::prim;
-using namespace tvm::tirx;
 
 // Forward declaration
 class Schedule;

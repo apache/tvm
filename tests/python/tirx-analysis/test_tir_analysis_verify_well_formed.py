@@ -14,7 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# ruff: noqa: F841
+
+from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -28,50 +29,19 @@ from tvm.script import tirx as T
 
 
 def test_pass_simple():
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def element_wise(
         A: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ):
-        B = T.sblock_alloc_buffer((128, 128), "float32")
+        B = T.alloc_buffer((128, 128), "float32")
         for i, j in T.grid(128, 128):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                B[vi, vj] = A[vi, vj] * 2.0
+            B[i, j] = A[i, j] * 2.0
         for i, j in T.grid(128, 128):
-            with T.sblock("C"):
-                # It's a opaque block , so it can use outside variables
-                C[i, j] = B[i, j] * 2.0
+            C[i, j] = B[i, j] * 2.0
 
     assert tvm.tirx.analysis.verify_well_formed(element_wise)
     assert tvm.tirx.analysis.verify_well_formed(tvm.IRModule.from_expr(element_wise))
-
-
-def test_buffer_region_bounds_are_visited():
-    data = tvm.tirx.Var(
-        "data", tvm.ir.PointerType(tvm.ir.PrimType("int32"), storage_scope="global")
-    )
-    buffer = tvm.tirx.decl_buffer([4], "int32", data=data)
-    undefined = tvm.tirx.Var("undefined", "int32")
-    region = tvm.tirx.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(undefined, 4)])
-    block = tvm.tirx.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
-    func = tvm.tirx.PrimFunc([buffer], block)
-    assert not tvm.tirx.analysis.verify_well_formed(func, assert_mode=False)
-
-
-def test_fail_use_out_loop_var():
-    @T.prim_func(check_well_formed=False, s_tir=True)
-    def element_wise(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-    ):
-        for i, j in T.grid(128, 128):
-            with T.sblock("B"):
-                vi, vj = T.axis.remap("SS", [i, j])
-                # we cannot use `i` since it's defined outside the block
-                B[vi, vj] = A[i, vj] * 2.0
-
-    assert not tvm.tirx.analysis.verify_well_formed(element_wise, assert_mode=False)
 
 
 def test_error_for_out_of_scope_usage():
@@ -105,9 +75,10 @@ def test_error_for_out_of_scope_usage():
 def test_error_for_nested_rebind_usage():
     """A variable may not be re-defined within the initial scope"""
 
-    @T.prim_func(check_well_formed=False, s_tir=True)
+    i = T.dynamic("i", "int32")
+
+    @T.prim_func(check_well_formed=False)
     def func():
-        i = T.int32()
         T.bind(42, var=i)
         T.bind(42, var=i)
         T.evaluate(i)
@@ -127,9 +98,10 @@ def test_error_for_repeated_binding():
     scope extends to all subsequent siblings).
     """
 
-    @T.prim_func(check_well_formed=False, s_tir=True)
+    i = T.dynamic("i", "int32")
+
+    @T.prim_func(check_well_formed=False)
     def func():
-        i = T.int32()
         T.bind(42, var=i)
         T.evaluate(i)
         T.bind(17, var=i)
@@ -144,16 +116,16 @@ def test_error_for_repeated_binding():
 def test_error_for_cross_function_reuse():
     """A variable may not be re-defined in another function"""
 
-    i = tvm.tirx.Var("i", "int32")
+    i = T.dynamic("i", "int32")
 
-    @I.ir_module(check_well_formed=False, s_tir=True)
+    @I.ir_module(check_well_formed=False)
     class mod:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def func1():
             T.bind(42, var=i)
             T.evaluate(i)
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def func2():
             T.bind(42, var=i)
             T.evaluate(i)
@@ -171,7 +143,7 @@ def test_reuse_of_env_thread_in_function_is_well_formed():
     multiple locations without the TIR being considered ill-formed.
     """
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def func(A: T.Buffer([256], "float32")):
         threadIdx_x = T.env_thread("threadIdx.x")
         with T.launch_thread(threadIdx_x, 256):
@@ -193,7 +165,7 @@ def test_reuse_of_env_thread_in_function_is_mandatory():
     instances, it is ill-formed.
     """
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def func(A: T.Buffer([256], "float32")):
         with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 1.0
@@ -212,11 +184,11 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
     PrimFuncs.
     """
 
-    threadIdx_x = tvm.tirx.Var("threadIdx_x", "int32")
+    threadIdx_x = T.dynamic("threadIdx_x", "int32")
 
-    @I.ir_module(check_well_formed=False, s_tir=True)
+    @I.ir_module(check_well_formed=False)
     class mod:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel_1(A: T.Buffer([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
@@ -225,7 +197,7 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def kernel_2(A: T.Buffer([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
@@ -241,63 +213,18 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
 
 
 def test_multiple_buffer_arguments_may_share_allocation():
-    """T.match_buffer may re-use a data argument
+    """Buffer signatures may re-use a data argument
 
     Like the shape/strides/elem_offset fields in a buffer, the first
     occurrence of a `buffer->data` field defines it, and the
     occurrences are usages of that definition.
     """
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class mod:
-        @T.prim_func(s_tir=True)
-        def func(A_handle: T.handle, B_handle: T.handle):
-            A = T.match_buffer(A_handle, [256], "float32")
-            B = T.match_buffer(B_handle, [256], "float32", data=A.data)
-
+        @T.prim_func
+        def func(A: T.Buffer([256], "float32"), B: T.Buffer([256], "float32", data=A.data)):  # noqa: F821
             pass
-
-    tvm.tirx.analysis.verify_well_formed(mod)
-
-
-def test_block_match_buffer_defines_buffer_obj():
-    """In a block, T.match_buffer defines a buffer view"""
-
-    @I.ir_module(s_tir=True)
-    class mod:
-        @T.prim_func(s_tir=True)
-        def func(A: T.Buffer([256, 256], "float32")):
-            for iters in T.grid(16, 16, 16, 16):
-                with T.sblock("compute"):
-                    tile_i, tile_j, i, j = T.axis.remap("SSSS", iters)
-                    B = T.match_buffer(
-                        A[tile_i * 16 : (tile_i + 1) * 16, tile_j * 16 : (tile_j + 1) * 16],
-                        dtype="float32",
-                    )
-                    B[i, j] = 0.0
-
-    tvm.tirx.analysis.verify_well_formed(mod)
-
-
-def test_block_match_buffer_defines_symbolic_variables():
-    """In a block, T.match_buffer may define symbolic variables"""
-
-    @I.ir_module(s_tir=True)
-    class mod:
-        @T.prim_func(s_tir=True)
-        def func(A: T.Buffer([256, 256], "int32")):
-            for iters in T.grid(16, 16, 16, 16):
-                with T.sblock("compute"):
-                    tile_i, tile_j, i, j = T.axis.remap("SSSS", iters)
-
-                    elem_offset = T.int32()
-                    B = T.match_buffer(
-                        A[tile_i * 16 : (tile_i + 1) * 16, tile_j * 16 : (tile_j + 1) * 16],
-                        dtype="float32",
-                        elem_offset=elem_offset,
-                    )
-
-                    B[i, j] = elem_offset
 
     tvm.tirx.analysis.verify_well_formed(mod)
 
@@ -314,10 +241,10 @@ def test_error_message_without_previous_definition_location():
     IS known, so the message includes location info.
     """
 
-    @T.prim_func(check_well_formed=False, s_tir=True)
-    def func():
-        x = T.int32()
+    x = T.dynamic("x", "int32")
 
+    @T.prim_func(check_well_formed=False)
+    def func():
         T.bind(42, var=x)
         T.evaluate(x)
 
@@ -341,10 +268,10 @@ def test_error_message_with_previous_definition_location():
     contain 'It was first defined at' with the location information.
     """
 
-    @T.prim_func(check_well_formed=False, s_tir=True)
-    def func():
-        x = T.int32()
+    x = T.dynamic("x", "int32")
 
+    @T.prim_func(check_well_formed=False)
+    def func():
         T.bind(42, var=x)
         T.bind(99, var=x)  # This should trigger the error
         T.evaluate(x)
@@ -370,10 +297,10 @@ def test_sequential_redefinition_with_location():
     are treated as nested definitions with location info.
     """
 
-    @T.prim_func(check_well_formed=False, s_tir=True)
-    def func():
-        x = T.int32()
+    x = T.dynamic("x", "int32")
 
+    @T.prim_func(check_well_formed=False)
+    def func():
         T.bind(1, var=x)
         T.evaluate(x)
 
@@ -394,7 +321,7 @@ def test_sequential_redefinition_with_location():
 def test_buffer_param_is_well_formed():
     """BufferType-annotated parameters are in scope for the body."""
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
         for i in T.grid(128):
             B[i] = A[i] * 2.0
@@ -405,7 +332,7 @@ def test_buffer_param_is_well_formed():
 def test_decl_buffer_is_well_formed():
     """A DeclBuffer statement introduces a buffer into scope for its body."""
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def func(A: T.Buffer((128,), "float32")):
         B = T.alloc_buffer((128,), "float32")
         for i in T.grid(128):
@@ -414,82 +341,18 @@ def test_decl_buffer_is_well_formed():
     tvm.tirx.analysis.verify_well_formed(func)
 
 
-def test_alloc_buffer_in_block_is_well_formed():
-    """SBlock::alloc_buffers introduces a buffer into scope for the block body."""
+def test_alloc_buffer_is_well_formed():
+    """Allocation introduces a buffer into the function scope."""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class mod:
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def func(A: T.Buffer((128,), "float32")):
-            with T.sblock("root"):
-                B = T.sblock_alloc_buffer([128], "float32")
-                for i in T.grid(128):
-                    with T.sblock("write_B"):
-                        vi = T.axis.remap("S", [i])
-                        B[vi] = A[vi] * 2.0
+            B = T.alloc_buffer([128], "float32")
+            for i in T.grid(128):
+                B[i] = A[i] * 2.0
 
     tvm.tirx.analysis.verify_well_formed(mod)
-
-
-def test_match_buffer_in_block_is_well_formed():
-    """SBlock::match_buffers introduces a buffer into scope for the block body."""
-
-    @I.ir_module(s_tir=True)
-    class mod:
-        @T.prim_func(s_tir=True)
-        def func(A: T.Buffer((128, 128), "float32")):
-            for iters in T.grid(8, 8, 16, 16):
-                with T.sblock("compute"):
-                    ti, tj, i, j = T.axis.remap("SSSS", iters)
-                    A_tile = T.match_buffer(
-                        A[ti * 16 : (ti + 1) * 16, tj * 16 : (tj + 1) * 16],
-                        dtype="float32",
-                    )
-                    A_tile[i, j] = A_tile[i, j] * 2.0
-
-    tvm.tirx.analysis.verify_well_formed(mod)
-
-
-def test_error_undeclared_buffer_in_schedulable_tir():
-    """In schedule-level TIR (with SBlock nodes), all buffers must be declared."""
-    # Manually construct a BufferStore that uses a buffer without any declaration
-    # inside a block context.
-    n = tvm.tirx.Var("n", "int32")
-    A = tvm.tirx.decl_buffer([n], "float32", name="A")
-    i = tvm.tirx.Var("i", "int32")
-
-    # Create an undeclared buffer using an explicit data pointer that is NOT
-    # a function parameter and NOT wrapped with DeclBuffer.
-    B_data = tvm.tirx.Var("B_data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
-    B = tvm.tirx.decl_buffer([n], "float32", name="B", data=B_data)
-
-    # Build a block that writes to B without any declaration of B.
-    bi = tvm.tirx.Var("bi", "int32")
-    block = tvm.tirx.SBlock(
-        iter_vars=[tvm.tirx.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
-        reads=[tvm.tirx.BufferRegion(A, [tvm.ir.Range(bi, bi + 1)])],
-        writes=[tvm.tirx.BufferRegion(B, [tvm.ir.Range(bi, bi + 1)])],
-        body=tvm.tirx.BufferStore(B, tvm.tirx.BufferLoad(A, [bi]), [bi]),
-        name_hint="write_B",
-    )
-    block_realize = tvm.tirx.SBlockRealize(
-        iter_values=[i],
-        predicate=tvm.tirx.const(True),
-        block=block,
-    )
-
-    prim_func = tvm.tirx.PrimFunc(
-        params=[A, B_data],
-        body=tvm.tirx.For(i, 0, n, tvm.tirx.ForKind.SERIAL, block_realize),
-        # Note: B is NOT a function parameter, so its declaration scope is only
-        # within a DeclBuffer node (which we intentionally omit here).
-    )
-
-    # B is used in the block but was never declared — should fail.
-    with pytest.raises(
-        (ValueError, tvm.error.InternalError), match="buffer B.*without a prior DeclBuffer"
-    ):
-        tvm.tirx.analysis.verify_well_formed(prim_func)
 
 
 def test_tensor_load_asserted_type_matches_source_and_indices():

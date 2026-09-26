@@ -24,18 +24,18 @@ import tvm.testing
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprVisitor, visitor
+from tvm.relax.script import ir_builder as relax_builder
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script.ir_builder import IRBuilder
-from tvm.script.ir_builder import relax as relax_builder
 
 
 def get_conv2d_batchnorm_sample():
     with IRBuilder() as builder:
         with relax_builder.function():
-            R.func_name("main")
-            data = R.arg("data", R.Tensor((1, 3, 224, 224), "float32"))
-            weight = R.arg("weight", R.Tensor((32, 3, 3, 3), "float32"))
+            R.func_name_("main")
+            data = R.arg_("data", R.Tensor((1, 3, 224, 224), "float32"))
+            weight = R.arg_("weight", R.Tensor((32, 3, 3, 3), "float32"))
             with R.dataflow() as frame:
                 output = R.emit(
                     R.nn.conv2d(
@@ -50,10 +50,10 @@ def get_conv2d_batchnorm_sample():
                         groups=1,
                     )
                 )
-                gamma = R.arg("gamma", R.Tensor((32,), "float32"))
-                beta = R.arg("beta", R.Tensor((32,), "float32"))
-                mean = R.arg("mean", R.Tensor((32,), "float32"))
-                variance = R.arg("variance", R.Tensor((32,), "float32"))
+                gamma = R.arg_("gamma", R.Tensor((32,), "float32"))
+                beta = R.arg_("beta", R.Tensor((32,), "float32"))
+                mean = R.arg_("mean", R.Tensor((32,), "float32"))
+                variance = R.arg_("variance", R.Tensor((32,), "float32"))
                 output = R.emit(
                     R.nn.batch_norm(output, gamma, beta, mean, variance, axis=1, epsilon=1e-5)[0]
                 )

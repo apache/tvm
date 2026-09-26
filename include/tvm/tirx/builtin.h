@@ -78,17 +78,6 @@ TVM_DLL const Op& filter();
 TVM_DLL const Op& selector();
 
 /*!
- * \brief See pesudo code
- *
- *  Construct a big uint that may not be representable by int64
- *
- *  Expr large_uint_imm(uint32_t v0, uin32_t v1) {
- *    return (v1 << 32) | v0;
- *  }
- */
-TVM_DLL const Op& large_uint_imm();
-
-/*!
  * \brief Execute a multiplication between two Q-numbers x and y
  * followed by a right shift s
  * The default rounding rule is to the nearest value, rounding half up
@@ -359,6 +348,24 @@ TVM_DLL const Op& tvm_stack_make_array();
  *  }
  */
 TVM_DLL const Op& tvm_call_packed();
+
+/*!
+ * \brief Launch a kernel using the packed-function argument convention.
+ *
+ * Arguments are the kernel symbol, kernel operands, then launch values.
+ * CallFFIKernelAttr::launch_params describes the launch-value suffix.
+ * Host backends may consume this call directly or lower it to tvm_call_packed.
+ */
+TVM_DLL const Op& call_ffi_kernel();
+
+/*!
+ * \brief Encode a tiled tensor map at invocation time.
+ *
+ * TensorMapEncodeTiledAttr stores the descriptor dtype, rank and fixed options.
+ * Arguments are descriptor and data pointers, global dimensions (rank), byte
+ * strides (rank - 1), box dimensions (rank), then element strides (rank).
+ */
+TVM_DLL const Op& tensormap_encode_tiled();
 
 /*!
  * \brief See pesudo code

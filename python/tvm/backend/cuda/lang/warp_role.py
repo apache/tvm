@@ -73,9 +73,9 @@ class WarpRole:
         self.increase = increase
 
     def __enter__(self):
-        self._if_frame = T.If(self.warp_id_var == self.warp_id_val)
+        self._if_frame = T.if_(self.warp_id_var == self.warp_id_val)
         self._if_frame.__enter__()
-        self._then_frame = T.Then()
+        self._then_frame = T.then_()
         self._then_frame.__enter__()
         if self.regs is not None:
             T.evaluate(
@@ -132,11 +132,11 @@ class WarpgroupRole:
     def __enter__(self):
         if isinstance(self.wg_id_val, tuple):
             start, stop = self.wg_id_val
-            self._if_frame = T.If(start <= self.wg_id_var and self.wg_id_var < stop)
+            self._if_frame = T.if_(T.And(T.LE(start, self.wg_id_var), self.wg_id_var < stop))
         else:
-            self._if_frame = T.If(self.wg_id_var == self.wg_id_val)
+            self._if_frame = T.if_(self.wg_id_var == self.wg_id_val)
         self._if_frame.__enter__()
-        self._then_frame = T.Then()
+        self._then_frame = T.then_()
         self._then_frame.__enter__()
         if self.regs is not None:
             T.evaluate(

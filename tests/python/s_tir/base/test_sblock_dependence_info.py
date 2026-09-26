@@ -28,58 +28,52 @@ from tvm import tirx
 from tvm.ir import IRModule
 from tvm.s_tir import SBlockDependenceInfo
 from tvm.s_tir.sblock_scope import DepKind
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.tirx import PrimFunc
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
-def elementwise(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
-    B = T.sblock_alloc_buffer((128, 128), "float32")
+@Ts.prim_func
+def elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
+    B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
     for i, j in T.grid(128, 128):
-        with T.sblock("D"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("D"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def war_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
-    C = T.match_buffer(c, (128, 128))
-
+@Ts.prim_func
+def war_dependency(
+    A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+) -> None:
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+@Ts.prim_func
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j in T.grid(128, 128):
-        with T.sblock("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with T.sblock("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
@@ -90,10 +84,10 @@ def get_sblocks(func: PrimFunc):
     blocks = {}
 
     def update_blocks(node):
-        if isinstance(node, tvm.tirx.SBlock):
+        if isinstance(node, tvm.s_tir.SBlock):
             blocks[node.name_hint] = node
 
-    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.tirx.SBlock) else None)
+    # post_order_visit(func.body, lambda node: blocks[node.name_hint] = node if isinstance(node, tvm.s_tir.SBlock) else None)
     structural_walk(func.body, update_blocks, order="post")
     return blocks
 

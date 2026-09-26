@@ -22,6 +22,16 @@ import tvm_ffi as _ffi
 from . import _ffi_api
 
 
+def ConvertSSA():
+    """De-duplicate definitions, including schedulable block iterators, across PrimFuncs."""
+    return _ffi_api.ConvertSSA()
+
+
+def StmtSimplify():
+    """Simplify schedulable TIR with block constraints and tirx.StmtSimplify options."""
+    return _ffi_api.StmtSimplify()
+
+
 def CanonicalizeLoop():
     """Canonicalize the loop to start from zero and use trivial step
 
@@ -502,3 +512,22 @@ def UseAssumeToReduceBranches():
         The result pass
     """
     return _ffi_api.UseAssumeToReduceBranches()  # type: ignore
+
+
+def ForceNarrowIndexToInt32():
+    """Force narrow down indexing expressions and integer buffers to int32 dtype.
+
+    Unlike :py:func:`tvm.tirx.transform.ForceNarrowIndexToInt32`, this pass also rewrites block
+    iterators, block access regions, and match buffer regions, so it can run on scheduled
+    functions before block lowering.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    Note
+    ----
+    This pass should not be used in default cases.
+    """
+    return _ffi_api.ForceNarrowIndexToInt32()  # type: ignore

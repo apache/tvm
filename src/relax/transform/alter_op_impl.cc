@@ -23,7 +23,6 @@
  * identify PrimFuncs to be replaced. Marks the new PrimFuncs with kFrozenLayout attribute set to
  * true.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -32,6 +31,7 @@
 #include <tvm/relax/attrs/manipulate.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/transform.h>
 #include <tvm/topi/tags.h>
@@ -67,7 +67,7 @@ static IndexMap DeepCopyIndexMap(const IndexMap& index_map) {
 bool IsTransformBijective(const Expr& expr, const IndexMap& transform) {
   ffi::Array<PrimExpr> input_shape = GetShapeFromTensor(expr);
   ffi::Array<Range> initial_ranges = ConstructRangeFromShape(input_shape);
-  arith::Analyzer analyzer;
+  sym::Analyzer analyzer;
   auto [inverse, padding_predicate] = transform.NonSurjectiveInverse(initial_ranges, analyzer);
   (void)inverse;  // to avoid unused variable warning;
   if (!analyzer->CanProve(!padding_predicate)) return false;
@@ -167,7 +167,9 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   bool IsScalarConstant(const Expr& expr) {
-    if (expr->IsInstance<ConstantNode>() && expr.as<ConstantNode>()->is_scalar()) {
+    if (expr->IsInstance<GenericConstNode>() &&
+        expr.as<GenericConstNode>()->value.as<runtime::Tensor>() &&
+        expr.as<GenericConstNode>()->value.cast<runtime::Tensor>()->ndim == 0) {
       return true;
     }
     return false;
@@ -208,7 +210,7 @@ class AlterOpImplMutator : public ExprMutator {
     // Output tensor of remove_pad op
     te::Tensor output_tensor = te::compute(
         dyn_old_shape,
-        [&placeholder_tensor](const ffi::Array<tirx::PrimVar>& indices) {
+        [&placeholder_tensor](const ffi::Array<PrimVar>& indices) {
           return placeholder_tensor(indices);
         },
         "output", topi::kElementWise);
@@ -234,11 +236,11 @@ class AlterOpImplMutator : public ExprMutator {
     }
     ffi::Array<PrimExpr> old_shape = GetShapeFromTensorType(old_tensor_ty);
     ffi::Array<Range> initial_ranges = ConstructRangeFromShape(old_shape);
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto [inverse_index_map, padding_predicate] =
         index_map.NonSurjectiveInverse(initial_ranges, analyzer);
 
-    if (tirx::is_zero(padding_predicate)) {
+    if (tvm::prim::is_zero(padding_predicate)) {
       return TransformLayout(expr, inverse_index_map);
     } else {
       auto padded_expr = builder_->Normalize(TransformLayout(expr, inverse_index_map));
@@ -317,7 +319,7 @@ class AlterOpImplMutator : public ExprMutator {
   Type UpdateOutputType(const TensorType& tensor_ty, const IndexMap& transform) {
     if (transform.get() == nullptr) return tensor_ty;
     auto shape = GetShapeFromTensorType(tensor_ty);
-    arith::Analyzer analyzer;
+    sym::Analyzer analyzer;
     auto new_shape = transform->MapShape(shape, analyzer);
     if (tensor_ty->vdevice.has_value()) {
       return TensorType(ShapeExpr(new_shape), tensor_ty->dtype, tensor_ty->vdevice.value());

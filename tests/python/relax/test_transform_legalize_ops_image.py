@@ -21,6 +21,7 @@ import tvm.testing
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -40,14 +41,14 @@ def test_image_resize2d():
             gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((2, 16, 16, 3), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def resize2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(8), T.int64(8), T.int64(3)), "float32"), resize: T.Buffer((T.int64(2), T.int64(16), T.int64(16), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(16), T.int64(16), T.int64(3)):
-                with T.sblock("resize"):
-                    i0_1, i1_1, i2_1, i3_1 = T.axis.remap("SSSS", [i0, i1, i2, i3])
-                    T.reads(rxplaceholder[i0_1, T.int64(0):T.int64(8), T.int64(0):T.int64(8), i3_1])
-                    T.writes(resize[i0_1, i1_1, i2_1, i3_1])
+                with Ts.sblock("resize"):
+                    i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
+                    Ts.reads(rxplaceholder[i0_1, T.int64(0):T.int64(8), T.int64(0):T.int64(8), i3_1])
+                    Ts.writes(resize[i0_1, i1_1, i2_1, i3_1])
                     resize[i0_1, i1_1, i2_1, i3_1] = rxplaceholder[i0_1, T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i1_1))), T.int64(7)), T.int64(0)), T.max(T.min(T.Cast("int64", T.round(T.float32(0.5) * T.Cast("float32", i2_1))), T.int64(7)), T.int64(0)), i3_1]
     # fmt: on
 
@@ -57,45 +58,50 @@ def test_image_resize2d():
 
 def test_image_resize2d_symbolic():
     # fmt: off
+    n = T.dynamic("n")
+    c = T.dynamic("c")
+    oh = T.dynamic("oh")
+    ow = T.dynamic("ow")
+    h = T.dynamic("h")
+    w = T.dynamic("w")
+
     @tvm.script.ir_module
     class Resize2D:
         @R.function
-        def main(dumb_param: R.Tensor(("oh", "ow")), x: R.Tensor(("n", "c", "h", "w", 16), "float32")) -> R.Tensor(("n", "c", "oh", "ow", 16), "float32"):
-            n = T.int64()
-            c = T.int64()
-            oh = T.int64()
-            ow = T.int64()
+        def main(dumb_param: R.Tensor((oh, ow)), x: R.Tensor((n, c, h, w, 16), "float32")) -> R.Tensor((n, c, oh, ow, 16), "float32"):
             gv: R.Tensor((n, c, oh, ow, 16), "float32") = R.image.resize2d(x, size=(oh, ow), layout="NCHW16c", method="nearest_neighbor", coordinate_transformation_mode="asymmetric")
             return gv
+
+    n_main = T.dynamic("n")
+    c_main = T.dynamic("c")
+    oh_main = T.dynamic("oh")
+    ow_main = T.dynamic("ow")
+    h_main = T.dynamic("h")
+    w_main = T.dynamic("w")
+    c_resize2d = T.dynamic("c")
+    h_resize2d = T.dynamic("h")
+    n_resize2d = T.dynamic("n")
+    oh_resize2d = T.dynamic("oh")
+    ow_resize2d = T.dynamic("ow")
+    w_resize2d = T.dynamic("w")
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(dumb_param: R.Tensor(("oh", "ow")), x: R.Tensor(("n", "c", "h", "w", 16), "float32")) -> R.Tensor(("n", "c", "oh", "ow", 16), "float32"):
-            n = T.int64()
-            c = T.int64()
-            oh = T.int64()
-            ow = T.int64()
-            gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((n, c, oh, ow, 16), dtype="float32"))
+        def main(dumb_param: R.Tensor((oh_main, ow_main)), x: R.Tensor((n_main, c_main, h_main, w_main, 16), "float32")) -> R.Tensor((n_main, c_main, oh_main, ow_main, 16), "float32"):
+            gv = R.call_tir(Expected.resize2d, (x,), R.Tensor((n_main, c_main, oh_main, ow_main, 16), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
-        def resize2d(var_rxplaceholder: T.handle, var_resize: T.handle):
+        @Ts.prim_func(private=True)
+        def resize2d(rxplaceholder: T.Buffer([n_resize2d, c_resize2d, h_resize2d, w_resize2d, T.int64(16)], dtype='float32'), resize: T.Buffer([n_resize2d, c_resize2d, oh_resize2d, ow_resize2d, T.int64(16)], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
-            c = T.int64()
-            h = T.int64()
-            n = T.int64()
-            oh = T.int64()
-            ow = T.int64()
-            w = T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, [n, c, h, w, T.int64(16)], dtype="float32")
-            resize = T.match_buffer(var_resize, [n, c, oh, ow, T.int64(16)], dtype="float32")
-            for i0, i1, i2, i3, i4 in T.grid(n, c, oh, ow, T.int64(16)):
-                with T.sblock("resize"):
-                    i0_1, i1_1, i2_1, i3_1, i4_1 = T.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
-                    T.reads(rxplaceholder[i0_1, i1_1, T.int64(0) : T.max(h, T.int64(1)), T.int64(0) : T.max(w, T.int64(1)), i4_1])
-                    T.writes(resize[i0_1, i1_1, i2_1, i3_1, i4_1])
-                    resize[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i1_1, T.max(T.min(T.Cast("int64", T.round(T.Cast("float32", h) / T.Cast("float32", oh) * T.Cast("float32", i2_1), dtype="float32")), h - T.int64(1)), T.int64(0)), T.max(T.min(T.Cast("int64", T.round(T.Cast("float32", w) / T.Cast("float32", ow) * T.Cast("float32", i3_1), dtype="float32")), w - T.int64(1)), T.int64(0)), i4_1]
+
+            for i0, i1, i2, i3, i4 in T.grid(n_resize2d, c_resize2d, oh_resize2d, ow_resize2d, T.int64(16)):
+                with Ts.sblock("resize"):
+                    i0_1, i1_1, i2_1, i3_1, i4_1 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
+                    Ts.reads(rxplaceholder[i0_1, i1_1, T.int64(0) : T.max(h_resize2d, T.int64(1)), T.int64(0) : T.max(w_resize2d, T.int64(1)), i4_1])
+                    Ts.writes(resize[i0_1, i1_1, i2_1, i3_1, i4_1])
+                    resize[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i1_1, T.max(T.min(T.Cast("int64", T.round(T.Cast("float32", h_resize2d) / T.Cast("float32", oh_resize2d) * T.Cast("float32", i2_1), dtype="float32")), h_resize2d - T.int64(1)), T.int64(0)), T.max(T.min(T.Cast("int64", T.round(T.Cast("float32", w_resize2d) / T.Cast("float32", ow_resize2d) * T.Cast("float32", i3_1), dtype="float32")), w_resize2d - T.int64(1)), T.int64(0)), i4_1]
     # fmt: on
 
     mod = LegalizeOps()(Resize2D)
@@ -118,19 +124,18 @@ def test_image_affine_grid():
             gv = R.call_tir(Expected.affine_grid, (theta,), R.Tensor((2, 2, 16, 16), dtype="float32"))
             return gv
 
-        @T.prim_func(private=True, s_tir=True)
-        def affine_grid(var_theta: T.handle, var_compute: T.handle):
+        @Ts.prim_func(private=True)
+        def affine_grid(theta: T.Buffer((T.int64(2), T.int64(2), T.int64(3))), compute: T.Buffer((T.int64(2), T.int64(2), T.int64(16), T.int64(16)))):
             T.func_attr({"tirx.noalias": True})
-            theta = T.match_buffer(var_theta, (T.int64(2), T.int64(2), T.int64(3)))
-            compute = T.match_buffer(var_compute, (T.int64(2), T.int64(2), T.int64(16), T.int64(16)))
-            with T.sblock("root"):
-                T.reads()
-                T.writes()
-                for n, dim, i0, i1 in T.grid(T.int64(2), T.int64(2), T.int64(16), T.int64(16)):
-                    with T.sblock("compute"):
-                        v_n, v_dim, v_i0, v_i1 = T.axis.remap("SSSS", [n, dim, i0, i1])
-                        T.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
-                        T.writes(compute[v_n, v_dim, v_i0, v_i1])
+
+            with Ts.sblock("root"):
+                Ts.reads()
+                Ts.writes()
+                for n_index, dim, i0, i1 in T.grid(T.int64(2), T.int64(2), T.int64(16), T.int64(16)):
+                    with Ts.sblock("compute"):
+                        v_n, v_dim, v_i0, v_i1 = Ts.axis.remap("SSSS", [n_index, dim, i0, i1])
+                        Ts.reads(theta[v_n, v_dim, T.int64(0):T.int64(3)])
+                        Ts.writes(compute[v_n, v_dim, v_i0, v_i1])
                         compute[v_n, v_dim, v_i0, v_i1] = theta[v_n, v_dim, T.int64(2)] + theta[v_n, v_dim, T.int64(1)] * (T.float32(-1.0) + T.Cast("float32", v_i0) * T.float32(0.13333332666666667)) + theta[v_n, v_dim, T.int64(0)] * (T.float32(-1.0) + T.Cast("float32", v_i1) * T.float32(0.13333332666666667))
     # fmt: on
 

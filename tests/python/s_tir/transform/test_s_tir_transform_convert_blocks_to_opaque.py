@@ -21,6 +21,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir, te, tirx
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -28,49 +29,47 @@ def _check(original, transformed):
     func = original
     mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
     mod = tvm.s_tir.transform.ConvertBlocksToOpaque()(mod)
-    mod = tvm.tirx.transform.StmtSimplify()(mod)
+    mod = tvm.s_tir.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
-@T.prim_func(s_tir=True)
-def elementwise_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+@Ts.prim_func
+def elementwise_func(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
     for i in range(0, 16):
-        with T.sblock():
-            T.reads(A[i, 0:16])
-            T.writes(C[i, 0:16])
-            B = T.sblock_alloc_buffer((16, 16), "float32")
+        with Ts.sblock():
+            Ts.reads(A[i, 0:16])
+            Ts.writes(C[i, 0:16])
+            B = Ts.sblock_alloc_buffer((16, 16), "float32")
             for j in range(0, 16):
-                with T.sblock():
-                    vi = T.axis.S(16, i)
-                    vj = T.axis.S(16, j)
+                with Ts.sblock():
+                    vi = Ts.axis.S(16, i)
+                    vj = Ts.axis.S(16, j)
                     B[vi, vj] = A[vi, vj] + 1.0
             for j in range(0, 16):
-                with T.sblock():
-                    vi = T.axis.S(16, i)
-                    vj = T.axis.S(16, j)
+                with Ts.sblock():
+                    vi = Ts.axis.S(16, i)
+                    vj = Ts.axis.S(16, j)
                     C[vi, vj] = B[vi, vj] * 2.0
 
 
-@T.prim_func(s_tir=True)
-def substituted_elementwise_func(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (16, 16), "float32")
-    C = T.match_buffer(c, (16, 16), "float32")
+@Ts.prim_func
+def substituted_elementwise_func(
+    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
+) -> None:
     for i in range(0, 16):
-        with T.sblock():
-            T.reads(A[i, 0:16])
-            T.writes(C[i, 0:16])
-            B = T.sblock_alloc_buffer([16, 16], "float32")
+        with Ts.sblock():
+            Ts.reads(A[i, 0:16])
+            Ts.writes(C[i, 0:16])
+            B = Ts.sblock_alloc_buffer([16, 16], "float32")
             for j in range(0, 16):
-                with T.sblock():
-                    T.reads([A[i, j]])
-                    T.writes([B[i, j]])
+                with Ts.sblock():
+                    Ts.reads([A[i, j]])
+                    Ts.writes([B[i, j]])
                     B[i, j] = A[i, j] + 1.0
             for j in range(0, 16):
-                with T.sblock():
-                    T.reads([B[i, j]])
-                    T.writes([C[i, j]])
+                with Ts.sblock():
+                    Ts.reads([B[i, j]])
+                    Ts.writes([C[i, j]])
                     C[i, j] = B[i, j] * 2.0
 
 
@@ -79,14 +78,14 @@ def test_elementwise():
 
 
 def test_error_if_predicate_uses_block_variables():
-    @I.ir_module(check_well_formed=False, s_tir=True)
+    @I.ir_module(check_well_formed=False)
     class Before:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def main(A: T.Buffer(8, "int32")):
             for i in T.serial(8):
-                with T.sblock():
-                    vi = T.axis.remap("S", [i])
-                    T.where(vi < 6)
+                with Ts.sblock():
+                    vi = Ts.axis.remap("S", [i])
+                    Ts.where(vi < 6)
                     T.evaluate(0)
 
     with pytest.raises(RuntimeError):

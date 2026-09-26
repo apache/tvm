@@ -31,6 +31,7 @@ from tvm.relax.testing.runtime_builtin import MakeShapeCode, MatchShapeCode
 from tvm.relax.testing.vm import check_saved_func
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 EXEC_MODE = ["bytecode", "compiled"]
@@ -220,13 +221,15 @@ def test_shape_check_builtin(exec_mode):
     # 0: n, 1: m
     sindex = {"n": 0, "m": 1}
 
+    n = T.dynamic("n")
+    k = T.dynamic("k")
+    m = T.dynamic("m")
+
     @tvm.script.ir_module
     class TestVMShapeCheck:
         @R.function(pure=False)
-        def main(x: R.Tensor(["n", "m"], "float32")) -> R.Shape(ndim=3):
+        def main(x: R.Tensor([n, m], "float32")) -> R.Shape(ndim=3):
             R.func_attr({"global_symbol": "main"})
-            n = T.int64()
-            k = T.int64()
             shape_heap = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 [R.prim_value(3)],
@@ -364,26 +367,26 @@ def test_vm_builtin_reshape(exec_mode):
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_vm_kill_object(exec_mode):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class TestKillObject:
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def full(T_full: T.Buffer((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
-                with T.sblock("T_full"):
-                    v_ax0 = T.axis.spatial(T.int64(4), ax0)
-                    T.reads()
-                    T.writes(T_full[v_ax0])
+                with Ts.sblock("T_full"):
+                    v_ax0 = Ts.axis.spatial(T.int64(4), ax0)
+                    Ts.reads()
+                    Ts.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(0)
 
-        @T.prim_func(s_tir=True)
+        @Ts.prim_func
         def full1(T_full: T.Buffer((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full1", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
-                with T.sblock("T_full"):
-                    v_ax0 = T.axis.spatial(T.int64(4), ax0)
-                    T.reads()
-                    T.writes(T_full[v_ax0])
+                with Ts.sblock("T_full"):
+                    v_ax0 = Ts.axis.spatial(T.int64(4), ax0)
+                    Ts.reads()
+                    Ts.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(1)
 
         # PrimFuncs called directly are treated as impure
@@ -425,7 +428,7 @@ def test_vm_kill_object(exec_mode):
 
 @pytest.mark.parametrize("exec_mode", EXEC_MODE)
 def test_preserve_trivial_bindings(exec_mode):
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class mod:
         @R.function(pure=False)
         def main():

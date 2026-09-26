@@ -32,8 +32,8 @@ def test_explicit_matrix_ab_access_is_rejected(scope, shape, access_kind):
         body = tirx.Evaluate(tirx.BufferLoad(buffer, [0, 0]))
     else:
         body = tirx.BufferStore(buffer, 0.0, [0, 0])
-    block = tirx.SBlock([], [], [], "root", body, alloc_buffers=[buffer])
-    func = tirx.PrimFunc([], tirx.SBlockRealize([], True, block))
+    block = s_tir.SBlock([], [], [], "root", body, alloc_buffers=[buffer])
+    func = tirx.PrimFunc([], s_tir.SBlockRealize([], True, block))
 
     with pytest.raises(tvm.error.InternalError, match=f"{scope}.*explicit"):
         s_tir.transform.TransformMmaBufferLayout()(tvm.IRModule.from_expr(func))

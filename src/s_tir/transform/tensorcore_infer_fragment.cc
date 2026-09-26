@@ -27,8 +27,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -39,7 +39,6 @@
 
 namespace tvm {
 namespace s_tir {
-using namespace tvm::prim;
 using namespace tvm::tirx;
 
 const VarNode* GetBufferVarFromData(const Expr& data) {
@@ -54,10 +53,11 @@ const VarNode* GetBufferVarFromData(const Expr& data) {
 }
 
 // Get fragment information from tensor intrinsics
-class FragmentGetter : public StmtExprVisitor {
+class FragmentGetter : public s_tir::StmtExprVisitor {
  public:
-  void VisitExpr_(const CallNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  using s_tir::StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
 
     static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
     static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
@@ -91,9 +91,11 @@ class FragmentGetter : public StmtExprVisitor {
         // store metadata
         FragmentInfo info;
         if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-          info = FragmentInfo(m->value, n->value, k->value, layout->value, scope);
+          info = FragmentInfo(m->value.as<int>().value(), n->value.as<int>().value(),
+                              k->value.as<int>().value(), layout->value, scope);
         } else if (scope == "wmma.accumulator") {
-          info = FragmentInfo(m->value, n->value, k->value, "", scope);
+          info = FragmentInfo(m->value.as<int>().value(), n->value.as<int>().value(),
+                              k->value.as<int>().value(), "", scope);
         }
         fragments[buffer_var] = info;
       }
@@ -118,14 +120,13 @@ class FragmentGetter : public StmtExprVisitor {
         TVM_FFI_ICHECK_EQ(k->value, info.k);
       } else {
         // default to row major ordering
-        FragmentInfo info(m->value, n->value, k->value, "row_major", scope);
+        FragmentInfo info(m->value.as<int>().value(), n->value.as<int>().value(),
+                          k->value.as<int>().value(), "row_major", scope);
         fragments[buffer_var] = info;
       }
     }
+    return std::nullopt;
   }
-
-  // Get memory scope
-  void VisitStmt_(const AttrStmtNode* op) final { StmtExprVisitor::VisitStmt_(op); }
 
   // Fragment metadata for all fragments
   std::unordered_map<const VarNode*, FragmentInfo> fragments;
@@ -135,22 +136,22 @@ class FragmentGetter : public StmtExprVisitor {
 
 namespace tirx {
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt) {
-  s_tir::FragmentGetter getter;
-  getter(stmt);
-  return std::move(getter.fragments);
+  auto getter = ffi::make_object<s_tir::FragmentGetter>();
+  getter->Visit(stmt);
+  return std::move(getter->fragments);
 }
 }  // namespace tirx
 
 namespace s_tir {
-using namespace tvm::prim;
 
 // Check shape of fragment making sure it is a valid shape for tvm_mma_sync
-class FragmentChecker : public StmtExprVisitor {
+class FragmentChecker : public s_tir::StmtExprVisitor {
  public:
+  using s_tir::StmtExprVisitor::Visit_;
   explicit FragmentChecker(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  void VisitExpr_(const CallNode* op) final {
-    StmtExprVisitor::VisitExpr_(op);
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     // Check shape when calling tvm_mma_sync
     static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
     static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
@@ -170,6 +171,7 @@ class FragmentChecker : public StmtExprVisitor {
       TVM_FFI_ICHECK(CheckShape(buffer_var_d, buffer_var_b));
       TVM_FFI_ICHECK(CheckShape(buffer_var_d, buffer_var_c));
     }
+    return std::nullopt;
   }
 
  private:
@@ -192,19 +194,27 @@ class FragmentChecker : public StmtExprVisitor {
 };
 
 // Store the metadata into attributes
-class InferFragmenter : public StmtMutator {
+class InferFragmenter : public s_tir::StmtExprMutator {
  public:
+  using s_tir::StmtExprMutator::Mutate;
+  using s_tir::StmtExprMutator::Mutate_;
+  UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override {
+    if (value.as<ExprNode>()) return ffi::Unchanged();
+    return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
+  }
+
   explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  Stmt VisitStmt_(const AllocBufferNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
+  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt =
+        s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const VarNode* buffer = op->buffer.get();
     if (fragment_getter.fragments.count(buffer)) {
       FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
-      PrimExpr shape_expr = StringImm(shape);
+      Expr shape_expr = StringImm(shape);
       Stmt shape_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
         Stmt layout_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_layout,
@@ -223,11 +233,13 @@ class InferFragmenter : public StmtMutator {
 };
 
 Stmt InferFragment(Stmt stmt) {
-  FragmentGetter getter;
-  getter(stmt);
-  FragmentChecker checker(getter);
-  checker(stmt);
-  stmt = InferFragmenter(getter)(std::move(stmt));
+  auto getter = ffi::make_object<FragmentGetter>();
+  getter->Visit(stmt);
+  auto checker = ffi::make_object<FragmentChecker>(*getter);
+  checker->Visit(stmt);
+  stmt = ffi::make_object<InferFragmenter>(*getter)
+             ->Mutate(stmt, InplaceMode::kAllow)
+             .ValueOrUnchanged(std::move(stmt));
   return stmt;
 }
 

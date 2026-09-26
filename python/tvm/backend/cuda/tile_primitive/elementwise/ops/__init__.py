@@ -30,21 +30,22 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from tvm.ir import TensorRegion
 from tvm.ir.expr import Expr
-from tvm.tirx import BufferRegion, TilePrimitiveCall
+from tvm.tirx import TilePrimitiveCall
 
 
 @dataclass
 class SrcSpec:
     """One operand of an elementwise op.
 
-    Either a ``BufferRegion`` (per-element load) or a scalar ``Expr``.
+    Either a ``TensorRegion`` (per-element load) or a scalar ``Expr``.
     ``index_fn``, if given, derives per-element indices for broadcasting srcs:
         ``index_fn(dst_indices, dst_start, dst_extent, src_start, src_extent) -> list[Expr]``
     Default is the standard ``get_indices`` over the src's own region.
     """
 
-    buf_region: BufferRegion | None = None
+    buf_region: TensorRegion | None = None
     scalar: Expr | None = None
     index_fn: Callable | None = None
 
@@ -54,14 +55,14 @@ class SrcSpec:
 
     @property
     def buffer(self):
-        return self.buf_region.buffer if self.buf_region is not None else None
+        return self.buf_region.source if self.buf_region is not None else None
 
 
 @dataclass
 class Plan:
     """Parsed elementwise op ready for a schedule to consume."""
 
-    dst: BufferRegion
+    dst: TensorRegion
     srcs: list[SrcSpec]
     extras: dict[str, Any] = field(default_factory=dict)
 

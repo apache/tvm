@@ -25,53 +25,47 @@ import tvm
 import tvm.testing
 from tvm import s_tir, tirx
 from tvm.s_tir.schedule import DepKind
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@T.prim_func(s_tir=True)
-def elementwise(a: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128), "float32")
-    C = T.match_buffer(c, (128, 128), "float32")
-    B = T.sblock_alloc_buffer((128, 128), "float32")
+@Ts.prim_func
+def elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
+    B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@T.prim_func(s_tir=True)
-def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128])
-    B = T.match_buffer(b, [128, 128])
-    C = T.match_buffer(c, [128, 128])
+@Ts.prim_func
+def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
     for i, j in T.grid(128, 128):
-        with T.sblock("init"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("init"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = T.float32(0)
         for k in range(0, 128):
-            with T.sblock("update"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+            with Ts.sblock("update"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@T.prim_func(s_tir=True)
-def war_dependency(a: T.handle, b: T.handle, c: T.handle) -> None:
-    A = T.match_buffer(a, (128, 128))
-    B = T.match_buffer(b, (128, 128))
-    C = T.match_buffer(c, (128, 128))
-
+@Ts.prim_func
+def war_dependency(
+    A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+) -> None:
     for i, j in T.grid(128, 128):
-        with T.sblock("C"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("C"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
-        with T.sblock("B"):
-            vi, vj = T.axis.remap("SS", [i, j])
+        with Ts.sblock("B"):
+            vi, vj = Ts.axis.remap("SS", [i, j])
             B[vi, vj] = A[vi, vj] * 2.0
 
 
@@ -85,12 +79,12 @@ def _get_sblock(s: s_tir.ScheduleState, name_hint: str) -> s_tir.StmtSRef:
 
     def f_visit(node):
         nonlocal result
-        if isinstance(node, tvm.tirx.SBlock) and node.name_hint == name_hint:
+        if isinstance(node, tvm.s_tir.SBlock) and node.name_hint == name_hint:
             result = node
 
     func = s.mod["main"]
     structural_walk(func.body, f_visit, order="post")
-    assert result is not None and isinstance(result, tvm.tirx.SBlock)
+    assert result is not None and isinstance(result, tvm.s_tir.SBlock)
     return s.get_sref(result)
 
 

@@ -29,6 +29,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 /* relax.op.memory.view */
 Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
@@ -120,23 +121,23 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
 
     // In general, Type inference should only depend on the
     // Type of the arguments, and not on the arguments
-    // themselves.  However, `relax::DataTypeImm` uses
+    // themselves.  However, dtype GenericConst uses
     // `AnyType`, so we need to inspect the argument itself
     // in this case.
-    if (auto dtype_imm = arg_value.as<DataTypeImmNode>()) {
+    if (auto dtype_imm = arg_value.as<GenericConstNode>()) {
       // We know the datatype for the view.
-      TVM_FFI_CHECK(!PrimType(dtype_imm->value).IsVoid(), TypeError)
+      TVM_FFI_CHECK(!PrimType(dtype_imm->value.cast<DLDataType>()).IsVoid(), TypeError)
           << "Operator " << call->op
           << " expects the dtype argument to be a concrete tensor datatype, "
           << "but received void.  Use relax.null_value() if no dtype change is requested.";
-      return PrimType(dtype_imm->value);
+      return PrimType(dtype_imm->value.cast<DLDataType>());
     } else if (ty.as<AnyTypeNode>()) {
       // The view changes the datatype, but we don't know what it is
       // being changed into.
       return std::nullopt;
     } else {
       TVM_FFI_THROW(TypeError) << "Operator " << call->op
-                               << " expects the dtype argument to be a relax::DataTypeImm, "
+                               << " expects the dtype argument to be a dtype GenericConst, "
                                << "but received " << arg_dtype << " with type " << ty;
     }
   }();
@@ -375,7 +376,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
         << "or the input dtype is known.  "
         << "However, in expression " << call << ", no output dtype is specified, "
         << "and the input " << data << " of type " << data->ty << " has unknown dtype.";
-    dtype = relax::DataTypeImm(data_tensor_ty->dtype.value()->dtype);
+    dtype = GenericConst(data_tensor_ty->dtype.value()->dtype, AnyType());
   }
 
   if (HasVoidType(relative_byte_offset)) {

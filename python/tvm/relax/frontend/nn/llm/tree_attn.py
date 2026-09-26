@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
-# ruff: noqa: E501, F841
+# ruff: noqa: E501
 
 """Operators for tree attention."""
 
@@ -23,6 +23,7 @@ import math
 from typing import Any
 
 from tvm import s_tir, tirx
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -33,10 +34,10 @@ from ._kernel_common import (
     _alloc_mha_qkvo_buffers,
     _alloc_softmax_state_buffers,
     _alloc_tile_walk_state,
-    _declare_length_info,
     _get_kv_chunk_len,
     _get_prefill_kernel_config,
     _get_seq_offset,
+    _length_info_buffer,
     _rope,
 )
 
@@ -88,84 +89,67 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     group_size = h_q // h_kv
 
     # fmt: off
-    @T.prim_func(s_tir=True)
+    qo_len = T.dynamic("qo_len", "int32")
+    kv_len = T.dynamic("kv_len", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    mn_indptr_elem_offset = T.dynamic("mn_indptr_elem_offset", "int32")
+    mask_elem_offset = T.dynamic("mask_elem_offset", "int32")
+    tree_size = T.dynamic("tree_size", "int32")
+    batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
+    @Ts.prim_func
     def batch_tree_attn(  # pylint: disable=too-many-branches,line-too-long
-        var_q: T.handle,  # [total_len, h_q, d]
-        var_q_indptr: T.handle,  # [batch_size + 1]
-        var_k: T.handle,  # [total_len, h_kv, d]
-        var_v: T.handle,  # [total_len, h_kv, d]
-        var_kv_indptr: T.handle,  # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
-        var_q_rope_position: T.handle,  # [total_q_len]
-        var_mn_indptr: T.handle,  # [batch_size + 1]
-        var_mask: T.handle,  # [mn_indptr[batch_size]]
-        var_output: T.handle,  # [total_len, h_q, d]
-        var_lse: T.handle,  # [total_len, h_q]
+        q: T.Buffer((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        k: T.Buffer((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
+        v: T.Buffer((kv_len, h_kv, d), dtype),  # [total_len, h_kv, d]
+        kv_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
+        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
+        mn_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset),  # [batch_size + 1]
+        mask: T.Buffer((tree_size, 2), 'int32', elem_offset=mask_elem_offset),  # [mn_indptr[batch_size]]
+        output: T.Buffer((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
+        lse: T.Buffer((qo_len, h_q), 'float32'),  # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        qo_len = T.int32()
-        kv_len = T.int32()
-        q_indptr_elem_offset = T.int32()
-        kv_indptr_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        mn_indptr_elem_offset = T.int32()
-        mask_elem_offset = T.int32()
-        tree_size = T.int32()
-        batch_size_plus_1 = T.int32()
 
-        q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(
-            var_q_indptr, (batch_size_plus_1,), "int32", elem_offset=q_indptr_elem_offset
-        )
-        k = T.match_buffer(var_k, (kv_len, h_kv, d), dtype)
-        v = T.match_buffer(var_v, (kv_len, h_kv, d), dtype)
-        kv_indptr = T.match_buffer(
-            var_kv_indptr, (batch_size_plus_1,), "int32", elem_offset=kv_indptr_elem_offset
-        )
-        q_rope_position = T.match_buffer(
-            var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset
-        )
-        mn_indptr = T.match_buffer(
-            var_mn_indptr, (batch_size_plus_1,), "int32", elem_offset=mn_indptr_elem_offset
-        )
-        mask = T.match_buffer(var_mask, (tree_size, 2), "int32", elem_offset=mask_elem_offset)
-        output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
 
         for b in T.serial(batch_size_plus_1 - 1):
-            with T.sblock("attn"):
+            with Ts.sblock("attn"):
 
-                softmax_sum = T.sblock_alloc_buffer([h_q], "float32")
-                m_prev = T.sblock_alloc_buffer([h_q], "float32")
-                m_new = T.sblock_alloc_buffer([h_q], "float32")
-                d_prev = T.sblock_alloc_buffer([h_q], "float32")
-                d_new = T.sblock_alloc_buffer([h_q], "float32")
-                p_sum = T.sblock_alloc_buffer([d], "float32")
+                softmax_sum = Ts.sblock_alloc_buffer([h_q], "float32")
+                m_prev = Ts.sblock_alloc_buffer([h_q], "float32")
+                m_new = Ts.sblock_alloc_buffer([h_q], "float32")
+                d_prev = Ts.sblock_alloc_buffer([h_q], "float32")
+                d_new = Ts.sblock_alloc_buffer([h_q], "float32")
+                p_sum = Ts.sblock_alloc_buffer([d], "float32")
 
-                max_score = T.sblock_alloc_buffer([h_q], "float32")
-                attention_scores = T.sblock_alloc_buffer([kv_len, h_q], "float32")
-                exp_scores = T.sblock_alloc_buffer([kv_len, h_q], "float32")
-                attention_score = T.sblock_alloc_buffer(
+                max_score = Ts.sblock_alloc_buffer([h_q], "float32")
+                attention_scores = Ts.sblock_alloc_buffer([kv_len, h_q], "float32")
+                exp_scores = Ts.sblock_alloc_buffer([kv_len, h_q], "float32")
+                attention_score = Ts.sblock_alloc_buffer(
                     [
                         1,
                     ],
                     "float32",
                 )
-                query_val = T.sblock_alloc_buffer(
+                query_val = Ts.sblock_alloc_buffer(
                     [
                         1,
                     ],
                     "float32",
                 )
-                key_val = T.sblock_alloc_buffer(
+                key_val = Ts.sblock_alloc_buffer(
                     [
                         1,
                     ],
                     "float32",
                 )
-                result = T.sblock_alloc_buffer(
+                result = Ts.sblock_alloc_buffer(
                     [
                         1,
                     ],
@@ -287,53 +271,44 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
     )
 
     # fmt: off
-    @T.prim_func(s_tir=True)
+    qo_len = T.dynamic("qo_len", "int32")
+    kv_len = T.dynamic("kv_len", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    kv_indptr_elem_offset = T.dynamic("kv_indptr_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    mn_indptr_elem_offset = T.dynamic("mn_indptr_elem_offset", "int32")
+    mask_elem_offset = T.dynamic("mask_elem_offset", "int32")
+    tree_size = T.dynamic("tree_size", "int32")
+    batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
+    @Ts.prim_func
     def batch_tree_attn(  # pylint: disable=too-many-branches
-        var_q: T.handle, # [total_len, h_q, d]
-        var_q_indptr: T.handle, # [batch_size + 1]
-        var_k: T.handle, # [total_len, h_kv, d]
-        var_v: T.handle, # [total_len, h_kv, d]
-        var_kv_indptr: T.handle, # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
-        var_q_rope_position: T.handle, # [total_q_len]
-        var_mn_indptr: T.handle, # [batch_size + 1]
-        var_mask: T.handle, # [mn_indptr[batch_size]]
-        var_output: T.handle, # [total_len, h_q, d]
-        var_lse: T.handle, # [total_len, h_q]
+        q: T.Buffer((qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        k: T.Buffer((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        v: T.Buffer((kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        kv_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1], kv_indptr should be the same as q_indptr in this case
+        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
+        mn_indptr: T.Buffer((batch_size_plus_1,), 'int32', elem_offset=mn_indptr_elem_offset), # [batch_size + 1]
+        mask: T.Buffer((tree_size, 2), 'int32', elem_offset=mask_elem_offset), # [mn_indptr[batch_size]]
+        output: T.Buffer((qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Buffer((qo_len, h_q), 'float32'), # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        qo_len = T.int32()
-        kv_len = T.int32()
-        q_indptr_elem_offset = T.int32()
-        kv_indptr_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        mn_indptr_elem_offset = T.int32()
-        mask_elem_offset = T.int32()
-        tree_size = T.int32()
-        batch_size_plus_1 = T.int32()
 
-        q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size_plus_1,), "int32", elem_offset=q_indptr_elem_offset)
-        k = T.match_buffer(var_k, (kv_len, h_kv, d), dtype)
-        v = T.match_buffer(var_v, (kv_len, h_kv, d), dtype)
-        kv_indptr = T.match_buffer(var_kv_indptr, (batch_size_plus_1,), "int32", elem_offset=kv_indptr_elem_offset)
-        q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        mn_indptr = T.match_buffer(var_mn_indptr, (batch_size_plus_1,), "int32", elem_offset=mn_indptr_elem_offset)
-        mask = T.match_buffer(var_mask, (tree_size, 2), "int32", elem_offset=mask_elem_offset)
-        output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
+          # pylint: disable=unused-variable
 
         # kernel code
         for lbx in T.thread_binding(NUM_BLKS, thread="blockIdx.x"):
             for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
                 for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
                     for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
-                        with T.sblock("attn"):
-                            bx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("attn"):
+                            bx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
+                            Ts.reads()
+                            Ts.writes()
                             tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
                             S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps)
@@ -368,17 +343,17 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                             d_smem[row] = 1.0
 
                                     for li, lj in T.grid(tile_x, tile_y):
-                                        with T.sblock("O_init"):
-                                            i, j = T.axis.remap("SS", [li, lj])
+                                        with Ts.sblock("O_init"):
+                                            i, j = Ts.axis.remap("SS", [li, lj])
                                             O_local[i, j] = 0.0
                                     T.tvm_storage_sync("shared")
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
-                                        with T.sblock("Q_load"):
-                                            i, j = T.axis.remap("SS", [li, lj])
-                                            T.reads()
-                                            T.writes()
+                                        with Ts.sblock("Q_load"):
+                                            i, j = Ts.axis.remap("SS", [li, lj])
+                                            Ts.reads()
+                                            Ts.writes()
                                             cur_L: T.let[T.int32] = q_indptr_val + (LH_start + i) // group_size
                                             cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
@@ -395,10 +370,10 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
                                         L_kv_base: T.let[T.int32] = kv_indptr[b_idx]
                                         for lz, ly in T.grid(tile_z, tile_y):
-                                            with T.sblock("KV_load"):
-                                                i, j = T.axis.remap("SS", [lz, ly])
-                                                T.reads()
-                                                T.writes()
+                                            with Ts.sblock("KV_load"):
+                                                i, j = Ts.axis.remap("SS", [lz, ly])
+                                                Ts.reads()
+                                                Ts.writes()
                                                 cur_L: T.let[T.int32] = L_kv_base + L_kv_start + i
                                                 if L_kv_start + i < kv_chunk_len[0]:
                                                     K_smem[i, j] = T.if_then_else(
@@ -413,17 +388,17 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                         T.tvm_storage_sync("shared")
 
                                         # Compute S
-                                        with T.sblock():
+                                        with Ts.sblock():
                                             for li, lj, lk in T.grid(tile_x, tile_z, tile_y):
-                                                with T.sblock("S_gemm"):
-                                                    i, j, k = T.axis.remap("SSR", [li, lj, lk])
-                                                    with T.init():
+                                                with Ts.sblock("S_gemm"):
+                                                    i, j, k_axis = Ts.axis.remap("SSR", [li, lj, lk])
+                                                    with Ts.init():
                                                         S_local[i, j] = 0.0
-                                                    S_local[i, j] += T.cast(Q_smem[i, k], "float32") * T.cast(K_smem[j, k], "float32") * sm_scale * math.log2(math.exp(1))
+                                                    S_local[i, j] += T.cast(Q_smem[i, k_axis], "float32") * T.cast(K_smem[j, k_axis], "float32") * sm_scale * math.log2(math.exp(1))
                                         T.tvm_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
-                                            with T.sblock("S_store"):
-                                                i, j = T.axis.remap("SS", [li, lj])
+                                            with Ts.sblock("S_store"):
+                                                i, j = Ts.axis.remap("SS", [li, lj])
                                                 S_smem[i, j] = S_local[i, j]
                                         T.tvm_storage_sync("shared")
 
@@ -431,7 +406,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
                                             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
                                             if row < tile_x:
-                                                with T.sblock("update1"):
+                                                with Ts.sblock("update1"):
                                                     m_prev[i] = m_smem[row]
                                                     m_new[i] = m_smem[row]
                                                     # mask out of kv_chunk_len S
@@ -450,7 +425,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
 
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
                                             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
-                                            with T.sblock("update"):
+                                            with Ts.sblock("update"):
                                                 for j in T.serial(tile_z):
                                                     # this is to avoid sync inside condition branch
                                                     if row < tile_x:
@@ -470,7 +445,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
                                             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
                                             if row < tile_x:
-                                                with T.sblock("update"):
+                                                with Ts.sblock("update"):
                                                     for j in T.serial(tile_z):
                                                         d_new[i] += S_smem[row, j]
                                                     m_smem[row] = m_new[i]
@@ -479,18 +454,18 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
                                         T.tvm_storage_sync("shared")
 
                                         # Update O
-                                        with T.sblock():
+                                        with Ts.sblock():
                                             for li, lj, lk in T.grid(tile_x, tile_y, tile_z):
-                                                with T.sblock("O_gemm"):
-                                                    i, j, k = T.axis.remap("SSR", [li, lj, lk])
-                                                    with T.init():
+                                                with Ts.sblock("O_gemm"):
+                                                    i, j, k_axis = Ts.axis.remap("SSR", [li, lj, lk])
+                                                    with Ts.init():
                                                         O_local[i, j] *= T.exp2(m_prev_smem[i] - m_smem[i])
-                                                    O_local[i, j] += S_smem[i, k] * T.cast(V_smem[k, j], "float32")
+                                                    O_local[i, j] += S_smem[i, k_axis] * T.cast(V_smem[k_axis, j], "float32")
 
                                     # Store O from smem to gmem
                                     for li, lj in T.grid(tile_x, tile_y):
-                                        with T.sblock("O_store"):
-                                            i, j = T.axis.remap("SS", [li, lj])
+                                        with Ts.sblock("O_store"):
+                                            i, j = Ts.axis.remap("SS", [li, lj])
                                             cur_L: T.let[T.int32] = q_indptr[b_idx] + (LH_start + i) // group_size
                                             cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
@@ -498,8 +473,8 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
 
                                     # Store LSE to gmem
                                     for li in T.grid(tile_x):
-                                        with T.sblock("lse_store"):
-                                            i = T.axis.remap("S", [li])
+                                        with Ts.sblock("lse_store"):
+                                            i = Ts.axis.remap("S", [li])
                                             cur_L: T.let[T.int32] = q_indptr[b_idx] + (LH_start + i) // group_size
                                             cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
@@ -607,61 +582,42 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
 
     # pylint: disable=line-too-long,too-many-branches
     # fmt: off
-    @T.prim_func(s_tir=True)
+    batch_size = T.dynamic("batch_size", "int32")
+    total_len = T.dynamic("total_len", "int32")
+    nnz_pages = T.dynamic("nnz_pages", "int32")
+    max_num_pages = T.dynamic("max_num_pages", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
+    page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
+    tree_order_elem_offset = T.dynamic("tree_order_elem_offset", "int32")
+    tree_order_indptr_elem_offset = T.dynamic("tree_order_indptr_elem_offset", "int32")
+    total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
+    @Ts.prim_func
     def tree_attn_paged_kv_cpu(
-        var_q: T.handle, # [total_len, h_q, d]
-        var_q_indptr: T.handle, # [batch_size + 1]
-        var_pages: T.handle, # [max_num_pages, 2, h_kv, page_size, d]
-        var_page_indptr: T.handle, # [batch_size + 1]
-        var_page_values: T.handle, # [nnz_pages]
-        var_length_info: T.handle, # [b] when sliding window = False, or otherwise [3, b]
-        var_k_rope_pos_offset: T.handle, # [b]
-        var_q_rope_position: T.handle, # [total_len]
-        var_output: T.handle, # [total_len, h_q, d]
-        var_lse: T.handle, # [total_len, h_q]
+        q: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Buffer((max_num_pages, 2, h_kv, 16, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
+        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        output: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
-        tree_order_indptr_handle: T.handle,  # [batch_size + 1]
-        tree_order_handle: T.handle,  # [total_len, 2]
+        tree_order_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
+        tree_order: T.Buffer((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
     ):
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32()
-        total_len = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        q_indptr_elem_offset = T.int32()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
-        tree_order_elem_offset = T.int32()
-        tree_order_indptr_elem_offset = T.int32()
 
-        q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        pages = T.match_buffer(var_pages, (max_num_pages, 2, h_kv, 16, d), dtype)
-        page_indptr = T.match_buffer(var_page_indptr, (batch_size + 1,), "int32", elem_offset=page_indptr_elem_offset)
-        page_values = T.match_buffer(var_page_values, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
-        k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        q_rope_position = T.match_buffer(var_q_rope_position, (total_len,), "int32", elem_offset=q_rope_position_elem_offset)
-        output = T.match_buffer(var_output, (total_len, h_q, d), dtype)
-        lse = T.match_buffer(var_lse, (total_len, h_q), "float32")  # pylint: disable=unused-variable
-        tree_order_indptr = T.match_buffer(
-            tree_order_indptr_handle,
-            (batch_size + 1,),
-            "int32",
-            elem_offset=tree_order_indptr_elem_offset,
-        )
-        total_tree_order_len = T.int32()
-        tree_order = T.match_buffer(
-            tree_order_handle,
-            (total_tree_order_len, 2),
-            "int32",
-            elem_offset=tree_order_elem_offset,
-        )
+          # pylint: disable=unused-variable
+
         # The length information of the sequences.
         # - It is in shape `(3, batch_size)` when sliding window is enabled.
         #   For a sequence "i", location
@@ -670,31 +626,29 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(var_length_info, batch_size, sliding_window, length_info_elem_offset)
 
-
-        T.Assert(
+        T.assert_(
             rotary_mode == T.int32(0), "Inline rotary mode is not supported in tree attention."
         )
 
         for h_qo in T.serial(h_q):
             for b_idx in T.serial(batch_size):
-                with T.sblock("attn"):
-                    T.reads()
-                    T.writes()
-                    O_local = T.sblock_alloc_buffer((d, ), "float32")
-                    Q_local = T.sblock_alloc_buffer((d, ), "float32")
-                    K_local = T.sblock_alloc_buffer((d, ), "float32")
-                    V_local = T.sblock_alloc_buffer((d, ), "float32")
+                with Ts.sblock("attn"):
+                    Ts.reads()
+                    Ts.writes()
+                    O_local = Ts.sblock_alloc_buffer((d, ), "float32")
+                    Q_local = Ts.sblock_alloc_buffer((d, ), "float32")
+                    K_local = Ts.sblock_alloc_buffer((d, ), "float32")
+                    V_local = Ts.sblock_alloc_buffer((d, ), "float32")
 
-                    kv_chunk_len = T.sblock_alloc_buffer((1, ), "int32")
+                    kv_chunk_len = Ts.sblock_alloc_buffer((1, ), "int32")
 
-                    m_val = T.sblock_alloc_buffer((1, ), "float32")
-                    new_m = T.sblock_alloc_buffer((1, ), "float32")
-                    d_val = T.sblock_alloc_buffer((1, ), "float32")
-                    S_val = T.sblock_alloc_buffer((1, ), "float32")
-                    scale_O = T.sblock_alloc_buffer((1, ), "float32")
-                    factor = T.sblock_alloc_buffer((1, ), "float32")
+                    m_val = Ts.sblock_alloc_buffer((1, ), "float32")
+                    new_m = Ts.sblock_alloc_buffer((1, ), "float32")
+                    d_val = Ts.sblock_alloc_buffer((1, ), "float32")
+                    S_val = Ts.sblock_alloc_buffer((1, ), "float32")
+                    scale_O = Ts.sblock_alloc_buffer((1, ), "float32")
+                    factor = Ts.sblock_alloc_buffer((1, ), "float32")
                     cur_page_indptr_begin: T.let[T.int32] = page_indptr[b_idx]
                     cur_page_indptr_end: T.let[T.int32] = page_indptr[b_idx + 1]
                     kv_chunk_len[0] = T.if_then_else(
@@ -761,7 +715,6 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
                                 for d_idx in T.serial(d):
                                     O_local[d_idx] = O_local[d_idx] * scale_O[d_idx]
 
-
                                 for d_idx in T.serial(d):
                                     O_local[d_idx] += V_local[d_idx] * factor[0]
                         # Store Output
@@ -804,74 +757,43 @@ def tree_attn_with_paged_kv_cache(
     sliding_window = False  # Sliding window is not supported in this kernel.
 
     # fmt: off
-    @T.prim_func(s_tir=True)
+    batch_size = T.dynamic("batch_size", "int32")
+    total_len = T.dynamic("total_len", "int32")
+    nnz_pages = T.dynamic("nnz_pages", "int32")
+    max_num_pages = T.dynamic("max_num_pages", "int32")
+    q_indptr_elem_offset = T.dynamic("q_indptr_elem_offset", "int32")
+    k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
+    q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
+    page_indptr_elem_offset = T.dynamic("page_indptr_elem_offset", "int32")
+    page_values_elem_offset = T.dynamic("page_values_elem_offset", "int32")
+    length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
+    tree_order_elem_offset = T.dynamic("tree_order_elem_offset", "int32")
+    tree_order_indptr_elem_offset = T.dynamic("tree_order_indptr_elem_offset", "int32")
+    total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
+    @Ts.prim_func
     def tree_attn_paged_kv(
-        var_q: T.handle,  # [total_len, h_q, d]
-        var_q_indptr: T.handle,  # [batch_size + 1]
-        var_pages: T.handle,  # [max_num_pages, 2, h_kv, page_size, d]
-        var_page_indptr: T.handle,  # [batch_size + 1]
-        var_page_values: T.handle,  # [nnz_pages]
-        var_length_info: T.handle,  # [b] when sliding window = False, or otherwise [3, b]
-        var_k_rope_pos_offset: T.handle,  # [b]
-        var_q_rope_position: T.handle,  # [total_len]
-        var_output: T.handle,  # [total_len, h_q, d]
-        var_lse: T.handle,  # [total_len, h_q]
+        q: T.Buffer((total_len, h_q, d), dtype),  # [total_len, h_q, d]
+        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        pages: T.Buffer((max_num_pages, 2, h_kv, 16, d), dtype),  # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset),  # [batch_size + 1]
+        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),  # [nnz_pages]
+        length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset),  # [b] when sliding window = False, or otherwise [3, b]
+        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
+        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_len]
+        output: T.Buffer((total_len, h_q, d), dtype),  # [total_len, h_q, d]
+        lse: T.Buffer((total_len, h_q), 'float32'),  # [total_len, h_q]
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
         sm_scale: T.float32,
-        tree_order_indptr_handle: T.handle,  # [batch_size + 1]
-        tree_order_handle: T.handle,  # [total_len, 2]
+        tree_order_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=tree_order_indptr_elem_offset),  # [batch_size + 1]
+        tree_order: T.Buffer((total_tree_order_len, 2), 'int32', elem_offset=tree_order_elem_offset),  # [total_len, 2]
     ):
         # pylint: disable=unused-variable, too-many-branches
         T.func_attr({"global_symbol": global_symbol})
-        batch_size = T.int32()
-        total_len = T.int32()
-        nnz_pages = T.int32()
-        max_num_pages = T.int32()
-        q_indptr_elem_offset = T.int32()
-        k_rope_pos_offset_elem_offset = T.int32()
-        q_rope_position_elem_offset = T.int32()
-        page_indptr_elem_offset = T.int32()
-        page_values_elem_offset = T.int32()
-        length_info_elem_offset = T.int32()
-        tree_order_elem_offset = T.int32()
-        tree_order_indptr_elem_offset = T.int32()
 
-        q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
-        q_indptr = T.match_buffer(
-            var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset
-        )
-        pages = T.match_buffer(var_pages, (max_num_pages, 2, h_kv, 16, d), dtype)
-        page_indptr = T.match_buffer(
-            var_page_indptr, (batch_size + 1,), "int32", elem_offset=page_indptr_elem_offset
-        )
-        page_values = T.match_buffer(
-            var_page_values, (nnz_pages,), "int32", elem_offset=page_values_elem_offset
-        )
-        k_rope_pos_offset = T.match_buffer(
-            var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset
-        )
-        q_rope_position = T.match_buffer(
-            var_q_rope_position, (total_len,), "int32", elem_offset=q_rope_position_elem_offset
-        )
-        output = T.match_buffer(var_output, (total_len, h_q, d), dtype)
-        lse = T.match_buffer(
-            var_lse, (total_len, h_q), "float32"
-        )  # pylint: disable=unused-variable
-        tree_order_indptr = T.match_buffer(
-            tree_order_indptr_handle,
-            (batch_size + 1,),
-            "int32",
-            elem_offset=tree_order_indptr_elem_offset,
-        )
-        total_tree_order_len = T.int32()
-        tree_order = T.match_buffer(
-            tree_order_handle,
-            (total_tree_order_len, 2),
-            "int32",
-            elem_offset=tree_order_elem_offset,
-        )
+    # pylint: disable=unused-variable
+
         # The length information of the sequences.
         # - It is in shape `(3, batch_size)` when sliding window is enabled.
         #   For a sequence "i", location
@@ -880,11 +802,8 @@ def tree_attn_with_paged_kv_cache(
         #   - "(2, i)" is the attn sink length of the sequence.
         # - It is in shape `(batch_size,)` when sliding window is disabled,
         #   denoting the "last_page_len".
-        length_info = _declare_length_info(
-            var_length_info, batch_size, sliding_window, length_info_elem_offset
-        )
 
-        T.Assert(
+        T.assert_(
             rotary_mode == T.int32(0), "Inline rotary mode is not supported in tree attention."
         )
 
@@ -893,10 +812,10 @@ def tree_attn_with_paged_kv_cache(
             for lby in T.thread_binding(h_kv, thread="blockIdx.y"):
                 for lty in T.thread_binding(num_warps, thread="threadIdx.y"):
                     for ltx in T.thread_binding(bdx, thread="threadIdx.x"):
-                        with T.sblock("attn"):
-                            bx, by, ty, tx = T.axis.remap("SSSS", [lbx, lby, lty, ltx])
-                            T.reads()
-                            T.writes()
+                        with Ts.sblock("attn"):
+                            bx, by, ty, tx = Ts.axis.remap("SSSS", [lbx, lby, lty, ltx])
+                            Ts.reads()
+                            Ts.writes()
                             tile_id, batch_idx, batch_tiles, batch_rows, iterator, kv_chunk_len = _alloc_tile_walk_state()
                             Q_smem, K_smem, V_smem, O_local = _alloc_mha_qkvo_buffers(tile_x, tile_z, d, d, dtype)
                             S_smem, S_local, m_smem, m_prev_smem, d_smem, m_new, m_prev, d_new = _alloc_softmax_state_buffers(tile_x, tile_z, bdx, num_warps)
@@ -945,17 +864,17 @@ def tree_attn_with_paged_kv_cache(
                                             d_smem[row] = 1.0
 
                                     for li, lj in T.grid(tile_x, tile_y):
-                                        with T.sblock("O_init"):
-                                            i, j = T.axis.remap("SS", [li, lj])
+                                        with Ts.sblock("O_init"):
+                                            i, j = Ts.axis.remap("SS", [li, lj])
                                             O_local[i, j] = 0.0
                                     T.tvm_storage_sync("shared")
 
                                     # Load Q from gmem to smem
                                     for li, lj in T.grid(tile_x, tile_y):
-                                        with T.sblock("Q_load"):
-                                            i, j = T.axis.remap("SS", [li, lj])
-                                            T.reads()
-                                            T.writes()
+                                        with Ts.sblock("Q_load"):
+                                            i, j = Ts.axis.remap("SS", [li, lj])
+                                            Ts.reads()
+                                            Ts.writes()
                                             cur_L: T.let[T.int32] = q_indptr_val + (LH_start + i) // group_size
                                             cur_H_qo: T.let[T.int32] = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
@@ -980,10 +899,10 @@ def tree_attn_with_paged_kv_cache(
                                     for iterator in T.serial(T.ceildiv(kv_chunk_len[0], tile_z)):
                                         L_kv_start: T.let[T.int32] = iterator * tile_z
                                         for lz, ly in T.grid(tile_z, tile_y):
-                                            with T.sblock("K_load"):
-                                                i, j = T.axis.remap("SS", [lz, ly])
-                                                T.reads()
-                                                T.writes()
+                                            with Ts.sblock("K_load"):
+                                                i, j = Ts.axis.remap("SS", [lz, ly])
+                                                Ts.reads()
+                                                Ts.writes()
                                                 cur_L: T.let[T.int32] = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
                                                     seq_offset: T.let[T.int32()] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
@@ -997,10 +916,10 @@ def tree_attn_with_paged_kv_cache(
 
                                         T.tvm_storage_sync("shared")
                                         for lz, ly in T.grid(tile_z, tile_y):
-                                            with T.sblock("V_load"):
-                                                i, j = T.axis.remap("SS", [lz, ly])
-                                                T.reads()
-                                                T.writes()
+                                            with Ts.sblock("V_load"):
+                                                i, j = Ts.axis.remap("SS", [lz, ly])
+                                                Ts.reads()
+                                                Ts.writes()
                                                 cur_L: T.let[T.int32] = L_kv_start + i
                                                 if cur_L < kv_chunk_len[0]:
                                                     seq_offset: T.let[T.int32()] = _get_seq_offset(cur_L, b_idx, length_info, sliding_window)  # type: ignore
@@ -1014,11 +933,11 @@ def tree_attn_with_paged_kv_cache(
                                         T.tvm_storage_sync("shared")
 
                                         # Compute S
-                                        with T.sblock():
+                                        with Ts.sblock():
                                             for li, lj, lk in T.grid(tile_x, tile_z, tile_y):
-                                                with T.sblock("S_gemm"):
-                                                    i, j, k = T.axis.remap("SSR", [li, lj, lk])
-                                                    with T.init():
+                                                with Ts.sblock("S_gemm"):
+                                                    i, j, k = Ts.axis.remap("SSR", [li, lj, lk])
+                                                    with Ts.init():
                                                         S_local[i, j] = 0.0
                                                     S_local[i, j] += (
                                                         T.cast(Q_smem[i, k], "float32")
@@ -1028,8 +947,8 @@ def tree_attn_with_paged_kv_cache(
                                                     )
                                         T.tvm_storage_sync("shared")
                                         for li, lj in T.grid(tile_x, tile_z):
-                                            with T.sblock("S_store"):
-                                                i, j = T.axis.remap("SS", [li, lj])
+                                            with Ts.sblock("S_store"):
+                                                i, j = Ts.axis.remap("SS", [li, lj])
                                                 S_smem[i, j] = S_local[i, j]
                                         T.tvm_storage_sync("shared")
 
@@ -1037,7 +956,7 @@ def tree_attn_with_paged_kv_cache(
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
                                             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
                                             if row < tile_x:
-                                                with T.sblock("update1"):
+                                                with Ts.sblock("update1"):
                                                     m_prev[i] = m_smem[row]
                                                     m_new[i] = m_smem[row]
                                                     # mask out of kv_chunk_len S
@@ -1062,7 +981,7 @@ def tree_attn_with_paged_kv_cache(
 
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
                                             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
-                                            with T.sblock("update"):
+                                            with Ts.sblock("update"):
                                                 for j in T.serial(tile_z):
                                                     # this is to avoid sync inside condition branch
                                                     if row < tile_x:
@@ -1088,7 +1007,7 @@ def tree_attn_with_paged_kv_cache(
                                         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
                                             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
                                             if row < tile_x:
-                                                with T.sblock("update"):
+                                                with Ts.sblock("update"):
                                                     for j in T.serial(tile_z):
                                                         d_new[i] += S_smem[row, j]
                                                     m_smem[row] = m_new[i]
@@ -1097,11 +1016,11 @@ def tree_attn_with_paged_kv_cache(
                                         T.tvm_storage_sync("shared")
 
                                         # Update O
-                                        with T.sblock():
+                                        with Ts.sblock():
                                             for li, lj, lk in T.grid(tile_x, tile_y, tile_z):
-                                                with T.sblock("O_gemm"):
-                                                    i, j, k = T.axis.remap("SSR", [li, lj, lk])
-                                                    with T.init():
+                                                with Ts.sblock("O_gemm"):
+                                                    i, j, k = Ts.axis.remap("SSR", [li, lj, lk])
+                                                    with Ts.init():
                                                         O_local[i, j] *= T.exp2(
                                                             m_prev_smem[i] - m_smem[i]
                                                         )
@@ -1111,8 +1030,8 @@ def tree_attn_with_paged_kv_cache(
 
                                     # Store O from smem to gmem
                                     for li, lj in T.grid(tile_x, tile_y):
-                                        with T.sblock("O_store"):
-                                            i, j = T.axis.remap("SS", [li, lj])
+                                        with Ts.sblock("O_store"):
+                                            i, j = Ts.axis.remap("SS", [li, lj])
                                             cur_L: T.let[T.int32] = (
                                                 q_indptr[b_idx] + (LH_start + i) // group_size
                                             )
@@ -1126,8 +1045,8 @@ def tree_attn_with_paged_kv_cache(
 
                                     # Store LSE to gmem
                                     for li in T.grid(tile_x):
-                                        with T.sblock("lse_store"):
-                                            i = T.axis.remap("S", [li])
+                                        with Ts.sblock("lse_store"):
+                                            i = Ts.axis.remap("S", [li])
                                             cur_L: T.let[T.int32] = (
                                                 q_indptr[b_idx] + (LH_start + i) // group_size
                                             )

@@ -227,6 +227,28 @@ def StmtSimplify():
     return _ffi_api.StmtSimplify()  # type: ignore
 
 
+def LowerThreadAllreduce():
+    """Lower cross-thread reductions to target-specific communication.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass.
+    """
+    return _ffi_api.LowerThreadAllreduce()
+
+
+def UnifyThreadBinding():
+    """Unify loop and attribute bindings of each thread axis within a kernel.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass.
+    """
+    return _ffi_api.UnifyThreadBinding()
+
+
 def ConvertSSA():
     """Convert an IRModule to be SSA form.
 
@@ -356,6 +378,9 @@ def NarrowDataType(target_bits: int):
 
 def ForceNarrowIndexToInt32():
     """Force narrow down indexing expressions and integer buffers to int32 dtype.
+
+    The function must not contain S-TIR blocks. Use
+    :py:func:`tvm.s_tir.transform.ForceNarrowIndexToInt32` before block lowering.
 
     Returns
     -------

@@ -22,6 +22,7 @@ import tvm.testing
 from tvm import tirx
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.testing import te_workload
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 from tvm.te import create_prim_func
@@ -52,61 +53,58 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 @tvm.script.ir_module
 class AfterRewrite0:
-    @T.prim_func(s_tir=True)
-    def main(var_A: T.handle, var_B: T.handle, var_C: T.handle) -> None:
+    @Ts.prim_func
+    def main(A: T.Buffer([512, 512], dtype='float32'), B: T.Buffer([512, 512], dtype='float32'), C: T.Buffer([512, 512], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(var_A, [512, 512], dtype="float32")
-        B = T.match_buffer(var_B, [512, 512], dtype="float32")
-        C = T.match_buffer(var_C, [512, 512], dtype="float32")
+
         # body
-        # with T.sblock("root")
-        C_local = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        # with Ts.sblock("root")
+        C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
+        A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        B_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
                     for i2_0 in T.serial(0, 1):
                         for ax0_ax1_fused_0 in T.serial(0, 32768):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
-                                with T.sblock("A_shared"):
-                                    v0 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) // 512)
-                                    v1 = T.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) % 512)
-                                    T.reads([A[v0, v1]])
-                                    T.writes([A_shared[v0, v1]])
+                                with Ts.sblock("A_shared"):
+                                    v0 = Ts.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) // 512)
+                                    v1 = Ts.axis.spatial(512, (ax0_ax1_fused_0 * 8 + ax0_ax1_fused_1) % 512)
+                                    Ts.reads([A[v0, v1]])
+                                    Ts.writes([A_shared[v0, v1]])
                                     A_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused_0 in T.serial(0, 1024):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.x"):
                                 for ax0_ax1_fused_2 in T.vectorized(0, 2):
-                                    with T.sblock("B_shared"):
-                                        v0 = T.axis.spatial(512, (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) // 32)
-                                        v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) % 32)
-                                        T.reads([B[v0, v1]])
-                                        T.writes([B_shared[v0, v1]])
+                                    with Ts.sblock("B_shared"):
+                                        v0 = Ts.axis.spatial(512, (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) // 32)
+                                        v1 = Ts.axis.spatial(512, i0_0_i1_0_fused * 32 + (ax0_ax1_fused_0 * 16 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) % 32)
+                                        Ts.reads([B[v0, v1]])
+                                        Ts.writes([B_shared[v0, v1]])
                                         B_shared[v0, v1] = B[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(16, 2, 2, 32, 16, 2):
-                            with T.sblock("C"):
-                                i = T.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
-                                j = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + i1_3 * 2 + i1_4)
-                                k = T.axis.reduce(512, i2_0 * 512 + i2_1 * 32 + i2_2)
-                                T.reads([A_shared[i, k], B_shared[k, j]])
-                                T.writes([C_local[i, j]])
-                                with T.init():
+                            with Ts.sblock("C"):
+                                i = Ts.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
+                                j = Ts.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + i1_3 * 2 + i1_4)
+                                k = Ts.axis.reduce(512, i2_0 * 512 + i2_1 * 32 + i2_2)
+                                Ts.reads([A_shared[i, k], B_shared[k, j]])
+                                Ts.writes([C_local[i, j]])
+                                with Ts.init():
                                     C_local[i, j] = T.float32(0)
                                 C_local[i, j] = C_local[i, j] + A_shared[i, k] * B_shared[k, j]
                     for ax0, ax1 in T.grid(32, 4):
-                        with T.sblock("C_local"):
-                            v0 = T.axis.spatial(512, i0_1_i1_1_fused * 32 + ax0)
-                            v1 = T.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + ax1)
-                            T.reads([C_local[v0, v1]])
-                            T.writes([C[v0, v1]])
+                        with Ts.sblock("C_local"):
+                            v0 = Ts.axis.spatial(512, i0_1_i1_1_fused * 32 + ax0)
+                            v1 = Ts.axis.spatial(512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + ax1)
+                            Ts.reads([C_local[v0, v1]])
+                            Ts.writes([C[v0, v1]])
                             C[v0, v1] = C_local[v0, v1]
-
 
 @tvm.script.ir_module
 class WarpExecutionAfterRewrite:
-    @T.prim_func(s_tir=True)
+    @Ts.prim_func
     def main(
         A: T.Buffer((512, 512), "float32"),
         B: T.Buffer((512, 512), "float32"),
@@ -115,10 +113,10 @@ class WarpExecutionAfterRewrite:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
-        # with T.sblock("root")
-        C_local = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
-        A_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
-        B_shared = T.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        # with Ts.sblock("root")
+        C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
+        A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
+        B_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
         for i0_0_i1_0_fused in T.thread_binding(0, 16, thread="blockIdx.x"):
             for i0_1_i1_1_fused in T.thread_binding(0, 16, thread="vthread.x"):
                 for i0_2_i1_2_fused in T.thread_binding(0, 8, thread="threadIdx.y"):
@@ -128,8 +126,8 @@ class WarpExecutionAfterRewrite:
                                 for ax0_ax1_fused_2 in T.thread_binding(
                                     0, 32, thread="threadIdx.x"
                                 ):
-                                    with T.sblock("A_shared"):
-                                        v0 = T.axis.spatial(
+                                    with Ts.sblock("A_shared"):
+                                        v0 = Ts.axis.spatial(
                                             512,
                                             (
                                                 ax0_ax1_fused_0 * 256
@@ -138,7 +136,7 @@ class WarpExecutionAfterRewrite:
                                             )
                                             // 512,
                                         )
-                                        v1 = T.axis.spatial(
+                                        v1 = Ts.axis.spatial(
                                             512,
                                             (
                                                 ax0_ax1_fused_0 * 256
@@ -147,8 +145,8 @@ class WarpExecutionAfterRewrite:
                                             )
                                             % 512,
                                         )
-                                        T.reads([A[v0, v1]])
-                                        T.writes([A_shared[v0, v1]])
+                                        Ts.reads([A[v0, v1]])
+                                        Ts.writes([A_shared[v0, v1]])
                                         A_shared[v0, v1] = A[v0, v1]
                         for ax0_ax1_fused_0 in T.serial(0, 32):
                             for ax0_ax1_fused_1 in T.thread_binding(0, 8, thread="threadIdx.y"):
@@ -156,8 +154,8 @@ class WarpExecutionAfterRewrite:
                                     0, 32, thread="threadIdx.x"
                                 ):
                                     for ax0_ax1_fused_3 in T.vectorized(0, 2):
-                                        with T.sblock("B_shared"):
-                                            v0 = T.axis.spatial(
+                                        with Ts.sblock("B_shared"):
+                                            v0 = Ts.axis.spatial(
                                                 512,
                                                 (
                                                     ax0_ax1_fused_0 * 512
@@ -167,7 +165,7 @@ class WarpExecutionAfterRewrite:
                                                 )
                                                 // 32,
                                             )
-                                            v1 = T.axis.spatial(
+                                            v1 = Ts.axis.spatial(
                                                 512,
                                                 i0_0_i1_0_fused * 32
                                                 + (
@@ -178,33 +176,32 @@ class WarpExecutionAfterRewrite:
                                                 )
                                                 % 32,
                                             )
-                                            T.reads([B[v0, v1]])
-                                            T.writes([B_shared[v0, v1]])
+                                            Ts.reads([B[v0, v1]])
+                                            Ts.writes([B_shared[v0, v1]])
                                             B_shared[v0, v1] = B[v0, v1]
                         for i2_1, i0_3, i1_3, i2_2, i0_4, i1_4 in T.grid(16, 2, 2, 32, 16, 2):
-                            with T.sblock("C"):
-                                i = T.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
-                                j = T.axis.spatial(
+                            with Ts.sblock("C"):
+                                i = Ts.axis.spatial(512, i0_1_i1_1_fused * 32 + i0_3 * 16 + i0_4)
+                                j = Ts.axis.spatial(
                                     512,
                                     i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + i1_3 * 2 + i1_4,
                                 )
-                                k = T.axis.reduce(512, i2_0 * 512 + i2_1 * 32 + i2_2)
-                                T.reads([A_shared[i, k], B_shared[k, j]])
-                                T.writes([C_local[i, j]])
-                                T.sblock_attr({"warp_execution": 1})
-                                with T.init():
+                                k = Ts.axis.reduce(512, i2_0 * 512 + i2_1 * 32 + i2_2)
+                                Ts.reads([A_shared[i, k], B_shared[k, j]])
+                                Ts.writes([C_local[i, j]])
+                                Ts.sblock_attr({"warp_execution": 1})
+                                with Ts.init():
                                     C_local[i, j] = T.float32(0)
                                 C_local[i, j] = C_local[i, j] + A_shared[i, k] * B_shared[k, j]
                     for ax0, ax1 in T.grid(32, 4):
-                        with T.sblock("C_local"):
-                            v0 = T.axis.spatial(512, i0_1_i1_1_fused * 32 + ax0)
-                            v1 = T.axis.spatial(
+                        with Ts.sblock("C_local"):
+                            v0 = Ts.axis.spatial(512, i0_1_i1_1_fused * 32 + ax0)
+                            v1 = Ts.axis.spatial(
                                 512, i0_0_i1_0_fused * 32 + i0_2_i1_2_fused * 4 + ax1
                             )
-                            T.reads([C_local[v0, v1]])
-                            T.writes([C[v0, v1]])
+                            Ts.reads([C_local[v0, v1]])
+                            Ts.writes([C[v0, v1]])
                             C[v0, v1] = C_local[v0, v1]
-
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on

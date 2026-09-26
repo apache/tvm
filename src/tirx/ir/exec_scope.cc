@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/arith/analyzer.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/op.h>
@@ -28,6 +28,7 @@
 
 namespace tvm {
 namespace tirx {
+using namespace tvm::prim;
 
 std::string ScopeKindToString(ScopeKind kind) {
   switch (kind) {
@@ -190,7 +191,7 @@ static ScopeIdDef FillExtents(const ScopeIdDef& existing, const ScopeIdDef& fill
 
 bool ScopeIdDefVerifier::Verify(const ffi::Array<ScopeIdDef>& defs, Mode mode) {
   id_set.clear();
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   std::queue<ScopeIdDef> queue;
 
   // Insert or upgrade a binding in id_set.
@@ -315,7 +316,7 @@ static ffi::Optional<ScopeIdDef> Compliment(const ScopeIdDef& lhs, const ScopeId
     return std::nullopt;
   }
   if (is_zero(rhs.fused_extent())) return std::nullopt;
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   auto try_compliment = [&](PrimExpr lhs_ext, PrimExpr rhs_ext,
                             ScopeBinding scope) -> ffi::Optional<ScopeIdDef> {
     if (ana->CanProve(floormod(lhs_ext, rhs_ext) == 0)) {
@@ -377,7 +378,7 @@ ffi::Array<PrimExpr> Trivial3DResolve(const LaunchParams& params, const char* pr
 ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
                                  const ffi::Optional<ffi::Array<PrimExpr>>& extents, int out_dim,
                                  const LaunchParams& params) {
-  arith::Analyzer ana;
+  sym::Analyzer ana;
   switch (binding) {
     case ScopeBinding::kKernelCta:
       return Trivial3DResolve(params, "blockIdx.", out_dim);
@@ -394,10 +395,9 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
       static const Op& cuda_mov_sreg_op = Op::Get("tirx.cuda.mov_sreg");
       ffi::Array<PrimExpr> ret;
       for (int i = 0; i < out_dim; ++i) {
-        ret.push_back(
-            Call(PrimType::Int(32), cuda_mov_sreg_op,
-                 {IntImm::Int32(32), prim::StringImm("clusterid." + std::string(1, 'x' + i))})
-                .as_or_throw<PrimExpr>());
+        ret.push_back(Call(PrimType::Int(32), cuda_mov_sreg_op,
+                           {IntImm::Int32(32), StringImm("clusterid." + std::string(1, 'x' + i))})
+                          .as_or_throw<PrimExpr>());
       }
       return ret;
     }

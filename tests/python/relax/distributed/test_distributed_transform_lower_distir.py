@@ -17,96 +17,99 @@
 # ruff: noqa: F401, F841
 
 #  type: ignore
+from __future__ import annotations
+
 import tvm
 import tvm.testing
 from tvm import relax
 from tvm.ir import assert_structural_equal
+from tvm.script import s_tir as Ts
 from tvm.script.parser import ir as I
 from tvm.script.parser import relax as R
 from tvm.script.parser import tirx as T
 
 
 def test_mlp():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class MLP:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def gelu1(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            T_multiply_1 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
-            compute = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
-            T_multiply_2 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
-            T_add = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            # with Ts.sblock("root"):
+            T_multiply_1 = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            compute = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_multiply_2 = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_add = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("T_multiply"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1])
-                    T.writes(T_multiply_1[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1])
+                    Ts.writes(T_multiply_1[v_ax0, v_ax1])
                     T_multiply_1[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T.float32(0.70710678118654757)
             for i0, i1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(T_multiply_1[v_i0, v_i1])
-                    T.writes(compute[v_i0, v_i1])
+                with Ts.sblock("compute"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(T_multiply_1[v_i0, v_i1])
+                    Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.erf(T_multiply_1[v_i0, v_i1])
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("T_multiply_1"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(compute[v_ax0, v_ax1])
-                    T.writes(T_multiply_2[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply_1"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(compute[v_ax0, v_ax1])
+                    Ts.writes(T_multiply_2[v_ax0, v_ax1])
                     T_multiply_2[v_ax0, v_ax1] = compute[v_ax0, v_ax1] * T.float32(0.5)
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(T_multiply_2[v_ax0, v_ax1])
-                    T.writes(T_add[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(T_multiply_2[v_ax0, v_ax1])
+                    Ts.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = T.float32(0.5) + T_multiply_2[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("T_multiply_2"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], T_add[v_ax0, v_ax1])
-                    T.writes(T_multiply[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply_2"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1], T_add[v_ax0, v_ax1])
+                    Ts.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul1(
             A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             matmul_1: T.Buffer((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(64), T.int64(128)):
-                with T.sblock("matmul"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(A[v_i0, v_k], B[v_k, v_i1])
-                    T.writes(matmul_1[v_i0, v_i1])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    v_i0, v_i1, v_k = Ts.axis.remap("SSR", [i0, i1, k])
+                    Ts.reads(A[v_i0, v_k], B[v_k, v_i1])
+                    Ts.writes(matmul_1[v_i0, v_i1])
+                    with Ts.init():
                         matmul_1[v_i0, v_i1] = T.float32(0)
                     matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul2(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
             matmul_1: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(64)):
-                with T.sblock("matmul"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(A[v_i0, v_k], B[v_k, v_i1])
-                    T.writes(matmul_1[v_i0, v_i1])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    v_i0, v_i1, v_k = Ts.axis.remap("SSR", [i0, i1, k])
+                    Ts.reads(A[v_i0, v_k], B[v_k, v_i1])
+                    Ts.writes(matmul_1[v_i0, v_i1])
+                    with Ts.init():
                         matmul_1[v_i0, v_i1] = T.float32(0)
                     matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
@@ -137,7 +140,7 @@ def test_mlp():
             )
             return lv3
 
-    @I.ir_module(check_well_formed=False, s_tir=True)
+    @I.ir_module(check_well_formed=False)
     class LoweredMLP:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -186,108 +189,108 @@ def test_mlp():
 
 
 def test_mlp_with_tuple():
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class MLPWithTuple:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
             {"mesh": [R.device_mesh((2,), I.Range(0, 2)), R.device_mesh((1,), I.Range(4, 5))]}
         )
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def gelu1(
             A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
-            T_multiply_1 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
-            compute = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
-            T_multiply_2 = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
-            T_add = T.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            # with Ts.sblock("root"):
+            T_multiply_1 = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            compute = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_multiply_2 = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
+            T_add = Ts.sblock_alloc_buffer((T.int64(128), T.int64(64)))
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("T_multiply"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1])
-                    T.writes(T_multiply_1[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1])
+                    Ts.writes(T_multiply_1[v_ax0, v_ax1])
                     T_multiply_1[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T.float32(0.70710678118654757)
             for i0, i1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("compute"):
-                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(T_multiply_1[v_i0, v_i1])
-                    T.writes(compute[v_i0, v_i1])
+                with Ts.sblock("compute"):
+                    v_i0, v_i1 = Ts.axis.remap("SS", [i0, i1])
+                    Ts.reads(T_multiply_1[v_i0, v_i1])
+                    Ts.writes(compute[v_i0, v_i1])
                     compute[v_i0, v_i1] = T.erf(T_multiply_1[v_i0, v_i1])
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("T_multiply_1"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(compute[v_ax0, v_ax1])
-                    T.writes(T_multiply_2[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply_1"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(compute[v_ax0, v_ax1])
+                    Ts.writes(T_multiply_2[v_ax0, v_ax1])
                     T_multiply_2[v_ax0, v_ax1] = compute[v_ax0, v_ax1] * T.float32(0.5)
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("T_add"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(T_multiply_2[v_ax0, v_ax1])
-                    T.writes(T_add[v_ax0, v_ax1])
+                with Ts.sblock("T_add"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(T_multiply_2[v_ax0, v_ax1])
+                    Ts.writes(T_add[v_ax0, v_ax1])
                     T_add[v_ax0, v_ax1] = T.float32(0.5) + T_multiply_2[v_ax0, v_ax1]
             for ax0, ax1 in T.grid(T.int64(128), T.int64(64)):
-                with T.sblock("T_multiply_2"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(A[v_ax0, v_ax1], T_add[v_ax0, v_ax1])
-                    T.writes(T_multiply[v_ax0, v_ax1])
+                with Ts.sblock("T_multiply_2"):
+                    v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
+                    Ts.reads(A[v_ax0, v_ax1], T_add[v_ax0, v_ax1])
+                    Ts.writes(T_multiply[v_ax0, v_ax1])
                     T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * T_add[v_ax0, v_ax1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul11(
             A: T.Buffer((T.int64(64), T.int64(64)), "float32"),
             B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
             matmul: T.Buffer((T.int64(64), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1, k in T.grid(T.int64(64), T.int64(128), T.int64(64)):
-                with T.sblock("matmul"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(A[v_i0, v_k], B[v_k, v_i1])
-                    T.writes(matmul[v_i0, v_i1])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    v_i0, v_i1, v_k = Ts.axis.remap("SSR", [i0, i1, k])
+                    Ts.reads(A[v_i0, v_k], B[v_k, v_i1])
+                    Ts.writes(matmul[v_i0, v_i1])
+                    with Ts.init():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def matmul2(
             A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
             B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
             matmul: T.Buffer((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(64), T.int64(128)):
-                with T.sblock("matmul"):
-                    v_i0, v_i1, v_k = T.axis.remap("SSR", [i0, i1, k])
-                    T.reads(A[v_i0, v_k], B[v_k, v_i1])
-                    T.writes(matmul[v_i0, v_i1])
-                    with T.init():
+                with Ts.sblock("matmul"):
+                    v_i0, v_i1, v_k = Ts.axis.remap("SSR", [i0, i1, k])
+                    Ts.reads(A[v_i0, v_k], B[v_k, v_i1])
+                    Ts.writes(matmul[v_i0, v_i1])
+                    with Ts.init():
                         matmul[v_i0, v_i1] = T.float32(0)
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + A[v_i0, v_k] * B[v_k, v_i1]
 
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def split11(
             A: T.Buffer((128, 64), "float32"),
             T_split: T.Buffer((64, 64), "float32"),
             T_split_1: T.Buffer((64, 64), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
-            # with T.sblock("root"):
+            # with Ts.sblock("root"):
             for ax1, ax2 in T.grid(64, 64):
-                with T.sblock("T_split"):
-                    v_ax1, v_ax2 = T.axis.remap("SS", [ax1, ax2])
-                    T.reads(A[v_ax1, v_ax2])
-                    T.writes(T_split[v_ax1, v_ax2])
+                with Ts.sblock("T_split"):
+                    v_ax1, v_ax2 = Ts.axis.remap("SS", [ax1, ax2])
+                    Ts.reads(A[v_ax1, v_ax2])
+                    Ts.writes(T_split[v_ax1, v_ax2])
                     T_split[v_ax1, v_ax2] = A[v_ax1, v_ax2]
             for ax1, ax2 in T.grid(64, 64):
-                with T.sblock("T_split_1"):
-                    v_ax1, v_ax2 = T.axis.remap("SS", [ax1, ax2])
-                    T.reads(A[v_ax1 + 64, v_ax2])
-                    T.writes(T_split_1[v_ax1, v_ax2])
+                with Ts.sblock("T_split_1"):
+                    v_ax1, v_ax2 = Ts.axis.remap("SS", [ax1, ax2])
+                    Ts.reads(A[v_ax1 + 64, v_ax2])
+                    Ts.writes(T_split_1[v_ax1, v_ax2])
                     T_split_1[v_ax1, v_ax2] = A[v_ax1 + 64, v_ax2]
 
         @R.function
@@ -332,7 +335,7 @@ def test_mlp_with_tuple():
             )
             return lv4
 
-    @I.ir_module(check_well_formed=False, s_tir=True)
+    @I.ir_module(check_well_formed=False)
     class LoweredMLPWithTuple:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(

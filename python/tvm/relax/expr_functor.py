@@ -23,7 +23,7 @@ from collections.abc import Callable
 import tvm_ffi
 
 from tvm import tirx as _tirx
-from tvm.ir import Call, Op, TensorLoad, is_prim_expr
+from tvm.ir import Call, GenericConst, Op, StringImm, TensorLoad, is_prim_expr
 from tvm.ir.utils import derived_object
 from tvm.runtime import Object
 
@@ -33,10 +33,8 @@ from .block_builder import BlockBuilder
 from .expr import (
     Binding,
     BindingBlock,
-    Constant,
     DataflowBlock,
     DataflowVar,
-    DataTypeImm,
     Expr,
     ExternFunc,
     Function,
@@ -46,7 +44,6 @@ from .expr import (
     SeqExpr,
     ShapeExpr,
     Span,
-    StringImm,
     Tuple,
     TupleGetItem,
     Var,
@@ -134,8 +131,8 @@ class ExprFunctor:
 
     def visit_expr(self, expr: Expr) -> Expr:
         """Apply the visitor to an expression."""
-        if isinstance(expr, Constant):  # type: ignore
-            ret = self.visit_constant_(expr)
+        if isinstance(expr, GenericConst):  # type: ignore
+            ret = self.visit_generic_const_(expr)
         elif isinstance(expr, Tuple):
             ret = self.visit_tuple_(expr)
         elif isinstance(expr, DataflowVar):
@@ -168,6 +165,18 @@ class ExprFunctor:
             ret = self.visit_floor_div_(expr)
         elif isinstance(expr, _tirx.FloorMod):
             ret = self.visit_floor_mod_(expr)
+        elif isinstance(expr, _tirx.LShift):
+            ret = self.visit_lshift_(expr)
+        elif isinstance(expr, _tirx.RShift):
+            ret = self.visit_rshift_(expr)
+        elif isinstance(expr, _tirx.BitwiseAnd):
+            ret = self.visit_bitwise_and_(expr)
+        elif isinstance(expr, _tirx.BitwiseOr):
+            ret = self.visit_bitwise_or_(expr)
+        elif isinstance(expr, _tirx.BitwiseXor):
+            ret = self.visit_bitwise_xor_(expr)
+        elif isinstance(expr, _tirx.BitwiseNot):
+            ret = self.visit_bitwise_not_(expr)
         elif isinstance(expr, _tirx.Min):
             ret = self.visit_min_(expr)
         elif isinstance(expr, _tirx.Max):
@@ -204,8 +213,6 @@ class ExprFunctor:
             ret = self.visit_int_imm_(expr)
         elif isinstance(expr, _tirx.FloatImm):
             ret = self.visit_float_imm_(expr)
-        elif isinstance(expr, _tirx.StringImm):
-            ret = self.visit_tirx_string_imm_(expr)
         elif isinstance(expr, SeqExpr):
             ret = self.visit_seq_expr_(expr)
         elif isinstance(expr, If):  # type: ignore
@@ -216,8 +223,6 @@ class ExprFunctor:
             ret = self.visit_tuple_getitem_(expr)
         elif isinstance(expr, StringImm):
             ret = self.visit_string_imm_(expr)
-        elif isinstance(expr, DataTypeImm):
-            ret = self.visit_data_type_imm_(expr)
         elif isinstance(expr, _tirx.Let | _tirx.Reduce):
             raise TypeError(f"Relax does not support {type(expr).__name__} expressions")
         elif isinstance(expr, Expr):
@@ -229,7 +234,7 @@ class ExprFunctor:
 
         return ret
 
-    def visit_constant_(self, op: Constant):
+    def visit_generic_const_(self, op: GenericConst):
         raise NotImplementedError()
 
     def visit_tuple_(self, op: Tuple):
@@ -278,6 +283,24 @@ class ExprFunctor:
         return self.visit_expr_fallback_(op)
 
     def visit_floor_mod_(self, op: _tirx.FloorMod):
+        return self.visit_expr_fallback_(op)
+
+    def visit_lshift_(self, op: _tirx.LShift):
+        return self.visit_expr_fallback_(op)
+
+    def visit_rshift_(self, op: _tirx.RShift):
+        return self.visit_expr_fallback_(op)
+
+    def visit_bitwise_and_(self, op: _tirx.BitwiseAnd):
+        return self.visit_expr_fallback_(op)
+
+    def visit_bitwise_or_(self, op: _tirx.BitwiseOr):
+        return self.visit_expr_fallback_(op)
+
+    def visit_bitwise_xor_(self, op: _tirx.BitwiseXor):
+        return self.visit_expr_fallback_(op)
+
+    def visit_bitwise_not_(self, op: _tirx.BitwiseNot):
         return self.visit_expr_fallback_(op)
 
     def visit_min_(self, op: _tirx.Min):
@@ -334,9 +357,6 @@ class ExprFunctor:
     def visit_float_imm_(self, op: _tirx.FloatImm):
         return self.visit_expr_fallback_(op)
 
-    def visit_tirx_string_imm_(self, op: _tirx.StringImm):
-        return self.visit_expr_fallback_(op)
-
     def visit_seq_expr_(self, op: SeqExpr):
         raise NotImplementedError()
 
@@ -353,9 +373,6 @@ class ExprFunctor:
         raise NotImplementedError()
 
     def visit_string_imm_(self, op: StringImm):
-        raise NotImplementedError()
-
-    def visit_data_type_imm_(self, op: DataTypeImm):
         raise NotImplementedError()
 
     def visit_var_binding_(self, binding: VarBinding):
@@ -415,7 +432,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
     def __init__(
         self,
         f_visit_expr: Callable | None = None,
-        f_visit_constant_: Callable | None = None,
+        f_visit_generic_const_: Callable | None = None,
         f_visit_tuple_: Callable | None = None,
         f_visit_var_: Callable | None = None,
         f_visit_dataflow_var_: Callable | None = None,
@@ -430,7 +447,6 @@ class _PyExprVisitor(tvm_ffi.core.Object):
         f_visit_tuple_getitem_: Callable | None = None,
         f_visit_expr_fallback_: Callable | None = None,
         f_visit_string_imm_: Callable | None = None,
-        f_visit_data_type_imm_: Callable | None = None,
         f_visit_binding: Callable | None = None,
         f_visit_var_binding_: Callable | None = None,
         f_visit_match_cast_: Callable | None = None,
@@ -447,7 +463,7 @@ class _PyExprVisitor(tvm_ffi.core.Object):
         self.__init_handle_by_constructor__(
             _ffi_api.MakePyExprVisitor,  # type: ignore
             f_visit_expr,
-            f_visit_constant_,
+            f_visit_generic_const_,
             f_visit_tuple_,
             f_visit_var_,
             f_visit_dataflow_var_,
@@ -462,7 +478,6 @@ class _PyExprVisitor(tvm_ffi.core.Object):
             f_visit_tuple_getitem_,
             f_visit_expr_fallback_,
             f_visit_string_imm_,
-            f_visit_data_type_imm_,
             f_visit_binding,
             f_visit_var_binding_,
             f_visit_match_cast_,
@@ -542,7 +557,7 @@ class PyExprVisitor:
         "cls": _PyExprVisitor,
         "methods": [
             "visit_expr",
-            "visit_constant_",
+            "visit_generic_const_",
             "visit_tuple_",
             "visit_var_",
             "visit_dataflow_var_",
@@ -557,7 +572,6 @@ class PyExprVisitor:
             "visit_tuple_getitem_",
             "visit_expr_fallback_",
             "visit_string_imm_",
-            "visit_data_type_imm_",
             "visit_binding",
             "visit_var_binding_",
             "visit_match_cast_",
@@ -622,15 +636,15 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.PyExprVisitorVisitVarDef(self._outer(), var)  # type: ignore
 
-    def visit_constant_(self, op: Constant) -> None:
-        """Visit Constant.
-        Users can customized this function to overwrite VisitExpr_(const ConstantNode* op)
+    def visit_generic_const_(self, op: GenericConst) -> None:
+        """Visit GenericConst.
+        Users can customized this function to overwrite VisitExpr_(const GenericConstNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : Constant
-            The Constant to be visited.
+        op : GenericConst
+            The GenericConst to be visited.
         """
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
@@ -815,19 +829,6 @@ class PyExprVisitor:
         # Using self._outer() to ref _PyExprVisitor
         return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
 
-    def visit_data_type_imm_(self, op: DataTypeImm) -> None:
-        """Visit DataTypeImm.
-        Users can customized this function to overwrite VisitExpr_(const DataTypeImmNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : DataTypeImm
-            The DataTypeImm to be visited.
-        """
-        # Using self._outer() to ref _PyExprVisitor
-        return _ffi_api.ExprVisitorVisitExpr(self._outer(), op)  # type: ignore
-
     def visit_var_binding_(self, binding: VarBinding) -> None:
         """Visit VarBinding.
         Users can customized this function to overwrite VisitBinding_(const VarBindingNode* binding)
@@ -934,7 +935,7 @@ class _PyExprMutator(Object):
         self,
         builder: BlockBuilder = None,
         f_visit_expr: Callable | None = None,
-        f_visit_constant_: Callable | None = None,
+        f_visit_generic_const_: Callable | None = None,
         f_visit_tuple_: Callable | None = None,
         f_visit_var_: Callable | None = None,
         f_visit_dataflow_var_: Callable | None = None,
@@ -949,7 +950,6 @@ class _PyExprMutator(Object):
         f_visit_tuple_getitem_: Callable | None = None,
         f_visit_expr_fallback_: Callable | None = None,
         f_visit_string_imm_: Callable | None = None,
-        f_visit_data_type_imm_: Callable | None = None,
         f_visit_binding: Callable | None = None,
         f_visit_var_binding_: Callable | None = None,
         f_visit_match_cast_: Callable | None = None,
@@ -967,7 +967,7 @@ class _PyExprMutator(Object):
             _ffi_api.MakePyExprMutator,  # type: ignore
             builder,
             f_visit_expr,
-            f_visit_constant_,
+            f_visit_generic_const_,
             f_visit_tuple_,
             f_visit_var_,
             f_visit_dataflow_var_,
@@ -982,7 +982,6 @@ class _PyExprMutator(Object):
             f_visit_tuple_getitem_,
             f_visit_expr_fallback_,
             f_visit_string_imm_,
-            f_visit_data_type_imm_,
             f_visit_binding,
             f_visit_var_binding_,
             f_visit_match_cast_,
@@ -1078,7 +1077,7 @@ class PyExprMutator:
         "fields": ["builder_"],
         "methods": [
             "visit_expr",
-            "visit_constant_",
+            "visit_generic_const_",
             "visit_tuple_",
             "visit_var_",
             "visit_dataflow_var_",
@@ -1093,7 +1092,6 @@ class PyExprMutator:
             "visit_tuple_getitem_",
             "visit_expr_fallback_",
             "visit_string_imm_",
-            "visit_data_type_imm_",
             "visit_binding",
             "visit_var_binding_",
             "visit_match_cast_",
@@ -1177,15 +1175,15 @@ class PyExprMutator:
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.PyExprMutatorVisitVarDef(self._outer(), var)  # type: ignore
 
-    def visit_constant_(self, op: Constant) -> Expr:
-        """Visit Constant.
-        Users can customized this function to overwrite VisitExpr_(const ConstantNode* op)
+    def visit_generic_const_(self, op: GenericConst) -> Expr:
+        """Visit GenericConst.
+        Users can customized this function to overwrite VisitExpr_(const GenericConstNode* op)
         on the C++ side.
 
         Parameters
         ----------
-        op : Constant
-            The Constant to be visited.
+        op : GenericConst
+            The GenericConst to be visited.
 
         Returns
         -------
@@ -1436,24 +1434,6 @@ class PyExprMutator:
         ----------
         op : StringImm
             The StringImm to be visited.
-
-        Returns
-        -------
-        result : Expr
-            The Expr after transformation
-        """
-        # Using self._outer() to ref _PyExprMutator
-        return _ffi_api.ExprMutatorVisitExpr(self._outer(), op)  # type: ignore
-
-    def visit_data_type_imm_(self, op: DataTypeImm) -> Expr:
-        """Visit DataTypeImm.
-        Users can customized this function to overwrite VisitExpr_(const DataTypeImmNode* op)
-        on the C++ side.
-
-        Parameters
-        ----------
-        op : DataTypeImm
-            The DataTypeImm to be visited.
 
         Returns
         -------

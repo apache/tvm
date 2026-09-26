@@ -53,6 +53,19 @@ def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
     return found
 
 
+def _has_zero_extent_loop(stmt: tirx.Stmt) -> bool:
+    """Check whether a statement contains a statically empty loop."""
+    found = False
+
+    def visit_for(node: tirx.For):
+        nonlocal found
+        if isinstance(node.extent, tirx.IntImm) and node.extent.value == 0:
+            found = True
+
+    tvm_ffi.structural_walk(stmt, (tirx.For, visit_for), order="post")
+    return found
+
+
 class Fallback(GPUScheduleRule):
     """
     A fallback schedule rule for all GPU operators. It will try to inline all the blocks first,
@@ -66,6 +79,8 @@ class Fallback(GPUScheduleRule):
         _: bool,
     ) -> s_tir.Schedule:
         if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+            return None
+        if _has_zero_extent_loop(func.body):
             return None
         max_threads_per_block = base.max_threads_per_block(target)
 

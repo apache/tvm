@@ -40,7 +40,7 @@ def _redecl(buf: Buffer, shape, layout, *, dtype=None, elem_offset=None, addr_of
         addr = buf.allocated_addr[0]
         if addr_offset is not None:
             addr = addr + addr_offset
-        return tvm.tirx.script.builder.decl_buffer(
+        return tvm.tirx.script.ir_builder.decl_buffer(
             shape,
             buf.dtype if dtype is None else dtype,
             None,
@@ -53,7 +53,7 @@ def _redecl(buf: Buffer, shape, layout, *, dtype=None, elem_offset=None, addr_of
             layout,
             allocated_addr=addr,
         )
-    return tvm.tirx.script.builder.decl_buffer(
+    return tvm.tirx.script.ir_builder.decl_buffer(
         shape,
         buf.dtype if dtype is None else dtype,
         buf.data,
@@ -142,7 +142,7 @@ def local(buf: Buffer, *shape, layout=None) -> Buffer:
             )
         local_extent = buf.layout.storage().span()
         shape_total = functools.reduce(lambda x, y: x * y, shape, 1)
-        if not tvm.arith.Analyzer().can_prove_equal(shape_total, local_extent):
+        if not tvm.sym.Analyzer().can_prove_equal(shape_total, local_extent):
             raise ValueError(
                 f"Local view shape {shape} has {shape_total} elements, "
                 f"but the buffer has physical storage span {local_extent} per thread"
@@ -342,7 +342,7 @@ def _swizzle_offset_commutes(swizzle, extra_offset):
     offset_c = _concrete_int(extra_offset)
     if offset_c is not None:
         return offset_c % period == 0
-    from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
+    from ..sym import Analyzer  # pylint: disable=import-outside-toplevel
 
     return Analyzer().can_prove_equal(tvm.tirx.floormod(extra_offset, period), 0)
 
@@ -389,7 +389,7 @@ def _tmem_element_offset_to_column_offset(buf: Buffer, element_offset):
             )
         return bit_offset_c // 32
 
-    from ..arith import Analyzer  # pylint: disable=import-outside-toplevel
+    from ..sym import Analyzer  # pylint: disable=import-outside-toplevel
 
     analyzer = Analyzer()
     if not analyzer.can_prove_equal(tvm.tirx.floormod(bit_offset, 32), 0):

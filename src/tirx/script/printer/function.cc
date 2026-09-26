@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 
 #include <utility>
 
@@ -24,6 +25,7 @@
 
 namespace tvm {
 namespace script {
+
 namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -47,8 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               continue;
             }
             PrimType var_ty(var_ty_node->dtype);
-            if (!runtime_params.count(var.get()) && var_ty.IsScalar() &&
-                var_ty.MatchesElementType(DLDataTypeCode::kDLInt, 64)) {
+            if (!runtime_params.count(var.get()) && var_ty.IsScalar()) {
               type_vars.insert(var.get());
             }
           }
@@ -69,21 +70,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             collect_type_vars(address);
           }
         }
-        auto type_var_docs = DefineTypeVarDocs(type_vars, ffi::GetRef<Frame>((*f).get()), d);
-        bool use_postponed_annotations = UsePEP695TypeVars(d) && !type_vars.empty();
+        auto type_var_docs = DefineTypeVarDocs(type_vars, d);
         int n_args = func->params.size();
         // Step 1. Handle `func->params`
         ffi::Array<AssignDoc> args;
         args.reserve(n_args);
         std::unordered_map<const tirx::VarNode*, ExprDoc> scalar_param_docs;
         // Define scalar docs up front so a preceding Buffer parameter can render
-        // a reference to a later scalar parameter.  `bound_signature_vars`
-        // separately tracks source order: the first shape expression that sees
-        // an unbound Var must be quoted because Buffer shapes are match scopes.
-        std::unordered_set<tirx::Var> bound_signature_vars;
+        // a reference to a later scalar parameter. Reserve their names for the
+        // whole script so later hoisted symbols cannot capture these annotations.
+        bool has_dependent_annotations = false;
         for (const tirx::Var& param : func->params) {
           if (!param->ty.as<tirx::BufferTypeNode>()) {
-            scalar_param_docs.emplace(param.get(), DefineVar(param, *f, d));
+            scalar_param_docs.emplace(param.get(), DefineVar(param, d->frames.front(), d));
           }
         }
         for (int i = 0; i < n_args; ++i) {
@@ -91,37 +90,38 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           AccessPath var_p = p->Attr("params")->ArrayItem(i);
           if (var->ty.as<tirx::BufferTypeNode>()) {
             tirx::BufferVar buffer(var);
-            std::unordered_set<tirx::Var> stringify_shape_vars;
-            std::unordered_set<tirx::Var> stringify_compound_shape_vars;
-            std::unordered_set<tirx::Var> shape_vars;
-            auto walk_fn = [&](const tirx::Var& shape_var) -> ffi::Expected<ffi::WalkResult> {
-              shape_vars.insert(shape_var);
-              bool is_type_var = type_vars.count(shape_var.get());
-              if (!use_postponed_annotations && !bound_signature_vars.count(shape_var) &&
-                  !is_type_var) {
-                stringify_shape_vars.insert(shape_var);
-              }
-              if (!use_postponed_annotations && is_type_var) {
-                stringify_compound_shape_vars.insert(shape_var);
-              }
+            auto check_annotation_var =
+                [&](const tirx::Var& annotation_var) -> ffi::Expected<ffi::WalkResult> {
+              has_dependent_annotations =
+                  has_dependent_annotations || runtime_params.count(annotation_var.get());
               return ffi::WalkResult::Advance();
             };
-            for (const PrimExpr& shape : buffer->shape) {
-              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(shape, walk_fn);
+            if (buffer->layout.has_value() &&
+                !ffi::StructuralEqual()(buffer->layout,
+                                        tirx::TileLayoutNode::DefaultLayout(buffer->shape))) {
+              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buffer->layout, check_annotation_var);
+            }
+            for (const PrimExpr& extent : buffer->shape) {
+              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(extent, check_annotation_var);
+            }
+            for (const PrimExpr& stride : buffer->strides) {
+              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(stride, check_annotation_var);
+            }
+            ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buffer->elem_offset,
+                                                            check_annotation_var);
+            for (const PrimExpr& address : buffer->allocated_addr) {
+              ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(address, check_annotation_var);
             }
             IdDoc lhs = DefineBuffer(buffer, *f, d);
-            ExprDoc annotation =
-                BufferAttn(buffer, var_p->Attr("ty"), *f, d, std::move(stringify_shape_vars),
-                           std::move(stringify_compound_shape_vars));
+            ExprDoc annotation = BufferAttn(buffer, var_p->Attr("ty"), *f, d);
             args.push_back(AssignDoc(lhs, std::nullopt, annotation));
-            for (const tirx::Var& shape_var : shape_vars) {
-              bound_signature_vars.insert(shape_var);
-            }
             continue;
           }
           ExprDoc a = d->AsDoc<ExprDoc>(var->ty, var_p->Attr("ty"));
           args.push_back(AssignDoc(scalar_param_docs.at(var.get()), std::nullopt, a));
-          bound_signature_vars.insert(var);
+        }
+        if (has_dependent_annotations) {
+          d->ir_usage.insert("future_annotations");
         }
         ffi::Optional<ExprDoc> ret_type = std::nullopt;
         if (!func->ret_type.IsMissing()) {
@@ -160,21 +160,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           }
         }
         // Step 3. Handle `func->body`
-        ffi::Optional<tirx::SBlock> implicit_root_block = [&]() -> ffi::Optional<tirx::SBlock> {
-          const tirx::SBlockRealizeNode* root_block_realize =
-              func->body.as<tirx::SBlockRealizeNode>();
+        ffi::Optional<s_tir::SBlock> implicit_root_block = [&]() -> ffi::Optional<s_tir::SBlock> {
+          const s_tir::SBlockRealizeNode* root_block_realize =
+              func->body.as<s_tir::SBlockRealizeNode>();
           if (root_block_realize && !root_block_realize->iter_values.size() &&
-              tirx::is_one(root_block_realize->predicate)) {
-            tirx::SBlock root_block = root_block_realize->block;
+              tvm::prim::is_one(root_block_realize->predicate)) {
+            s_tir::SBlock root_block = root_block_realize->block;
             if (!root_block->annotations.size() && !root_block->match_buffers.size() &&
                 !root_block->reads.size() && !root_block->writes.size() &&
                 !root_block->init.has_value()) {
-              const tirx::SBlockRealizeNode* block_realize =
-                  root_block->body.as<tirx::SBlockRealizeNode>();
+              const s_tir::SBlockRealizeNode* block_realize =
+                  root_block->body.as<s_tir::SBlockRealizeNode>();
               if (root_block->alloc_buffers.size() ||
                   (block_realize && block_realize->block->iter_vars.size()) ||
                   (!block_realize &&
-                   tirx::ContainsNode<tirx::SBlockRealizeNode>(root_block->body))) {
+                   tirx::ContainsNode<s_tir::SBlockRealizeNode>(root_block->body))) {
                 return root_block;
               }
             }
@@ -182,9 +182,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           return std::nullopt;
         }();
         if (d->cfg->syntax_sugar && implicit_root_block) {
-          tirx::SBlock root_block = implicit_root_block.value();
+          s_tir::SBlock root_block = implicit_root_block.value();
           AccessPath root_block_p = p->Attr("body")->Attr("block");
-          (*f)->stmts.push_back(CommentDoc("with T.sblock(\"root\"):"));
+          (*f)->stmts.push_back(CommentDoc("with Ts.sblock(\"root\"):"));
           // Handle root block `alloc_buffer`
           for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
             tirx::BufferVar buffer = root_block->alloc_buffers[i];
@@ -199,16 +199,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           AsDocBody(func->body, p->Attr("body"), f->get(), d);
         }
         // Step 5. Determine if we need to display the private annotation in the decorator
-        ExprDoc decorator = TIR(d, "prim_func");
+        ExprDoc decorator =
+            func->attrs->dict.count(tvm::attr::kSTir) ? STIR(d, "prim_func") : TIR(d, "prim_func");
         ffi::Array<ffi::String, void> kwargs_keys;
         ffi::Array<ExprDoc, void> kwargs_values;
         // mark private if there is no global symbol
         if (!func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
           kwargs_keys.push_back("private");
-          kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
-        }
-        if (func->attrs->dict.count(tvm::attr::kSTir)) {
-          kwargs_keys.push_back("s_tir");
           kwargs_values.push_back(LiteralDoc::Boolean(true, ffi::Optional<AccessPath>()));
         }
         if (func->attrs->dict.count(tirx::attr::kPersistentKernel)) {

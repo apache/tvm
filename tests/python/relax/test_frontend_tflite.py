@@ -1088,6 +1088,9 @@ def test_fill_dynamic_dims():
         def func(self, dims, value):
             return tf.fill(dims, value)
 
+    fill_dim_0 = T.dynamic("fill_dim_0")
+    fill_dim_1 = T.dynamic("fill_dim_1")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -1095,8 +1098,6 @@ def test_fill_dynamic_dims():
             dims: R.Tensor((2,), dtype="int32"), value: R.Tensor((), dtype="float32")
         ) -> R.Tensor(dtype="float32", ndim=2):
             R.func_attr({"num_input": 2})
-            fill_dim_0 = T.int64()
-            fill_dim_1 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="int32") = R.match_cast(
                     dims, R.Tensor((2,), dtype="int32")
@@ -1123,13 +1124,14 @@ def test_random_uniform_dynamic_shape():
         def func(self, shape):
             return tf.raw_ops.RandomUniform(shape=shape, dtype=tf.float32, seed=7, seed2=11)
 
+    random_uniform_dim_0 = T.dynamic("random_uniform_dim_0")
+    random_uniform_dim_1 = T.dynamic("random_uniform_dim_1")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(shape: R.Tensor((2,), dtype="int32")) -> R.Tensor(dtype="float32", ndim=2):
             R.func_attr({"num_input": 1})
-            random_uniform_dim_0 = T.int64()
-            random_uniform_dim_1 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="int32") = R.match_cast(
                     shape, R.Tensor((2,), dtype="int32")
@@ -1167,13 +1169,14 @@ def test_random_standard_normal_dynamic_shape():
         def func(self, shape):
             return tf.raw_ops.RandomStandardNormal(shape=shape, dtype=tf.float32, seed=3, seed2=5)
 
+    random_standard_normal_dim_0 = T.dynamic("random_standard_normal_dim_0")
+    random_standard_normal_dim_1 = T.dynamic("random_standard_normal_dim_1")
+
     @I.ir_module
     class Expected:
         @R.function
         def main(shape: R.Tensor((2,), dtype="int32")) -> R.Tensor(dtype="float32", ndim=2):
             R.func_attr({"num_input": 1})
-            random_standard_normal_dim_0 = T.int64()
-            random_standard_normal_dim_1 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="int32") = R.match_cast(
                     shape, R.Tensor((2,), dtype="int32")
@@ -1227,6 +1230,8 @@ def test_multinomial_dynamic_num_samples():
                 seed2=17,
             )
 
+    multinomial_num_samples = T.dynamic("multinomial_num_samples")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -1235,7 +1240,6 @@ def test_multinomial_dynamic_num_samples():
             num_samples: R.Tensor((), dtype="int32"),
         ) -> R.Tensor(dtype="int64", ndim=2):
             R.func_attr({"num_input": 2})
-            multinomial_num_samples = T.int64()
             with R.dataflow():
                 lv: R.Tensor((), dtype="int32") = R.match_cast(
                     num_samples, R.Tensor((), dtype="int32")
@@ -11069,14 +11073,14 @@ def test_tensor_quantization_parameters_are_parsed():
     )
     per_tensor_wrapper, per_axis_wrapper = converter.get_tensors([0, 1])
 
-    np.testing.assert_allclose(per_tensor_wrapper.qnn_params["scale"].data.numpy(), 0.5)
-    np.testing.assert_equal(per_tensor_wrapper.qnn_params["zero_point"].data.numpy(), 3)
+    np.testing.assert_allclose(per_tensor_wrapper.qnn_params["scale"].value.numpy(), 0.5)
+    np.testing.assert_equal(per_tensor_wrapper.qnn_params["zero_point"].value.numpy(), 3)
     assert per_tensor_wrapper.qnn_params["axis"] == 0
 
     np.testing.assert_allclose(
-        per_axis_wrapper.qnn_params["scale"].data.numpy(), np.array([0.25, 0.75])
+        per_axis_wrapper.qnn_params["scale"].value.numpy(), np.array([0.25, 0.75])
     )
-    np.testing.assert_equal(per_axis_wrapper.qnn_params["zero_point"].data.numpy(), 0)
+    np.testing.assert_equal(per_axis_wrapper.qnn_params["zero_point"].value.numpy(), 0)
     assert per_axis_wrapper.qnn_params["axis"] == 3
 
     mod = from_tflite(tflite_model)
@@ -13306,6 +13310,9 @@ def test_dilate_dynamic_dilations():
     mod = from_tflite(tflite_model)
     mod["main"] = mod["main"].without_attr("params")
 
+    dilate_stride_0 = T.dynamic("dilate_stride_0")
+    dilate_stride_1 = T.dynamic("dilate_stride_1")
+
     @I.ir_module
     class Expected:
         @R.function
@@ -13314,8 +13321,6 @@ def test_dilate_dynamic_dilations():
             tvmgen_tensor_1: R.Tensor((2,), dtype="int32"),
         ) -> R.Tensor(dtype="float32", ndim=2):
             R.func_attr({"num_input": 2})
-            dilate_stride_0 = T.int64()
-            dilate_stride_1 = T.int64()
             with R.dataflow():
                 lv: R.Tensor((2,), dtype="int32") = R.match_cast(
                     tvmgen_tensor_1, R.Tensor((2,), dtype="int32")

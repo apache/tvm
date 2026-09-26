@@ -253,6 +253,8 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
+
 namespace backend {
 namespace adreno {
 
@@ -312,7 +314,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
      *     R.Tensor((1, 3, 224, 224), dtype="float32"),
      *     R.Tensor((3,), dtype="float32"),
      *     R.Tensor((3,), dtype="float32")
-     * ) = lv9, metadata["relax.expr.Constant"][4], metadata["relax.expr.Constant"][5]
+     * ) = lv9, metadata["ir.GenericConst"][4], metadata["ir.GenericConst"][5]
      * lv1_1: R.Tensor((1, 3, 224, 224), dtype="float32") = lv[0]
      * lv4: R.Tensor((1, 64, 112, 112), dtype="float32") = R.nn.conv2d(lv1_1, .....
      *
@@ -437,10 +439,10 @@ class CollectConsumerScopeInfo : public ExprVisitor {
           static_cast<int>(target_->GetAttr<int64_t>("texture_spatial_limit").value_or(16384));
       int depth_limit =
           static_cast<int>(target_->GetAttr<int64_t>("texture_depth_limit").value_or(2048));
-      int a0 = shape[0].as<IntImmNode>()->value;
-      int a1 = shape[1].as<IntImmNode>()->value;
-      int a2 = shape[2].as<IntImmNode>()->value;
-      int a3 = shape[3].as<IntImmNode>()->value;
+      int a0 = shape[0].as<IntImmNode>()->value.as<int>().value();
+      int a1 = shape[1].as<IntImmNode>()->value.as<int>().value();
+      int a2 = shape[2].as<IntImmNode>()->value.as<int>().value();
+      int a3 = shape[3].as<IntImmNode>()->value.as<int>().value();
 
       int d1r = a0 * a1;
       int d2r = a2 * a3;
@@ -714,7 +716,7 @@ class DefineVDevice : ExprMutator {
   }
 
   Expr HintArg(const Expr& arg, ffi::String scope) {
-    if (arg->IsInstance<ConstantNode>()) {
+    if (arg->IsInstance<GenericConstNode>()) {
       if (auto tensor_ty = arg->ty.as<TensorTypeNode>()) {
         if (!tensor_ty->vdevice.has_value()) {
           const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));

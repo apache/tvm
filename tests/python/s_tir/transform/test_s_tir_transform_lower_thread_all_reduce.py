@@ -22,6 +22,7 @@ import tvm
 import tvm.testing
 from tvm import s_tir
 from tvm.script import ir as I
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
@@ -42,7 +43,7 @@ def test_basic():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             A_flat = T.decl_buffer(4096, data=A.data)
@@ -82,7 +83,7 @@ def test_basic_with_decl_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             A_flat = T.decl_buffer(4096, data=A.data)
@@ -119,7 +120,7 @@ def test_reduce_summation():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             A_flat = T.decl_buffer(16384, data=A.data)
@@ -166,7 +167,7 @@ def test_multi_group_reduction():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
@@ -201,7 +202,7 @@ def test_multi_group_reduction_consumed_through_alias():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((4, 128), "float32"), B: T.Buffer((4,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 4)
@@ -241,7 +242,7 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((4, 128), "float32"), B: T.Buffer((4,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 4)
@@ -281,7 +282,7 @@ def test_multi_group_mask1():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((32, 8), "float32"), B: T.Buffer((32,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 32)
@@ -316,7 +317,7 @@ def test_multi_warp_reduce1():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             for i in range(128):
@@ -352,7 +353,7 @@ def test_multi_warp_reduce2():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((1, 1024), "float32"), B: T.Buffer((1,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_x = T.launch_thread("threadIdx.x", 1024)
@@ -383,7 +384,7 @@ def test_multi_group_multi_warp_reduction():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((4, 128), "float32"), B: T.Buffer((4,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 4)
@@ -419,7 +420,7 @@ def test_multi_group_multi_warp_predicated_reduction():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((2, 70), "float32"), B: T.Buffer((2,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             threadIdx_y = T.launch_thread("threadIdx.y", 2)
@@ -456,7 +457,7 @@ def test_metal_no_mask():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((1, 1, 2, 128), "float32"), B: T.Buffer((1, 1, 2), "float32")):
             T.func_attr(
                 {
@@ -506,7 +507,7 @@ def test_webgpu_warp_reduce():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((128, 32), "float32"), B: T.Buffer(128, "float32")):
             T.func_attr(
                 {
@@ -558,7 +559,7 @@ def test_webgpu_multi_warp_reduce():
 
     @I.ir_module
     class Before:
-        @T.prim_func(private=True, s_tir=True)
+        @Ts.prim_func(private=True)
         def main(A: T.Buffer((1, 1, 2, 128), "float32"), B: T.Buffer((1, 1, 2), "float32")):
             T.func_attr(
                 {

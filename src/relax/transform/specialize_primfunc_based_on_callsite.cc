@@ -36,6 +36,7 @@
 
 namespace tvm {
 namespace relax {
+using namespace tvm::prim;
 
 using tvm::tirx::BufferVar;
 

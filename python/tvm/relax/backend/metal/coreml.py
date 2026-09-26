@@ -24,17 +24,10 @@ import tvm_ffi
 
 import tvm
 from tvm.contrib import coreml_runtime
-from tvm.ir import Call, PrimType
+from tvm.ir import Call, GenericConst, PrimType
 from tvm.relax import transform
 from tvm.relax.dpl.pattern import is_op, wildcard
-from tvm.relax.expr import (
-    BindingBlock,
-    Constant,
-    Function,
-    SeqExpr,
-    Var,
-    VarBinding,
-)
+from tvm.relax.expr import BindingBlock, Function, SeqExpr, Var, VarBinding
 from tvm.relax.transform import PatternCheckContext
 from tvm.relax.type import TensorType
 from tvm.support.xcode import compile_coreml
@@ -224,7 +217,7 @@ def _convert_softmax(builder, name, inputs, outputs, args, attrs):
 
 
 def _convert_conv2d(builder, name, inputs, outputs, args, attrs):
-    weight = args[1].data.numpy()
+    weight = args[1].value.numpy()
     oc, kc, kh, kw = weight.shape
 
     builder.add_convolution(
@@ -281,7 +274,7 @@ _convert_map = {
 @visitor
 class CallNodeInfoCollector(PyExprVisitor):
     """
-    Collect Expr, Constant and attributes in the inner function
+    Collect Expr, GenericConst and attributes in the inner function
     """
 
     def __init__(self, op_name):
@@ -295,7 +288,7 @@ class CallNodeInfoCollector(PyExprVisitor):
         for arg in call.args:
             if tvm.ir.is_prim_expr(arg):
                 self.primvals.append(arg)
-            if isinstance(arg, Constant):
+            if isinstance(arg, GenericConst):
                 self.consts.append(arg)
 
     def collect(self, expr):
@@ -403,8 +396,8 @@ class CodegenCoreML(PyExprVisitor):
             self.builder.add_load_constant_nd(
                 name=output,
                 output_name=output,
-                constant_value=arg.data.numpy(),
-                shape=arg.data.shape,
+                constant_value=arg.value.numpy(),
+                shape=arg.value.shape,
             )
             self.buf_idx_ = self.buf_idx_ + 1
             self.out_map[arg] = [output]

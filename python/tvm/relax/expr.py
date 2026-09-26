@@ -197,46 +197,6 @@ def make_shape(shape: list[Any] | tuple[Any, ...]) -> ShapeExpr:
     )
 
 
-@tvm_ffi.register_object("relax.expr.Constant")
-class Constant(_CallableExprWithOp):
-    """Constant Tensor
-
-    Parameters
-    ----------
-    data: tvm.runtime.Tensor
-        The data of the constant tensor.
-
-    ty: Optional[Type]
-        The type of the constant tensor. If not specified, infer it from data.
-
-    span: Optional[Span]
-        Span that points to original source code
-
-    Note
-    ----
-    Scalar constants are represented by ndim-0 constant tensors.
-    """
-
-    data: tvm.runtime.Tensor
-    span: Span | None
-
-    def __bool__(self) -> bool:
-        return True
-
-    def __init__(
-        self,
-        data: tvm.runtime.Tensor,
-        ty: Type | None = None,
-        span: Span | None = None,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.Constant,
-            data,
-            ty,
-            span,  # type: ignore
-        )
-
-
 # Ordinary Relax bindings use the canonical IR Var directly.
 Var = tvm.ir.Var
 
@@ -288,28 +248,6 @@ class DataflowVar(Var):
                 )
 
         self.__init_handle_by_constructor__(_ffi_api.DataflowVar, name, ty, span)  # type: ignore
-
-
-@tvm_ffi.register_object("relax.expr.StringImm")
-class StringImm(Expr, Scriptable):
-    """Represent a string literal constant."""
-
-    value: str
-    span: Span | None
-
-    def __init__(self, value: str, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)  # type: ignore
-
-
-@tvm_ffi.register_object("relax.expr.DataTypeImm")
-class DataTypeImm(Expr, Scriptable):
-    """Represent a data type constant."""
-
-    value: DataType
-    span: Span | None
-
-    def __init__(self, value: DataType | str, span: Span | None = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)  # type: ignore
 
 
 @tvm_ffi.register_object("relax.expr.Binding")
@@ -582,7 +520,7 @@ def extern(name: str, ty: Type | None = None, span: Span | None = None):
 
 def const(
     value: bool | int | float | _np.ndarray | tvm.runtime.Tensor, dtype: str | None = None
-) -> Constant:
+) -> tvm.ir.GenericConst:
     """Create a constant value.
 
     Parameters
@@ -629,7 +567,7 @@ def const(
     if not isinstance(value, tvm.runtime.Tensor):
         raise ValueError("value has to be scalar or Tensor")
 
-    return Constant(value)
+    return _ffi_api.MakeTensorConst(value, None, None)
 
 
 @tvm_ffi.register_object("relax.TEPlaceholderOp")

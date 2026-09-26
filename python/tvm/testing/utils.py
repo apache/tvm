@@ -84,8 +84,8 @@ import pytest
 import tvm_ffi
 
 import tvm
-import tvm.arith
 import tvm.support.utils
+import tvm.sym
 import tvm.te
 import tvm.tirx
 from tvm.contrib import cudnn
@@ -279,7 +279,7 @@ def assert_prim_expr_equal(lhs, rhs):
     rhs : tvm.tirx.Expr
         The left operand.
     """
-    ana = tvm.arith.Analyzer()
+    ana = tvm.sym.Analyzer()
     if not ana.can_prove_equal(lhs, rhs):
         raise ValueError(f"{lhs} and {rhs} are not equal")
 
@@ -330,68 +330,11 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
         counterex = [(str(v), i + r.min) for (v, r), i in zip(vranges.items(), indices)]
         counterex = sorted(counterex, key=lambda x: x[0])
         counterex = ", ".join([v + " = " + str(i) for v, i in counterex])
-        ana = tvm.arith.Analyzer()
+        ana = tvm.sym.Analyzer()
         raise AssertionError(
             f"Expression {ana.simplify(bool_expr)}\nis not true on {vranges}\n"
             f"Counterexample: {counterex}"
         )
-
-
-def check_int_constraints_trans_consistency(constraints_trans, vranges=None):
-    """Check IntConstraintsTransform is a bijective transformation.
-
-    Parameters
-    ----------
-    constraints_trans : arith.IntConstraintsTransform
-        Integer constraints transformation
-    vranges: Dict[tvm.tirx.Var, tvm.ir.Range]
-        Free variables and their ranges
-    """
-    if vranges is None:
-        vranges = {}
-
-    def _check_forward(constraints1, constraints2, varmap, backvarmap):
-        ana = tvm.arith.Analyzer()
-        all_vranges = vranges.copy()
-        all_vranges.update({v: r for v, r in constraints1.ranges.items()})
-
-        # Check that the transformation is injective
-        cond_on_vars = tvm.tirx.const(1, "bool")
-        for v in constraints1.variables:
-            if v in varmap:
-                # variable mapping is consistent
-                v_back = ana.simplify(_substitute_tir_vars(varmap[v], backvarmap))
-                cond_on_vars = tvm.te.all(cond_on_vars, v == v_back)
-        # Also we have to check that the new relations are true when old relations are true
-        cond_subst = _substitute_tir_vars(
-            tvm.te.all(tvm.tirx.const(1, "bool"), *constraints2.relations), backvarmap
-        )
-        # We have to include relations from vranges too
-        for v in constraints2.variables:
-            if v in constraints2.ranges:
-                r = constraints2.ranges[v]
-                range_cond = tvm.te.all(v >= r.min, v < r.min + r.extent)
-                range_cond = _substitute_tir_vars(range_cond, backvarmap)
-                cond_subst = tvm.te.all(cond_subst, range_cond)
-        cond_subst = ana.simplify(cond_subst)
-        check_bool_expr_is_true(
-            tvm.te.all(cond_subst, cond_on_vars),
-            all_vranges,
-            cond=tvm.te.all(tvm.tirx.const(1, "bool"), *constraints1.relations),
-        )
-
-    _check_forward(
-        constraints_trans.src,
-        constraints_trans.dst,
-        constraints_trans.src_to_dst,
-        constraints_trans.dst_to_src,
-    )
-    _check_forward(
-        constraints_trans.dst,
-        constraints_trans.src,
-        constraints_trans.dst_to_src,
-        constraints_trans.src_to_dst,
-    )
 
 
 def _get_targets(target_names=None):

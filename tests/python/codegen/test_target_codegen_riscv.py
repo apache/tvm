@@ -66,7 +66,7 @@ def test_rvv(target):
         pytest.skip(f"{target} not enabled")
 
     def check_rvv_presence(N, extent):
-        @T.prim_func(s_tir=True)
+        @T.prim_func
         def load_vec(A: T.Buffer((N,), "int8")):
             for j in T.vectorized(0, extent):
                 A[j] = 1
@@ -108,18 +108,14 @@ def test_rvv_vscale_llvm_dbginfo(target):
         pytest.skip(f"{target} not enabled")
 
     # fmt: off
-    @T.prim_func(s_tir=True)
-    def rvv_with_vscale(A_handle: T.handle, B_handle: T.handle, C_handle: T.handle):
-        A = T.match_buffer(A_handle, (8,), dtype="float32", align=4, offset_factor=1)
-        B = T.match_buffer(B_handle, (4, 8), dtype="float32", align=4, offset_factor=1, strides=[8, 1])
-        C = T.match_buffer(C_handle, (4,), dtype="float32", align=4, offset_factor=1)
-        with T.sblock("root"):
-            T.reads(A[0:8], B[0:4, 0:8])
-            zero = T.call_llvm_intrin("float32xvscalex2", "llvm.riscv.vfmv.v.f", T.Broadcast(T.float32(0.0), T.vscale() * 2), C[0], T.uint64(1))
-            vec_A = T.call_llvm_intrin("float32xvscalex4", "llvm.riscv.vle", T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr(T.type_annotation("float32"), A.data, 0, 8, 1), T.int64(8))
-            vec_B = T.call_llvm_intrin("float32xvscalex4", "llvm.riscv.vle", T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr(T.type_annotation("float32"), B.data, 0 * 8, 8, 1), T.int64(8))
-            prod = T.call_llvm_intrin("float32xvscalex4", "llvm.riscv.vfmul", T.Broadcast(T.float32(0.0), T.vscale() * 4), vec_A, vec_B, T.uint64(7), T.uint64(8))
-            redsum = T.call_llvm_intrin("float32xvscalex2", "llvm.riscv.vfredusum", T.Broadcast(T.float32(0.0), T.vscale() * 2), prod, zero, T.uint64(7), T.uint64(8))
+    @T.prim_func
+    def rvv_with_vscale(A: T.Buffer((8,), dtype='float32', align=4, offset_factor=1), B: T.Buffer((4, 8), dtype='float32', align=4, offset_factor=1, strides=[8, 1]), C: T.Buffer((4,), dtype='float32', align=4, offset_factor=1)):
+
+        zero = T.call_llvm_intrin('float32xvscalex2', 'llvm.riscv.vfmv.v.f', T.Broadcast(T.float32(0.0), T.vscale() * 2), C[0], T.uint64(1))
+        vec_A = T.call_llvm_intrin('float32xvscalex4', 'llvm.riscv.vle', T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr(T.type_annotation('float32'), A.data, 0, 8, 1), T.int64(8))
+        vec_B = T.call_llvm_intrin('float32xvscalex4', 'llvm.riscv.vle', T.Broadcast(T.float32(0.0), T.vscale() * 4), T.tvm_access_ptr(T.type_annotation('float32'), B.data, 0 * 8, 8, 1), T.int64(8))
+        prod = T.call_llvm_intrin('float32xvscalex4', 'llvm.riscv.vfmul', T.Broadcast(T.float32(0.0), T.vscale() * 4), vec_A, vec_B, T.uint64(7), T.uint64(8))
+        redsum = T.call_llvm_intrin('float32xvscalex2', 'llvm.riscv.vfredusum', T.Broadcast(T.float32(0.0), T.vscale() * 2), prod, zero, T.uint64(7), T.uint64(8))
     # fmt: on
 
     # tvm.error.InternalError: Can't fetch the lanes of a scalable vector at a compile time.
@@ -129,7 +125,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
 def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def fixed16_negative(
         A: T.Buffer((14, 23, 67, 99), "float32"),
         B: T.Buffer((14, 23, 67, 99), "float32"),
@@ -139,7 +135,7 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
                 if wo * 16 + wi < 99:
                     B[n, c, h, wo * 16 + wi] = T.float32(0) - A[n, c, h, wo * 16 + wi]
 
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def fixed16_negative_int64(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
         for wi in T.vectorized(T.int64(0), T.int64(16)):
             B[wi] = T.float32(0) - A[wi]
@@ -171,7 +167,7 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
 def test_rvv_scalable_ramp_expression():
-    @T.prim_func(s_tir=True)
+    @T.prim_func
     def ramp_compare(B: T.Buffer((16,), "int32")):
         for i in T.vectorized(16):
             B[i] = T.Select(i * 3 + 5 < 29, i * 3 + 5, -1)

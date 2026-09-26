@@ -57,7 +57,7 @@ namespace tirx {
  * \brief Kind of an atomic predicate in canonical form.
  *
  * All five comparison operators (==, <, <=, >, >=) are normalized into a
- * single half-open range atom `[lo, hi)`. Use `arith::ConstIntBound::kNegInf`
+ * single half-open range atom `[lo, hi)`. Use `sym::ConstIntBound::kNegInf`
  * for an unbounded lower side and `kPosInf` for an unbounded upper side.
  */
 enum class FilterAtomKind {
@@ -72,7 +72,7 @@ enum class FilterAtomKind {
  *   - `scopeid_var`: the ScopeIdDef-declared variable on the LHS of the
  *     comparison (mirrored automatically if the input had `const <op> var`).
  *   - `lo`, `hi`: half-open bounds. `lo` may be
- *     `arith::ConstIntBound::kNegInf` for an unbounded lower side; `hi` may
+ *     `sym::ConstIntBound::kNegInf` for an unbounded lower side; `hi` may
  *     be `kPosInf` for an unbounded upper side.
  *   - `elect_sync_call` is unset.
  *
@@ -134,14 +134,14 @@ using ScopeIdPredicate = std::function<bool(const Var&)>;
  *
  * Implementation notes:
  *   - Conjunction is recognized via both `tir::And` nodes and
- *     `tirx.bitwise_and` calls (matching existing FlattenConjuncts behavior
+ *     `prim.BitwiseAnd` nodes (matching existing FlattenConjuncts behavior
  *     in tile_primitive_dispatch.cc).
  *   - Comparison atoms with `const <op> var` are mirrored so the
  *     `scopeid_var` is on the LHS of the returned atom.
  *   - `c1 == c2` (two constants), `v1 == v2` (two vars), and any other
  *     non-grammar shape causes the whole classification to fail.
  *   - The classifier is purely syntactic: it does NOT call
- *     `arith::Analyzer::Simplify` on subexpressions. Callers that want
+ *     `sym::Analyzer::Simplify` on subexpressions. Callers that want
  *     `2 + 1` to collapse to `3` should pre-simplify their input.
  *   - This function does NOT unwrap `tirx.filter` Calls. The caller is
  *     responsible for extracting the inner predicate (`call->args[1]`)

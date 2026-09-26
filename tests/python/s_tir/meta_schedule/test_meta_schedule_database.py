@@ -34,6 +34,7 @@ from tvm.ir.utils import derived_object
 from tvm.s_tir import Schedule
 from tvm.s_tir import meta_schedule as ms
 from tvm.s_tir.meta_schedule.database import TuningRecord, Workload
+from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
 
@@ -42,40 +43,42 @@ from tvm.target import Target
 # fmt: off
 @tvm.script.ir_module
 class Matmul:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+    @Ts.prim_func
+    def main(
+        A: T.Buffer((1024, 1024), "float32"),
+        B: T.Buffer((1024, 1024), "float32"),
+        C: T.Buffer((1024, 1024), "float32"),
+    ) -> None:
         T.func_attr({"global_symbol": "main"})
-        A = T.match_buffer(a, (1024, 1024), "float32")
-        B = T.match_buffer(b, (1024, 1024), "float32")
-        C = T.match_buffer(c, (1024, 1024), "float32")
+
         for i, j, k in T.grid(1024, 1024, 1024):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
-
 
 @tvm.script.ir_module
 class MatmulRelu:
-    @T.prim_func(s_tir=True)
-    def main(a: T.handle, b: T.handle, d: T.handle) -> None:  # pylint: disable=no-self-argument
+    @Ts.prim_func
+    def main(
+        A: T.Buffer((16, 16), "float32"),
+        B: T.Buffer((16, 16), "float32"),
+        D: T.Buffer((16, 16), "float32"),
+    ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        A = T.match_buffer(a, (16, 16), "float32")
-        B = T.match_buffer(b, (16, 16), "float32")
-        D = T.match_buffer(d, (16, 16), "float32")
-        C = T.sblock_alloc_buffer((16, 16), "float32")
+
+        C = Ts.sblock_alloc_buffer((16, 16), "float32")
         for i, j, k in T.grid(16, 16, 16):
-            with T.sblock("matmul"):
-                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
-                with T.init():
+            with Ts.sblock("matmul"):
+                vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
+                with Ts.init():
                     C[vi, vj] = 0.0
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
         for i, j in T.grid(16, 16):
-            with T.sblock("relu"):
-                vi, vj = T.axis.remap("SS", [i, j])
+            with Ts.sblock("relu"):
+                vi, vj = Ts.axis.remap("SS", [i, j])
                 D[vi, vj] = T.max(C[vi, vj], 0.0)
-
 
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument

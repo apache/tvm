@@ -23,6 +23,8 @@ from tvm_ffi.libinfo import load_lib_ctypes
 
 from tvm.base import _LOADED_LIBS
 
+from .host import export_cuda_host
+
 _LAZY_SUBMODULES = {
     "codegen",
     "cpp",
@@ -54,7 +56,9 @@ def _detect_target_from_device(dev):
 def register_backend():
     """Register CUDA-owned Python semantics."""
     from tvm.target.detect_target import register_device_target_detector
-    from tvm.tirx.script.builder import ir as builder_ir  # pylint: disable=import-outside-toplevel
+    from tvm.tirx.script.ir_builder import (
+        op as builder_op,  # pylint: disable=import-outside-toplevel
+    )
 
     runtime_dir = Path(_LOADED_LIBS["tvm_runtime"]._name).resolve().parent
     try:
@@ -69,7 +73,7 @@ def register_backend():
         pass
     register_device_target_detector("cuda", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
-        builder_ir.register_script_namespace(name, namespace)
+        builder_op.register_script_namespace(name, namespace)
 
     # script_namespaces() above pulls in ptx, which only imports the shared
     # codegen layer -- not the device-helper modules. This import is the sole
@@ -112,6 +116,7 @@ def __getattr__(name: str):
 __all__ = [
     "codegen",
     "cpp",
+    "export_cuda_host",
     "iket",
     "lang",
     "op",
