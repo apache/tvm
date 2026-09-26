@@ -44,8 +44,8 @@ PrimExpr FlattenCoord(const Array<PrimExpr>& coord, const Array<PrimExpr>& shape
 ffi::Map<ffi::String, PrimExpr> BuildSpanMap(const TileLayout& layout) {
   ffi::Map<ffi::String, PrimExpr> span_map;
   for (const auto& iter : layout->shard) {
-    if (span_map.find(iter->axis->name) == span_map.end()) {
-      span_map.Set(iter->axis->name, layout->GetSpan(iter->axis->name));
+    if (span_map.find(iter->axis->_str_index) == span_map.end()) {
+      span_map.Set(iter->axis->_str_index, layout->GetSpan(iter->axis->_str_index));
     }
   }
   return span_map;
@@ -74,7 +74,7 @@ std::vector<PrimExpr> GetDefaultStrides(const ffi::Array<PrimExpr>& data, PrimEx
 
 bool AxisMatchesFilter(const Axis& axis, const ffi::Optional<ffi::String>& axis_name) {
   return (!axis_name.has_value() && axis->IsMemoryAxis()) ||
-         (axis_name.has_value() && axis->name == axis_name.value());
+         (axis_name.has_value() && axis->_str_index == axis_name.value());
 }
 
 TileLayout IdentityTileLayout(const ffi::Array<PrimExpr>& shape) {

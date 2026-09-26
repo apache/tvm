@@ -343,7 +343,7 @@ Layout TileLayoutNode::Tile(const TileLayout& outer_in, const Array<PrimExpr>& o
     auto inner_span_map = BuildSpanMap(inner);
     std::vector<Iter> new_shard;
     for (size_t i = 0; i < outer->shard.size(); ++i) {
-      auto it = inner_span_map.find(outer->shard[i]->axis->name);
+      auto it = inner_span_map.find(outer->shard[i]->axis->_str_index);
       if (it != inner_span_map.end()) {
         new_shard.push_back(Iter(outer->shard[i]->extent, outer->shard[i]->stride * (*it).second,
                                  outer->shard[i]->axis));
@@ -493,7 +493,7 @@ ffi::Optional<TileLayout> TileLayoutNode::IsTileInner(
   // Get the span map of the inner layout of each axis
   auto inner_span_map = BuildSpanMap(layout);
   auto rescale_by_inner_span = [&](const Iter& iter) -> ffi::Optional<Iter> {
-    auto it = inner_span_map.find(iter->axis->name);
+    auto it = inner_span_map.find(iter->axis->_str_index);
     if (it != inner_span_map.end() && !is_one(iter->extent)) {
       if (!analyzer->CanProveEqual(floormod(iter->stride, (*it).second), 0)) {
         return std::nullopt;

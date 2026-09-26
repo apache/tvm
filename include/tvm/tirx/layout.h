@@ -25,9 +25,9 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/tuple.h>
+#include <tvm/ffi/enum.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/object.h>
-#include <tvm/ir/attr_registry_map.h>
 #include <tvm/ir/module.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/exec_scope.h>
@@ -35,13 +35,7 @@
 
 namespace tvm {
 
-// Forward declaration
-template <typename, typename>
-class AttrRegistry;
-
 namespace tirx {
-template <typename>
-class AxisAttrMap;
 
 class Layout;
 class TileLayout;
@@ -146,13 +140,11 @@ using FAxisFuser = ffi::TypedFunction<ffi::Optional<Iter>(Target, ffi::String, f
 using FAxisSplitter = ffi::TypedFunction<ffi::Array<Iter, void>(Target, ffi::String, Iter)>;
 
 // Axis
-class AxisNode : public ffi::Object {
+class AxisNode : public ffi::EnumObj {
  public:
-  ffi::String name;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AxisNode>().def_ro("name", &AxisNode::name);
+    refl::ObjectDef<AxisNode>().def_ro("name", &AxisNode::_str_index);
   }
 
   /*! \brief Check if the axis is a thread axis. */
@@ -173,117 +165,18 @@ class AxisNode : public ffi::Object {
   /*! \brief Get the splitter of the (thread) axis. */
   ffi::Optional<FAxisSplitter> GetSplitter() const;
 
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Axis", AxisNode, ffi::Object);
-
- private:
-  // Iternals necessary for AttrRegistry
-  template <typename>
-  friend class tvm::AttrRegistryMapContainerMap;
-  template <typename, typename>
-  friend class tvm::AttrRegistry;
-  friend class AxisRegEntry;
-  /*! \brief Program internal unique index of operator. */
-  uint32_t index_{0};
-  /*! \brief Return the index stored in attr registry */
-  uint32_t AttrRegistryIndex() const { return index_; }
-  /*! \brief Return the name stored in attr registry */
-  ffi::String AttrRegistryName() const { return name; }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.Axis", AxisNode, ffi::EnumObj);
 };
 
-class Axis : public ffi::ObjectRef {
+class Axis : public ffi::Enum {
  public:
   Axis() = default;
 
   /*! \brief Get the axis object by name. */
   TVM_DLL static Axis Get(const ffi::String& name);
 
-  /*! \brief Get the attribute map for the axis. */
-  template <typename ValueType>
-  inline static AxisAttrMap<ValueType> GetAttrMap(const ffi::String& attr_name);
-
-  explicit Axis(ffi::ObjectPtr<AxisNode> data) : ObjectRef(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Axis, ffi::ObjectRef, AxisNode);
-
- private:
-  // Internals necessary for AttrRegistry
-  template <typename, typename>
-  friend class tvm::AttrRegistry;
-  friend class AxisRegEntry;
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Axis, ffi::Enum, AxisNode);
 };
-
-// AxisRegistry
-class AxisRegEntry {
- public:
-  /*! \brief List all axis names. */
-  TVM_DLL static ffi::Array<ffi::String> ListAxisNames();
-
-  /*! \brief Register or get the axis entry by name. */
-  TVM_DLL static AxisRegEntry& RegisterOrGet(const ffi::String& name);
-
-  /*! \brief Set the attribute for the axis. */
-  template <typename ValueType>
-  inline AxisRegEntry& set_attr(const ffi::String& attr_name, const ValueType& value,
-                                int plevel = 10);
-
-  /*! \brief Set the scope of the axis. */
-  inline AxisRegEntry& set_scope(const ffi::String& scope_name, int plevel = 10);
-
-  /*! \brief Set the subscope of the axis. */
-  inline AxisRegEntry& set_subscope(const ffi::String& subscope_name, int plevel = 10);
-
-  /*! \brief Set the fuser of the axis. */
-  inline AxisRegEntry& set_fuser(const FAxisFuser& fuser);
-
-  /*! \brief Set the splitter of the axis. */
-  inline AxisRegEntry& set_splitter(const FAxisSplitter& splitter);
-
- private:
-  // return internal pointer to op.
-  inline AxisNode* get();
-  TVM_DLL void UpdateAttr(const ffi::String& key, ffi::Any value, int plevel);
-
-  // Internals necessary for AttrRegistry
-  Axis axis_;
-  ffi::String name;
-  explicit AxisRegEntry(uint32_t index);
-  template <typename, typename>
-  friend class tvm::AttrRegistry;
-  friend class Axis;
-};
-
-using AxisRegistry = AttrRegistry<AxisRegEntry, Axis>;
-
-// AxisAttrffi::Map
-template <typename ValueType>
-class AxisAttrMap : public AttrRegistryMap<Axis, ValueType> {
- public:
-  using TParent = AttrRegistryMap<Axis, ValueType>;
-  using TParent::count;
-  using TParent::get;
-  using TParent::operator[];
-
- private:
-  friend class Axis;
-  explicit AxisAttrMap(const AttrRegistryMapContainerMap<Axis>& map) : TParent(map) {}
-};
-
-// Helper macro for token concatenation
-#ifndef TVM_STR_CONCAT
-#define TVM_STR_CONCAT_(__x, __y) __x##__y
-#define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)
-#endif
-
-// Define a macro to register the axis entry.
-#define TVM_AXIS_REGISTER_VAR_DEF [[maybe_unused]] static ::tvm::tirx::AxisRegEntry& __make_##Axis
-
-#define TVM_REGISTER_AXIS(AxisName)                        \
-  TVM_STR_CONCAT(TVM_AXIS_REGISTER_VAR_DEF, __COUNTER__) = \
-      ::tvm::tirx::AxisRegEntry::RegisterOrGet(AxisName)
 
 class IterNode : public ffi::Object {
  public:
