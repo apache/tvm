@@ -198,11 +198,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(GlobalVarNode, ReprPrintIR);
-TVM_REGISTER_SCRIPT_AS_REPR(DictAttrsNode, ReprPrintIR);
-TVM_REGISTER_SCRIPT_AS_REPR(FuncTypeNode, ReprPrintIR);
-TVM_REGISTER_SCRIPT_AS_REPR(RangeNode, ReprPrintIR);
-TVM_REGISTER_SCRIPT_AS_REPR(IRModuleNode, ReprPrintIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<GlobalVarNode>(ReprPrintIR);
+  TVMScriptPrinter::Register<DictAttrsNode>(ReprPrintIR);
+  TVMScriptPrinter::Register<FuncTypeNode>(ReprPrintIR);
+  TVMScriptPrinter::Register<RangeNode>(ReprPrintIR);
+  TVMScriptPrinter::Register<IRModuleNode>(ReprPrintIR);
+}
 
 }  // namespace printer
 }  // namespace script

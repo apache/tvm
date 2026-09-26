@@ -81,11 +81,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(IntImmNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(FloatImmNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(PrimTypeNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(PointerTypeNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(TupleTypeNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<IntImmNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<FloatImmNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<PrimTypeNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<PointerTypeNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<TupleTypeNode>(ReprPrintTIR);
+}
 
 }  // namespace printer
 }  // namespace script
