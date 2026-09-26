@@ -160,7 +160,7 @@ def test_control_flow_jump():
     assert out == 1.0
 
 
-def test_break_loop():
+def test_break_statement():
     @T.prim_func
     def func(In: T.Buffer((2,), "int32"), Out: T.Buffer((2,), "int32")):
         Out[0] = 0
@@ -187,7 +187,7 @@ def test_break_loop():
     assert b[1] == 9
 
 
-def test_continue_loop():
+def test_continue_statement():
     @T.prim_func
     def func(Out: T.Buffer((2,), "int32")):
         T.func_attr({"global_symbol": "main"})

@@ -1152,8 +1152,6 @@ def test_device_host_call_same_func():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-@pytest.mark.gpu
-@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_thread_return():
     @I.ir_module
     class Module:
@@ -1168,6 +1166,7 @@ def test_thread_return():
     lib = tvm.compile(Module, target="cuda")
     cuda_code = lib.mod.imports[0].inspect_source()
     assert "return;" in cuda_code
+    assert "return 0;" not in cuda_code
 
 
 @pytest.mark.gpu
