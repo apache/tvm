@@ -285,12 +285,15 @@ void OpNode::RegisterReflection() {
   namespace refl = ffi::reflection;
   // clang-format off
   refl::ObjectDef<OpNode>()
+      .def_ro("index", &OpNode::index_, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("name", &OpNode::name)
       .def_ro("doc", &OpNode::doc, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("args_info", &OpNode::args_info, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("allow_extra_args", &OpNode::allow_extra_args, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("ty_args_info", &OpNode::ty_args_info, refl::AttachFieldFlag::SEqHashIgnore())
+      .def_ro("validate_args", &OpNode::validate_args_, refl::AttachFieldFlag::SEqHashIgnore())
+      .def_ro("validate_ty_args", &OpNode::validate_ty_args_, refl::AttachFieldFlag::SEqHashIgnore())
       .def("validate", [](Op op, Call call) { op.Validate(call.get()); },
            "validate(call: Call) -> None\n\nCheck argument counts and declared IR constraints; "
            "raise on mismatch without changing the call or inferring its result type.")

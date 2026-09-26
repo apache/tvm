@@ -70,6 +70,10 @@ class ArgumentInfo : public ffi::ObjectRef {
 
 /*! \brief Metadata for a canonical primitive operator invoked through Call. */
 class OpNode : public ExprNode {
+ private:
+  // Dense process-local index into attribute columns; never serialized.
+  uint32_t index_{0};
+
  public:
   /*! \brief Canonical operator name. */
   ffi::String name;
@@ -106,8 +110,6 @@ class OpNode : public ExprNode {
   bool ty_args_signature_defined_{false};
   template <typename>
   friend class OpAttrMap;
-  // Dense process-local index into attribute columns; never serialized.
-  uint32_t index_{0};
 };
 
 /*!
