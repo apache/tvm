@@ -520,7 +520,7 @@ void ValidateCallTIR(Call call) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_tir")
       .arg<Expr>("func", "The destination-passing-style function.")
-      .arg<Tuple>("args", "The input arguments.")
+      .arg<Expr>("args", "The input arguments.")
       .ty_arg<Type>("out_type", "The output type.")
       .set_attr<FInferType>("FInferType", InferTypeCallTIR)
       .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
@@ -556,7 +556,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.call_tir_with_grad")
       .arg<Expr>("func", "The destination-passing-style function.")
-      .arg<Tuple>("args", "The input arguments.")
+      .arg<Expr>("args", "The input arguments.")
       .ty_arg<Type>("out_type", "The output type.")
       .call_attrs_type<CallTIRWithGradAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeCallTIR)
@@ -687,7 +687,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_tir_inplace")
       .arg<Expr>("func", "The destination-passing-style function.")
-      .arg<Tuple>("args", "The input arguments.")
+      .arg<Expr>("args", "The input arguments.")
       .ty_arg<Type>("out_type", "The output type.")
       .call_attrs_type<CallTIRInplaceAttrs>()
       .set_attr<FInferType>("FInferType", InferTypeCallTIR)
