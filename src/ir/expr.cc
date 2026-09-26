@@ -49,6 +49,43 @@ TVMFFIAny ConstantVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) 
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
+TVMFFIAny DataTypeImmVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  const DataTypeImmNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DataTypeImmNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->ty));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->value));
+  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+}
+
+TVMFFIAny DataTypeImmMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  const DataTypeImmNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DataTypeImmNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
+                                    mutator->MutateExpected(self->ty));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<DLDataType>, mapped_value,
+                                    mutator->MutateExpected(self->value));
+  if (mapped_ty.UnchangedOrSameAs(self->ty) && mapped_value.UnchangedOrSameAs(self->value)) {
+    return ffi::Unchanged().CopyToTVMFFIAny();
+  }
+  ffi::ObjectPtr<DataTypeImmNode> copy = ffi::make_object<DataTypeImmNode>(*self);
+  copy->ty = std::move(mapped_ty).ValueOrUnchanged(std::move(copy->ty));
+  copy->value = std::move(mapped_value).ValueOrUnchanged(copy->value);
+  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+}
+
+TVMFFIAny DataTypeImmMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
+                                        ffi::AnyView value) noexcept {
+  DataTypeImmNode* self = const_cast<DataTypeImmNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DataTypeImmNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty,
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<DLDataType>, mapped_value,
+                                    mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
+  if (!mapped_ty.IsUnchanged()) self->ty = std::move(mapped_ty).ValueUnchecked();
+  if (!mapped_value.IsUnchanged()) self->value = std::move(mapped_value).ValueUnchecked();
+  return ffi::Unchanged().CopyToTVMFFIAny();
+}
+
 template <typename TNode>
 TVMFFIAny ConstantMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const TNode* self =
@@ -764,6 +801,14 @@ StringImm::StringImm(ffi::String value, Span span) {
   data_ = std::move(node);
 }
 
+DataTypeImm::DataTypeImm(DLDataType value, Span span) {
+  auto node = ffi::make_object<DataTypeImmNode>();
+  node->value = std::move(value);
+  node->ty = AnyType();
+  node->span = std::move(span);
+  data_ = std::move(node);
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   ConstantNode::RegisterReflection();
@@ -783,11 +828,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             reinterpret_cast<void*>(&ConstantMutate<StringImmNode>))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&ConstantMaybeInplaceMutate<StringImmNode>));
+  DataTypeImmNode::RegisterReflection();
+  refl::TypeAttrDef<DataTypeImmNode>()
+      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&DataTypeImmVisit))
+      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&DataTypeImmMutate))
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            reinterpret_cast<void*>(&DataTypeImmMaybeInplaceMutate));
   refl::GlobalDef()
       .def("ir.GenericConst",
            [](ffi::Any value, Type ty, Span span) {
              return GenericConst(std::move(value), std::move(ty), std::move(span));
            })
+      .def("ir.DataTypeImm",
+           [](DLDataType value, Span span) { return DataTypeImm(value, std::move(span)); })
       .def("ir.StringImm", [](ffi::String value, Span span) {
         return StringImm(std::move(value), std::move(span));
       });

@@ -54,6 +54,14 @@ class Type(Node, Scriptable):
         return self.is_(other)
 
 
+@tvm_ffi.register_object("ir.AnyType")
+class AnyType(Type):
+    """The top type, which admits any value."""
+
+    def __init__(self, span=None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.AnyType, span)
+
+
 @tvm_ffi.register_object("ir.OpaqueType")
 class OpaqueType(Type):
     """Type marker for opaque values that must be removed from finished IR."""

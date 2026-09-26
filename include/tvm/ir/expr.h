@@ -517,7 +517,7 @@ class Call : public Expr {
 /*! \brief Base node for literal constants. */
 class ConstantNode : public ExprNode {
  public:
-  static constexpr uint32_t _type_child_slots = 4;
+  static constexpr uint32_t _type_child_slots = 5;
   static void RegisterReflection() { ffi::reflection::ObjectDef<ConstantNode>(); }
   TVM_FFI_DECLARE_OBJECT_INFO("ir.Constant", ConstantNode, ExprNode);
 };
@@ -566,6 +566,26 @@ class StringImm : public Constant {
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, Constant, StringImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
+};
+
+/*! \brief A data type literal with AnyType as its expression type. */
+class DataTypeImmNode : public ConstantNode {
+ public:
+  DLDataType value;
+
+  static void RegisterReflection() {
+    ffi::reflection::ObjectDef<DataTypeImmNode>().def_ro("value", &DataTypeImmNode::value);
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.DataTypeImm", DataTypeImmNode, ConstantNode);
+};
+
+/*! \brief Managed reference to a data type literal. */
+class DataTypeImm : public Constant {
+ public:
+  TVM_DLL explicit DataTypeImm(DLDataType value, Span span = Span());
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypeImm, Constant, DataTypeImmNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(DataTypeImmNode);
 };
 
 /*!

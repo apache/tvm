@@ -35,6 +35,7 @@ void ExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<ExprVisitor, FloatImmNode>(vtable);
   SetDispatch<ExprVisitor, OpNode>(vtable);
   SetDispatch<ExprVisitor, StringImmNode>(vtable);
+  SetDispatch<ExprVisitor, DataTypeImmNode>(vtable);
   SetDispatch<ExprVisitor, prim::CastNode>(vtable);
   SetDispatch<ExprVisitor, prim::AddNode>(vtable);
   SetDispatch<ExprVisitor, prim::LShiftNode>(vtable);
@@ -145,6 +146,9 @@ ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const FloatImmNode* node) { re
 ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const OpNode* node) { return std::nullopt; }
 
 ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const StringImmNode* node) {
+  return std::nullopt;
+}
+ffi::Optional<VisitInterrupt> ExprVisitor::Visit_(const DataTypeImmNode* node) {
   return std::nullopt;
 }
 
@@ -344,6 +348,7 @@ void ExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<ExprMutator, FloatImmNode>(vtable);
   SetDispatch<ExprMutator, OpNode>(vtable);
   SetDispatch<ExprMutator, StringImmNode>(vtable);
+  SetDispatch<ExprMutator, DataTypeImmNode>(vtable);
   SetDispatch<ExprMutator, prim::CastNode>(vtable);
   SetDispatch<ExprMutator, prim::AddNode>(vtable);
   SetDispatch<ExprMutator, prim::LShiftNode>(vtable);
@@ -532,6 +537,10 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const OpNode* node, InplaceMode inplace_m
 }
 
 UnchangedOr<Expr> ExprMutator::Mutate_(const StringImmNode* node, InplaceMode inplace_mode) {
+  // Registry atoms and constant leaves do not descend into metadata or types.
+  return ffi::Unchanged();
+}
+UnchangedOr<Expr> ExprMutator::Mutate_(const DataTypeImmNode* node, InplaceMode inplace_mode) {
   // Registry atoms and constant leaves do not descend into metadata or types.
   return ffi::Unchanged();
 }
