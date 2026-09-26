@@ -33,52 +33,26 @@ namespace tvm {
 namespace s_tir {
 using namespace tvm::tirx;
 
-/*!
- * \brief Register an InstructionKind using a trait class
- * \param InstructionKindTraits A traits class of an InstructionKind
+/*! \brief Register a named instruction kind using its typed traits.
+ * \tparam Traits Traits with kName, kIsPure, and the instruction callbacks.
  *
  * Example:
- *
  * \code
- *
- * struct SomeInstructionKindTraits {
- *   static constexpr const char* kName = "name-of-the-instruction";
- *   static constexpr bool kIsPure = false;
- *
- *   // Convertible to `InstructionKindNode::FInstructionApply`
- *   static ffi::Array<ffi::ObjectRef> ApplyToSchedule(
- *      const s_tir::Schedule& sch,
- *      const ffi::Array<ffi::ObjectRef>& inputs,
- *      const ffi::Array<ffi::ObjectRef>& attrs,
- *      const ffi::Optional<ffi::ObjectRef>& decision);
- *
- *   // Convertible to `InstructionKindNode::FInstructionAsPython`
- *   static ffi::String AsPython(
- *      const ffi::Array<ffi::String>& inputs,
- *      const ffi::Array<ffi::ObjectRef>& attrs,
- *      const ffi::Optional<ffi::ObjectRef>& decision,
- *      const ffi::Array<ffi::String>& outputs);
- *
- *   // Convertible to `InstructionKindNode::FInstructionAttrsAsJSON`
- *   static ffi::ObjectRef AttrsAsJSON(
- *      const ffi::Array<ffi::ObjectRef>& attrs);
- *
- *   // Convertible to `InstructionKindNode::FInstructionAttrsFromJSON`
- *   static ffi::Array<ffi::ObjectRef> AttrsFromJSON(
- *      const ffi::ObjectRef& attrs_record);
- * };
- *
- * TVM_REGISTER_INST_KIND_TRAITS(SomeInstructionKindTraits);
- *
+ * TVM_FFI_STATIC_INIT_BLOCK() {
+ *   RegisterInstructionKind<ComputeInlineTraits>();
+ *   RegisterInstructionKind<ReverseComputeInlineTraits>();
+ * }
  * \endcode
  */
-#define TVM_REGISTER_INST_KIND_TRAITS(InstructionKindTraits)         \
-  TVM_REGISTER_INST_KIND(InstructionKindTraits::kName)               \
-      .set_is_pure(InstructionKindTraits::kIsPure)                   \
-      .set_apply_to_schedule(InstructionKindTraits::ApplyToSchedule) \
-      .set_attrs_as_json(InstructionKindTraits::AttrsAsJSON)         \
-      .set_attrs_from_json(InstructionKindTraits::AttrsFromJSON)     \
-      .set_as_python(InstructionKindTraits::AsPython)
+template <typename Traits>
+void RegisterInstructionKind() {
+  InstructionKindDef(Traits::kName)
+      .set_is_pure(Traits::kIsPure)
+      .set_apply_to_schedule(Traits::ApplyToSchedule)
+      .set_attrs_as_json(Traits::AttrsAsJSON)
+      .set_attrs_from_json(Traits::AttrsFromJSON)
+      .set_as_python(Traits::AsPython);
+}
 
 /*!
  * \brief A helper to conveniently register an InstructionKind. When inherited in curiously
@@ -144,7 +118,7 @@ using namespace tvm::tirx;
  *   friend struct UnpackedInstTraits;
  * };
  *
- * TVM_REGISTER_INST_KIND(SamplePerfectTileTraits);
+ * RegisterInstructionKind<SamplePerfectTileTraits>();
  * \endcode
  */
 template <class TTraits>

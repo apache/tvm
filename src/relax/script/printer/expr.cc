@@ -173,13 +173,15 @@ std::string ReprPrintVar(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   return ReprPrintRelax(obj, cfg);
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::TupleGetItemNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ShapeExprNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(VarNode, ReprPrintVar);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::DataflowVarNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(::tvm::GenericConstNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(::tvm::DataTypeImmNode, ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<relax::TupleNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::TupleGetItemNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::ShapeExprNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<VarNode>(ReprPrintVar);
+  TVMScriptPrinter::Register<relax::DataflowVarNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<::tvm::GenericConstNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<::tvm::DataTypeImmNode>(ReprPrintRelax);
+}
 
 }  // namespace printer
 }  // namespace script

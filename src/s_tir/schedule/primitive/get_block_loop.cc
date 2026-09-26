@@ -274,12 +274,14 @@ struct GetOutputBlocksTraits : public UnpackedInstTraits<GetOutputBlocksTraits> 
   friend struct ::tvm::s_tir::UnpackedInstTraits;
 };
 
-TVM_REGISTER_INST_KIND_TRAITS(GetSBlockTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetLoopsTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetChildBlocksTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetProducersTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetConsumersTraits);
-TVM_REGISTER_INST_KIND_TRAITS(GetOutputBlocksTraits);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterInstructionKind<GetSBlockTraits>();
+  RegisterInstructionKind<GetLoopsTraits>();
+  RegisterInstructionKind<GetChildBlocksTraits>();
+  RegisterInstructionKind<GetProducersTraits>();
+  RegisterInstructionKind<GetConsumersTraits>();
+  RegisterInstructionKind<GetOutputBlocksTraits>();
+}
 
 }  // namespace s_tir
 }  // namespace tvm

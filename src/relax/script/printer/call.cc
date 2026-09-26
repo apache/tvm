@@ -352,7 +352,7 @@ std::string ReprPrintCall(const ffi::ObjectRef& obj, const PrinterConfig& cfg) {
   return ReprPrintRelax(obj, cfg);
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(CallNode, ReprPrintCall);
+TVM_FFI_STATIC_INIT_BLOCK() { TVMScriptPrinter::Register<CallNode>(ReprPrintCall); }
 
 }  // namespace printer
 }  // namespace script

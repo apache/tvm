@@ -422,42 +422,44 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::IterVarNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(StringImmNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::CastNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::AddNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::SubNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::MulNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::DivNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::ModNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::FloorDivNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::FloorModNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::LShiftNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::RShiftNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::BitwiseAndNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::BitwiseOrNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::BitwiseXorNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::BitwiseNotNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::MinNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::MaxNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::LTNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::LENode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::EQNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::NENode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::GTNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::GENode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::AndNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::OrNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::NotNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::SelectNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::RampNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::BroadcastNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::LetNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(prim::ShuffleNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(te::CommReducerNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::IndexMapNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(te::ReduceNode, ReprPrintTIR);
-TVM_REGISTER_SCRIPT_AS_REPR(tirx::LambdaExprNode, ReprPrintTIR);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<tirx::IterVarNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<StringImmNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::CastNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::AddNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::SubNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::MulNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::DivNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::ModNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::FloorDivNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::FloorModNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::LShiftNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::RShiftNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::BitwiseAndNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::BitwiseOrNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::BitwiseXorNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::BitwiseNotNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::MinNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::MaxNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::LTNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::LENode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::EQNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::NENode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::GTNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::GENode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::AndNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::OrNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::NotNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::SelectNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::RampNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::BroadcastNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::LetNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<prim::ShuffleNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<te::CommReducerNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::IndexMapNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<te::ReduceNode>(ReprPrintTIR);
+  TVMScriptPrinter::Register<tirx::LambdaExprNode>(ReprPrintTIR);
+}
 
 }  // namespace printer
 }  // namespace script

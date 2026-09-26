@@ -40,32 +40,35 @@ namespace tvm {
 TVM_DLL std::string Script(const ffi::ObjectRef& node,
                            const ffi::Optional<PrinterConfig>& config = std::nullopt);
 
-/*! \brief Dispatch vtable used by per-dialect printers to register their
- *         object-type printing functions.  Internal, but exposed here because
- *         TVM_REGISTER_SCRIPT_AS_REPR refers to it.
- */
+/*! \brief Dispatch table for TVMScript printing and repr registration. */
 class TVMScriptPrinter {
  public:
   using FType = ObjectFunctor<std::string(const ffi::ObjectRef&, const PrinterConfig&)>;
   TVM_DLL static FType& vtable();
-};
 
-/*!
- * \brief Register Script as the kRepr callback for ObjectType and install
- *        the per-type dispatch entry in TVMScriptPrinter::vtable().
- *
- * \param ObjectType  The concrete object node type (e.g. tirx::VarNode).
- * \param Method      The TVMScriptPrinter vtable dispatch function.
- */
-#define TVM_REGISTER_SCRIPT_AS_REPR(ObjectType, Method)                                        \
-  TVM_FFI_STATIC_INIT_BLOCK() {                                                                \
-    namespace refl = tvm::ffi::reflection;                                                     \
-    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,                                \
-                                        [](ffi::ObjectRef obj, ffi::Function) -> ffi::String { \
-                                          return RedirectedReprPrinterMethod(obj);             \
-                                        });                                                    \
-    TVMScriptPrinter::vtable().SetDispatch<ObjectType>(Method);                                \
+  /*! \brief Register a printer method for script dispatch and FFI repr.
+   * \tparam ObjectType Concrete object node type.
+   * \tparam Method Callable printer method type.
+   * \param method Printer dispatch method for that type.
+   *
+   * Example:
+   * \code
+   * TVM_FFI_STATIC_INIT_BLOCK() {
+   *   TVMScriptPrinter::Register<tirx::ForNode>(ReprPrintTIR);
+   *   TVMScriptPrinter::Register<tirx::WhileNode>(ReprPrintTIR);
+   * }
+   * \endcode
+   */
+  template <typename ObjectType, typename Method>
+  static void Register(Method method) {
+    namespace refl = tvm::ffi::reflection;
+    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,
+                                        [](ffi::ObjectRef obj, ffi::Function) -> ffi::String {
+                                          return RedirectedReprPrinterMethod(obj);
+                                        });
+    vtable().SetDispatch<ObjectType>(method);
   }
+};
 
 }  // namespace tvm
 #endif  // TVM_SCRIPT_PRINTER_PRINTER_H_

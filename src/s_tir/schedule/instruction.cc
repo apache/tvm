@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/container/dict.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 
@@ -99,21 +100,42 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
-using InstructionKindRegistry = AttrRegistry<InstructionKindRegEntry, InstructionKind>;
+namespace {
+class InstructionKindRegistry {
+ public:
+  static InstructionKindRegistry* Global() {
+    static InstructionKindRegistry registry;
+    return &registry;
+  }
+
+  InstructionKind Get(const ffi::String& name) const {
+    auto kind = kinds_.Get(name);
+    TVM_FFI_CHECK(kind.has_value(), AttributeError)
+        << "Instruction kind " << name << " is not registered";
+    return *kind;
+  }
+
+  InstructionKind RegisterOrGet(const ffi::String& name) {
+    if (auto kind = kinds_.Get(name)) {
+      return *kind;
+    }
+    InstructionKind kind(ffi::make_object<InstructionKindNode>());
+    kinds_.Set(name, kind);
+    return kind;
+  }
+
+ private:
+  ffi::Dict<ffi::String, InstructionKind> kinds_;
+};
+}  // namespace
 
 InstructionKind InstructionKind::Get(const ffi::String& name) {
-  const InstructionKindRegEntry* reg = InstructionKindRegistry::Global()->Get(name);
-  TVM_FFI_CHECK(reg != nullptr, AttributeError)
-      << "Instruction kind " << name << " is not registered";
-  return reg->inst_kind_;
+  return InstructionKindRegistry::Global()->Get(name);
 }
 
-InstructionKindRegEntry::InstructionKindRegEntry(uint32_t reg_index) {
-  this->inst_kind_ = InstructionKind(ffi::make_object<InstructionKindNode>());
-}
-
-InstructionKindRegEntry& InstructionKindRegEntry::RegisterOrGet(const ffi::String& name) {
-  return InstructionKindRegistry::Global()->RegisterOrGet(name);
+InstructionKindDef::InstructionKindDef(const ffi::String& name)
+    : inst_kind_(InstructionKindRegistry::Global()->RegisterOrGet(name)) {
+  get_mutable()->name = name;
 }
 
 /**************** Repr ****************/

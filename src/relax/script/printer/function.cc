@@ -151,8 +151,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-TVM_REGISTER_SCRIPT_AS_REPR(relax::FunctionNode, ReprPrintRelax);
-TVM_REGISTER_SCRIPT_AS_REPR(relax::ExternFuncNode, ReprPrintRelax);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  TVMScriptPrinter::Register<relax::FunctionNode>(ReprPrintRelax);
+  TVMScriptPrinter::Register<relax::ExternFuncNode>(ReprPrintRelax);
+}
 
 }  // namespace printer
 }  // namespace script
