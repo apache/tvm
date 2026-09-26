@@ -72,11 +72,11 @@ ExprDoc PrintCallee(const relax::Expr& n, const AccessPath& n_p, const IRDocsifi
 
 ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const Call& n, const AccessPath& n_p,
                                              const IRDocsifier& d) {
-  static const Op& call_tir_op = Op::Get("relax.call_tir");
-  static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
-  static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
-  static const Op& call_tir_with_grad_op = Op::Get("relax.call_tir_with_grad");
-  static const Op& call_tir_local_view = Op::Get("relax.dist.call_tir_local_view");
+  static const Op call_tir_op = Op::Get("relax.call_tir");
+  static const Op call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
+  static const Op call_dps_packed_op = Op::Get("relax.call_dps_packed");
+  static const Op call_tir_with_grad_op = Op::Get("relax.call_tir_with_grad");
+  static const Op call_tir_local_view = Op::Get("relax.dist.call_tir_local_view");
   if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op) &&
       !n->op.same_as(call_tir_with_grad_op) && !n->op.same_as(call_tir_local_view) &&
       !n->op.same_as(call_tir_inplace_op)) {
@@ -157,7 +157,7 @@ ffi::Optional<ExprDoc> PrintCallTIRDPSPacked(const Call& n, const AccessPath& n_
 }
 
 ffi::Optional<ExprDoc> PrintAssertOp(const Call& n, const AccessPath& n_p, const IRDocsifier& d) {
-  static const Op& assert_op = Op::Get("relax.assert_op");
+  static const Op assert_op = Op::Get("relax.assert_op");
   if (!n->op.same_as(assert_op)) {
     return std::nullopt;
   }
@@ -177,7 +177,7 @@ ffi::Optional<ExprDoc> PrintAssertOp(const Call& n, const AccessPath& n_p, const
 
 ffi::Optional<ExprDoc> PrintHintOnDevice(const Call& n, const AccessPath& n_p,
                                          const IRDocsifier& d) {
-  static const Op& hint_on_device_op = Op::Get("relax.hint_on_device");
+  static const Op hint_on_device_op = Op::Get("relax.hint_on_device");
   if (!n->op.same_as(hint_on_device_op)) {
     return std::nullopt;
   }
@@ -199,7 +199,7 @@ ffi::Optional<ExprDoc> PrintHintOnDevice(const Call& n, const AccessPath& n_p,
 }
 
 ffi::Optional<ExprDoc> PrintToVDevice(const Call& n, const AccessPath& n_p, const IRDocsifier& d) {
-  static const Op& to_vdevice_op = Op::Get("relax.to_vdevice");
+  static const Op to_vdevice_op = Op::Get("relax.to_vdevice");
   if (!n->op.same_as(to_vdevice_op)) {
     return std::nullopt;
   }
@@ -222,7 +222,7 @@ ffi::Optional<ExprDoc> PrintToVDevice(const Call& n, const AccessPath& n_p, cons
 }
 
 ffi::Optional<ExprDoc> PrintRelaxPrint(const Call& n, const AccessPath& n_p, const IRDocsifier& d) {
-  static const Op& print_op = Op::Get("relax.print");
+  static const Op print_op = Op::Get("relax.print");
   if (!n->op.same_as(print_op)) {
     return std::nullopt;
   }

@@ -366,8 +366,8 @@ class AlterOpImplMutator : public ExprMutator {
   /*! \brief Map from kOperatorName attribute to the layout transforms on i/o buffers */
   const ffi::Map<ffi::String, ffi::Array<IndexMap>>& op_buffer_transforms__;
 
-  const Op& call_tir_op_ = Op::Get("relax.call_tir");
-  const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
+  const Op call_tir_op_ = Op::Get("relax.call_tir");
+  const Op layout_transform_op_ = Op::Get("relax.layout_transform");
 };
 
 namespace transform {

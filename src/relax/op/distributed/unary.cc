@@ -28,37 +28,97 @@ Type InferDistTypeUnaryCheck(const Call& call, const BlockBuilder& ctx) {
                                    [](const TensorType& input_ty) { return PrimType::Bool(); });
 }
 
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(abs, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(acos, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(acosh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(asin, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(asinh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(atan, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(atanh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(bitwise_not, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(ceil, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(cos, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(cosh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(exp, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(floor, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(log, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(logical_not, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(negative, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(round, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(rsqrt, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sigmoid, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sign, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sin, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sinh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(square, /*require_float_dtype=*/false);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(sqrt, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(tan, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(tanh, /*require_float_dtype=*/true);
-RELAX_REGISTER_UNARY_ARITH_DIST_INFER_TYPE(erf, /*require_float_dtype=*/true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.abs")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
 
-RELAX_REGISTER_UNARY_CHECK_DIST_INFER_TYPE(isfinite);
-RELAX_REGISTER_UNARY_CHECK_DIST_INFER_TYPE(isinf);
-RELAX_REGISTER_UNARY_CHECK_DIST_INFER_TYPE(isnan);
+  OpDef("relax.acos")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.acosh")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.asin")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.asinh")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.atan")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.atanh")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.bitwise_not")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
+
+  OpDef("relax.ceil")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
+
+  OpDef("relax.cos")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.cosh")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.exp")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.floor")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
+
+  OpDef("relax.log")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.logical_not")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
+
+  OpDef("relax.negative")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
+
+  OpDef("relax.round")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
+
+  OpDef("relax.rsqrt")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.sigmoid")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.sign")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
+
+  OpDef("relax.sin")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.sinh")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.square")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<false>);
+
+  OpDef("relax.sqrt")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.tan")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.tanh")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.erf")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryArith<true>);
+
+  OpDef("relax.isfinite")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryCheck);
+
+  OpDef("relax.isinf")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryCheck);
+
+  OpDef("relax.isnan")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeUnaryCheck);
+}
 
 }  // namespace distributed
 }  // namespace relax

@@ -29,26 +29,6 @@
 namespace tvm {
 namespace relax {
 
-/*!
- * \brief Quick helper macro to
- * - expose a make-function interface which construct the call node.
- * - register op to the registry.
- * \param OpName The name of operator to register.
- * \param RequireFloatDtype A boolean indicating if the input is required to have float dtype.
- *  (Only for unary arith operators since all check operators don't require float dtype.)
- */
-#define RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName) \
-  RELAX_UNARY_OP_INTERFACE(OpName, #OpName)      \
-  RELAX_REGISTER_UNARY_OP(#OpName)
-
-#define RELAX_REGISTER_UNARY_ARITH_OP_AND_IMPL(OpName, RequireFloatDtype) \
-  RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName).set_attr<FInferType>(          \
-      "FInferType", InferTypeUnaryArith<RequireFloatDtype>)
-
-#define RELAX_REGISTER_UNARY_CHECK_OP_AND_IMPL(OpName)           \
-  RELAX_REGISTER_UNARY_OP_AND_IMPL(OpName).set_attr<FInferType>( \
-      "FInferType", InferTypeUnaryCheck)  // require_float_dtype=false for check op
-
 /***************** Arithmetic operators *****************/
 
 /*!

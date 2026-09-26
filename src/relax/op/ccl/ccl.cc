@@ -42,7 +42,7 @@ Expr allreduce(Expr x, ffi::String op_type, bool in_group) {
   attrs->op_type = std::move(op_type);
   attrs->in_group = std::move(in_group);
 
-  static const Op& op = Op::Get("relax.ccl.allreduce");
+  static const Op op = Op::Get("relax.ccl.allreduce");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
@@ -56,13 +56,15 @@ Type InferTypeAllReduce(const Call& call, const BlockBuilder& ctx) {
   return input_ty;
 }
 
-TVM_REGISTER_OP("relax.ccl.allreduce")
-    .set_attrs_type<AllReduceAttrs>()
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "Input to which allreduce will be applied.")
-    .set_attr<FInferType>("FInferType", InferTypeAllReduce)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.ccl.allreduce")
+      .set_attrs_type<AllReduceAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("x", "Input to which allreduce will be applied.")
+      .set_attr<FInferType>("FInferType", InferTypeAllReduce)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.ccl.allgather */
 
@@ -71,7 +73,7 @@ Expr allgather(Expr x, int num_workers, bool in_group) {
   attrs->num_workers = std::move(num_workers);
   attrs->in_group = std::move(in_group);
 
-  static const Op& op = Op::Get("relax.ccl.allgather");
+  static const Op op = Op::Get("relax.ccl.allgather");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
@@ -96,16 +98,18 @@ Type InferTypeAllGather(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr(output_shape), output_dtype, input_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.ccl.allgather")
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "Input to which allgather will be applied.")
-    .set_attr<FInferType>("FInferType", InferTypeAllGather)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.ccl.allgather")
+      .set_num_inputs(1)
+      .arg<Expr>("x", "Input to which allgather will be applied.")
+      .set_attr<FInferType>("FInferType", InferTypeAllGather)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.ccl.broadcast_from_worker0 */
 Expr broadcast_from_worker0(Expr x) {
-  static const Op& op = Op::Get("relax.ccl.broadcast_from_worker0");
+  static const Op op = Op::Get("relax.ccl.broadcast_from_worker0");
   return Call(Type::Missing(), op, {std::move(x)}, {}, {});
 }
 
@@ -119,12 +123,14 @@ Type InferTypeBroadcastFromZero(const Call& call, const BlockBuilder& ctx) {
   return input_ty;
 }
 
-TVM_REGISTER_OP("relax.ccl.broadcast_from_worker0")
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "Input to be broadcast.")
-    .set_attr<FInferType>("FInferType", InferTypeBroadcastFromZero)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.ccl.broadcast_from_worker0")
+      .set_num_inputs(1)
+      .arg<Expr>("x", "Input to be broadcast.")
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastFromZero)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.ccl.scatter_from_worker0 */
 
@@ -132,7 +138,7 @@ Expr scatter_from_worker0(Expr data, int num_workers, int axis) {
   ffi::ObjectPtr<ScatterCollectiveAttrs> attrs = ffi::make_object<ScatterCollectiveAttrs>();
   attrs->num_workers = std::move(num_workers);
   attrs->axis = std::move(axis);
-  static const Op& op = Op::Get("relax.ccl.scatter_from_worker0");
+  static const Op op = Op::Get("relax.ccl.scatter_from_worker0");
 
   return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
@@ -166,13 +172,15 @@ Type InferTypeScatter(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr(output_shape), output_dtype, input_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.ccl.scatter_from_worker0")
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor",
-                  "The buffer to be divided into equal parts and sent to each worker accordingly.")
-    .set_attrs_type<ScatterCollectiveAttrs>()
-    .set_attr<FInferType>("FInferType", InferTypeScatter)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.ccl.scatter_from_worker0")
+      .set_num_inputs(1)
+      .arg<Expr>("x",
+                 "The buffer to be divided into equal parts and sent to each worker accordingly.")
+      .set_attrs_type<ScatterCollectiveAttrs>()
+      .set_attr<FInferType>("FInferType", InferTypeScatter)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

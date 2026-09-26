@@ -64,7 +64,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /* relax.broadcast_to */
 Expr broadcast_to(Expr x, Expr shape) {
-  static const Op& op = Op::Get("relax.broadcast_to");
+  static const Op op = Op::Get("relax.broadcast_to");
   return Call(Type::Missing(), op, {std::move(x), std::move(shape)}, Attrs(), {});
 }
 
@@ -131,13 +131,15 @@ Type InferTypeBroadcastTo(const Call& call, const BlockBuilder& ctx) {
   return TensorType(/*shape=*/call->args[1], data_ty->dtype, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.broadcast_to")
-    .set_num_inputs(2)
-    .add_argument("x", "Tensor", "The input tensor.")
-    .add_argument("shape", "Shape", "The target shape.")
-    .set_attr<FInferType>("FInferType", InferTypeBroadcastTo)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.broadcast_to")
+      .set_num_inputs(2)
+      .arg<Expr>("x", "The input tensor.")
+      .arg<Expr>("shape", "The target shape.")
+      .set_attr<FInferType>("FInferType", InferTypeBroadcastTo)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.concat */
 
@@ -145,7 +147,7 @@ Expr concat(Expr tensors, ffi::Optional<int64_t> axis) {
   ffi::ObjectPtr<ConcatAttrs> attrs = ffi::make_object<ConcatAttrs>();
   attrs->axis = std::move(axis);
 
-  static const Op& op = Op::Get("relax.concat");
+  static const Op op = Op::Get("relax.concat");
   return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
@@ -390,14 +392,16 @@ InferLayoutOutput InferLayoutConcat(
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.concat")
-    .set_attrs_type<ConcatAttrs>()
-    .set_num_inputs(1)
-    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
-    .set_attr<FInferType>("FInferType", InferTypeConcat)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.concat")
+      .set_attrs_type<ConcatAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("tensors", "The input list of tensors.")
+      .set_attr<FInferType>("FInferType", InferTypeConcat)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.expand_dims */
 
@@ -405,7 +409,7 @@ Expr expand_dims(Expr x, ffi::Array<int64_t> axis) {
   ffi::ObjectPtr<ExpandDimsAttrs> attrs = ffi::make_object<ExpandDimsAttrs>();
   attrs->axis = std::move(axis);
 
-  static const Op& op = Op::Get("relax.expand_dims");
+  static const Op op = Op::Get("relax.expand_dims");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
@@ -494,14 +498,16 @@ InferLayoutOutput InferLayoutExpandDims(
                            Attrs(call->attrs));
 }
 
-TVM_REGISTER_OP("relax.expand_dims")
-    .set_num_inputs(1)
-    .set_attrs_type<ExpandDimsAttrs>()
-    .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeExpandDims)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutExpandDims)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.expand_dims")
+      .set_num_inputs(1)
+      .set_attrs_type<ExpandDimsAttrs>()
+      .arg<Expr>("x", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeExpandDims)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutExpandDims)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 // Helper function for flatten and reshape.
 PrimExpr ComputeShapeProduct(const ffi::Array<PrimExpr>& shape_values) {
@@ -514,7 +520,7 @@ PrimExpr ComputeShapeProduct(const ffi::Array<PrimExpr>& shape_values) {
 
 /* relax.flatten */
 Expr flatten(Expr x) {
-  static const Op& op = Op::Get("relax.flatten");
+  static const Op op = Op::Get("relax.flatten");
   return Call(Type::Missing(), op, {std::move(x)}, {}, {});
 }
 
@@ -541,17 +547,19 @@ Type InferTypeFlatten(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr({std::move(shape_prod)}), data_ty->dtype, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.flatten")
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeFlatten)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.flatten")
+      .set_num_inputs(1)
+      .arg<Expr>("x", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeFlatten)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.index_tensor */
 
 Expr index_tensor(Expr first, Expr tensors) {
-  static const Op& op = Op::Get("relax.index_tensor");
+  static const Op op = Op::Get("relax.index_tensor");
   return Call(Type::Missing(), op, {std::move(first), std::move(tensors)}, Attrs(), {});
 }
 
@@ -690,12 +698,14 @@ Type InferTypeIndexTensor(const Call& call, const BlockBuilder& ctx) {
   return TensorType(output_dtype, out_ndim, vdev);
 }
 
-TVM_REGISTER_OP("relax.index_tensor")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input data.")
-    .add_argument("indices", "List of Tensors", "The indices used to index.")
-    .set_attr<FInferType>("FInferType", InferTypeIndexTensor)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.index_tensor")
+      .set_num_inputs(2)
+      .arg<Expr>("data", "The input data.")
+      .arg<Expr>("indices", "The indices used to index.")
+      .set_attr<FInferType>("FInferType", InferTypeIndexTensor)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.layout_transform */
 
@@ -704,7 +714,7 @@ Expr layout_transform(Expr x, tirx::IndexMap index_map, ffi::Optional<PrimExpr> 
   attrs->index_map = std::move(index_map);
   attrs->pad_value = std::move(pad_value);
 
-  static const Op& op = Op::Get("relax.layout_transform");
+  static const Op op = Op::Get("relax.layout_transform");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
@@ -757,13 +767,15 @@ Type InferTypeLayoutTransform(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.layout_transform")
-    .set_num_inputs(1)
-    .set_attrs_type<LayoutTransformAttrs>()
-    .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeLayoutTransform)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.layout_transform")
+      .set_num_inputs(1)
+      .set_attrs_type<LayoutTransformAttrs>()
+      .arg<Expr>("x", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeLayoutTransform)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.permute_dims */
 
@@ -771,7 +783,7 @@ Expr permute_dims(Expr x, ffi::Optional<ffi::Array<int64_t>> axes) {
   ffi::ObjectPtr<PermuteDimsAttrs> attrs = ffi::make_object<PermuteDimsAttrs>();
   attrs->axes = std::move(axes);
 
-  static const Op& op = Op::Get("relax.permute_dims");
+  static const Op op = Op::Get("relax.permute_dims");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
@@ -877,14 +889,16 @@ InferLayoutOutput InferLayoutPermuteDims(
   return InferLayoutOutput({existing_layout}, {InitialLayoutDecision(ndim)}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.permute_dims")
-    .set_attrs_type<PermuteDimsAttrs>()
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypePermuteDims)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPermuteDims)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.permute_dims")
+      .set_attrs_type<PermuteDimsAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("x", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypePermuteDims)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPermuteDims)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data,
@@ -990,7 +1004,7 @@ Expr ConvertNewShapeToExpr(const Expr& data,
 
 Expr reshape(Expr x, ffi::Variant<Expr, ffi::Array<PrimExpr>> shape) {
   Expr shape_in_expr = ConvertNewShapeToExpr(x, shape);
-  static const Op& op = Op::Get("relax.reshape");
+  static const Op op = Op::Get("relax.reshape");
   return Call(Type::Missing(), op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
 }
 
@@ -1042,13 +1056,15 @@ Type InferTypeReshape(const Call& call, const BlockBuilder& ctx) {
   return TensorType(target_shape, data_ty->dtype, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.reshape")
-    .set_num_inputs(2)
-    .add_argument("x", "Tensor", "The input tensor.")
-    .add_argument("shape", "Shape", "The input new shape.")
-    .set_attr<FInferType>("FInferType", InferTypeReshape)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.reshape")
+      .set_num_inputs(2)
+      .arg<Expr>("x", "The input tensor.")
+      .arg<Expr>("shape", "The input new shape.")
+      .set_attr<FInferType>("FInferType", InferTypeReshape)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.split */
 
@@ -1080,7 +1096,7 @@ Expr split(Expr x, ffi::Variant<IntImm, ffi::Array<IntImm>> indices_or_sections,
   attrs->indices_or_sections = indices_or_sections_obj;
   attrs->axis = axis;
 
-  static const Op& op = Op::Get("relax.split");
+  static const Op op = Op::Get("relax.split");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
@@ -1215,14 +1231,16 @@ InferLayoutOutput InferLayoutSplit(
   return InferLayoutOutput({existing_layout}, {tuple_layouts}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.split")
-    .set_attrs_type<SplitAttrs>()
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeSplit)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSplit)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.split")
+      .set_attrs_type<SplitAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("x", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeSplit)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSplit)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.squeeze */
 
@@ -1230,7 +1248,7 @@ Expr squeeze(Expr x, ffi::Optional<ffi::Array<int64_t>> axis) {
   ffi::ObjectPtr<SqueezeAttrs> attrs = ffi::make_object<SqueezeAttrs>();
   attrs->axis = std::move(axis);
 
-  static const Op& op = Op::Get("relax.squeeze");
+  static const Op op = Op::Get("relax.squeeze");
   return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
@@ -1374,14 +1392,16 @@ InferLayoutOutput InferLayoutSqueeze(
                            Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.squeeze")
-    .set_num_inputs(1)
-    .set_attrs_type<SqueezeAttrs>()
-    .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeSqueeze)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSqueeze)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.squeeze")
+      .set_num_inputs(1)
+      .set_attrs_type<SqueezeAttrs>()
+      .arg<Expr>("x", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeSqueeze)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSqueeze)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
                         const ffi::Array<PrimExpr>& data_shape,
@@ -1428,7 +1448,7 @@ Expr stack(Expr tensors, ffi::Optional<int64_t> axis) {
   ffi::ObjectPtr<StackAttrs> attrs = ffi::make_object<StackAttrs>();
   attrs->axis = std::move(axis);
 
-  static const Op& op = Op::Get("relax.stack");
+  static const Op op = Op::Get("relax.stack");
   return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
@@ -1626,18 +1646,20 @@ InferLayoutOutput InferLayoutStack(
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.stack")
-    .set_attrs_type<StackAttrs>()
-    .set_num_inputs(1)
-    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors to stack")
-    .set_attr<FInferType>("FInferType", InferTypeStack)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStack)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.stack")
+      .set_attrs_type<StackAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("tensors", "The input list of tensors to stack")
+      .set_attr<FInferType>("FInferType", InferTypeStack)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStack)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.collapse_sum_like */
 Expr collapse_sum_like(Expr data, Expr collapse_target) {
-  static const Op& op = Op::Get("relax.collapse_sum_like");
+  static const Op op = Op::Get("relax.collapse_sum_like");
   return Call(Type::Missing(), op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
 }
 
@@ -1674,17 +1696,18 @@ Type InferTypeCollapseSumLike(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
-TVM_REGISTER_OP("relax.collapse_sum_like")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("collapse_target", "Tensor",
-                  "The tensor whose shape is the shape to collapse to.")
-    .set_attr<FInferType>("FInferType", InferTypeCollapseSumLike)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.collapse_sum_like")
+      .set_num_inputs(2)
+      .arg<Expr>("data", "The input tensor.")
+      .arg<Expr>("collapse_target", "The tensor whose shape is the shape to collapse to.")
+      .set_attr<FInferType>("FInferType", InferTypeCollapseSumLike)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.collapse_sum_to */
 Expr collapse_sum_to(Expr data, Expr shape) {
-  static const Op& op = Op::Get("relax.collapse_sum_to");
+  static const Op op = Op::Get("relax.collapse_sum_to");
   return Call(Type::Missing(), op, {std::move(data), std::move(shape)}, Attrs(), {});
 }
 
@@ -1725,12 +1748,14 @@ Type InferTypeCollapseSumTo(const Call& call, const BlockBuilder& ctx) {
   return TensorType(/*shape=*/call->args[1], output_dtype, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.collapse_sum_to")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("shape", "Shape", "The shape to collapse to.")
-    .set_attr<FInferType>("FInferType", InferTypeCollapseSumTo)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.collapse_sum_to")
+      .set_num_inputs(2)
+      .arg<Expr>("data", "The input tensor.")
+      .arg<Expr>("shape", "The shape to collapse to.")
+      .set_attr<FInferType>("FInferType", InferTypeCollapseSumTo)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.repeat */
 
@@ -1739,7 +1764,7 @@ Expr repeat(Expr data, int repeats, ffi::Optional<int64_t> axis) {
   attrs->repeats = std::move(repeats);
   attrs->axis = std::move(axis);
 
-  static const Op& op = Op::Get("relax.repeat");
+  static const Op op = Op::Get("relax.repeat");
   return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
@@ -1849,13 +1874,15 @@ InferLayoutOutput InferLayoutRepeat(
   return InferLayoutOutput({existing_layout}, {existing_layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.repeat")
-    .set_attrs_type<RepeatAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeRepeat)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRepeat)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.repeat")
+      .set_attrs_type<RepeatAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("data", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeRepeat)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRepeat)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.tile */
 
@@ -1863,7 +1890,7 @@ Expr tile(Expr data, ffi::Array<int64_t> repeats) {
   auto attrs = ffi::make_object<TileAttrs>();
   attrs->repeats = std::move(repeats);
 
-  static const Op& op = Op::Get("relax.tile");
+  static const Op op = Op::Get("relax.tile");
   return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
@@ -1993,20 +2020,22 @@ InferLayoutOutput InferLayoutTile(
   return InferLayoutOutput({existing_layout}, {output_layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.tile")
-    .set_attrs_type<TileAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeTile)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutTile)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.tile")
+      .set_attrs_type<TileAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("data", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeTile)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutTile)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.flip */
 
 Expr flip(Expr data, int64_t axis) {
   auto attrs = ffi::make_object<FlipAttrs>();
   attrs->axis = axis;
-  static const Op& op = Op::Get("relax.flip");
+  static const Op op = Op::Get("relax.flip");
   return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
@@ -2065,13 +2094,15 @@ InferLayoutOutput InferLayoutFlip(
   return InferLayoutOutput({existing_layout}, {existing_layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.flip")
-    .set_attrs_type<FlipAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeFlip)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutFlip)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.flip")
+      .set_attrs_type<FlipAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("data", "The input tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeFlip)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutFlip)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.reverse_sequence */
 
@@ -2079,7 +2110,7 @@ Expr reverse_sequence(Expr data, Expr seq_lengths, int64_t seq_axis, int64_t bat
   auto attrs = ffi::make_object<ReverseSequenceAttrs>();
   attrs->seq_axis = seq_axis;
   attrs->batch_axis = batch_axis;
-  static const Op& op = Op::Get("relax.reverse_sequence");
+  static const Op op = Op::Get("relax.reverse_sequence");
   return Call(Type::Missing(), op, {std::move(data), std::move(seq_lengths)}, Attrs{attrs}, {});
 }
 
@@ -2158,20 +2189,22 @@ Type InferTypeReverseSequence(const Call& call, const BlockBuilder& ctx) {
   return data_ty;
 }
 
-TVM_REGISTER_OP("relax.reverse_sequence")
-    .set_attrs_type<ReverseSequenceAttrs>()
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("seq_lengths", "Tensor", "The sequence length tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeReverseSequence)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.reverse_sequence")
+      .set_attrs_type<ReverseSequenceAttrs>()
+      .set_num_inputs(2)
+      .arg<Expr>("data", "The input tensor.")
+      .arg<Expr>("seq_lengths", "The sequence length tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeReverseSequence)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.gather_elements */
 
 Expr gather_elements(Expr data, Expr indices, int axis) {
   auto attrs = ffi::make_object<GatherElementsAttrs>();
   attrs->axis = axis;
-  static const Op& op = Op::Get("relax.gather_elements");
+  static const Op op = Op::Get("relax.gather_elements");
   return Call(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
 }
 
@@ -2259,21 +2292,23 @@ InferLayoutOutput InferLayoutGatherElements(
   return InferLayoutOutput({layout, layout}, {layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.gather_elements")
-    .set_attrs_type<GatherElementsAttrs>()
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("indices", "Tensor", "The indices tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeGatherElements)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGatherElements)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.gather_elements")
+      .set_attrs_type<GatherElementsAttrs>()
+      .set_num_inputs(2)
+      .arg<Expr>("data", "The input tensor.")
+      .arg<Expr>("indices", "The indices tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeGatherElements)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGatherElements)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.gather_nd */
 
 Expr gather_nd(Expr data, Expr indices, int batch_dims) {
   auto attrs = ffi::make_object<GatherNDAttrs>();
   attrs->batch_dims = batch_dims;
-  static const Op& op = Op::Get("relax.gather_nd");
+  static const Op op = Op::Get("relax.gather_nd");
   return Call(Type::Missing(), op, {data, indices}, Attrs(attrs), {});
 }
 
@@ -2353,20 +2388,22 @@ Type InferTypeGatherND(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.gather_nd")
-    .set_attrs_type<GatherNDAttrs>()
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("indices", "Tensor", "The indices tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeGatherND)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.gather_nd")
+      .set_attrs_type<GatherNDAttrs>()
+      .set_num_inputs(2)
+      .arg<Expr>("data", "The input tensor.")
+      .arg<Expr>("indices", "The indices tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeGatherND)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.index_put */
 
 Expr index_put(Expr data, Expr indices, Expr values, bool accumulate) {
   auto attrs = ffi::make_object<IndexPutAttrs>();
   attrs->accumulate = std::move(accumulate);
-  static const Op& op = Op::Get("relax.index_put");
+  static const Op op = Op::Get("relax.index_put");
   return Call(Type::Missing(), op, {data, indices, values}, Attrs(attrs), {});
 }
 
@@ -2503,21 +2540,23 @@ Type InferTypeIndexPut(const Call& call, const BlockBuilder& ctx) {
   return TensorType(data_ty->dtype, data_ty->ndim, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.index_put")
-    .set_attrs_type<IndexPutAttrs>()
-    .set_num_inputs(3)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("indices", "Tensor", "The indices tensor(s).")
-    .add_argument("values", "Tensor", "The values to put.")
-    .set_attr<FInferType>("FInferType", InferTypeIndexPut)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.index_put")
+      .set_attrs_type<IndexPutAttrs>()
+      .set_num_inputs(3)
+      .arg<Expr>("data", "The input tensor.")
+      .arg<Expr>("indices", "The indices tensor(s).")
+      .arg<Expr>("values", "The values to put.")
+      .set_attr<FInferType>("FInferType", InferTypeIndexPut)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.meshgrid */
 
 Expr meshgrid(Expr tensors, ffi::Optional<ffi::String> indexing) {
   ffi::ObjectPtr<MeshgridAttrs> attrs = ffi::make_object<MeshgridAttrs>();
   attrs->indexing = indexing;
-  static const Op& op = Op::Get("relax.meshgrid");
+  static const Op op = Op::Get("relax.meshgrid");
   return Call(Type::Missing(), op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
@@ -2609,13 +2648,15 @@ Type InferTypeMeshgrid(const Call& call, const BlockBuilder& ctx) {
   return TupleType(out_fields);
 }
 
-TVM_REGISTER_OP("relax.meshgrid")
-    .set_attrs_type<MeshgridAttrs>()
-    .set_num_inputs(1)
-    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
-    .set_attr<FInferType>("FInferType", InferTypeMeshgrid)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.meshgrid")
+      .set_attrs_type<MeshgridAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("tensors", "The input list of tensors.")
+      .set_attr<FInferType>("FInferType", InferTypeMeshgrid)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.scatter_elements */
 
@@ -2623,7 +2664,7 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, ffi::Stri
   auto attrs = ffi::make_object<ScatterElementsAttrs>();
   attrs->axis = std::move(axis);
   attrs->reduction = std::move(reduction);
-  static const Op& op = Op::Get("relax.scatter_elements");
+  static const Op op = Op::Get("relax.scatter_elements");
   return Call(Type::Missing(), op, {data, indices, updates}, Attrs(attrs), {});
 }
 
@@ -2752,22 +2793,24 @@ InferLayoutOutput InferLayoutScatterElements(
   return InferLayoutOutput({layout, layout, layout}, {layout}, Attrs(new_attrs));
 }
 
-TVM_REGISTER_OP("relax.scatter_elements")
-    .set_attrs_type<ScatterElementsAttrs>()
-    .set_num_inputs(3)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("indices", "Tensor", "The indices tensor.")
-    .add_argument("updates", "Tensor", "The input tensor of updates.")
-    .set_attr<FInferType>("FInferType", InferTypeScatterElements)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterElements)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.scatter_elements")
+      .set_attrs_type<ScatterElementsAttrs>()
+      .set_num_inputs(3)
+      .arg<Expr>("data", "The input tensor.")
+      .arg<Expr>("indices", "The indices tensor.")
+      .arg<Expr>("updates", "The input tensor of updates.")
+      .set_attr<FInferType>("FInferType", InferTypeScatterElements)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterElements)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.scatter_nd */
 
 Expr scatter_nd(Expr data, Expr indices, Expr updates, ffi::String reduction) {
   auto attrs = ffi::make_object<ScatterNDAttrs>();
   attrs->reduction = std::move(reduction);
-  static const Op& op = Op::Get("relax.scatter_nd");
+  static const Op op = Op::Get("relax.scatter_nd");
   return Call(Type::Missing(), op, {data, indices, updates}, Attrs(attrs), {});
 }
 
@@ -2930,22 +2973,24 @@ InferLayoutOutput InferLayoutScatterND(
                            Attrs(call->attrs));
 }
 
-TVM_REGISTER_OP("relax.scatter_nd")
-    .set_attrs_type<ScatterNDAttrs>()
-    .set_num_inputs(3)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("indices", "Tensor", "The indices tensor.")
-    .add_argument("updates", "Tensor", "The input tensor of updates.")
-    .set_attr<FInferType>("FInferType", InferTypeScatterND)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterND)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.scatter_nd")
+      .set_attrs_type<ScatterNDAttrs>()
+      .set_num_inputs(3)
+      .arg<Expr>("data", "The input tensor.")
+      .arg<Expr>("indices", "The indices tensor.")
+      .arg<Expr>("updates", "The input tensor of updates.")
+      .set_attr<FInferType>("FInferType", InferTypeScatterND)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterND)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.scatter_nd */
 
 Expr slice_scatter(Expr input, Expr src, int axis, PrimExpr start, PrimExpr end, PrimExpr step) {
   auto attrs = ffi::make_object<SliceScatterAttrs>();
   attrs->axis = std::move(axis);
-  static const Op& op = Op::Get("relax.slice_scatter");
+  static const Op op = Op::Get("relax.slice_scatter");
   return Call(Type::Missing(), op, {input, src, start, end, step}, Attrs(attrs), {});
 }
 
@@ -3084,16 +3129,18 @@ Type InferTypeSliceScatter(const Call& call, const BlockBuilder& ctx) {
   return TensorType(data_ty->dtype, data_ty->ndim, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.slice_scatter")
-    .set_attrs_type<SliceScatterAttrs>()
-    .set_num_inputs(5)
-    .add_argument("input", "Tensor", "The input tensor.")
-    .add_argument("src", "Tensor", "The source tensor to scatter.")
-    .add_argument("start", "PrimExpr", "The starting index of the slice (inclusive).")
-    .add_argument("end", "PrimExpr", "The ending index of the slice (exclusive).")
-    .add_argument("step", "PrimExpr", "The step of the slice.")
-    .set_attr<FInferType>("FInferType", InferTypeSliceScatter)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.slice_scatter")
+      .set_attrs_type<SliceScatterAttrs>()
+      .set_num_inputs(5)
+      .arg<Expr>("input", "The input tensor.")
+      .arg<Expr>("src", "The source tensor to scatter.")
+      .arg<PrimExpr>("start", "The starting index of the slice (inclusive).")
+      .arg<PrimExpr>("end", "The ending index of the slice (exclusive).")
+      .arg<PrimExpr>("step", "The step of the slice.")
+      .set_attr<FInferType>("FInferType", InferTypeSliceScatter)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.one_hot */
 
@@ -3111,7 +3158,7 @@ Expr one_hot(Expr indices, PrimExpr on_value, PrimExpr off_value, int depth, int
 
   TVM_FFI_ICHECK(depth > 0) << "one_hot: depth must be positive, but got " << depth;
 
-  static const Op& op = Op::Get("relax.one_hot");
+  static const Op op = Op::Get("relax.one_hot");
   return Call(Type::Missing(), op, {indices, on_value, off_value}, Attrs(attrs), {});
 }  // namespace relax
 
@@ -3169,14 +3216,16 @@ Type InferTypeOneHot(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr(output_shape), dtype, indices_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.one_hot")
-    .set_attrs_type<OneHotAttrs>()
-    .set_num_inputs(3)
-    .add_argument("indices", "Tensor", "The indices tensor.")
-    .add_argument("on_value", "PrimExpr", "The value to fill at specified indices.")
-    .add_argument("off_value", "PrimExpr", "The value to fill at other indices.")
-    .set_attr<FInferType>("FInferType", InferTypeOneHot)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.one_hot")
+      .set_attrs_type<OneHotAttrs>()
+      .set_num_inputs(3)
+      .arg<Expr>("indices", "The indices tensor.")
+      .arg<PrimExpr>("on_value", "The value to fill at specified indices.")
+      .arg<PrimExpr>("off_value", "The value to fill at other indices.")
+      .set_attr<FInferType>("FInferType", InferTypeOneHot)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

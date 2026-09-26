@@ -2450,9 +2450,9 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
       prim::is_const_int(op->args[0].as_or_throw<PrimExpr>())) {
     return op->args[0].as_or_throw<PrimExpr>();
   }
-  static const Op& ceil_op = prim::builtin::ceil();
-  static const Op& log2_op = prim::builtin::log2();
-  static const Op& clz_op = prim::builtin::clz();
+  static const Op ceil_op = prim::builtin::ceil();
+  static const Op log2_op = prim::builtin::log2();
+  static const Op clz_op = prim::builtin::clz();
   PrimType ret_ty = op->ty.as_or_throw<PrimType>();
   if (op->op.same_as(ceil_op)) {
     PrimExpr ceil_arg = op->args[0].as_or_throw<PrimExpr>();

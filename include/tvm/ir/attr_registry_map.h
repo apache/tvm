@@ -93,7 +93,6 @@ class AttrRegistryMapContainerMap {
   AttrRegistryMapContainerMap() = default;
   template <typename, typename>
   friend class AttrRegistry;
-  friend class OpRegEntry;
 };
 
 /*!

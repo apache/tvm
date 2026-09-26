@@ -333,9 +333,9 @@ class TokenAllocatorMixed {
 
 /*! \brief Check if the input op is a memory op that may return the same buffer. */
 bool IsInplaceMemoryOp(const Expr& op) {
-  static const Op& reshape_op = Op::Get("relax.reshape");
-  static const Op& view_op = Op::Get("relax.memory.view");
-  static const Op& ensure_zero_offset_op = Op::Get("relax.memory.ensure_zero_offset");
+  static const Op reshape_op = Op::Get("relax.reshape");
+  static const Op view_op = Op::Get("relax.memory.view");
+  static const Op ensure_zero_offset_op = Op::Get("relax.memory.ensure_zero_offset");
   const auto* extern_func = op.as<ExternFuncNode>();
   bool is_builtin_reshape =
       extern_func != nullptr && extern_func->global_symbol == "vm.builtin.reshape";
@@ -562,8 +562,8 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    static const Op& call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
+    static const Op alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op call_tir_dyn_op = Op::Get("relax.vm.call_tir_dyn");
 
     if (call->op.same_as(alloc_tensor_op)) {
       // Create a storage token for builtin alloc_tensor.
@@ -807,7 +807,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
-    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     if (call->op.same_as(alloc_tensor_op)) {
       auto it = token_map_.find(call);
       TVM_FFI_ICHECK(it != token_map_.end());
@@ -936,9 +936,9 @@ class StorageAllocationRewriter : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call) final {
-    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    static const Op& mem_alloc_storage = Op::Get("relax.memory.alloc_storage");
-    static const Op& mem_alloc_tensor = Op::Get("relax.memory.alloc_tensor");
+    static const Op alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op mem_alloc_storage = Op::Get("relax.memory.alloc_storage");
+    static const Op mem_alloc_tensor = Op::Get("relax.memory.alloc_tensor");
     auto it = alloc_tensor2token_.find(call);
     if (it != alloc_tensor2token_.end()) {
       // Case 1. This `alloc_tensor` is planned for memory reuse.

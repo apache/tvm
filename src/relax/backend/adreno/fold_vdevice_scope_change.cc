@@ -133,7 +133,7 @@ class CollectConsumerDetails : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     Tuple func_args;
 
     if (call->op.same_as(call_tir_op)) {

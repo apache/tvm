@@ -349,8 +349,8 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   /*! \brief Record of ops that have pre-defined global symbol. */
   OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
   // cache commonly used ops
-  const Op& builtin_call_extern_ = builtin::call_extern();
-  const Op& builtin_call_pure_extern_ = builtin::call_pure_extern();
+  const Op builtin_call_extern_ = builtin::call_extern();
+  const Op builtin_call_pure_extern_ = builtin::call_pure_extern();
   int64_t constants_byte_alignment_ = 16;
   /*! \brief whether to print in SSA form */
   bool print_ssa_form_{false};

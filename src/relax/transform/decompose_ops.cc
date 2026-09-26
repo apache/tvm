@@ -150,7 +150,7 @@ Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
   TVM_FFI_ICHECK(ty);
   // call builtin function that converts tensor to shape tuple
   // TODO(@sunggg): Register operator for "vm.builtin.tensor_to_shape"
-  static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+  static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
   Var call = builder->Emit(Call(Type::Missing(), call_pure_packed_op,
                                 {ExternFunc("vm.builtin.tensor_to_shape"), expr}, {},
                                 {ffi::GetRef<ShapeType>(ty)}));
@@ -191,8 +191,8 @@ class TrainingOperatorMutator : public ExprMutator {
   }
 
   /* composite opeartor list */
-  const Op& batch_norm_op_ = Op::Get("relax.nn.batch_norm");
-  const Op& layer_norm_op_ = Op::Get("relax.nn.layer_norm");
+  const Op batch_norm_op_ = Op::Get("relax.nn.batch_norm");
+  const Op layer_norm_op_ = Op::Get("relax.nn.layer_norm");
 };
 
 class OpDecomposer : public ExprMutator {
@@ -210,8 +210,8 @@ class OpDecomposer : public ExprMutator {
   }
 
   /* composite opeartor list */
-  const Op& batch_norm_op_ = Op::Get("relax.nn.batch_norm");
-  const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
+  const Op batch_norm_op_ = Op::Get("relax.nn.batch_norm");
+  const Op tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
 };
 
 namespace transform {

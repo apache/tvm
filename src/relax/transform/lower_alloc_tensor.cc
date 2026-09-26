@@ -38,9 +38,9 @@ class Mutator : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const CallNode* op) override {
-    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    static const Op& mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
-    static const Op& mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
+    static const Op alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
+    static const Op mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
 
     if (op->op.same_as(alloc_tensor_op)) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 4)

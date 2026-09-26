@@ -149,45 +149,47 @@ Call InferMixedPrecisionAttention(const Call& call, DLDataType out_dtype) {
       .as_or_throw<Call>();
 }
 
-TVM_REGISTER_OP("relax.nn.attention")
-    .set_attrs_type<AttentionAttrs>()
-    .set_num_inputs(3)
-    .add_argument("query", "Tensor", "The input queries tensor.")
-    .add_argument("key", "Tensor", "The input keys tensor.")
-    .add_argument("value", "Tensor", "The input values tensor.")
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferType>("FInferType", InferTypeAttention)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.nn.attention")
+      .set_attrs_type<AttentionAttrs>()
+      .set_num_inputs(3)
+      .arg<Expr>("query", "The input queries tensor.")
+      .arg<Expr>("key", "The input keys tensor.")
+      .arg<Expr>("value", "The input values tensor.")
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
+      .set_attr<FInferType>("FInferType", InferTypeAttention)
+      .set_attr<bool>("FPurity", true);
 
-TVM_REGISTER_OP("relax.nn.attention_bias")
-    .set_attrs_type<AttentionAttrs>()
-    .set_num_inputs(4)
-    .add_argument("query", "Tensor", "The input queries tensor.")
-    .add_argument("key", "Tensor", "The input keys tensor.")
-    .add_argument("value", "Tensor", "The input values tensor.")
-    .add_argument("bias", "Tensor", "The input bias tensor.")
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferType>("FInferType", InferTypeAttention)
-    .set_attr<bool>("FPurity", true);
+  OpDef("relax.nn.attention_bias")
+      .set_attrs_type<AttentionAttrs>()
+      .set_num_inputs(4)
+      .arg<Expr>("query", "The input queries tensor.")
+      .arg<Expr>("key", "The input keys tensor.")
+      .arg<Expr>("value", "The input values tensor.")
+      .arg<Expr>("bias", "The input bias tensor.")
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
+      .set_attr<FInferType>("FInferType", InferTypeAttention)
+      .set_attr<bool>("FPurity", true);
 
-TVM_REGISTER_OP("relax.nn.attention_var_len")
-    .set_attrs_type<AttentionAttrs>()
-    .set_num_inputs(7)
-    .add_argument("query", "Tensor", "The input queries tensor.")
-    .add_argument("key", "Tensor", "The input keys tensor.")
-    .add_argument("value", "Tensor", "The input values tensor.")
-    .add_argument("seqstart_q", "Tensor", "The cumsum of query sequence lengths, prepended with 0.")
-    .add_argument("seqstart_k", "Tensor", "The cumsum of key sequence lengths, prepended with 0.")
-    .add_argument("max_seqlen_q", "Tensor", "The maximum query sequence length in the batch.")
-    .add_argument("max_seqlen_k", "Tensor", "The maximum key sequence length in the batch.")
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferType>("FInferType", InferTypeAttention)
-    .set_attr<bool>("FPurity", true);
+  OpDef("relax.nn.attention_var_len")
+      .set_attrs_type<AttentionAttrs>()
+      .set_num_inputs(7)
+      .arg<Expr>("query", "The input queries tensor.")
+      .arg<Expr>("key", "The input keys tensor.")
+      .arg<Expr>("value", "The input values tensor.")
+      .arg<Expr>("seqstart_q", "The cumsum of query sequence lengths, prepended with 0.")
+      .arg<Expr>("seqstart_k", "The cumsum of key sequence lengths, prepended with 0.")
+      .arg<Expr>("max_seqlen_q", "The maximum query sequence length in the batch.")
+      .arg<Expr>("max_seqlen_k", "The maximum key sequence length in the batch.")
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+      .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
+      .set_attr<FInferType>("FInferType", InferTypeAttention)
+      .set_attr<bool>("FPurity", true);
 
-TVM_FFI_STATIC_INIT_BLOCK() { AttentionAttrs::RegisterReflection(); }
+  AttentionAttrs::RegisterReflection();
+}
 
 }  // namespace relax
 }  // namespace tvm

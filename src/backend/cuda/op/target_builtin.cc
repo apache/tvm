@@ -35,93 +35,109 @@ namespace tvm {
 namespace tirx {
 namespace builtin {
 
-#define TIRX_DEFINE_BUILTIN_FUNC(OpName)                                           \
-  OpRegEntry::RegisterOrGet("tirx." #OpName)                                       \
-      .set_name()                                                                  \
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(#OpName), 1) \
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), /*plevel=*/1)
-
 namespace {
 void RegisterDeviceIntrinsicAliases();
 }
 
 void RegisterCudaTargetBuiltins() {
-  // clang-format off
-static bool registered = false;
-if (registered) return;
-registered = true;
+  static bool registered = false;
+  if (registered) return;
+  registered = true;
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_load_matrix_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kReadState));
+  OpDef("tirx.tvm_load_matrix_sync")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_load_matrix_sync"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kReadState));
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_mma_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.tvm_mma_sync")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_mma_sync"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_bmma_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.tvm_bmma_sync")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_bmma_sync"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_fill_fragment)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.tvm_fill_fragment")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_fill_fragment"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_store_matrix_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.tvm_store_matrix_sync")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_store_matrix_sync"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-// Siblings of mma_store / mma_fill that accept
-// (ptr_var, offset) pairs. Codegen emits `ptr + offset` C-pointer
-// arithmetic and lower_warp_memory rewrites the offset's group component
-// to its thread-local index. Used by the s_tir tensor_intrin tensorize
-// path so per-thread fragment offsets stay element-accurate.
-TIRX_DEFINE_BUILTIN_FUNC(mma_store_legacy)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  // Siblings of mma_store / mma_fill that accept
+  // (ptr_var, offset) pairs. Codegen emits `ptr + offset` C-pointer
+  // arithmetic and lower_warp_memory rewrites the offset's group component
+  // to its thread-local index. Used by the s_tir tensor_intrin tensorize
+  // path so per-thread fragment offsets stay element-accurate.
+  OpDef("tirx.mma_store_legacy")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.mma_store_legacy"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(mma_fill_legacy)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.mma_fill_legacy")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.mma_fill_legacy"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-OpRegEntry::RegisterOrGet("tirx.s_tir.ldg32")
-    .set_name()
-    .set_num_inputs(4)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.ldg32"), 20)
-    .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"), 10)
-    .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"), 10);
+  OpDef("tirx.s_tir.ldg32")
+      .set_num_inputs(4)
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.ldg32"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"));
 
-// Raw legacy cp.async form emitted by InjectPTXAsyncCopy (and round-tripped by
-// the T.s_tir.cp_async_raw.legacy 6-arg surface). It carries the element dtype in Call.dtype
-// and prints it dtype-first; user-issued copies go through T.ptx instead.
-OpRegEntry::RegisterOrGet("tirx.s_tir.cp_async_raw")
-    .set_name()
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-    .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
-    .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"))
-    .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.cp_async_raw"))
-    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+  // Raw legacy cp.async form emitted by InjectPTXAsyncCopy (and round-tripped by
+  // the T.s_tir.cp_async_raw.legacy 6-arg surface). It carries the element dtype in Call.dtype
+  // and prints it dtype-first; user-issued copies go through T.ptx instead.
+  OpDef("tirx.s_tir.cp_async_raw")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.cp_async_raw"))
+      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
-TIRX_DEFINE_BUILTIN_FUNC(mma_store)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+  OpDef("tirx.mma_store")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.mma_store"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
-TIRX_DEFINE_BUILTIN_FUNC(mma_fill)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+  OpDef("tirx.mma_fill")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.mma_fill"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
-TIRX_DEFINE_BUILTIN_FUNC(timer_init_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.timer_init_cuda")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.timer_init"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(timer_start_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.timer_start_cuda")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.timer_start"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(timer_end_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.timer_end_cuda")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.timer_end"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(timer_finalize_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.timer_finalize_cuda")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.timer_finalize"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-RegisterDeviceIntrinsicAliases();
-  // clang-format on
+  RegisterDeviceIntrinsicAliases();
 }
 
 namespace {
@@ -143,18 +159,24 @@ void RegisterDeviceIntrinsic(const DeviceIntrinsicRegistration& reg) {
 
   std::string canonical_op_name = "tirx." + namespace_name + "." + suffix;
   ffi::String namespace_attr(namespace_name);
+  // Match the nested construction namespaces at the canonical registration site.
+  if (namespace_name == "cuda" &&
+      (suffix.rfind("tcgen05_", 0) == 0 || suffix.rfind("wgmma_", 0) == 0)) {
+    suffix[suffix.find('_')] = '.';
+  } else if (namespace_name == "nvshmem" &&
+             ((suffix.size() >= 6 && suffix.compare(suffix.size() - 6, 6, "_block") == 0) ||
+              (suffix.size() >= 5 && suffix.compare(suffix.size() - 5, 5, "_warp") == 0))) {
+    suffix[suffix.rfind('_')] = '.';
+  }
   ffi::String printer_name(namespace_name + "." + suffix);
   int64_t effect = static_cast<int64_t>(reg.effect_kind);
 
   auto register_one = [&](const std::string& op_name) {
-    OpRegEntry::RegisterOrGet(op_name)
-        .set_name()
-        .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"),
-                                  /*plevel=*/15)
-        .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", namespace_attr,
-                                             /*plevel=*/15)
-        .set_attr<TCallEffectKind>("TCallEffectKind", effect, /*plevel=*/15)
-        .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name, /*plevel=*/15);
+    OpDef(op_name)
+        .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+        .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", namespace_attr)
+        .set_attr<TCallEffectKind>("TCallEffectKind", effect)
+        .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name);
   };
 
   register_one(canonical_op_name);
@@ -251,8 +273,6 @@ void RegisterDeviceIntrinsicAliases() {
 #undef TIRX_DEVICE_INTRIN_ALIAS
 
 }  // namespace
-
-#undef TIRX_DEFINE_BUILTIN_FUNC
 
 TVM_FFI_STATIC_INIT_BLOCK() { RegisterCudaTargetBuiltins(); }
 

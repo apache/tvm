@@ -27,22 +27,56 @@
 namespace tvm {
 namespace tirx {
 
-#define TVM_REGISTER_CUDA_IKET_OP(OpName)                                                    \
-  TVM_REGISTER_OP("tirx.cuda.iket_" #OpName)                                                 \
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))              \
-      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda")) \
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket." #OpName)) \
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.cuda.iket_mark")
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
+                                                                      "mark"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TVM_REGISTER_CUDA_IKET_OP(mark);
-TVM_REGISTER_CUDA_IKET_OP(range_start);
-TVM_REGISTER_CUDA_IKET_OP(range_end);
-TVM_REGISTER_CUDA_IKET_OP(range_push);
-TVM_REGISTER_CUDA_IKET_OP(range_pop);
-TVM_REGISTER_CUDA_IKET_OP(sentinel_token);
-TVM_REGISTER_CUDA_IKET_OP(official_event);
+  OpDef("tirx.cuda.iket_range_start")
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
+                                                                      "range_start"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-#undef TVM_REGISTER_CUDA_IKET_OP
+  OpDef("tirx.cuda.iket_range_end")
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
+                                                                      "range_end"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+  OpDef("tirx.cuda.iket_range_push")
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
+                                                                      "range_push"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+  OpDef("tirx.cuda.iket_range_pop")
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
+                                                                      "range_pop"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+  OpDef("tirx.cuda.iket_sentinel_token")
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
+                                                                      "sentinel_token"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+  OpDef("tirx.cuda.iket_official_event")
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
+                                                                      "official_event"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+}
 
 }  // namespace tirx
 }  // namespace tvm

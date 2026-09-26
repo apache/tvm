@@ -32,19 +32,6 @@
 namespace tvm {
 namespace relax {
 
-/*!
- * \brief Quick helper macro to
- * - expose a make-function interface which construct the call node.
- * - register op to the registry.
- * \param OpName The name of operator to register.
- * \param OpRegName The identifier of the operator in the registry.
- * \param RequireFloatDtype A boolean indicating if the input is required to have float dtype.
- */
-#define RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(OpName, OpRegName, RequireFloatDtype) \
-  RELAX_UNARY_OP_INTERFACE(OpName, OpRegName)                                     \
-  RELAX_REGISTER_UNARY_OP(OpRegName).set_attr<FInferType>("FInferType",           \
-                                                          InferTypeUnaryArith<RequireFloatDtype>)
-
 /*! \brief Rectified linear unit. */
 Expr relu(Expr data);
 

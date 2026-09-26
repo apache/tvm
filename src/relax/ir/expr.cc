@@ -809,7 +809,7 @@ Expr GetShapeOf(const Expr& expr) {
   TVM_FFI_ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorType";
   if (tinfo->shape.has_value()) return tinfo->shape.value();
 
-  static const Op& op = Op::Get("relax.shape_of");
+  static const Op op = Op::Get("relax.shape_of");
   // default case, call shape of, eagerly normalize the expr.
   Call call_shape_of(Type::Missing(), op, {expr}, {}, {});
   UpdateType(call_shape_of, ShapeType(tinfo->ndim));

@@ -43,7 +43,7 @@ Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indice
       ffi::make_object<MultinomialFromUniformAttrs>();
   attrs->dtype = dtype;
 
-  static const Op& op = Op::Get("relax.multinomial_from_uniform");
+  static const Op op = Op::Get("relax.multinomial_from_uniform");
   return Call(Type::Missing(), op,
               {std::move(prob), std::move(uniform_sample), std::move(sample_indices)}, Attrs(attrs),
               {});
@@ -144,14 +144,16 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
   return TensorType(ShapeExpr({n, 1}), PrimType(attrs->dtype), prob_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.multinomial_from_uniform")
-    .set_attrs_type<MultinomialFromUniformAttrs>()
-    .set_num_inputs(3)
-    .add_argument("prob", "Tensor", "The probability tensor.")
-    .add_argument("uniform_sample", "Tensor", "The uniform sample tensor.")
-    .add_argument("sample_indices", "Tensor", "The sample indices tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeMultinomialFromUniform)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.multinomial_from_uniform")
+      .set_attrs_type<MultinomialFromUniformAttrs>()
+      .set_num_inputs(3)
+      .arg<Expr>("prob", "The probability tensor.")
+      .arg<Expr>("uniform_sample", "The uniform sample tensor.")
+      .arg<Expr>("sample_indices", "The sample indices tensor.")
+      .set_attr<FInferType>("FInferType", InferTypeMultinomialFromUniform)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

@@ -49,7 +49,7 @@ Expr all_class_non_max_suppression(Expr boxes, Expr scores, Expr max_output_boxe
   auto attrs = tvm::ffi::make_object<AllClassNonMaximumSuppressionAttrs>();
   attrs->output_format = output_format;
 
-  static const Op& op = Op::Get("relax.vision.all_class_non_max_suppression");
+  static const Op op = Op::Get("relax.vision.all_class_non_max_suppression");
   return Call(Type::Missing(), op,
               {std::move(boxes), std::move(scores), std::move(max_output_boxes_per_class),
                std::move(iou_threshold), std::move(score_threshold)},
@@ -102,19 +102,19 @@ Type InferTypeAllClassNMS(const Call& call, const BlockBuilder& ctx) {
   return TupleType(fields);
 }
 
-TVM_REGISTER_OP("relax.vision.all_class_non_max_suppression")
-    .set_attrs_type<AllClassNonMaximumSuppressionAttrs>()
-    .set_num_inputs(5)
-    .add_argument("boxes", "Tensor", "The input boxes in the format [batch, num_boxes, 4].")
-    .add_argument("scores", "Tensor",
-                  "Scores for each box and class in the format [batch, num_classes, num_boxes].")
-    .add_argument("max_output_boxes_per_class", "Tensor",
-                  "The maximum number of output boxes per class.")
-    .add_argument("iou_threshold", "Tensor", "The IoU threshold for box the overlap test.")
-    .add_argument("score_threshold", "Tensor",
-                  "The score threshold to filter out low score boxes early.")
-    .set_attr<FInferType>("FInferType", InferTypeAllClassNMS)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.vision.all_class_non_max_suppression")
+      .set_attrs_type<AllClassNonMaximumSuppressionAttrs>()
+      .set_num_inputs(5)
+      .arg<Expr>("boxes", "The input boxes in the format [batch, num_boxes, 4].")
+      .arg<Expr>("scores",
+                 "Scores for each box and class in the format [batch, num_classes, num_boxes].")
+      .arg<Expr>("max_output_boxes_per_class", "The maximum number of output boxes per class.")
+      .arg<Expr>("iou_threshold", "The IoU threshold for box the overlap test.")
+      .arg<Expr>("score_threshold", "The score threshold to filter out low score boxes early.")
+      .set_attr<FInferType>("FInferType", InferTypeAllClassNMS)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.vision.get_valid_counts */
 
@@ -124,7 +124,7 @@ Expr get_valid_counts(Expr data, double score_threshold, int id_index, int score
   attrs->id_index = id_index;
   attrs->score_index = score_index;
 
-  static const Op& op = Op::Get("relax.vision.get_valid_counts");
+  static const Op op = Op::Get("relax.vision.get_valid_counts");
   return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
@@ -183,13 +183,14 @@ Type InferTypeGetValidCounts(const Call& call, const BlockBuilder& ctx) {
   return TupleType(fields);
 }
 
-TVM_REGISTER_OP("relax.vision.get_valid_counts")
-    .set_attrs_type<GetValidCountsAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor",
-                  "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
-    .set_attr<FInferType>("FInferType", InferTypeGetValidCounts)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.vision.get_valid_counts")
+      .set_attrs_type<GetValidCountsAttrs>()
+      .set_num_inputs(1)
+      .arg<Expr>("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
+      .set_attr<FInferType>("FInferType", InferTypeGetValidCounts)
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.vision.non_max_suppression */
 
@@ -210,7 +211,7 @@ Expr non_max_suppression(Expr data, Expr valid_count, Expr indices, int max_outp
   attrs->soft_nms_sigma = soft_nms_sigma;
   attrs->score_threshold = score_threshold;
 
-  static const Op& op = Op::Get("relax.vision.non_max_suppression");
+  static const Op op = Op::Get("relax.vision.non_max_suppression");
   return Call(Type::Missing(), op, {std::move(data), std::move(valid_count), std::move(indices)},
               Attrs(attrs), {});
 }
@@ -354,15 +355,16 @@ Type InferTypeNMS(const Call& call, const BlockBuilder& ctx) {
   return TensorType(data_ty->dtype, /*ndim=*/3, vdev);
 }
 
-TVM_REGISTER_OP("relax.vision.non_max_suppression")
-    .set_attrs_type<NonMaximumSuppressionAttrs>()
-    .set_num_inputs(3)
-    .add_argument("data", "Tensor",
-                  "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
-    .add_argument("valid_count", "Tensor", "1-D tensor for valid number of boxes.")
-    .add_argument("indices", "Tensor", "2-D tensor with shape [batch_size, num_anchors].")
-    .set_attr<FInferType>("FInferType", InferTypeNMS)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.vision.non_max_suppression")
+      .set_attrs_type<NonMaximumSuppressionAttrs>()
+      .set_num_inputs(3)
+      .arg<Expr>("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length].")
+      .arg<Expr>("valid_count", "1-D tensor for valid number of boxes.")
+      .arg<Expr>("indices", "2-D tensor with shape [batch_size, num_anchors].")
+      .set_attr<FInferType>("FInferType", InferTypeNMS)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

@@ -230,10 +230,10 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
   bool HasSideEffect(const PrimExpr& value) {
     if (ignore_profiler_call_) {
       if (const CallNode* call = value.as<CallNode>()) {
-        static const Op& timer_init_cuda_op = Op::Get("tirx.timer_init_cuda");
-        static const Op& timer_start_cuda_op = Op::Get("tirx.timer_start_cuda");
-        static const Op& timer_end_cuda_op = Op::Get("tirx.timer_end_cuda");
-        static const Op& timer_finalize_cuda_op = Op::Get("tirx.timer_finalize_cuda");
+        static const Op timer_init_cuda_op = Op::Get("tirx.timer_init_cuda");
+        static const Op timer_start_cuda_op = Op::Get("tirx.timer_start_cuda");
+        static const Op timer_end_cuda_op = Op::Get("tirx.timer_end_cuda");
+        static const Op timer_finalize_cuda_op = Op::Get("tirx.timer_finalize_cuda");
         if (call->op.same_as(timer_init_cuda_op) || call->op.same_as(timer_start_cuda_op) ||
             call->op.same_as(timer_end_cuda_op) || call->op.same_as(timer_finalize_cuda_op)) {
           return false;

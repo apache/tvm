@@ -74,10 +74,10 @@ class PurityRemover : public ExprMutator {
   }
 
  private:
-  const Op& call_pure_packed_op_ = Op::Get("relax.call_pure_packed");
-  const Op& call_inplace_packed_op_ = Op::Get("relax.call_inplace_packed");
-  const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
-  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op call_pure_packed_op_ = Op::Get("relax.call_pure_packed");
+  const Op call_inplace_packed_op_ = Op::Get("relax.call_inplace_packed");
+  const Op invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
+  const Op invoke_closure_op_ = Op::Get("relax.invoke_closure");
 };
 
 Function RemovePurityChecking(const Function& f) { return PurityRemover().RemovePurity(f); }

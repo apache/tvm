@@ -41,13 +41,11 @@ void RegisterNKIIntrinsicAliases();
 }
 
 void RegisterTRNTargetBuiltins() {
-  // clang-format off
-static bool registered = false;
-if (registered) return;
-registered = true;
+  static bool registered = false;
+  if (registered) return;
+  registered = true;
 
-RegisterNKIIntrinsicAliases();
-  // clang-format on
+  RegisterNKIIntrinsicAliases();
 }
 
 namespace {
@@ -65,14 +63,11 @@ void RegisterNKIIntrinsic(const char* name) {
   int64_t effect = static_cast<int64_t>(CallEffectKind::kOpaque);
 
   auto register_one = [&](const std::string& op_name) {
-    OpRegEntry::RegisterOrGet(op_name)
-        .set_name()
-        .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"),
-                                  /*plevel=*/15)
-        .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", namespace_attr,
-                                             /*plevel=*/15)
-        .set_attr<TCallEffectKind>("TCallEffectKind", effect, /*plevel=*/15)
-        .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name, /*plevel=*/15);
+    OpDef(op_name)
+        .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+        .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", namespace_attr)
+        .set_attr<TCallEffectKind>("TCallEffectKind", effect)
+        .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name);
   };
 
   register_one(canonical_op_name);

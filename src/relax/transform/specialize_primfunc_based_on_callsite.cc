@@ -69,7 +69,7 @@ class SpecializeTIRCallArgs : ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) override {
     auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     if (call->op.same_as(call_tir_op)) {
       return SpecializeTirPrimFunc(call);
     }

@@ -489,9 +489,9 @@ class LambdaLifter : public ExprMutator {
   std::unordered_map<const FunctionNode*, ffi::String> lifted_names_;
 
   /*! \brief Cache ops that would be used later to reduce lookup overhead. */
-  const Op& make_closure_op_ = Op::Get("relax.make_closure");
-  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
-  const Op& invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
+  const Op make_closure_op_ = Op::Get("relax.make_closure");
+  const Op invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op invoke_pure_closure_op_ = Op::Get("relax.invoke_pure_closure");
 };
 
 namespace transform {

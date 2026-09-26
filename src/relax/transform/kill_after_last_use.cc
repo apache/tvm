@@ -159,13 +159,13 @@ class CollectLastUsage : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) override {
-    static const Op& vm_alloc_storage = Op::Get("relax.vm.alloc_storage");
-    static const Op& mem_alloc_storage = Op::Get("relax.memory.alloc_storage");
-    static const Op& null_value_op = Op::Get("relax.null_value");
+    static const Op vm_alloc_storage = Op::Get("relax.vm.alloc_storage");
+    static const Op mem_alloc_storage = Op::Get("relax.memory.alloc_storage");
+    static const Op null_value_op = Op::Get("relax.null_value");
 
-    static const Op& mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
-    static const Op& mem_kill_storage = Op::Get("relax.memory.kill_storage");
-    static const Op& vm_kill_object = Op::Get("relax.vm.kill_object");
+    static const Op mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
+    static const Op mem_kill_storage = Op::Get("relax.memory.kill_storage");
+    static const Op vm_kill_object = Op::Get("relax.vm.kill_object");
 
     if (val->op.same_as(vm_alloc_storage) || val->op.same_as(mem_alloc_storage)) {
       storage_objects_.insert(binding->var.get());
@@ -243,19 +243,19 @@ class KillInserter : public ExprMutator {
   void VisitBinding(const Binding& binding) override {
     ExprMutator::VisitBinding(binding);
     if (auto it = last_usage_.find(binding->var.get()); it != last_usage_.end()) {
-      static const Op& mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
+      static const Op mem_kill_tensor = Op::Get("relax.memory.kill_tensor");
       for (const auto& tensor_obj : it->second.tensors) {
         builder_->Emit(Call(Type::Missing(), mem_kill_tensor, {ffi::GetRef<Expr>(tensor_obj)}),
                        /*name_hint=*/"_");
       }
 
-      static const Op& mem_kill_storage = Op::Get("relax.memory.kill_storage");
+      static const Op mem_kill_storage = Op::Get("relax.memory.kill_storage");
       for (const VarNode* storage_obj : it->second.storage) {
         builder_->Emit(Call(Type::Missing(), mem_kill_storage, {ffi::GetRef<Expr>(storage_obj)}),
                        /*name_hint=*/"_");
       }
 
-      static const Op& vm_kill_object = Op::Get("relax.vm.kill_object");
+      static const Op vm_kill_object = Op::Get("relax.vm.kill_object");
       for (const VarNode* obj : it->second.objects) {
         builder_->Emit(Call(Type::Missing(), vm_kill_object, {ffi::GetRef<Expr>(obj)}),
                        /*name_hint=*/"_");

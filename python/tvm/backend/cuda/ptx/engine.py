@@ -102,7 +102,7 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # `PTXNamespace.__getattr__`. The escape is the identity for every
         # other family, and `gen_stubs` already spells the attribute this way.
         family = escape_token(entry.family)
-        register_op_attr(entry.op_name, "TScriptPrinterName", f"ptx.{family}", level=20)
+        register_op_attr(entry.op_name, "TScriptPrinterName", f"ptx.{family}")
         register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
         register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
         register_codegen(f"ptx.{entry.name}")(_make_codegen(entry))
@@ -111,7 +111,7 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
 def register_addr() -> None:
     """Register the pure address-expression op consumed by PTX instructions."""
     register_op_attr(_ADDR_OP_NAME, "TCallEffectKind", _EFFECT_PURE)
-    register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "ptx.addr", level=20)
+    register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "ptx.addr")
     register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
     register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")
     register_codegen("ptx.addr")(_unconsumed_addr_codegen)

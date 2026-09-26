@@ -131,18 +131,20 @@ InferLayoutOutput InferLayoutEwiseFMA(
   return InferLayoutOutput({layout, layout, layout}, {layout}, Attrs(call->attrs));
 }
 
-TVM_REGISTER_OP("relax.ewise_fma")
-    .set_num_inputs(3)
-    .add_argument("x1", "Tensor", "The left hand operand of the multiplication")
-    .add_argument("x2", "Tensor", "The right hand operand of the multiplication")
-    .add_argument("x3", "Tensor", "The operand of the addition")
-    .set_attr<FInferType>("FInferType", InferTypeEwiseFMA)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutEwiseFMA)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.ewise_fma")
+      .set_num_inputs(3)
+      .arg<Expr>("x1", "The left hand operand of the multiplication")
+      .arg<Expr>("x2", "The right hand operand of the multiplication")
+      .arg<Expr>("x3", "The operand of the addition")
+      .set_attr<FInferType>("FInferType", InferTypeEwiseFMA)
+      .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutEwiseFMA)
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 Expr ewise_fma(Expr x1, Expr x2, Expr x3) {
-  static const Op& op = Op::Get("relax.ewise_fma");
+  static const Op op = Op::Get("relax.ewise_fma");
   return Call(Type::Missing(), op, {x1, x2, x3}, Attrs(), {});
 }
 
