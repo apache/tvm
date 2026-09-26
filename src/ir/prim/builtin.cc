@@ -19,39 +19,18 @@
 #include <tvm/ir/op_attr_types.h>
 #include <tvm/ir/prim/builtin.h>
 
+#include "../op_getter.h"
+
 namespace tvm {
 namespace prim {
 namespace builtin {
 
-const Op& likely() {
-  static const Op op = Op::Get("prim.likely");
-  return op;
-}
-
-const Op& if_then_else() {
-  static const Op op = Op::Get("prim.if_then_else");
-  return op;
-}
-
-const Op& vscale() {
-  static const Op op = Op::Get("prim.vscale");
-  return op;
-}
-
-const Op& ceil() {
-  static const Op op = Op::Get("prim.ceil");
-  return op;
-}
-
-const Op& log2() {
-  static const Op op = Op::Get("prim.log2");
-  return op;
-}
-
-const Op& clz() {
-  static const Op op = Op::Get("prim.clz");
-  return op;
-}
+TVM_DEFINE_CACHED_OP_GETTER(likely, "prim.likely")
+TVM_DEFINE_CACHED_OP_GETTER(if_then_else, "prim.if_then_else")
+TVM_DEFINE_CACHED_OP_GETTER(vscale, "prim.vscale")
+TVM_DEFINE_CACHED_OP_GETTER(ceil, "prim.ceil")
+TVM_DEFINE_CACHED_OP_GETTER(log2, "prim.log2")
+TVM_DEFINE_CACHED_OP_GETTER(clz, "prim.clz")
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("prim.likely")

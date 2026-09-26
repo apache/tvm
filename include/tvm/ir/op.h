@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/container/list.h>
 #include <tvm/ffi/error.h>
+#include <tvm/ffi/expected.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
@@ -97,7 +98,8 @@ class OpNode : public ExprNode {
   friend class Op;
   friend class Call;
   TVM_DLL void Validate(const CallNode* call) const;
-  using CallValidator = void (*)(const OpNode*, const CallNode*);
+  // None means success; an owned Error is returned on failure.
+  using CallValidator = TVMFFIAny (*)(const CallNode*) noexcept;
   CallValidator validate_args_{nullptr};
   CallValidator validate_ty_args_{nullptr};
   // A null callback can still denote an explicitly declared all-base or empty signature.
@@ -300,7 +302,7 @@ class OpDef {
 
  private:
   template <typename T>
-  static void ValidateArg(const OpNode* op, const CallNode* call, size_t index) {
+  static bool ValidateArg(const CallNode* call, size_t index, TVMFFIAny* error) {
     if constexpr (!std::is_same_v<T, Expr>) {
       TVMFFIAny value;
       ffi::TypeTraits<Expr>::CopyToAnyView(call->args[index], &value);
@@ -311,34 +313,52 @@ class OpDef {
         } else {
           expected = ffi::TypeTraits<T>::TypeStr();
         }
-        ReportTypeMismatch(op, call, index, expected, false);
+        *error = ReportTypeMismatch(call, index, expected, false);
+        return false;
       }
     }
+    return true;
   }
   template <typename T>
-  static void ValidateTyArg(const OpNode* op, const CallNode* call, size_t index) {
+  static bool ValidateTyArg(const CallNode* call, size_t index, TVMFFIAny* error) {
     if constexpr (!std::is_same_v<T, Type>) {
       if (index < call->ty_args.size()) {
         TVMFFIAny value;
         ffi::TypeTraits<Type>::CopyToAnyView(call->ty_args[index], &value);
         if (!ffi::TypeTraits<T>::CheckAnyStrict(&value)) {
-          ReportTypeMismatch(op, call, index, ffi::TypeTraits<T>::TypeStr(), true);
+          *error = ReportTypeMismatch(call, index, ffi::TypeTraits<T>::TypeStr(), true);
+          return false;
         }
       }
     }
+    return true;
   }
   template <typename... Types>
-  static void ValidateArgs(const OpNode* op, const CallNode* call) {
-    size_t index = 0;
-    (ValidateArg<Types>(op, call, index++), ...);
+  static TVMFFIAny ValidateArgs(const CallNode* call) noexcept {
+    try {
+      TVMFFIAny error;
+      size_t index = 0;
+      if (!(ValidateArg<Types>(call, index++, &error) && ...)) return error;
+      return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>());
+    } catch (...) {
+      return CallbackException();
+    }
   }
   template <typename... Types>
-  static void ValidateTyArgs(const OpNode* op, const CallNode* call) {
-    size_t index = 0;
-    (ValidateTyArg<Types>(op, call, index++), ...);
+  static TVMFFIAny ValidateTyArgs(const CallNode* call) noexcept {
+    try {
+      TVMFFIAny error;
+      size_t index = 0;
+      if (!(ValidateTyArg<Types>(call, index++, &error) && ...)) return error;
+      return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>());
+    } catch (...) {
+      return CallbackException();
+    }
   }
-  TVM_DLL static void ReportTypeMismatch(const OpNode* op, const CallNode* call, size_t index,
-                                         const std::string& expected, bool type_arg);
+  TVM_FFI_COLD_CODE TVM_DLL static TVMFFIAny CallbackException() noexcept;
+  TVM_FFI_COLD_CODE TVM_DLL static TVMFFIAny ReportTypeMismatch(const CallNode* call, size_t index,
+                                                                const std::string& expected,
+                                                                bool type_arg);
   TVM_DLL void DeclareTypes(size_t count, OpNode::CallValidator validate, bool type_args);
   OpNode* get() { return const_cast<OpNode*>(op_.operator->()); }
   TVM_DLL void UpdateAttr(const ffi::String& attr_name, ffi::Any value, bool override);

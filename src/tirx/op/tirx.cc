@@ -26,6 +26,8 @@
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/tile_primitive.h>
 
+#include "../../ir/op_getter.h"
+
 namespace tvm {
 namespace tirx {
 
@@ -130,155 +132,36 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 /********************* Tile Ops **********************/
-const Op& zero() {
-  static const Op op = Op::Get("tirx.tile.zero");
-  return op;
-}
-
-const Op& sqrt() {
-  static const Op op = Op::Get("tirx.tile.sqrt");
-  return op;
-}
-
-const Op& exp() {
-  static const Op op = Op::Get("tirx.tile.exp");
-  return op;
-}
-
-const Op& exp2() {
-  static const Op op = Op::Get("tirx.tile.exp2");
-  return op;
-}
-
-const Op& log2() {
-  static const Op op = Op::Get("tirx.tile.log2");
-  return op;
-}
-
-const Op& add() {
-  static const Op op = Op::Get("tirx.tile.add");
-  return op;
-}
-
-const Op& sub() {
-  static const Op op = Op::Get("tirx.tile.sub");
-  return op;
-}
-
-const Op& mul() {
-  static const Op op = Op::Get("tirx.tile.mul");
-  return op;
-}
-
-const Op& fdiv() {
-  static const Op op = Op::Get("tirx.tile.fdiv");
-  return op;
-}
-
-const Op& minimum() {
-  static const Op op = Op::Get("tirx.tile.minimum");
-  return op;
-}
-
-const Op& maximum() {
-  static const Op op = Op::Get("tirx.tile.maximum");
-  return op;
-}
-
-const Op& copy() {
-  static const Op op = Op::Get("tirx.tile.copy");
-  return op;
-}
-
-const Op& fill() {
-  static const Op op = Op::Get("tirx.tile.fill");
-  return op;
-}
-
-const Op& gemm() {
-  static const Op op = Op::Get("tirx.tile.gemm");
-  return op;
-}
-
-const Op& reciprocal() {
-  static const Op op = Op::Get("tirx.tile.reciprocal");
-  return op;
-}
-
-const Op& sum() {
-  static const Op op = Op::Get("tirx.tile.sum");
-  return op;
-}
-
-const Op& max() {
-  static const Op op = Op::Get("tirx.tile.max");
-  return op;
-}
-
-const Op& min() {
-  static const Op op = Op::Get("tirx.tile.min");
-  return op;
-}
-
-const Op& memset() {
-  static const Op op = Op::Get("tirx.tile.memset");
-  return op;
-}
-
-const Op& reduce_negate() {
-  static const Op op = Op::Get("tirx.tile.reduce_negate");
-  return op;
-}
-
-const Op& binary_reduce() {
-  static const Op op = Op::Get("tirx.tile.binary_reduce");
-  return op;
-}
-
-const Op& unary_reduce() {
-  static const Op op = Op::Get("tirx.tile.unary_reduce");
-  return op;
-}
-
-const Op& binary_chain() {
-  static const Op op = Op::Get("tirx.tile.binary_chain");
-  return op;
-}
-
-const Op& select() {
-  static const Op op = Op::Get("tirx.tile.select");
-  return op;
-}
-
-const Op& cast() {
-  static const Op op = Op::Get("tirx.tile.cast");
-  return op;
-}
-
-const Op& fma() {
-  static const Op op = Op::Get("tirx.tile.fma");
-  return op;
-}
-
-const Op& silu() {
-  static const Op op = Op::Get("tirx.tile.silu");
-  return op;
-}
-
-const Op& permute_layout() {
-  static const Op op = Op::Get("tirx.tile.permute_layout");
-  return op;
-}
-
-const Op& copy_async() {
-  static const Op op = Op::Get("tirx.tile.copy_async");
-  return op;
-}
-
-const Op& gemm_async() {
-  static const Op op = Op::Get("tirx.tile.gemm_async");
-  return op;
-}
+TVM_DEFINE_CACHED_OP_GETTER(zero, "tirx.tile.zero")
+TVM_DEFINE_CACHED_OP_GETTER(sqrt, "tirx.tile.sqrt")
+TVM_DEFINE_CACHED_OP_GETTER(exp, "tirx.tile.exp")
+TVM_DEFINE_CACHED_OP_GETTER(exp2, "tirx.tile.exp2")
+TVM_DEFINE_CACHED_OP_GETTER(log2, "tirx.tile.log2")
+TVM_DEFINE_CACHED_OP_GETTER(add, "tirx.tile.add")
+TVM_DEFINE_CACHED_OP_GETTER(sub, "tirx.tile.sub")
+TVM_DEFINE_CACHED_OP_GETTER(mul, "tirx.tile.mul")
+TVM_DEFINE_CACHED_OP_GETTER(fdiv, "tirx.tile.fdiv")
+TVM_DEFINE_CACHED_OP_GETTER(minimum, "tirx.tile.minimum")
+TVM_DEFINE_CACHED_OP_GETTER(maximum, "tirx.tile.maximum")
+TVM_DEFINE_CACHED_OP_GETTER(copy, "tirx.tile.copy")
+TVM_DEFINE_CACHED_OP_GETTER(fill, "tirx.tile.fill")
+TVM_DEFINE_CACHED_OP_GETTER(gemm, "tirx.tile.gemm")
+TVM_DEFINE_CACHED_OP_GETTER(reciprocal, "tirx.tile.reciprocal")
+TVM_DEFINE_CACHED_OP_GETTER(sum, "tirx.tile.sum")
+TVM_DEFINE_CACHED_OP_GETTER(max, "tirx.tile.max")
+TVM_DEFINE_CACHED_OP_GETTER(min, "tirx.tile.min")
+TVM_DEFINE_CACHED_OP_GETTER(memset, "tirx.tile.memset")
+TVM_DEFINE_CACHED_OP_GETTER(reduce_negate, "tirx.tile.reduce_negate")
+TVM_DEFINE_CACHED_OP_GETTER(binary_reduce, "tirx.tile.binary_reduce")
+TVM_DEFINE_CACHED_OP_GETTER(unary_reduce, "tirx.tile.unary_reduce")
+TVM_DEFINE_CACHED_OP_GETTER(binary_chain, "tirx.tile.binary_chain")
+TVM_DEFINE_CACHED_OP_GETTER(select, "tirx.tile.select")
+TVM_DEFINE_CACHED_OP_GETTER(cast, "tirx.tile.cast")
+TVM_DEFINE_CACHED_OP_GETTER(fma, "tirx.tile.fma")
+TVM_DEFINE_CACHED_OP_GETTER(silu, "tirx.tile.silu")
+TVM_DEFINE_CACHED_OP_GETTER(permute_layout, "tirx.tile.permute_layout")
+TVM_DEFINE_CACHED_OP_GETTER(copy_async, "tirx.tile.copy_async")
+TVM_DEFINE_CACHED_OP_GETTER(gemm_async, "tirx.tile.gemm_async")
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.tile.zero")

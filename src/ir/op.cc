@@ -122,8 +122,12 @@ void OpNode::Validate(const CallNode* call) const {
       ValueError)
       << "Operator '" << op->name << "' expects " << (op->allow_extra_args ? "at least " : "")
       << expected << " arguments, got " << call->args.size();
-  if (op->validate_args_) op->validate_args_(op, call);
-  if (op->validate_ty_args_) op->validate_ty_args_(op, call);
+  if (op->validate_args_) {
+    ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(op->validate_args_(call)).value();
+  }
+  if (op->validate_ty_args_) {
+    ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(op->validate_ty_args_(call)).value();
+  }
 }
 
 void OpDef::DeclareTypes(size_t count, OpNode::CallValidator validate, bool type_args) {
@@ -159,8 +163,23 @@ OpDef::~OpDef() noexcept(false) {
   }
 }
 
-void OpDef::ReportTypeMismatch(const OpNode* op, const CallNode* call, size_t index,
-                               const std::string& expected, bool type_arg) {
+TVMFFIAny OpDef::CallbackException() noexcept {
+  try {
+    throw;
+  } catch (const ffi::Error& error) {
+    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>(error));
+  } catch (const std::exception& error) {
+    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
+        ffi::Expected<void>(ffi::Error("InternalError", error.what(), "")));
+  } catch (...) {
+    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(
+        ffi::Expected<void>(ffi::Error("InternalError", "Unknown validation error", "")));
+  }
+}
+
+TVMFFIAny OpDef::ReportTypeMismatch(const CallNode* call, size_t index, const std::string& expected,
+                                    bool type_arg) {
+  const auto* op = static_cast<const OpNode*>(call->op.get());
   const auto& info = type_arg ? op->ty_args_info[index] : op->args_info[index];
   std::string actual;
   if (type_arg) {
@@ -174,9 +193,13 @@ void OpDef::ReportTypeMismatch(const OpNode* op, const CallNode* call, size_t in
       actual += value->ty.defined() ? value->ty->GetTypeKey() : "None";
     }
   }
-  TVM_FFI_THROW(TypeError) << "Operator '" << op->name << "' "
-                           << (type_arg ? "type argument " : "argument ") << index << " ('"
-                           << info->name << "') expects " << expected << ", got " << actual;
+  try {
+    TVM_FFI_THROW(TypeError) << "Operator '" << op->name << "' "
+                             << (type_arg ? "type argument " : "argument ") << index << " ('"
+                             << info->name << "') expects " << expected << ", got " << actual;
+  } catch (const ffi::Error& error) {
+    return ffi::details::ExpectedUnsafe::MoveToTVMFFIAny(ffi::Expected<void>(error));
+  }
 }
 
 OpDef& OpDef::arg(const ffi::String& name, const ffi::String& doc) {
