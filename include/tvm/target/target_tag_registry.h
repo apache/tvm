@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/target/tag_registry.h
+ * \file tvm/target/target_tag_registry.h
  * \brief Process-wide target tag registry.
  */
-#ifndef TVM_TARGET_TAG_REGISTRY_H_
-#define TVM_TARGET_TAG_REGISTRY_H_
+#ifndef TVM_TARGET_TARGET_TAG_REGISTRY_H_
+#define TVM_TARGET_TARGET_TAG_REGISTRY_H_
 
 #include <tvm/ffi/container/dict.h>
 #include <tvm/target/target.h>
@@ -30,12 +30,12 @@
 namespace tvm {
 
 /*! \brief Registry of target configurations keyed by tag name. */
-class TagRegistry {
+class TargetTagRegistry {
  public:
   using Config = ffi::Map<ffi::String, ffi::Any>;
 
   /*! \brief Return the process-wide registry. */
-  TVM_DLL static TagRegistry* Global();
+  TVM_DLL static TargetTagRegistry* Global();
 
   /*! \brief Construct the target named by a tag, or return nullopt if unknown. */
   TVM_DLL ffi::Optional<Target> Get(const ffi::String& name) const;
@@ -50,13 +50,13 @@ class TagRegistry {
   TVM_DLL Target AddTag(ffi::String name, Config config, bool override);
 
  private:
-  TagRegistry() = default;
-  TagRegistry(const TagRegistry&) = delete;
-  TagRegistry& operator=(const TagRegistry&) = delete;
+  TargetTagRegistry() = default;
+  TargetTagRegistry(const TargetTagRegistry&) = delete;
+  TargetTagRegistry& operator=(const TargetTagRegistry&) = delete;
 
   ffi::Dict<ffi::String, Config> configs_;
 };
 
 }  // namespace tvm
 
-#endif  // TVM_TARGET_TAG_REGISTRY_H_
+#endif  // TVM_TARGET_TARGET_TAG_REGISTRY_H_

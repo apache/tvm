@@ -18,38 +18,39 @@
  */
 
 /*!
- * \file src/target/tag_registry.cc
+ * \file src/target/target_tag_registry.cc
  * \brief Process-wide target tag registry.
  */
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/target/tag_registry.h>
+#include <tvm/target/target_tag_registry.h>
 
 #include <utility>
 
 namespace tvm {
 
-TagRegistry* TagRegistry::Global() {
-  static TagRegistry registry;
+TargetTagRegistry* TargetTagRegistry::Global() {
+  static TargetTagRegistry registry;
   return &registry;
 }
 
-ffi::Optional<Target> TagRegistry::Get(const ffi::String& name) const {
+ffi::Optional<Target> TargetTagRegistry::Get(const ffi::String& name) const {
   if (auto config = GetConfig(name)) {
     return Target(config.value());
   }
   return std::nullopt;
 }
 
-ffi::Optional<TagRegistry::Config> TagRegistry::GetConfig(const ffi::String& name) const {
+ffi::Optional<TargetTagRegistry::Config> TargetTagRegistry::GetConfig(
+    const ffi::String& name) const {
   if (auto config = configs_.Get(name)) {
     return config.value();
   }
   return std::nullopt;
 }
 
-ffi::Map<ffi::String, Target> TagRegistry::ListTags() const {
+ffi::Map<ffi::String, Target> TargetTagRegistry::ListTags() const {
   ffi::Map<ffi::String, Target> result;
   for (const auto& kv : configs_) {
     result.Set(kv.first, Target(kv.second));
@@ -57,7 +58,7 @@ ffi::Map<ffi::String, Target> TagRegistry::ListTags() const {
   return result;
 }
 
-Target TagRegistry::AddTag(ffi::String name, Config config, bool override) {
+Target TargetTagRegistry::AddTag(ffi::String name, Config config, bool override) {
   auto previous = configs_.Get(name);
   TVM_FFI_ICHECK(override || !previous.has_value())
       << "Tag \"" << name << "\" has been previously defined as: " << previous.value();
@@ -69,11 +70,11 @@ Target TagRegistry::AddTag(ffi::String name, Config config, bool override) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("target.TargetTagListTags", []() { return TagRegistry::Global()->ListTags(); })
-      .def("target.TargetTagAddTag",
-           [](ffi::String name, TagRegistry::Config config, bool override) {
-             return TagRegistry::Global()->AddTag(std::move(name), std::move(config), override);
-           });
+      .def("target.TargetTagListTags", []() { return TargetTagRegistry::Global()->ListTags(); })
+      .def("target.TargetTagAddTag", [](ffi::String name, TargetTagRegistry::Config config,
+                                        bool override) {
+        return TargetTagRegistry::Global()->AddTag(std::move(name), std::move(config), override);
+      });
 }
 
 }  // namespace tvm
