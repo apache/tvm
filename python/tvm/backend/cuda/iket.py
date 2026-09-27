@@ -52,7 +52,6 @@ from tvm.script import tirx as T
 
 _PROFILE_ENV = "TVM_IKET_OFFICIAL_PROFILE"
 _INJECTED_CHILD_ENABLE_ENV = "TVM_IKET_INJECTED_CHILD_ENABLE"
-# Retain the profile name for callers that select it explicitly.
 _DEFAULT_PROFILE = "cutlass-4.6.0"
 _POSTPROCESS_CHOICES = frozenset(("perfetto", "json", "html", "none", "all"))
 _INJECTION_ENV_VARS = ("CUDA_INJECTION64_PATH", "SMODEL_INJECTION_CONFIG")

@@ -818,7 +818,6 @@ def test_official_installation_does_not_require_package_versions(tmp_path, monke
     def distribution(name):
         if name == "nvidia-cutlass-dsl-libs-base":
             return SimpleNamespace(version=version, entry_points=(entry_point,))
-        # CUDA tools can come from the system installation, without NVIDIA wheels.
         raise metadata.PackageNotFoundError(name)
 
     monkeypatch.setattr(_iket_official.metadata, "distribution", distribution)
