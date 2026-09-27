@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for IKET lowering, metadata, installation versions, and trace contracts."""
+"""Tests for IKET lowering, metadata, installation checks, and trace contracts."""
 
 import hashlib
 import importlib
@@ -27,6 +27,7 @@ import subprocess
 import sys
 from importlib import metadata
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -434,7 +435,7 @@ def test_regular_lowering_strips_annotations_and_tokens():
 
 def test_verified_injected_child_automatically_enables_plain_jit(monkeypatch):
     monkeypatch.setenv("TVM_IKET_INJECTED_CHILD_ENABLE", "1")
-    monkeypatch.setenv("TVM_IKET_OFFICIAL_PROFILE", "cutlass-4.6.0")
+    monkeypatch.delenv("TVM_IKET_OFFICIAL_PROFILE", raising=False)
     monkeypatch.setenv("CUDA_INJECTION64_PATH", "/verified/libsmodel_injection.so")
     monkeypatch.setenv("SMODEL_INJECTION_CONFIG", "/verified/config.json")
     executable = tvm.compile(tvm.IRModule({"main": serial_a}), target=TARGET, tir_pipeline="tirx")
@@ -449,7 +450,6 @@ def test_verified_injected_child_automatically_enables_plain_jit(monkeypatch):
 def test_injected_child_auto_enable_remains_fail_closed(monkeypatch, missing_env):
     values = {
         "TVM_IKET_INJECTED_CHILD_ENABLE": "1",
-        "TVM_IKET_OFFICIAL_PROFILE": "cutlass-4.6.0",
         "CUDA_INJECTION64_PATH": "/verified/libsmodel_injection.so",
         "SMODEL_INJECTION_CONFIG": "/verified/config.json",
     }
@@ -779,77 +779,89 @@ def test_multi_kernel_module_has_no_tvm_control_plane():
 
 
 def test_proxy_fails_closed_and_forbids_export(tmp_path, monkeypatch):
+    from tvm.tirx.cuda import iket as _iket_official
+
     executable = _compile(serial_a)
     with pytest.raises(RuntimeError, match="cannot be exported"):
         executable.export_library(tmp_path / "official.so")
 
-    monkeypatch.delenv("TVM_IKET_OFFICIAL_PROFILE", raising=False)
-    with pytest.raises(RuntimeError, match="TVM_IKET_OFFICIAL_PROFILE must be set"):
+    monkeypatch.setattr(_iket_official, "_validate_official_installation", lambda: None)
+    monkeypatch.delenv("CUDA_INJECTION64_PATH", raising=False)
+    with pytest.raises(RuntimeError, match="CUDA_INJECTION64_PATH was not supplied"):
         executable.jit()
     assert executable._executable._jitted_mod is None  # pylint: disable=protected-access
 
 
-def test_environment_validation_is_not_process_cached(monkeypatch):
+def test_environment_validation_is_not_process_cached(tmp_path, monkeypatch):
     from tvm.tirx.cuda import iket as _iket_official
 
-    profile = {
-        "nvrtc_version": (13, 2),
-        "minimum_versions": {"nvidia-cutlass-dsl-libs-base": "4.6.0"},
-        "exact_versions": {},
-    }
-
-    class FakeDistribution:
-        version = "4.6.0"
-
-    monkeypatch.setitem(_iket_official._OFFICIAL_PROFILES, "cutlass-4.6.0", profile)
-    monkeypatch.setattr(_iket_official.metadata, "distribution", lambda _name: FakeDistribution())
     monkeypatch.setattr(_iket_official, "_validate_run_iket_entrypoint", lambda: None)
-    monkeypatch.setattr(_iket_official, "_validate_injection_environment", lambda: None)
-    monkeypatch.setattr(_iket_official, "_validate_nvrtc_version", lambda _version: None)
-    monkeypatch.setenv("TVM_IKET_OFFICIAL_PROFILE", "cutlass-4.6.0")
+    monkeypatch.setattr(_iket_official, "_validate_nvrtc_available", lambda: None)
+    injection = tmp_path / "libsmodel_injection.so"
+    injection.write_bytes(b"injection")
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"toolName": "tracker"}))
+    monkeypatch.setenv("CUDA_INJECTION64_PATH", str(injection))
+    monkeypatch.setenv("SMODEL_INJECTION_CONFIG", str(config))
+    monkeypatch.delenv("TVM_IKET_OFFICIAL_PROFILE", raising=False)
 
     _iket_official.validate_official_environment()
-    monkeypatch.delenv("TVM_IKET_OFFICIAL_PROFILE")
-    with pytest.raises(RuntimeError, match="TVM_IKET_OFFICIAL_PROFILE must be set"):
+    monkeypatch.delenv("CUDA_INJECTION64_PATH")
+    with pytest.raises(RuntimeError, match="CUDA_INJECTION64_PATH was not supplied"):
         _iket_official.validate_official_environment()
 
 
-@pytest.mark.parametrize(
-    ("version", "expected_error"),
-    (
-        ("4.5.0", "must be 4.6.0 or newer"),
-        ("4.6.0", None),
-        ("4.6.2", None),
-    ),
-)
-def test_official_installation_accepts_newer_cutlass(monkeypatch, version, expected_error):
+@pytest.mark.parametrize("version", ("4.5.0", "4.6.0", "4.6.2", "5.0.0.dev1"))
+def test_installation_ignores_package_versions(tmp_path, monkeypatch, version):
     from tvm.tirx.cuda import iket as _iket_official
 
-    profile = {
-        "nvrtc_version": (13, 2),
-        "minimum_versions": {"nvidia-cutlass-dsl-libs-base": "4.6.0"},
-        "exact_versions": {},
-    }
+    executable = tmp_path / "run-iket"
+    executable.write_text("#!/bin/sh\n")
+    executable.chmod(0o755)
+    entry_point = metadata.EntryPoint(
+        name="run-iket", value="iket.cli.main:entrypoint", group="console_scripts"
+    )
 
-    class FakeDistribution:
-        pass
+    def distribution(name):
+        if name == "nvidia-cutlass-dsl-libs-base":
+            return SimpleNamespace(version=version, entry_points=(entry_point,))
+        raise metadata.PackageNotFoundError(name)
 
-    distribution = FakeDistribution()
-    distribution.version = version
-    monkeypatch.setitem(_iket_official._OFFICIAL_PROFILES, "cutlass-4.6.0", profile)
-    monkeypatch.setattr(_iket_official.metadata, "distribution", lambda _name: distribution)
-    monkeypatch.setattr(_iket_official, "_validate_run_iket_entrypoint", lambda: None)
-    monkeypatch.setattr(_iket_official, "_validate_nvrtc_version", lambda _version: None)
+    monkeypatch.setattr(_iket_official.metadata, "distribution", distribution)
+    monkeypatch.setattr(_iket_official.shutil, "which", lambda _name: str(executable))
+    monkeypatch.setattr(_iket_official, "_validate_nvrtc_available", lambda: None)
+    assert _iket_official._validate_official_installation() == str(executable)  # pylint: disable=protected-access
 
-    if expected_error:
-        with pytest.raises(RuntimeError, match=expected_error):
-            _iket_official._validate_official_installation(  # pylint: disable=protected-access
-                "cutlass-4.6.0"
-            )
-    else:
-        _iket_official._validate_official_installation(  # pylint: disable=protected-access
-            "cutlass-4.6.0"
-        )
+
+@pytest.mark.parametrize("version", ((12, 9), (13, 2), (13, 4), (14, 0)))
+def test_nvrtc_version_unrestricted(monkeypatch, version):
+    from tvm.tirx.cuda import iket as _iket_official
+
+    nvrtc = SimpleNamespace(nvrtcVersion=lambda: (0, *version))
+    monkeypatch.setitem(sys.modules, "cuda.bindings", SimpleNamespace(nvrtc=nvrtc))
+    _iket_official._validate_nvrtc_available()  # pylint: disable=protected-access
+
+
+def test_nvrtc_error_status(monkeypatch):
+    from tvm.tirx.cuda import iket as _iket_official
+
+    nvrtc = SimpleNamespace(nvrtcVersion=lambda: (1, 0, 0))
+    monkeypatch.setitem(sys.modules, "cuda.bindings", SimpleNamespace(nvrtc=nvrtc))
+    with pytest.raises(_iket_official.IketProfileError, match="CUDA NVRTC is unavailable"):
+        _iket_official._validate_nvrtc_available()  # pylint: disable=protected-access
+
+
+@pytest.mark.parametrize("error_type", (ImportError, OSError, RuntimeError))
+def test_nvrtc_load_error(monkeypatch, error_type):
+    from tvm.tirx.cuda import iket as _iket_official
+
+    def unavailable_nvrtc():
+        raise error_type("NVRTC could not be loaded")
+
+    nvrtc = SimpleNamespace(nvrtcVersion=unavailable_nvrtc)
+    monkeypatch.setitem(sys.modules, "cuda.bindings", SimpleNamespace(nvrtc=nvrtc))
+    with pytest.raises(_iket_official.IketProfileError, match="CUDA NVRTC is unavailable"):
+        _iket_official._validate_nvrtc_available()  # pylint: disable=protected-access
 
 
 def test_injection_environment_accepts_run_iket_two_passes(tmp_path, monkeypatch):
@@ -958,7 +970,7 @@ def test_cutlass_4_6_0_oracle_manifest_integrity():
 def test_external_trace_contract():
     trace_path = os.environ.get("TVM_IKET_OFFICIAL_TRACE_JSON")
     if trace_path is None:
-        pytest.skip("set TVM_IKET_OFFICIAL_TRACE_JSON after the locked run-iket workload")
+        pytest.skip("set TVM_IKET_OFFICIAL_TRACE_JSON after a run-iket workload")
     trace = json.loads(Path(trace_path).read_text(encoding="utf-8"))
     assert len(trace["launches"]) == 3
     launches = {launch["kernelName"]: launch for launch in trace["launches"]}
