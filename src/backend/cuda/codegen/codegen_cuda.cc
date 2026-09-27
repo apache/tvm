@@ -1035,19 +1035,19 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     }
   }
 
-  static const Op& tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
-  static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-  static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-  static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-  static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
-  static const Op& mma_store_op = Op::Get("tirx.mma_store");
-  static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
-  static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
-  static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-  static const Op& mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
-  static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-  static const Op& ptx_ldg32_op = Op::Get("tirx.s_tir.ldg32");
-  static const Op& cuda_func_call_op = Op::Get("tirx.cuda.func_call");
+  static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
+  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+  static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
+  static const Op tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
+  static const Op mma_store_op = Op::Get("tirx.mma_store");
+  static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+  static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
+  static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
+  static const Op mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
+  static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
+  static const Op ptx_ldg32_op = Op::Get("tirx.s_tir.ldg32");
+  static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
   if (op->op.same_as(tvm_fill_fragment_op)) {
     codegen_tags_.insert("mma");
@@ -1590,7 +1590,7 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     this->Dispatch(op->body);
-    static const Op& ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
+    static const Op ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
     // ptx Call layout: [operands...] [slot tokens] [pred marker ""].
     auto commit_group = Call(PrimType::Void(), ptx_cp_async_commit_group_op,
                              {StringImm("async"), StringImm("commit_group"), StringImm("")})
@@ -1605,7 +1605,7 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     auto wait_cnt = wait_attrs.second;
-    static const Op& ptx_cp_async_wait_group_op = Op::Get("tirx.ptx.cp_async_wait_group");
+    static const Op ptx_cp_async_wait_group_op = Op::Get("tirx.ptx.cp_async_wait_group");
     // ptx Call layout: [operands...] [slot tokens] [pred marker ""]. The group
     // count is a role="imm" operand baked into the instruction text, so it must
     // already be a compile-time constant here (the pipeline pass guarantees it).

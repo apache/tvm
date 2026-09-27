@@ -31,33 +31,60 @@ namespace tvm {
 namespace tirx {
 namespace builtin {
 
-#define TIRX_DEFINE_BUILTIN_FUNC(OpName)                                           \
-  OpRegEntry::RegisterOrGet("tirx." #OpName)                                       \
-      .set_name()                                                                  \
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(#OpName), 1) \
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), /*plevel=*/1)
-
 void RegisterMetalTargetBuiltins() {
-  // clang-format off
-static bool registered = false;
-if (registered) return;
-registered = true;
+  static bool registered = false;
+  if (registered) return;
+  registered = true;
 
-TIRX_DEFINE_BUILTIN_FUNC(make_filled_simdgroup_matrix)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.make_filled_simdgroup_matrix")
+      .add_arg("d", "The D operand.")
+      .add_arg("index", "The index.")
+      .add_arg("value", "The value to use.")
+      .add_arg("col", "The column index.")
+      .add_arg("row", "The row index.")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("metal.make_filled_simdgroup_matrix"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(simdgroup_load)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.simdgroup_load")
+      .add_arg("d", "The D operand.")
+      .add_arg("index", "The index.")
+      .add_arg("ptr", "The pointer.")
+      .add_arg("stride", "The stride.")
+      .add_arg("col", "The column index.")
+      .add_arg("row", "The row index.")
+      .add_arg("transpose_matrix", "Whether to transpose the matrix.")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simdgroup_load"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(simdgroup_store)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.simdgroup_store")
+      .add_arg("d", "The D operand.")
+      .add_arg("index", "The index.")
+      .add_arg("ptr", "The pointer.")
+      .add_arg("stride", "The stride.")
+      .add_arg("col", "The column index.")
+      .add_arg("row", "The row index.")
+      .add_arg("transpose_matrix", "Whether to transpose the matrix.")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simdgroup_store"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(simdgroup_multiply_accumulate)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-  // clang-format on
+  OpDef("tirx.simdgroup_multiply_accumulate")
+      .add_arg("d", "The D operand.")
+      .add_arg("index_d", "The D fragment index.")
+      .add_arg("a", "The A operand.")
+      .add_arg("index_a", "The A fragment index.")
+      .add_arg("b", "The B operand.")
+      .add_arg("index_b", "The B fragment index.")
+      .add_arg("c", "The C operand.")
+      .add_arg("index_c", "The C fragment index.")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("metal.simdgroup_multiply_accumulate"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 }
-
-#undef TIRX_DEFINE_BUILTIN_FUNC
 
 TVM_FFI_STATIC_INIT_BLOCK() { RegisterMetalTargetBuiltins(); }
 

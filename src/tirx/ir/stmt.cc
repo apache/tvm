@@ -769,9 +769,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&AssertStmtMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&AssertStmtMaybeInplaceMutate));
-}
 
-TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.AssertStmt", [](PrimExpr condition, StringImm error_kind,
                                               ffi::Array<StringImm> message_parts, Span span) {
@@ -1025,9 +1023,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&AllocBufferMutate))
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             reinterpret_cast<void*>(&AllocBufferMaybeInplaceMutate));
-}
 
-TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "tirx.AllocBuffer",
@@ -1231,14 +1227,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PrimExpr TypeAnnotation(PrimType dtype, Span span) {
-  static const Op& type_annotation_op = Op::Get("tirx.type_annotation");
+  static const Op type_annotation_op = Op::Get("tirx.type_annotation");
   return Call(dtype, type_annotation_op, {}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
-TVM_TIRX_REGISTER_OP("type_annotation")
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.type_annotation")
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("type_annotation"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+}
 
 }  // namespace tirx
 }  // namespace tvm

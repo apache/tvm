@@ -153,7 +153,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
     PrimExpr real_condition = condition;
 
     if (auto call = condition.as<CallNode>()) {
-      static const Op& likely_op = Op::Get("prim.likely");
+      static const Op likely_op = Op::Get("prim.likely");
       if (call->op.same_as(likely_op)) {
         real_condition = call->args[0].as_or_throw<PrimExpr>();
       }
@@ -249,7 +249,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AssertStmtNode* op,
 
 UnchangedOr<Expr> IRMutatorWithAnalyzer::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   // add condition context to if_then_else
-  static const Op& if_then_else_op = Op::Get("prim.if_then_else");
+  static const Op if_then_else_op = Op::Get("prim.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
     PrimExpr cond = this->Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<PrimExpr>();
     Expr true_value, false_value;

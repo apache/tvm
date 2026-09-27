@@ -294,8 +294,8 @@ class BuiltinLower : public StmtExprMutator {
         Call(PrimType::Bool(), builtin::isnullptr(), {op->buffer.data()}).as_or_throw<PrimExpr>(),
         throw_last_error);
 
-    static const Op& free_workspace_op = Op::Get("tirx.TVMBackendFreeWorkspace");
-    static const Op& alloc_workspace_op = Op::Get("tirx.TVMBackendAllocWorkspace");
+    static const Op free_workspace_op = Op::Get("tirx.TVMBackendFreeWorkspace");
+    static const Op alloc_workspace_op = Op::Get("tirx.TVMBackendAllocWorkspace");
     PrimExpr free_op = Call(PrimType::Int(32), free_workspace_op,
                             {prim::cast(PrimType::Int(32), device_type_.value()),
                              prim::cast(PrimType::Int(32), device_id_.value()), op->buffer.data()})
