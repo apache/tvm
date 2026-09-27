@@ -32,133 +32,52 @@ class Op(Expr):
 
     @staticmethod
     def get(op_name):
-        """Get the Op for a given name
+        """Get a registered operator by name.
 
         Parameters
         ----------
         op_name : str
-            The operator name
+            The canonical operator name.
 
         Returns
         -------
-        op : Op
-            The op of the corresponding name
+        Op
+            A handle to the registered operator.
         """
         return _ffi_api.GetOp(op_name)
 
-    def get_attr(self, attr_name):
-        """Get additional attribute about the operator.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name.
-
-        Returns
-        -------
-        value : object
-            The attribute value
-        """
-        return _ffi_api.OpGetAttr(self, attr_name)
-
-    def has_attr(self, attr_name):
-        """Check whether the operator has additional attribute.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name.
-
-        Returns
-        -------
-        value : bool
-            Whether the operator has additional attribute
-        """
-        return _ffi_api.OpHasAttr(self, attr_name)
-
-    def set_attr(self, attr_name, value, plevel=10):
-        """Set attribute about the operator.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name
-
-        value : object
-            The attribute value
-
-        plevel : int
-            The priority level
-        """
-        _ffi_api.OpSetAttr(self, attr_name, value, plevel)
-
-    def reset_attr(self, attr_name):
-        """Reset attribute about the operator.
-
-        Parameters
-        ----------
-        attr_name : str
-            The attribute name
-        """
-        _ffi_api.OpResetAttr(self, attr_name)
-
-    def add_argument(self, name, type, description):  # pylint: disable=redefined-builtin
-        """Add arguments information to the function.
-
-        Parameters
-        ----------
-        name : str
-            The argument name.
-        type : str
-            The argument type.
-        description : str
-            The argument description.
-        """
-        _ffi_api.OpAddArgument(self, name, type, description)
-
-    def set_support_level(self, level):
-        """Set the support level of op.
-
-        Parameters
-        ----------
-        level : int
-            The support level.
-        """
-        _ffi_api.OpSetSupportLevel(self, level)
-
-    def set_num_inputs(self, n):
-        """Set the support level of op.
-
-        Parameters
-        ----------
-        n : int
-            The input number.
-        """
-        _ffi_api.OpSetNumInputs(self, n)
-
-    def set_attrs_type_key(self, key):
-        """Set the attribute type key of op.
-
-        Parameters
-        ----------
-        key : str
-            The type key.
-        """
-        _ffi_api.OpSetAttrsTypeKey(self, key)
-
     @staticmethod
     def list_op_names():
-        """List all the op names in the op registry.
+        """List registered operator names in unspecified order.
 
         Returns
         -------
-        value : List[str]
-            The registered op names
+        list[str]
+            The registered operator names.
         """
         return _ffi_api.ListOpNames()
 
+    def set_attr(self, attr_name, value, override=False):
+        """Set an operator attribute.
 
-def register_op_attr(op_name, attr_key, value=None, level=10):
+        Parameters
+        ----------
+        attr_name : str
+            Attribute column name.
+        value : object
+            Non-None attribute value.
+        override : bool, optional
+            Replace an existing value if True. Duplicate registration otherwise
+            raises ValueError. Cached views observe replacements; no history is kept.
+
+        Returns
+        -------
+        None
+        """
+        self._set_attr(attr_name, value, override)
+
+
+def register_op_attr(op_name, attr_key, value=None, override=False):
     """Register an operator property of an operator by name.
 
     Parameters
@@ -172,18 +91,20 @@ def register_op_attr(op_name, attr_key, value=None, level=10):
     value : object, optional
         The value to set
 
-    level : int, optional
-        The priority level
+    override : bool, optional
+        Replace an existing value if True; otherwise duplicate registration raises
+        ValueError. Cached views observe replacements; no priority history is kept.
 
     Returns
     -------
-    fregister : function
-        Register function if value is not specified.
+    result : object or function
+        The registered value when supplied, or a decorator that registers and
+        returns its argument. The named Op is created if it does not exist.
     """
 
     def _register(v):
         """internal register function"""
-        _ffi_api.RegisterOpAttr(op_name, attr_key, v, level)
+        _ffi_api.RegisterOpAttr(op_name, attr_key, v, override)
         return v
 
     return _register(value) if value is not None else _register
