@@ -106,6 +106,7 @@ struct VulkanDeviceProperties {
   uint32_t driver_version{0};
   uint32_t vulkan_api_version{VK_API_VERSION_1_0};
   uint32_t max_spirv_version{0x10000};
+  double timestamp_period{0};
 };
 
 /*! \brief Handle to the Vulkan API's VkDevice

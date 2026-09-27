@@ -165,6 +165,7 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
   max_shared_memory_per_block = properties.properties.limits.maxComputeSharedMemorySize;
   device_name = properties.properties.deviceName;
   driver_version = properties.properties.driverVersion;
+  timestamp_period = properties.properties.limits.timestampPeriod;
 
   if (device.HasExtension("VK_KHR_driver_properties")) {
     driver_name = driver.driverName;
