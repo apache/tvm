@@ -34,6 +34,7 @@ from tensorflow.keras import applications as keras_app
 
 import tvm
 import tvm.relax.frontend.tflite.tflite_frontend as tflite_frontend
+import tvm.testing
 from tvm import relax
 from tvm.relax.frontend.tflite import from_tflite
 from tvm.script.parser import ir as I
@@ -11346,35 +11347,45 @@ def test_dequantize_float16_uses_astype():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
-def test_quantized_avg_pool2d_uses_astype():
-    """Quantized AVERAGE_POOL_2D casts through int32 with R.astype."""
+@pytest.mark.parametrize("dtype", ["int8", "uint8"])
+@pytest.mark.parametrize("padding", ["VALID", "SAME"])
+@pytest.mark.parametrize("activation", ["NONE", "RELU6"])
+@pytest.mark.parametrize("pool_size", [(2, 2), (1, 3)])
+@pytest.mark.skipif(not tvm.testing.device_enabled("llvm"), reason="llvm not enabled")
+def test_quantized_avg_pool2d_rounding(dtype, padding, activation, pool_size):
+    """Match TFLite signed rounding, boundary counts, and fused activation."""
+    tensor_type = getattr(_tfl_tensor_type, dtype.upper())
+    kh, kw = pool_size
+    output_h, output_w = (4 - kh, 4 - kw) if padding == "VALID" else (3, 3)
     builder = flatbuffers.Builder(1024)
 
     qparams = _build_quantization_parameters(
-        builder, scale=[0.5], zero_point=[3], quantized_dimension=0
+        builder, scale=[0.5], zero_point=[3 if dtype == "int8" else 128], quantized_dimension=0
     )
     input_tensor = _build_tensor(
         builder,
         0,
-        [1, 2, 2, 1],
-        tensor_type=_tfl_tensor_type.INT8,
+        [1, 3, 3, 4],
+        tensor_type=tensor_type,
         quantization=qparams,
     )
     output_tensor = _build_tensor(
         builder,
         1,
-        [1, 1, 1, 1],
-        tensor_type=_tfl_tensor_type.INT8,
+        [1, output_h, output_w, 4],
+        tensor_type=tensor_type,
         quantization=qparams,
     )
 
     _tfl_pool2d_options.Pool2DOptionsStart(builder)
-    _tfl_pool2d_options.Pool2DOptionsAddPadding(builder, _tfl_padding.VALID)
+    _tfl_pool2d_options.Pool2DOptionsAddPadding(builder, getattr(_tfl_padding, padding))
     _tfl_pool2d_options.Pool2DOptionsAddStrideH(builder, 1)
     _tfl_pool2d_options.Pool2DOptionsAddStrideW(builder, 1)
-    _tfl_pool2d_options.Pool2DOptionsAddFilterHeight(builder, 2)
-    _tfl_pool2d_options.Pool2DOptionsAddFilterWidth(builder, 2)
-    _tfl_pool2d_options.Pool2DOptionsAddFusedActivationFunction(builder, _tfl_activation_fn.NONE)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterHeight(builder, kh)
+    _tfl_pool2d_options.Pool2DOptionsAddFilterWidth(builder, kw)
+    _tfl_pool2d_options.Pool2DOptionsAddFusedActivationFunction(
+        builder, getattr(_tfl_activation_fn, activation)
+    )
     pool_opts = _tfl_pool2d_options.Pool2DOptionsEnd(builder)
 
     avg_pool_op = _build_operator(
@@ -11405,47 +11416,37 @@ def test_quantized_avg_pool2d_uses_astype():
     else:
         tflite_model = tflite.Model.GetRootAsModel(buf, 0)
 
-    # Exercise the public entry point so quantized pool allowlist regressions
-    # cannot be hidden by calling the converter method directly.
-    from_tflite(tflite_model)
+    limits = np.iinfo(dtype)
+    values = np.array([[0, 1, 4], [0, 1, 5], [2, 3, 6]], dtype="int32")
+    offset = 0 if dtype == "int8" else 128
+    data = np.stack(
+        [
+            values + offset,
+            -values + offset,
+            np.full_like(values, limits.max),
+            np.full_like(values, limits.min),
+        ],
+        axis=-1,
+    )[None].astype(dtype)
+    interpreter = tf.lite.Interpreter(model_content=buf)
+    interpreter.allocate_tensors()
+    interpreter.set_tensor(interpreter.get_input_details()[0]["index"], data)
+    interpreter.invoke()
+    expected = interpreter.get_tensor(interpreter.get_output_details()[0]["index"])
+    if activation == "NONE" and pool_size == (2, 2):
+        # First window averages +0.5/-0.5 (or 128.5/127.5 for uint8).
+        np.testing.assert_array_equal(
+            expected[0, 0, 0, :2], [1, -1] if dtype == "int8" else [129, 128]
+        )
+        if padding == "SAME":
+            # Bottom-right has only one valid element, not four.
+            np.testing.assert_array_equal(expected[0, -1, -1], data[0, -1, -1])
 
-    subgraph = tflite_model.Subgraphs(0)
-    bb = relax.BlockBuilder()
-    exp_tab = tflite_frontend.ExprTable()
-    input_var = relax.Var("tvmgen_tensor_0", relax.TensorType((1, 2, 2, 1), dtype="int8"))
-    exp_tab.set_expr("tvmgen_tensor_0", input_var)
-    converter = tflite_frontend.OperatorConverter(tflite_model, subgraph, exp_tab, bb)
-    with bb.function("main", [input_var]):
-        with bb.dataflow():
-            output = converter.convert_pool2d(subgraph.Operators(0), "average")
-            gv = bb.emit_output(output)
-        bb.emit_func_output(gv)
-    mod = bb.get()
-
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(tvmgen_tensor_0: R.Tensor((1, 2, 2, 1), dtype="int8")) -> R.Tensor(
-            (1, 1, 1, 1), dtype="int8"
-        ):
-            with R.dataflow():
-                lv: R.Tensor((1, 2, 2, 1), dtype="int32") = R.astype(tvmgen_tensor_0, dtype="int32")
-                lv1: R.Tensor((1, 1, 1, 1), dtype="int32") = R.nn.avg_pool2d(
-                    lv,
-                    pool_size=[2, 2],
-                    strides=[1, 1],
-                    dilation=[1, 1],
-                    padding=[0, 0, 0, 0],
-                    ceil_mode=False,
-                    count_include_pad=False,
-                    layout="NHWC",
-                    out_layout="NHWC",
-                )
-                gv: R.Tensor((1, 1, 1, 1), dtype="int8") = R.astype(lv1, dtype="int8")
-                R.output(gv)
-            return gv
-
-    tvm.ir.assert_structural_equal(mod, Expected)
+    mod = from_tflite(tflite_model)
+    executable = tvm.compile(mod, target="llvm")
+    vm = relax.VirtualMachine(executable, tvm.cpu())
+    actual = vm["main"](tvm.runtime.tensor(data)).numpy()
+    np.testing.assert_array_equal(actual, expected)
 
 
 def test_quantized_conv2d_per_tensor_uses_qdq():
