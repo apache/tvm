@@ -55,7 +55,7 @@ def register_intrin_lowering(
     target,
     *,
     f=None,
-    level=10,
+    override=False,
 ):
     """Register Op lowering function
 
@@ -70,18 +70,19 @@ def register_intrin_lowering(
     f : function, optional
         The function to be registered.
 
-    level : int
-        The priority level
+    override : bool, optional
+        Replace an existing lowering if True; duplicate registration otherwise
+        raises ValueError.
 
     Returns
     -------
-    fregister : function
-        Register op lowering function if f is not specified.
+    result : function
+        The registered lowering, or a decorator if f is not supplied.
     """
 
     def _register(f):
         """internal register function"""
-        _ffi_api.RegisterOpLowerIntrinsic(op_name, f, target, level)
+        tvm.ir.register_op_attr(op_name, target + ".FLowerIntrinsic", f, override)
         return f
 
     return _register(f) if f is not None else _register

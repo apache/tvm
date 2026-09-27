@@ -132,9 +132,9 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
  private:
   /// Visitor implementation
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
-    static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
-    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
+    static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+    static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
+    static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
     if (op->op.same_as(mma_fill_op) && GetBufferVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
@@ -321,12 +321,12 @@ class WarpAccessRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override {
-    static const Op& mma_store_op = Op::Get("tirx.mma_store");
-    static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
-    static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
-    static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op& mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
-    static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
+    static const Op mma_store_op = Op::Get("tirx.mma_store");
+    static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+    static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
+    static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
+    static const Op mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
+    static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
     if (op->op.same_as(mma_store_op)) {
       return RewriteIndicesAt(op, {3});
     }

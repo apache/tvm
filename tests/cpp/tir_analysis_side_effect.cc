@@ -33,6 +33,7 @@ TEST(SimplePasses, SideEffect) {
   auto i = PrimVar("i", PrimType::Int(32));
   TVM_FFI_ICHECK(SideEffect(tirx::BufferLoad(buf, {i})) == CallEffectKind::kReadState);
   TVM_FFI_ICHECK(SideEffect(exp(prim::Cast(PrimType::Float(32), i + 1))) == CallEffectKind::kPure);
-  TVM_FFI_ICHECK(SideEffect(tvm::Call(PrimType::Void(), tirx::builtin::tvm_storage_sync(), {})
+  TVM_FFI_ICHECK(SideEffect(tvm::Call(PrimType::Void(), tirx::builtin::tvm_storage_sync(),
+                                      {StringImm("shared")})
                                 .as_or_throw<PrimExpr>()) == CallEffectKind::kUpdateState);
 }

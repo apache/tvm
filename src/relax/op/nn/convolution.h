@@ -49,7 +49,7 @@ inline Expr MakeConv(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = std::move(out_layout);
   attrs->out_dtype = out_dtype;
-  const Op& op = Op::Get(op_name);
+  const Op op = Op::Get(op_name);
   return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 

@@ -124,7 +124,7 @@ class ElectSyncFinder : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     auto is_canonical_elect_sync = [&]() {
-      static const Op& ptx_elect_sync_op = Op::Get("tirx.cuda.elect_sync");
+      static const Op ptx_elect_sync_op = Op::Get("tirx.cuda.elect_sync");
       return op->op.same_as(ptx_elect_sync_op);
     };
     if (is_canonical_elect_sync()) {

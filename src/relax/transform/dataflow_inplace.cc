@@ -866,7 +866,7 @@ class ModuleInplaceTransformer : public ExprMutator {
   // (Made public for testing.)
   Call CreateInplaceCall(const Call& call, const ffi::Array<int64_t>& inplace_indices) {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
-    static const auto& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
+    static const auto call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
 
     auto op = call->op.as_or_throw<Op>();
     auto legalized_call = legalize_map[op](builder_, call).as_or_throw<Call>();

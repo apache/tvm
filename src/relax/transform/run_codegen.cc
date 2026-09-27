@@ -114,7 +114,7 @@ class CodeGenRunner : ExprMutator {
         ffi::Array<Expr> new_args({extern_func});
         new_args.push_back(Tuple(call_node->args.Map([this](Expr arg) { return VisitExpr(arg); })));
 
-        static const Op& call_op = Op::Get("relax.call_dps_packed");
+        static const Op call_op = Op::Get("relax.call_dps_packed");
 
         return Call(Type::Missing(), call_op, new_args, tvm::Attrs(), {ret_ty});
       };

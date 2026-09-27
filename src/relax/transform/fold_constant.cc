@@ -312,7 +312,7 @@ class ConstantFolder : public ExprMutator {
     // Check if it is useful to fold this call
     if (!ShouldBeFolded(post_call)) return post_call;
 
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     static const auto& infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     auto* op_node = post_call->op.as<OpNode>();

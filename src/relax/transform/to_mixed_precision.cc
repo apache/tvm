@@ -598,7 +598,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   ffi::Array<Var> params_;
   std::unordered_set<std::string> fp16_input_names_;
 
-  const Op& wrap_param_op = Op::Get("relax.wrap_param");
+  const Op wrap_param_op = Op::Get("relax.wrap_param");
 };
 
 Expr ToMixedPrecision(const Function& f, DLDataType out_dtype,

@@ -247,16 +247,15 @@ class WebGPUNamespace:
 webgpu = WebGPUNamespace()
 
 
-def _register_script_namespace_printer_names(ns_obj, dotted_prefix):
+def _register_script_namespace_printer_names(ns_obj, dotted_prefix, override=False):
     def register_printer_name(op_name, script_name):
         try:
-            ir.Op.get(op_name)
-        except Exception:
+            op = ir.Op.get(op_name)
+        except AttributeError:
             return
-        try:
-            _register_op_attr(op_name, "TScriptPrinterName", script_name, level=20)
-        except Exception:
-            pass
+        if op.has_attr("TScriptPrinterName") and op.get_attr("TScriptPrinterName") == script_name:
+            return
+        _register_op_attr(op_name, "TScriptPrinterName", script_name, override=override)
 
     def visit(ns_obj, dotted_prefix):
         # If the namespace object itself maps to an op via __call__
@@ -298,8 +297,19 @@ def _get_script_namespace(name: str) -> object:
     raise AttributeError(f"No script namespace {name!r}")
 
 
-def register_script_namespace(name: str, namespace: object) -> object:
-    """Register a TVMScript namespace on the TIRx builder facade."""
+def register_script_namespace(name: str, namespace: object, override: bool = False) -> object:
+    """Register a construction namespace and return it.
+
+    Parameters
+    ----------
+    name : str
+        Namespace name on the TIRx builder facade.
+    namespace : object
+        Construction namespace object.
+    override : bool, optional
+        Replace differing operator printer names if True. Existing equal names
+        are reused; other duplicates raise ValueError.
+    """
     _SCRIPT_NAMESPACES[name] = namespace
     globals()[name] = namespace
     if "__all__" in globals() and name not in __all__:
@@ -320,7 +330,7 @@ def register_script_namespace(name: str, namespace: object) -> object:
         if isinstance(module_all, list) and name not in module_all:
             module_all.append(name)
 
-    _register_script_namespace_printer_names(namespace, name)
+    _register_script_namespace_printer_names(namespace, name, override)
     return namespace
 
 

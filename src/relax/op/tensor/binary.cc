@@ -35,12 +35,7 @@ using namespace tvm::prim;
 
 template <typename FType>
 Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
-  Op op = call->op.as_or_throw<Op>();
-  size_t n_input = op->arguments.size();
-  if (call->args.size() != n_input) {
-    TVM_FFI_VISIT_THROW(ValueError, call)
-        << call->op << " op should have " << n_input << " arguments";
-  }
+  CheckNumArguments(call, ctx);
 
   auto lhs_ty = GetType(call->args[0]);
   auto rhs_ty = GetType(call->args[1]);

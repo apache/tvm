@@ -73,14 +73,6 @@ Type InferDistTypeBroadcastArith(const Call& call, const BlockBuilder& ctx);
 
 Type InferDistTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx);
 
-#define RELAX_REGISTER_BINARY_BROADCAST_DIST_INFER_TYPE(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                             \
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastArith)
-
-#define RELAX_REGISTER_CMP_DIST_INFER_TYPE(OpName) \
-  TVM_REGISTER_OP("relax." #OpName)                \
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeBroadcastCMP)
-
 }  // namespace distributed
 }  // namespace relax
 }  // namespace tvm

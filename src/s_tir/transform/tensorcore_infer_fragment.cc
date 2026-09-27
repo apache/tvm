@@ -59,9 +59,9 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
 
-    static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-    static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-    static const Op& tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
+    static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+    static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+    static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
     if (op->op.same_as(tvm_load_matrix_sync_op) || op->op.same_as(tvm_store_matrix_sync_op)) {
       // Get shape and layout information from load and store intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
@@ -153,8 +153,8 @@ class FragmentChecker : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     // Check shape when calling tvm_mma_sync
-    static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-    static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
+    static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
+    static const Op tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
     if (op->op.same_as(tvm_mma_sync_op) || op->op.same_as(tvm_bmma_sync_op)) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var_d = GetBufferVarFromData(op->args[0]);

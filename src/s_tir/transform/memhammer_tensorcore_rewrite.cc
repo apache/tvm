@@ -160,7 +160,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                                  /*offset_factor=*/16));
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
-  static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},
       /*predicate=*/IntImm::Bool(true),
@@ -262,7 +262,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
-  static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
       /*predicate=*/IntImm::Bool(true),

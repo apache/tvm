@@ -383,7 +383,7 @@ class LowerTIRToLocalView : public ExprMutator {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     if (!val->op.same_as(call_tir_op)) {
       ExprMutator::VisitBinding_(binding, val);
       return;

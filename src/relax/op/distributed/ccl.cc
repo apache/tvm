@@ -37,8 +37,12 @@ Type InferDistTypeAllReduce(const Call& call, const BlockBuilder& ctx) {
                      Placement::FromText(std::string(device_mesh->shape.size(), 'R')));
 }
 
-TVM_REGISTER_OP("relax.ccl.allreduce")
-    .set_attr<FInferType>("dist.FInferType", InferDistTypeAllReduce);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  // clang-format off
+  OpDef("relax.ccl.allreduce")
+      .set_attr<FInferType>("dist.FInferType", InferDistTypeAllReduce);
+  // clang-format on
+}
 
 }  // namespace distributed
 }  // namespace relax

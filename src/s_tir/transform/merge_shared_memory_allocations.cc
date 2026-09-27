@@ -594,7 +594,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    static const Op& ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
+    static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
     if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       DLDataType dtype = op->args[0].as_or_throw<PrimExpr>().ty()->dtype;

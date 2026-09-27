@@ -449,10 +449,10 @@ void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(
         << "Only 8x8 matrix is supported, but got " << col_val << "x" << row_val;
   };
 
-  static const Op& make_filled_simdgroup_matrix_op = Op::Get("tirx.make_filled_simdgroup_matrix");
-  static const Op& simdgroup_load_op = Op::Get("tirx.simdgroup_load");
-  static const Op& simdgroup_store_op = Op::Get("tirx.simdgroup_store");
-  static const Op& simdgroup_multiply_accumulate_op = Op::Get("tirx.simdgroup_multiply_accumulate");
+  static const Op make_filled_simdgroup_matrix_op = Op::Get("tirx.make_filled_simdgroup_matrix");
+  static const Op simdgroup_load_op = Op::Get("tirx.simdgroup_load");
+  static const Op simdgroup_store_op = Op::Get("tirx.simdgroup_store");
+  static const Op simdgroup_multiply_accumulate_op = Op::Get("tirx.simdgroup_multiply_accumulate");
 
   if (op->op.same_as(make_filled_simdgroup_matrix_op)) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 5);

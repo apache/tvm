@@ -92,8 +92,8 @@ inline ffi::Optional<ExprDoc> TypeAsAnn(const tvm::Var& v, const AccessPath& v_p
 
   if (rhs.has_value()) {
     if (const auto* call = rhs.as<tvm::CallNode>()) {
-      static const Op& call_tir_op = Op::Get("relax.call_tir");
-      static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+      static const Op call_tir_op = Op::Get("relax.call_tir");
+      static const Op call_dps_packed_op = Op::Get("relax.call_dps_packed");
       if (call->op.same_as(call_tir_op) || call->op.same_as(call_dps_packed_op)) {
         attempt_to_hide_ty = true;
       }

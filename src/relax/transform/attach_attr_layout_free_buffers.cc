@@ -66,7 +66,7 @@ class AttrAttacher : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
     Call call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
     if (!call->op.same_as(call_tir_op_)) {
       return call;

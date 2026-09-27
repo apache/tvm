@@ -280,7 +280,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* op) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     Call call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
 
     // Step 1: Skip call to other than `tirx.call_tir`

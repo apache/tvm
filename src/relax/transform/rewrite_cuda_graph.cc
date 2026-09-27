@@ -194,7 +194,7 @@ class OutputStorageCollector : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
-    static const auto& mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
+    static const auto mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
     if (output_vars_.count(binding->var.get()) && call->op.same_as(mem_alloc_tensor_op)) {
       output_storages_.insert(call->args[0].as<VarNode>());
     }
@@ -350,9 +350,9 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
-    static const auto& mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
-    static const auto& builtin_alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    static const auto& call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
+    static const auto mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
+    static const auto builtin_alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const auto call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
 
     if (call->op.same_as(mem_alloc_storage_op)) {
       if (IsStaticAllocStorage(binding)) {
@@ -389,7 +389,7 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
 
     if (is_all_static) {
       bool is_kernel_launch = [&]() {
-        static const auto& null_value_op = Op::Get("relax.null_value");
+        static const auto null_value_op = Op::Get("relax.null_value");
 
         if (call_prim_func) {
           return true;
@@ -672,7 +672,7 @@ Function MergeAllocationPlans(const std::vector<LiftedFunctionRewritePlan*>& all
   };
   // Using an (ordered) map to make sure the result is deterministic
   std::map<ffi::String, std::vector<std::vector<StorageRecord>>> storage_records;
-  static const auto& mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
+  static const auto mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
 
   // Collect the storage records for each storage scope. Storage records are stored separately
   // for each original function.
@@ -784,7 +784,7 @@ class CUDAGraphRewriter : public ExprMutator {
   }
 
   void LaunchSubgraph(const VarBindingNode* op, const LiftedFunctionRewritePlan* plan) {
-    static const auto& call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
+    static const auto call_builtin_with_ctx_op = Op::Get("relax.call_builtin_with_ctx");
     static const auto& builtin_run_or_capture = ExternFunc("vm.builtin.cuda_graph.run_or_capture");
     static const auto& builtin_get_cached_alloc =
         ExternFunc("vm.builtin.cuda_graph.get_cached_alloc");

@@ -45,13 +45,6 @@
 
 namespace tvm::prim {
 
-#define TVM_TIR_REGISTER_OP(OpName)                               \
-  TVM_REGISTER_OP("tirx." OpName)                                 \
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", OpName) \
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), /*plevel=*/1)
-
-#define TVM_TIRX_REGISTER_OP(OpName) TVM_TIR_REGISTER_OP(OpName)
-
 // Shared primitive construction and constants are declared in ir/prim/op.h.
 
 /*!

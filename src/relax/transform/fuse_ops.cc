@@ -199,8 +199,8 @@ class GraphCreator : public ExprVisitor {
   void VisitCall(const CallNode* call, IndexedForwardGraph::Node* binding_var_node) {
     TVM_FFI_ICHECK_NOTNULL(binding_var_node);
 
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
     OpPatternKind pattern = OpPatternKind::kOpaque;
     ffi::Array<Expr> args = call->args;

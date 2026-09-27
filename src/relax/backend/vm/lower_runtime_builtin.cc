@@ -218,27 +218,27 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
                 Attrs(), {object_ty_});
   }
 
-  const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
+  const Op call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
   const Type object_ty_ = AnyType();
   const Type void_ty_ = TupleType(ffi::Array<Type>({}));
   // object to pattern match.
-  const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
-  const Op& reshape_op_ = Op::Get("relax.reshape");
-  const Op& shape_of_op_ = Op::Get("relax.shape_of");
-  const Op& tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
-  const Op& call_py_func_op_ = Op::Get("relax.call_py_func");
-  const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
-  const Op& make_closure_op_ = Op::Get("relax.make_closure");
-  const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
-  const Op& alloc_tensor_op_ = Op::Get("relax.builtin.alloc_tensor");
-  const Op& mem_alloc_storage_op_ = Op::Get("relax.memory.alloc_storage");
-  const Op& mem_alloc_tensor_op_ = Op::Get("relax.memory.alloc_tensor");
-  const Op& mem_kill_storage_op_ = Op::Get("relax.memory.kill_storage");
-  const Op& mem_kill_tensor_op_ = Op::Get("relax.memory.kill_tensor");
+  const Op call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
+  const Op reshape_op_ = Op::Get("relax.reshape");
+  const Op shape_of_op_ = Op::Get("relax.shape_of");
+  const Op tensor_to_shape_op_ = Op::Get("relax.tensor_to_shape");
+  const Op call_py_func_op_ = Op::Get("relax.call_py_func");
+  const Op to_vdevice_op_ = Op::Get("relax.to_vdevice");
+  const Op make_closure_op_ = Op::Get("relax.make_closure");
+  const Op invoke_closure_op_ = Op::Get("relax.invoke_closure");
+  const Op alloc_tensor_op_ = Op::Get("relax.builtin.alloc_tensor");
+  const Op mem_alloc_storage_op_ = Op::Get("relax.memory.alloc_storage");
+  const Op mem_alloc_tensor_op_ = Op::Get("relax.memory.alloc_tensor");
+  const Op mem_kill_storage_op_ = Op::Get("relax.memory.kill_storage");
+  const Op mem_kill_tensor_op_ = Op::Get("relax.memory.kill_tensor");
   // functions to lower to
-  const Op& vm_alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
-  const Op& vm_alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
-  const Op& vm_kill_object_op_ = Op::Get("relax.vm.kill_object");
+  const Op vm_alloc_storage_op_ = Op::Get("relax.vm.alloc_storage");
+  const Op vm_alloc_tensor_op_ = Op::Get("relax.vm.alloc_tensor");
+  const Op vm_kill_object_op_ = Op::Get("relax.vm.kill_object");
   // Function to compute allocated shape.
   const ExternFunc builtin_compute_alloc_shape_{"vm.builtin.compute_alloc_shape"};
   const ExternFunc builtin_call_tir_dyn_{"vm.builtin.call_tir_dyn"};

@@ -144,7 +144,7 @@ class LegalizeMutator : public ExprMutator {
   }
 
   Call WrapPureCall(const Call& ret) {
-    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+    static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
     ffi::Array<Expr> ret_args = {ret->op};
     for (auto arg : ret->args) {
       ret_args.push_back(arg);
@@ -242,9 +242,9 @@ class LegalizeMutator : public ExprMutator {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
     static const auto& requires_arg_shapes_map = Op::GetAttrMap<bool>("RequiresArgumentShapes");
-    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+    static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_dps_packed_op = Op::Get("relax.call_dps_packed");
     auto* op_node = visited_call->op.as<OpNode>();
 
     // Not an OpNode

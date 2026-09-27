@@ -126,11 +126,11 @@ class PipelineOpaqueAccessRewriter {
     // Intrinsic calls should be handled explicitly here as they are opaque accesses to
     // buffer.
     static const auto& access_ptr = tirx::builtin::tvm_access_ptr();
-    static const Op& load_matrix_sync = Op::Get("tirx.tvm_load_matrix_sync");
-    static const Op& store_matrix_sync = Op::Get("tirx.tvm_store_matrix_sync");
-    static const Op& mma_sync = Op::Get("tirx.tvm_mma_sync");
-    static const Op& ptx_ldmatrix_legacy = Op::Get("tirx.ptx_legacy.ldmatrix");
-    static const Op& ptx_mma_legacy = Op::Get("tirx.ptx_legacy.mma");
+    static const Op load_matrix_sync = Op::Get("tirx.tvm_load_matrix_sync");
+    static const Op store_matrix_sync = Op::Get("tirx.tvm_store_matrix_sync");
+    static const Op mma_sync = Op::Get("tirx.tvm_mma_sync");
+    static const Op ptx_ldmatrix_legacy = Op::Get("tirx.ptx_legacy.ldmatrix");
+    static const Op ptx_mma_legacy = Op::Get("tirx.ptx_legacy.mma");
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
       const BufferVar& buffer = buffer_data_to_buffer_.at(GetBufferDataVar(call->args[0]).value());
       auto it = buffer_remap_.find(buffer);

@@ -159,7 +159,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       if (Op::HasAttrMap(pattern)) {
         attr_maps_.push_back(Op::GetAttrMap<FLowerGeneral>(pattern));
         if (fma_ == nullptr) {
-          static const Op& fma_op = Op::Get("tirx.fma");
+          static const Op fma_op = Op::Get("tirx.fma");
           fma_ = (*attr_maps_.rbegin()).get(fma_op, nullptr);
         }
       }
