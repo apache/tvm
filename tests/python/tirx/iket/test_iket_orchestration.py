@@ -73,7 +73,7 @@ def test_profile_rejects_nested_injection_before_validation(
 ):
     validation_started = False
 
-    def validate(_name):
+    def validate():
         nonlocal validation_started
         validation_started = True
 
@@ -122,25 +122,21 @@ def test_profile_forwards_cwd_environment_timeout_and_publishes(tmp_path, monkey
     cwd = tmp_path / "work"
     cwd.mkdir()
     captured = {}
-    monkeypatch.setattr(
-        iket, "_validate_official_installation", lambda profile_name: "/opt/bin/run-iket"
-    )
+    monkeypatch.setattr(iket, "_validate_official_installation", lambda: "/opt/bin/run-iket")
     monkeypatch.setattr(iket, "_run_process", _fake_profile_process(captured))
-    monkeypatch.setenv("TVM_IKET_OFFICIAL_PROFILE", "inherited-profile")
+    monkeypatch.setenv("IKET_TEST_ENV", "inherited")
 
-    with pytest.warns(RuntimeWarning, match="takes precedence"):
-        result = iket.profile(
-            (sys.executable, "workload.py"),
-            output_dir=target,
-            profile_name="cutlass-4.6.0",
-            postprocess="all",
-            clobber=False,
-            cwd=cwd,
-            env={"IKET_TEST_ENV": "present"},
-            max_ts_cnt_per_warp=17,
-            keep=True,
-            timeout=12.5,
-        )
+    result = iket.profile(
+        (sys.executable, "workload.py"),
+        output_dir=target,
+        postprocess="all",
+        clobber=False,
+        cwd=cwd,
+        env={"IKET_TEST_ENV": "present"},
+        max_ts_cnt_per_warp=17,
+        keep=True,
+        timeout=12.5,
+    )
 
     staging = Path(captured["argv"][2])
     assert staging.parent == target.parent
@@ -148,9 +144,8 @@ def test_profile_forwards_cwd_environment_timeout_and_publishes(tmp_path, monkey
     assert captured["cwd"] == cwd
     assert captured["timeout"] == 12.5
     assert captured["env"]["IKET_TEST_ENV"] == "present"
-    assert captured["env"]["TVM_IKET_OFFICIAL_PROFILE"] == "cutlass-4.6.0"
     assert captured["env"]["TVM_IKET_INJECTED_CHILD_ENABLE"] == "1"
-    assert os.environ["TVM_IKET_OFFICIAL_PROFILE"] == "inherited-profile"
+    assert os.environ["IKET_TEST_ENV"] == "inherited"
     assert result.output_dir == target
     assert result.command == (sys.executable, "workload.py")
     assert result.trace == {"launches": [{"index": 0}]}
@@ -164,7 +159,7 @@ def test_profile_forwards_cwd_environment_timeout_and_publishes(tmp_path, monkey
 def test_postprocess_artifact_contract(postprocess, tmp_path, monkeypatch):
     target = tmp_path / postprocess
     captured = {}
-    monkeypatch.setattr(iket, "_validate_official_installation", lambda _name: "run-iket")
+    monkeypatch.setattr(iket, "_validate_official_installation", lambda: "run-iket")
     monkeypatch.setattr(iket, "_run_process", _fake_profile_process(captured))
 
     result = iket.profile(
@@ -190,7 +185,7 @@ def test_postprocess_artifact_contract(postprocess, tmp_path, monkeypatch):
 def test_multi_process_singular_properties_point_to_plural(tmp_path, monkeypatch):
     target = tmp_path / "multi"
     captured = {}
-    monkeypatch.setattr(iket, "_validate_official_installation", lambda _name: "run-iket")
+    monkeypatch.setattr(iket, "_validate_official_installation", lambda: "run-iket")
     monkeypatch.setattr(iket, "_run_process", _fake_profile_process(captured, artifact_count=2))
     result = iket.profile(("python", "workload.py"), output_dir=target)
 
@@ -215,7 +210,7 @@ def test_missing_artifact_rolls_back_existing_output(tmp_path, monkeypatch):
         staging = Path(argv[argv.index("--output-dir") + 1])
         (staging / "iket_pid_1.trace.json").write_text("{}", encoding="utf-8")
 
-    monkeypatch.setattr(iket, "_validate_official_installation", lambda _name: "run-iket")
+    monkeypatch.setattr(iket, "_validate_official_installation", lambda: "run-iket")
     monkeypatch.setattr(iket, "_run_process", incomplete)
     with pytest.raises(iket.IketProfileError, match="Perfetto trace"):
         iket.profile(("python", "workload.py"), output_dir=target, clobber=True)
@@ -229,7 +224,7 @@ def test_successful_clobber_replaces_only_after_profile_success(tmp_path, monkey
     target.mkdir()
     (target / "old.txt").write_text("old", encoding="utf-8")
     captured = {}
-    monkeypatch.setattr(iket, "_validate_official_installation", lambda _name: "run-iket")
+    monkeypatch.setattr(iket, "_validate_official_installation", lambda: "run-iket")
     monkeypatch.setattr(iket, "_run_process", _fake_profile_process(captured))
 
     result = iket.profile(("python", "workload.py"), output_dir=target, clobber=True)
@@ -243,7 +238,7 @@ def test_existing_output_fails_before_installation_validation(tmp_path, monkeypa
     target.mkdir()
     called = False
 
-    def validate(_name):
+    def validate():
         nonlocal called
         called = True
 
@@ -257,7 +252,7 @@ def test_existing_output_fails_before_installation_validation(tmp_path, monkeypa
 def test_invalid_timeout_is_rejected_before_validation(timeout, tmp_path, monkeypatch):
     called = False
 
-    def validate(_name):
+    def validate():
         nonlocal called
         called = True
 
@@ -292,7 +287,7 @@ def test_nonzero_exit_keeps_last_100_output_lines(tmp_path, monkeypatch):
     target.mkdir()
     sentinel = target / "old.txt"
     sentinel.write_text("old", encoding="utf-8")
-    monkeypatch.setattr(iket, "_validate_official_installation", lambda _name: str(executable))
+    monkeypatch.setattr(iket, "_validate_official_installation", lambda: str(executable))
 
     with pytest.raises(iket.IketProfileError) as error_info:
         iket.profile(
@@ -371,7 +366,7 @@ def test_timeout_kills_run_iket_workload_and_grandchild(tmp_path, monkeypatch):
         time.sleep(3600)
         """,
     )
-    monkeypatch.setattr(iket, "_validate_official_installation", lambda _name: str(executable))
+    monkeypatch.setattr(iket, "_validate_official_installation", lambda: str(executable))
     monkeypatch.setattr(iket, "_TERMINATION_GRACE_SECONDS", 0.2)
 
     with pytest.raises(iket.IketProfileError) as error_info:

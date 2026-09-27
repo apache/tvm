@@ -1205,11 +1205,9 @@ class InstrumentOfficialKernel : public StmtExprMutator {
 bool IketEnabled(const IRModule& module) {
   if (module->HasNonzeroAttr("tirx.iket.enabled")) return true;
   const char* child_enable = std::getenv("TVM_IKET_INJECTED_CHILD_ENABLE");
-  const char* profile = std::getenv("TVM_IKET_OFFICIAL_PROFILE");
   const char* injection = std::getenv("CUDA_INJECTION64_PATH");
   const char* injection_config = std::getenv("SMODEL_INJECTION_CONFIG");
-  return child_enable && std::string(child_enable) == "1" && profile &&
-         std::string(profile) == "cutlass-4.6.0" && injection && injection[0] != '\0' &&
+  return child_enable && std::string(child_enable) == "1" && injection && injection[0] != '\0' &&
          injection_config && injection_config[0] != '\0';
 }
 
