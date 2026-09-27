@@ -812,7 +812,7 @@ def test_environment_validation_is_not_process_cached(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize("version", ("4.5.0", "4.6.0", "4.6.2", "5.0.0.dev1"))
-def test_official_installation_does_not_require_package_versions(tmp_path, monkeypatch, version):
+def test_installation_ignores_package_versions(tmp_path, monkeypatch, version):
     from tvm.tirx.cuda import iket as _iket_official
 
     executable = tmp_path / "run-iket"
@@ -834,7 +834,7 @@ def test_official_installation_does_not_require_package_versions(tmp_path, monke
 
 
 @pytest.mark.parametrize("version", ((12, 9), (13, 2), (13, 4), (14, 0)))
-def test_official_installation_does_not_require_nvrtc_version(monkeypatch, version):
+def test_nvrtc_version_unrestricted(monkeypatch, version):
     from tvm.tirx.cuda import iket as _iket_official
 
     nvrtc = SimpleNamespace(nvrtcVersion=lambda: (0, *version))
@@ -842,7 +842,7 @@ def test_official_installation_does_not_require_nvrtc_version(monkeypatch, versi
     _iket_official._validate_nvrtc_available()  # pylint: disable=protected-access
 
 
-def test_official_installation_requires_working_nvrtc(monkeypatch):
+def test_nvrtc_error_status(monkeypatch):
     from tvm.tirx.cuda import iket as _iket_official
 
     nvrtc = SimpleNamespace(nvrtcVersion=lambda: (1, 0, 0))
@@ -852,7 +852,7 @@ def test_official_installation_requires_working_nvrtc(monkeypatch):
 
 
 @pytest.mark.parametrize("error_type", (ImportError, OSError, RuntimeError))
-def test_official_installation_requires_loadable_nvrtc(monkeypatch, error_type):
+def test_nvrtc_load_error(monkeypatch, error_type):
     from tvm.tirx.cuda import iket as _iket_official
 
     def unavailable_nvrtc():
