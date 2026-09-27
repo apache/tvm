@@ -64,7 +64,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
 }
 
-Type InferTypeResize2D(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeResize2D(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Resize2D expects 2 arguments, while the given number of arguments is "
@@ -91,8 +92,8 @@ Type InferTypeResize2D(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<Resize2DAttrs>();
-  auto [data_layout, data2NCHW] = CheckTensorLayout(call, ctx, attrs->layout,  //
-                                                    /*tgt_layout=*/"NCHW",     //
+  auto [data_layout, data2NCHW] = CheckTensorLayout(call, attrs->layout,    //
+                                                    /*tgt_layout=*/"NCHW",  //
                                                     /*tensor_name=*/"data");
 
   ffi::Optional<PrimType> out_dtype =
@@ -100,7 +101,7 @@ Type InferTypeResize2D(const Call& call, const BlockBuilder& ctx) {
                                    : data_ty->dtype;
 
   ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, ffi::GetRef<TensorType>(data_ty), data_layout);
+      CheckNdimPerLayoutAndGetShape(call, ffi::GetRef<TensorType>(data_ty), data_layout);
   if (!data_shape.has_value() || size_value == nullptr) {
     return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
   }
@@ -180,7 +181,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize3d", resize3d);
 }
 
-Type InferTypeResize3D(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeResize3D(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Resize3D expects 2 arguments, while the given number of arguments is "
@@ -207,8 +209,8 @@ Type InferTypeResize3D(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<Resize3DAttrs>();
-  auto [data_layout, data2NCDHW] = CheckTensorLayout(call, ctx, attrs->layout,  //
-                                                     /*tgt_layout=*/"NCDHW",    //
+  auto [data_layout, data2NCDHW] = CheckTensorLayout(call, attrs->layout,     //
+                                                     /*tgt_layout=*/"NCDHW",  //
                                                      /*tensor_name=*/"data");
 
   ffi::Optional<PrimType> out_dtype =
@@ -216,7 +218,7 @@ Type InferTypeResize3D(const Call& call, const BlockBuilder& ctx) {
                                    : data_ty->dtype;
 
   ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, ffi::GetRef<TensorType>(data_ty), data_layout);
+      CheckNdimPerLayoutAndGetShape(call, ffi::GetRef<TensorType>(data_ty), data_layout);
   if (!data_shape.has_value() || size_value == nullptr) {
     return TensorType(out_dtype, data_layout.ndim(), data_ty->vdevice);
   }
@@ -289,7 +291,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.grid_sample", grid_sample);
 }
 
-Type InferTypeGridSample(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeGridSample(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "GridSample expects two arguments, while the given number of arguments is "
@@ -317,14 +320,14 @@ Type InferTypeGridSample(const Call& call, const BlockBuilder& ctx) {
   // treated as the 2D NCHW path so existing behavior is preserved.
   const bool is_ncdhw = (attrs->layout == "NCDHW");
 
-  auto [data_layout, data2tgt] = CheckTensorLayout(call, ctx, attrs->layout,
+  auto [data_layout, data2tgt] = CheckTensorLayout(call, attrs->layout,
                                                    /*tgt_layout=*/is_ncdhw ? "NCDHW" : "NCHW",
                                                    /*tensor_name=*/"data");
 
   ffi::Optional<PrimType> out_dtype = data_ty->dtype;
 
   ffi::Optional<ShapeExpr> data_shape =
-      CheckNdimPerLayoutAndGetShape(call, ctx, ffi::GetRef<TensorType>(data_ty), data_layout);
+      CheckNdimPerLayoutAndGetShape(call, ffi::GetRef<TensorType>(data_ty), data_layout);
   const auto* grid_shape = grid_ty->shape.as<ShapeExprNode>();
 
   if (!data_shape.has_value() || grid_shape == nullptr) {
@@ -375,7 +378,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.affine_grid", affine_grid);
 }
 
-Type InferTypeAffineGrid(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeAffineGrid(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "AffineGrid expects two arguments, while the given number of arguments is "

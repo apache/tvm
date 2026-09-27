@@ -60,7 +60,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.roi_align", roi_align);
 }
 
-Type InferTypeROIAlign(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeROIAlign(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIAlign expects two arguments, while the given number of arguments is "

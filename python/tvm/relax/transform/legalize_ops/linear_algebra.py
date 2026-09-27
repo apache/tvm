@@ -52,7 +52,7 @@ def _matmul(bb: BlockBuilder, call: Call) -> Expr:
 
         a_relax = relax.Var("a", relax.TensorType(a.shape))
         b_relax = relax.Var("b", relax.TensorType(b.shape))
-        f_infer_ty = call.op.get_attr("FInferType")
+        f_infer_ty = call.op.get_attr("FInferTypeWithBuilder")
         output_shape = f_infer_ty(relax.op.matmul(a_relax, b_relax), bb).shape
         if isinstance(a_shape[-1], tirx.IntImm) and a_shape[-1] == 0:
             return te.compute(

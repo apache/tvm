@@ -400,7 +400,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("relative_byte_offset",
                           "The view's byte offset, relative to the input tensor's byte offset."))
       .set_attr<bool>("RequiresArgumentShapes", false)
-      .set_attr<FInferType>("FInferType", InferTypeView)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeView)
       .set_attr<bool>("FPurity", true)
       .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinView);
 }
@@ -415,7 +415,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.memory.ensure_zero_offset", ensure_zero_offset);
 }
 
-Type InferTypeEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeEnsureZeroOffset(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Operator " << call->op << " should receive 1 argument, "

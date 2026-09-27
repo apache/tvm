@@ -66,7 +66,7 @@ using FCallPacked = ffi::String;
  * \param call The call expression to be derived.
  * \param ctx The builder context.
  */
-using FInferType = ffi::TypedFunction<Type(const Call& call, const BlockBuilder& ctx)>;
+using FInferTypeWithBuilder = ffi::TypedFunction<Type(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
  * \brief The function type of a normalization function.

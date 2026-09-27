@@ -127,7 +127,10 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
 }
 
 Type InferTypeBroadcastArith(const Call& call, const BlockBuilder& ctx) {
-  return InferTypeBroadcast(call, ctx, InferBinaryArithOpOutDtype);
+  return InferTypeBroadcast(
+      call, ctx, [](const Call& call, const BlockBuilder& ctx, const Type& lhs, const Type& rhs) {
+        return InferBinaryArithOpOutDtype(call, ctx, lhs, rhs);
+      });
 }
 
 Type InferTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx) {

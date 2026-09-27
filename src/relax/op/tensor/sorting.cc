@@ -53,8 +53,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.sort", sort);
 }
 
-Type InferTypeSort(const Call& call, const BlockBuilder& ctx) {
-  return GetUnaryInputTensorType(call, ctx);
+Type InferTypeSort(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  return GetUnaryInputTensorType(call);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -81,8 +82,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.argsort", argsort);
 }
 
-Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeArgsort(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ArgsortAttrs>();
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
@@ -120,8 +122,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.topk", topk);
 }
 
-Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeTopK(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   const auto* attrs = call->attrs.as<TopKAttrs>();
   ffi::Optional<PrimType> indices_type =

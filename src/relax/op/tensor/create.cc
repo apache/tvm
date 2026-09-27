@@ -71,7 +71,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.full", full);
 }
 
-Type InferTypeFull(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeFull(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Full op should have 2 arguments";
   }
@@ -121,8 +122,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.full_like", full_like);
 }
 
-Type InferTypeFullLike(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+Type InferTypeFullLike(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   TensorType data_ty = input_ty[0];
   TensorType fill_value_ty = input_ty[1];
   if (fill_value_ty->ndim != 0) {
@@ -151,7 +153,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Structure info inference for ones and zeros
-Type InferTypeOnesZeros(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeOnesZeros(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Ones/Zeros should have 1 argument";
   }
@@ -168,8 +171,9 @@ Type InferTypeOnesZeros(const Call& call, const BlockBuilder& ctx) {
 }
 
 // Structure info inference for ones_like and zeros_like
-Type InferTypeOnesLikeZerosLike(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeOnesLikeZerosLike(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<InitAttrs>();
   if (!attrs->dtype.has_value()) {
     return data_ty;
@@ -267,7 +271,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.eye", eye).def("relax.op.eye_like", eye_like);
 }
 
-Type InferTypeEye(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeEye(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Eye op should have 3 arguments: n, m, and k, but got "
                                           << call->args.size() << " arguments";
@@ -291,7 +296,8 @@ Type InferTypeEye(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr({n, m}), PrimType(dtype));
 }
 
-Type InferTypeEyeLike(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeEyeLike(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Eye_like op should have 2 arguments: x and k, but got " << call->args.size()
@@ -348,7 +354,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.arange", arange);
 }
 
-Type InferTypeArange(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeArange(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Arange should have 3 arguments, which are `start`, `end` and `step`, but got "
@@ -411,7 +418,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.hamming_window", hamming_window);
 }
 
-Type InferTypeHammingWindow(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeHammingWindow(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   const auto* attrs = call->attrs.as<InitAttrs>();
   TVM_FFI_ICHECK(attrs->dtype.has_value());
   DLDataType dtype = attrs->dtype.value();
@@ -472,8 +480,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.op.triu", static_cast<Expr (*)(Expr, Expr)>(triu));
 }
 
-Type InferTypeTrilTriu(const Call& call, const BlockBuilder& ctx) {
-  auto [data_ty, offset] = GetArgType<TensorType, PrimType>(call, ctx);
+Type InferTypeTrilTriu(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  auto [data_ty, offset] = GetArgType<TensorType, PrimType>(call);
 
   if (!data_ty->IsUnknownNdim() && data_ty->ndim < 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << call->op

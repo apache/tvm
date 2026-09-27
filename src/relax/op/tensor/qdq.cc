@@ -161,7 +161,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("scale", "The quantization scale of the output tensor."),
                  sig::arg("zero_point", "The quantization zero_point of the output tensor."),
                  sig::call_attrs<QuantizeAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeQuantize)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeQuantize)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -284,7 +284,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("scale", "The quantization scale of the input tensor."),
                  sig::arg("zero_point", "The quantization zero_point of the input tensor."),
                  sig::call_attrs<QuantizeAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeDequantize)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeDequantize)
       .set_attr<bool>("FPurity", true);
 }
 

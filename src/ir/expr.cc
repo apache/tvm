@@ -1157,6 +1157,43 @@ Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<
   data_ = std::move(n);
 }
 
+ffi::Optional<Type> Call::TryReinferType(const CallNode* call) {
+  TVM_FFI_CHECK(call != nullptr, ValueError) << "Call::TryReinferType expects a defined Call";
+  auto op = call->op.as<Op>();
+  if (!op) {
+    return std::nullopt;
+  }
+
+  for (const Expr& arg : call->args) {
+    if (arg->ty.IsMissing()) {
+      return std::nullopt;
+    }
+    // Distributed inference currently has a separate, builder-dependent hook.
+    // Match the builder's direct-argument detection without importing Relax here.
+    if (ffi::String(arg->ty->GetTypeKey()) == "relax.DTensorType") {
+      return std::nullopt;
+    }
+  }
+  for (const Type& ty_arg : call->ty_args) {
+    if (ty_arg.IsMissing()) {
+      return std::nullopt;
+    }
+  }
+
+  if (!Op::HasAttrMap("FInferType")) {
+    return std::nullopt;
+  }
+  static auto infer_type = Op::GetAttrMap<FInferType>("FInferType");
+  auto callback = infer_type.get(op.value(), nullptr);
+  if (callback == nullptr) {
+    return std::nullopt;
+  }
+  Type result = callback(call);
+  TVM_FFI_CHECK(!result.IsMissing(), InternalError)
+      << "FInferType for " << op.value() << " returned Type::Missing()";
+  return result;
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   CallNode::RegisterReflection();
@@ -1174,6 +1211,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                                Attrs attrs, ffi::Array<Type> ty_args, Span span) {
     return Call::Unchecked(ret_ty, op, args, attrs, ty_args, span);
   });
+  refl::GlobalDef().def("ir.CallTryReinferType",
+                        [](const Call& call) { return Call::TryReinferType(call.get()); });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

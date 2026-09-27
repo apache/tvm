@@ -51,8 +51,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.astype", astype);
 }
 
-Type InferTypeAstype(const Call& call, const BlockBuilder& ctx) {
-  TensorType ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeAstype(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<AstypeAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
   new_ty->dtype = PrimType(attrs->dtype);
@@ -83,8 +84,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.wrap_param", MakeWrapParam);
 }
 
-Type InferTypeWrapParam(const Call& call, const BlockBuilder& ctx) {
-  TensorType ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeWrapParam(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<WrapParamAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
   new_ty->dtype = PrimType(attrs->dtype);

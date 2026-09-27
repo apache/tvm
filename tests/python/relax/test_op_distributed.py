@@ -32,6 +32,11 @@ def test_redistribute_R_to_S():
     mesh = R.device_mesh((4,), list(range(4)))
     x = relax.Var("x", R.DTensor((3, 4), "float32", device_mesh=mesh, placement="R"))
 
+    # The shared helper leaves distributed inference to the dedicated builder path.
+    distributed_abs = relax.op.abs(x)
+    assert distributed_abs.try_reinfer_type() is None
+    _check_inference(bb, distributed_abs, x.ty)
+
     _check_inference(
         bb,
         R.distributed.redistribute_replica_to_shard(x, num_workers=4, axis=1),

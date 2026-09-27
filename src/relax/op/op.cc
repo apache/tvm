@@ -62,13 +62,16 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-Type ReturnVoidType(const Call& call, const BlockBuilder& ctx) {
+Type ReturnVoidType(const CallNode*) {
   return TupleType(ffi::Array<Type>());
 }
 
-Type ReturnAnyType(const Call& call, const BlockBuilder& ctx) { return AnyType(); }
+Type ReturnAnyType(const CallNode*) {
+  return AnyType();
+}
 
-Type InferTypeShapeOf(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeShapeOf(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   // use the Type of the argument
   auto arg_ty = GetType(call->args[0]);
   auto* tensor_ty = GetType(call->args[0]).as<TensorTypeNode>();
@@ -156,7 +159,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           "arguments to that function."),
                  sig::var_args("args"),
                  sig::var_ty_args("type_args", "Optional type arguments forwarded to the callee."))
-      .set_attr<FInferType>("FInferType", InferTypeCallPurePacked)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeCallPurePacked)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -271,7 +274,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::var_args("args"),
                  sig::var_ty_args("type_args", "Optional type arguments forwarded to the callee."),
                  sig::call_attrs<CallInplacePackedAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeCallInplacePacked)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeCallInplacePacked)
       // Warning: considered pure, but it has the potential to create visible effects!
       // This should only be used if it has been *checked* that it is safe (no aliases, in-place
       // arguments will no longer be live) and the user believes the packed func to have no
@@ -432,7 +435,8 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   return derived_ret_ty;
 }
 
-Type InferTypeCallTIR(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeCallTIR(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exactly 1 output type.";
   }
@@ -770,7 +774,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // call_dps_packed
 
-Type InferTypeCallDPSPacked(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeCallDPSPacked(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exact 1 output type.";
   }
@@ -815,7 +820,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // call_py_func
 
-Type InferTypeCallPyFunc(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeCallPyFunc(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exact 1 output type.";
   }
@@ -880,7 +886,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // call builtin
-Type InferTypeCallBuiltinWithCtx(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeCallBuiltinWithCtx(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() == 0) {
     // by default return void.
     return TupleType(ffi::Array<Type>());
@@ -955,7 +962,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // can't actually name it assert or else Python will consider it a syntax error
 
-Type InferAssertType(const Call& call, const BlockBuilder& ctx) {
+Type InferAssertType(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   // Ensure that the condition argument is a boolean scalar.
   // Also permitted is a tensor with unknown shape and unknown dtype
   // (checked dynamically in that case). Returns void.
@@ -968,7 +976,7 @@ Type InferAssertType(const Call& call, const BlockBuilder& ctx) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument to assert must be a boolean scalar, but received " << arg_ty;
   }
-  return ReturnVoidType(call, ctx);
+  return ReturnVoidType(call.get());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1018,7 +1026,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // invoke_closure
 
-Type InferTypeInvokeClosure(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeInvokeClosure(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.empty()) {
     return AnyType();
   } else if (call->ty_args.size() == 1) {
@@ -1086,7 +1095,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // size
 
-Type InferTypeSize(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeSize(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   auto arg_ty = GetType(call->args[0]);
   auto* tensor_ty = GetType(call->args[0]).as<TensorTypeNode>();
   TVM_FFI_ICHECK(tensor_ty) << "size expects a tensor input, but received " << arg_ty
@@ -1113,7 +1123,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // tensor_to_shape
 
-Type ReturnTensorToShapeType(const Call& call, const BlockBuilder& ctx) {
+Type ReturnTensorToShapeType(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
@@ -1150,7 +1161,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // shape_to_tensor
-Type ReturnShapeToTensorType(const Call& call, const BlockBuilder& ctx) {
+Type ReturnShapeToTensorType(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
   const auto* ty = GetTypeAs<ShapeTypeNode>(call->args[0]);
@@ -1211,7 +1223,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("storage_scope",
                           "The storage scope of the storage to allocate. Default is global."),
                  sig::var_ty_args("out_type", "Optional output type used by allocation rewrites."))
-      .set_attr<FInferType>("FInferType", InferTypeAllocateTensor)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeAllocateTensor)
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
       .set_attr<bool>("FPurity", true)
       .set_attr<bool>("TAllocator", true);
@@ -1292,7 +1304,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("runtime_device_index",
                           "The device index indicating on which device the tensor is to be "
                           "allocated at runtime. Index -1 is reserved for the host device."))
-      .set_attr<FInferType>("FInferType", InferTypeMemAllocTensor)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeMemAllocTensor)
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
       .set_attr<bool>("FPurity", true)
       .set_attr<bool>("TAllocator", true);
@@ -1419,7 +1431,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("runtime_device_index",
                           "The device index indicating on which device the tensor is "
                           "to be allocated at runtime."))
-      .set_attr<FInferType>("FInferType", InferTypeVMAllocTensor)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeVMAllocTensor)
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
       .set_attr<bool>("FPurity", true)
       .set_attr<bool>("TAllocator", true);
@@ -1484,8 +1496,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // builtin stop_lift_params
-Type InferTypeStopLiftParams(const Call& call, const BlockBuilder& ctx) {
-  return InferTypeUnaryArith<false>(call, ctx);
+Type InferTypeStopLiftParams(const CallNode* call) {
+  return InferTypeUnaryArithContextFree<false>(call);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1508,10 +1520,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // to_vdevice
 
-Type InferToVDeviceType(const Call& call, const BlockBuilder& ctx) {
+Type InferToVDeviceType(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   auto attrs = call->attrs.as<ToVDeviceAttrs>();
   VDevice vdev = attrs->dst_vdevice;
   if (data_ty->shape.has_value()) {
@@ -1542,10 +1555,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // hint_on_device
 
-Type InferHintOnDeviceType(const Call& call, const BlockBuilder& ctx) {
+Type InferHintOnDeviceType(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   return data_ty;
 }
 

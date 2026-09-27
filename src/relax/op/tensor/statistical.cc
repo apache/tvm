@@ -37,13 +37,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ScanopAttrs::RegisterReflection();
 }
 
-Type InferTypeStatistical(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeStatistical(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
-    axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
+    axes = NormalizeAxes(call, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;
@@ -151,8 +152,9 @@ InferLayoutOutput InferLayoutStatistical(
                            Attrs(new_attrs));
 }
 
-Type InferTypeScan(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeScan(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ScanopAttrs>();
 
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
@@ -180,13 +182,14 @@ Type InferTypeScan(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
-Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeStatisticalExtension(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
-    axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
+    axes = NormalizeAxes(call, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;

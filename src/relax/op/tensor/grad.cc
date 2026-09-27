@@ -43,7 +43,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.no_grad", no_grad);
 }
 
-Type InferTypeNoGrad(const Call& call, const BlockBuilder& ctx) { return GetType(call->args[0]); }
+Type InferTypeNoGrad(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  return GetType(call->args[0]);
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.no_grad")
@@ -63,7 +66,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.start_checkpoint", start_checkpoint);
 }
 
-Type InferTypeStartCheckpoint(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeStartCheckpoint(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (!call->args[0].as<VarNode>()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument of relax.op.grad.start_checkpoint should be a Var.";
@@ -89,7 +93,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.end_checkpoint", end_checkpoint);
 }
 
-Type InferTypeEndCheckpoint(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeEndCheckpoint(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (!call->args[0].as<VarNode>()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument of relax.op.grad.end_checkpoint should be a Var.";
@@ -130,7 +135,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.nll_loss_backward", nll_loss_backward);
 }
 
-Type InferTypeNLLLossBackward(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeNLLLossBackward(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
 }
 
@@ -168,7 +174,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.max_pool2d_backward", max_pool2d_backward);
 }
 
-Type InferTypeMaxPool2DBackward(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeMaxPool2DBackward(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
 }
 
@@ -204,7 +211,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.avg_pool2d_backward", avg_pool2d_backward);
 }
 
-Type InferTypeAvgPool2DBackward(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeAvgPool2DBackward(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
 }
 
@@ -233,7 +241,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.take_backward", take_backward);
 }
 
-Type InferTypeTakeBackward(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeTakeBackward(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
 }
 

@@ -57,7 +57,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.unique", unique);
 }
 
-Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeUnique(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = call->args[0]->ty.as_or_throw<TensorType>();
   PrimExpr axis, return_index, return_inverse, return_counts;
   if (call->args.size() == 6) {
@@ -68,7 +69,7 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   if (!data_ty->IsUnknownNdim() && axis.defined()) {
     // Normalize the axis for sanity check purpose.
     if (const auto* axis_int = axis.as<IntImmNode>()) {
-      NormalizeAxis(call, ctx, data_ty->ndim, axis_int->value.as<int>().value());
+      NormalizeAxis(call, data_ty->ndim, axis_int->value.as<int>().value());
     }
   }
   TVM_FFI_ICHECK(call->args[2].as<PrimExpr>());
@@ -176,8 +177,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nonzero", nonzero);
 }
 
-Type InferTypeNonzero(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetInputTensorType(call, 0, ctx);
+Type InferTypeNonzero(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetInputTensorType(call, 0);
   return TensorType(PrimType::Int(64), 2, data_ty->vdevice);
 }
 

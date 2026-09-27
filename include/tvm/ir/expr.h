@@ -513,6 +513,13 @@ class Call : public Expr {
   /*! \brief Construct a provisional Call without invoking its Op validator. */
   TVM_DLL static Call Unchecked(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
                                 ffi::Array<Type> ty_args = ffi::Array<Type>(), Span span = Span());
+  /*! \brief Recompute a result type from prepared call inputs, if context-free inference exists.
+   *
+   * This ignores the Call's stored result type and does not mutate the Call.
+   * Missing input types or a contextual inference rule produce std::nullopt.
+   * Errors from a registered rule are propagated.
+   */
+  TVM_DLL static ffi::Optional<Type> TryReinferType(const CallNode* call);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);

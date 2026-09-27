@@ -40,7 +40,7 @@ ffi::Array<Expr> GetCallArgs(const Call& call) {
   return args;
 }
 
-void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
+void CheckNumArguments(const Call& call) {
   Op op = call->op.as_or_throw<Op>();
   int expected_input = op->args_info.size();
   if (op->var_args_info.has_value() ? call->args.size() < op->args_info.size()
@@ -52,7 +52,7 @@ void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
-TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
+TensorType GetInputTensorType(const Call& call, size_t i_arg) {
   Op op = call->op.as_or_throw<Op>();
 
   TVM_FFI_ICHECK(op->var_args_info.has_value() ? call->args.size() >= op->args_info.size()
@@ -77,19 +77,18 @@ TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder
   }
 }
 
-ffi::Array<TensorType> GetInputTensorType(const Call& call, const BlockBuilder& ctx) {
-  CheckNumArguments(call, ctx);
+ffi::Array<TensorType> GetInputTensorType(const Call& call) {
+  CheckNumArguments(call);
 
   Op op = call->op.as_or_throw<Op>();
   ffi::Array<TensorType> input_tensor_ty;
   for (size_t i = 0; i < call->args.size(); ++i) {
-    input_tensor_ty.push_back(GetInputTensorType(call, i, ctx));
+    input_tensor_ty.push_back(GetInputTensorType(call, i));
   }
   return input_tensor_ty;
 }
 
-ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const BlockBuilder& ctx,
-                                              const Expr& tup) {
+ffi::Array<TensorType> GetTensorTypeFromTuple(const Call& call, const Expr& tup) {
   const auto* tuple_ty = GetTypeAs<TupleTypeNode>(tup);
   if (tuple_ty == nullptr) {
     TVM_FFI_VISIT_THROW(TypeError, call)
@@ -176,8 +175,7 @@ ffi::Optional<ffi::Array<PrimExpr>> InferBinaryBroadcastShape(
   TVM_FFI_UNREACHABLE();
 }
 
-std::vector<int> NormalizeAxes(const Call& call, const BlockBuilder& ctx, int ndim,
-                               const ffi::Array<int64_t>& axes) {
+std::vector<int> NormalizeAxes(const Call& call, int ndim, const ffi::Array<int64_t>& axes) {
   TVM_FFI_ICHECK_NE(ndim, kUnknownNDim) << "The ndim is required to be known for this function.";
   std::vector<bool> appeared_dims_set;
   std::vector<int> axes_non_neg;

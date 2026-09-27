@@ -99,7 +99,7 @@ Type InferDistTypeMatmul(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   // clang-format off
   OpDef("relax.matmul")
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeMatmul);
+      .set_attr<FInferTypeWithBuilder>("dist.FInferTypeWithBuilder", InferDistTypeMatmul);
   // clang-format on
 }
 

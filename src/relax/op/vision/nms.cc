@@ -63,8 +63,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         all_class_non_max_suppression);
 }
 
-Type InferTypeAllClassNMS(const Call& call, const BlockBuilder& ctx) {
-  tvm::ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+Type InferTypeAllClassNMS(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  tvm::ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   const auto boxes_ty = input_ty[0];
   const auto scores_ty = input_ty[1];
   TVM_FFI_ICHECK(!boxes_ty->IsUnknownNdim()) << "Only support known ndim";
@@ -134,7 +135,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.get_valid_counts", get_valid_counts);
 }
 
-Type InferTypeGetValidCounts(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeGetValidCounts(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "get_valid_counts expects 1 argument, got " << call->args.size();
@@ -362,7 +364,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("valid_count", "1-D tensor for valid number of boxes."),
                  sig::arg("indices", "2-D tensor with shape [batch_size, num_anchors]."),
                  sig::call_attrs<NonMaximumSuppressionAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeNMS)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeNMS)
       .set_attr<bool>("FPurity", true);
 }
 

@@ -38,7 +38,7 @@ Type InferDistTypeCallTIR(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   // clang-format off
   OpDef("relax.call_tir")
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeCallTIR);
+      .set_attr<FInferTypeWithBuilder>("dist.FInferTypeWithBuilder", InferDistTypeCallTIR);
   // clang-format on
 }
 
@@ -51,7 +51,7 @@ Type InferDistTypeStopLiftParams(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.builtin.stop_lift_params")
-      .set_attr<FInferType>("dist.FInferType", InferDistTypeStopLiftParams);
+      .set_attr<FInferTypeWithBuilder>("dist.FInferTypeWithBuilder", InferDistTypeStopLiftParams);
 }
 
 }  // namespace distributed

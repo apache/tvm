@@ -106,10 +106,15 @@ inline ffi::Optional<ExprDoc> TypeAsAnn(const tvm::Var& v, const AccessPath& v_p
       if (auto opt = call->op.as<Op>()) {
         auto op = opt.value();
 
-        static auto op_map_infer_ty = Op::GetAttrMap<relax::FInferType>("FInferType");
-
-        auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
-        inferred_ty = op_map_infer_ty[op](call, temp_builder);
+        inferred_ty = Call::TryReinferType(call.get());
+        if (!inferred_ty.has_value()) {
+          static auto op_map_infer_ty =
+              Op::GetAttrMap<relax::FInferTypeWithBuilder>("FInferTypeWithBuilder");
+          if (op_map_infer_ty.count(op)) {
+            auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
+            inferred_ty = op_map_infer_ty[op](call, temp_builder);
+          }
+        }
       } else if (auto opt = call->op.as<relax::FuncType>()) {
         auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
         inferred_ty =

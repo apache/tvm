@@ -68,7 +68,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * skips those N-based relations; other checks (ndim, dtype, loc dim divisible by 4, etc.)
  * still apply when their inputs are known.
  */
-Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeMultiboxTransformLoc(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "multibox_transform_loc: expected 3 inputs (cls_pred, loc_pred, anchor), "
@@ -76,7 +77,7 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
         << call->args.size();
   }
 
-  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   const auto cls_ty = input_ty[0];
   const auto loc_ty = input_ty[1];
   const auto anchor_ty = input_ty[2];

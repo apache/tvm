@@ -51,8 +51,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ccl.allreduce", allreduce);
 }
 
-Type InferTypeAllReduce(const Call& call, const BlockBuilder& ctx) {
-  TensorType input_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeAllReduce(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType input_ty = GetUnaryInputTensorType(call);
   return input_ty;
 }
 
@@ -81,8 +82,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ccl.allgather", allgather);
 }
 
-Type InferTypeAllGather(const Call& call, const BlockBuilder& ctx) {
-  TensorType input_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeAllGather(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType input_ty = GetUnaryInputTensorType(call);
 
   const auto* attrs = call->attrs.as<AllGatherAttrs>();
   int num_workers = attrs->num_workers;
@@ -117,8 +119,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ccl.broadcast_from_worker0", broadcast_from_worker0);
 }
 
-Type InferTypeBroadcastFromZero(const Call& call, const BlockBuilder& ctx) {
-  TensorType input_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeBroadcastFromZero(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType input_ty = GetUnaryInputTensorType(call);
   return input_ty;
 }
 
@@ -177,7 +180,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               "x",
               "The buffer to be divided into equal parts and sent to each worker accordingly."),
           sig::call_attrs<ScatterCollectiveAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeScatter)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeScatter)
       .set_attr<bool>("FPurity", true);
 }
 

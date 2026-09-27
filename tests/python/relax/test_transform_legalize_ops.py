@@ -304,11 +304,11 @@ def custom_op(emit_legalization_through_builder):
         activations, weight, bias = call.args
 
         matmul_call = relax.op.matmul(activations, weight)
-        matmul_ty = tvm.ir.Op.get("relax.matmul").get_attr("FInferType")(matmul_call, context)
+        matmul_ty = tvm.ir.Op.get("relax.matmul").get_attr("FInferTypeWithBuilder")(matmul_call, context)
 
         matmul_var = relax.Var("dummy_var", matmul_ty)
         add_call = matmul_var + bias
-        add_ty = tvm.ir.Op.get("relax.add").get_attr("FInferType")(add_call, context)
+        add_ty = tvm.ir.Op.get("relax.add").get_attr("FInferTypeWithBuilder")(add_call, context)
 
         return add_ty
 
@@ -320,7 +320,7 @@ def custom_op(emit_legalization_through_builder):
         return legalized
 
     op_attrs = {
-        "FInferType": infer_ty,
+        "FInferTypeWithBuilder": infer_ty,
         "FLegalize": legalize,
         "FPurity": True,
     }

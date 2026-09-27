@@ -57,7 +57,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.roi_pool", roi_pool);
 }
 
-Type InferTypeROIPool(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeROIPool(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIPool expects two arguments, while the given number of arguments is "

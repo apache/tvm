@@ -54,8 +54,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.bucketize", bucketize);
 }
 
-Type InferTypeBucketize(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+Type InferTypeBucketize(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   TensorType input_tensor_info = input_ty[0];
   TensorType boundaries_info = input_ty[1];
 
@@ -188,19 +189,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("condition", "When True, yield `x1`; otherwise, yield `x2`."),
                  sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."))
-      .set_attr<FInferType>("FInferType", InferTypeWhere)
+      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeWhere)
       .set_attr<bool>("FPurity", true);
 }
 
 /* relax.argmax & relax.argmin */
 
-Type InferTypeArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeArgmaxArgmin(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
 
   int axis = -1;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
-    axis = NormalizeAxis(call, ctx, data_ty->ndim, attrs->axis.value());
+    axis = NormalizeAxis(call, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;

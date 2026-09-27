@@ -592,6 +592,13 @@ class Call(_CallableExprWithOp):
             *Call._normalize_constructor_args(op, args, attrs, ty_args, span, ret_ty)
         )
 
+    def try_reinfer_type(self) -> "tvm.ir.Type | None":
+        """Recompute the result type from prepared inputs when a context-free rule exists.
+
+        The stored result type is ignored.  The call is not modified.
+        """
+        return _ffi_api.CallTryReinferType(self)
+
 
 @tvm_ffi.register_object("ir.TensorRegion")
 class TensorRegion(Expr, Scriptable):
