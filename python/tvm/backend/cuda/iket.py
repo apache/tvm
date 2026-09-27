@@ -59,8 +59,6 @@ _INJECTION_ENV_VARS = ("CUDA_INJECTION64_PATH", "SMODEL_INJECTION_CONFIG")
 _OUTPUT_TAIL_LINES = 100
 _TERMINATION_GRACE_SECONDS = 5.0
 
-_OFFICIAL_PROFILES = frozenset({_DEFAULT_PROFILE})
-
 
 class IketProfileError(RuntimeError):
     """An error while validating or running an official IKET profile."""
@@ -191,7 +189,7 @@ def _validate_nvrtc_available() -> None:
 
 def _validate_official_installation(profile_name: str) -> str:
     """Check the required tools are available and return the official executable."""
-    if profile_name not in _OFFICIAL_PROFILES:
+    if profile_name != _DEFAULT_PROFILE:
         raise _profile_error(f"unsupported profile {profile_name!r}; expected {_DEFAULT_PROFILE!r}")
     executable = _validate_run_iket_entrypoint()
     _validate_nvrtc_available()
@@ -230,7 +228,7 @@ def _validate_injection_environment() -> None:
 def _validate_official_environment() -> str:
     """Validate the installation plus tracker/capture injection environment."""
     profile_name = os.environ.get(_PROFILE_ENV)
-    if profile_name not in _OFFICIAL_PROFILES:
+    if profile_name != _DEFAULT_PROFILE:
         raise _profile_error(
             f"{_PROFILE_ENV} must be set to {_DEFAULT_PROFILE}, got {profile_name!r}"
         )
