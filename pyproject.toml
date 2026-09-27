@@ -50,8 +50,8 @@ classifiers = [
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-  "apache-tvm-ffi>=0.1.13.post2",
-  "apache-tvm-ffi-orcjit>=0.1.1",
+  "apache-tvm-ffi>=0.1.14.post1",
+  "apache-tvm-ffi-orcjit==0.1.2",
   "ml_dtypes",
   "numpy",
   "typing_extensions",

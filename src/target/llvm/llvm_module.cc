@@ -324,7 +324,7 @@ void LLVMModuleNode::EnsureOrcJITModule() {
   TVM_FFI_CHECK(get_default_session.has_value() && load_module.has_value(), InternalError)
       << "LLVMModule execution requires the separately installed apache-tvm-ffi-orcjit "
          "package and its global execution-session functions. "
-         "Install it with `pip install 'apache-tvm-ffi-orcjit>=0.1.1'`.";
+         "Install it with `pip install apache-tvm-ffi-orcjit==0.1.2`.";
 
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
@@ -347,7 +347,10 @@ void LLVMModuleNode::EnsureOrcJITModule() {
   ffi::ObjectRef session = get_default_session.value()().cast<ffi::ObjectRef>();
   ffi::Array<ffi::Variant<ffi::String, ffi::Bytes>> objects = {
       ffi::Bytes(object.data(), object.size())};
-  ffi::Module dylib = load_module.value()(session, objects, ffi::String("")).cast<ffi::Module>();
+  ffi::Module dylib = load_module
+                          .value()(session, objects, ffi::String(""), ffi::Optional<ffi::String>{},
+                                   ffi::Optional<ffi::String>{})
+                          .cast<ffi::Module>();
   for (const ffi::Any& imported_module : imports()) {
     dylib->ImportModule(imported_module.cast<ffi::Module>());
   }
