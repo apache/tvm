@@ -245,7 +245,12 @@ exposes it as callable ``PackedFunc``\ s.
      - How Code Is Executed
    * - ``LLVMModule``
      - LLVM IR (in-memory ``llvm::Module``)
-     - JIT-compiled on first call (MCJIT or ORC). Function pointers cached for subsequent calls.
+     - JIT-compiled on first call by the separately installed ``apache-tvm-ffi-orcjit`` package.
+       TVM emits an object in memory and transfers it to the package-backed JITDylib through FFI;
+       it has no local execution engine or fallback. Install version 0.1.1 or newer with
+       ``pip install 'apache-tvm-ffi-orcjit>=0.1.1'``. Because this boundary transfers an object
+       file, TVM and the package do not need to use the same LLVM version. MCJIT is no longer
+       supported.
    * - ``CUDAModule``
      - PTX or cubin binary
      - Loaded via CUDA driver API (``cuModuleLoad``). Kernels launched via ``cuLaunchKernel``.
