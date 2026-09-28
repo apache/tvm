@@ -292,49 +292,81 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> LetVisit(
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
   const LetNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const LetNode>(value);
+  Type old_value_type = self->value->ty;
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value_u,
+                                    mutator->MutateExpected(self->value));
+  bool value_changed = !mapped_value_u.UnchangedOrSameAs(self->value);
+  PrimExpr new_value = std::move(mapped_value_u).ValueOrUnchanged(self->value);
+  value_changed |= !old_value_type.same_as(new_value->ty);
+  Type old_var_type = self->var->ty;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Var>, mapped_var_u,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
                                       return mutator->MutateExpected(self->var);
                                     }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value_u,
-                                    mutator->MutateExpected(self->value));
+  bool var_changed = !mapped_var_u.UnchangedOrSameAs(self->var);
+  Var new_var = std::move(mapped_var_u).ValueOrUnchanged(self->var);
+  var_changed |= !old_var_type.same_as(new_var->ty);
+  if ((value_changed || var_changed) && !new_var->ty.same_as(new_value->ty)) {
+    new_var = new_var.CopyWithType(new_value->ty);
+  }
+  if (!new_var.same_as(self->var)) {
+    auto remap = mutator->VarRemapSetExpected(self->var, new_var);
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(remap);
+  }
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_body_u,
                                     mutator->MutateExpected(self->body));
-  if (mapped_var_u.UnchangedOrSameAs(self->var) && mapped_value_u.UnchangedOrSameAs(self->value) &&
-      mapped_body_u.UnchangedOrSameAs(self->body)) {
+  PrimExpr new_body = std::move(mapped_body_u).ValueOrUnchanged(self->body);
+  if (new_var.same_as(self->var) && new_value.same_as(self->value) &&
+      new_body.same_as(self->body) && new_body->ty.same_as(self->ty)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<LetNode> copy = ffi::make_object<LetNode>(*self);
-  if (!mapped_var_u.IsUnchanged()) copy->var = std::move(mapped_var_u).ValueUnchecked();
-  if (!mapped_value_u.IsUnchanged()) copy->value = std::move(mapped_value_u).ValueUnchecked();
-  if (!mapped_body_u.IsUnchanged()) copy->body = std::move(mapped_body_u).ValueUnchecked();
+  copy->var = std::move(new_var);
+  copy->value = std::move(new_value);
+  copy->body = std::move(new_body);
+  copy->ty = copy->body->ty;
   return ffi::Any(std::move(copy));
 }
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: PrimExpr types are always PrimType and remain unchanged in normal mutation.
   LetNode* self = const_cast<LetNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const LetNode>(value));
+  Type old_value_type = self->value->ty;
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value_u,
+                                    mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
+  bool value_changed = !mapped_value_u.UnchangedOrSameAs(self->value);
+  PrimExpr new_value = std::move(mapped_value_u).ValueOrUnchanged(self->value);
+  value_changed |= !old_value_type.same_as(new_value->ty);
+  Type old_var_type = self->var->ty;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Var>, mapped_var_u,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
                                       return mutator->MutateExpected(self->var,
                                                                      ffi::InplaceMode::kAllow);
                                     }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value_u,
-                                    mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
+  bool var_changed = !mapped_var_u.UnchangedOrSameAs(self->var);
+  Var new_var = std::move(mapped_var_u).ValueOrUnchanged(self->var);
+  var_changed |= !old_var_type.same_as(new_var->ty);
+  if ((value_changed || var_changed) && !new_var->ty.same_as(new_value->ty)) {
+    new_var = new_var.CopyWithType(new_value->ty);
+  }
+  if (!new_var.same_as(self->var)) {
+    auto remap = mutator->VarRemapSetExpected(self->var, new_var);
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(remap);
+  }
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_body_u,
                                     mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
-  if (mapped_var_u.UnchangedOrSameAs(self->var) && mapped_value_u.UnchangedOrSameAs(self->value) &&
-      mapped_body_u.UnchangedOrSameAs(self->body)) {
+  PrimExpr new_body = std::move(mapped_body_u).ValueOrUnchanged(self->body);
+  if (new_var.same_as(self->var) && new_value.same_as(self->value) &&
+      new_body.same_as(self->body) && new_body->ty.same_as(self->ty)) {
     return ffi::Unchanged();
   }
-  if (!mapped_var_u.IsUnchanged()) self->var = std::move(mapped_var_u).ValueUnchecked();
-  if (!mapped_value_u.IsUnchanged()) self->value = std::move(mapped_value_u).ValueUnchecked();
-  if (!mapped_body_u.IsUnchanged()) self->body = std::move(mapped_body_u).ValueUnchecked();
+  self->var = std::move(new_var);
+  self->value = std::move(new_value);
+  self->body = std::move(new_body);
+  self->ty = self->body->ty;
   return ffi::Unchanged();
 }
 

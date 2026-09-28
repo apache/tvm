@@ -83,18 +83,33 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BindMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const BindNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BindNode>(value);
+  Type old_value_type = self->value->ty;
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_value,
+                                    mutator->MutateExpected(self->value));
+  bool value_changed = !mapped_value.UnchangedOrSameAs(self->value);
+  Expr new_value = std::move(mapped_value).ValueOrUnchanged(self->value);
+  value_changed |= !old_value_type.same_as(new_value->ty);
+  Type old_var_type = self->var->ty;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Var>, mapped_var,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
                                       return mutator->MutateExpected(self->var);
                                     }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_value,
-                                    mutator->MutateExpected(self->value));
-  if (mapped_var.UnchangedOrSameAs(self->var) && mapped_value.UnchangedOrSameAs(self->value)) {
+  bool var_changed = !mapped_var.UnchangedOrSameAs(self->var);
+  Var new_var = std::move(mapped_var).ValueOrUnchanged(self->var);
+  var_changed |= !old_var_type.same_as(new_var->ty);
+  if ((value_changed || var_changed) && !new_var->ty.same_as(new_value->ty)) {
+    new_var = new_var.CopyWithType(new_value->ty);
+  }
+  if (!new_var.same_as(self->var)) {
+    auto remap = mutator->VarRemapSetExpected(self->var, new_var);
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(remap);
+  }
+  if (new_var.same_as(self->var) && new_value.same_as(self->value)) {
     return ffi::Unchanged();
   }
   ffi::ObjectPtr<BindNode> copy = ffi::make_object<BindNode>(*self);
-  copy->var = std::move(mapped_var).ValueOrUnchanged(std::move(copy->var));
-  copy->value = std::move(mapped_value).ValueOrUnchanged(std::move(copy->value));
+  copy->var = std::move(new_var);
+  copy->value = std::move(new_value);
   return ffi::Any(std::move(copy));
 }
 
@@ -102,18 +117,33 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BindMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   BindNode* self = const_cast<BindNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BindNode>(value));
+  Type old_value_type = self->value->ty;
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_value,
+                                    mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
+  bool value_changed = !mapped_value.UnchangedOrSameAs(self->value);
+  Expr new_value = std::move(mapped_value).ValueOrUnchanged(self->value);
+  value_changed |= !old_value_type.same_as(new_value->ty);
+  Type old_var_type = self->var->ty;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Var>, mapped_var,
                                     mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
                                       return mutator->MutateExpected(self->var,
                                                                      ffi::InplaceMode::kAllow);
                                     }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_value,
-                                    mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
-  if (mapped_var.UnchangedOrSameAs(self->var) && mapped_value.UnchangedOrSameAs(self->value)) {
+  bool var_changed = !mapped_var.UnchangedOrSameAs(self->var);
+  Var new_var = std::move(mapped_var).ValueOrUnchanged(self->var);
+  var_changed |= !old_var_type.same_as(new_var->ty);
+  if ((value_changed || var_changed) && !new_var->ty.same_as(new_value->ty)) {
+    new_var = new_var.CopyWithType(new_value->ty);
+  }
+  if (!new_var.same_as(self->var)) {
+    auto remap = mutator->VarRemapSetExpected(self->var, new_var);
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(remap);
+  }
+  if (new_var.same_as(self->var) && new_value.same_as(self->value)) {
     return ffi::Unchanged();
   }
-  if (!mapped_var.IsUnchanged()) self->var = std::move(mapped_var).ValueUnchecked();
-  if (!mapped_value.IsUnchanged()) self->value = std::move(mapped_value).ValueUnchecked();
+  self->var = std::move(new_var);
+  self->value = std::move(new_value);
   return ffi::Unchanged();
 }
 
