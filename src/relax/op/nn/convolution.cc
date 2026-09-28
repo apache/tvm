@@ -198,10 +198,10 @@ Call InferMixedPrecisionConv1d(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv1d")
-      .add_arg("data", "The input tensor.")
-      .add_arg("weight", "The weight tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
-      .attrs_type<Conv1DAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
+          sig::call_attrs<Conv1DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeConv1d)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -412,10 +412,10 @@ Call InferMixedPrecisionConv2d(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv2d")
-      .add_arg("data", "The input tensor.")
-      .add_arg("weight", "The weight tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
-      .attrs_type<Conv2DAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
+          sig::call_attrs<Conv2DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeConv2d)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -600,10 +600,10 @@ Call InferMixedPrecisionConv3d(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv3d")
-      .add_arg("data", "The input tensor.")
-      .add_arg("weight", "The weight tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
-      .attrs_type<Conv3DAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
+          sig::call_attrs<Conv3DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeConv3d)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -643,7 +643,7 @@ Expr conv1d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
   const Op op = Op::Get("relax.nn.conv1d_transpose");
-  return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -782,10 +782,10 @@ Call InferMixedPrecisionConv1dTranspose(const Call& call, DLDataType out_dtype) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv1d_transpose")
-      .add_arg("data", "The input tensor.")
-      .add_arg("weight", "The weight tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
-      .attrs_type<Conv1DTransposeAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
+          sig::call_attrs<Conv1DTransposeAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeConv1dTranspose)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv1dTranspose)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -836,7 +836,7 @@ Expr conv2d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
   const Op op = Op::Get("relax.nn.conv2d_transpose");
-  return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1013,10 +1013,10 @@ Call InferMixedPrecisionConv2dTranspose(const Call& call, DLDataType out_dtype) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv2d_transpose")
-      .add_arg("data", "The input tensor.")
-      .add_arg("weight", "The weight tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
-      .attrs_type<Conv2DTransposeAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
+          sig::call_attrs<Conv2DTransposeAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeConv2dTranspose)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv2dTranspose)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
@@ -1070,7 +1070,7 @@ Expr conv3d_transpose(Expr data, Expr weight, ffi::Array<int64_t> strides,
   attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = out_dtype;
   const Op op = Op::Get("relax.nn.conv3d_transpose");
-  return Call(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data, weight}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1255,10 +1255,10 @@ Call InferMixedPrecisionConv3dTranspose(const Call& call, DLDataType out_dtype) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.conv3d_transpose")
-      .add_arg("data", "The input tensor.")
-      .add_arg("weight", "The weight tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
-      .attrs_type<Conv3DTransposeAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor."), sig::arg("weight", "The weight tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
+          sig::call_attrs<Conv3DTransposeAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeConv3dTranspose)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConv3dTranspose)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)

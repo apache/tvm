@@ -97,11 +97,11 @@ class LazyInputMutator : public ExprMutator {
     if (plan_) {
       Var var = ffi::GetRef<Var>(op);
       if (auto it = plan_->param_lookup.find(var); it != plan_->param_lookup.end()) {
-        auto untyped = builder_->Emit(Call(Type::Missing(), plan_->fget_param,
-                                           {
-                                               PrimExpr(IntImm::Int64(it->second)),
-                                               StringImm(var->name),
-                                           }),
+        auto untyped = builder_->Emit(Call::Unchecked(Type::Missing(), plan_->fget_param,
+                                                      {
+                                                          PrimExpr(IntImm::Int64(it->second)),
+                                                          StringImm(var->name),
+                                                      }),
                                       var->name + "_untyped");
         return builder_->EmitMatchCast(untyped, GetType(var), var->name);
       }
@@ -209,8 +209,8 @@ class LazyOutputMutator : public ExprMutator {
     if (plan_.has_value()) {
       if (auto it = plan_->output_lookup.find(var); it != plan_->output_lookup.end()) {
         for (auto output_index : it->second) {
-          callback(Call(Type::Missing(), plan_->fset_output,
-                        {PrimExpr(IntImm::Int64(output_index)), var}));
+          callback(Call::Unchecked(Type::Missing(), plan_->fset_output,
+                                   {PrimExpr(IntImm::Int64(output_index)), var}));
         }
       }
     }

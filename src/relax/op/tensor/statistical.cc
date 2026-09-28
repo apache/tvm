@@ -248,7 +248,7 @@ Expr cumprod(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> d
   attrs->exclusive = exclusive;
 
   static const Op op = Op::Get("relax.cumprod");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -256,8 +256,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.cumprod", cumprod);
 
   OpDef("relax.cumprod")
-      .add_arg("data", "The input tensor.")
-      .attrs_type<ScanopAttrs>()
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ScanopAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeScan)
       .set_attr<bool>("FPurity", true);
 }
@@ -271,7 +270,7 @@ Expr cumsum(Expr data, ffi::Optional<int64_t> axis, ffi::Optional<DLDataType> dt
   attrs->exclusive = exclusive;
 
   static const Op op = Op::Get("relax.cumsum");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -279,8 +278,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.cumsum", cumsum);
 
   OpDef("relax.cumsum")
-      .add_arg("data", "The input tensor.")
-      .attrs_type<ScanopAttrs>()
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ScanopAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeScan)
       .set_attr<bool>("FPurity", true);
 }
@@ -291,7 +289,7 @@ Expr median(Expr data, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.median");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -299,7 +297,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.median", median);
 
   OpDef("relax.median")
-      .add_arg("data", "The input tensor.")
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<StatisticalAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeStatisticalExtension)
       .set_attr<bool>("FPurity", true);
 }
@@ -309,7 +307,7 @@ Expr max(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.max");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr mean(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -317,7 +315,7 @@ Expr mean(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.mean");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr min(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -325,7 +323,7 @@ Expr min(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.min");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr prod(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -333,7 +331,7 @@ Expr prod(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.prod");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr std(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -341,7 +339,7 @@ Expr std(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.std");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr sum(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -349,7 +347,7 @@ Expr sum(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.sum");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 Expr variance(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
@@ -357,14 +355,14 @@ Expr variance(Expr x, ffi::Optional<ffi::Array<int64_t>> axis, bool keepdims) {
   attrs->axis = std::move(axis);
   attrs->keepdims = keepdims;
   static const Op op = Op::Get("relax.variance");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.max", max);
 
   OpDef("relax.max")
-      .add_arg("x", "The input data tensor")
+      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
@@ -372,7 +370,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.mean", mean);
 
   OpDef("relax.mean")
-      .add_arg("x", "The input data tensor")
+      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
@@ -380,7 +378,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.min", min);
 
   OpDef("relax.min")
-      .add_arg("x", "The input data tensor")
+      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
@@ -388,7 +386,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.prod", prod);
 
   OpDef("relax.prod")
-      .add_arg("x", "The input data tensor")
+      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
@@ -396,7 +394,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.std", std);
 
   OpDef("relax.std")
-      .add_arg("x", "The input data tensor")
+      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
@@ -404,7 +402,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.sum", sum);
 
   OpDef("relax.sum")
-      .add_arg("x", "The input data tensor")
+      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
@@ -412,7 +410,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.variance", variance);
 
   OpDef("relax.variance")
-      .add_arg("x", "The input data tensor")
+      .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeStatistical)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);

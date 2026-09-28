@@ -29,8 +29,7 @@ namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.cuda.iket_mark")
-      .add_arg("name", "The name.")
-      .allow_extra_args()
+      .signature(sig::arg("name", "The name."), sig::var_args("args"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
@@ -38,8 +37,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cuda.iket_range_start")
-      .add_arg("name", "The name.")
-      .allow_extra_args()
+      .signature(sig::arg("name", "The name."), sig::var_args("args"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
@@ -47,8 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cuda.iket_range_end")
-      .add_arg("token", "The token.")
-      .allow_extra_args()
+      .signature(sig::arg("token", "The token."), sig::var_args("args"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
@@ -56,8 +53,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cuda.iket_range_push")
-      .add_arg("name", "The name.")
-      .allow_extra_args()
+      .signature(sig::arg("name", "The name."), sig::var_args("args"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
@@ -72,7 +68,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cuda.iket_sentinel_token")
-      .add_arg("name", "The name.")
+      .signature(sig::arg("name", "The name."))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
@@ -80,9 +76,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cuda.iket_official_event")
-      .add_arg("event_id", "The event identifier.")
-      .add_arg("source_code", "The source code.")
-      .allow_extra_args()
+      .signature(sig::arg("event_id", "The event identifier."),
+                 sig::arg("source_code", "The source code."), sig::var_args("args"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."

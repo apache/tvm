@@ -659,7 +659,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
       call = ffi::GetRef<Call>(op);
     } else {
-      call = Call(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
+      call = Call::Unchecked(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
     }
 
     if (call->ty.IsMissing()) {
@@ -680,6 +680,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       }
     }
 
+    // TVMScript uses a builder with FNormalize disabled so it can construct
+    // intentionally ill-formed IR for a later check_well_formed call.
+    if (apply_f_normalize_) {
+      if (auto op = call->op.as<Op>()) op.value().Validate(call.get());
+    }
     return call;
   }
 

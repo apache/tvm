@@ -142,9 +142,9 @@ class AlterOpImplMutator : public ExprMutator {
 
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1) << "call_tir ty_args.size() is expected to be 1";
     Type updated_ret_ty = UpdateOutputType(call->ty_args[0], buffer_transforms);
-    auto updated_call =
-        builder_->Normalize(Call(Type::Missing(), call_tir_op_, {replacement_gv, updated_inputs},
-                                 call->attrs, {updated_ret_ty}));
+    auto updated_call = builder_->Normalize(Call::Unchecked(Type::Missing(), call_tir_op_,
+                                                            {replacement_gv, updated_inputs},
+                                                            call->attrs, {updated_ret_ty}));
 
     // Now transform each of the outputs to previous layout.
     return TransformOutputs(updated_call, buffer_transforms, call->ty_args[0]);
@@ -184,7 +184,8 @@ class AlterOpImplMutator : public ExprMutator {
     // identical. The scope of vars used in index map initial indices is local to the op. Not doing
     // so would confuse the structural equality check.
     attrs->index_map = DeepCopyIndexMap(index_map);
-    return Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
+    return Call::Unchecked(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)},
+                           {});
   }
 
   /*!
@@ -247,8 +248,8 @@ class AlterOpImplMutator : public ExprMutator {
       const auto& tensor_ty = padded_expr->ty.as_or_throw<TensorType>();
 
       GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_ty->dtype.value()->dtype);
-      return Call(Type::Missing(), call_tir_op_, {gv_remove_pad, Tuple({padded_expr})}, {},
-                  {old_tensor_ty});
+      return Call::Unchecked(Type::Missing(), call_tir_op_, {gv_remove_pad, Tuple({padded_expr})},
+                             {}, {old_tensor_ty});
     }
   }
 

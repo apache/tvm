@@ -1145,7 +1145,7 @@ class TIRFuseMutator : public ExprMutator {
       inplace_attrs->inplace_indices = replacement.inplace_indices;
       call_attrs = Attrs(inplace_attrs);
     }
-    return Call(Type::Missing(), call_op, call_args, call_attrs, {GetType(call)});
+    return Call::Unchecked(Type::Missing(), call_op, call_args, call_attrs, {GetType(call)});
   }
 
  private:

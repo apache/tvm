@@ -152,7 +152,7 @@ def test_global_var():
     # Error: GlobalVar GlobalVar0 is not defined
     gv0 = rx.Var("gv0", R.Tensor([m, n], "float32"))
     globalvar = rx.GlobalVar("GlobalVar0")
-    call_node = rx.Call(
+    call_node = rx.Call.unchecked(
         op=tvm.ir.Op.get("relax.call_tir"),
         args=[globalvar, rx.Tuple([x]), rx.ShapeExpr([m, n])],
     )
@@ -161,6 +161,24 @@ def test_global_var():
     func = build_function(blocks)
     mod = tvm.IRModule({rx.GlobalVar("foo"): func})
     assert not rx.analysis.check_well_formed(mod, check_ty=False)
+
+
+def test_unchecked_call_constructor():
+    op = tvm.ir.Op.get("relax.add")
+    with pytest.raises(Exception, match="Call.args expected 2 arguments, got 1"):
+        tvm.ir.Call(op, [x])
+
+    span = tvm.ir.Span(tvm.ir.SourceName("unchecked.py"), 1, 1, 0, 1)
+    call = tvm.ir.Call.unchecked("relax.add", [x], attrs={"key": 1}, span=span)
+    assert isinstance(call, tvm.ir.Call)
+    assert call.op.same_as(op)
+    assert call.ty.is_missing()
+    assert call.span.same_as(span)
+    assert isinstance(call.attrs, tvm.ir.DictAttrs)
+    assert len(call.ty_args) == 0
+    assert isinstance(tvm.ir.Call.unchecked(op, [x], ret_ty="handle").ty, tvm.ir.PointerType)
+    with pytest.raises(TypeError, match="skip_validate"):
+        tvm.ir.Call(op, [x], skip_validate=True)
 
 
 def test_symbolic_var():
@@ -444,7 +462,7 @@ def test_inline_prim_func():
                         ),
                         rx.VarBinding(
                             var=y,
-                            value=rx.Call(
+                            value=rx.Call.unchecked(
                                 op=tvm.ir.Op.get("relax.call_tir"),
                                 args=[
                                     rx.GlobalVar("GlobalVar0"),
@@ -799,6 +817,8 @@ def test_call_tir_with_incorrect_primitive_argument_dtype():
                 B[i] = A[i] * T.Cast("float16", scale)
 
     assert not rx.analysis.check_well_formed(Module)
+    with pytest.raises(ValueError, match="Argument 1 type mismatch"):
+        rx.transform.Normalize()(Module)
 
 
 def test_call_tir_shape_expr_is_not_a_primitive_argument():
@@ -1468,6 +1488,16 @@ def test_incomplete_ty_must_be_consistent():
             return C
 
     assert not rx.analysis.check_well_formed(Module)
+
+
+def test_stop_lift_params_optional_type_arg():
+    x = rx.Var("x", rx.TensorType((4,), "float32"))
+    out_ty = rx.TensorType((4,), "float32", rx.VDevice("llvm"))
+    for ty_args in ([], [out_ty]):
+        call = tvm.ir.Call("relax.builtin.stop_lift_params", [x], ty_args=ty_args)
+        func = rx.Function([x], call, ty_args[0] if ty_args else x.ty)
+        normalized = rx.transform.Normalize()(tvm.IRModule.from_expr(func))
+        rx.analysis.well_formed(normalized)
 
 
 if __name__ == "__main__":

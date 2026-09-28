@@ -43,7 +43,7 @@ Expr astype(Expr x, DLDataType dtype) {
   attrs->dtype = dtype;
 
   static const Op op = Op::Get("relax.astype");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -61,8 +61,7 @@ Type InferTypeAstype(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.astype")
-      .add_arg("x", "The input tensor")
-      .attrs_type<AstypeAttrs>()
+      .signature(sig::arg("x", "The input tensor"), sig::call_attrs<AstypeAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeAstype)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -76,7 +75,7 @@ Expr MakeWrapParam(Expr data, DLDataType dtype) {
   attrs->dtype = dtype;
 
   static const Op op = Op::Get("relax.wrap_param");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -94,8 +93,7 @@ Type InferTypeWrapParam(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.wrap_param")
-      .add_arg("data", "The input tensor")
-      .attrs_type<WrapParamAttrs>()
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<WrapParamAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeWrapParam)
       .set_attr<bool>("FPurity", true);
 }

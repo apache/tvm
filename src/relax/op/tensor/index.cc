@@ -53,7 +53,7 @@ Expr take(Expr x, Expr indices, ffi::Optional<int64_t> axis, ffi::String mode) {
   attrs->mode = std::move(mode);
 
   static const Op op = Op::Get("relax.take");
-  return Call(Type::Missing(), op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -129,9 +129,9 @@ Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.take")
-      .add_arg("x", "The source tensor.")
-      .add_arg("indices", "The indices of the values to extract.")
-      .attrs_type<TakeAttrs>()
+      .signature(sig::arg("x", "The source tensor."),
+                 sig::arg("indices", "The indices of the values to extract."),
+                 sig::call_attrs<TakeAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeTake)
       .set_attr<bool>("FPurity", true);
 }
@@ -175,7 +175,7 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, ffi::Optional<Expr> 
   }
 
   static const Op op = Op::Get("relax.strided_slice");
-  auto call = Call(Type::Missing(), op, args, Attrs(attrs));
+  auto call = Call::Unchecked(Type::Missing(), op, args, Attrs(attrs));
 
   return call;
 }
@@ -489,12 +489,9 @@ InferLayoutOutput InferLayoutStridedSlice(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.strided_slice")
-      .add_arg("x", "The source tensor to be sliced.")
-      .add_arg("axes", "The axes.")
-      .add_arg("begin", "The start index.")
-      .add_arg("end", "The end index.")
-      .allow_extra_args()
-      .attrs_type<StridedSliceAttrs>()
+      .signature(sig::arg("x", "The source tensor to be sliced."), sig::arg("axes", "The axes."),
+                 sig::arg("begin", "The start index."), sig::arg("end", "The end index."),
+                 sig::var_args("args"), sig::call_attrs<StridedSliceAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeStridedSlice)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -507,8 +504,8 @@ Expr dynamic_strided_slice(Expr x,      //
                            Expr end,    //
                            Expr strides) {
   static const Op op = Op::Get("relax.dynamic_strided_slice");
-  return Call(Type::Missing(), op,
-              {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
+  return Call::Unchecked(Type::Missing(), op,
+                         {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -591,10 +588,10 @@ InferLayoutOutput InferLayoutDynStridedSlice(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dynamic_strided_slice")
-      .add_arg("x", "The source tensor to be sliced.")
-      .add_arg("begin", "The indices to begin with in the slicing.")
-      .add_arg("end", "Indices indicating end of the slice.")
-      .add_arg("strides", "The stride values.")
+      .signature(sig::arg("x", "The source tensor to be sliced."),
+                 sig::arg("begin", "The indices to begin with in the slicing."),
+                 sig::arg("end", "Indices indicating end of the slice."),
+                 sig::arg("strides", "The stride values."))
       .set_attr<FInferType>("FInferType", InferTypeDynStridedSlice)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)

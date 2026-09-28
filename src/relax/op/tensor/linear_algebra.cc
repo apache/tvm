@@ -47,7 +47,7 @@ Expr matmul(Expr x1, Expr x2, ffi::Optional<DLDataType> out_dtype) {
   attrs->out_dtype = out_dtype;
 
   static const Op op = Op::Get("relax.matmul");
-  return Call(Type::Missing(), op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -164,8 +164,8 @@ Call InferMixedPrecisionMatmul(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.matmul")
-      .add_arg("x1", "The first input tensor.")
-      .add_arg("x2", "The second input tensor.")
+      .signature(sig::arg("x1", "The first input tensor."),
+                 sig::arg("x2", "The second input tensor."), sig::call_attrs<MatmulAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeMatmul)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul)
@@ -179,7 +179,7 @@ Expr einsum(Expr operands, ffi::String subscripts) {
   attrs->subscripts = std::move(subscripts);
 
   static const Op op = Op::Get("relax.einsum");
-  return Call(Type::Missing(), op, {std::move(operands)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(operands)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -254,8 +254,7 @@ Type InferTypeEinsum(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.einsum")
-      .add_arg("operands", "The input tensors.")
-      .attrs_type<EinsumAttrs>()
+      .signature(sig::arg("operands", "The input tensors."), sig::call_attrs<EinsumAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeEinsum)
       .set_attr<bool>("FPurity", true);
 }
@@ -264,7 +263,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr outer(Expr x1, Expr x2) {
   static const Op op = Op::Get("relax.outer");
-  return Call(Type::Missing(), op, {std::move(x1), std::move(x2)}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x1), std::move(x2)}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -294,8 +293,8 @@ Type InferTypeOuter(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.outer")
-      .add_arg("x1", "The first input tensor.")
-      .add_arg("x2", "The second input tensor.")
+      .signature(sig::arg("x1", "The first input tensor."),
+                 sig::arg("x2", "The second input tensor."))
       .set_attr<FInferType>("FInferType", InferTypeOuter)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<bool>("FPurity", true);

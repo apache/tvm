@@ -37,13 +37,13 @@ Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
   Tuple void_expr(ffi::Array<Expr>{});
 
   static const Op op = Op::Get("relax.memory.view");
-  return Call(Type::Missing(), op,
-              {
-                  x,
-                  shape.value_or(void_expr),
-                  dtype.value_or(void_expr),
-                  relative_byte_offset.value_or(void_expr),
-              });
+  return Call::Unchecked(Type::Missing(), op,
+                         {
+                             x,
+                             shape.value_or(void_expr),
+                             dtype.value_or(void_expr),
+                             relative_byte_offset.value_or(void_expr),
+                         });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -389,16 +389,16 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
 
   ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_ty);
 
-  return Call(Type::Missing(), runtime_view_func, {data, shape, dtype, relative_byte_offset});
+  return Call::Unchecked(Type::Missing(), runtime_view_func,
+                         {data, shape, dtype, relative_byte_offset});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.memory.view")
-      .add_arg("x", "The input tensor.")
-      .add_arg("shape", "The view's shape.")
-      .add_arg("dtype", "The view's data type.")
-      .add_arg("relative_byte_offset",
-               "The view's byte offset, relative to the input tensor's byte offset.")
+      .signature(sig::arg("x", "The input tensor."), sig::arg("shape", "The view's shape."),
+                 sig::arg("dtype", "The view's data type."),
+                 sig::arg("relative_byte_offset",
+                          "The view's byte offset, relative to the input tensor's byte offset."))
       .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<FInferType>("FInferType", InferTypeView)
       .set_attr<bool>("FPurity", true)
@@ -407,7 +407,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr ensure_zero_offset(const Expr& x) {
   static const Op op = Op::Get("relax.memory.ensure_zero_offset");
-  return Call(Type::Missing(), op, {x});
+  return Call::Unchecked(Type::Missing(), op, {x});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -426,12 +426,13 @@ Type InferTypeEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
 
 Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
   const ExternFunc builtin_ensure_zero_offset_{"vm.builtin.ensure_zero_offset"};
-  return Call(Type::Missing(), builtin_ensure_zero_offset_, call->args, Attrs(), {GetType(call)});
+  return Call::Unchecked(Type::Missing(), builtin_ensure_zero_offset_, call->args, Attrs(),
+                         {GetType(call)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.memory.ensure_zero_offset")
-      .add_arg("x", "The input tensor.")
+      .signature(sig::arg("x", "The input tensor."))
       .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<FInferType>("FInferType", InferTypeEnsureZeroOffset)
       .set_attr<bool>("FPurity", true)

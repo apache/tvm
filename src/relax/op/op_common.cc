@@ -43,10 +43,10 @@ ffi::Array<Expr> GetCallArgs(const Call& call) {
 void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
   int expected_input = op->args_info.size();
-  if (op->allow_extra_args ? call->args.size() < op->args_info.size()
-                           : call->args.size() != op->args_info.size()) {
+  if (op->var_args_info.has_value() ? call->args.size() < op->args_info.size()
+                                    : call->args.size() != op->args_info.size()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
-        << "Operator " << op << " expects " << (op->allow_extra_args ? "at least " : "")
+        << "Operator " << op << " expects " << (op->var_args_info.has_value() ? "at least " : "")
         << expected_input << " arguments"
         << ", but was called with " << call->args.size() << " arguments";
   }
@@ -55,8 +55,8 @@ void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
 TensorType GetInputTensorType(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
 
-  TVM_FFI_ICHECK(op->allow_extra_args ? call->args.size() >= op->args_info.size()
-                                      : call->args.size() == op->args_info.size())
+  TVM_FFI_ICHECK(op->var_args_info.has_value() ? call->args.size() >= op->args_info.size()
+                                               : call->args.size() == op->args_info.size())
       << "Failure caught by this check "
       << "should have previously been caught by `CheckNumArguments`";
   TVM_FFI_ICHECK_LT(i_arg, call->args.size());

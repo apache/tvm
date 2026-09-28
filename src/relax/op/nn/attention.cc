@@ -38,12 +38,12 @@ Expr attention(Expr query, Expr key, Expr value, ffi::Optional<Expr> bias,
   attrs->window_size = window_size;
 
   if (bias) {
-    return Call(Type::Missing(), Op::Get("relax.nn.attention_bias"),
-                {std::move(query), std::move(key), std::move(value), bias.value()}, Attrs(attrs),
-                {});
+    return Call::Unchecked(Type::Missing(), Op::Get("relax.nn.attention_bias"),
+                           {std::move(query), std::move(key), std::move(value), bias.value()},
+                           Attrs(attrs), {});
   }
-  return Call(Type::Missing(), Op::Get("relax.nn.attention"),
-              {std::move(query), std::move(key), std::move(value)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), Op::Get("relax.nn.attention"),
+                         {std::move(query), std::move(key), std::move(value)}, Attrs(attrs), {});
 }
 
 Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr seqstart_k,
@@ -54,9 +54,9 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
 
-  return Call(Type::Missing(), Op::Get("relax.nn.attention_var_len"),
-              {query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k}, Attrs(attrs),
-              {});
+  return Call::Unchecked(Type::Missing(), Op::Get("relax.nn.attention_var_len"),
+                         {query, key, value, seqstart_q, seqstart_k, max_seqlen_q, max_seqlen_k},
+                         Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -151,35 +151,33 @@ Call InferMixedPrecisionAttention(const Call& call, DLDataType out_dtype) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.attention")
-      .add_arg("query", "The input queries tensor.")
-      .add_arg("key", "The input keys tensor.")
-      .add_arg("value", "The input values tensor.")
-      .attrs_type<AttentionAttrs>()
+      .signature(sig::arg("query", "The input queries tensor."),
+                 sig::arg("key", "The input keys tensor."),
+                 sig::arg("value", "The input values tensor."), sig::call_attrs<AttentionAttrs>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
       .set_attr<FInferType>("FInferType", InferTypeAttention)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.nn.attention_bias")
-      .add_arg("query", "The input queries tensor.")
-      .add_arg("key", "The input keys tensor.")
-      .add_arg("value", "The input values tensor.")
-      .add_arg("bias", "The input bias tensor.")
-      .attrs_type<AttentionAttrs>()
+      .signature(sig::arg("query", "The input queries tensor."),
+                 sig::arg("key", "The input keys tensor."),
+                 sig::arg("value", "The input values tensor."),
+                 sig::arg("bias", "The input bias tensor."), sig::call_attrs<AttentionAttrs>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
       .set_attr<FInferType>("FInferType", InferTypeAttention)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.nn.attention_var_len")
-      .add_arg("query", "The input queries tensor.")
-      .add_arg("key", "The input keys tensor.")
-      .add_arg("value", "The input values tensor.")
-      .add_arg("seqstart_q", "The cumsum of query sequence lengths, prepended with 0.")
-      .add_arg("seqstart_k", "The cumsum of key sequence lengths, prepended with 0.")
-      .add_arg("max_seqlen_q", "The maximum query sequence length in the batch.")
-      .add_arg("max_seqlen_k", "The maximum key sequence length in the batch.")
-      .attrs_type<AttentionAttrs>()
+      .signature(sig::arg("query", "The input queries tensor."),
+                 sig::arg("key", "The input keys tensor."),
+                 sig::arg("value", "The input values tensor."),
+                 sig::arg("seqstart_q", "The cumsum of query sequence lengths, prepended with 0."),
+                 sig::arg("seqstart_k", "The cumsum of key sequence lengths, prepended with 0."),
+                 sig::arg("max_seqlen_q", "The maximum query sequence length in the batch."),
+                 sig::arg("max_seqlen_k", "The maximum key sequence length in the batch."),
+                 sig::call_attrs<AttentionAttrs>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
       .set_attr<FInferType>("FInferType", InferTypeAttention)

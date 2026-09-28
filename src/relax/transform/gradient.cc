@@ -76,8 +76,8 @@ class CallTIRWithGradEliminator : private ExprMutator {
     if (!call_node->op.same_as(Op::Get("relax.call_tir_with_grad"))) {
       return ExprMutator::VisitExpr_(call_node);
     }
-    return Call(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {}, call_node->ty_args,
-                call_node->span);
+    return Call::Unchecked(Type::Missing(), Op::Get("relax.call_tir"), call_node->args, {},
+                           call_node->ty_args, call_node->span);
   }
 };
 

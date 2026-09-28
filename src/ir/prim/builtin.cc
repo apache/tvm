@@ -40,32 +40,32 @@ TVM_DEFINE_CACHED_OP_GETTER(clz, "prim.clz")
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("prim.likely")
-      .add_arg("x", "The input value.")
+      .signature(sig::arg("x", "The input value."))
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kExprAnnotation))
       .set_attr<bool>("TVectorizable", true);
 
   OpDef("prim.if_then_else")
-      .add_arg("condition", "The condition.")
-      .add_arg("true_value", "The value when the condition is true.")
-      .add_arg("false_value", "The value when the condition is false.")
+      .signature(sig::arg("condition", "The condition."),
+                 sig::arg("true_value", "The value when the condition is true."),
+                 sig::arg("false_value", "The value when the condition is false."))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.vscale")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.ceil")
-      .add_arg("x", "The input value.")
+      .signature(sig::arg("x", "The input value."))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<bool>("TVectorizable", true);
 
   OpDef("prim.log2")
-      .add_arg("x", "The input value.")
+      .signature(sig::arg("x", "The input value."))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<bool>("TVectorizable", true);
 
   OpDef("prim.clz")
-      .add_arg("x", "The input value.")
+      .signature(sig::arg("x", "The input value."))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 }
 
