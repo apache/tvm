@@ -54,7 +54,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.multinomial_from_uniform", multinomial_from_uniform);
 }
 
-ffi::Expected<Type> InferTypeMultinomialFromUniform(const CallNode* call_node) noexcept try {
+Type InferTypeMultinomialFromUniform(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   CheckNumArguments(call);
   TensorType prob_ty = GetInputTensorType(call, 0);
@@ -143,10 +143,6 @@ ffi::Expected<Type> InferTypeMultinomialFromUniform(const CallNode* call_node) n
         << sample_indices_ty->shape;
   }
   return TensorType(ShapeExpr({n, 1}), PrimType(attrs->dtype), prob_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

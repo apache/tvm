@@ -63,7 +63,7 @@ jobs:
         run: |
           export TVM_FFI_VERSION="$(python -c 'from importlib.metadata import version; print(version("apache-tvm-ffi"))')"
           pip install ml_dtypes
-          # --no-deps: this package requires apache-tvm-ffi>=0.1.14.post1, and the source-built core
+          # --no-deps: this package requires apache-tvm-ffi>=0.1.15, and the source-built core
           # versions as 0.1.dev1+g<sha> from the shallow checkout, which is < 0.1.0 under PEP 440.
           # Without it pip replaces the source-matched core with a PyPI build.
           pip install --no-deps apache-tvm-ffi-orcjit==0.1.2
@@ -74,7 +74,7 @@ jobs:
           from importlib.metadata import requires, version
 
           assert version("apache-tvm-ffi") == os.environ["TVM_FFI_VERSION"]
-          assert "apache-tvm-ffi>=0.1.14.post1" in requires("apache-tvm")
+          assert "apache-tvm-ffi>=0.1.15" in requires("apache-tvm")
           assert "apache-tvm-ffi-orcjit==0.1.2" in requires("apache-tvm")
           PY
 
@@ -118,7 +118,7 @@ jobs:
         shell: cmd /C call {0}
         run: |
           pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions
-          rem --no-deps keeps the source-built apache-tvm-ffi (versioned below 0.1.14.post1 from the
+          rem --no-deps keeps the source-built apache-tvm-ffi (versioned below 0.1.15 from the
           rem shallow checkout) from being replaced by a PyPI build.
           pip install --no-deps apache-tvm-ffi-orcjit==0.1.2
       - name: Test

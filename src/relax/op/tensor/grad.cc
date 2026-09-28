@@ -43,13 +43,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.no_grad", no_grad);
 }
 
-ffi::Expected<Type> InferTypeNoGrad(const CallNode* call_node) noexcept try {
+Type InferTypeNoGrad(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[0]);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -70,17 +66,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.start_checkpoint", start_checkpoint);
 }
 
-ffi::Expected<Type> InferTypeStartCheckpoint(const CallNode* call_node) noexcept try {
+Type InferTypeStartCheckpoint(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (!call->args[0].as<VarNode>()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument of relax.op.grad.start_checkpoint should be a Var.";
   }
   return GetType(call->args[0]);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -101,17 +93,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.end_checkpoint", end_checkpoint);
 }
 
-ffi::Expected<Type> InferTypeEndCheckpoint(const CallNode* call_node) noexcept try {
+Type InferTypeEndCheckpoint(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (!call->args[0].as<VarNode>()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument of relax.op.grad.end_checkpoint should be a Var.";
   }
   return GetType(call->args[0]);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -147,13 +135,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.nll_loss_backward", nll_loss_backward);
 }
 
-ffi::Expected<Type> InferTypeNLLLossBackward(const CallNode* call_node) noexcept try {
+Type InferTypeNLLLossBackward(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -190,13 +174,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.max_pool2d_backward", max_pool2d_backward);
 }
 
-ffi::Expected<Type> InferTypeMaxPool2DBackward(const CallNode* call_node) noexcept try {
+Type InferTypeMaxPool2DBackward(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -231,13 +211,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.avg_pool2d_backward", avg_pool2d_backward);
 }
 
-ffi::Expected<Type> InferTypeAvgPool2DBackward(const CallNode* call_node) noexcept try {
+Type InferTypeAvgPool2DBackward(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -265,13 +241,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.take_backward", take_backward);
 }
 
-ffi::Expected<Type> InferTypeTakeBackward(const CallNode* call_node) noexcept try {
+Type InferTypeTakeBackward(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

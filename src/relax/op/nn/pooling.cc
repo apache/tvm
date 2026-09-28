@@ -542,7 +542,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool1d", adaptive_avg_pool1d);
 }
 
-ffi::Expected<Type> InferTypeAdaptiveAvgPool1D(const CallNode* call_node) noexcept try {
+Type InferTypeAdaptiveAvgPool1D(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -572,10 +572,6 @@ ffi::Expected<Type> InferTypeAdaptiveAvgPool1D(const CallNode* call_node) noexce
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
@@ -631,7 +627,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool2d", adaptive_avg_pool2d);
 }
 
-ffi::Expected<Type> InferTypeAdaptiveAvgPool2D(const CallNode* call_node) noexcept try {
+Type InferTypeAdaptiveAvgPool2D(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -662,10 +658,6 @@ ffi::Expected<Type> InferTypeAdaptiveAvgPool2D(const CallNode* call_node) noexce
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
@@ -740,7 +732,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool3d", adaptive_avg_pool3d);
 }
 
-ffi::Expected<Type> InferTypeAdaptiveAvgPool3D(const CallNode* call_node) noexcept try {
+Type InferTypeAdaptiveAvgPool3D(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -772,10 +764,6 @@ ffi::Expected<Type> InferTypeAdaptiveAvgPool3D(const CallNode* call_node) noexce
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutAdaptiveAvgPool3D(

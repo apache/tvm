@@ -204,7 +204,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.prelu", prelu);
 }
 
-ffi::Expected<Type> InferTypePRelu(const CallNode* call_node) noexcept try {
+Type InferTypePRelu(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   if (data_ty->IsUnknownNdim()) {
@@ -220,10 +220,6 @@ ffi::Expected<Type> InferTypePRelu(const CallNode* call_node) noexcept try {
   NormalizeAxis(call, data_ty->ndim, attrs->axis);
 
   return data_ty;
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutPRelu(
@@ -275,7 +271,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.softmax", softmax);
 }
 
-ffi::Expected<Type> InferTypeSoftmax(const CallNode* call_node) noexcept try {
+Type InferTypeSoftmax(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   if (data_ty->IsUnknownNdim()) {
@@ -294,10 +290,6 @@ ffi::Expected<Type> InferTypeSoftmax(const CallNode* call_node) noexcept try {
   NormalizeAxis(call, data_ty->ndim, attrs->axis);
 
   return data_ty;
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutSoftmax(
@@ -365,7 +357,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.pad", pad);
 }
 
-ffi::Expected<Type> InferTypePad(const CallNode* call_node) noexcept try {
+Type InferTypePad(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   const auto* attrs = call->attrs.as<PadAttrs>();
@@ -388,10 +380,6 @@ ffi::Expected<Type> InferTypePad(const CallNode* call_node) noexcept try {
     return TensorType(input_ty[0]->dtype, ndim);
   }
   return TensorType(ShapeExpr(out_shape), input_ty[0]->dtype);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -415,7 +403,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.pixel_shuffle", pixel_shuffle);
 }
 
-ffi::Expected<Type> InferTypePixelShuffle(const CallNode* call_node) noexcept try {
+Type InferTypePixelShuffle(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   const auto* attrs = call->attrs.as<PixelShuffleAttrs>();
@@ -465,10 +453,6 @@ ffi::Expected<Type> InferTypePixelShuffle(const CallNode* call_node) noexcept tr
   }
 
   return TensorType(ShapeExpr(out_shape), input->dtype);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -989,14 +973,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.dropout", dropout);
 }
 
-ffi::Expected<Type> InferTypeDropout(const CallNode* call_node) noexcept try {
+Type InferTypeDropout(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   return TupleType({data_ty, data_ty});
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1314,7 +1294,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.batch_flatten", batch_flatten);
 }
 
-ffi::Expected<Type> InferTypeBatchFlatten(const CallNode* call_node) noexcept try {
+Type InferTypeBatchFlatten(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -1344,10 +1324,6 @@ ffi::Expected<Type> InferTypeBatchFlatten(const CallNode* call_node) noexcept tr
   }
 
   return TensorType(ShapeExpr({batch_dim, flat_dim}), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

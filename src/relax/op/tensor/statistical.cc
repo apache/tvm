@@ -37,7 +37,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ScanopAttrs::RegisterReflection();
 }
 
-ffi::Expected<Type> InferTypeStatistical(const CallNode* call_node) noexcept try {
+Type InferTypeStatistical(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
@@ -89,10 +89,6 @@ ffi::Expected<Type> InferTypeStatistical(const CallNode* call_node) noexcept try
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutStatistical(
@@ -156,7 +152,7 @@ InferLayoutOutput InferLayoutStatistical(
                            Attrs(new_attrs));
 }
 
-ffi::Expected<Type> InferTypeScan(const CallNode* call_node) noexcept try {
+Type InferTypeScan(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ScanopAttrs>();
@@ -184,13 +180,9 @@ ffi::Expected<Type> InferTypeScan(const CallNode* call_node) noexcept try {
   } else {
     return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
   }
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
-ffi::Expected<Type> InferTypeStatisticalExtension(const CallNode* call_node) noexcept try {
+Type InferTypeStatisticalExtension(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
@@ -248,10 +240,6 @@ ffi::Expected<Type> InferTypeStatisticalExtension(const CallNode* call_node) noe
   else
     return TupleType({TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice),
                       TensorType(ShapeExpr(out_shape), PrimType::Int(64), data_ty->vdevice)});
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 /* relax.cumprod */

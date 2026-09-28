@@ -61,7 +61,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.take", take);
 }
 
-ffi::Expected<Type> InferTypeTake(const CallNode* call_node) noexcept try {
+Type InferTypeTake(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   CheckNumArguments(call);
   TensorType data_ty = GetInputTensorType(call, 0);
@@ -126,10 +126,6 @@ ffi::Expected<Type> InferTypeTake(const CallNode* call_node) noexcept try {
     }
   }
   return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -518,7 +514,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.dynamic_strided_slice", dynamic_strided_slice);
 }
 
-ffi::Expected<Type> InferTypeDynStridedSlice(const CallNode* call_node) noexcept try {
+Type InferTypeDynStridedSlice(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* begin_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
@@ -572,10 +568,6 @@ ffi::Expected<Type> InferTypeDynStridedSlice(const CallNode* call_node) noexcept
   // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
   // PrimExpr lands.
   return TensorType(data_ty->dtype, n_axis, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutDynStridedSlice(

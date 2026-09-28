@@ -415,7 +415,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.memory.ensure_zero_offset", ensure_zero_offset);
 }
 
-ffi::Expected<Type> InferTypeEnsureZeroOffset(const CallNode* call_node) noexcept try {
+Type InferTypeEnsureZeroOffset(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -423,10 +423,6 @@ ffi::Expected<Type> InferTypeEnsureZeroOffset(const CallNode* call_node) noexcep
         << "but received " << call->args;
   }
   return GetType(call->args[0]);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {

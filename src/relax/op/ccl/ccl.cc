@@ -51,14 +51,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ccl.allreduce", allreduce);
 }
 
-ffi::Expected<Type> InferTypeAllReduce(const CallNode* call_node) noexcept try {
+Type InferTypeAllReduce(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType input_ty = GetUnaryInputTensorType(call);
   return input_ty;
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -86,7 +82,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ccl.allgather", allgather);
 }
 
-ffi::Expected<Type> InferTypeAllGather(const CallNode* call_node) noexcept try {
+Type InferTypeAllGather(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType input_ty = GetUnaryInputTensorType(call);
 
@@ -101,10 +97,6 @@ ffi::Expected<Type> InferTypeAllGather(const CallNode* call_node) noexcept try {
   ffi::Array<PrimExpr> output_shape = input_shape.value();
   output_shape.Set(0, floor(output_shape[0] * num_workers));
   return TensorType(ShapeExpr(output_shape), output_dtype, input_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -127,14 +119,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ccl.broadcast_from_worker0", broadcast_from_worker0);
 }
 
-ffi::Expected<Type> InferTypeBroadcastFromZero(const CallNode* call_node) noexcept try {
+Type InferTypeBroadcastFromZero(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType input_ty = GetUnaryInputTensorType(call);
   return input_ty;
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -25,7 +25,6 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 
-#include <exception>
 
 #include "../transform/utils.h"
 #include "op_common.h"
@@ -62,23 +61,15 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-ffi::Expected<Type> ReturnVoidType(const CallNode*) noexcept try {
+Type ReturnVoidType(const CallNode*) {
   return TupleType(ffi::Array<Type>());
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
-ffi::Expected<Type> ReturnAnyType(const CallNode*) noexcept try {
+Type ReturnAnyType(const CallNode*) {
   return AnyType();
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
-ffi::Expected<Type> InferTypeShapeOf(const CallNode* call_node) noexcept try {
+Type InferTypeShapeOf(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   // use the Type of the argument
   auto arg_ty = GetType(call->args[0]);
@@ -96,10 +87,6 @@ ffi::Expected<Type> InferTypeShapeOf(const CallNode* call_node) noexcept try {
   auto* tensor_shape = tensor_ty->shape.as<ShapeExprNode>();
   TVM_FFI_ICHECK(tensor_shape);
   return ShapeType(tensor_shape->values);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 // call_pure_packed
@@ -130,18 +117,6 @@ Type InferTypeCallPurePacked(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
-template <void (*Fn)(const CallNode*)>
-TVM_FFI_INLINE ffi::Expected<void> ValidateAsExpected(const CallNode* call) noexcept {
-  try {
-    Fn(call);
-    return {};
-  } catch (const ffi::Error& err) {
-    return ffi::Unexpected(err);
-  } catch (const std::exception& err) {
-    return ffi::Unexpected(ffi::Error("InternalError", err.what(), ""));
-  }
-}
-
 void ValidateCallPurePacked(const CallNode* call) {
   TVM_FFI_CHECK(call->args.size() >= 1, TypeError)
       << "call_pure_packed expects a function argument";
@@ -163,9 +138,8 @@ void ValidateCallPurePacked(const CallNode* call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_pure_packed")
-      .set_validator(
-          ffi::reflection::NativeFunctionView<ffi::Expected<void>(
-              const CallNode*)>::FromNative<&ValidateAsExpected<ValidateCallPurePacked>>())
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateCallPurePacked>())
       .signature(sig::arg("func",
                           "The first argument is the function being called. The rest are the "
                           "arguments to that function."),
@@ -447,7 +421,7 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   return derived_ret_ty;
 }
 
-ffi::Expected<Type> InferTypeCallTIR(const CallNode* call_node) noexcept try {
+Type InferTypeCallTIR(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exactly 1 output type.";
@@ -460,10 +434,6 @@ ffi::Expected<Type> InferTypeCallTIR(const CallNode* call_node) noexcept try {
   Type explicit_ty = call->ty_args[0];
 
   return explicit_ty;
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
@@ -576,8 +546,8 @@ void ValidateCallTIR(const CallNode* call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_tir")
-      .set_validator(ffi::reflection::NativeFunctionView<ffi::Expected<void>(
-                         const CallNode*)>::FromNative<&ValidateAsExpected<ValidateCallTIR>>())
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateCallTIR>())
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
@@ -613,8 +583,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   // call_tir_with_grad
 
   OpDef("relax.call_tir_with_grad")
-      .set_validator(ffi::reflection::NativeFunctionView<ffi::Expected<void>(
-                         const CallNode*)>::FromNative<&ValidateAsExpected<ValidateCallTIR>>())
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateCallTIR>())
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."),
@@ -745,8 +715,8 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_tir_inplace")
-      .set_validator(ffi::reflection::NativeFunctionView<ffi::Expected<void>(
-                         const CallNode*)>::FromNative<&ValidateAsExpected<ValidateCallTIR>>())
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateCallTIR>())
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."),
@@ -790,16 +760,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // call_dps_packed
 
-ffi::Expected<Type> InferTypeCallDPSPacked(const CallNode* call_node) noexcept try {
+Type InferTypeCallDPSPacked(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exact 1 output type.";
   }
   return call->ty_args[0];
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -840,16 +806,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // call_py_func
 
-ffi::Expected<Type> InferTypeCallPyFunc(const CallNode* call_node) noexcept try {
+Type InferTypeCallPyFunc(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exact 1 output type.";
   }
   return call->ty_args[0];
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 void ValidateCallPyFunc(const CallNode* call) {
@@ -875,8 +837,8 @@ void ValidateCallPyFunc(const CallNode* call) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.call_py_func")
-      .set_validator(ffi::reflection::NativeFunctionView<ffi::Expected<void>(
-                         const CallNode*)>::FromNative<&ValidateAsExpected<ValidateCallPyFunc>>())
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateCallPyFunc>())
       .signature(sig::arg("func_name", "The name of the Python function to call."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
@@ -910,7 +872,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // call builtin
-ffi::Expected<Type> InferTypeCallBuiltinWithCtx(const CallNode* call_node) noexcept try {
+Type InferTypeCallBuiltinWithCtx(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() == 0) {
     // by default return void.
@@ -919,10 +881,6 @@ ffi::Expected<Type> InferTypeCallBuiltinWithCtx(const CallNode* call_node) noexc
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1);
     return call->ty_args[0];
   }
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -990,7 +948,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // can't actually name it assert or else Python will consider it a syntax error
 
-ffi::Expected<Type> InferAssertType(const CallNode* call_node) noexcept try {
+Type InferAssertType(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   // Ensure that the condition argument is a boolean scalar.
   // Also permitted is a tensor with unknown shape and unknown dtype
@@ -1005,10 +963,6 @@ ffi::Expected<Type> InferAssertType(const CallNode* call_node) noexcept try {
         << "The argument to assert must be a boolean scalar, but received " << arg_ty;
   }
   return ReturnVoidType(call.get());
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1058,7 +1012,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // invoke_closure
 
-ffi::Expected<Type> InferTypeInvokeClosure(const CallNode* call_node) noexcept try {
+Type InferTypeInvokeClosure(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.empty()) {
     return AnyType();
@@ -1067,10 +1021,6 @@ ffi::Expected<Type> InferTypeInvokeClosure(const CallNode* call_node) noexcept t
   } else {
     return TupleType(call->ty_args);
   }
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1131,17 +1081,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // size
 
-ffi::Expected<Type> InferTypeSize(const CallNode* call_node) noexcept try {
+Type InferTypeSize(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   auto arg_ty = GetType(call->args[0]);
   auto* tensor_ty = GetType(call->args[0]).as<TensorTypeNode>();
   TVM_FFI_ICHECK(tensor_ty) << "size expects a tensor input, but received " << arg_ty
                             << "; use MatchCast if necessary";
   return TensorType(ShapeExpr(ffi::Array<PrimExpr>{}), PrimType::Int(64));
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1163,7 +1109,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // tensor_to_shape
 
-ffi::Expected<Type> ReturnTensorToShapeType(const CallNode* call_node) noexcept try {
+Type ReturnTensorToShapeType(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
@@ -1181,10 +1127,6 @@ ffi::Expected<Type> ReturnTensorToShapeType(const CallNode* call_node) noexcept 
     }
   }
   return ShapeType(kUnknownNDim);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1205,7 +1147,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // shape_to_tensor
-ffi::Expected<Type> ReturnShapeToTensorType(const CallNode* call_node) noexcept try {
+Type ReturnShapeToTensorType(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
@@ -1213,10 +1155,6 @@ ffi::Expected<Type> ReturnShapeToTensorType(const CallNode* call_node) noexcept 
   TVM_FFI_ICHECK(ty);
   int32_t ndim = ty->ndim;
   return TensorType(ShapeExpr({PrimExpr(ndim)}), PrimType::Int(64));
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1544,12 +1482,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // builtin stop_lift_params
-ffi::Expected<Type> InferTypeStopLiftParams(const CallNode* call) noexcept try {
+Type InferTypeStopLiftParams(const CallNode* call) {
   return InferTypeUnaryArithContextFree<false>(call);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1572,7 +1506,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // to_vdevice
 
-ffi::Expected<Type> InferToVDeviceType(const CallNode* call_node) noexcept try {
+Type InferToVDeviceType(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
@@ -1583,10 +1517,6 @@ ffi::Expected<Type> InferToVDeviceType(const CallNode* call_node) noexcept try {
     return TensorType(data_ty->shape.value(), data_ty->dtype, vdev, data_ty->span);
   }
   return TensorType(data_ty->dtype, data_ty->ndim, vdev, data_ty->span);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1611,16 +1541,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // hint_on_device
 
-ffi::Expected<Type> InferHintOnDeviceType(const CallNode* call_node) noexcept try {
+Type InferHintOnDeviceType(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
   TensorType data_ty = GetUnaryInputTensorType(call);
   return data_ty;
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
