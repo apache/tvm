@@ -19,9 +19,11 @@
 
 #include "ir_utils.h"
 
+#include <tvm/ir/attrs.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 namespace tvm {
@@ -172,16 +174,25 @@ class StorageAlignCollector : public StmtExprVisitor {
   }
 
   /*! \brief AllocBuffer: check for buffer_dim_align annotations. */
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    auto it = op->annotations.find(attr::buffer_dim_align);
-    if (it != op->annotations.end()) {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return DispatchAllocBuffer(op, call);
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+    auto annotations = call->attrs.as<DictAttrsNode>()->dict;
+    auto it = annotations.find(attr::buffer_dim_align);
+    if (it != annotations.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {
         int buffer_index = storage_align_tuple.get<0>();
         // the first buffer idx info is meaningless for alloc
         // stmt and should set as negative intentionally.
         TVM_FFI_ICHECK_EQ(buffer_index, -1);
-        storage_align_[op->buffer.var()].push_back(storage_align_tuple);
+        storage_align_[BufferVar(op->var).var()].push_back(storage_align_tuple);
       }
     }
     return StmtExprVisitor::Visit_(op);

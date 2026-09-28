@@ -31,6 +31,14 @@ from tvm.tirx.layout import S, TileLayout
 from tvm.tirx.script import ir_builder as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
 def test_ir_builder_tir_for():
     with IRBuilder() as ib:
         with T.serial(128) as a:
@@ -461,9 +469,11 @@ def test_concrete_mutable_scalar(declare):
     assert len(stores) == 2
     assert all(store.buffer.same_as(scalar.source) for store in stores)
     if declare:
-        declaration = next(stmt for stmt in ib.get().body.seq if isinstance(stmt, tirx.DeclBuffer))
-        assert declaration.buffer.same_as(scalar.source)
-        tvm.ir.assert_structural_equal(declaration.data, owner.data)
+        declaration = next(
+            stmt for stmt in ib.get().body.seq if _is_buffer_binding(stmt, "tirx.decl_buffer")
+        )
+        assert declaration.var.same_as(scalar.source)
+        tvm.ir.assert_structural_equal(declaration.value.args[0], owner.data)
         assert scalar.source.elem_offset == 2
 
 

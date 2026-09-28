@@ -96,18 +96,27 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     function_->addFnAttr("amdgpu-flat-work-group-size", attr.str());
   }
 
-  void Dispatch_(const AllocBufferNode* op) final {
+  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) final {
+    tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+    auto allocation_extents = allocation_shape->fields.Map(
+        [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
+    DLDataType allocation_dtype_arg =
+        buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+    PrimType allocation_dtype(allocation_dtype_arg);
+    ffi::String allocation_scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+    BufferVar allocated_buffer(op->var);
+    auto buffer_annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
     llvm::Value* buf = nullptr;
-    StorageInfo& info = alloc_storage_info_[op->buffer.get()];
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer.var()));
-    PrimType dtype = op->buffer->dtype;
+    StorageInfo& info = alloc_storage_info_[allocated_buffer.get()];
+    auto storage_scope = runtime::StorageScope::Create(allocation_scope);
+    PrimType dtype = allocation_dtype;
 
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       LOG(WARNING) << "Dynamic shared memory support for rocm is experimental.";
       buf = AllocateSharedMemory(dtype, 0, 3, std::min(info.alignment, 16),
                                  llvm::GlobalValue::ExternalLinkage);
     } else {
-      const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+      const IntImmNode* dim_imm = allocation_extents[0].as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
       size_t constant_size = dim_imm->value.as<size_t>().value();
       TVM_FFI_ICHECK_GT(constant_size, 0)
@@ -140,10 +149,10 @@ class CodeGenAMDGPU : public CodeGenLLVM {
 
     buf = builder_->CreatePointerCast(
         buf, llvmGetPointerTo(DTypeToLLVMType(dtype), buf->getType()->getPointerAddressSpace()));
-    TVM_FFI_ICHECK(!var_map_.count(op->buffer.get()));
-    var_map_[op->buffer.get()] = buf;
-    if (op->annotations.count(tirx::attr::kVolatile)) {
-      volatile_buf_.insert(op->buffer.get());
+    TVM_FFI_ICHECK(!var_map_.count(allocated_buffer.get()));
+    var_map_[allocated_buffer.get()] = buf;
+    if (buffer_annotations.count(tirx::attr::kVolatile)) {
+      volatile_buf_.insert(allocated_buffer.get());
     }
   }
 

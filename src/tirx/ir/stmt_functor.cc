@@ -50,8 +50,6 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprVisitor, ReturnNode>(vtable);
   SetDispatch<StmtExprVisitor, BreakNode>(vtable);
   SetDispatch<StmtExprVisitor, ContinueNode>(vtable);
-  SetDispatch<StmtExprVisitor, AllocBufferNode>(vtable);
-  SetDispatch<StmtExprVisitor, DeclBufferNode>(vtable);
   SetDispatch<StmtExprVisitor, BufferStoreNode>(vtable);
   SetDispatch<StmtExprVisitor, AssertStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, SeqStmtNode>(vtable);
@@ -126,8 +124,15 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const prim::ShuffleNode* o
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BindNode* op) {
-  // Bind has no body -- only visit the value expression.
-  return this->Visit(op->value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
+  if (const auto* call = op->value.as<CallNode>();
+      call &&
+      (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+        kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->var); }));
+    return VisitBufferMetadata(BufferVar(op->var), true);
+  }
+  return std::nullopt;
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AttrStmtNode* op) {
@@ -153,9 +158,12 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ReturnNode* op) {
   return this->Visit(op->value);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBufferMetadata(const BufferVar& buffer) {
-  for (const auto& child : buffer->shape) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBufferMetadata(const BufferVar& buffer,
+                                                                   bool skip_shape) {
+  if (!skip_shape) {
+    for (const auto& child : buffer->shape) {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
+    }
   }
   for (const auto& child : buffer->strides) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
@@ -177,19 +185,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBufferMetadata(const BufferV
     }
   }
   return std::nullopt;
-}
-
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AllocBufferNode* op) {
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-      kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
-  return VisitBufferMetadata(op->buffer);
-}
-
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const DeclBufferNode* op) {
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->data));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-      kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
-  return VisitBufferMetadata(op->buffer);
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BufferStoreNode* op) {
@@ -281,8 +276,6 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprMutator, ReturnNode>(vtable);
   SetDispatch<StmtExprMutator, BreakNode>(vtable);
   SetDispatch<StmtExprMutator, ContinueNode>(vtable);
-  SetDispatch<StmtExprMutator, AllocBufferNode>(vtable);
-  SetDispatch<StmtExprMutator, DeclBufferNode>(vtable);
   SetDispatch<StmtExprMutator, BufferStoreNode>(vtable);
   SetDispatch<StmtExprMutator, AssertStmtNode>(vtable);
   SetDispatch<StmtExprMutator, SeqStmtNode>(vtable);
@@ -304,6 +297,34 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inpla
   bool var_changed = !var_u.UnchangedOrSameAs(op->var);
   Var var = std::move(var_u).ValueOrUnchanged(op->var);
   var_changed |= !old_var_type.same_as(var->ty);
+  if (const auto* call = value.as<CallNode>();
+      call && (call->op.same_as(builtin::alloc_buffer()) ||
+               call->op.same_as(builtin::decl_buffer()))) {
+    BufferVar buffer(var);
+    int shape_index = call->op.same_as(builtin::alloc_buffer()) ? 0 : 1;
+    tvm::Tuple shape = call->args[shape_index].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = call->args[shape_index + 1].as_or_throw<DataTypeImm>()->value;
+    ffi::String scope = call->args[shape_index + 2].as_or_throw<StringImm>()->value;
+    if (!call->ty.same_as(var->ty) || !ffi::StructuralEqual()(shape->fields, buffer->shape) ||
+        dtype != buffer->dtype->dtype || scope != buffer.scope()) {
+      auto mapped_call = ffi::make_object<CallNode>(*call);
+      mapped_call->ty = var->ty;
+      if (!ffi::StructuralEqual()(shape->fields, buffer->shape)) {
+        mapped_call->args.Set(shape_index, tvm::Tuple(buffer->shape, shape->span));
+      }
+      if (dtype != buffer->dtype->dtype) {
+        auto original = call->args[shape_index + 1].as_or_throw<DataTypeImm>();
+        mapped_call->args.Set(shape_index + 1,
+                              DataTypeImm(buffer->dtype->dtype, original->span));
+      }
+      if (scope != buffer.scope()) {
+        mapped_call->args.Set(shape_index + 2,
+                              StringImm(buffer.scope(), call->args[shape_index + 2]->span));
+      }
+      value = Call(std::move(mapped_call));
+      value_changed = true;
+    }
+  }
   if ((value_changed || var_changed) && !var->ty.same_as(value->ty)) {
     var = var.CopyWithType(value->ty);
   }
@@ -450,40 +471,6 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BreakNode* op, InplaceMode inpl
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ContinueNode* op, InplaceMode inplace_mode) {
   return ffi::Unchanged();
-}
-
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) {
-  auto buffer = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-                  return Mutate(op->buffer, inplace_mode);
-                }).as_or_throw<UnchangedOr<BufferVar>>();
-  if (buffer.UnchangedOrSameAs(op->buffer)) return ffi::Unchanged();
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<AllocBufferNode*>(op);
-    if (!buffer.IsUnchanged()) writable->buffer = std::move(buffer).ValueUnchecked();
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<AllocBufferNode>(*op);
-  if (!buffer.IsUnchanged()) copy->buffer = std::move(buffer).ValueUnchecked();
-  return Stmt(std::move(copy));
-}
-
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) {
-  auto data = Mutate(op->data, inplace_mode);
-  auto buffer = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
-                  return Mutate(op->buffer, inplace_mode);
-                }).as_or_throw<UnchangedOr<BufferVar>>();
-  if (data.UnchangedOrSameAs(op->data) && buffer.UnchangedOrSameAs(op->buffer))
-    return ffi::Unchanged();
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<DeclBufferNode*>(op);
-    if (!data.IsUnchanged()) writable->data = std::move(data).ValueUnchecked();
-    if (!buffer.IsUnchanged()) writable->buffer = std::move(buffer).ValueUnchecked();
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<DeclBufferNode>(*op);
-  if (!data.IsUnchanged()) copy->data = std::move(data).ValueUnchecked();
-  if (!buffer.IsUnchanged()) copy->buffer = std::move(buffer).ValueUnchecked();
-  return Stmt(std::move(copy));
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {

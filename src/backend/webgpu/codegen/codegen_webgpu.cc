@@ -123,10 +123,13 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-    if (auto source = GetBufferDataVar(op->data)) {
-      buffer_aliases_.insert_or_assign(op->buffer.get(), ResolveBuffer(source.value()));
-      return std::nullopt;
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_buffer())) {
+      if (auto source = GetBufferDataVar(call->args[0])) {
+        buffer_aliases_.insert_or_assign(op->var.get(), ResolveBuffer(source.value()));
+        return std::nullopt;
+      }
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -653,6 +656,10 @@ void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // 
 }
 
 void CodeGenWebGPU::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+  }
   // Stateful reads cannot be substituted after the underlying state changes.
   if (auto prim_value = op->value.as<PrimExpr>();
       prim_value && SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
@@ -732,11 +739,19 @@ void CodeGenWebGPU::Dispatch_(const BufferStoreNode* op) {
   }
 }
 
-void CodeGenWebGPU::Dispatch_(const AllocBufferNode* op) {
-  TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer.get());
+void CodeGenWebGPU::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  auto allocation_extents = allocation_shape->fields.Map(
+      [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
+  DLDataType allocation_dtype_arg =
+      buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  PrimType allocation_dtype(allocation_dtype_arg);
+  ffi::String allocation_scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar allocated_buffer(op->var);
+  TVM_FFI_ICHECK(allocated_buffer.defined());
+  std::string vid = AllocVarID(allocated_buffer.get());
   size_t constant_size = 1;
-  for (const auto& dim : op->buffer->shape) {
+  for (const auto& dim : allocation_extents) {
     const auto* dim_imm = dim.as<IntImmNode>();
     int64_t dim_size =
         dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer_->const_int_bound(dim)->max_value;
@@ -754,11 +769,11 @@ void CodeGenWebGPU::Dispatch_(const AllocBufferNode* op) {
     constant_size *= static_cast<size_t>(dim_size);
   }
 
-  size_t element_stride = GetWgslArrayElementStride(op->buffer->dtype);
+  size_t element_stride = GetWgslArrayElementStride(allocation_dtype);
   TVM_FFI_ICHECK_LE(constant_size, std::numeric_limits<size_t>::max() / element_stride)
       << "WebGPU allocation byte size is too large to represent";
   size_t allocation_bytes = constant_size * element_stride;
-  auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
+  auto storage_scope = runtime::StorageScope::Create(allocation_scope);
 
   if (storage_scope.rank == runtime::StorageRank::kShared) {
     // WebGPU rounds the size of each workgroup variable up to 16 bytes before
@@ -781,12 +796,12 @@ void CodeGenWebGPU::Dispatch_(const AllocBufferNode* op) {
         << " bytes. If the adapter supports this allocation, set "
            "max_shared_memory_per_block in the WebGPU target configuration.";
     this->decl_stream << "var<workgroup> " << vid << " : array<";
-    PrintType(op->buffer->dtype, this->decl_stream);
+    PrintType(allocation_dtype, this->decl_stream);
     this->decl_stream << ", " << constant_size << ">;\n";
   } else if (storage_scope.rank == runtime::StorageRank::kLocal) {
     this->PrintIndent();
     this->stream << "var " << vid << " : array<";
-    PrintType(op->buffer->dtype, this->stream);
+    PrintType(allocation_dtype, this->stream);
     this->stream << ", " << constant_size << ">;\n";
   } else {
     TVM_FFI_THROW(InternalError) << "WebGPU: Do not support storage scope: "

@@ -231,81 +231,13 @@ class BufferStore : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
-/*! \brief Declare a buffer that can be used in the body */
-class DeclBufferNode : public StmtNode {
- public:
-  /*! \brief The buffer being declared */
-  BufferVar buffer;
-  /*! \brief Physical pointer expression backing the declaration. */
-  Expr data;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferNode>()
-        .def_ro("buffer", &DeclBufferNode::buffer, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("data", &DeclBufferNode::data);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.DeclBuffer", DeclBufferNode, StmtNode);
-};
-
-/*! \brief Managed reference to DeclBufferNode */
-class DeclBuffer : public Stmt {
- public:
-  TVM_DLL DeclBuffer(BufferVar buffer, Expr data, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DeclBuffer, Stmt, DeclBufferNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(DeclBufferNode);
-};
-
-/*! \brief Allocate a buffer and declare it in scope */
-class AllocBufferNode : public StmtNode {
- public:
-  /*! \brief The buffer being allocated and declared */
-  BufferVar buffer;
-  /*!
-   * \brief Additional annotations about the allocation.
-   *
-   *  These annotations can be used as auxiliary hint
-   *  to future transformations.
-   */
-  ffi::Map<ffi::String, ffi::Any> annotations;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AllocBufferNode>()
-        .def_ro("buffer", &AllocBufferNode::buffer, refl::AttachFieldFlag::SEqHashDefSimple())
-        .def_ro("annotations", &AllocBufferNode::annotations);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.AllocBuffer", AllocBufferNode, StmtNode);
-};
-
-/*! \brief Managed reference to AllocBufferNode */
-class AllocBuffer : public Stmt {
- public:
-  TVM_DLL AllocBuffer(
-      BufferVar buffer,
-      ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
-      Span span = Span());
-  /*!
-   * \brief If the buffer's shape is constant, return the total number of elements.
-   * \return The product of all shape extents if all are constant, std::nullopt otherwise.
-   */
-  std::optional<int64_t> ConstantAllocationSize() const {
-    int64_t result = 1;
-    for (const PrimExpr& extent : (*this)->buffer->shape) {
-      if (const auto* int_size = extent.as<IntImmNode>()) {
-        auto product = (result * int_size->value).as<int64_t>();
-        if (!product.has_value()) return std::nullopt;
-        result = *product;
-      } else {
-        return std::nullopt;
-      }
-    }
-    return result;
-  }
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AllocBuffer, Stmt, AllocBufferNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocBufferNode);
-};
+/*! \brief Bind a buffer to an allocation operation returning its BufferType. */
+TVM_DLL Bind AllocBuffer(BufferVar buffer, ffi::Map<ffi::String, ffi::Any> annotations = {},
+                         Span span = Span());
+/*! \brief Bind a buffer to a declaration over an existing physical pointer. */
+TVM_DLL Bind DeclBuffer(BufferVar buffer, Expr data, Span span = Span());
+/*! \brief Return a constant allocation's element count, or nullopt on overflow. */
+TVM_DLL std::optional<int64_t> ConstantAllocationSize(const BufferVar& buffer);
 
 /*!
  * \brief The container of seq statement.

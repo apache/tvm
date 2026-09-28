@@ -960,8 +960,9 @@ def func():
     )
     binding = func.body.body.seq[0]
     if mutable:
-        assert isinstance(binding, tvm.tirx.AllocBuffer)
-        var_name = binding.buffer.name
+        assert isinstance(binding, tvm.tirx.Bind) and isinstance(binding.value, tvm.ir.Call)
+        assert binding.value.op.name == "tirx.alloc_buffer"
+        var_name = binding.var.name
     else:
         assert isinstance(binding, tvm.tirx.Bind)
         var_name = binding.var.name

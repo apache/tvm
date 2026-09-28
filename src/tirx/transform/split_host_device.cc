@@ -480,6 +480,9 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(builtin::alloc_buffer()))
+      return DispatchAllocBuffer(op, call);
     // Track Bind definitions so that thread_extent values and
     // dyn_shmem_size expressions that reference locally-bound
     // variables (e.g. CSE variables) can be inlined back to
@@ -545,8 +548,9 @@ class DeviceInfoCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    auto storage_scope = runtime::StorageScope::Create(scope);
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
           << "Only one dynamic shared memory allocation is allowed.";
@@ -556,12 +560,15 @@ class DeviceInfoCollector : public StmtExprVisitor {
       // no tirx.dyn_smem_bytes declaration is present (e.g. s_tir schedules
       // allocate shared.dyn with a concrete extent). A zero extent is a
       // pool-style extern placeholder and carries no size information.
-      TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
+      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+      DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+      PrimType element_type(dtype);
+      TVM_FFI_ICHECK_GT(shape->fields.size(), 0);
       PrimExpr dyn_size = IntImm::Int32(1);
-      for (const auto& extent : op->buffer->shape) {
-        dyn_size *= extent;
+      for (const auto& extent : shape->fields) {
+        dyn_size *= extent.as_or_throw<PrimExpr>();
       }
-      dyn_size *= IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
+      dyn_size *= IntImm::Int64(static_cast<int64_t>(element_type.StorageBytes()));
       if (bind_map_.size()) {
         auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
           if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));

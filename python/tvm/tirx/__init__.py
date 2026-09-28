@@ -49,7 +49,7 @@ from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Co
 # Legacy alias: LetStmt was folded into Bind (which now accepts an optional body)
 LetStmt = Bind
 
-from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
+from .stmt import BufferStore, AttrStmt, DeclBuffer
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list

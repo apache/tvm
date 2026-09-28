@@ -29,6 +29,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/transform.h>
 
@@ -47,7 +48,7 @@ std::string GetStorageScope(const Var& var) {
 }
 
 /*!
- * \brief Allocation calculator for AllocBufferNode.
+ * \brief Allocation calculator for buffer allocation bindings.
  */
 class AllocBufferCalculator : public StmtExprVisitor {
  public:
@@ -63,15 +64,25 @@ class AllocBufferCalculator : public StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) override {
-    std::string storage_scope = op->buffer.scope();
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return DispatchAllocBuffer(op, call);
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    ffi::String storage_scope = call->args[2].as_or_throw<StringImm>()->value;
     auto search = _current_size.find(storage_scope);
     if (search == _current_size.end()) {
       _current_size[storage_scope] = 0;
       _max_size[storage_scope] = 0;
     }
     int64_t size = 1;
-    for (const PrimExpr& e : op->buffer->shape) {
+    for (const Expr& e : shape->fields) {
       if (auto* imm = e.as<IntImmNode>()) {
         size = static_cast<int64_t>(size * imm->value);
       } else {
@@ -79,7 +90,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
         break;
       }
     }
-    size *= static_cast<int64_t>(op->buffer->dtype.StorageBytes());
+    size *= static_cast<int64_t>(PrimType(dtype).StorageBytes());
     _current_size[storage_scope] += size;
     _max_size[storage_scope] = std::max(_current_size[storage_scope], _max_size[storage_scope]);
     return StmtExprVisitor::Visit_(op);

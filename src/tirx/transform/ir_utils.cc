@@ -71,8 +71,6 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       body = Stmt(n);
     } else if (s.as<AssertStmtNode>()) {
       body = SeqStmt({s, body});
-    } else if (s.as<AllocBufferNode>() || s.as<DeclBufferNode>()) {
-      body = SeqStmt::Flatten(s, body);
     } else {
       TVM_FFI_THROW(InternalError) << "not supported nest type";
     }
@@ -231,24 +229,6 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const BufferStoreNode* op, InplaceMode i
   return output;
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) {
-  Var v = op->buffer.var();
-  if (defined_.count(v.get())) {
-    Var new_var = MakeNewVar(v);
-    PushVarRemap(v, new_var);
-  } else {
-    defined_.insert(v.get());
-  }
-  DeclBuffer decl = StmtExprMutator::Mutate_(op, inplace_mode)
-                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                        .as_or_throw<DeclBuffer>();
-  BufferVar new_buffer = GetRemappedBuffer(decl->buffer);
-  if (!new_buffer.same_as(decl->buffer)) {
-    decl.CopyOnWrite()->buffer = std::move(new_buffer);
-  }
-  return decl;
-}
-
 Stmt IRConvertSSA::WithScope(const std::function<Stmt()>& body) {
   return scope_.WithNewScope(body);
 }
@@ -394,6 +374,10 @@ BufferVar IRConvertSSA::GetRemappedBuffer(BufferVar buf) {
 }
 
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  if (const auto* call = op->value.as<CallNode>();
+      call &&
+      (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer())))
+    return MutateBufferBinding(op, inplace_mode);
   // Bind var remaps are tracked in the current scope so they persist
   // across SeqStmt siblings and are cleaned up when the enclosing
   // body-carrying statement's scope exits.
@@ -456,8 +440,8 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const WhileNode* op, InplaceMode inplace
   });
 }
 
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) {
-  Var v = op->buffer.var();
+UnchangedOr<Stmt> IRConvertSSA::MutateBufferBinding(const BindNode* op, InplaceMode inplace_mode) {
+  Var v = op->var;
   if (defined_.count(v.get())) {
     Var new_var = MakeNewVar(v);
     PushVarRemap(v, new_var);
@@ -465,14 +449,15 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AllocBufferNode* op, InplaceMode i
     defined_.insert(v.get());
   }
   Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-  op = stmt.as<AllocBufferNode>();
-  // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
-  // object as the one used by BufferStore/TensorLoad in subsequent siblings.
-  BufferVar new_buf = GetRemappedBuffer(op->buffer);
-  if (!new_buf.same_as(op->buffer)) {
-    auto node = stmt.as_or_throw<AllocBuffer>();
-    node.CopyOnWrite()->buffer = std::move(new_buf);
-    return node;
+  op = stmt.as<BindNode>();
+  const auto* buffer_call = op->value.as<CallNode>();
+  // Keep definitions and subsequent buffer accesses on the same remapped identity.
+  BufferVar buffer(op->var);
+  BufferVar new_buffer = GetRemappedBuffer(buffer);
+  if (!new_buffer.same_as(buffer)) {
+    return buffer_call->op.same_as(builtin::alloc_buffer())
+               ? AllocBuffer(new_buffer, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span)
+               : DeclBuffer(new_buffer, buffer_call->args[0], op->span);
   }
   return stmt;
 }

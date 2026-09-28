@@ -241,7 +241,6 @@ class IRConvertSSA : public StmtExprMutator {
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final;
   Stmt WithScope(const std::function<Stmt()>& body);
   Var DefineVar(Var var);
   BufferStore VisitBufferAccess(BufferStore node);
@@ -252,7 +251,7 @@ class IRConvertSSA : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> MutateBufferBinding(const BindNode* op, InplaceMode inplace_mode);
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
   static bool BufferDependsOnVar(const BufferVar& buffer, const VarNode* var);

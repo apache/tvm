@@ -88,8 +88,8 @@ def test_decl_buffer_requires_physical_data_binding():
         tvm.tirx.DeclBuffer(buffer)
 
     decl = tvm.tirx.DeclBuffer(buffer, data=data)
-    assert decl.buffer.same_as(buffer)
-    assert decl.data.same_as(data)
+    assert decl.var.same_as(buffer)
+    assert decl.value.args[0].same_as(data)
 
 
 def test_buffer_access_ptr():

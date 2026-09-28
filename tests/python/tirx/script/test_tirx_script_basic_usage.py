@@ -267,7 +267,7 @@ def test_pointer_expression_assignment_uses_bind():
 
     binds = []
     tvm_ffi.structural_walk(
-        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
+        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType) else None
     )
     assert len(binds) == 1
     assert isinstance(binds[0].var.ty, PointerType)
@@ -296,7 +296,7 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     bindings, uses = [], []
 
     def collect(node):
-        if isinstance(node, tvm.tirx.Bind):
+        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
             bindings.append(node)
         elif isinstance(node, tvm.tirx.Evaluate):
             uses.append(node)
@@ -324,7 +324,7 @@ def func() -> None:
 
     binds = []
     tvm_ffi.structural_walk(
-        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
+        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType) else None
     )
     assert len(binds) == 1
     assert_structural_equal(func, from_source(func.script()))

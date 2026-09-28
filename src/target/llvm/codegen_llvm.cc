@@ -2208,32 +2208,40 @@ void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {
   builder_->SetInsertPoint(end_block);
 }
 
-void CodeGenLLVM::Dispatch_(const AllocBufferNode* op) {
+void CodeGenLLVM::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  auto allocation_extents = allocation_shape->fields.Map(
+      [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
+  DLDataType allocation_dtype_arg =
+      buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  PrimType allocation_dtype(allocation_dtype_arg);
+  BufferVar allocated_buffer(op->var);
+  auto buffer_annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
   EmitDebugLocation(op);
-  TVM_FFI_ICHECK_EQ(op->buffer->shape.size(), 1)
+  TVM_FFI_ICHECK_EQ(allocation_extents.size(), 1)
       << "LLVM codegen only supports flat 1-d buffer allocation, but allocation of "
-      << op->buffer.name() << " is " << op->buffer->shape << "-d";
+      << allocated_buffer.name() << " is " << allocation_extents << "-d";
 
   llvm::Value* buf = nullptr;
 
-  const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+  const IntImmNode* dim_imm = allocation_extents[0].as<IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation";
   int64_t constant_size = static_cast<int64_t>(dim_imm->value);
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
 
-  StorageInfo& info = alloc_storage_info_[op->buffer.get()];
+  StorageInfo& info = alloc_storage_info_[allocated_buffer.get()];
   // Use buffer's data_alignment if specified, otherwise compute from shape.
-  if (op->buffer->data_alignment > 0) {
-    info.alignment = op->buffer->data_alignment;
+  if (allocated_buffer->data_alignment > 0) {
+    info.alignment = allocated_buffer->data_alignment;
   } else if (constant_size % 4 == 0 && info.alignment == 0) {
-    info.alignment = GetTempAllocaAlignment(op->buffer->dtype, constant_size);
+    info.alignment = GetTempAllocaAlignment(allocation_dtype, constant_size);
   }
   // maximum necessary alignment in the NV devices
   if (info.alignment > 16) {
     info.alignment = 16;
   }
   llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-    return builder_->CreateAlloca(DTypeToLLVMType(op->buffer->dtype), ConstInt64(constant_size));
+    return builder_->CreateAlloca(DTypeToLLVMType(allocation_dtype), ConstInt64(constant_size));
   });
   auto alignment = static_cast<unsigned>(alloca->getAlign().value());
   if (alignment < static_cast<unsigned>(info.alignment)) {
@@ -2244,14 +2252,14 @@ void CodeGenLLVM::Dispatch_(const AllocBufferNode* op) {
   buf = alloca;
 
   buf =
-      builder_->CreatePointerCast(buf, llvmGetPointerTo(DTypeToLLVMType(op->buffer->dtype),
+      builder_->CreatePointerCast(buf, llvmGetPointerTo(DTypeToLLVMType(allocation_dtype),
                                                         buf->getType()->getPointerAddressSpace()));
-  AddDebugInformation(buf, op->buffer.var());
+  AddDebugInformation(buf, allocated_buffer.var());
 
-  TVM_FFI_ICHECK(!var_map_.count(op->buffer.get()));
-  var_map_[op->buffer.get()] = buf;
-  if (op->annotations.count(tirx::attr::kVolatile)) {
-    volatile_buf_.insert(op->buffer.get());
+  TVM_FFI_ICHECK(!var_map_.count(allocated_buffer.get()));
+  var_map_[allocated_buffer.get()] = buf;
+  if (buffer_annotations.count(tirx::attr::kVolatile)) {
+    volatile_buf_.insert(allocated_buffer.get());
   }
 }
 
@@ -2284,6 +2292,10 @@ void CodeGenLLVM::Dispatch_(const AssertStmtNode* op) {
 }
 
 void CodeGenLLVM::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+  }
   EmitDebugLocation(op);
   const VarNode* v = op->var.get();
   TVM_FFI_ICHECK(!var_map_.count(v));
@@ -2329,17 +2341,23 @@ void CodeGenLLVM::Dispatch_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenLLVM::Dispatch_(const DeclBufferNode* op) {
+void CodeGenLLVM::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
+  DLDataType declaration_dtype_arg =
+      buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  PrimType declaration_dtype(declaration_dtype_arg);
+  ffi::String declaration_scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
+  BufferVar declared_buffer(op->var);
+  Expr declared_data = buffer_call->args[0];
   EmitDebugLocation(op);
-  const VarNode* buffer = op->buffer.get();
+  const VarNode* buffer = declared_buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer));
   if (!is_restricted_) {
     alias_var_set_.insert(buffer);
   }
 
-  llvm::Value* value = MakeValue(op->data);
-  const VarNode* source = op->data.as<VarNode>();
-  if (const auto* call = op->data.as<CallNode>();
+  llvm::Value* value = MakeValue(declared_data);
+  const VarNode* source = declared_data.as<VarNode>();
+  if (const auto* call = declared_data.as<CallNode>();
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
@@ -2347,13 +2365,13 @@ void CodeGenLLVM::Dispatch_(const DeclBufferNode* op) {
     buffer_physical_root_[buffer] = GetBufferPhysicalRoot(source);
   }
 
-  llvm::Type* expected_type = GetLLVMType(op->buffer.DataPointerType());
+  llvm::Type* expected_type = GetLLVMType(PointerType(declaration_dtype, declaration_scope));
   if (value->getType() != expected_type) {
-    value->setName((op->buffer.name() + "_source_ptr").c_str());
+    value->setName((declared_buffer.name() + "_source_ptr").c_str());
     value = builder_->CreatePointerCast(value, expected_type);
   }
 
-  AddDebugInformation(value, op->buffer.var());
+  AddDebugInformation(value, declared_buffer.var());
   var_map_[buffer] = value;
   const VarNode* physical_root = GetBufferPhysicalRoot(buffer);
   if (alloc_storage_info_.count(physical_root) &&

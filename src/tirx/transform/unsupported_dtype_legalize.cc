@@ -91,14 +91,23 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
   virtual bool MatchType(const Type& type) const = 0;
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(builtin::alloc_buffer()))
+      return DispatchAllocBuffer(op, call);
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    PrimType alloc_dtype(dtype);
     // remap all intermediate constant buffer to promote data types (fp16/fp32)
-    if (MatchType(op->buffer->dtype)) {
-      PrimType dtype = promote_dtype_.WithLanes(op->buffer->dtype.lanes());
-      auto type = CopyBufferType(op->buffer);
+    if (MatchType(alloc_dtype)) {
+      PrimType dtype = promote_dtype_.WithLanes(alloc_dtype.lanes());
+      auto type = CopyBufferType(BufferVar(op->var));
       type->dtype = dtype;
-      BufferVar buffer_var = RebuildBufferVar(op->buffer, std::move(type));
-      compute_var_remap_[op->buffer.var()] = buffer_var.var();
+      BufferVar buffer_var = RebuildBufferVar(BufferVar(op->var), std::move(type));
+      compute_var_remap_[op->var] = buffer_var.var();
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -336,6 +345,10 @@ class ComputeLegalizer : public StmtExprMutator {
   DEFINE_BIOP_EXPR_LEGALIZE(prim::NENode, operator!=);
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
+    }
     auto prim_value = op->value.as<PrimExpr>();
     if (!prim_value) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -426,28 +439,28 @@ class ComputeLegalizer : public StmtExprMutator {
     return ret;
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    auto data_result = Mutate(op->data, inplace_mode);
-    bool data_unchanged = data_result.UnchangedOrSameAs(op->data);
-    Expr data = std::move(data_result).ValueOrUnchanged(op->data);
-    BufferVar new_buf = GetRemappedBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer) && data_unchanged) {
+  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* buffer_call = op->value.as<CallNode>();
+    auto data_result = Mutate(buffer_call->args[0], inplace_mode);
+    bool data_unchanged = data_result.UnchangedOrSameAs(buffer_call->args[0]);
+    Expr data = std::move(data_result).ValueOrUnchanged(buffer_call->args[0]);
+    BufferVar new_buf = GetRemappedBuffer(BufferVar(op->var));
+    if (new_buf.same_as(BufferVar(op->var)) && data_unchanged) {
       return ffi::Unchanged();
     }
     return DeclBuffer(new_buf, std::move(data), op->span);
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
     Stmt ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = ret.as<AllocBufferNode>();
+    op = ret.as<BindNode>();
+    const auto* buffer_call = op->value.as<CallNode>();
 
-    BufferVar new_buf = GetRemappedBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
+    BufferVar new_buf = GetRemappedBuffer(BufferVar(op->var));
+    if (new_buf.same_as(BufferVar(op->var))) {
       return ret;
     } else {
-      auto node = ret.as_or_throw<AllocBuffer>();
-      node.CopyOnWrite()->buffer = new_buf;
-      return node;
+      return AllocBuffer(new_buf, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span);
     }
   }
 
@@ -550,8 +563,9 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    BufferVar buf = GetRemappedBuffer(op->buffer, /*allow_definition=*/true);
+  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* buffer_call = op->value.as<CallNode>();
+    BufferVar buf = GetRemappedBuffer(BufferVar(op->var), /*allow_definition=*/true);
     // in a rare case the buffer didn't get remapped
     // because the original var is not bfloat*
     // force remap here
@@ -560,23 +574,22 @@ class StorageLegalizer : public StmtExprMutator {
       auto type = CopyBufferType(buf);
       type->dtype = new_dtype;
       BufferVar new_buf = RebuildBufferVar(buf, std::move(type));
-      VarRemapSet(op->buffer, new_buf);
+      VarRemapSet(BufferVar(op->var), new_buf);
       buf = std::move(new_buf);
     }
-    if (buf.same_as(op->buffer)) {
+    if (buf.same_as(BufferVar(op->var))) {
       return ffi::Unchanged();
     } else {
-      auto node = ffi::GetRef<AllocBuffer>(op);
-      node.CopyOnWrite()->buffer = buf;
-      return node;
+      return AllocBuffer(buf, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span);
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    BufferVar buf = GetRemappedBuffer(op->buffer, /*allow_definition=*/true);
-    auto data_result = Mutate(op->data, inplace_mode);
-    bool data_unchanged = data_result.UnchangedOrSameAs(op->data);
-    Expr data = std::move(data_result).ValueOrUnchanged(op->data);
+  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* buffer_call = op->value.as<CallNode>();
+    BufferVar buf = GetRemappedBuffer(BufferVar(op->var), /*allow_definition=*/true);
+    auto data_result = Mutate(buffer_call->args[0], inplace_mode);
+    bool data_unchanged = data_result.UnchangedOrSameAs(buffer_call->args[0]);
+    Expr data = std::move(data_result).ValueOrUnchanged(buffer_call->args[0]);
     // in a rare case the buffer didn't get remapped
     // because the original var is not bfloat*
     // force remap here
@@ -585,9 +598,9 @@ class StorageLegalizer : public StmtExprMutator {
       auto type = CopyBufferType(buf);
       type->dtype = new_dtype;
       buf = RebuildBufferVar(buf, std::move(type));
-      VarRemapSet(op->buffer, buf);
+      VarRemapSet(BufferVar(op->var), buf);
     }
-    if (buf.same_as(op->buffer) && data_unchanged) {
+    if (buf.same_as(BufferVar(op->var)) && data_unchanged) {
       return ffi::Unchanged();
     }
     return DeclBuffer(buf, std::move(data), op->span);
@@ -610,6 +623,10 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
+    }
     auto value_result = Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
     Expr value = std::move(value_result).ValueOrUnchanged(op->value);

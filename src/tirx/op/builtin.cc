@@ -163,6 +163,8 @@ TVM_DEFINE_CACHED_OP_GETTER(get_active_lane_mask, "tirx.get_active_lane_mask")
 TVM_DEFINE_CACHED_OP_GETTER(masked_load, "tirx.masked_load")
 TVM_DEFINE_CACHED_OP_GETTER(masked_store, "tirx.masked_store")
 TVM_DEFINE_CACHED_OP_GETTER(ignore_loop_partition, "tirx.ignore_loop_partition")
+TVM_DEFINE_CACHED_OP_GETTER(alloc_buffer, "tirx.alloc_buffer")
+TVM_DEFINE_CACHED_OP_GETTER(decl_buffer, "tirx.decl_buffer")
 TVM_DEFINE_CACHED_OP_GETTER(buffer_offset, "tirx.buffer_offset")
 TVM_DEFINE_CACHED_OP_GETTER(buffer_data, "tirx.buffer_data")
 TVM_DEFINE_CACHED_OP_GETTER(print_buffer, "tirx.print_buffer")
@@ -644,6 +646,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                            static_cast<int64_t>(ScriptDtypePrintLocation::kNone));
+
+  OpDef("tirx.alloc_buffer")
+      .add_arg("shape", "The tuple of buffer extents.")
+      .add_arg("dtype", "The buffer data type.")
+      .add_arg("scope", "The storage scope.")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+  OpDef("tirx.decl_buffer")
+      .add_arg("data", "The existing data pointer.")
+      .add_arg("shape", "The tuple of buffer extents.")
+      .add_arg("dtype", "The buffer data type.")
+      .add_arg("scope", "The storage scope.")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.buffer_offset")
       .signature(sig::arg("load", "The buffer load whose offset is returned."))

@@ -26,6 +26,15 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def test_alloc_seq():
     scope_tb = "local.L0A"
 
@@ -45,9 +54,9 @@ def test_alloc_seq():
     num_alloc = [0]
 
     def verify(n):
-        if isinstance(n, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(n, "tirx.alloc_buffer"):
             num_alloc[0] += 1
-            assert n.buffer.ty.shape[0].value == 200
+            assert n.var.ty.shape[0].value == 200
 
     tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1
@@ -100,8 +109,8 @@ def test_alloc_different_dtypes():
 
     def dtype_test(dtype_list, length):
         def verify(n):
-            if isinstance(n, tvm.tirx.AllocBuffer):
-                assert n.buffer.ty.shape[0].value == offset
+            if _is_buffer_binding(n, "tirx.alloc_buffer"):
+                assert n.var.ty.shape[0].value == offset
 
         mod = make_mod(dtype_list, length)
         offset = offset_generater(dtype_list, length)
@@ -157,8 +166,8 @@ def test_address_of():
             )
 
     def verify(n):
-        if isinstance(n, tvm.tirx.AllocBuffer):
-            total_alloc[0] += n.buffer.ty.shape[0].value
+        if _is_buffer_binding(n, "tirx.alloc_buffer"):
+            total_alloc[0] += n.var.ty.shape[0].value
 
     total_alloc = [0]
     mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
@@ -183,7 +192,7 @@ def test_parallel_alloc():
     body = tvm.tirx.transform.StorageRewrite()(mod)["func1"]
 
     # With flat AllocBuffer, the for body is a SeqStmt; first element is AllocBuffer
-    assert isinstance(body.body.body[0], tvm.tirx.AllocBuffer)
+    assert _is_buffer_binding(body.body.body[0], "tirx.alloc_buffer")
 
     @T.prim_func
     def func2(n: T.int32):
@@ -197,7 +206,7 @@ def test_parallel_alloc():
     mod = tvm.IRModule.from_expr(func2)
     body = tvm.tirx.transform.StorageRewrite()(mod)["func2"]
 
-    assert isinstance(body.body.body.body.body[0], tvm.tirx.AllocBuffer)
+    assert _is_buffer_binding(body.body.body.body.body[0], "tirx.alloc_buffer")
 
 
 def test_while_alloc():
@@ -242,7 +251,7 @@ def test_while_alloc():
     num_alloc = [0]
 
     def count_alloc(n):
-        if isinstance(n, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(n, "tirx.alloc_buffer"):
             num_alloc[0] += 1
 
     tvm_ffi.structural_walk(inner, count_alloc)
@@ -279,9 +288,9 @@ def test_alloc_seq_type():
     num_alloc = [0]
 
     def verify(n):
-        if isinstance(n, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(n, "tirx.alloc_buffer"):
             num_alloc[0] += 1
-            assert n.buffer.ty.shape[0].value == 500
+            assert n.var.ty.shape[0].value == 500
 
     tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1
@@ -309,9 +318,9 @@ def test_alloc_seq_type2():
     num_alloc = [0]
 
     def verify(n):
-        if isinstance(n, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(n, "tirx.alloc_buffer"):
             num_alloc[0] += 1
-            assert n.buffer.ty.shape[0].value == 200
+            assert n.var.ty.shape[0].value == 200
 
     tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1
@@ -341,9 +350,9 @@ def test_reuse_small_buffer():
     num_alloc = [0]
 
     def verify(n):
-        if isinstance(n, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(n, "tirx.alloc_buffer"):
             num_alloc[0] += 1
-            assert n.buffer.ty.shape[0].value == 800
+            assert n.var.ty.shape[0].value == 800
 
     tvm_ffi.structural_walk(body, verify)
     assert num_alloc[0] == 1
@@ -478,7 +487,9 @@ def test_decl_buffer_alias_extends_source_lifetime():
     allocations = []
     tvm_ffi.structural_walk(
         after.body,
-        lambda node: allocations.append(node) if isinstance(node, tvm.tirx.AllocBuffer) else None,
+        lambda node: allocations.append(node)
+        if _is_buffer_binding(node, "tirx.alloc_buffer")
+        else None,
     )
     assert len(allocations) == 2
 

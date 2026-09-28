@@ -279,14 +279,14 @@ TEST(IRF, StmtExprMutator) {
   {
     auto alloc = fmakealloc();
     Stmt body2 = Evaluate(1);
-    auto* bufptr = alloc.as<AllocBufferNode>()->buffer.get();
+    auto* bufptr = alloc.as<BindNode>()->var.get();
     ffi::Array<Stmt> arr{std::move(alloc), body2, body2};
     auto* arrptr = arr.get();
     arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
     TVM_FFI_ICHECK(arr.get() == arrptr);
     // buffer IS mutated now (AllocBuffer mutator visits buffer shape at the buffer definition)
     // shape was {1, x+1}, mutator transforms x+1 -> x, so buffer changes
-    TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() != bufptr);
+    TVM_FFI_ICHECK(arr[0].as<BindNode>()->var.get() != bufptr);
   }
   {
     ffi::Array<Stmt> arr{fmakealloc()};
@@ -296,8 +296,7 @@ TEST(IRF, StmtExprMutator) {
     arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
     TVM_FFI_ICHECK(arr.get() != arrptr);
     // buffer is mutated in arr but not in arr2
-    TVM_FFI_ICHECK(arr[0].as<AllocBufferNode>()->buffer.get() !=
-                   arr2[0].as<AllocBufferNode>()->buffer.get());
+    TVM_FFI_ICHECK(arr[0].as<BindNode>()->var.get() != arr2[0].as<BindNode>()->var.get());
     // mutate but no content change.
     arr2 = arr;
     arr.MutateByApply([&](Stmt s) { return v->Mutate(s).ValueOrUnchanged(std::move(s)); });
@@ -323,7 +322,7 @@ TEST(IRF, StmtExprMutator) {
     Stmt body = fmakealloc();
     Stmt body2 = Evaluate(1);
     auto* ref2 = body2.get();
-    auto* bufptr = body.as<AllocBufferNode>()->buffer.get();
+    auto* bufptr = body.as<BindNode>()->var.get();
     // construct a recursive SeqStmt.
     body = SeqStmt({body, body2});
     body = SeqStmt({body, body2});
@@ -331,7 +330,7 @@ TEST(IRF, StmtExprMutator) {
     // the seq get flattened
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->size() == 3);
     // buffer is now mutated (shape x+1 -> x at the buffer definition)
-    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocBufferNode>()->buffer.get() != bufptr);
+    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<BindNode>()->var.get() != bufptr);
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[1].get() == ref2);
   }
 
@@ -347,7 +346,10 @@ TEST(IRF, StmtExprMutator) {
     // the seq get flattened
     TVM_FFI_ICHECK(body.as<SeqStmtNode>()->size() == 3);
     // buffer is mutated (shape x+1 -> x at the buffer definition)
-    TVM_FFI_ICHECK(body.as<SeqStmtNode>()->seq[0].as<AllocBufferNode>() != nullptr);
+    auto* alloc_node = body.as<SeqStmtNode>()->seq[0].as<BindNode>();
+    TVM_FFI_ICHECK(alloc_node != nullptr);
+    auto* alloc_call = alloc_node->value.as<CallNode>();
+    TVM_FFI_ICHECK(alloc_call && alloc_call->op.same_as(tirx::builtin::alloc_buffer()));
     // bref still holds the old SeqStmt (not shared with new one due to copy)
     TVM_FFI_ICHECK(!bref.same_as(body));
   }
@@ -697,14 +699,16 @@ TEST(IRF, StructuralMapBufferDefinition) {
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(decl, f_subst).as_or_throw<Stmt>();
     auto* seq_node = new_decl.as<SeqStmtNode>();
     TVM_FFI_ICHECK(seq_node != nullptr);
-    auto* decl_node = seq_node->seq[0].as<DeclBufferNode>();
+    auto* decl_node = seq_node->seq[0].as<BindNode>();
     TVM_FFI_ICHECK(decl_node != nullptr);
-    TVM_FFI_ICHECK(decl_node->data.same_as(y));
-    TVM_FFI_ICHECK(decl_node->buffer->shape[0].same_as(m));
-    TVM_FFI_ICHECK(!decl_node->buffer.same_as(buffer));
+    auto* decl_call = decl_node->value.as<CallNode>();
+    TVM_FFI_ICHECK(decl_call && decl_call->op.same_as(tirx::builtin::decl_buffer()));
+    TVM_FFI_ICHECK(decl_call->args[0].same_as(y));
+    TVM_FFI_ICHECK(BufferVar(decl_node->var)->shape[0].same_as(m));
+    TVM_FFI_ICHECK(!decl_node->var.same_as(buffer));
     auto* store_node = seq_node->seq[1].as<BufferStoreNode>();
     TVM_FFI_ICHECK(store_node != nullptr);
-    TVM_FFI_ICHECK(store_node->buffer.same_as(decl_node->buffer));
+    TVM_FFI_ICHECK(store_node->buffer.same_as(decl_node->var));
   }
 
   {

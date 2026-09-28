@@ -82,7 +82,7 @@ class CodeGenWebGPU final : public CodeGenC {
   void Dispatch_(const BindNode* op) final;
   void Dispatch_(const BufferStoreNode* op) final;
   void Dispatch_(const ForNode* op) final;
-  void Dispatch_(const AllocBufferNode* op) final;
+  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) final;
   void Dispatch_(const AssertStmtNode* op) final;
   void Dispatch_(const WhileNode* op) final;
   void Dispatch_(const BreakNode* op) final;

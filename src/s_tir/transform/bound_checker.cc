@@ -79,9 +79,21 @@ class BoundChecker : public StmtExprMutator {
       const std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>& mem_to_shape)
       : mem_to_shape_(mem_to_shape) {}
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    if (UpdateIsNeeded(op->buffer.var())) {
-      Update(op->buffer.var(), op->buffer->shape, op->buffer->dtype);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return Mutate_AllocBuffer(op, inplace_mode);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    if (UpdateIsNeeded(BufferVar(op->var).var())) {
+      const auto* call = op->value.as<CallNode>();
+      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+      DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+      Update(op->var, shape->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); }),
+             PrimType(dtype));
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }

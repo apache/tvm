@@ -150,7 +150,19 @@ def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
     body = tvm.tirx.SeqStmt(
         [
-            tvm.tirx.DeclBuffer(buffer, data=data),
+            tvm.tirx.Bind(
+                buffer,
+                tvm.ir.Call(
+                    "tirx.decl_buffer",
+                    [
+                        data,
+                        tvm.ir.Tuple(buffer.shape),
+                        tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
+                        tvm.ir.StringImm(buffer.scope()),
+                    ],
+                    ret_ty=buffer.ty,
+                ),
+            ),
             tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr)),
         ]
     )

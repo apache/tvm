@@ -173,16 +173,16 @@ class PrimFuncSpecializer : public StmtExprMutator {
       return StmtExprVisitor::Visit_(op);
     }
 
-    ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-      return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
-                                     [&]() { return this->Visit(op->buffer); });
-    }
-
-    ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-      // The declaration establishes the buffer before visiting its data expression.
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-          kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
-      return Visit(op->data);
+    ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+      if (const auto* call = op->value.as<CallNode>();
+          call &&
+          (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->var); }));
+        if (call->op.same_as(builtin::decl_buffer())) return Visit(call->args[0]);
+        return std::nullopt;
+      }
+      return StmtExprVisitor::Visit_(op);
     }
 
     PrimFuncSpecializer* specializer_;

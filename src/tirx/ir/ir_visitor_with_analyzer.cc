@@ -48,6 +48,10 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const ForNode* op) {
 }
 
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>();
+      call &&
+      (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer())))
+    return StmtExprVisitor::Visit_(op);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   if (ffi::Optional<PrimExpr> value = op->value.as<PrimExpr>()) {
     analyzer_->Bind(op->var, value.value());

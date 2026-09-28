@@ -28,6 +28,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -65,15 +66,16 @@ class SSAVerifier final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
-    MarkDef(op->var, op->value);
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_buffer())) {
+      MarkDef(op->var, op->value, true);
+    } else {
+      MarkDef(op->var, op->value);
+    }
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
     MarkDef(op->loop_var, op->loop_var);
-    return StmtExprVisitor::Visit_(op);
-  }
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    MarkDef(op->buffer.var(), op->buffer.var());
     return StmtExprVisitor::Visit_(op);
   }
 

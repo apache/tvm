@@ -26,12 +26,14 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <list>
@@ -111,11 +113,23 @@ class AllocateCollector : public StmtExprVisitor {
   using StmtExprVisitor::Visit_;
   explicit AllocateCollector(bool is_dynamic) : is_dynamic_(is_dynamic) {}
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    if (is_dynamic_ && IsDynamicSharedMemory(op->buffer)) {
-      shmem_allocs_[op->buffer.get()] = op->buffer;
-    } else if (!is_dynamic_ && IsStaticSharedMemory(op->buffer)) {
-      shmem_allocs_[op->buffer.get()] = op->buffer;
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return DispatchAllocBuffer(op, call);
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    StorageScope storage_scope = StorageScope::Create(scope);
+    if (is_dynamic_ && storage_scope.rank == runtime::StorageRank::kShared &&
+        storage_scope.tag == ".dyn") {
+      shmem_allocs_[BufferVar(op->var).get()] = BufferVar(op->var);
+    } else if (!is_dynamic_ && storage_scope.rank == runtime::StorageRank::kShared &&
+               storage_scope.tag == "") {
+      shmem_allocs_[BufferVar(op->var).get()] = BufferVar(op->var);
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -164,10 +178,10 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     BufferVar buffer;
   };
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op) {
     size_t level = scope_.size();
-    const VarNode* buf = op->buffer.get();
-    alloc_info_[buf].buffer = op->buffer;
+    const VarNode* buf = BufferVar(op->var).get();
+    alloc_info_[buf].buffer = BufferVar(op->var);
     alloc_info_[buf].level = level;
     return StmtExprVisitor::Visit_(op);
   }
@@ -210,11 +224,23 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-    if (auto source = GetBufferDataVar(op->data)) {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return DispatchAllocBuffer(op);
+    }
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_buffer())) {
+      return DispatchDeclBuffer(op, call);
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> DispatchDeclBuffer(const BindNode* op, const CallNode* call) {
+    if (auto source = GetBufferDataVar(call->args[0])) {
       const VarNode* allocation = ResolveAlias(source.value().get());
       if (alloc_info_.count(allocation)) {
-        buffer_alias_sources_[op->buffer.get()] = allocation;
+        buffer_alias_sources_[BufferVar(op->var).get()] = allocation;
         return std::nullopt;
       }
     }
@@ -481,12 +507,16 @@ class SharedMemoryRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    if (IsAppropriateSharedMemory(op->buffer)) {
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* call = op->value.as<CallNode>();
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    StorageScope storage_scope = StorageScope::Create(scope);
+    if (storage_scope.rank == runtime::StorageRank::kShared &&
+        storage_scope.tag == (is_dynamic_ ? ".dyn" : "")) {
       if (!scope_stack_.empty()) {
         KernelScope& scope = scope_stack_.back();
-        if (scope.shmem_allocs.count(op->buffer.get())) {
-          if (op->annotations.count(tirx::attr::kVolatile)) {
+        if (scope.shmem_allocs.count(BufferVar(op->var).get())) {
+          if (call->attrs.as<DictAttrsNode>()->dict.count(tirx::attr::kVolatile)) {
             scope.has_volatile_alloc = true;
           }
           return Evaluate(0);
@@ -498,12 +528,25 @@ class SharedMemoryRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return Mutate_AllocBuffer(op, inplace_mode);
+    }
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_buffer())) {
+      return Mutate_DeclBuffer(op, inplace_mode);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_DeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* call = op->value.as<CallNode>();
     if (!scope_stack_.empty()) {
-      if (auto source = GetBufferDataVar(op->data)) {
+      if (auto source = GetBufferDataVar(call->args[0])) {
         KernelScope& scope = scope_stack_.back();
         if (const VarNode* allocation = ResolveAllocation(source.value().get(), scope)) {
-          scope.buffer_alias_sources[op->buffer.get()] = allocation;
+          scope.buffer_alias_sources[BufferVar(op->var).get()] = allocation;
           return Evaluate(0);
         }
       }
@@ -511,9 +554,10 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
     auto node = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                    .as_or_throw<DeclBuffer>();
-    if (auto new_buf = GetUpdatedBuffer(node->buffer); !new_buf.same_as(node->buffer)) {
-      node.CopyOnWrite()->buffer = new_buf;
+                    .as_or_throw<Bind>();
+    if (auto new_buf = GetUpdatedBuffer(BufferVar(node->var)); !new_buf.same_as(node->var)) {
+      const auto* new_call = node->value.as<CallNode>();
+      return DeclBuffer(new_buf, new_call->args[0], node->span);
     }
     return node;
   }

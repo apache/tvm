@@ -253,6 +253,11 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call &&
+        (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
     auto value_result = Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
     Expr value = std::move(value_result).ValueOrUnchanged(op->value);

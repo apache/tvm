@@ -27,6 +27,7 @@
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 
 #include "../ir/tir_visitor_with_path.h"
 
@@ -46,8 +47,18 @@ class PurityChecker : TIRVisitorWithPath {
  private:
   explicit PurityChecker(bool assert_on_error) : assert_on_error_(assert_on_error) {}
 
-  void Dispatch_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override {
-    internal_allocations_.insert(op->buffer.var());
+  void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return DispatchAllocBuffer(op, call, path);
+    }
+    return TIRVisitorWithPath::Dispatch_(op, path);
+  }
+
+  void DispatchAllocBuffer(const BindNode* op, const CallNode* call,
+                           ffi::reflection::AccessPath path) {
+    internal_allocations_.insert(op->var);
+    allocation_calls_.insert(call);
     TIRVisitorWithPath::Dispatch_(op, path);
   }
 
@@ -66,6 +77,7 @@ class PurityChecker : TIRVisitorWithPath {
 
   void Dispatch_(const CallNode* call, ffi::reflection::AccessPath path) override {
     TIRVisitorWithPath::Dispatch_(call, path);
+    if (allocation_calls_.count(call)) return;
 
     static auto op_call_effect = Op::GetAttrMap<TCallEffectKind>("TCallEffectKind");
     CallEffectKind effect = [&]() {
@@ -90,6 +102,7 @@ class PurityChecker : TIRVisitorWithPath {
   bool assert_on_error_{false};
   bool is_pure_{true};
   std::unordered_set<Var> internal_allocations_;
+  std::unordered_set<const CallNode*> allocation_calls_;
 };
 }  // namespace
 

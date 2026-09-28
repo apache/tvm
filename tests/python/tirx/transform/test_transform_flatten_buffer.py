@@ -31,12 +31,21 @@ from tvm.script import tirx as T
 from tvm.tirx.transform import FlattenBuffer
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def _collect_defined_buffers(func):
     defined = set()
 
     def visit(node):
-        if isinstance(node, tvm.tirx.AllocBuffer | tvm.tirx.DeclBuffer):
-            defined.add(node.buffer)
+        if _is_buffer_binding(node, "tirx.alloc_buffer", "tirx.decl_buffer"):
+            defined.add(node.var)
 
     tvm_ffi.structural_walk(func.body, visit)
     return defined
@@ -67,11 +76,11 @@ def _assert_loads_reference_defined_buffers(func):
                 stale.append(f"access of {buffer.name}")
             for index in node.indices:
                 check_expr(index, f"index of {buffer.name}")
-        if isinstance(node, tvm.tirx.AllocBuffer | tvm.tirx.DeclBuffer):
-            for extent in node.buffer.shape:
-                check_expr(extent, f"shape of {node.buffer.name}")
-            if node.buffer.elem_offset is not None:
-                check_expr(node.buffer.elem_offset, f"elem_offset of {node.buffer.name}")
+        if _is_buffer_binding(node, "tirx.alloc_buffer", "tirx.decl_buffer"):
+            for extent in node.var.shape:
+                check_expr(extent, f"shape of {node.var.name}")
+            if node.var.elem_offset is not None:
+                check_expr(node.var.elem_offset, f"elem_offset of {node.var.name}")
 
     tvm_ffi.structural_walk(func.body, visit)
     assert not stale, f"stale buffer references after FlattenBuffer: {stale}"
@@ -142,8 +151,8 @@ def test_flatten_keeps_identity_of_already_flat_buffers():
     before_allocs = {}
 
     def collect_before(node):
-        if isinstance(node, tvm.tirx.AllocBuffer):
-            before_allocs[node.buffer.name] = node.buffer
+        if _is_buffer_binding(node, "tirx.alloc_buffer"):
+            before_allocs[node.var.name] = node.var
 
     tvm_ffi.structural_walk(before.body, collect_before)
 
@@ -151,8 +160,8 @@ def test_flatten_keeps_identity_of_already_flat_buffers():
     preserved = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.AllocBuffer) and node.buffer.name in before_allocs:
-            preserved.append(node.buffer.same_as(before_allocs[node.buffer.name]))
+        if _is_buffer_binding(node, "tirx.alloc_buffer") and node.var.name in before_allocs:
+            preserved.append(node.var.same_as(before_allocs[node.var.name]))
 
     tvm_ffi.structural_walk(after.body, visit)
     assert preserved and all(preserved), "already-flat buffer identity was not preserved"

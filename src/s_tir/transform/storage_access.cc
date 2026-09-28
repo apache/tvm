@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <string>
@@ -99,13 +100,6 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BufferStoreNode
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const DeclBufferNode* op) {
-  if (auto source = GetBufferDataVar(op->data)) {
-    buffer_aliases_.insert_or_assign(op->buffer.get(), ResolveBuffer(source.value()));
-  }
-  return StmtExprVisitor::Visit_(op);
-}
-
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* op) {
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
@@ -121,6 +115,16 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* o
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::decl_buffer())) {
+    if (auto source = GetBufferDataVar(call->args[0])) {
+      buffer_aliases_.insert_or_assign(BufferVar(op->var).get(), ResolveBuffer(source.value()));
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+  if (const auto* call = op->value.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::alloc_buffer()))
+    return StmtExprVisitor::Visit_(op);
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;

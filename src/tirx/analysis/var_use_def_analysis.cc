@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/builtin.h>
 namespace tvm {
 namespace tirx {
 
@@ -57,7 +58,12 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const AttrStmtNode* op) 
 }
 
 ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const BindNode* op) {
-  this->HandleDef(op->var);
+  // Buffer definitions are registered by the base visitor in the definition region.
+  if (const auto* call = op->value.as<CallNode>();
+      !call || (!call->op.same_as(tirx::builtin::alloc_buffer()) &&
+                !call->op.same_as(tirx::builtin::decl_buffer()))) {
+    this->HandleDef(op->var);
+  }
   return StmtExprVisitor::Visit_(op);
 }
 

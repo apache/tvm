@@ -24,6 +24,15 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def test_vthread():
     """Test virtual thread injection with vthread"""
     n = 100
@@ -60,12 +69,12 @@ def test_vthread():
     allocates = []
 
     def find_allocates(node):
-        if isinstance(node, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(node, "tirx.alloc_buffer"):
             allocates.append(node)
 
     tvm_ffi.structural_walk(stmt.body, find_allocates)
     assert len(allocates) == 1
-    assert list(allocates[0].buffer.ty.shape) == [B_expected_alloc]
+    assert list(allocates[0].var.ty.shape) == [B_expected_alloc]
 
 
 def test_vthread_extern():
@@ -109,13 +118,13 @@ def test_vthread_extern():
     allocates = []
 
     def find_allocates(node):
-        if isinstance(node, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(node, "tirx.alloc_buffer"):
             allocates.append(node)
 
     tvm_ffi.structural_walk(stmt.body, find_allocates)
     assert len(allocates) == 3
     # Check that we have the expected extents (order may vary)
-    extents = sorted([int(a.buffer.ty.shape[0]) for a in allocates])
+    extents = sorted([int(a.var.ty.shape[0]) for a in allocates])
     assert extents == sorted([A_expected_alloc, A_expected_alloc, C_expected_alloc])
 
 
@@ -207,13 +216,13 @@ def test_vthread_vectorized():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tirx.AllocBuffer) and "shared" in str(op.buffer.data.ty):
+        if _is_buffer_binding(op, "tirx.alloc_buffer") and "shared" in str(op.var.data.ty):
             allocate_node = op
 
     tvm_ffi.structural_walk(after_func.body, visitor)
     assert allocate_node is not None
-    assert list(allocate_node.buffer.ty.shape) == [4]
-    assert allocate_node.buffer.ty.dtype == "int32x4"
+    assert list(allocate_node.var.ty.shape) == [4]
+    assert allocate_node.var.ty.dtype == "int32x4"
 
 
 def test_vthread_rewrites_masked_accesses():

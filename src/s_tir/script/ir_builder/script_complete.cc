@@ -30,6 +30,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/int_set.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <utility>
@@ -116,18 +117,30 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
     // AllocBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(op->buffer.var())) {
-      buffer_var_map_->Set(op->buffer.var(), op->buffer);
+    if (!buffer_var_map_->count(BufferVar(op->var).var())) {
+      buffer_var_map_->Set(BufferVar(op->var).var(), BufferVar(op->var));
     }
     return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return Mutate_AllocBuffer(op, inplace_mode);
+    }
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_buffer())) {
+      return Mutate_DeclBuffer(op, inplace_mode);
+    }
+    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_DeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
     // DeclBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(op->buffer.var())) {
-      buffer_var_map_->Set(op->buffer.var(), op->buffer);
+    if (!buffer_var_map_->count(BufferVar(op->var).var())) {
+      buffer_var_map_->Set(BufferVar(op->var).var(), BufferVar(op->var));
     }
     return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }

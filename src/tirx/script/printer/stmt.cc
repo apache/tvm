@@ -168,9 +168,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
+namespace {
+Doc AllocBufferDoc(tirx::Bind stmt, const CallNode* call, AccessPath p, IRDocsifier d);
+Doc DeclBufferDoc(tirx::Bind stmt, const CallNode* call, AccessPath p, IRDocsifier d,
+                  BufferVarDefinition var_definitions);
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::Bind>(
       "", [](tirx::Bind stmt, AccessPath p, IRDocsifier d) -> Doc {
+        if (const auto* call = stmt->value.as<CallNode>();
+            call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+          return AllocBufferDoc(stmt, call, p, d);
+        }
+        if (const auto* call = stmt->value.as<CallNode>();
+            call && call->op.same_as(tirx::builtin::decl_buffer())) {
+          return DeclBufferDoc(stmt, call, p, d, BufferVarDefinition::None);
+        }
         // Step 1. Type annotation
         TVM_FFI_ICHECK(!stmt->var->ty.IsMissing())
             << "Type annotation is required for variable: " << stmt->var->name;
@@ -644,62 +658,54 @@ ffi::Optional<ExprDoc> TryDeclBufferSugar(const tirx::BufferVar& child, const Ac
   return std::nullopt;
 }
 
-Doc DeclBufferDoc(tirx::DeclBuffer stmt, AccessPath p, IRDocsifier d,
+Doc DeclBufferDoc(tirx::Bind stmt, const CallNode* call, AccessPath p, IRDocsifier d,
                   BufferVarDefinition var_definitions) {
+  Expr data = call->args[0];
   // Try sugar detection when syntax_sugar is enabled
   if (d->cfg->syntax_sugar) {
-    if (auto sugar = TryDeclBufferSugar(stmt->buffer, p, stmt->data, d)) {
-      ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
+    if (auto sugar = TryDeclBufferSugar(tirx::BufferVar(stmt->var), p, data, d)) {
+      ExprDoc lhs = DefineBuffer(tirx::BufferVar(stmt->var), d->frames.back(), d);
       return AssignDoc(lhs, sugar.value(), std::nullopt);
     }
   }
-  ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
-                           var_definitions, stmt->data);
-  ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
+  ExprDoc rhs = BufferDecl(tirx::BufferVar(stmt->var), "decl_buffer", {}, p->Attr("var"),
+                           d->frames.back(), d, var_definitions, data);
+  ExprDoc lhs = DefineBuffer(tirx::BufferVar(stmt->var), d->frames.back(), d);
   return AssignDoc(lhs, rhs, std::nullopt);
 }
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::DeclBuffer>(  //
-      "", [](tirx::DeclBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
-        return DeclBufferDoc(stmt, p, d, BufferVarDefinition::None);
-      });
-}
 
 namespace {
-Doc AllocBufferDoc(tirx::AllocBuffer stmt, AccessPath p, IRDocsifier d) {
-  if (d->cfg->syntax_sugar && stmt->buffer.IsScalar(true)) {
-    ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
-    ExprDoc type_ann = TIR(d, DType2Str(stmt->buffer->dtype->dtype));
+Doc AllocBufferDoc(tirx::Bind stmt, const CallNode* call, AccessPath p, IRDocsifier d) {
+  if (d->cfg->syntax_sugar && tirx::BufferVar(stmt->var).IsScalar(true)) {
+    ExprDoc lhs = DefineBuffer(tirx::BufferVar(stmt->var), d->frames.back(), d);
+    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    ExprDoc type_ann = TIR(d, DType2Str(dtype));
     return AssignDoc(lhs, std::nullopt, type_ann);
   }
-  ExprDoc rhs = BufferDecl(stmt->buffer, "alloc_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
-                           BufferVarDefinition::DataPointer);
-  // alloc_buffer carries an `annotations` field on the IR node that BufferDecl
+  ExprDoc rhs = BufferDecl(tirx::BufferVar(stmt->var), "alloc_buffer", {}, p->Attr("var"),
+                           d->frames.back(), d, BufferVarDefinition::DataPointer);
+  // The allocation call carries annotations that BufferDecl
   // doesn't know about. When non-empty, append it as an `annotations=...`
   // kwarg on the emitted call so round-trip preserves the annotation map.
-  if (!stmt->annotations.empty()) {
-    if (const auto* call = rhs.as<CallDocNode>()) {
-      ffi::Array<ffi::String> new_keys = call->kwargs_keys;
-      ffi::Array<ExprDoc> new_values = call->kwargs_values;
+  auto annotations = call->attrs.as<DictAttrsNode>()->dict;
+  if (!annotations.empty()) {
+    if (const auto* call_doc = rhs.as<CallDocNode>()) {
+      ffi::Array<ffi::String> new_keys = call_doc->kwargs_keys;
+      ffi::Array<ExprDoc> new_values = call_doc->kwargs_values;
       new_keys.push_back("annotations");
-      new_values.push_back(d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
-      rhs = CallDoc(call->callee, call->args, new_keys, new_values);
+      new_values.push_back(d->AsDoc<ExprDoc>(
+          annotations, p->Attr("value")->Attr("attrs")->Attr("dict")->MapItem("annotations")));
+      rhs = CallDoc(call_doc->callee, call_doc->args, new_keys, new_values);
     }
   }
-  ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
+  ExprDoc lhs = DefineBuffer(tirx::BufferVar(stmt->var), d->frames.back(), d);
   return AssignDoc(lhs, rhs, std::nullopt);
 }
 
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::AllocBuffer>(  //
-      "", [](tirx::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
-        return AllocBufferDoc(stmt, p, d);
-      });
-}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::IfThenElse>(  //
@@ -830,11 +836,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TVMScriptPrinter::Register<tirx::AttrStmtNode>(ReprPrintTIR);
   TVMScriptPrinter::Register<tirx::AssertStmtNode>(ReprPrintTIR);
   TVMScriptPrinter::Register<tirx::WhileNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::AllocBufferNode>(ReprPrintTIR);
   TVMScriptPrinter::Register<tirx::ReturnNode>(ReprPrintTIR);
   TVMScriptPrinter::Register<tirx::BreakNode>(ReprPrintTIR);
   TVMScriptPrinter::Register<tirx::ContinueNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::DeclBufferNode>(ReprPrintTIR);
   TVMScriptPrinter::Register<tirx::SeqStmtNode>(ReprPrintTIR);
   TVMScriptPrinter::Register<tirx::IfThenElseNode>(ReprPrintTIR);
   TVMScriptPrinter::Register<tirx::EvaluateNode>(ReprPrintTIR);

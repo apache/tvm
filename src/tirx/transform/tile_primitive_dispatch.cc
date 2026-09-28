@@ -383,10 +383,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     bool changed = false;
     for (const Stmt& s : seq->seq) {
       rebuilt.push_back(s);
-      if (const auto* alloc = s.as<AllocBufferNode>()) {
-        changed |= AppendPostBufferDefStmts(&rebuilt, alloc->buffer, alloc->buffer);
-      } else if (const auto* decl = s.as<DeclBufferNode>()) {
-        changed |= AppendPostBufferDefStmts(&rebuilt, decl->buffer, decl->buffer);
+      if (const auto* bind = s.as<BindNode>()) {
+        if (const auto* call = bind->value.as<CallNode>();
+            call && (call->op.same_as(builtin::alloc_buffer()) ||
+                     call->op.same_as(builtin::decl_buffer()))) {
+          changed |= AppendPostBufferDefStmts(&rebuilt, BufferVar(bind->var), BufferVar(bind->var));
+        }
       }
     }
     if (!changed) {
@@ -396,6 +398,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
+    }
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const auto* bind = stmt.as<BindNode>();
     TVM_FFI_ICHECK(bind);
@@ -479,27 +485,28 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root_;
   };
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    BufferVar old_buffer = op->buffer;
+  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    BufferVar old_buffer = BufferVar(op->var);
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<AllocBufferNode>();
+    op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
-    RegisterStorageRoot(old_buffer.var(), op->buffer.var(), std::nullopt);
+    RegisterStorageRoot(old_buffer.var(), op->var, std::nullopt);
 
     std::vector<Stmt> seq{stmt};
-    AppendPostBufferDefStmts(&seq, old_buffer, op->buffer);
+    AppendPostBufferDefStmts(&seq, old_buffer, BufferVar(op->var));
     return SeqStmt::Flatten(seq);
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    BufferVar old_buffer = op->buffer;
+  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    BufferVar old_buffer = BufferVar(op->var);
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<DeclBufferNode>();
+    op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
-    RegisterStorageRoot(old_buffer.var(), op->buffer.var(), op->data);
+    const auto* buffer_call = op->value.as<CallNode>();
+    RegisterStorageRoot(old_buffer.var(), op->var, buffer_call->args[0]);
 
     std::vector<Stmt> seq{stmt};
-    AppendPostBufferDefStmts(&seq, old_buffer, op->buffer);
+    AppendPostBufferDefStmts(&seq, old_buffer, BufferVar(op->var));
     return SeqStmt::Flatten(seq);
   }
 

@@ -39,16 +39,26 @@ class VtcmAllocator : public StmtExprMutator {
 
   VtcmAllocator() {}
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    std::string storage_scope = op->buffer.scope();
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return Mutate_AllocBuffer(op, inplace_mode);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* call = op->value.as<CallNode>();
+    ffi::String storage_scope = call->args[2].as_or_throw<StringImm>()->value;
     if (IsVtcmStorage(storage_scope)) {
+      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
       ffi::Array<Expr> args;
       args.push_back(StringImm(storage_scope));
-      args.push_back(IntImm::Int64(op->buffer->shape.size()));
+      args.push_back(IntImm::Int64(shape->fields.size()));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
-                          op->buffer->shape));
-      return DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
-                                         tirx::builtin::nd_mem_alloc_with_scope(), args));
+                          shape->fields));
+      return DeclBuffer(BufferVar(op->var), Call(BufferVar(op->var).DataPointerType(),
+                                                 tirx::builtin::nd_mem_alloc_with_scope(), args));
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }

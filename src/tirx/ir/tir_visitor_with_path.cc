@@ -24,6 +24,7 @@
 #include "tir_visitor_with_path.h"
 
 #include <tvm/ffi/reflection/access_path.h>
+#include <tvm/tirx/builtin.h>
 
 #include <algorithm>
 #include <optional>
@@ -173,7 +174,13 @@ void TIRVisitorWithPath::Dispatch_(const BindNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   // Push the Bind's var definition into the current scope.
   // The def lives until the enclosing scope (body-carrying stmt) exits.
-  bind_scope_.Current().push_back(WithDef(op->var, path->Attr("var")));
+  if (const auto* call = op->value.as<CallNode>();
+      call &&
+      (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
+    bind_scope_.Current().push_back(WithDef(BufferVar(op->var), path->Attr("var")));
+  } else {
+    bind_scope_.Current().push_back(WithDef(op->var, path->Attr("var")));
+  }
 }
 
 void TIRVisitorWithPath::Dispatch_(const AttrStmtNode* op, AccessPath path) {
@@ -216,18 +223,6 @@ void TIRVisitorWithPath::Dispatch_(const ReturnNode* op, AccessPath path) {
 void TIRVisitorWithPath::Dispatch_(const BreakNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const ContinueNode* op, AccessPath path) {}
-
-void TIRVisitorWithPath::Dispatch_(const AllocBufferNode* op, AccessPath path) {
-  // Push definitions into the current scope so they are visible to subsequent siblings.
-  auto buf_path = path->Attr("buffer");
-  bind_scope_.Current().push_back(WithDef(op->buffer, buf_path));
-}
-
-void TIRVisitorWithPath::Dispatch_(const DeclBufferNode* op, AccessPath path) {
-  Visit(op->data, path->Attr("data"));
-  // Push buffer definition into the current scope so it is visible to subsequent siblings.
-  bind_scope_.Current().push_back(WithDef(op->buffer, path->Attr("buffer")));
-}
 
 void TIRVisitorWithPath::Dispatch_(const BufferStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));

@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
@@ -150,6 +151,13 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     return StmtExprVisitor::Visit(value);
   }
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return DispatchAllocBuffer(op);
+    }
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_buffer()))
+      return StmtExprVisitor::Visit_(op);
     expr_touched_->Reset(false);
     expr_touched_->Visit(op->value);
     Record(op->var.get(), *expr_touched_);
@@ -181,12 +189,14 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     }
     return std::nullopt;
   }
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op) {
     expr_touched_->Reset(false);
-    for (size_t i = 0; i < op->buffer->shape.size(); ++i) {
-      expr_touched_->Visit(op->buffer->shape[i]);
+    const auto* call = op->value.as<CallNode>();
+    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+    for (const Expr& extent : shape->fields) {
+      expr_touched_->Visit(extent);
     }
-    Record(op->buffer.get(), *expr_touched_);
+    Record(BufferVar(op->var).get(), *expr_touched_);
     return StmtExprVisitor::Visit_(op);
   }
   void Record(const VarNode* var, const ExprTouched& tc) {
@@ -438,6 +448,13 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   }
   // Bind
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return Mutate_AllocBuffer(op, inplace_mode);
+    }
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_buffer()))
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     auto value_result = this->Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
     Expr value = std::move(value_result).ValueOrUnchanged(op->value);
@@ -575,10 +592,12 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   }
   // Allocate
   // AllocBuffer
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    AllocBuffer node = ffi::GetRef<AllocBuffer>(op);
-
-    ffi::Array<PrimExpr> shape = op->buffer->shape.Map([this](const PrimExpr& s) {
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* call = op->value.as<CallNode>();
+    tvm::Tuple shape_arg = call->args[0].as_or_throw<tvm::Tuple>();
+    ffi::Array<PrimExpr> original_shape =
+        shape_arg->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); });
+    ffi::Array<PrimExpr> shape = original_shape.Map([this](const PrimExpr& s) {
       // Keep the retained allocation and its buffer type unchanged.
       return Mutate(s, InplaceMode::kDisallow).ValueOrUnchanged(s);
     });
@@ -589,22 +608,22 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
 
     visit_touched_var_ = false;
 
-    if (touched_var_.count(op->buffer.get()) || !allow_share_) {
+    if (touched_var_.count(BufferVar(op->var).get()) || !allow_share_) {
       TVM_FFI_ICHECK_EQ(shape.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
       PrimExpr stride = shape[0];
       shape = {stride * num_threads_};
-      alloc_remap_[op->buffer.get()] = stride;
+      alloc_remap_[BufferVar(op->var).get()] = stride;
     }
 
-    if (shape.same_as(op->buffer->shape)) {
+    if (shape.same_as(original_shape)) {
       return ffi::Unchanged();
     } else {
-      auto type = CopyBufferType(op->buffer);
+      auto type = CopyBufferType(BufferVar(op->var));
       type->shape = shape;
-      BufferVar new_buffer = RebuildBufferVar(op->buffer, std::move(type));
-      VarRemapSet(op->buffer, new_buffer);
-      return AllocBuffer(new_buffer, op->annotations);
+      BufferVar new_buffer = RebuildBufferVar(BufferVar(op->var), std::move(type));
+      VarRemapSet(BufferVar(op->var), new_buffer);
+      return AllocBuffer(new_buffer, call->attrs.as<DictAttrsNode>()->dict);
     }
   }
 

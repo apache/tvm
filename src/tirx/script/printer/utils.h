@@ -26,6 +26,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
@@ -142,12 +143,15 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       AccessPath item_p = p->Attr("seq")->ArrayItem(i);
       Doc doc{ffi::UnsafeInit()};
 
-      const auto* alloc = body[i].as<tirx::AllocBufferNode>();
-      if (d->cfg->syntax_sugar && alloc != nullptr && alloc->buffer.IsScalar(true) && i + 1 < n) {
+      const auto* alloc = body[i].as<tirx::BindNode>();
+      if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
+          d->cfg->syntax_sugar && call && call->op.same_as(tirx::builtin::alloc_buffer()) &&
+          tirx::BufferVar(alloc->var).IsScalar(true) && i + 1 < n) {
         const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
-        bool can_merge_init = store != nullptr && store->buffer.same_as(alloc->buffer) &&
+        bool can_merge_init = store != nullptr &&
+                              store->buffer.same_as(tirx::BufferVar(alloc->var)) &&
                               store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]) &&
-                              !value_refs_buffer(store->value, alloc->buffer);
+                              !value_refs_buffer(store->value, tirx::BufferVar(alloc->var));
         if (can_merge_init) {
           Doc alloc_doc = d->AsDoc(body[i], item_p);
           if (const auto* assign = alloc_doc.as<AssignDocNode>()) {

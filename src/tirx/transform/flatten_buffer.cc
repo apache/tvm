@@ -178,35 +178,38 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return it->second;
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    const FlatInfo& info = Define(op->buffer);
-    if (info.flattened.same_as(op->buffer)) {
-      return ffi::Unchanged();
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
     }
-    if (inplace_mode == InplaceMode::kAllow) {
-      auto* n = const_cast<AllocBufferNode*>(op);
-      n->buffer = info.flattened;
-      return ffi::Unchanged();
-    }
-    auto n = ffi::make_object<AllocBufferNode>(*op);
-    n->buffer = info.flattened;
-    return Stmt(n);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    Expr data = op->data;
+  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* buffer_call = op->value.as<CallNode>();
+    const FlatInfo& info = Define(BufferVar(op->var));
+    if (info.flattened.same_as(BufferVar(op->var))) {
+      return ffi::Unchanged();
+    }
+    return AllocBuffer(info.flattened, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span);
+  }
+
+  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* buffer_call = op->value.as<CallNode>();
+    Expr data = buffer_call->args[0];
     bool is_extern_buffer_source = false;
-    if (const auto* call = op->data.as<CallNode>();
+    if (const auto* call = buffer_call->args[0].as<CallNode>();
         call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
       if (const auto* var = call->args[0].as<VarNode>(); var && var->ty.as<BufferTypeNode>()) {
         is_extern_buffer_source = extern_buffers_.count(BufferVar(ffi::GetRef<Var>(var)));
       }
     }
     if (!is_extern_buffer_source) {
-      data = Mutate(op->data, inplace_mode).ValueOrUnchanged(op->data);
+      data = Mutate(buffer_call->args[0], inplace_mode).ValueOrUnchanged(buffer_call->args[0]);
     }
-    const FlatInfo& info = Define(op->buffer);
-    if (info.flattened.same_as(op->buffer) && data.same_as(op->data)) {
+    const FlatInfo& info = Define(BufferVar(op->var));
+    if (info.flattened.same_as(BufferVar(op->var)) && data.same_as(buffer_call->args[0])) {
       return ffi::Unchanged();
     }
     return DeclBuffer(info.flattened, std::move(data), op->span);

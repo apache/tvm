@@ -536,7 +536,24 @@ def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
 
     # AllocBuffer with shape [n] in the body (flat, no body)
     C = tirx.decl_buffer((n,), "float32", "C")
-    body = tirx.SeqStmt([tirx.AllocBuffer(C), tirx.Evaluate(1)])
+    body = tirx.SeqStmt(
+        [
+            tvm.tirx.Bind(
+                C,
+                tvm.ir.Call(
+                    "tirx.alloc_buffer",
+                    [
+                        tvm.ir.Tuple(C.shape),
+                        tvm.ir.DataTypeImm(tvm.DataType(C.dtype)),
+                        tvm.ir.StringImm(C.scope()),
+                    ],
+                    attrs=tvm.ir.DictAttrs({}),
+                    ret_ty=C.ty,
+                ),
+            ),
+            tirx.Evaluate(1),
+        ]
+    )
 
     before = tirx.PrimFunc([A, B], body)
 

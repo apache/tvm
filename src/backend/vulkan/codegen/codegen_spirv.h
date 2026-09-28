@@ -118,8 +118,8 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   void Dispatch_(const ForNode* op) override;
   void Dispatch_(const WhileNode* op) override;
   void Dispatch_(const IfThenElseNode* op) override;
-  void Dispatch_(const DeclBufferNode* op) override;
-  void Dispatch_(const AllocBufferNode* op) override;
+  virtual void DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call);
+  virtual void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const BindNode* op) override;
@@ -141,7 +141,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
     /*! \brief Whether the element type of the buffer is known.
      *
      * This value is determined based on the type_annotation of the
-     * buffer variable (AllocBufferNode) or of the parameter (shader
+     * buffer variable (alloc_buffer binding) or of the parameter (shader
      * arguments).
      */
     bool element_type_known{false};
@@ -149,7 +149,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
     /*! \brief The known element type of the buffer.
      *
      * This value is determined based on the type_annotation of the
-     * buffer variable (AllocBufferNode) or of the parameter (shader
+     * buffer variable (alloc_buffer binding) or of the parameter (shader
      * arguments).
      */
     PrimType element_type{PrimType::Void()};

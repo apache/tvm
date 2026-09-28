@@ -332,6 +332,10 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
 }
 
 void CodeGenMetal::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+  }
   // Stateful reads cannot be substituted after the underlying state changes.
   if (auto prim_value = op->value.as<PrimExpr>();
       prim_value && SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
@@ -361,14 +365,23 @@ void CodeGenMetal::Dispatch_(const BindNode* op) {
   stream << "*)" << value << ";\n";
 }
 
-void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
-  TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer.get());
+void CodeGenMetal::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  auto allocation_extents = allocation_shape->fields.Map(
+      [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
+  DLDataType allocation_dtype_arg =
+      buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  PrimType allocation_dtype(allocation_dtype_arg);
+  ffi::String allocation_scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar allocated_buffer(op->var);
+  auto buffer_annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
+  TVM_FFI_ICHECK(allocated_buffer.defined());
+  std::string vid = AllocVarID(allocated_buffer.get());
 
   this->PrintIndent();
   // Compute a compile-time upper bound on the number of buffer elements.
   size_t constant_size = 1;
-  for (const auto& dim : op->buffer->shape) {
+  for (const auto& dim : allocation_extents) {
     const auto* dim_imm = dim.as<IntImmNode>();
     int64_t dim_size =
         dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer_->const_int_bound(dim)->max_value;
@@ -390,9 +403,9 @@ void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
     constant_size *= static_cast<size_t>(dim_size);
   }
 
-  auto scope = op->buffer.scope();
-  alloc_storage_scope_[op->buffer.get()] = scope;
-  const PrimType& dtype = op->buffer->dtype;
+  auto scope = allocation_scope;
+  alloc_storage_scope_[allocated_buffer.get()] = scope;
+  const PrimType& dtype = allocation_dtype;
   if (scope == "metal.simdgroup") {
     bool supported_simdgroup_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Float(32) ||
                                      dtype == PrimType::BFloat(16);
@@ -405,7 +418,7 @@ void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
     std::ostringstream dtype_os;
     PrintType(dtype, dtype_os);
     std::string dtype_str = dtype_os.str();
-    simdgroup_dtype_[op->buffer.get()] = dtype_str;
+    simdgroup_dtype_[allocated_buffer.get()] = dtype_str;
     stream << "simdgroup_" << dtype_str << "8x8 " << vid << '[' << constant_size / 64 << "];\n";
   } else {
     PrintStorageScope(scope, stream);
@@ -413,9 +426,9 @@ void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer.get(), op->buffer->dtype);
-  if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer.get());
+  RegisterHandleType(allocated_buffer.get(), allocation_dtype);
+  if (buffer_annotations.count(tirx::attr::kVolatile)) {
+    MarkVolatile(allocated_buffer.get());
   }
 }
 

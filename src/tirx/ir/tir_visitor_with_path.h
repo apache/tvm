@@ -151,8 +151,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const BreakNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;

@@ -474,9 +474,9 @@ def alloc_buffer(
     allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
 ) -> Buffer:
-    """Statement-level buffer allocation (creates an AllocBuffer IR node).
+    """Statement-level buffer allocation (creates a buffer-returning allocation Call).
 
-    Emits an AllocBuffer statement and returns the Buffer directly::
+    Emits a Bind statement with an allocation Call and returns the Buffer directly::
 
         buf = T.alloc_buffer((128, 128))
 
@@ -529,7 +529,7 @@ def alloc_buffer(
     )
     _record_meta_resource(buf, skip_frames=2)
 
-    # AllocBuffer.annotations holds typed IR values. The C++ side stores
+    # The allocation call annotations hold typed IR values. The C++ side stores
     # alignment / shape-like ints as ``IntImm(int32, ...)``; if the user
     # (or a parsed-source round-trip) passes a bare Python int, normalize
     # it so structural equality is preserved against the LowerOpaqueBlock
@@ -544,7 +544,17 @@ def alloc_buffer(
         return v
 
     norm_annotations = {k: _normalize_ann_value(v) for k, v in (annotations or {}).items()}
-    _ffi_api.AddToParent(tir.AllocBuffer(buf, norm_annotations))  # type: ignore[attr-defined] # pylint: disable=no-member
+    allocation = ir.Call(
+        "tirx.alloc_buffer",
+        [
+            ir.Tuple(buf.shape),
+            ir.DataTypeImm(DataType(buf.dtype)),
+            ir.StringImm(buf.scope()),
+        ],
+        attrs=ir.DictAttrs(norm_annotations),
+        ret_ty=buf.ty,
+    )
+    _ffi_api.AddToParent(tir.Bind(buf, allocation))
     return buf
 
 

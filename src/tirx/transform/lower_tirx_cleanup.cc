@@ -117,35 +117,38 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
+    }
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* buffer_call = op->value.as<CallNode>();
+    buffer_aliases_.Set(op->var, op->var);
     auto mutate = [this](BufferVar buf) {
       if (target_->kind->name == "trn" && !buf->layout.has_value()) {
         return buf;
       }
       return GetFlattenedBuffer(buf, /*is_alloc=*/true);
     };
-    auto buffer = mutate(op->buffer);
-    if (buffer.same_as(op->buffer)) {
+    auto buffer = mutate(BufferVar(op->var));
+    if (buffer.same_as(BufferVar(op->var))) {
       return ffi::Unchanged();
     }
-    if (inplace_mode == InplaceMode::kAllow) {
-      auto* n = const_cast<AllocBufferNode*>(op);
-      n->buffer = buffer;
-      return ffi::Unchanged();
-    }
-    auto n = ffi::make_object<AllocBufferNode>(*op);
-    n->buffer = buffer;
-    return Stmt(n);
+    return AllocBuffer(buffer, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span);
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    RegisterBufferAlias(op->buffer, op->data);
-    auto data_result = Mutate(op->data, inplace_mode);
-    bool data_unchanged = data_result.UnchangedOrSameAs(op->data);
-    Expr data = std::move(data_result).ValueOrUnchanged(op->data);
-    auto buffer = GetFlattenedBuffer(op->buffer);
-    if (buffer.same_as(op->buffer) && data_unchanged) {
+  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const auto* buffer_call = op->value.as<CallNode>();
+    RegisterBufferAlias(BufferVar(op->var), buffer_call->args[0]);
+    auto data_result = Mutate(buffer_call->args[0], inplace_mode);
+    bool data_unchanged = data_result.UnchangedOrSameAs(buffer_call->args[0]);
+    Expr data = std::move(data_result).ValueOrUnchanged(buffer_call->args[0]);
+    auto buffer = GetFlattenedBuffer(BufferVar(op->var));
+    if (buffer.same_as(BufferVar(op->var)) && data_unchanged) {
       return ffi::Unchanged();
     }
     return DeclBuffer(buffer, std::move(data), op->span);

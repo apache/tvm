@@ -98,12 +98,6 @@ class StmtFunctor<R(const Stmt&, Args...)> {
   virtual R Dispatch_(const ContinueNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  virtual R Dispatch_(const AllocBufferNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
-  virtual R Dispatch_(const DeclBufferNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
   virtual R Dispatch_(const BufferStoreNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
@@ -147,8 +141,6 @@ class StmtFunctor<R(const Stmt&, Args...)> {
     SetDispatch<TSelf, ReturnNode>(vtable);
     SetDispatch<TSelf, BreakNode>(vtable);
     SetDispatch<TSelf, ContinueNode>(vtable);
-    SetDispatch<TSelf, AllocBufferNode>(vtable);
-    SetDispatch<TSelf, DeclBufferNode>(vtable);
     SetDispatch<TSelf, BufferStoreNode>(vtable);
     SetDispatch<TSelf, AssertStmtNode>(vtable);
     SetDispatch<TSelf, SeqStmtNode>(vtable);
@@ -206,8 +198,6 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   virtual ffi::Optional<VisitInterrupt> Visit_(const ReturnNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const BreakNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const ContinueNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const SeqStmtNode* op);
@@ -228,7 +218,8 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* op) override;
 
   /*! \brief Visit definition metadata as uses, separately from the buffer Var definition. */
-  ffi::Optional<VisitInterrupt> VisitBufferMetadata(const BufferVar& buffer);
+  ffi::Optional<VisitInterrupt> VisitBufferMetadata(const BufferVar& buffer,
+                                                    bool skip_shape = false);
 
  protected:
   explicit StmtExprVisitor(const VTable* vtable) : tvm::ExprVisitor(vtable) {}
@@ -270,8 +261,6 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
   virtual UnchangedOr<Stmt> Mutate_(const ReturnNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const BreakNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const ContinueNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode);

@@ -1624,14 +1624,23 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
   CodeGenC::Dispatch_(op);
 }
 
-void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
-  TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
+void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  auto allocation_extents = allocation_shape->fields.Map(
+      [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
+  DLDataType allocation_dtype_arg =
+      buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  PrimType allocation_dtype(allocation_dtype_arg);
+  ffi::String allocation_scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar allocated_buffer(op->var);
+  auto buffer_annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
+  TVM_FFI_ICHECK(allocated_buffer.defined());
+  std::string vid = AllocVarID(allocated_buffer.get(), allocated_buffer.name() + "_ptr");
 
   this->PrintIndent();
-  std::string scope = op->buffer.scope();
-  const VarNode* buffer = op->buffer.get();
-  PrimType dtype = op->buffer->dtype;
+  std::string scope = allocation_scope;
+  const VarNode* buffer = allocated_buffer.get();
+  PrimType dtype = allocation_dtype;
 
   if (scope.find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
@@ -1652,9 +1661,9 @@ void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
     PrintWmmaScope(scope, dtype, buffer, stream);
   } else {
     PrintStorageScope(scope, stream);
-    int align = op->buffer->data_alignment;
-    auto it = op->annotations.find(tirx::attr::buffer_data_alignment);
-    if (it != op->annotations.end()) {
+    int align = allocated_buffer->data_alignment;
+    auto it = buffer_annotations.find(tirx::attr::buffer_data_alignment);
+    if (it != buffer_annotations.end()) {
       if (const auto* n = (*it).second.as<IntImmNode>()) {
         align = n->value.as<int>().value();
       }
@@ -1672,7 +1681,7 @@ void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
   } else {
     // Compute constant_size from buffer shape
     size_t constant_size = 1;
-    for (const auto& dim : op->buffer->shape) {
+    for (const auto& dim : allocation_extents) {
       const IntImmNode* dim_imm = dim.as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
       constant_size *= dim_imm->value.as<size_t>().value();
@@ -1690,9 +1699,9 @@ void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer.get(), dtype);
-  if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer.get());
+  RegisterHandleType(allocated_buffer.get(), dtype);
+  if (buffer_annotations.count(tirx::attr::kVolatile)) {
+    MarkVolatile(allocated_buffer.get());
   }
 }
 

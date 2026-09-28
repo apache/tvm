@@ -42,6 +42,53 @@ namespace tirx {
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
 /*!
+ * \brief Allocate a buffer: alloc_buffer(shape, dtype, scope) -> BufferType.
+ *
+ * Arguments, in order:
+ * - args[0]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
+ * - args[1]: dtype, DataTypeImm with a DLDataType payload for the element type.
+ * - args[2]: scope, StringImm naming the storage scope.
+ *
+ * DictAttrs directly holds the allocation annotations, defaulting to an empty dictionary.
+ * The BufferType result agrees with the operands and retains buffer access/storage metadata.
+ *
+ * \code
+ * // Example pattern match code for a given Binding:
+ * if (const auto* call = binding->value.as<CallNode>();
+ *     call && call->op.same_as(builtin::alloc_buffer())) {
+ *   tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+ *   DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+ *   ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+ *   DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
+ * }
+ * \endcode
+ */
+TVM_DLL const Op& alloc_buffer();
+/*!
+ * \brief Declare a buffer view: decl_buffer(data, shape, dtype, scope) -> BufferType.
+ *
+ * Arguments, in order:
+ * - args[0]: data, Expr for the existing physical pointer backing the buffer view.
+ * - args[1]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
+ * - args[2]: dtype, DataTypeImm with a DLDataType payload for the element type.
+ * - args[3]: scope, StringImm naming the storage scope.
+ *
+ * There are no attributes. The BufferType result agrees with the operands and retains
+ * buffer access/storage metadata. The operation binds a view without allocating memory.
+ *
+ * \code
+ * // Example pattern match code for a given Binding:
+ * if (const auto* call = binding->value.as<CallNode>();
+ *     call && call->op.same_as(builtin::decl_buffer())) {
+ *   Expr data = call->args[0];
+ *   tvm::Tuple shape = call->args[1].as_or_throw<tvm::Tuple>();
+ *   DLDataType dtype = call->args[2].as_or_throw<DataTypeImm>()->value;
+ *   ffi::String scope = call->args[3].as_or_throw<StringImm>()->value;
+ * }
+ * \endcode
+ */
+TVM_DLL const Op& decl_buffer();
+/*!
  * \brief Return from a GPU thread without returning a function value.
  */
 TVM_DLL const Op& thread_return();

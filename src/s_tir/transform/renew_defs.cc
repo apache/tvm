@@ -28,6 +28,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/builtin.h>
 
 namespace tvm {
 namespace s_tir {
@@ -90,7 +91,20 @@ class RenewDefMutator : public StmtExprMutator {
   }
 
  private:
-  STMT_REGENERATE_VAR_DEF(BindNode, var);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && (call->op.same_as(tirx::builtin::alloc_buffer()) ||
+                 call->op.same_as(tirx::builtin::decl_buffer()))) {
+      // Buffer definitions must renew shape/layout expressions before registering the variable.
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+    Var new_var = ReDefineVar(op->var);
+    Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    const auto* bind = stmt.as<BindNode>();
+    TVM_FFI_ICHECK(bind != nullptr);
+    return tirx::Bind(std::move(new_var), bind->value, bind->span);
+  }
+
   STMT_REGENERATE_VAR_DEF(ForNode, loop_var);
 
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
