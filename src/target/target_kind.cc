@@ -144,8 +144,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_option<int64_t>("opt-level")
       // LLVM command line flags, see below
       .def_option<ffi::Array<ffi::String>>("cl-opt")
-      // LLVM JIT engine mcjit/orcjit
-      .def_option<ffi::String>("jit")
       // TVM & LLVM custom vector bit width
       .def_option<int64_t>("vector-width")
       .set_default_keys({"cpu"})
