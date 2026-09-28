@@ -43,6 +43,9 @@ namespace tvm {
 template <typename>
 class OpAttrMap;
 
+/*! \brief Infer a Call's result type from its explicit inputs without builder state. */
+using FInferType = ffi::reflection::NativeFunctionView<ffi::Expected<Type>(const CallNode* call)>;
+
 /*! \brief An operator argument's name and documentation. */
 class ArgumentInfoNode : public ffi::Object {
  public:

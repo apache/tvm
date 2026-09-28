@@ -509,6 +509,22 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const CallNode* node, InplaceMode inplace
   return Expr(std::move(copy));
 }
 
+UnchangedOr<Expr> ExprMutator::ReinferMutatedCallType(UnchangedOr<Expr> mutated,
+                                                      const CallNode* original,
+                                                      InplaceMode inplace_mode) {
+  bool is_replacement = !mutated.IsUnchanged();
+  const CallNode* call = is_replacement ? ffi::AnyView(mutated).as<CallNode>() : original;
+  Type type = Call::ReinferType(call);
+  if (call->ty.same_as(type)) return mutated;
+  if (call->unique() && (is_replacement || inplace_mode == InplaceMode::kAllow)) {
+    const_cast<CallNode*>(call)->ty = std::move(type);
+    return mutated;
+  }
+  auto copy = ffi::make_object<CallNode>(*call);
+  copy->ty = std::move(type);
+  return Expr(std::move(copy));
+}
+
 UnchangedOr<Expr> ExprMutator::Mutate_(const GenericConstNode* node, InplaceMode inplace_mode) {
   auto ty = Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
   if (ty.UnchangedOrSameAs(node->ty)) return ffi::Unchanged();
@@ -651,25 +667,40 @@ UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::SelectNode* node, Inplace
 }
 
 UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::LetNode* node, InplaceMode inplace_mode) {
+  Type old_value_type = node->value->ty;
+  auto value_u = Mutate(node->value, inplace_mode);
+  bool value_changed = !value_u.UnchangedOrSameAs(node->value);
+  PrimExpr value = std::move(value_u).ValueOrUnchanged(node->value);
+  value_changed |= !old_value_type.same_as(value->ty);
+  Type old_var_type = node->var->ty;
   auto var_u = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
                  return Mutate(node->var, inplace_mode);
                }).as_or_throw<UnchangedOr<Var>>();
-  auto value_u = Mutate(node->value, inplace_mode);
+  bool var_changed = !var_u.UnchangedOrSameAs(node->var);
+  Var var = std::move(var_u).ValueOrUnchanged(node->var);
+  var_changed |= !old_var_type.same_as(var->ty);
+  if ((value_changed || var_changed) && !var->ty.same_as(value->ty)) {
+    var = var.CopyWithType(value->ty);
+  }
+  if (!var.same_as(node->var)) VarRemapSet(node->var, var);
   auto body_u = Mutate(node->body, inplace_mode);
-  if (var_u.UnchangedOrSameAs(node->var) && value_u.UnchangedOrSameAs(node->value) &&
-      body_u.UnchangedOrSameAs(node->body))
+  PrimExpr body = std::move(body_u).ValueOrUnchanged(node->body);
+  if (var.same_as(node->var) && value.same_as(node->value) && body.same_as(node->body) &&
+      body->ty.same_as(node->ty))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<prim::LetNode*>(node);
-    if (!var_u.IsUnchanged()) writable->var = std::move(var_u).ValueUnchecked();
-    if (!value_u.IsUnchanged()) writable->value = std::move(value_u).ValueUnchecked();
-    if (!body_u.IsUnchanged()) writable->body = std::move(body_u).ValueUnchecked();
+    writable->var = std::move(var);
+    writable->value = std::move(value);
+    writable->body = std::move(body);
+    writable->ty = writable->body->ty;
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<prim::LetNode>(*node);
-  if (!var_u.IsUnchanged()) copy->var = std::move(var_u).ValueUnchecked();
-  if (!value_u.IsUnchanged()) copy->value = std::move(value_u).ValueUnchecked();
-  if (!body_u.IsUnchanged()) copy->body = std::move(body_u).ValueUnchecked();
+  copy->var = std::move(var);
+  copy->value = std::move(value);
+  copy->body = std::move(body);
+  copy->ty = copy->body->ty;
   return PrimExpr(std::move(copy));
 }
 

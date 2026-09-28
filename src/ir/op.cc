@@ -293,17 +293,20 @@ void OpNode::RegisterReflection() {
 
 namespace {
 
-TVMFFIAny OpVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> OpVisit(ffi::StructuralVisitorObj*,
+                                                                         ffi::AnyView) noexcept {
   // Ops are unique registry atoms.  Avoid reflecting through their registry metadata.
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+  return std::nullopt;
 }
 
-TVMFFIAny OpMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> OpMutate(ffi::StructuralMutatorObj*,
+                                                                  ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
-TVMFFIAny OpMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> OpMaybeInplaceMutate(
+    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -313,10 +316,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ArgumentInfoNode::RegisterReflection();
   OpNode::RegisterReflection();
   refl::TypeAttrDef<OpNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&OpVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&OpMutate))
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&OpVisit>())
+      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&OpMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&OpMaybeInplaceMutate))
+            ffi::FStructuralMutate::FromNative<&OpMaybeInplaceMutate>())
       .def("__data_to_json__", [](const OpNode* node) { return node->name; })
       .def("__data_from_json__", &Op::Get);
   // clang-format off
