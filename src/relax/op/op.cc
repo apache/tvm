@@ -25,7 +25,6 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 
-
 #include "../transform/utils.h"
 #include "op_common.h"
 
@@ -61,13 +60,9 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-Type ReturnVoidType(const CallNode*) {
-  return TupleType(ffi::Array<Type>());
-}
+Type ReturnVoidType(const CallNode*) { return TupleType(ffi::Array<Type>()); }
 
-Type ReturnAnyType(const CallNode*) {
-  return AnyType();
-}
+Type ReturnAnyType(const CallNode*) { return AnyType(); }
 
 Type InferTypeShapeOf(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
