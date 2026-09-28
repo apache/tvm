@@ -81,7 +81,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
+      .set_attr<FInferType>("FInferType",
+                            FInferType::FromNative<&InferTypeUnaryArithContextFree<false>>());
 
   /* relax.nn.gelu */
 
@@ -94,7 +95,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
+      .set_attr<FInferType>("FInferType",
+                            FInferType::FromNative<&InferTypeUnaryArithContextFree<true>>());
 
   /* relax.nn.gelu_tanh */
 
@@ -107,7 +109,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
+      .set_attr<FInferType>("FInferType",
+                            FInferType::FromNative<&InferTypeUnaryArithContextFree<true>>());
 
   /* relax.nn.selu */
 
@@ -120,7 +123,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
+      .set_attr<FInferType>("FInferType",
+                            FInferType::FromNative<&InferTypeUnaryArithContextFree<true>>());
 
   /* relax.nn.silu */
 
@@ -133,7 +137,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
+      .set_attr<FInferType>("FInferType",
+                            FInferType::FromNative<&InferTypeUnaryArithContextFree<true>>());
 }
 
 /* relax.nn.leakyrelu */
@@ -156,7 +161,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::call_attrs<LeakyReluAttrs>())
       .set_attr<FInferType>(
           "FInferType",
-          MakeFInferType<InferTypeUnaryArithContextFree</*require_float_dtype=*/true>>())
+          FInferType::FromNative<&InferTypeUnaryArithContextFree</*require_float_dtype=*/true>>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -181,7 +186,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::call_attrs<SoftplusAttrs>())
       .set_attr<FInferType>(
           "FInferType",
-          MakeFInferType<InferTypeUnaryArithContextFree</*require_float_dtype=*/true>>())
+          FInferType::FromNative<&InferTypeUnaryArithContextFree</*require_float_dtype=*/true>>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -199,7 +204,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.prelu", prelu);
 }
 
-Type InferTypePRelu(const CallNode* call_node) {
+ffi::Expected<Type> InferTypePRelu(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   if (data_ty->IsUnknownNdim()) {
@@ -215,6 +220,10 @@ Type InferTypePRelu(const CallNode* call_node) {
   NormalizeAxis(call, data_ty->ndim, attrs->axis);
 
   return data_ty;
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutPRelu(
@@ -247,7 +256,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("alpha", "The channel-wise learnable slope."),
                  sig::call_attrs<PReluAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypePRelu>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePRelu>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPRelu)
       .set_attr<bool>("FPurity", true);
 }
@@ -266,7 +275,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.softmax", softmax);
 }
 
-Type InferTypeSoftmax(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeSoftmax(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   if (data_ty->IsUnknownNdim()) {
@@ -285,6 +294,10 @@ Type InferTypeSoftmax(const CallNode* call_node) {
   NormalizeAxis(call, data_ty->ndim, attrs->axis);
 
   return data_ty;
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutSoftmax(
@@ -313,7 +326,7 @@ InferLayoutOutput InferLayoutSoftmax(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.softmax")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeSoftmax>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeSoftmax>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax)
       .set_attr<bool>("FPurity", true);
 }
@@ -332,7 +345,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.log_softmax")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeSoftmax>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeSoftmax>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -352,7 +365,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.pad", pad);
 }
 
-Type InferTypePad(const CallNode* call_node) {
+ffi::Expected<Type> InferTypePad(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   const auto* attrs = call->attrs.as<PadAttrs>();
@@ -375,12 +388,16 @@ Type InferTypePad(const CallNode* call_node) {
     return TensorType(input_ty[0]->dtype, ndim);
   }
   return TensorType(ShapeExpr(out_shape), input_ty[0]->dtype);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pad")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PadAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypePad>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePad>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -398,7 +415,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.pixel_shuffle", pixel_shuffle);
 }
 
-Type InferTypePixelShuffle(const CallNode* call_node) {
+ffi::Expected<Type> InferTypePixelShuffle(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   const auto* attrs = call->attrs.as<PixelShuffleAttrs>();
@@ -448,12 +465,16 @@ Type InferTypePixelShuffle(const CallNode* call_node) {
   }
 
   return TensorType(ShapeExpr(out_shape), input->dtype);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pixel_shuffle")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PixelShuffleAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypePixelShuffle>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypePixelShuffle>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -968,17 +989,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.dropout", dropout);
 }
 
-Type InferTypeDropout(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeDropout(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   return TupleType({data_ty, data_ty});
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.dropout")
       .signature(sig::arg("data", "Input to which dropout will be applied."),
                  sig::call_attrs<DropoutAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeDropout>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeDropout>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -1289,7 +1314,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.batch_flatten", batch_flatten);
 }
 
-Type InferTypeBatchFlatten(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeBatchFlatten(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -1319,12 +1344,16 @@ Type InferTypeBatchFlatten(const CallNode* call_node) {
   }
 
   return TensorType(ShapeExpr({batch_dim, flat_dim}), data_ty->dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.batch_flatten")
       .signature(sig::arg("data", "The input tensor."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeBatchFlatten>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBatchFlatten>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }

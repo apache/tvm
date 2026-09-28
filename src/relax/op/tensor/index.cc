@@ -61,7 +61,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.take", take);
 }
 
-Type InferTypeTake(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeTake(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   CheckNumArguments(call);
   TensorType data_ty = GetInputTensorType(call, 0);
@@ -126,6 +126,10 @@ Type InferTypeTake(const CallNode* call_node) {
     }
   }
   return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -133,7 +137,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("x", "The source tensor."),
                  sig::arg("indices", "The indices of the values to extract."),
                  sig::call_attrs<TakeAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeTake>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTake>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -514,7 +518,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.dynamic_strided_slice", dynamic_strided_slice);
 }
 
-Type InferTypeDynStridedSlice(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeDynStridedSlice(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* begin_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
@@ -568,6 +572,10 @@ Type InferTypeDynStridedSlice(const CallNode* call_node) {
   // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
   // PrimExpr lands.
   return TensorType(data_ty->dtype, n_axis, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutDynStridedSlice(
@@ -594,7 +602,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("begin", "The indices to begin with in the slicing."),
                  sig::arg("end", "Indices indicating end of the slice."),
                  sig::arg("strides", "The stride values."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeDynStridedSlice>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeDynStridedSlice>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)

@@ -64,7 +64,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
 }
 
-Type InferTypeResize2D(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeResize2D(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -113,6 +113,10 @@ Type InferTypeResize2D(const CallNode* call_node) {
 
   ffi::Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutResize2d(
@@ -149,7 +153,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize2d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
                  sig::call_attrs<Resize2DAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeResize2D>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeResize2D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -181,7 +185,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize3d", resize3d);
 }
 
-Type InferTypeResize3D(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeResize3D(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -231,6 +235,10 @@ Type InferTypeResize3D(const CallNode* call_node) {
 
   ffi::Array<PrimExpr> out_shape = data2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutResize3d(
@@ -264,7 +272,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize3d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
                  sig::call_attrs<Resize3DAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeResize3D>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeResize3D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize3d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -291,7 +299,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.grid_sample", grid_sample);
 }
 
-Type InferTypeGridSample(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeGridSample(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -350,6 +358,10 @@ Type InferTypeGridSample(const CallNode* call_node) {
 
   ffi::Array<PrimExpr> out_shape = data2tgt.BackwardShape(out_tgt_shape);
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -357,7 +369,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("grid", "The grid tensor for sampling."),
                  sig::call_attrs<GridSampleAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeGridSample>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeGridSample>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -378,7 +390,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.affine_grid", affine_grid);
 }
 
-Type InferTypeAffineGrid(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeAffineGrid(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -451,6 +463,10 @@ Type InferTypeAffineGrid(const CallNode* call_node) {
   }
 
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -458,7 +474,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input affine matrix tensor."),
                  sig::arg("size", "The target output shape (H, W)."),
                  sig::call_attrs<AffineGridAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAffineGrid>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAffineGrid>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }

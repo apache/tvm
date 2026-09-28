@@ -241,7 +241,7 @@ Type ReturnTypeFromArg(const Call& call, const BlockBuilder& ctx) {
 }
 
 template <int arg_index>
-Type ReturnTypeFromArgContextFree(const CallNode* call_node) {
+ffi::Expected<Type> ReturnTypeFromArgContextFree(const CallNode* call_node) noexcept try {
   Call call = ffi::GetRef<Call>(call_node);
   Op op = call->op.as_or_throw<Op>();
   CheckNumArguments(call);
@@ -252,6 +252,10 @@ Type ReturnTypeFromArgContextFree(const CallNode* call_node) {
         << arg_index;
   }
   return GetType(call->args[arg_index]);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 /*!
@@ -269,10 +273,14 @@ Type InferTypeUnaryArith(const Call& call, const BlockBuilder& ctx) {
 }
 
 template <bool require_float_dtype>
-Type InferTypeUnaryArithContextFree(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeUnaryArithContextFree(const CallNode* call_node) noexcept try {
   Call call = ffi::GetRef<Call>(call_node);
   return InferTypeUnary<require_float_dtype>(
       call, [](const TensorType& input_ty) { return input_ty->dtype; });
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 /*!

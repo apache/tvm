@@ -542,7 +542,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool1d", adaptive_avg_pool1d);
 }
 
-Type InferTypeAdaptiveAvgPool1D(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeAdaptiveAvgPool1D(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -572,6 +572,10 @@ Type InferTypeAdaptiveAvgPool1D(const CallNode* call_node) {
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
@@ -594,7 +598,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool1DAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAdaptiveAvgPool1D>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAdaptiveAvgPool1D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool1D)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -627,7 +631,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool2d", adaptive_avg_pool2d);
 }
 
-Type InferTypeAdaptiveAvgPool2D(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeAdaptiveAvgPool2D(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -658,6 +662,10 @@ Type InferTypeAdaptiveAvgPool2D(const CallNode* call_node) {
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
@@ -699,7 +707,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool2DAttrs>(),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAdaptiveAvgPool2D>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAdaptiveAvgPool2D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -732,7 +740,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.adaptive_avg_pool3d", adaptive_avg_pool3d);
 }
 
-Type InferTypeAdaptiveAvgPool3D(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeAdaptiveAvgPool3D(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -764,6 +772,10 @@ Type InferTypeAdaptiveAvgPool3D(const CallNode* call_node) {
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
@@ -786,7 +798,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool3DAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAdaptiveAvgPool3D>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAdaptiveAvgPool3D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool3D)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);

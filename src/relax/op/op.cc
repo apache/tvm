@@ -62,11 +62,23 @@ bool EqualCheck(const PrimExpr& lhs, const PrimExpr& rhs) {
   return false;
 }
 
-Type ReturnVoidType(const CallNode*) { return TupleType(ffi::Array<Type>()); }
+ffi::Expected<Type> ReturnVoidType(const CallNode*) noexcept try {
+  return TupleType(ffi::Array<Type>());
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+}
 
-Type ReturnAnyType(const CallNode*) { return AnyType(); }
+ffi::Expected<Type> ReturnAnyType(const CallNode*) noexcept try {
+  return AnyType();
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+}
 
-Type InferTypeShapeOf(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeShapeOf(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   // use the Type of the argument
   auto arg_ty = GetType(call->args[0]);
@@ -84,6 +96,10 @@ Type InferTypeShapeOf(const CallNode* call_node) {
   auto* tensor_shape = tensor_ty->shape.as<ShapeExprNode>();
   TVM_FFI_ICHECK(tensor_shape);
   return ShapeType(tensor_shape->values);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 // call_pure_packed
@@ -431,7 +447,7 @@ static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   return derived_ret_ty;
 }
 
-Type InferTypeCallTIR(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeCallTIR(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exactly 1 output type.";
@@ -444,6 +460,10 @@ Type InferTypeCallTIR(const CallNode* call_node) {
   Type explicit_ty = call->ty_args[0];
 
   return explicit_ty;
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
@@ -561,7 +581,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeCallTIR>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallTIR>())
       .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
       .set_attr<bool>("FPurity", true);
 }
@@ -599,7 +619,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."),
                  sig::call_attrs<CallTIRWithGradAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeCallTIR>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallTIR>())
       .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
       .set_attr<bool>("FPurity", true);
 }
@@ -731,7 +751,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."),
                  sig::call_attrs<CallTIRInplaceAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeCallTIR>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallTIR>())
       .set_attr<FNormalize>("FNormalize", NormalizeCallTIRInPlace)
       // Warning: considered pure, but it has the potential to create visible effects!
       // This should only be used if it has been *checked* that it is safe (no aliases, in-place
@@ -770,12 +790,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // call_dps_packed
 
-Type InferTypeCallDPSPacked(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeCallDPSPacked(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exact 1 output type.";
   }
   return call->ty_args[0];
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -783,7 +807,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeCallDPSPacked>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallDPSPacked>())
       // technically, an impure op could be used with this, but there is
       // little reason to use DPS with an impure op
       .set_attr<bool>("FPurity", true);
@@ -816,12 +840,16 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // call_py_func
 
-Type InferTypeCallPyFunc(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeCallPyFunc(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() != 1) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exact 1 output type.";
   }
   return call->ty_args[0];
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 void ValidateCallPyFunc(const CallNode* call) {
@@ -852,7 +880,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func_name", "The name of the Python function to call."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeCallPyFunc>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallPyFunc>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -882,7 +910,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // call builtin
-Type InferTypeCallBuiltinWithCtx(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeCallBuiltinWithCtx(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.size() == 0) {
     // by default return void.
@@ -891,6 +919,10 @@ Type InferTypeCallBuiltinWithCtx(const CallNode* call_node) {
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1);
     return call->ty_args[0];
   }
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -898,7 +930,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The builtin packed func."),
                  sig::arg("args", "The input arguments."),
                  sig::var_ty_args("out_type", "Optional output type; omitted for void."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeCallBuiltinWithCtx>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCallBuiltinWithCtx>())
       // Most builtins are pure, but some are not, like `vm.builtin.attention_kv_cache_append`
       .set_attr<bool>("FPurity", false);
 }
@@ -913,7 +945,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.call_builtin_with_ctx", MakeCallBuiltinWithCtx);
 
   OpDef("relax.null_value")
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnAnyType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnAnyType>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -934,7 +966,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                    "The first value is Python-style format string to use to print. The others "
                    "are values to print"),
           sig::var_args("args"))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnVoidType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
       .set_attr<FCallPacked>("FCallPacked", "relax.run.print")
       .set_attr<bool>("FPurity", false);
 }
@@ -958,7 +990,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // can't actually name it assert or else Python will consider it a syntax error
 
-Type InferAssertType(const CallNode* call_node) {
+ffi::Expected<Type> InferAssertType(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   // Ensure that the condition argument is a boolean scalar.
   // Also permitted is a tensor with unknown shape and unknown dtype
@@ -973,6 +1005,10 @@ Type InferAssertType(const CallNode* call_node) {
         << "The argument to assert must be a boolean scalar, but received " << arg_ty;
   }
   return ReturnVoidType(call.get());
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -983,7 +1019,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                    "Python-style format string to use for displaying an error message, if the "
                    "assert fails. The others are used as format arguments if there is an error."),
           sig::var_args("args"))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferAssertType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferAssertType>())
       .set_attr<FCallPacked>("FCallPacked", "relax.run.assert_op")
       .set_attr<bool>("FPurity", false);
 }
@@ -1006,7 +1042,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.make_closure")
       .signature(sig::arg("func", "The closure."), sig::arg("args", "The captured variables."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnAnyType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnAnyType>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1022,7 +1058,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // invoke_closure
 
-Type InferTypeInvokeClosure(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeInvokeClosure(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->ty_args.empty()) {
     return AnyType();
@@ -1031,6 +1067,10 @@ Type InferTypeInvokeClosure(const CallNode* call_node) {
   } else {
     return TupleType(call->ty_args);
   }
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1038,7 +1078,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("closure", "The VMClosure."), sig::arg("args", "The captured variables."),
                  sig::var_ty_args("out_types",
                                   "Zero or more output types; multiple entries form a tuple."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeInvokeClosure>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeInvokeClosure>())
       // Not all closures are pure. Use invoke_pure_closure for specifying purity
       .set_attr<bool>("FPurity", false);
 }
@@ -1058,7 +1098,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("closure", "The VMClosure."), sig::arg("args", "The captured variables."),
                  sig::var_ty_args("out_types",
                                   "Zero or more output types; multiple entries form a tuple."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeInvokeClosure>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeInvokeClosure>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1075,7 +1115,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.shape_of")
       .signature(sig::arg("input", "The input expression"))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeShapeOf>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeShapeOf>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1091,19 +1131,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // size
 
-Type InferTypeSize(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeSize(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   auto arg_ty = GetType(call->args[0]);
   auto* tensor_ty = GetType(call->args[0]).as<TensorTypeNode>();
   TVM_FFI_ICHECK(tensor_ty) << "size expects a tensor input, but received " << arg_ty
                             << "; use MatchCast if necessary";
   return TensorType(ShapeExpr(ffi::Array<PrimExpr>{}), PrimType::Int(64));
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.size")
       .signature(sig::arg("input", "The input tensor"))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeSize>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeSize>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1119,7 +1163,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // tensor_to_shape
 
-Type ReturnTensorToShapeType(const CallNode* call_node) {
+ffi::Expected<Type> ReturnTensorToShapeType(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
@@ -1137,12 +1181,16 @@ Type ReturnTensorToShapeType(const CallNode* call_node) {
     }
   }
   return ShapeType(kUnknownNDim);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.tensor_to_shape")
       .signature(sig::arg("input", "The input expression"))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnTensorToShapeType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnTensorToShapeType>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1157,7 +1205,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // shape_to_tensor
-Type ReturnShapeToTensorType(const CallNode* call_node) {
+ffi::Expected<Type> ReturnShapeToTensorType(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
@@ -1165,12 +1213,16 @@ Type ReturnShapeToTensorType(const CallNode* call_node) {
   TVM_FFI_ICHECK(ty);
   int32_t ndim = ty->ndim;
   return TensorType(ShapeExpr({PrimExpr(ndim)}), PrimType::Int(64));
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.shape_to_tensor")
       .signature(sig::arg("input", "The input expression"))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnShapeToTensorType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnShapeToTensorType>())
       .set_attr<FCallPacked>("FCallPacked", "relax.run.shape_to_tensor")
       .set_attr<bool>("FPurity", true);
 }
@@ -1248,7 +1300,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("storage_scope",
                    "The storage scope of the storage to allocate. Default is global."),
           sig::arg("dtype", "The dtype of the tensor to allocate."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnAnyType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnAnyType>())
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
       .set_attr<bool>("FPurity", true)
       .set_attr<bool>("TAllocator", true);
@@ -1332,7 +1384,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.memory.kill_storage")
       .signature(sig::arg("storage", "The storage to be killed."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnVoidType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
       // We mark this as impure so it wouldn't be removed by "remove_all_unused"
       .set_attr<bool>("FPurity", false);
 }
@@ -1350,7 +1402,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.memory.kill_tensor")
       .signature(sig::arg("tensor", "The tensor to be killed."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnVoidType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
       // We mark this as impure so it wouldn't be removed by "remove_all_unused"
       .set_attr<bool>("FPurity", false);
 }
@@ -1374,7 +1426,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("dtype", "The dtype of the tensor to allocate."),
                  sig::arg("storage_scope",
                           "The storage scope of the storage to allocate. Default is global."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnAnyType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnAnyType>())
       // memory allocation isn't considered a "visible effect" as far as purity is concerned
       .set_attr<bool>("FPurity", true)
       .set_attr<bool>("TAllocator", true);
@@ -1456,7 +1508,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.vm.kill_object")
       .signature(sig::arg("obj", "The object to be killed."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnVoidType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
       // We mark this as impure so it wouldn't be removed by "remove_all_unused"
       .set_attr<bool>("FPurity", false);
 }
@@ -1476,7 +1528,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("func", "The destination-passing-style function."),
           sig::arg("args", "The input arguments (list of tensors and last argument is ShapeExpr)"))
-      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnVoidType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&ReturnVoidType>())
       // "relax.vm.call_tir_dyn" works in an in-place way, which is impure.
       .set_attr<bool>("FPurity", false);
 }
@@ -1492,15 +1544,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // builtin stop_lift_params
-Type InferTypeStopLiftParams(const CallNode* call) {
+ffi::Expected<Type> InferTypeStopLiftParams(const CallNode* call) noexcept try {
   return InferTypeUnaryArithContextFree<false>(call);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.builtin.stop_lift_params")
       .signature(sig::arg("x", "The input data"),
                  sig::var_ty_args("out_type", "Optional output type."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStopLiftParams>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStopLiftParams>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1516,7 +1572,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // to_vdevice
 
-Type InferToVDeviceType(const CallNode* call_node) {
+ffi::Expected<Type> InferToVDeviceType(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
@@ -1527,13 +1583,17 @@ Type InferToVDeviceType(const CallNode* call_node) {
     return TensorType(data_ty->shape.value(), data_ty->dtype, vdev, data_ty->span);
   }
   return TensorType(data_ty->dtype, data_ty->ndim, vdev, data_ty->span);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.to_vdevice")
       .signature(sig::arg("data", "The input expression to be copied"),
                  sig::call_attrs<ToVDeviceAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferToVDeviceType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferToVDeviceType>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1551,18 +1611,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // hint_on_device
 
-Type InferHintOnDeviceType(const CallNode* call_node) {
+ffi::Expected<Type> InferHintOnDeviceType(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
   TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
   TensorType data_ty = GetUnaryInputTensorType(call);
   return data_ty;
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.hint_on_device")
       .signature(sig::arg("data", "The input expression"), sig::call_attrs<HintOnDeviceAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferHintOnDeviceType>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferHintOnDeviceType>())
       .set_attr<bool>("FPurity", true);
 }
 

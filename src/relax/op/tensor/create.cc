@@ -71,7 +71,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.full", full);
 }
 
-Type InferTypeFull(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeFull(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Full op should have 2 arguments";
@@ -94,6 +94,10 @@ Type InferTypeFull(const CallNode* call_node) {
                                           ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
                                           : fill_value_ty->dtype;
   return TensorType(/*shape=*/call->args[0], out_dtype, fill_value_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -101,7 +105,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("shape", "The shape of the created tensor."),
                  sig::arg("fill_value", "The scalar tensor, denoting the value to fill."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeFull>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeFull>())
       .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<bool>("FDataDependent", true)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -122,7 +126,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.full_like", full_like);
 }
 
-Type InferTypeFullLike(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeFullLike(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   TensorType data_ty = input_ty[0];
@@ -141,19 +145,23 @@ Type InferTypeFullLike(const CallNode* call_node) {
     output_ty->dtype = PrimType(attrs->dtype.value());
     return TensorType(output_ty);
   }
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.full_like")
       .signature(sig::arg("x", "The input tensor."),
                  sig::arg("fill_value", "The scalar value to fill."), sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeFullLike>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeFullLike>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
 
 // Structure info inference for ones and zeros
-Type InferTypeOnesZeros(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeOnesZeros(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Ones/Zeros should have 1 argument";
@@ -168,10 +176,14 @@ Type InferTypeOnesZeros(const CallNode* call_node) {
   const auto* attrs = call->attrs.as<InitAttrs>();
   TVM_FFI_ICHECK(attrs->dtype.has_value());
   return TensorType(/*shape=*/call->args[0], PrimType(attrs->dtype.value()));
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 // Structure info inference for ones_like and zeros_like
-Type InferTypeOnesLikeZerosLike(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeOnesLikeZerosLike(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<InitAttrs>();
@@ -182,6 +194,10 @@ Type InferTypeOnesLikeZerosLike(const CallNode* call_node) {
     output_ty->dtype = PrimType(attrs->dtype.value());
     return TensorType(output_ty);
   }
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 /* relax.ones & relax.ones_like */
@@ -207,13 +223,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ones")
       .signature(sig::arg("shape", "The shape of the created tensor."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOnesZeros>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeOnesZeros>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.ones_like")
       .signature(sig::arg("x", "The input tensor."), sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOnesLikeZerosLike>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeOnesLikeZerosLike>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -240,13 +256,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.zeros")
       .signature(sig::arg("shape", "The shape of the created tensor."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOnesZeros>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeOnesZeros>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.zeros_like")
       .signature(sig::arg("x", "The input tensor."), sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOnesLikeZerosLike>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeOnesLikeZerosLike>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -271,7 +287,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.eye", eye).def("relax.op.eye_like", eye_like);
 }
 
-Type InferTypeEye(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeEye(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Eye op should have 3 arguments: n, m, and k, but got "
@@ -294,9 +310,13 @@ Type InferTypeEye(const CallNode* call_node) {
   TVM_FFI_ICHECK(attrs->dtype.has_value());
   DLDataType dtype = attrs->dtype.value();
   return TensorType(ShapeExpr({n, m}), PrimType(dtype));
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
-Type InferTypeEyeLike(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeEyeLike(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -322,6 +342,10 @@ Type InferTypeEyeLike(const CallNode* call_node) {
                                           : x_ty->dtype;
 
   return TensorType(x_ty->shape.value(), out_dtype, x_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -329,14 +353,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("n", "Number of rows in the output."),
                  sig::arg("m", "Number of columns in the output."),
                  sig::arg("k", "Index of the diagonal."), sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeEye>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeEye>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.eye_like")
       .signature(sig::arg("x", "The input tensor."), sig::arg("k", "Index of the diagonal."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeEyeLike>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeEyeLike>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -354,7 +378,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.arange", arange);
 }
 
-Type InferTypeArange(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeArange(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -388,6 +412,10 @@ Type InferTypeArange(const CallNode* call_node) {
   sym::Analyzer analyzer;
   num_elem = analyzer->Simplify(num_elem);
   return TensorType(ShapeExpr({num_elem}), PrimType(dtype));
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -396,7 +424,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("end", "The ending value for the set of points."),
                  sig::arg("step", "The gap between each pair of adjacent points."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeArange>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeArange>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -418,7 +446,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.hamming_window", hamming_window);
 }
 
-Type InferTypeHammingWindow(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeHammingWindow(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   const auto* attrs = call->attrs.as<InitAttrs>();
   TVM_FFI_ICHECK(attrs->dtype.has_value());
@@ -445,6 +473,10 @@ Type InferTypeHammingWindow(const CallNode* call_node) {
   }
   window_size = analyzer->Simplify(window_size);
   return TensorType(ShapeExpr({window_size}), PrimType(dtype));
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -456,7 +488,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                    "symmetric window"),
           sig::arg("alpha", "The coefficient alpha"), sig::arg("beta", "The coefficient beta"),
           sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeHammingWindow>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeHammingWindow>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -480,7 +512,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("relax.op.triu", static_cast<Expr (*)(Expr, Expr)>(triu));
 }
 
-Type InferTypeTrilTriu(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeTrilTriu(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   auto [data_ty, offset] = GetArgType<TensorType, PrimType>(call);
 
@@ -491,17 +523,21 @@ Type InferTypeTrilTriu(const CallNode* call_node) {
                                           << data_ty->ndim << " dimension(s).";
   }
   return data_ty;
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.tril")
       .signature(sig::arg("x", "The input tensor."), sig::arg("k", "The offset of the diagonal."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeTrilTriu>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTrilTriu>())
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.triu")
       .signature(sig::arg("x", "The input tensor."), sig::arg("k", "The offset of the diagonal."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeTrilTriu>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTrilTriu>())
       .set_attr<bool>("FPurity", true);
 }
 

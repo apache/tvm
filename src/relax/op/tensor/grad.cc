@@ -43,15 +43,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.no_grad", no_grad);
 }
 
-Type InferTypeNoGrad(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeNoGrad(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[0]);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.no_grad")
       .signature(sig::arg("x", "The corresponding input tensor."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeNoGrad>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeNoGrad>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -66,19 +70,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.start_checkpoint", start_checkpoint);
 }
 
-Type InferTypeStartCheckpoint(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeStartCheckpoint(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (!call->args[0].as<VarNode>()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument of relax.op.grad.start_checkpoint should be a Var.";
   }
   return GetType(call->args[0]);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.start_checkpoint")
       .signature(sig::arg("x", "The tensor marking the input of the checkpoint stage."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStartCheckpoint>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStartCheckpoint>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -93,19 +101,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.end_checkpoint", end_checkpoint);
 }
 
-Type InferTypeEndCheckpoint(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeEndCheckpoint(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   if (!call->args[0].as<VarNode>()) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "The argument of relax.op.grad.end_checkpoint should be a Var.";
   }
   return GetType(call->args[0]);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.end_checkpoint")
       .signature(sig::arg("x", "The output of the checkpoint stage."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeEndCheckpoint>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeEndCheckpoint>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -135,9 +147,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.nll_loss_backward", nll_loss_backward);
 }
 
-Type InferTypeNLLLossBackward(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeNLLLossBackward(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -146,7 +162,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("predictions", "The prediction tensor."),
                  sig::arg("targets", "The target tensor."), sig::var_args("args"),
                  sig::call_attrs<NLLLossAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeNLLLossBackward>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeNLLLossBackward>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -174,16 +190,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.max_pool2d_backward", max_pool2d_backward);
 }
 
-Type InferTypeMaxPool2DBackward(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeMaxPool2DBackward(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.max_pool2d_backward")
       .signature(sig::arg("output_grad", "The output gradient."),
                  sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeMaxPool2DBackward>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeMaxPool2DBackward>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -211,16 +231,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.avg_pool2d_backward", avg_pool2d_backward);
 }
 
-Type InferTypeAvgPool2DBackward(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeAvgPool2DBackward(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.avg_pool2d_backward")
       .signature(sig::arg("output_grad", "The output gradient."),
                  sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAvgPool2DBackward>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAvgPool2DBackward>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -241,9 +265,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.grad.take_backward", take_backward);
 }
 
-Type InferTypeTakeBackward(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeTakeBackward(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetType(call->args[1]);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -252,7 +280,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("x", "The source tensor."),
                  sig::arg("indices", "The indices of the values to extract."),
                  sig::call_attrs<TakeAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeTakeBackward>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTakeBackward>())
       .set_attr<bool>("FPurity", true);
 }
 

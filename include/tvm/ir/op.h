@@ -34,7 +34,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 
-#include <exception>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -46,23 +45,6 @@ class OpAttrMap;
 
 /*! \brief Infer a Call's result type from its explicit inputs without builder state. */
 using FInferType = ffi::reflection::NativeFunctionView<ffi::Expected<Type>(const CallNode* call)>;
-
-/*! \brief Adapt an existing throwing inference rule to the native hook contract. */
-template <Type (*Rule)(const CallNode*)>
-ffi::Expected<Type> CallInferTypeRule(const CallNode* call) noexcept {
-  try {
-    return Rule(call);
-  } catch (const ffi::Error& error) {
-    return ffi::Unexpected(error);
-  } catch (const std::exception& error) {
-    return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
-  }
-}
-
-template <Type (*Rule)(const CallNode*)>
-FInferType MakeFInferType() {
-  return FInferType::FromNative<&CallInferTypeRule<Rule>>();
-}
 
 /*! \brief An operator argument's name and documentation. */
 class ArgumentInfoNode : public ffi::Object {

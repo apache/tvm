@@ -51,17 +51,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ccl.allreduce", allreduce);
 }
 
-Type InferTypeAllReduce(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeAllReduce(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType input_ty = GetUnaryInputTensorType(call);
   return input_ty;
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.allreduce")
       .signature(sig::arg("x", "Input to which allreduce will be applied."),
                  sig::call_attrs<AllReduceAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAllReduce>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAllReduce>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<bool>("FPurity", true);
 }
@@ -82,7 +86,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ccl.allgather", allgather);
 }
 
-Type InferTypeAllGather(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeAllGather(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType input_ty = GetUnaryInputTensorType(call);
 
@@ -97,13 +101,17 @@ Type InferTypeAllGather(const CallNode* call_node) {
   ffi::Array<PrimExpr> output_shape = input_shape.value();
   output_shape.Set(0, floor(output_shape[0] * num_workers));
   return TensorType(ShapeExpr(output_shape), output_dtype, input_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.allgather")
       .signature(sig::arg("x", "Input to which allgather will be applied."),
                  sig::call_attrs<AllGatherAttrs>())
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAllGather>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAllGather>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<bool>("FPurity", true);
 }
@@ -119,16 +127,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.ccl.broadcast_from_worker0", broadcast_from_worker0);
 }
 
-Type InferTypeBroadcastFromZero(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeBroadcastFromZero(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType input_ty = GetUnaryInputTensorType(call);
   return input_ty;
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ccl.broadcast_from_worker0")
       .signature(sig::arg("x", "Input to be broadcast."))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeBroadcastFromZero>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBroadcastFromZero>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<bool>("FPurity", true);
 }

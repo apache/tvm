@@ -57,7 +57,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.unique", unique);
 }
 
-Type InferTypeUnique(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeUnique(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = call->args[0]->ty.as_or_throw<TensorType>();
   PrimExpr axis, return_index, return_inverse, return_counts;
@@ -140,6 +140,10 @@ Type InferTypeUnique(const CallNode* call_node) {
   } else {
     return TupleType(output_ty);
   }
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -161,7 +165,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("return_counts",
                    "Whether to return an additional tensor with counts of each unique elements"),
           sig::var_args("args"))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnique>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeUnique>())
       .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
       .set_attr<bool>("FPurity", true);
 }
@@ -177,16 +181,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nonzero", nonzero);
 }
 
-Type InferTypeNonzero(const CallNode* call_node) {
+ffi::Expected<Type> InferTypeNonzero(const CallNode* call_node) noexcept try {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetInputTensorType(call, 0);
   return TensorType(PrimType::Int(64), 2, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nonzero")
       .signature(sig::arg("x", "The input tensor"))
-      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeNonzero>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeNonzero>())
       .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
       .set_attr<bool>("FPurity", true);
 }
