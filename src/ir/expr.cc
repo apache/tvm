@@ -1191,8 +1191,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                                Attrs attrs, ffi::Array<Type> ty_args, Span span) {
     return Call::Unchecked(ret_ty, op, args, attrs, ty_args, span);
   });
-  refl::GlobalDef().def("ir.CallTryReinferType",
-                        [](const Call& call) { return Call::TryReinferType(call.get()); });
   refl::GlobalDef().def("ir.reinfer_type",
                         [](const Call& call) { return Call::ReinferType(call.get()); });
 }

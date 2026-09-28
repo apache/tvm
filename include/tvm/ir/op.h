@@ -34,8 +34,8 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 
-#include <string>
 #include <exception>
+#include <string>
 #include <type_traits>
 #include <utility>
 
