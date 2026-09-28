@@ -65,7 +65,7 @@ ffi::Array<PrimExpr> ValidateTensorLoad(const Call& call, Tensor* tensor_out) {
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TensorVisit(
     ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::Optional<ffi::VisitInterrupt>(std::nullopt);
+  return std::nullopt;
 }
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorMutate(ffi::StructuralMutatorObj*,
