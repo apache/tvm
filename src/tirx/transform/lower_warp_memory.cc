@@ -275,8 +275,7 @@ class WarpAccessRewriter : public StmtExprMutator {
   Stmt Rewrite(const BindNode* op, Stmt body) {
     const auto* buffer_call = op->value.as<CallNode>();
     tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-    DLDataType dtype =
-        buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+    DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
     PrimType element_type(dtype);
     buffer_ = op->var.get();
     int64_t alloc_size = 1;

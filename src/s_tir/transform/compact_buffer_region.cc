@@ -696,8 +696,7 @@ class BufferCompactor : public StmtExprMutator {
     }
     const BufferVar& new_buffer = it->second.new_buffer;
     const auto* original_call = op->value.as<CallNode>();
-    DLDataType dtype =
-        original_call->args[1].as_or_throw<DataTypeImm>()->value;
+    DLDataType dtype = original_call->args[1].as_or_throw<DataTypeImm>()->value;
     if (PrimType(dtype) != new_buffer->dtype) {
       return alloc_buf;
     }

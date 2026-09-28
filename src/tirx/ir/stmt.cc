@@ -83,8 +83,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> BindVisit(
 ffi::Expected<Expr> ReconcileBufferCall(Expr value, const Var& var) noexcept {
   try {
     const auto* call = value.as<CallNode>();
-    if (!call || (!call->op.same_as(builtin::alloc_buffer()) &&
-                  !call->op.same_as(builtin::decl_buffer()))) {
+    if (!call ||
+        (!call->op.same_as(builtin::alloc_buffer()) && !call->op.same_as(builtin::decl_buffer()))) {
       return value;
     }
     BufferVar buffer(var);
@@ -102,8 +102,7 @@ ffi::Expected<Expr> ReconcileBufferCall(Expr value, const Var& var) noexcept {
       }
       if (dtype != buffer->dtype->dtype) {
         auto original = call->args[shape_index + 1].as_or_throw<DataTypeImm>();
-        mapped_call->args.Set(shape_index + 1,
-                              DataTypeImm(buffer->dtype->dtype, original->span));
+        mapped_call->args.Set(shape_index + 1, DataTypeImm(buffer->dtype->dtype, original->span));
       }
       if (scope != buffer.scope()) {
         mapped_call->args.Set(shape_index + 2,
@@ -135,7 +134,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BindMutate(
   bool var_changed = !mapped_var.UnchangedOrSameAs(self->var);
   Var new_var = std::move(mapped_var).ValueOrUnchanged(self->var);
   var_changed |= !old_var_type.same_as(new_var->ty);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(Expr, reconciled_value, ReconcileBufferCall(new_value, new_var));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(Expr, reconciled_value,
+                                    ReconcileBufferCall(new_value, new_var));
   value_changed |= !reconciled_value.same_as(new_value);
   new_value = std::move(reconciled_value);
   if ((value_changed || var_changed) && !new_var->ty.same_as(new_value->ty)) {
@@ -173,7 +173,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BindMaybeInplaceMutate(
   bool var_changed = !mapped_var.UnchangedOrSameAs(self->var);
   Var new_var = std::move(mapped_var).ValueOrUnchanged(self->var);
   var_changed |= !old_var_type.same_as(new_var->ty);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(Expr, reconciled_value, ReconcileBufferCall(new_value, new_var));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(Expr, reconciled_value,
+                                    ReconcileBufferCall(new_value, new_var));
   value_changed |= !reconciled_value.same_as(new_value);
   new_value = std::move(reconciled_value);
   if ((value_changed || var_changed) && !new_var->ty.same_as(new_value->ty)) {
@@ -1003,17 +1004,17 @@ Bind DeclBuffer(BufferVar buffer, Expr data, Span span) {
         << "ValueError: For `" << scope << "` scope, DeclBuffer does not accept `allocated_addr`";
   }
   auto call = Call(buffer.var()->ty, builtin::decl_buffer(),
-                   {std::move(data), tvm::Tuple(buffer->shape),
-                    DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+                   {std::move(data), tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                    StringImm(buffer.scope())},
                    {}, {}, span);
   return Bind(buffer.var(), std::move(call), std::move(span));
 }
 
 Bind AllocBuffer(BufferVar buffer, ffi::Map<ffi::String, Any> annotations, Span span) {
-  auto call = Call(buffer.var()->ty, builtin::alloc_buffer(),
-                   {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                    StringImm(buffer.scope())},
-                   DictAttrs(std::move(annotations)), {}, span);
+  auto call = Call(
+      buffer.var()->ty, builtin::alloc_buffer(),
+      {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+      DictAttrs(std::move(annotations)), {}, span);
   return Bind(buffer.var(), std::move(call), std::move(span));
 }
 

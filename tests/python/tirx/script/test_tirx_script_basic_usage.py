@@ -266,9 +266,12 @@ def test_pointer_expression_assignment_uses_bind():
     # fmt: on
 
     binds = []
-    tvm_ffi.structural_walk(
-        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType) else None
-    )
+
+    def collect_pointer_bind(node):
+        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+            binds.append(node)
+
+    tvm_ffi.structural_walk(func.body, collect_pointer_bind)
     assert len(binds) == 1
     assert isinstance(binds[0].var.ty, PointerType)
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
@@ -323,9 +326,12 @@ def func() -> None:
     func = tvm.script.from_source(source, extra_vars={"T": T, "ptr": object()})
 
     binds = []
-    tvm_ffi.structural_walk(
-        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType) else None
-    )
+
+    def collect_pointer_bind(node):
+        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+            binds.append(node)
+
+    tvm_ffi.structural_walk(func.body, collect_pointer_bind)
     assert len(binds) == 1
     assert_structural_equal(func, from_source(func.script()))
 

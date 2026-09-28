@@ -218,8 +218,7 @@ void CodeGenTrainium::DispatchAllocBuffer(const BindNode* op, const CallNode* bu
   tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   auto allocation_extents = allocation_shape->fields.Map(
       [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  DLDataType allocation_dtype_arg =
-      buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  DLDataType allocation_dtype_arg = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   PrimType allocation_dtype(allocation_dtype_arg);
   ffi::String allocation_scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
   BufferVar allocated_buffer(op->var);
@@ -628,8 +627,7 @@ void CodeGenTrainium::DispatchDeclBuffer(const BindNode* op, const CallNode* buf
   tvm::Tuple declaration_shape = buffer_call->args[1].as_or_throw<tvm::Tuple>();
   auto declaration_extents = declaration_shape->fields.Map(
       [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  DLDataType declaration_dtype_arg =
-      buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  DLDataType declaration_dtype_arg = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
   PrimType declaration_dtype(declaration_dtype_arg);
   ffi::String declaration_scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
   BufferVar declared_buffer(op->var);

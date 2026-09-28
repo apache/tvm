@@ -16,12 +16,12 @@
 # under the License.
 import tvm_ffi
 
-from tvm.ir import Call, DictAttrs, DataTypeImm, Range, StringImm, Tuple
+from tvm.ir import Call, DataTypeImm, DictAttrs, Range, StringImm, Tuple
 from tvm.target import Target
 from tvm.tirx.buffer import Buffer
 from tvm.tirx.stmt import (
-    Bind,
     AttrStmt,
+    Bind,
     For,
     SeqStmt,
     Stmt,

@@ -109,7 +109,7 @@ import functools
 import operator
 
 import tvm
-from tvm.ir import Call, DictAttrs, DataTypeImm, StringImm, Tuple
+from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer

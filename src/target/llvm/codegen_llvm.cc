@@ -2212,8 +2212,7 @@ void CodeGenLLVM::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer
   tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   auto allocation_extents = allocation_shape->fields.Map(
       [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  DLDataType allocation_dtype_arg =
-      buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  DLDataType allocation_dtype_arg = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   PrimType allocation_dtype(allocation_dtype_arg);
   BufferVar allocated_buffer(op->var);
   auto buffer_annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
@@ -2342,8 +2341,7 @@ void CodeGenLLVM::Dispatch_(const SeqStmtNode* op) {
 }
 
 void CodeGenLLVM::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
-  DLDataType declaration_dtype_arg =
-      buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  DLDataType declaration_dtype_arg = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
   PrimType declaration_dtype(declaration_dtype_arg);
   ffi::String declaration_scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
   BufferVar declared_buffer(op->var);

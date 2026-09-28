@@ -40,13 +40,8 @@ def _has_volatile_alloc_buffer(mod):
 
     def visit(node):
         nonlocal has_volatile_alloc
-        if (
-            _is_buffer_binding(node, "tirx.alloc_buffer")
-            and "tirx.volatile" in node.value.attrs
-        ):
-            has_volatile_alloc = (
-                has_volatile_alloc or node.value.attrs["tirx.volatile"] is True
-            )
+        if _is_buffer_binding(node, "tirx.alloc_buffer") and "tirx.volatile" in node.value.attrs:
+            has_volatile_alloc = has_volatile_alloc or node.value.attrs["tirx.volatile"] is True
 
     tvm_ffi.structural_walk(mod["main"].body, visit)
     return has_volatile_alloc

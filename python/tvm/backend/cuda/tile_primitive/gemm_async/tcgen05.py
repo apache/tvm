@@ -26,7 +26,7 @@ import functools
 import operator
 
 import tvm
-from tvm.ir import Call, DictAttrs, DataTypeImm, StringImm, TensorRegion, Tuple
+from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, TensorRegion, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer

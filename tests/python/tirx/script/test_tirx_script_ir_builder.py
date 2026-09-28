@@ -39,6 +39,7 @@ def _is_buffer_binding(node, *op_names):
         and node.value.op.name in op_names
     )
 
+
 def test_ir_builder_tir_for():
     with IRBuilder() as ib:
         with T.serial(128) as a:

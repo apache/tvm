@@ -144,7 +144,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchDeclBuffer(const BindNode* op,
-                                               const CallNode* buffer_call) {
+                                                   const CallNode* buffer_call) {
     RegisterBufferAlias(BufferVar(op->var), buffer_call->args[0]);
     return std::nullopt;
   }
@@ -403,7 +403,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op,
-                                               const CallNode* buffer_call) {
+                                                    const CallNode* buffer_call) {
     // reject inplace for volatile buffers
     if (buffer_call->attrs.as<DictAttrsNode>()->dict.count(attr::kVolatile)) {
       result_ = false;
@@ -841,8 +841,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           continue;
         }
         const auto* first_call = e->allocs[0]->value.as<CallNode>();
-        DLDataType first_dtype =
-            first_call->args[1].as_or_throw<DataTypeImm>()->value;
+        DLDataType first_dtype = first_call->args[1].as_or_throw<DataTypeImm>()->value;
         PrimType first_type(first_dtype);
         if (e->allocs.size() == 1 && first_type.IsScalableVector()) {
           // Scalable vector lanes are runtime-dependent.  Keep these allocations exact rather
@@ -861,8 +860,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         PrimType alloc_type = first_type;
         for (const BindNode* op : e->allocs) {
           const auto* call = op->value.as<CallNode>();
-          DLDataType dtype =
-              call->args[1].as_or_throw<DataTypeImm>()->value;
+          DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
           PrimType element_type(dtype);
           if (element_type.lanes() > alloc_type.lanes()) {
             alloc_type = element_type;
@@ -872,8 +870,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         bool all_allocs_identical =
             std::all_of(e->allocs.begin() + 1, e->allocs.end(), [&](const BindNode* op) -> bool {
               const auto* call = op->value.as<CallNode>();
-              DLDataType dtype =
-                  call->args[1].as_or_throw<DataTypeImm>()->value;
+              DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
               if (dtype != first_dtype) {
                 return false;
               }
@@ -906,8 +903,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           for (const BindNode* op : e->allocs) {
             const auto* call = op->value.as<CallNode>();
             tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
-            DLDataType dtype =
-                call->args[1].as_or_throw<DataTypeImm>()->value;
+            DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
             PrimType element_type(dtype);
             TVM_FFI_ICHECK_EQ(shape->fields.size(), 1)
                 << "BufferVar var " << BufferVar(op->var).name()
@@ -1080,8 +1076,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           StorageEntry* dst_entry = nullptr;
           // inplace detection
           if (detect_inplace) {
-            DLDataType dtype =
-                call->args[1].as_or_throw<DataTypeImm>()->value;
+            DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
             PrimType element_type(dtype);
             // only one inplace var for s.stmt
             bool inplace_found = false;
@@ -1476,11 +1471,10 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchDeclBuffer(const BindNode* op,
-                                               const CallNode* buffer_call) {
+                                                   const CallNode* buffer_call) {
     RegisterBufferAlias(BufferVar(op->var), buffer_call->args[0]);
     tvm::Tuple shape = buffer_call->args[1].as_or_throw<tvm::Tuple>();
-    DLDataType dtype =
-        buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+    DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
     PrimType element_type(dtype);
     PrimExpr extent =
         shape->fields.size() ? shape->fields.back().as_or_throw<PrimExpr>() : PrimExpr(0);

@@ -878,8 +878,7 @@ void CodeGenSPIRV::Dispatch_(const IfThenElseNode* op) {
 void CodeGenSPIRV::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   Array<Expr> allocation_extents = allocation_shape->fields;
-  DLDataType allocation_dtype_arg =
-      buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  DLDataType allocation_dtype_arg = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   PrimType allocation_dtype(allocation_dtype_arg);
   ffi::String allocation_scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
   BufferVar allocated_buffer(op->var);
@@ -947,8 +946,7 @@ void CodeGenSPIRV::DispatchAllocBuffer(const BindNode* op, const CallNode* buffe
 }
 
 void CodeGenSPIRV::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
-  DLDataType declaration_dtype_arg =
-      buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  DLDataType declaration_dtype_arg = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
   PrimType declaration_dtype(declaration_dtype_arg);
   BufferVar declared_buffer(op->var);
   Expr declared_data = buffer_call->args[0];

@@ -675,7 +675,6 @@ Doc DeclBufferDoc(tirx::Bind stmt, const CallNode* call, AccessPath p, IRDocsifi
 }
 }  // namespace
 
-
 namespace {
 Doc AllocBufferDoc(tirx::Bind stmt, const CallNode* call, AccessPath p, IRDocsifier d) {
   if (d->cfg->syntax_sugar && tirx::BufferVar(stmt->var).IsScalar(true)) {
@@ -705,7 +704,6 @@ Doc AllocBufferDoc(tirx::Bind stmt, const CallNode* call, AccessPath p, IRDocsif
 }
 
 }  // namespace
-
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<tirx::IfThenElse>(  //

@@ -81,8 +81,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       }
       const auto* allocation = op->value.as<CallNode>();
       tvm::Tuple shape = allocation->args[0].as_or_throw<tvm::Tuple>();
-      DLDataType dtype =
-          allocation->args[1].as_or_throw<DataTypeImm>()->value;
+      DLDataType dtype = allocation->args[1].as_or_throw<DataTypeImm>()->value;
       ffi::Array<PrimExpr> extents =
           shape->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); });
       TVM_FFI_ICHECK(extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";

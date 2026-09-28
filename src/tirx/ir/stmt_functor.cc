@@ -297,9 +297,8 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inpla
   bool var_changed = !var_u.UnchangedOrSameAs(op->var);
   Var var = std::move(var_u).ValueOrUnchanged(op->var);
   var_changed |= !old_var_type.same_as(var->ty);
-  if (const auto* call = value.as<CallNode>();
-      call && (call->op.same_as(builtin::alloc_buffer()) ||
-               call->op.same_as(builtin::decl_buffer()))) {
+  if (const auto* call = value.as<CallNode>(); call && (call->op.same_as(builtin::alloc_buffer()) ||
+                                                        call->op.same_as(builtin::decl_buffer()))) {
     BufferVar buffer(var);
     int shape_index = call->op.same_as(builtin::alloc_buffer()) ? 0 : 1;
     tvm::Tuple shape = call->args[shape_index].as_or_throw<tvm::Tuple>();
@@ -314,8 +313,7 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inpla
       }
       if (dtype != buffer->dtype->dtype) {
         auto original = call->args[shape_index + 1].as_or_throw<DataTypeImm>();
-        mapped_call->args.Set(shape_index + 1,
-                              DataTypeImm(buffer->dtype->dtype, original->span));
+        mapped_call->args.Set(shape_index + 1, DataTypeImm(buffer->dtype->dtype, original->span));
       }
       if (scope != buffer.scope()) {
         mapped_call->args.Set(shape_index + 2,
