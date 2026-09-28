@@ -198,7 +198,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh."),
                  sig::arg("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom)."),
                  sig::call_attrs<MultiboxTransformLocAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeMultiboxTransformLoc)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeMultiboxTransformLoc>())
       .set_attr<bool>("FPurity", true);
 }
 

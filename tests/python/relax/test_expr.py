@@ -379,39 +379,47 @@ def test_call_raises_error_for_missing_operator():
         rx.Call(None, [])
 
 
-def test_call_try_reinfer_type_from_current_inputs():
+def test_call_reinfer_type_from_current_inputs():
     original_ty = rx.TensorType([2], "float32")
     changed_ty = rx.TensorType([4], "float16")
     x = rx.Var("x", original_ty)
     y = rx.Var("y", changed_ty)
 
     initial = rx.Call("relax.abs", [x])
-    _check_equal(initial.try_reinfer_type(), original_ty)
+    _check_equal(tvm.ir.reinfer_type(initial), original_ty)
+    assert tvm.ir.reinfer_type(initial).same_as(original_ty)
     _check_type_missing(initial.ty)
 
+    unchanged = rx.Call("relax.abs", [x], ret_ty=original_ty)
+    assert tvm.ir.reinfer_type(unchanged).same_as(unchanged.ty)
+
     stale = rx.Call("relax.abs", [y], ret_ty=original_ty)
-    _check_equal(stale.try_reinfer_type(), changed_ty)
+    _check_equal(tvm.ir.reinfer_type(stale), changed_ty)
+    assert tvm.ir.reinfer_type(stale).same_as(changed_ty)
     _check_equal(stale.ty, original_ty)
 
-    assert rx.Call("relax.abs", [rx.Var("untyped")]).try_reinfer_type() is None
-    assert rx.Call("relax.matmul", [x, x]).try_reinfer_type() is None
+    with pytest.raises(tvm.error.InternalError, match="type is not populated"):
+        tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("untyped")]))
+    with pytest.raises(ValueError, match="No context-free"):
+        tvm.ir.reinfer_type(rx.Call("relax.matmul", [x, x]))
     func = rx.Var("func", rx.FuncType([original_ty], original_ty))
-    assert rx.Call(func, [x]).try_reinfer_type() is None
+    with pytest.raises(ValueError, match="Op callee"):
+        tvm.ir.reinfer_type(rx.Call(func, [x]))
 
     with pytest.raises(TypeError):
-        rx.Call("relax.abs", [rx.Var("scalar", tvm.ir.PrimType("int32"))]).try_reinfer_type()
+        tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("scalar", tvm.ir.PrimType("int32"))]))
 
     out_ty = rx.TensorType([8], "float32")
     closure = rx.Var("closure", rx.AnyType())
     explicit = rx.Call("relax.invoke_closure", [closure, rx.Tuple([])], ty_args=[out_ty])
-    _check_equal(explicit.try_reinfer_type(), out_ty)
+    _check_equal(tvm.ir.reinfer_type(explicit), out_ty)
     changed_explicit = rx.Call(
         "relax.invoke_closure", [closure, rx.Tuple([])], ty_args=[changed_ty]
     )
-    _check_equal(changed_explicit.try_reinfer_type(), changed_ty)
+    _check_equal(tvm.ir.reinfer_type(changed_explicit), changed_ty)
 
-    _check_equal(rx.op.astype(x, "float16").try_reinfer_type(), rx.TensorType([2], "float16"))
-    _check_equal(rx.op.astype(x, "int32").try_reinfer_type(), rx.TensorType([2], "int32"))
+    _check_equal(tvm.ir.reinfer_type(rx.op.astype(x, "float16")), rx.TensorType([2], "float16"))
+    _check_equal(tvm.ir.reinfer_type(rx.op.astype(x, "int32")), rx.TensorType([2], "int32"))
 
 
 def test_shared_operator_surface_preserves_relax_semantics():

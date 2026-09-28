@@ -203,7 +203,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.acos", acos);
 
@@ -214,7 +214,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.acosh", acosh);
 
@@ -225,7 +225,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.asin", asin);
 
@@ -236,7 +236,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.asinh", asinh);
 
@@ -247,7 +247,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.atan", atan);
 
@@ -258,7 +258,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.atanh", atanh);
 
@@ -269,7 +269,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.bitwise_not", bitwise_not);
 
@@ -280,7 +280,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.ceil", ceil);
 
@@ -291,7 +291,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.cos", cos);
 
@@ -302,7 +302,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.cosh", cosh);
 
@@ -313,7 +313,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.exp", exp);
 
@@ -324,7 +324,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.floor", floor);
 
@@ -335,7 +335,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.log", log);
 
@@ -346,7 +346,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.logical_not", logical_not);
 
@@ -357,7 +357,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.negative", negative);
 
@@ -368,7 +368,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.round", round);
 
@@ -379,7 +379,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.rsqrt", rsqrt);
 
@@ -390,7 +390,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.sigmoid", sigmoid);
 
@@ -401,7 +401,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.sign", sign);
 
@@ -412,7 +412,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.sin", sin);
 
@@ -423,7 +423,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.sinh", sinh);
 
@@ -434,7 +434,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.square", square);
 
@@ -445,7 +445,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.sqrt", sqrt);
 
@@ -456,7 +456,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.tan", tan);
 
@@ -467,7 +467,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.tanh", tanh);
 
@@ -478,7 +478,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.trunc", trunc);
 
@@ -489,7 +489,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.erf", erf);
 
@@ -500,7 +500,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   // relax.clip
 
@@ -508,7 +508,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("x", "The input tensor."),
                  sig::arg("min", "The lower-bound of the range to be clipped to"),
                  sig::arg("max", "The upper-bound of the range to be clipped to"))
-      .set_attr<FInferType>("FInferType", ReturnTypeFromArg<0>)
+      .set_attr<FInferType>("FInferType", MakeFInferType<ReturnTypeFromArgContextFree<0>>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -538,8 +538,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType",
-                            InferTypeUnaryCheck);  // require_float_dtype=false for check op
+      .set_attr<FInferType>(
+          "FInferType",
+          MakeFInferType<InferTypeUnaryCheck>());  // require_float_dtype=false for check op
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.isinf", isinf);
 
@@ -550,8 +551,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType",
-                            InferTypeUnaryCheck);  // require_float_dtype=false for check op
+      .set_attr<FInferType>(
+          "FInferType",
+          MakeFInferType<InferTypeUnaryCheck>());  // require_float_dtype=false for check op
 
   tvm::ffi::reflection::GlobalDef().def("relax.op.isnan", isnan);
 
@@ -562,8 +564,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType",
-                            InferTypeUnaryCheck);  // require_float_dtype=false for check op
+      .set_attr<FInferType>(
+          "FInferType",
+          MakeFInferType<InferTypeUnaryCheck>());  // require_float_dtype=false for check op
 }
 
 }  // namespace relax

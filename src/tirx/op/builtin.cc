@@ -33,6 +33,14 @@ namespace tvm {
 namespace tirx {
 namespace builtin {
 
+Type InferTypeBufferData(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError)
+      << "tirx.buffer_data expects one BufferVar argument";
+  Type inferred = call->args[0].as_or_throw<BufferVar>().DataPointerType();
+  if (call->ty.same_as(inferred) || ffi::StructuralEqual()(call->ty, inferred)) return call->ty;
+  return inferred;
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   TensorMapEncodeTiledAttr::RegisterReflection();
   ffi::reflection::GlobalDef().def(
@@ -641,6 +649,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.buffer_data")
       .signature(sig::arg("buffer", "The buffer."))
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeBufferData>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("buffer_data"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));

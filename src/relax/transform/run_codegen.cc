@@ -148,7 +148,7 @@ class CodeGenRunner : ExprMutator {
       if (auto op = call_node->op.as<Op>()) {
         static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
         static auto infer_type_with_builder_map =
-            Op::GetAttrMap<FInferTypeWithBuilder>("FInferTypeWithBuilder");
+            Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
         if (!infer_type_map.count(op.value()) && !infer_type_with_builder_map.count(op.value())) {
           ret_ty = call_node->ty.as_or_throw<Type>();
         }

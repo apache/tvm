@@ -717,7 +717,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
   tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
   tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_type_with_builder_ =
-      Op::GetAttrMap<FInferTypeWithBuilder>("FInferTypeWithBuilder");
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
 };
 
 void WellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty) {

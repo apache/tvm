@@ -151,7 +151,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("uniform_sample", "The uniform sample tensor."),
                  sig::arg("sample_indices", "The sample indices tensor."),
                  sig::call_attrs<MultinomialFromUniformAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeMultinomialFromUniform)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeMultinomialFromUniform>())
       .set_attr<bool>("FPurity", true);
 }
 

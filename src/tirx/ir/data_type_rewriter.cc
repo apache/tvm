@@ -128,26 +128,6 @@ UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::LetNode* op,
   }
 }
 
-UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
-  auto value_result = this->Mutate(op->value, inplace_mode);
-  bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
-  Expr value = std::move(value_result).ValueOrUnchanged(op->value);
-  Var var = op->var;
-
-  if (auto prim_value = value.as<PrimExpr>()) {
-    if (prim_value.value().ty() != op->var->ty.as_or_throw<PrimType>()) {
-      var = op->var.CopyWithDType(prim_value.value().ty());
-      VarRemapSet(op->var, var);
-    }
-  }
-
-  if (value_unchanged && var.same_as(op->var)) {
-    return ffi::Unchanged();
-  } else {
-    return Bind(var, value, op->span);
-  }
-}
-
 UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::SelectNode* op,
                                                  InplaceMode inplace_mode) {
   auto condition_result = this->Mutate(op->condition, inplace_mode);
@@ -482,7 +462,7 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const ForNode* op, InplaceMode 
 UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   auto mapped = VarRemapGet(op->var);
   if (mapped == nullptr || mapped.type_index() == ffi::TypeIndex::kTVMFFIUnchanged) {
-    return DataTypeLegalizer::Mutate_(op, inplace_mode);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
   Var var = mapped.as_or_throw<Var>();
   bool is_enabled = is_enabled_;

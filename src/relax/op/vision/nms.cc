@@ -114,7 +114,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("iou_threshold", "The IoU threshold for box the overlap test."),
           sig::arg("score_threshold", "The score threshold to filter out low score boxes early."),
           sig::call_attrs<AllClassNonMaximumSuppressionAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeAllClassNMS)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAllClassNMS>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -190,7 +190,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.get_valid_counts")
       .signature(sig::arg("data", "Input data, 3-D tensor [batch_size, num_anchors, elem_length]."),
                  sig::call_attrs<GetValidCountsAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeGetValidCounts)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeGetValidCounts>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -364,7 +364,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("valid_count", "1-D tensor for valid number of boxes."),
                  sig::arg("indices", "2-D tensor with shape [batch_size, num_anchors]."),
                  sig::call_attrs<NonMaximumSuppressionAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeNMS)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeNMS)
       .set_attr<bool>("FPurity", true);
 }
 

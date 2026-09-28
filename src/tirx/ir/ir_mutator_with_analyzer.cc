@@ -125,23 +125,16 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const ForNode* op, InplaceMode 
 }
 
 UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
-  auto value_result = this->Mutate(op->value, inplace_mode);
-  bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
-  Expr value = std::move(value_result).ValueOrUnchanged(op->value);
-  if (auto prim_value = value.as<PrimExpr>()) {
+  auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+  Stmt stmt = std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+  const BindNode* bind = stmt.as<BindNode>();
+  if (auto prim_value = bind->value.as<PrimExpr>()) {
     if (SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
-      analyzer_->Bind(op->var, prim_value.value());
+      analyzer_->Bind(bind->var, prim_value.value());
     }
   }
-  if (value_unchanged) return ffi::Unchanged();
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* n = const_cast<BindNode*>(op);
-    n->value = std::move(value);
-    return ffi::Unchanged();
-  }
-  auto n = ffi::make_object<BindNode>(*op);
-  n->value = std::move(value);
-  return Stmt(n);
+  return stmt.same_as(ffi::GetRef<Stmt>(op)) ? UnchangedOr<Stmt>(ffi::Unchanged())
+                                             : UnchangedOr<Stmt>(std::move(stmt));
 }
 
 UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
@@ -286,21 +279,32 @@ UnchangedOr<Expr> IRMutatorWithAnalyzer::Mutate_(const CallNode* op, InplaceMode
 
 UnchangedOr<PrimExpr> IRMutatorWithAnalyzer::Mutate_(const prim::LetNode* op,
                                                      InplaceMode inplace_mode) {
+  Type old_type = op->value->ty;
   auto value_result = this->Mutate(op->value, inplace_mode);
-  bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
   PrimExpr value = std::move(value_result).ValueOrUnchanged(op->value);
+  bool has_explicit_remap = VarRemapGet(op->var).type_index() != ffi::TypeIndex::kTVMFFINone;
+  auto var_result = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+                      return this->Mutate(op->var, inplace_mode);
+                    }).as_or_throw<UnchangedOr<Var>>();
+  Var var = std::move(var_result).ValueOrUnchanged(op->var);
+  if (!has_explicit_remap &&
+      !(old_type.same_as(value->ty) || ffi::StructuralEqual()(old_type, value->ty)) &&
+      !(var->ty.same_as(value->ty) || ffi::StructuralEqual()(var->ty, value->ty))) {
+    var = var.CopyWithType(value->ty);
+    VarRemapSet(op->var, var);
+  }
   if (SideEffect(value) <= CallEffectKind::kPure) {
-    analyzer_->Bind(op->var, value);
+    analyzer_->Bind(var, value);
   }
   // We keep the let-binding here
   // as sub-class may or maynot choose to replace it.
   auto body_result = this->Mutate(op->body, inplace_mode);
-  bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
   PrimExpr body = std::move(body_result).ValueOrUnchanged(op->body);
-  if (value_unchanged && body_unchanged) {
+  if (var.same_as(op->var) && value.same_as(op->value) && body.same_as(op->body) &&
+      body->ty.same_as(op->ty)) {
     return ffi::Unchanged();
   } else {
-    return prim::Let(op->var, value, body);
+    return prim::Let(var, value, body, op->span);
   }
 }
 

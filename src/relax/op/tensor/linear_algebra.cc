@@ -166,7 +166,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.matmul")
       .signature(sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."), sig::call_attrs<MatmulAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeMatmul)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeMatmul)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul)
       .set_attr<bool>("FPurity", true);
@@ -256,7 +256,7 @@ Type InferTypeEinsum(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.einsum")
       .signature(sig::arg("operands", "The input tensors."), sig::call_attrs<EinsumAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeEinsum)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeEinsum>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -297,7 +297,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.outer")
       .signature(sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."))
-      .set_attr<FInferType>("FInferType", InferTypeOuter)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOuter>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<bool>("FPurity", true);
 }

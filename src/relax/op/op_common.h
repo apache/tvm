@@ -196,8 +196,12 @@ inline Type InferTypeUnary(const Call& call, FType f_compute_out_dtype) {
         << " requires the input tensor to have float dtype. However, the given input dtype is "
         << input_ty->dtype.value();
   }
-  auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
   ffi::Optional<PrimType> computed_dtype = f_compute_out_dtype(input_ty);
+  bool same_dtype = computed_dtype.has_value() == input_ty->dtype.has_value() &&
+                    (!computed_dtype.has_value() ||
+                     computed_dtype.value()->dtype == input_ty->dtype.value()->dtype);
+  if (call->ty_args.empty() && same_dtype) return input_ty;
+  auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
   output_ty->dtype = computed_dtype;
   if (call->ty_args.size() > 0) {
     auto defined_ty = call->ty_args[0].as<TensorTypeNode>();

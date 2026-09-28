@@ -854,10 +854,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       TVM_FFI_ICHECK(!(has_context_free && has_contextual))
           << "Operator " << op->name << " registers both FInferType and FInferTypeWithBuilder";
       if (has_context_free) {
-        auto inferred = Call::TryReinferType(call.get());
-        TVM_FFI_ICHECK(inferred.has_value())
-            << "Context-free type inference inputs are not prepared for " << op->name;
-        return inferred.value();
+        return Call::ReinferType(call.get());
       }
       TVM_FFI_ICHECK(has_contextual)
           << " Cannot find the FInferType or FInferTypeWithBuilder attribute registered to op: "
@@ -1049,9 +1046,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   tvm::OpAttrMap<FInferType> op_map_context_free_infer_ty =
       Op::GetAttrMap<FInferType>("FInferType");
   tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_ty =
-      Op::GetAttrMap<FInferTypeWithBuilder>("FInferTypeWithBuilder");
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
   tvm::OpAttrMap<FInferTypeWithBuilder> op_map_dist_infer_ty =
-      Op::GetAttrMap<FInferTypeWithBuilder>("dist.FInferTypeWithBuilder");
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder");
   /*! \brief Operator normalization function */
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
 

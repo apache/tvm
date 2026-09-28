@@ -101,7 +101,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("shape", "The shape of the created tensor."),
                  sig::arg("fill_value", "The scalar tensor, denoting the value to fill."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeFull)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeFull>())
       .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<bool>("FDataDependent", true)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -147,7 +147,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.full_like")
       .signature(sig::arg("x", "The input tensor."),
                  sig::arg("fill_value", "The scalar value to fill."), sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeFullLike)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeFullLike>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -207,13 +207,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ones")
       .signature(sig::arg("shape", "The shape of the created tensor."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeOnesZeros)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOnesZeros>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.ones_like")
       .signature(sig::arg("x", "The input tensor."), sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeOnesLikeZerosLike)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOnesLikeZerosLike>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -240,13 +240,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.zeros")
       .signature(sig::arg("shape", "The shape of the created tensor."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeOnesZeros)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOnesZeros>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.zeros_like")
       .signature(sig::arg("x", "The input tensor."), sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeOnesLikeZerosLike)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOnesLikeZerosLike>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -329,14 +329,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("n", "Number of rows in the output."),
                  sig::arg("m", "Number of columns in the output."),
                  sig::arg("k", "Index of the diagonal."), sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeEye)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeEye>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.eye_like")
       .signature(sig::arg("x", "The input tensor."), sig::arg("k", "Index of the diagonal."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeEyeLike)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeEyeLike>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -396,7 +396,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("end", "The ending value for the set of points."),
                  sig::arg("step", "The gap between each pair of adjacent points."),
                  sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeArange)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeArange>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -456,7 +456,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                    "symmetric window"),
           sig::arg("alpha", "The coefficient alpha"), sig::arg("beta", "The coefficient beta"),
           sig::call_attrs<InitAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeHammingWindow)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeHammingWindow>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -496,12 +496,12 @@ Type InferTypeTrilTriu(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.tril")
       .signature(sig::arg("x", "The input tensor."), sig::arg("k", "The offset of the diagonal."))
-      .set_attr<FInferType>("FInferType", InferTypeTrilTriu)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeTrilTriu>())
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.triu")
       .signature(sig::arg("x", "The input tensor."), sig::arg("k", "The offset of the diagonal."))
-      .set_attr<FInferType>("FInferType", InferTypeTrilTriu)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeTrilTriu>())
       .set_attr<bool>("FPurity", true);
 }
 

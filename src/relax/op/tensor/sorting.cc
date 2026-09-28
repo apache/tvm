@@ -61,7 +61,7 @@ Type InferTypeSort(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.sort")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SortAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeSort)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeSort>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -98,7 +98,7 @@ Type InferTypeArgsort(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.argsort")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ArgsortAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeArgsort)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeArgsort>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -167,7 +167,7 @@ Type InferTypeTopK(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.topk")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TopKAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeTopK)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeTopK>())
       .set_attr<bool>("FPurity", true);
 }
 

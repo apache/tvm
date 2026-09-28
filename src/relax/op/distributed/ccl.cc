@@ -40,7 +40,7 @@ Type InferDistTypeAllReduce(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   // clang-format off
   OpDef("relax.ccl.allreduce")
-      .set_attr<FInferTypeWithBuilder>("dist.FInferTypeWithBuilder", InferDistTypeAllReduce);
+      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeAllReduce);
   // clang-format on
 }
 

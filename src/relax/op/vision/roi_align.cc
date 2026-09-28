@@ -136,7 +136,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("rois",
                    "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format."),
           sig::call_attrs<ROIAlignAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeROIAlign)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeROIAlign>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }

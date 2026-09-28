@@ -385,6 +385,9 @@ class Var : public Expr {
   /*! \brief Return a fresh ordinary Var with a new primitive type. */
   TVM_DLL Var CopyWithDType(PrimType dtype) const;
 
+  /*! \brief Return a fresh ordinary Var with a new type, retaining its metadata. */
+  TVM_DLL Var CopyWithType(Type type) const;
+
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
 };
 
@@ -514,12 +517,13 @@ class Call : public Expr {
   TVM_DLL static Call Unchecked(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
                                 ffi::Array<Type> ty_args = ffi::Array<Type>(), Span span = Span());
   /*! \brief Recompute a result type from prepared call inputs, if context-free inference exists.
+  /*! \brief Recompute a result type from the Call's current explicit inputs.
    *
    * This ignores the Call's stored result type and does not mutate the Call.
-   * Missing input types or a contextual inference rule produce std::nullopt.
-   * Errors from a registered rule are propagated.
+   * A context-free inference hook must be registered for the operator. Missing
+   * or invalid inputs are reported by the hook rather than screened here.
    */
-  TVM_DLL static ffi::Optional<Type> TryReinferType(const CallNode* call);
+  TVM_DLL static Type ReinferType(const CallNode* call);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);

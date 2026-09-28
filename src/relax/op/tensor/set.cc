@@ -161,7 +161,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("return_counts",
                    "Whether to return an additional tensor with counts of each unique elements"),
           sig::var_args("args"))
-      .set_attr<FInferType>("FInferType", InferTypeUnique)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnique>())
       .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
       .set_attr<bool>("FPurity", true);
 }
@@ -186,7 +186,7 @@ Type InferTypeNonzero(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nonzero")
       .signature(sig::arg("x", "The input tensor"))
-      .set_attr<FInferType>("FInferType", InferTypeNonzero)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeNonzero>())
       .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
       .set_attr<bool>("FPurity", true);
 }

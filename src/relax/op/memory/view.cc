@@ -400,7 +400,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("relative_byte_offset",
                           "The view's byte offset, relative to the input tensor's byte offset."))
       .set_attr<bool>("RequiresArgumentShapes", false)
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeView)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeView)
       .set_attr<bool>("FPurity", true)
       .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinView);
 }
@@ -435,7 +435,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.memory.ensure_zero_offset")
       .signature(sig::arg("x", "The input tensor."))
       .set_attr<bool>("RequiresArgumentShapes", false)
-      .set_attr<FInferType>("FInferType", InferTypeEnsureZeroOffset)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeEnsureZeroOffset>())
       .set_attr<bool>("FPurity", true)
       .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinEnsureZeroOffset);
 }

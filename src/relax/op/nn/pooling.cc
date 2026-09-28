@@ -147,7 +147,7 @@ InferLayoutOutput InferLayoutPool1d(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypePool1D)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool1D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -303,7 +303,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>(),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypePool2D)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -452,7 +452,7 @@ InferLayoutOutput InferLayoutPool3d(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypePool3D)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -472,7 +472,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.avg_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypePool1D)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool1D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -492,7 +492,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.avg_pool2d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypePool2D)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -512,7 +512,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.avg_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypePool3D)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypePool3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -594,7 +594,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool1d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool1DAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool1D)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAdaptiveAvgPool1D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool1D)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -699,7 +699,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool2DAttrs>(),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool2D)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAdaptiveAvgPool2D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -786,7 +786,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool3d")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool3DAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool3D)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAdaptiveAvgPool3D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool3D)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);

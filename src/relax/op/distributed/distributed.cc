@@ -65,8 +65,9 @@ Type InferTypeAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.annotate_sharding")
       .signature(sig::arg("input", "The input tensor."), sig::call_attrs<DistributionAttrs>())
-      .set_attr<FInferTypeWithBuilder>("dist.FInferTypeWithBuilder", InferTypeAnnotateSharding)
-      .set_attr<FInferType>("dist.FInferType", InferTypeAnnotateSharding)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeAnnotateSharding)
+      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder",
+                                       InferTypeAnnotateSharding)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -97,7 +98,8 @@ Type InferDistTypeRedistribute(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.redistribute")
       .signature(sig::arg("input", "The input tensor."), sig::call_attrs<DistributionAttrs>())
-      .set_attr<FInferTypeWithBuilder>("dist.FInferTypeWithBuilder", InferDistTypeRedistribute)
+      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder",
+                                       InferDistTypeRedistribute)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -117,7 +119,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("func", "The destination-passing-style function."),
                  sig::arg("args", "The input arguments."),
                  sig::ty_arg("out_type", "The output type."))
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeCallTIRLocalView)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeCallTIRLocalView)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -221,8 +223,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dist.redistribute_replica_to_shard")
       .signature(sig::arg("input", "The buffer to be sliced."),
                  sig::call_attrs<ScatterCollectiveAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeRtoS)
-      .set_attr<FInferTypeWithBuilder>("dist.FInferTypeWithBuilder", InferDistTypeRtoS)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeRtoS)
+      .set_attr<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder", InferDistTypeRtoS)
       .set_attr<bool>("FPurity", true);
 }
 

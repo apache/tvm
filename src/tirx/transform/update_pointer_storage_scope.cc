@@ -70,7 +70,7 @@ UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, Inplace
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
   }
   if (!op->op.same_as(builtin::buffer_data()) || op->args.size() != 1) return result;
-  PointerType type = op->args[0].as_or_throw<BufferVar>().DataPointerType();
+  Type type = Call::ReinferType(op);
   if (ffi::StructuralEqual()(op->ty, type)) return result;
   if (inplace_mode == InplaceMode::kAllow) {
     const_cast<CallNode*>(op)->ty = std::move(type);

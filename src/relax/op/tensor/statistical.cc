@@ -260,7 +260,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.cumprod")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ScanopAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeScan)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeScan>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -282,7 +282,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.cumsum")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ScanopAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeScan)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeScan>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -301,7 +301,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.median")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatisticalExtension)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStatisticalExtension>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -366,7 +366,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.max")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -374,7 +374,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.mean")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -382,7 +382,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.min")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -390,7 +390,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.prod")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -398,7 +398,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.std")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -406,7 +406,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.sum")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -414,7 +414,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.variance")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 }

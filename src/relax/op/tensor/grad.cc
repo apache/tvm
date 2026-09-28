@@ -51,7 +51,7 @@ Type InferTypeNoGrad(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.no_grad")
       .signature(sig::arg("x", "The corresponding input tensor."))
-      .set_attr<FInferType>("FInferType", InferTypeNoGrad)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeNoGrad>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -78,7 +78,7 @@ Type InferTypeStartCheckpoint(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.start_checkpoint")
       .signature(sig::arg("x", "The tensor marking the input of the checkpoint stage."))
-      .set_attr<FInferType>("FInferType", InferTypeStartCheckpoint)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeStartCheckpoint>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -105,7 +105,7 @@ Type InferTypeEndCheckpoint(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.end_checkpoint")
       .signature(sig::arg("x", "The output of the checkpoint stage."))
-      .set_attr<FInferType>("FInferType", InferTypeEndCheckpoint)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeEndCheckpoint>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -146,7 +146,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("predictions", "The prediction tensor."),
                  sig::arg("targets", "The target tensor."), sig::var_args("args"),
                  sig::call_attrs<NLLLossAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeNLLLossBackward)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeNLLLossBackward>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -183,7 +183,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.max_pool2d_backward")
       .signature(sig::arg("output_grad", "The output gradient."),
                  sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeMaxPool2DBackward)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeMaxPool2DBackward>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -220,7 +220,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.grad.avg_pool2d_backward")
       .signature(sig::arg("output_grad", "The output gradient."),
                  sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeAvgPool2DBackward)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAvgPool2DBackward>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -252,7 +252,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("x", "The source tensor."),
                  sig::arg("indices", "The indices of the values to extract."),
                  sig::call_attrs<TakeAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeTakeBackward)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeTakeBackward>())
       .set_attr<bool>("FPurity", true);
 }
 

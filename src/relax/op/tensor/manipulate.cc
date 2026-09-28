@@ -134,7 +134,7 @@ Type InferTypeBroadcastTo(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.broadcast_to")
       .signature(sig::arg("x", "The input tensor."), sig::arg("shape", "The target shape."))
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeBroadcastTo)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeBroadcastTo)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -393,7 +393,7 @@ InferLayoutOutput InferLayoutConcat(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.concat")
       .signature(sig::arg("tensors", "The input list of tensors."), sig::call_attrs<ConcatAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeConcat)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeConcat)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -498,7 +498,7 @@ InferLayoutOutput InferLayoutExpandDims(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.expand_dims")
       .signature(sig::arg("x", "The input tensor."), sig::call_attrs<ExpandDimsAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeExpandDims)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeExpandDims>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutExpandDims)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -546,7 +546,7 @@ Type InferTypeFlatten(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.flatten")
       .signature(sig::arg("x", "The input tensor."))
-      .set_attr<FInferType>("FInferType", InferTypeFlatten)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeFlatten>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -697,7 +697,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.index_tensor")
       .signature(sig::arg("data", "The input data."),
                  sig::arg("indices", "The indices used to index."))
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeIndexTensor)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeIndexTensor)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -765,7 +765,7 @@ Type InferTypeLayoutTransform(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.layout_transform")
       .signature(sig::arg("x", "The input tensor."), sig::call_attrs<LayoutTransformAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeLayoutTransform)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeLayoutTransform>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -886,7 +886,7 @@ InferLayoutOutput InferLayoutPermuteDims(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.permute_dims")
       .signature(sig::arg("x", "The input tensor."), sig::call_attrs<PermuteDimsAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypePermuteDims)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypePermuteDims>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPermuteDims)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -1052,7 +1052,7 @@ Type InferTypeReshape(const Call& call, const BlockBuilder& ctx) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.reshape")
       .signature(sig::arg("x", "The input tensor."), sig::arg("shape", "The input new shape."))
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeReshape)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeReshape)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -1225,7 +1225,7 @@ InferLayoutOutput InferLayoutSplit(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.split")
       .signature(sig::arg("x", "The input tensor."), sig::call_attrs<SplitAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeSplit)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeSplit)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSplit)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -1385,7 +1385,7 @@ InferLayoutOutput InferLayoutSqueeze(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.squeeze")
       .signature(sig::arg("x", "The input tensor."), sig::call_attrs<SqueezeAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeSqueeze)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeSqueeze>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSqueeze)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -1638,7 +1638,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.stack")
       .signature(sig::arg("tensors", "The input list of tensors to stack"),
                  sig::call_attrs<StackAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeStack)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeStack)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStack)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -1688,7 +1688,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.collapse_sum_like")
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("collapse_target", "The tensor whose shape is the shape to collapse to."))
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeCollapseSumLike)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeCollapseSumLike)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1739,7 +1739,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.collapse_sum_to")
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("shape", "The shape to collapse to."))
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeCollapseSumTo)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeCollapseSumTo)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1863,7 +1863,7 @@ InferLayoutOutput InferLayoutRepeat(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.repeat")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<RepeatAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeRepeat)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeRepeat)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRepeat)
       .set_attr<bool>("FPurity", true);
 }
@@ -2007,7 +2007,7 @@ InferLayoutOutput InferLayoutTile(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.tile")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TileAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeTile)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeTile)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutTile)
       .set_attr<bool>("FPurity", true);
 }
@@ -2080,7 +2080,7 @@ InferLayoutOutput InferLayoutFlip(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.flip")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<FlipAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeFlip)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeFlip>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutFlip)
       .set_attr<bool>("FPurity", true);
 }
@@ -2176,7 +2176,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("seq_lengths", "The sequence length tensor."),
                  sig::call_attrs<ReverseSequenceAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeReverseSequence)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeReverseSequence)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -2278,7 +2278,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.gather_elements")
       .signature(sig::arg("data", "The input tensor."), sig::arg("indices", "The indices tensor."),
                  sig::call_attrs<GatherElementsAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeGatherElements)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeGatherElements>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGatherElements)
       .set_attr<bool>("FPurity", true);
 }
@@ -2373,7 +2373,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.gather_nd")
       .signature(sig::arg("data", "The input tensor."), sig::arg("indices", "The indices tensor."),
                  sig::call_attrs<GatherNDAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeGatherND)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeGatherND>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -2525,7 +2525,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("indices", "The indices tensor(s)."),
                  sig::arg("values", "The values to put."), sig::call_attrs<IndexPutAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeIndexPut)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeIndexPut>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -2631,7 +2631,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.meshgrid")
       .signature(sig::arg("tensors", "The input list of tensors."),
                  sig::call_attrs<MeshgridAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeMeshgrid)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeMeshgrid>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -2776,7 +2776,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."), sig::arg("indices", "The indices tensor."),
                  sig::arg("updates", "The input tensor of updates."),
                  sig::call_attrs<ScatterElementsAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeScatterElements)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeScatterElements)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterElements)
       .set_attr<bool>("FPurity", true);
 }
@@ -2954,7 +2954,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."), sig::arg("indices", "The indices tensor."),
                  sig::arg("updates", "The input tensor of updates."),
                  sig::call_attrs<ScatterNDAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeScatterND)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeScatterND)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutScatterND)
       .set_attr<bool>("FPurity", true);
 }
@@ -3110,7 +3110,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("start", "The starting index of the slice (inclusive)."),
                  sig::arg("end", "The ending index of the slice (exclusive)."),
                  sig::arg("step", "The step of the slice."), sig::call_attrs<SliceScatterAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeSliceScatter)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeSliceScatter)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -3195,7 +3195,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("on_value", "The value to fill at specified indices."),
                  sig::arg("off_value", "The value to fill at other indices."),
                  sig::call_attrs<OneHotAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeOneHot)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeOneHot>())
       .set_attr<bool>("FPurity", true);
 }
 

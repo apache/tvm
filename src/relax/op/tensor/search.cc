@@ -87,7 +87,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               "1-D tensor, must contain a strictly increasing sequence, or the return value is "
               "undefined."),
           sig::call_attrs<BucketizeAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeBucketize)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeBucketize>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -189,7 +189,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("condition", "When True, yield `x1`; otherwise, yield `x2`."),
                  sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."))
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeWhere)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeWhere)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -275,7 +275,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.argmax")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeArgmaxArgmin)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeArgmaxArgmin>())
       .set_attr<bool>("FPurity", true);
 };
 
@@ -284,7 +284,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.argmin")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeArgmaxArgmin)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeArgmaxArgmin>())
       .set_attr<bool>("FPurity", true);
 };
 

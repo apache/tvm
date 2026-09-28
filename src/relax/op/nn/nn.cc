@@ -81,7 +81,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<false>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<false>>());
 
   /* relax.nn.gelu */
 
@@ -94,7 +94,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   /* relax.nn.gelu_tanh */
 
@@ -107,7 +107,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   /* relax.nn.selu */
 
@@ -120,7 +120,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 
   /* relax.nn.silu */
 
@@ -133,7 +133,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArithContextFree<true>);
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeUnaryArithContextFree<true>>());
 }
 
 /* relax.nn.leakyrelu */
@@ -154,7 +154,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
           sig::call_attrs<LeakyReluAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArith</*require_float_dtype=*/true>)
+      .set_attr<FInferType>(
+          "FInferType",
+          MakeFInferType<InferTypeUnaryArithContextFree</*require_float_dtype=*/true>>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -177,7 +179,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("data", "The input tensor."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
           sig::call_attrs<SoftplusAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeUnaryArith</*require_float_dtype=*/true>)
+      .set_attr<FInferType>(
+          "FInferType",
+          MakeFInferType<InferTypeUnaryArithContextFree</*require_float_dtype=*/true>>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -243,7 +247,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("alpha", "The channel-wise learnable slope."),
                  sig::call_attrs<PReluAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypePRelu)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypePRelu>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPRelu)
       .set_attr<bool>("FPurity", true);
 }
@@ -309,7 +313,7 @@ InferLayoutOutput InferLayoutSoftmax(
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.softmax")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeSoftmax)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeSoftmax>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax)
       .set_attr<bool>("FPurity", true);
 }
@@ -328,7 +332,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.nn.log_softmax")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeSoftmax)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeSoftmax>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -376,7 +380,7 @@ Type InferTypePad(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pad")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PadAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypePad)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypePad>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -449,7 +453,7 @@ Type InferTypePixelShuffle(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pixel_shuffle")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PixelShuffleAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypePixelShuffle)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypePixelShuffle>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -600,7 +604,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("gamma", "The gamma scale factor."), sig::arg("beta", "The beta offset factor."),
           sig::arg("moving_mean", "Running mean of input."),
           sig::arg("moving_var", "Running variance of input."), sig::call_attrs<BatchNormAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeBatchNorm)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeBatchNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBatchNorm)
       .set_attr<bool>("FPurity", true);
 }
@@ -667,7 +671,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "Input to which layer_norm will be applied."),
                  sig::arg("gamma", "The gamma scale factor."),
                  sig::arg("beta", "The beta offset factor."), sig::call_attrs<LayerNormAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeLayerNorm)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeLayerNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -781,7 +785,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "Input to which group_norm will be applied."),
                  sig::arg("gamma", "The gamma scale factor."),
                  sig::arg("beta", "The beta offset factor."), sig::call_attrs<GroupNormAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeGroupNorm)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeGroupNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -883,7 +887,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "Input to which instance_norm will be applied."),
                  sig::arg("gamma", "The gamma scale factor."),
                  sig::arg("beta", "The beta offset factor."), sig::call_attrs<InstanceNormAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeInstanceNorm)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeInstanceNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutInstanceNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -943,7 +947,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.rms_norm")
       .signature(sig::arg("data", "Input to which rms_norm will be applied."),
                  sig::arg("weight", "The scale factor."), sig::call_attrs<RMSNormAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeRMSNorm)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeRMSNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRMSNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -974,7 +978,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.dropout")
       .signature(sig::arg("data", "Input to which dropout will be applied."),
                  sig::call_attrs<DropoutAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeDropout)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeDropout>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -1038,7 +1042,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(
           sig::arg("predictions", "The predictions."), sig::arg("labels", "The labels."),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeCrossEntropy)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeCrossEntropy)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1269,7 +1273,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("targets", "The target tensor."), sig::var_args("args"),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
           sig::call_attrs<NLLLossAttrs>())
-      .set_attr<FInferTypeWithBuilder>("FInferTypeWithBuilder", InferTypeNLLLoss)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeNLLLoss)
       .set_attr<bool>("FPurity", true);
 }
 
@@ -1320,7 +1324,7 @@ Type InferTypeBatchFlatten(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.batch_flatten")
       .signature(sig::arg("data", "The input tensor."))
-      .set_attr<FInferType>("FInferType", InferTypeBatchFlatten)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeBatchFlatten>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }

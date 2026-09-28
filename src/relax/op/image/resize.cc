@@ -149,7 +149,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize2d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
                  sig::call_attrs<Resize2DAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeResize2D)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeResize2D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize2d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -264,7 +264,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.image.resize3d")
       .signature(sig::arg("data", "The input tensor."), sig::arg("size", "The output image shape."),
                  sig::call_attrs<Resize3DAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeResize3D)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeResize3D>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutResize3d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -357,7 +357,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input tensor."),
                  sig::arg("grid", "The grid tensor for sampling."),
                  sig::call_attrs<GridSampleAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeGridSample)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeGridSample>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
@@ -458,7 +458,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("data", "The input affine matrix tensor."),
                  sig::arg("size", "The target output shape (H, W)."),
                  sig::call_attrs<AffineGridAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeAffineGrid)
+      .set_attr<FInferType>("FInferType", MakeFInferType<InferTypeAffineGrid>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }
