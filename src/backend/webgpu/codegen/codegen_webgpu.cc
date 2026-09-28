@@ -740,17 +740,15 @@ void CodeGenWebGPU::Dispatch_(const BufferStoreNode* op) {
 }
 
 void CodeGenWebGPU::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  auto allocation_extents = allocation_shape->fields.Map(
+  auto shape = buffer_call->args[0].as_or_throw<tvm::Tuple>()->fields.Map(
       [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  DLDataType allocation_dtype_arg = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  PrimType allocation_dtype(allocation_dtype_arg);
-  ffi::String allocation_scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar allocated_buffer(op->var);
-  TVM_FFI_ICHECK(allocated_buffer.defined());
-  std::string vid = AllocVarID(allocated_buffer.get());
+  PrimType dtype(buffer_call->args[1].as_or_throw<DataTypeImm>()->value);
+  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar buffer(op->var);
+  TVM_FFI_ICHECK(buffer.defined());
+  std::string vid = AllocVarID(buffer.get());
   size_t constant_size = 1;
-  for (const auto& dim : allocation_extents) {
+  for (const auto& dim : shape) {
     const auto* dim_imm = dim.as<IntImmNode>();
     int64_t dim_size =
         dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer_->const_int_bound(dim)->max_value;
@@ -768,11 +766,11 @@ void CodeGenWebGPU::DispatchAllocBuffer(const BindNode* op, const CallNode* buff
     constant_size *= static_cast<size_t>(dim_size);
   }
 
-  size_t element_stride = GetWgslArrayElementStride(allocation_dtype);
+  size_t element_stride = GetWgslArrayElementStride(dtype);
   TVM_FFI_ICHECK_LE(constant_size, std::numeric_limits<size_t>::max() / element_stride)
       << "WebGPU allocation byte size is too large to represent";
   size_t allocation_bytes = constant_size * element_stride;
-  auto storage_scope = runtime::StorageScope::Create(allocation_scope);
+  auto storage_scope = runtime::StorageScope::Create(scope);
 
   if (storage_scope.rank == runtime::StorageRank::kShared) {
     // WebGPU rounds the size of each workgroup variable up to 16 bytes before
@@ -795,12 +793,12 @@ void CodeGenWebGPU::DispatchAllocBuffer(const BindNode* op, const CallNode* buff
         << " bytes. If the adapter supports this allocation, set "
            "max_shared_memory_per_block in the WebGPU target configuration.";
     this->decl_stream << "var<workgroup> " << vid << " : array<";
-    PrintType(allocation_dtype, this->decl_stream);
+    PrintType(dtype, this->decl_stream);
     this->decl_stream << ", " << constant_size << ">;\n";
   } else if (storage_scope.rank == runtime::StorageRank::kLocal) {
     this->PrintIndent();
     this->stream << "var " << vid << " : array<";
-    PrintType(allocation_dtype, this->stream);
+    PrintType(dtype, this->stream);
     this->stream << ", " << constant_size << ">;\n";
   } else {
     TVM_FFI_THROW(InternalError) << "WebGPU: Do not support storage scope: "

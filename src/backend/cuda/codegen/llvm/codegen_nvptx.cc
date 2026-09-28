@@ -79,29 +79,27 @@ class CodeGenNVPTX : public CodeGenLLVM {
   }
 
   void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) final {
-    tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-    Array<PrimExpr> allocation_extents = allocation_shape->fields.as_or_throw<Array<PrimExpr>>();
-    DLDataType allocation_dtype_arg = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-    PrimType allocation_dtype(allocation_dtype_arg);
-    ffi::String allocation_scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-    BufferVar allocated_buffer(op->var);
-    auto buffer_annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
+    Array<PrimExpr> shape =
+        buffer_call->args[0].as_or_throw<tvm::Tuple>()->fields.as_or_throw<Array<PrimExpr>>();
+    PrimType dtype(buffer_call->args[1].as_or_throw<DataTypeImm>()->value);
+    ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+    BufferVar buffer(op->var);
+    auto annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
     llvm::Value* buf = nullptr;
-    StorageInfo& info = alloc_storage_info_[allocated_buffer.get()];
+    StorageInfo& info = alloc_storage_info_[buffer.get()];
     // maximum necessary alignment in the NV devices
     if (info.alignment > 16) {
       info.alignment = 16;
     }
 
-    auto storage_scope = runtime::StorageScope::Create(allocation_scope);
-    PrimType dtype = allocation_dtype;
+    auto storage_scope = runtime::StorageScope::Create(scope);
 
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       // Shared memory: address space == 3
       buf = AllocateSharedMemory(dtype, 0, 3, info.alignment, llvm::GlobalValue::ExternalLinkage);
     } else {
       // Compute constant_size from buffer shape
-      const IntImmNode* dim_imm = allocation_extents[0].as<IntImmNode>();
+      const IntImmNode* dim_imm = shape[0].as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
       size_t constant_size = dim_imm->value.as<size_t>().value();
       TVM_FFI_ICHECK_GT(constant_size, 0)
@@ -129,10 +127,10 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
     buf = builder_->CreatePointerCast(
         buf, llvmGetPointerTo(DTypeToLLVMType(dtype), buf->getType()->getPointerAddressSpace()));
-    TVM_FFI_ICHECK(!var_map_.count(allocated_buffer.get()));
-    var_map_[allocated_buffer.get()] = buf;
-    if (buffer_annotations.count(tirx::attr::kVolatile)) {
-      volatile_buf_.insert(allocated_buffer.get());
+    TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
+    var_map_[buffer.get()] = buf;
+    if (annotations.count(tirx::attr::kVolatile)) {
+      volatile_buf_.insert(buffer.get());
     }
   }
 

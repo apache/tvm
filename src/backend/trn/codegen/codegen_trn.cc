@@ -215,38 +215,34 @@ std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // 
 }
 
 void CodeGenTrainium::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple allocation_shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
-  auto allocation_extents = allocation_shape->fields.Map(
+  auto shape = buffer_call->args[0].as_or_throw<tvm::Tuple>()->fields.Map(
       [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  DLDataType allocation_dtype_arg = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  PrimType allocation_dtype(allocation_dtype_arg);
-  ffi::String allocation_scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar allocated_buffer(op->var);
-  auto buffer_annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
-  TVM_FFI_ICHECK(allocated_buffer.defined());
-  std::string vid = AllocVarID(allocated_buffer.get(), allocated_buffer.name() + "_ptr");
+  PrimType dtype(buffer_call->args[1].as_or_throw<DataTypeImm>()->value);
+  std::string scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar buffer(op->var);
+  auto annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
+  TVM_FFI_ICHECK(buffer.defined());
+  std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
 
   this->PrintIndent();
-  auto scope = allocation_scope;
   std::ostringstream dtype_os;
-  PrintType(allocation_dtype, dtype_os);
+  PrintType(dtype, dtype_os);
   std::string dtype_str = dtype_os.str();
   if (scope == "trn.psum") {
     stream << vid << " = nl.ndarray(shape=[";
-    TVM_FFI_ICHECK(allocation_extents.size() == 3);
-    stream << PrintExpr(allocation_extents[0]) << ", nl.par_dim("
-           << PrintExpr(allocation_extents[1]) << "), " << PrintExpr(allocation_extents[2])
-           << "], dtype=" << dtype_str << ", buffer=";
+    TVM_FFI_ICHECK(shape.size() == 3);
+    stream << PrintExpr(shape[0]) << ", nl.par_dim(" << PrintExpr(shape[1]) << "), "
+           << PrintExpr(shape[2]) << "], dtype=" << dtype_str << ", buffer=";
   } else {
-    stream << vid << " = nl.ndarray(shape=" << PrintShapeAsList(allocation_extents)
-           << ", dtype=" << dtype_str << ", buffer=";
+    stream << vid << " = nl.ndarray(shape=" << PrintShapeAsList(shape) << ", dtype=" << dtype_str
+           << ", buffer=";
   }
   Array<PrimExpr> addr;
-  if (auto allocated_addr = buffer_annotations.Get(tirx::attr::buffer_allocated_addr)) {
+  if (auto allocated_addr = annotations.Get(tirx::attr::buffer_allocated_addr)) {
     addr = allocated_addr.value().as_or_throw<Array<PrimExpr>>();
   } else {
     // AllocBuffer is a leaf stmt after rebase; in that path allocated_addr is carried by BufferVar.
-    addr = allocated_buffer->allocated_addr;
+    addr = buffer->allocated_addr;
   }
   if (addr.empty()) {
     stream << GetStorageScopeStr(scope) << ")\n";
@@ -260,7 +256,7 @@ void CodeGenTrainium::DispatchAllocBuffer(const BindNode* op, const CallNode* bu
       int64_t base_bank = static_cast<int64_t>(addr[0].as_or_throw<IntImm>()->value);
       int64_t base_addr = static_cast<int64_t>(addr[1].as_or_throw<IntImm>()->value);
       stream << "ncc.psum.mod_alloc(base_bank=" << base_bank << ", base_addr=" << base_addr;
-      stream << ", num_bank_tiles=(" << allocation_extents[0] << ",)))\n";
+      stream << ", num_bank_tiles=(" << shape[0] << ",)))\n";
     } else {
       TVM_FFI_ICHECK(addr.size() == 1);
       TVM_FFI_ICHECK(addr[0]->IsInstance<IntImmNode>())
@@ -624,53 +620,49 @@ void CodeGenTrainium::Dispatch_(const prim::FloorModNode* op, std::ostream& os) 
 }
 
 void CodeGenTrainium::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
-  tvm::Tuple declaration_shape = buffer_call->args[1].as_or_throw<tvm::Tuple>();
-  auto declaration_extents = declaration_shape->fields.Map(
+  auto shape = buffer_call->args[1].as_or_throw<tvm::Tuple>()->fields.Map(
       [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  DLDataType declaration_dtype_arg = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
-  PrimType declaration_dtype(declaration_dtype_arg);
-  ffi::String declaration_scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
-  BufferVar declared_buffer(op->var);
-  Expr declared_data = buffer_call->args[0];
-  if (declaration_scope == "trn.psum" || declaration_scope == "trn.sbuf") {
+  PrimType dtype(buffer_call->args[2].as_or_throw<DataTypeImm>()->value);
+  ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
+  BufferVar buffer(op->var);
+  Expr data = buffer_call->args[0];
+  if (scope == "trn.psum" || scope == "trn.sbuf") {
     return;
   }
-  const VarNode* data = declared_data.as<VarNode>();
-  if (const auto* call = declared_data.as<CallNode>();
+  const VarNode* data_var = data.as<VarNode>();
+  if (const auto* call = data.as<CallNode>();
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
-    data = call->args[0].as<VarNode>();
+    data_var = call->args[0].as<VarNode>();
   }
-  TVM_FFI_ICHECK(data) << "Trainium codegen expects DeclBuffer data to be a buffer variable";
-  if (data->ty.as<PointerTypeNode>()) {
-    buffer_idmap_[declared_buffer] = GetVarID(data);
-    buffer_data_varmap_[declared_buffer] = data;
+  TVM_FFI_ICHECK(data_var) << "Trainium codegen expects DeclBuffer data to be a buffer variable";
+  if (data_var->ty.as<PointerTypeNode>()) {
+    buffer_idmap_[buffer] = GetVarID(data_var);
+    buffer_data_varmap_[buffer] = data_var;
     return;
   }
-  TVM_FFI_ICHECK(data->ty.as<BufferTypeNode>());
-  BufferVar source_buffer(ffi::GetRef<Var>(data));
+  TVM_FFI_ICHECK(data_var->ty.as<BufferTypeNode>());
+  BufferVar source_buffer(ffi::GetRef<Var>(data_var));
   auto source_it = buffer_data_varmap_.find(source_buffer);
   TVM_FFI_ICHECK(source_it != buffer_data_varmap_.end())
       << "Trainium codegen expects the source buffer to be declared before its alias";
-  data = source_it->second;
+  data_var = source_it->second;
 
-  auto it = data_buffer_idmap_.find(data);
+  auto it = data_buffer_idmap_.find(data_var);
   if (it != data_buffer_idmap_.end()) {
-    const BufferVar& prev_buffer = data_decl_buffer_map_.at(data);
-    if (ffi::StructuralEqual()(prev_buffer->shape, declaration_extents) &&
-        prev_buffer->dtype == declaration_dtype) {
-      buffer_idmap_[declared_buffer] = it->second;
+    const BufferVar& prev_buffer = data_decl_buffer_map_.at(data_var);
+    if (ffi::StructuralEqual()(prev_buffer->shape, shape) && prev_buffer->dtype == dtype) {
+      buffer_idmap_[buffer] = it->second;
       return;
     }
   }
-  std::string data_vid = GetVarID(data);
+  std::string data_vid = GetVarID(data_var);
   std::string buffer_vid = name_supply_->FreshName(data_vid + "_buffer");
-  buffer_idmap_[declared_buffer] = buffer_vid;
-  buffer_data_varmap_[declared_buffer] = data;
-  data_buffer_idmap_[data] = buffer_vid;
-  data_decl_buffer_map_[data] = declared_buffer;
+  buffer_idmap_[buffer] = buffer_vid;
+  buffer_data_varmap_[buffer] = data_var;
+  data_buffer_idmap_[data_var] = buffer_vid;
+  data_decl_buffer_map_[data_var] = buffer;
   PrintIndent();
-  stream << buffer_vid << " = " << data_vid << ".reshape(" << PrintShapeAsList(declaration_extents)
-         << ")\n";
+  stream << buffer_vid << " = " << data_vid << ".reshape(" << PrintShapeAsList(shape) << ")\n";
 }
 
 ffi::Module BuildTrainium(IRModule mod, Target target) {
