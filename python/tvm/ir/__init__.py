@@ -53,6 +53,7 @@ from .expr import (
     Var,
     is_prim_expr,
     is_prim_var,
+    reinfer_type,
 )
 from . import prim
 from .function import BaseFunc, CallingConv

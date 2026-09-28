@@ -292,15 +292,32 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
-  auto value = Mutate(op->value, inplace_mode);
-  if (value.UnchangedOrSameAs(op->value)) return ffi::Unchanged();
+  Type old_value_type = op->value->ty;
+  auto value_u = Mutate(op->value, inplace_mode);
+  bool value_changed = !value_u.UnchangedOrSameAs(op->value);
+  Expr value = std::move(value_u).ValueOrUnchanged(op->value);
+  value_changed |= !old_value_type.same_as(value->ty);
+  Type old_var_type = op->var->ty;
+  auto var_u = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
+                 return Mutate(op->var, inplace_mode);
+               }).as_or_throw<UnchangedOr<Var>>();
+  bool var_changed = !var_u.UnchangedOrSameAs(op->var);
+  Var var = std::move(var_u).ValueOrUnchanged(op->var);
+  var_changed |= !old_var_type.same_as(var->ty);
+  if ((value_changed || var_changed) && !var->ty.same_as(value->ty)) {
+    var = var.CopyWithType(value->ty);
+  }
+  if (!var.same_as(op->var)) VarRemapSet(op->var, var);
+  if (value.same_as(op->value) && var.same_as(op->var)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<BindNode*>(op);
-    if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
+    writable->value = std::move(value);
+    writable->var = std::move(var);
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<BindNode>(*op);
-  if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
+  copy->value = std::move(value);
+  copy->var = std::move(var);
   return Stmt(std::move(copy));
 }
 
