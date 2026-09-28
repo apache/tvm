@@ -98,6 +98,10 @@ Op Op::Get(const ffi::String& name) { return OpRegistry::Global()->Get(name); }
 
 ffi::Array<ffi::String> Op::ListNames() { return OpRegistry::Global()->ListNames(); }
 
+void Op::ThrowInvalidCall(const OpNode* op) {
+  TVM_FFI_THROW(TypeError) << "Op `" << op->name << "`: invalid Call";
+}
+
 bool Op::HasAttrMap(const ffi::String& name) { return OpRegistry::Global()->HasAttrMap(name); }
 
 ffi::List<ffi::Any> Op::GetAttrColumn(const ffi::String& name) {
@@ -140,6 +144,84 @@ OpDef& OpDef::reset_attr(const ffi::String& name) {
   return *this;
 }
 
+namespace {
+
+ffi::Array<ArgumentInfo> MakeArgumentInfos(const ffi::Array<ffi::String>& names,
+                                           const ffi::Array<ffi::String>& docs) {
+  TVM_FFI_CHECK_EQ(names.size(), docs.size(), ValueError);
+  ffi::Array<ArgumentInfo> infos;
+  for (size_t i = 0; i < names.size(); ++i) {
+    auto info = ffi::make_object<ArgumentInfoNode>();
+    info->name = names[i];
+    info->doc = docs[i];
+    infos.push_back(ArgumentInfo(std::move(info)));
+  }
+  return infos;
+}
+
+ffi::Optional<ArgumentInfo> MakeTailInfo(const ffi::Array<ffi::String>& tail) {
+  TVM_FFI_CHECK(tail.empty() || tail.size() == 2, ValueError)
+      << "A variadic signature entry must have a name and documentation";
+  if (tail.empty()) return std::nullopt;
+  auto info = ffi::make_object<ArgumentInfoNode>();
+  info->name = tail[0];
+  info->doc = tail[1];
+  return ArgumentInfo(std::move(info));
+}
+
+TVM_FFI_INLINE ffi::Expected<void> ValidateCountSignature(const CallNode* call) noexcept {
+  const OpNode* op = call ? call->op.as<OpNode>() : nullptr;
+  if (TVM_FFI_PREDICT_FALSE(!op)) {
+    return TVM_FFI_UNEXPECTED(TypeError) << "Invalid Op Call";
+  }
+  if (TVM_FFI_PREDICT_FALSE(!call->args.defined() || !call->ty_args.defined())) {
+    return TVM_FFI_UNEXPECTED(TypeError) << "Op `" << op->name << "`: invalid Call";
+  }
+  const size_t n_args = op->args_info.size();
+  const bool var_args = op->var_args_info.has_value();
+  if (TVM_FFI_PREDICT_FALSE(var_args ? call->args.size() < n_args : call->args.size() != n_args)) {
+    return TVM_FFI_UNEXPECTED(TypeError)
+           << "Op `" << op->name << "`: Call.args expected " << (var_args ? "at least " : "")
+           << n_args << (n_args == 1 ? " argument" : " arguments") << ", got " << call->args.size();
+  }
+  const size_t n_ty_args = op->ty_args_info.size();
+  const bool var_ty_args = op->var_ty_args_info.has_value();
+  if (TVM_FFI_PREDICT_FALSE(var_ty_args ? call->ty_args.size() < n_ty_args
+                                        : call->ty_args.size() != n_ty_args)) {
+    return TVM_FFI_UNEXPECTED(TypeError)
+           << "Op `" << op->name << "`: Call.ty_args expected " << (var_ty_args ? "at least " : "")
+           << n_ty_args << (n_ty_args == 1 ? " type argument" : " type arguments") << ", got "
+           << call->ty_args.size();
+  }
+  return {};
+}
+
+void SetOpSignature(Op op, const ffi::Array<ffi::String>& arg_names,
+                    const ffi::Array<ffi::String>& arg_docs,
+                    const ffi::Array<ffi::String>& ty_arg_names,
+                    const ffi::Array<ffi::String>& ty_arg_docs,
+                    const ffi::Array<ffi::String>& var_args,
+                    const ffi::Array<ffi::String>& var_ty_args) {
+  auto args_info = MakeArgumentInfos(arg_names, arg_docs);
+  auto ty_args_info = MakeArgumentInfos(ty_arg_names, ty_arg_docs);
+  auto var_args_info = MakeTailInfo(var_args);
+  auto var_ty_args_info = MakeTailInfo(var_ty_args);
+  auto* node = const_cast<OpNode*>(op.operator->());
+  if (!node->validator_is_custom) {
+    using View = ffi::reflection::NativeFunctionView<ffi::Expected<void>(const CallNode*)>;
+    node->validator = ffi::reflection::NativeFunction<ffi::Expected<void>(const CallNode*)>::From(
+        View::FromNative<&ValidateCountSignature>());
+  }
+  node->args_info = std::move(args_info);
+  node->ty_args_info = std::move(ty_args_info);
+  node->var_args_info = std::move(var_args_info);
+  node->var_ty_args_info = std::move(var_ty_args_info);
+  node->attrs_type_key = "";
+  node->attrs_type_index = 0;
+}
+
+}  // namespace
+
 void OpNode::RegisterReflection() {
   namespace refl = ffi::reflection;
   // clang-format off
@@ -149,8 +231,9 @@ void OpNode::RegisterReflection() {
       .def_ro("doc", &OpNode::doc, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("args_info", &OpNode::args_info, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("attrs_type_key", &OpNode::attrs_type_key, refl::AttachFieldFlag::SEqHashIgnore())
-      .def_ro("allow_extra_args", &OpNode::allow_extra_args, refl::AttachFieldFlag::SEqHashIgnore())
       .def_ro("ty_args_info", &OpNode::ty_args_info, refl::AttachFieldFlag::SEqHashIgnore())
+      .def_ro("var_args_info", &OpNode::var_args_info, refl::AttachFieldFlag::SEqHashIgnore())
+      .def_ro("var_ty_args_info", &OpNode::var_ty_args_info, refl::AttachFieldFlag::SEqHashIgnore())
       .def_static("get", &Op::Get,
                   "get(op_name: str) -> Op\n\nReturn the canonical named Op; raise AttributeError "
                   "if unregistered.")
@@ -172,6 +255,7 @@ void OpNode::RegisterReflection() {
         OpDef(op->name)
             .set_attr(name, value, override);
       })
+      .def("_set_signature", &SetOpSignature)
       .def(
           "reset_attr", [](Op op, ffi::String name) {
             OpDef(op->name)
@@ -187,12 +271,6 @@ void OpNode::RegisterReflection() {
           },
           "add_arg(name: str, doc: str) -> None\n\nAppend an argument's "
           "name and documentation.")
-      .def(
-          "set_allow_extra_args", [](Op op) {
-            OpDef(op->name)
-                .allow_extra_args();
-          },
-          "set_allow_extra_args() -> None\n\nAllow value arguments after the required prefix.")
       .def(
           "add_ty_arg",
           [](Op op, ffi::String name, ffi::String doc) {

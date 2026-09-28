@@ -17,6 +17,8 @@
 # pylint: disable=invalid-name
 """Primitive operators in the TVM IR."""
 
+from collections.abc import Sequence
+
 import tvm_ffi
 
 from . import _ffi_api
@@ -75,6 +77,56 @@ class Op(Expr):
         None
         """
         self._set_attr(attr_name, value, override)
+
+    def set_signature(self, args=(), *, ty_args=(), var_args=None, var_ty_args=None) -> None:
+        """Replace this Op's argument signature and validate Call arity.
+
+        Each entry is a name string or a ``(name, doc)`` tuple of strings.
+        Fixed entries form required prefixes; a variadic entry allows zero or
+        more additional arguments. Calls must have exactly the required count
+        without a tail, or at least that count with one. This method does not
+        check argument types or Call attrs. It replaces a generated typed
+        validator with a count-only one, while an existing custom validator
+        keeps precedence.
+
+        Parameters
+        ----------
+        args : sequence[str or tuple[str, str]], optional
+            Fixed value arguments, in order.
+        ty_args : sequence[str or tuple[str, str]], optional
+            Fixed type arguments, in order.
+        var_args : str or tuple[str, str], optional
+            Variadic value-argument tail.
+        var_ty_args : str or tuple[str, str], optional
+            Variadic type-argument tail.
+
+        Returns
+        -------
+        None
+        """
+
+        def parse_entry(entry, label):
+            if isinstance(entry, str):
+                return entry, ""
+            if (
+                isinstance(entry, tuple)
+                and len(entry) == 2
+                and all(isinstance(part, str) for part in entry)
+            ):
+                return entry
+            raise TypeError(f"{label} must be a name string or a (name, doc) tuple")
+
+        def parse_fixed(entries, label):
+            if not isinstance(entries, Sequence) or isinstance(entries, str | bytes):
+                raise TypeError(f"{label} must be a sequence of signature entries")
+            parsed = [parse_entry(entry, label) for entry in entries]
+            return [name for name, _ in parsed], [doc for _, doc in parsed]
+
+        arg_names, arg_docs = parse_fixed(args, "args")
+        ty_arg_names, ty_arg_docs = parse_fixed(ty_args, "ty_args")
+        value_tail = [] if var_args is None else list(parse_entry(var_args, "var_args"))
+        type_tail = [] if var_ty_args is None else list(parse_entry(var_ty_args, "var_ty_args"))
+        self._set_signature(arg_names, arg_docs, ty_arg_names, ty_arg_docs, value_tail, type_tail)
 
 
 def register_op_attr(op_name, attr_key, value=None, override=False):

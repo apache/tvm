@@ -37,49 +37,37 @@ void RegisterMetalTargetBuiltins() {
   registered = true;
 
   OpDef("tirx.make_filled_simdgroup_matrix")
-      .add_arg("d", "The D operand.")
-      .add_arg("index", "The index.")
-      .add_arg("value", "The value to use.")
-      .add_arg("col", "The column index.")
-      .add_arg("row", "The row index.")
+      .signature(sig::arg("d", "The D operand."), sig::arg("index", "The index."),
+                 sig::arg("value", "The value to use."), sig::arg("col", "The column index."),
+                 sig::arg("row", "The row index."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                     ffi::String("metal.make_filled_simdgroup_matrix"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.simdgroup_load")
-      .add_arg("d", "The D operand.")
-      .add_arg("index", "The index.")
-      .add_arg("ptr", "The pointer.")
-      .add_arg("stride", "The stride.")
-      .add_arg("col", "The column index.")
-      .add_arg("row", "The row index.")
-      .add_arg("transpose_matrix", "Whether to transpose the matrix.")
+      .signature(sig::arg("d", "The D operand."), sig::arg("index", "The index."),
+                 sig::arg("ptr", "The pointer."), sig::arg("stride", "The stride."),
+                 sig::arg("col", "The column index."), sig::arg("row", "The row index."),
+                 sig::arg("transpose_matrix", "Whether to transpose the matrix."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simdgroup_load"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.simdgroup_store")
-      .add_arg("d", "The D operand.")
-      .add_arg("index", "The index.")
-      .add_arg("ptr", "The pointer.")
-      .add_arg("stride", "The stride.")
-      .add_arg("col", "The column index.")
-      .add_arg("row", "The row index.")
-      .add_arg("transpose_matrix", "Whether to transpose the matrix.")
+      .signature(sig::arg("d", "The D operand."), sig::arg("index", "The index."),
+                 sig::arg("ptr", "The pointer."), sig::arg("stride", "The stride."),
+                 sig::arg("col", "The column index."), sig::arg("row", "The row index."),
+                 sig::arg("transpose_matrix", "Whether to transpose the matrix."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simdgroup_store"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.simdgroup_multiply_accumulate")
-      .add_arg("d", "The D operand.")
-      .add_arg("index_d", "The D fragment index.")
-      .add_arg("a", "The A operand.")
-      .add_arg("index_a", "The A fragment index.")
-      .add_arg("b", "The B operand.")
-      .add_arg("index_b", "The B fragment index.")
-      .add_arg("c", "The C operand.")
-      .add_arg("index_c", "The C fragment index.")
+      .signature(sig::arg("d", "The D operand."), sig::arg("index_d", "The D fragment index."),
+                 sig::arg("a", "The A operand."), sig::arg("index_a", "The A fragment index."),
+                 sig::arg("b", "The B operand."), sig::arg("index_b", "The B fragment index."),
+                 sig::arg("c", "The C operand."), sig::arg("index_c", "The C fragment index."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                     ffi::String("metal.simdgroup_multiply_accumulate"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))

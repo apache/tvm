@@ -94,7 +94,7 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         register_op_attr(entry.op_name, "TCallEffectKind", _EFFECT_OPAQUE)
         # Encoded variants have no shared named operand prefix; codegen checks
         # each variant's operands, predicate, modifier tokens, and marker.
-        Op.get(entry.op_name).set_allow_extra_args()
+        Op.get(entry.op_name).set_signature(var_args="operands")
         # The printer name is the *surface* path a user can type, which is the
         # mnemonic (several `mov_*` entries all answer to `T.ptx.mov`), not the
         # table key. Reparsing re-dispatches on the operand shape.
