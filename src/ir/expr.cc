@@ -1216,19 +1216,6 @@ Type Call::ReinferType(const CallNode* call) {
   Type result = infer_type[op.value()](call).value();
   TVM_FFI_CHECK(!result.IsMissing(), InternalError)
       << "FInferType for " << op.value() << " returned Type::Missing()";
-  if (const auto* old_prim = call->ty.as<PrimTypeNode>()) {
-    if (const auto* inferred_prim = result.as<PrimTypeNode>();
-        inferred_prim && old_prim->dtype == inferred_prim->dtype) {
-      return call->ty;
-    }
-  }
-  if (const auto* old_pointer = call->ty.as<PointerTypeNode>()) {
-    if (const auto* inferred_pointer = result.as<PointerTypeNode>();
-        inferred_pointer && old_pointer->element_type.same_as(inferred_pointer->element_type) &&
-        old_pointer->storage_scope == inferred_pointer->storage_scope) {
-      return call->ty;
-    }
-  }
   return result;
 }
 
