@@ -25,12 +25,16 @@
 #define TVM_IR_OP_H_
 
 #include <tvm/ffi/container/list.h>
+#include <tvm/ffi/expected.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/native_function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -77,15 +81,20 @@ class OpNode : public ExprNode {
   ffi::String doc;
   /*! \brief Descriptors for the ordered required value-argument prefix. */
   ffi::Array<ArgumentInfo> args_info;
-  /*! \brief Accept at least args_info.size() value arguments when true, exactly that count
-   * otherwise. */
-  bool allow_extra_args{false};
-  /*! \brief Descriptors for Call.ty_args; inference owns optional/variable type-argument checks. */
+  /*! \brief Descriptors for the ordered required type-argument prefix. */
   ffi::Array<ArgumentInfo> ty_args_info;
-  /*! \brief Attribute object type key, or empty when unrestricted. */
+  /*! \brief Named variadic value tail, excluded from the required args_info prefix. */
+  ffi::Optional<ArgumentInfo> var_args_info;
+  /*! \brief Named variadic type-argument tail, excluded from ty_args_info. */
+  ffi::Optional<ArgumentInfo> var_ty_args_info;
+  /*! \brief Attribute object type key, or empty when no attrs type is declared. */
   ffi::String attrs_type_key;
   /*! \brief Runtime index corresponding to attrs_type_key; not serialized. */
   uint32_t attrs_type_index{0};
+  /*! \brief Process-local validation callback, omitted from reflection. */
+  ffi::Any validator;
+  /*! \brief Whether the validator was explicitly registered rather than generated. */
+  bool validator_is_custom{false};
 
   TVM_DLL static void RegisterReflection();
 
@@ -106,13 +115,14 @@ class OpNode : public ExprNode {
  * OpDef temporarily builds metadata on the same Op returned by Get. Independent
  * registrations may attach different attributes; replacing an existing attribute
  * requires explicit override. Cached attribute maps observe subsequent changes.
- * args_info describes required value operands; allow_extra_args permits a suffix.
- * ty_args_info describes type arguments without imposing a runtime count.
+ * args_info describes required value operands; var_args_info permits a suffix.
+ * ty_args_info describes type arguments; a typed signature installs a
+ * validator that checks their count and classes.
  *
  * \code
  * TVM_FFI_STATIC_INIT_BLOCK() {
  *   OpDef("example.identity", "Return the input expression.")
- *       .add_arg("value", "The input expression.")
+ *       .signature(sig::arg("value", "The input expression."))
  *       .set_attr<bool>("FPurity", true);
  * }
  * // Copies the handle; the canonical node is shared.
@@ -151,11 +161,263 @@ class Op : public Expr {
   TVM_DLL static Op Get(const ffi::String& op_name);
   /*! \brief List registered operator names. \return Names in unspecified order. */
   TVM_DLL static ffi::Array<ffi::String> ListNames();
+  /*! \brief Validate a Call with this Op's callback, when one is registered. */
+  TVM_FFI_INLINE void Validate(const CallNode* call) const {
+    const auto& validator = get()->validator;
+    if (validator != nullptr) {
+      if (TVM_FFI_PREDICT_FALSE(!call)) {
+        ThrowInvalidCall(get());
+      }
+      using View = ffi::reflection::NativeFunctionView<ffi::Expected<void>(const CallNode*)>;
+      // set_validator stores only an owning NativeFunction with this signature.
+      ffi::details::AnyUnsafe::CopyFromAnyViewAfterCheck<View>(validator)(call).value();
+    }
+  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Op, Expr, OpNode);
 
  private:
+  TVM_DLL static void ThrowInvalidCall(const OpNode* op);
   TVM_DLL static ffi::List<ffi::Any> GetAttrColumn(const ffi::String& attr_name);
 };
+
+namespace sig {
+
+/*! \brief Base counts for descriptors accepted by OpDef::signature. */
+struct SignatureTrait {
+  /*! \brief Number of required value arguments contributed by this descriptor. */
+  static constexpr size_t kArgsCount = 0;
+  /*! \brief Number of required type arguments contributed by this descriptor. */
+  static constexpr size_t kTyArgsCount = 0;
+  /*! \brief Number of variadic value tails contributed by this descriptor. */
+  static constexpr size_t kVarArgsCount = 0;
+  /*! \brief Number of variadic type tails contributed by this descriptor. */
+  static constexpr size_t kVarTyArgsCount = 0;
+  /*! \brief Number of Call.attrs descriptors contributed by this descriptor. */
+  static constexpr size_t kCallAttrsCount = 0;
+};
+
+/*! \brief Shared inputs and indexes for a typed signature validation fold. */
+struct ValidateState {
+  /*! \brief Call being validated. */
+  const CallNode* call;
+  /*! \brief Canonical operator and its current argument metadata. */
+  const OpNode* op;
+  /*! \brief Index of the next value argument after the upfront arity check. */
+  size_t args_index = 0;
+  /*! \brief Index of the next type argument after the upfront arity check. */
+  size_t ty_args_index = 0;
+};
+
+namespace details {
+
+template <typename T>
+inline bool ReportTypeMismatch(ffi::Expected<void>* out, const ValidateState* state, bool type_arg,
+                               size_t index, ffi::AnyView actual) {
+  const auto& fixed = type_arg ? state->op->ty_args_info : state->op->args_info;
+  const auto& tail = type_arg ? state->op->var_ty_args_info : state->op->var_args_info;
+  std::string name;
+  if (index < fixed.size()) {
+    name = fixed[index]->name;
+  } else if (tail.has_value()) {
+    name = tail.value()->name;
+  }
+  std::string name_clause = name.empty() ? "" : " (`" + name + "`)";
+  TVMFFIAny raw = actual.CopyToTVMFFIAny();
+  *out = TVM_FFI_UNEXPECTED(TypeError)
+         << "Op `" << state->op->name << "`: `" << (type_arg ? "Call.ty_args[" : "Call.args[")
+         << index << "]`" << name_clause << " expected `" << ffi::TypeTraits<T>::TypeStr()
+         << "`, got `" << ffi::TypeTraits<T>::GetMismatchTypeInfo(&raw) << "`.";
+  return false;
+}
+
+}  // namespace details
+
+/*! \brief One value argument of type T, for example `sig::arg<PrimExpr>("index")`
+ * for a required primitive index expression. */
+template <typename T = Expr>
+struct arg : SignatureTrait {
+  static_assert(std::is_base_of_v<Expr, T>, "arg<T> expects an expression view");
+  /*! \brief Contributes one required value argument. */
+  static constexpr size_t kArgsCount = 1;
+  /*! \brief Argument name recorded in operator metadata. */
+  ffi::String name;
+  /*! \brief Argument documentation recorded in operator metadata. */
+  ffi::String doc;
+
+  explicit arg(ffi::String name, ffi::String doc = "")
+      : name(std::move(name)), doc(std::move(doc)) {}
+
+  void CollectMetadata(OpNode* op) const {
+    auto info = ffi::make_object<ArgumentInfoNode>();
+    info->name = name;
+    info->doc = doc;
+    op->args_info.push_back(ArgumentInfo(std::move(info)));
+  }
+
+  static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
+    if constexpr (!std::is_same_v<T, Expr>) {
+      ffi::AnyView value(state->call->args.GetArrayObj()->begin()[state->args_index]);
+      if (TVM_FFI_PREDICT_FALSE(value == nullptr ||
+                                !ffi::details::AnyUnsafe::CheckAnyViewStrict<T>(value))) {
+        return details::ReportTypeMismatch<T>(out, state, false, state->args_index, value);
+      }
+    }
+    ++state->args_index;
+    return true;
+  }
+};
+
+/*! \brief Zero or more trailing value arguments of type T, for example
+ * `sig::var_args<PrimExpr>("indices")` for primitive index operands. */
+template <typename T = Expr>
+struct var_args : SignatureTrait {
+  static_assert(std::is_base_of_v<Expr, T>, "var_args<T> expects an expression view");
+  /*! \brief Contributes one variadic value tail. */
+  static constexpr size_t kVarArgsCount = 1;
+  /*! \brief Tail name recorded in operator metadata. */
+  ffi::String name;
+  /*! \brief Tail documentation recorded in operator metadata. */
+  ffi::String doc;
+
+  explicit var_args(ffi::String name, ffi::String doc = "")
+      : name(std::move(name)), doc(std::move(doc)) {}
+
+  void CollectMetadata(OpNode* op) const {
+    auto info = ffi::make_object<ArgumentInfoNode>();
+    info->name = name;
+    info->doc = doc;
+    op->var_args_info = ArgumentInfo(std::move(info));
+  }
+
+  static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
+    if constexpr (!std::is_same_v<T, Expr>) {
+      const ffi::Any* values = state->call->args.GetArrayObj()->begin();
+      for (; state->args_index != state->call->args.size(); ++state->args_index) {
+        ffi::AnyView value(values[state->args_index]);
+        if (TVM_FFI_PREDICT_FALSE(value == nullptr ||
+                                  !ffi::details::AnyUnsafe::CheckAnyViewStrict<T>(value))) {
+          return details::ReportTypeMismatch<T>(out, state, false, state->args_index, value);
+        }
+      }
+    } else {
+      state->args_index = state->call->args.size();
+    }
+    return true;
+  }
+};
+
+/*! \brief One type argument of type T, for example `sig::ty_arg<PrimType>("dtype")`
+ * for a required primitive type. */
+template <typename T = Type>
+struct ty_arg : SignatureTrait {
+  static_assert(std::is_base_of_v<Type, T>, "ty_arg<T> expects a type view");
+  /*! \brief Contributes one required type argument. */
+  static constexpr size_t kTyArgsCount = 1;
+  /*! \brief Type-argument name recorded in operator metadata. */
+  ffi::String name;
+  /*! \brief Type-argument documentation recorded in operator metadata. */
+  ffi::String doc;
+
+  explicit ty_arg(ffi::String name, ffi::String doc = "")
+      : name(std::move(name)), doc(std::move(doc)) {}
+
+  void CollectMetadata(OpNode* op) const {
+    auto info = ffi::make_object<ArgumentInfoNode>();
+    info->name = name;
+    info->doc = doc;
+    op->ty_args_info.push_back(ArgumentInfo(std::move(info)));
+  }
+
+  static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
+    if constexpr (!std::is_same_v<T, Type>) {
+      ffi::AnyView value(state->call->ty_args.GetArrayObj()->begin()[state->ty_args_index]);
+      if (TVM_FFI_PREDICT_FALSE(value == nullptr ||
+                                !ffi::details::AnyUnsafe::CheckAnyViewStrict<T>(value))) {
+        return details::ReportTypeMismatch<T>(out, state, true, state->ty_args_index, value);
+      }
+    }
+    ++state->ty_args_index;
+    return true;
+  }
+};
+
+/*! \brief Zero or more trailing type arguments of type T, for example
+ * `sig::var_ty_args<PrimType>("dtypes")` for optional primitive types. */
+template <typename T = Type>
+struct var_ty_args : SignatureTrait {
+  static_assert(std::is_base_of_v<Type, T>, "var_ty_args<T> expects a type view");
+  /*! \brief Contributes one variadic type tail. */
+  static constexpr size_t kVarTyArgsCount = 1;
+  /*! \brief Tail name recorded in operator metadata. */
+  ffi::String name;
+  /*! \brief Tail documentation recorded in operator metadata. */
+  ffi::String doc;
+
+  explicit var_ty_args(ffi::String name, ffi::String doc = "")
+      : name(std::move(name)), doc(std::move(doc)) {}
+
+  void CollectMetadata(OpNode* op) const {
+    auto info = ffi::make_object<ArgumentInfoNode>();
+    info->name = name;
+    info->doc = doc;
+    op->var_ty_args_info = ArgumentInfo(std::move(info));
+  }
+
+  static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
+    if constexpr (!std::is_same_v<T, Type>) {
+      const ffi::Any* values = state->call->ty_args.GetArrayObj()->begin();
+      for (; state->ty_args_index != state->call->ty_args.size(); ++state->ty_args_index) {
+        ffi::AnyView value(values[state->ty_args_index]);
+        if (TVM_FFI_PREDICT_FALSE(value == nullptr ||
+                                  !ffi::details::AnyUnsafe::CheckAnyViewStrict<T>(value))) {
+          return details::ReportTypeMismatch<T>(out, state, true, state->ty_args_index, value);
+        }
+      }
+    } else {
+      state->ty_args_index = state->call->ty_args.size();
+    }
+    return true;
+  }
+};
+
+/*!
+ * \brief Require Call.attrs to hold node type T and record its metadata.
+ *
+ * \code
+ * OpDef("example.with_attrs").signature(sig::call_attrs<DictAttrsNode>());
+ * // Call.attrs must contain a DictAttrsNode for this operator.
+ * \endcode
+ */
+template <typename T>
+struct call_attrs : SignatureTrait {
+  static_assert(std::is_base_of_v<AttrsNode, T>, "call_attrs<T> expects an attribute node type");
+  /*! \brief Contributes one required Call.attrs descriptor. */
+  static constexpr size_t kCallAttrsCount = 1;
+
+  void CollectMetadata(OpNode* op) const {
+    uint32_t index = T::RuntimeTypeIndex();
+    op->attrs_type_key = T::_type_key;
+    op->attrs_type_index = index;
+  }
+
+  static bool Validate(ValidateState* state, ffi::Expected<void>* out) {
+    ffi::AnyView attrs(state->call->attrs);
+    if (TVM_FFI_PREDICT_FALSE(!state->call->attrs.defined() ||
+                              !ffi::details::AnyUnsafe::CheckAnyViewStrict<const T*>(attrs))) {
+      TVMFFIAny raw = attrs.CopyToTVMFFIAny();
+      std::string actual = state->call->attrs.defined()
+                               ? "`" + ffi::TypeTraits<const T*>::GetMismatchTypeInfo(&raw) + "`"
+                               : "None";
+      *out = TVM_FFI_UNEXPECTED(TypeError)
+             << "Op `" << state->op->name << "`: Call.attrs expected `"
+             << ffi::TypeTraits<const T*>::TypeStr() << "`, got " << actual;
+      return false;
+    }
+    return true;
+  }
+};
+
+}  // namespace sig
 
 /*! \brief Noncopyable temporary builder for a canonical Op; see Op for the example. */
 class OpDef {
@@ -181,7 +443,7 @@ class OpDef {
    * \brief Append a required value-argument descriptor.
    * \param name Argument name.
    * \param doc Argument documentation.
-   * \return This builder. Without allow_extra_args(), this is part of the complete list.
+   * \return This builder. Without a variadic descriptor, this is part of the complete list.
    */
   TVM_DLL OpDef& add_arg(const ffi::String& name, const ffi::String& doc);
   /*!
@@ -203,20 +465,53 @@ class OpDef {
    */
   TVM_DLL OpDef& set_attrs_type_key(const ffi::String& key);
   /*!
-   * \brief Allow value arguments after the required prefix described by args_info.
-   * \return This builder. An empty prefix accepts any number of value arguments.
-   */
-  OpDef& allow_extra_args() {
-    get()->allow_extra_args = true;
-    return *this;
-  }
-  /*!
    * \brief Append a descriptor for a type argument in Call.ty_args.
    * \param name Type-argument name.
    * \param doc Type-argument documentation.
    * \return This builder. Inference retains responsibility for type-argument counts.
    */
   TVM_DLL OpDef& add_ty_arg(const ffi::String& name, const ffi::String& doc);
+  /*!
+   * \brief Register a complete typed Call signature and its validator.
+   *
+   * Fixed descriptors require exactly one value/type argument each. A variadic
+   * tail accepts zero or more trailing arguments of its category. Validation
+   * throws on arity or class mismatch; it does not infer types or mutate the
+   * Call. Call construction invokes the validator unless Call::Unchecked is
+   * used. Without call_attrs<T>, Call.attrs is unconstrained. Repeated
+   * registration replaces metadata but retains any existing validator,
+   * including a generated one. Replace the callback explicitly if its
+   * executable checks must change.
+   *
+   * \code
+   * OpDef("example.op")
+   *     .signature(
+   *         sig::arg("value"),
+   *         sig::arg<PrimExpr>("index"),
+   *         sig::var_args<PrimExpr>("rest"),
+   *         sig::ty_arg("T"),
+   *         sig::var_ty_args("Ts"),
+   *         sig::call_attrs<DictAttrsNode>());
+   * \endcode
+   */
+  template <typename... Specs>
+  OpDef& signature(const Specs&... specs) {
+    auto updated = ffi::make_object<OpNode>();
+    (ApplySignatureTrait(updated.get(), specs), ...);
+    if (op_->validator == nullptr) {
+      using View = ffi::reflection::NativeFunctionView<ffi::Expected<void>(const CallNode*)>;
+      set_validator(View::FromNative<&ValidateSignature<Specs...>>());
+      get()->validator_is_custom = false;
+    }
+    OpNode* target = get();
+    target->args_info = std::move(updated->args_info);
+    target->ty_args_info = std::move(updated->ty_args_info);
+    target->var_args_info = std::move(updated->var_args_info);
+    target->var_ty_args_info = std::move(updated->var_ty_args_info);
+    target->attrs_type_key = std::move(updated->attrs_type_key);
+    target->attrs_type_index = updated->attrs_type_index;
+    return *this;
+  }
   /*!
    * \brief Register an extensible attribute, rejecting duplicates unless overridden.
    * \tparam ValueType The attribute value type.
@@ -231,6 +526,35 @@ class OpDef {
     return *this;
   }
   /*!
+   * \brief Register a validator that checks a Call with this operator.
+   *
+   * The callback accepts a `const CallNode*` and returns Expected<void>, with
+   * an error for invalid input. A native function pointer can be bound with
+   * NativeFunctionView::FromNative; a borrowed packed function may also be
+   * passed while it remains alive for this call. The setter retains an owning
+   * copy, so the original packed function may then be destroyed.
+   * Ordinary Call construction invokes it; Call::Unchecked skips that initial
+   * check, while Relax normalization and well-formedness may validate later.
+   * A signature installs its generated validator only if none is registered,
+   * so a custom validator registered first takes precedence. Replacing a
+   * generated or custom validator requires override; duplicate registration
+   * without override raises ValueError. NativeFunctionView cannot be null.
+   *
+   * \param validator Callback to install.
+   * \param override Whether to replace the current validator.
+   * \return This builder.
+   */
+  OpDef& set_validator(
+      ffi::reflection::NativeFunctionView<ffi::Expected<void>(const CallNode*)> validator,
+      bool override = false) {
+    TVM_FFI_CHECK(override || op_->validator == nullptr, ValueError)
+        << "Validator of " << op_->name << " is already registered";
+    get()->validator =
+        ffi::reflection::NativeFunction<ffi::Expected<void>(const CallNode*)>::From(validator);
+    get()->validator_is_custom = true;
+    return *this;
+  }
+  /*!
    * \brief Remove the current attribute value, with no priority fallback.
    * \param attr_name Attribute column name; missing columns and values are ignored.
    * \return This builder. Existing cached maps observe the removal.
@@ -238,6 +562,58 @@ class OpDef {
   TVM_DLL OpDef& reset_attr(const ffi::String& attr_name);
 
  private:
+  template <typename Spec>
+  static void ApplySignatureTrait(OpNode* op, const Spec& spec) {
+    static_assert(std::is_base_of_v<sig::SignatureTrait, Spec>, "Unknown signature descriptor");
+    spec.CollectMetadata(op);
+  }
+
+  template <typename... Specs>
+  TVM_FFI_INLINE static ffi::Expected<void> ValidateSignature(const CallNode* call) noexcept {
+    static_assert((std::is_base_of_v<sig::SignatureTrait, Specs> && ...),
+                  "Unknown signature descriptor");
+    constexpr size_t n_args = (size_t{0} + ... + Specs::kArgsCount);
+    constexpr size_t n_ty_args = (size_t{0} + ... + Specs::kTyArgsCount);
+    constexpr size_t n_var_args = (size_t{0} + ... + Specs::kVarArgsCount);
+    constexpr size_t n_var_ty_args = (size_t{0} + ... + Specs::kVarTyArgsCount);
+    constexpr size_t n_attrs = (size_t{0} + ... + Specs::kCallAttrsCount);
+    static_assert(n_var_args <= 1 && n_var_ty_args <= 1 && n_attrs <= 1,
+                  "Duplicate signature tail or call_attrs");
+    const OpNode* op = call ? call->op.as<OpNode>() : nullptr;
+    if (TVM_FFI_PREDICT_FALSE(!op)) {
+      return TVM_FFI_UNEXPECTED(TypeError) << "Invalid Op Call";
+    }
+    if (TVM_FFI_PREDICT_FALSE(!call->args.defined() || !call->ty_args.defined())) {
+      return TVM_FFI_UNEXPECTED(TypeError) << "Op `" << op->name << "`: invalid Call";
+    }
+    ffi::Expected<void> result;
+    auto* out = &result;
+    if (TVM_FFI_PREDICT_FALSE(n_var_args ? call->args.size() < n_args
+                                         : call->args.size() != n_args)) {
+      *out = TVM_FFI_UNEXPECTED(TypeError)
+             << "Op `" << op->name << "`: Call.args expected " << (n_var_args ? "at least " : "")
+             << n_args << (n_args == 1 ? " argument" : " arguments") << ", got "
+             << call->args.size();
+      return result;
+    }
+    if (TVM_FFI_PREDICT_FALSE(n_var_ty_args ? call->ty_args.size() < n_ty_args
+                                            : call->ty_args.size() != n_ty_args)) {
+      *out = TVM_FFI_UNEXPECTED(TypeError)
+             << "Op `" << op->name << "`: Call.ty_args expected "
+             << (n_var_ty_args ? "at least " : "") << n_ty_args
+             << (n_ty_args == 1 ? " type argument" : " type arguments") << ", got "
+             << call->ty_args.size();
+      return result;
+    }
+    if constexpr (sizeof...(Specs) != 0) {
+      sig::ValidateState state{call, op};
+      if (TVM_FFI_PREDICT_FALSE(!(Specs::Validate(&state, out) && ...))) {
+        return result;
+      }
+    }
+    return result;
+  }
+
   OpNode* get() { return const_cast<OpNode*>(op_.operator->()); }
   TVM_DLL void UpdateAttr(const ffi::String& attr_name, ffi::Any value, bool override);
   Op op_;

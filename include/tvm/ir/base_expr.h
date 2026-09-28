@@ -28,6 +28,8 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+// Keep raw and typed structural hook return paths available to all TVM IR nodes.
+#include <tvm/ir/ffi_structural_compat.h>
 #include <tvm/ir/source_map.h>
 
 #include <cstddef>
@@ -530,12 +532,24 @@ struct TypeTraits<PrimExpr>
   using Base::CheckAnyStrict;
   using Base::CopyFromAnyViewAfterCheck;
   using Base::CopyToAnyView;
-  using Base::GetMismatchTypeInfo;
   using Base::MoveFromAnyAfterCheck;
   using Base::MoveToAny;
   using Base::TryCastFromAnyView;
   using Base::TypeSchema;
-  using Base::TypeStr;
+
+  TVM_FFI_INLINE static std::string TypeStr() { return "ir.PrimExpr"; }
+
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* source) {
+    if (source->type_index >= TypeIndex::kTVMFFIStaticObjectBegin && source->v_obj != nullptr &&
+        details::IsObjectInstance<ExprNode>(source->type_index)) {
+      const auto* expr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ExprNode>(source->v_obj);
+      if (expr->ty.defined() &&
+          !details::AnyUnsafe::CheckAnyViewStrict<PrimType>(AnyView(expr->ty))) {
+        return TypeIndexToTypeKey(source->type_index) + "[ty=" + expr->ty.GetTypeKey() + "]";
+      }
+    }
+    return Base::GetMismatchTypeInfo(source);
+  }
 
   TVM_DLL static PrimExpr ConvertFallbackValue(StrictBool value);
   TVM_DLL static PrimExpr ConvertFallbackValue(int64_t value);

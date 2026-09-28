@@ -174,8 +174,8 @@ void RegisterWebGPUIntrinRules() {
 
   // Register low-level WebGPU device intrinsics.
   OpDef("tirx.webgpu.subgroup_shuffle")
-      .add_arg("var", "The variable to sync.")
-      .add_arg("lane", "The source thread id.")
+      .signature(sig::arg("var", "The variable to sync."),
+          sig::arg("lane", "The source thread id."))
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -184,8 +184,8 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.webgpu.subgroup_shuffle_up")
-      .add_arg("var", "The variable to sync.")
-      .add_arg("delta", "The source lane id offset to be added.")
+      .signature(sig::arg("var", "The variable to sync."),
+          sig::arg("delta", "The source lane id offset to be added."))
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -194,8 +194,8 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.webgpu.subgroup_shuffle_down")
-      .add_arg("var", "The variable to sync.")
-      .add_arg("delta", "The source lane id offset to be subtracted.")
+      .signature(sig::arg("var", "The variable to sync."),
+          sig::arg("delta", "The source lane id offset to be subtracted."))
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",

@@ -1130,7 +1130,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Call
 Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
-           Span span) {
+           Span span)
+    : Call(std::move(ret_ty), std::move(op), std::move(args), std::move(attrs), std::move(ty_args),
+           std::move(span), true) {}
+
+Call Call::Unchecked(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
+                     ffi::Array<Type> ty_args, Span span) {
+  return Call(std::move(ret_ty), std::move(op), std::move(args), std::move(attrs),
+              std::move(ty_args), std::move(span), false);
+}
+
+Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
+           Span span, bool validate) {
   TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
 
   ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>();
@@ -1140,6 +1151,9 @@ Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<
   n->attrs = std::move(attrs);
   n->ty_args = std::move(ty_args);
   n->span = std::move(span);
+  if (validate) {
+    if (auto opt_op = n->op.as<Op>()) opt_op.value().Validate(n.get());
+  }
   data_ = std::move(n);
 }
 
@@ -1155,6 +1169,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("ir.Call", [](Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
                                       ffi::Array<Type> ty_args, Span span) {
     return Call(ret_ty, op, args, attrs, ty_args, span);
+  });
+  refl::GlobalDef().def("ir.CallUnchecked", [](Type ret_ty, Expr op, ffi::Array<Expr> args,
+                                               Attrs attrs, ffi::Array<Type> ty_args, Span span) {
+    return Call::Unchecked(ret_ty, op, args, attrs, ty_args, span);
   });
 }
 

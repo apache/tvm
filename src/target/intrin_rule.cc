@@ -212,7 +212,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 
   OpDef("tirx.isfinite")
-      .add_arg("x", "The input value.")
+      .signature(sig::arg("x", "The input value."))
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
         const CallNode* call = e.as<CallNode>();
@@ -221,7 +221,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 
   OpDef("tirx.isinf")
-      .add_arg("x", "The input value.")
+      .signature(sig::arg("x", "The input value."))
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<FLegalize>("default.FLegalize", [](const PrimExpr& e) -> PrimExpr {
         const CallNode* call = e.as<CallNode>();
