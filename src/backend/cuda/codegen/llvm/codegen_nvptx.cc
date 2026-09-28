@@ -169,7 +169,8 @@ class CodeGenNVPTX : public CodeGenLLVM {
 #else
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
 #endif
-    return builder_->CreateCall(f, {});
+    llvm::Value* result = builder_->CreateCall(f, {});
+    return this->CreateCast(PrimType::Int(32), iv->var.ty(), result);
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {
