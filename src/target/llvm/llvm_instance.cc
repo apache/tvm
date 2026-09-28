@@ -262,18 +262,6 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance,
     }
   }
 
-  // LLVM JIT engine options
-  if (const auto& v =
-          target.Get("jit").value_or(nullptr).as_or_throw<ffi::Optional<ffi::String>>()) {
-    ffi::String value = v.value();
-    if ((value == "mcjit") || (value == "orcjit")) {
-      jit_engine_ = value;
-    } else {
-      TVM_FFI_THROW(InternalError)
-          << "invalid jit option " << value << " (can be `orcjit` or `mcjit`).";
-    }
-  }
-
   // TVM & LLVM vector width options
   if (const auto& w =
           target.Get("vector-width").value_or(nullptr).as_or_throw<ffi::Optional<int64_t>>()) {
@@ -583,10 +571,6 @@ std::string LLVMTargetInfo::str() const {
       arr.push_back(ffi::String(opt_s.str()));
     }
     obj.Set(ffi::String("cl-opt"), arr);
-  }
-
-  if (jit_engine_ != "orcjit") {
-    obj.Set(ffi::String("jit"), ffi::String(jit_engine_));
   }
 
   return std::string(ffi::json::Stringify(obj));
