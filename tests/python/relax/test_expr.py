@@ -393,6 +393,10 @@ def test_call_reinfer_type_from_current_inputs():
     unchanged = rx.Call("relax.abs", [x], ret_ty=original_ty)
     assert tvm.ir.reinfer_type(unchanged).same_as(unchanged.ty)
 
+    equivalent_ty = rx.TensorType(original_ty.shape, original_ty.dtype)
+    equivalent = rx.Call("relax.abs", [x], ret_ty=equivalent_ty)
+    assert tvm.ir.reinfer_type(equivalent).same_as(equivalent_ty)
+
     stale = rx.Call("relax.abs", [y], ret_ty=original_ty)
     _check_equal(tvm.ir.reinfer_type(stale), changed_ty)
     assert tvm.ir.reinfer_type(stale).same_as(changed_ty)
@@ -400,6 +404,8 @@ def test_call_reinfer_type_from_current_inputs():
 
     with pytest.raises(tvm.error.InternalError, match="type is not populated"):
         tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("untyped")]))
+    with pytest.raises(tvm.error.InternalError, match="type is not populated"):
+        tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("untyped")], ret_ty=original_ty))
     with pytest.raises(ValueError, match="No context-free"):
         tvm.ir.reinfer_type(rx.Call.unchecked("relax.matmul", [x, x]))
     func = rx.Var("func", rx.FuncType([original_ty], original_ty))

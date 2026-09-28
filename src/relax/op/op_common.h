@@ -200,19 +200,37 @@ inline Type InferTypeUnary(const Call& call, FType f_compute_out_dtype) {
   bool same_dtype = computed_dtype.has_value() == input_ty->dtype.has_value() &&
                     (!computed_dtype.has_value() ||
                      computed_dtype.value()->dtype == input_ty->dtype.value()->dtype);
-  if (call->ty_args.empty() && same_dtype) return input_ty;
-  auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
-  output_ty->dtype = computed_dtype;
-  if (call->ty_args.size() > 0) {
-    auto defined_ty = call->ty_args[0].as<TensorTypeNode>();
-    TVM_FFI_ICHECK(defined_ty);
-    auto shape = output_ty->GetShape();
-    TVM_FFI_ICHECK(shape.has_value());
-    TVM_FFI_ICHECK(defined_ty->vdevice.has_value());
-    return TensorType(ShapeExpr(shape.value()), output_ty->dtype, defined_ty->vdevice.value());
-  } else {
-    return TensorType(output_ty);
+  TensorType inferred = input_ty;
+  if (!call->ty_args.empty() || !same_dtype) {
+    auto output_ty = ffi::make_object<TensorTypeNode>(*input_ty.get());
+    output_ty->dtype = computed_dtype;
+    if (call->ty_args.size() > 0) {
+      auto defined_ty = call->ty_args[0].as<TensorTypeNode>();
+      TVM_FFI_ICHECK(defined_ty);
+      auto shape = output_ty->GetShape();
+      TVM_FFI_ICHECK(shape.has_value());
+      TVM_FFI_ICHECK(defined_ty->vdevice.has_value());
+      inferred =
+          TensorType(ShapeExpr(shape.value()), output_ty->dtype, defined_ty->vdevice.value());
+    } else {
+      inferred = TensorType(output_ty);
+    }
   }
+  if (const auto* old = call->ty.as<TensorTypeNode>()) {
+    auto same_optional_ref = [](const auto& lhs, const auto& rhs) {
+      return lhs.has_value() == rhs.has_value() &&
+             (!lhs.has_value() || lhs.value().same_as(rhs.value()));
+    };
+    bool same_output_dtype =
+        old->dtype.has_value() == inferred->dtype.has_value() &&
+        (!old->dtype.has_value() || old->dtype.value()->dtype == inferred->dtype.value()->dtype);
+    if (old->ndim == inferred->ndim && same_output_dtype &&
+        same_optional_ref(old->shape, inferred->shape) &&
+        same_optional_ref(old->vdevice, inferred->vdevice)) {
+      return call->ty;
+    }
+  }
+  return inferred;
 }
 
 template <bool require_float_dtype, typename FType>
