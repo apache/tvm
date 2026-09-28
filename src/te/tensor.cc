@@ -63,16 +63,19 @@ ffi::Array<PrimExpr> ValidateTensorLoad(const Call& call, Tensor* tensor_out) {
   return indices;
 }
 
-TVMFFIAny TensorVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TensorVisit(
+    ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return ffi::Optional<ffi::VisitInterrupt>(std::nullopt);
 }
 
-TVMFFIAny TensorMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorMutate(ffi::StructuralMutatorObj*,
+                                                                      ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
-TVMFFIAny TensorMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorMaybeInplaceMutate(
+    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -171,10 +174,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorNode::RegisterReflection();
   refl::TypeAttrDef<TensorNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorMutate))
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TensorVisit>())
+      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TensorMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TensorMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&TensorMaybeInplaceMutate>());
 }
 
 bool IsTensorLoad(const Expr& expr) {

@@ -33,17 +33,19 @@ namespace tirx {
 
 namespace {
 
-TVMFFIAny IterVarVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> IterVarVisit(
+    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: iter_type, thread_tag
   const IterVarNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterVarNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->dom));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
       kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->var); }));
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+  return ffi::Optional<ffi::VisitInterrupt>(std::nullopt);
 }
 
-TVMFFIAny IterVarMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: iter_type, thread_tag
   const IterVarNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterVarNode>(value);
@@ -54,16 +56,16 @@ TVMFFIAny IterVarMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) 
                                       return mutator->MutateExpected(self->var);
                                     }));
   if (mapped_dom.UnchangedOrSameAs(self->dom) && mapped_var.UnchangedOrSameAs(self->var)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   ffi::ObjectPtr<IterVarNode> copy = ffi::make_object<IterVarNode>(*self);
   copy->dom = std::move(mapped_dom).ValueOrUnchanged(std::move(copy->dom));
   copy->var = std::move(mapped_var).ValueOrUnchanged(std::move(copy->var));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+  return ffi::Any(std::move(copy));
 }
 
-TVMFFIAny IterVarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                    ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: iter_type, thread_tag
   IterVarNode* self = const_cast<IterVarNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterVarNode>(value));
@@ -75,11 +77,11 @@ TVMFFIAny IterVarMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
                                                                      ffi::InplaceMode::kAllow);
                                     }));
   if (mapped_dom.UnchangedOrSameAs(self->dom) && mapped_var.UnchangedOrSameAs(self->var)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   self->dom = std::move(mapped_dom).ValueOrUnchanged(std::move(self->dom));
   self->var = std::move(mapped_var).ValueOrUnchanged(std::move(self->var));
-  return ffi::Unchanged().CopyToTVMFFIAny();
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -110,10 +112,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   IterVarNode::RegisterReflection();
   refl::TypeAttrDef<IterVarNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&IterVarVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&IterVarMutate))
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&IterVarVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&IterVarMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&IterVarMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&IterVarMaybeInplaceMutate>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
