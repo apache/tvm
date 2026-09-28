@@ -54,11 +54,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.multinomial_from_uniform", multinomial_from_uniform);
 }
 
-Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) {
-  CheckNumArguments(call, ctx);
-  TensorType prob_ty = GetInputTensorType(call, 0, ctx);
-  TensorType uniform_sample_ty = GetInputTensorType(call, 1, ctx);
-  TensorType sample_indices_ty = GetInputTensorType(call, 2, ctx);
+ffi::Expected<Type> InferTypeMultinomialFromUniform(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  CheckNumArguments(call);
+  TensorType prob_ty = GetInputTensorType(call, 0);
+  TensorType uniform_sample_ty = GetInputTensorType(call, 1);
+  TensorType sample_indices_ty = GetInputTensorType(call, 2);
   const auto* attrs = call->attrs.as<MultinomialFromUniformAttrs>();
 
   // Only the element kind matters here; shape inference does not depend on vector lanes.
@@ -142,6 +143,10 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
         << sample_indices_ty->shape;
   }
   return TensorType(ShapeExpr({n, 1}), PrimType(attrs->dtype), prob_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -150,7 +155,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("uniform_sample", "The uniform sample tensor."),
                  sig::arg("sample_indices", "The sample indices tensor."),
                  sig::call_attrs<MultinomialFromUniformAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeMultinomialFromUniform)
+      .set_attr<FInferType>("FInferType",
+                            FInferType::FromNative<&InferTypeMultinomialFromUniform>())
       .set_attr<bool>("FPurity", true);
 }
 

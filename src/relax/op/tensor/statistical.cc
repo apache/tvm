@@ -37,13 +37,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ScanopAttrs::RegisterReflection();
 }
 
-Type InferTypeStatistical(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeStatistical(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
-    axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
+    axes = NormalizeAxes(call, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;
@@ -88,6 +89,10 @@ Type InferTypeStatistical(const Call& call, const BlockBuilder& ctx) {
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutStatistical(
@@ -151,8 +156,9 @@ InferLayoutOutput InferLayoutStatistical(
                            Attrs(new_attrs));
 }
 
-Type InferTypeScan(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeScan(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ScanopAttrs>();
 
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
@@ -178,15 +184,20 @@ Type InferTypeScan(const Call& call, const BlockBuilder& ctx) {
   } else {
     return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
   }
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
-Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeStatisticalExtension(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();
 
   std::vector<int> axes;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
-    axes = NormalizeAxes(call, ctx, data_ty->ndim, attrs->axis.value());
+    axes = NormalizeAxes(call, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;
@@ -237,6 +248,10 @@ Type InferTypeStatisticalExtension(const Call& call, const BlockBuilder& ctx) {
   else
     return TupleType({TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice),
                       TensorType(ShapeExpr(out_shape), PrimType::Int(64), data_ty->vdevice)});
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 /* relax.cumprod */
@@ -257,7 +272,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.cumprod")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ScanopAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeScan)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeScan>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -279,7 +294,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.cumsum")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ScanopAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeScan)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeScan>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -298,7 +313,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.median")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatisticalExtension)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatisticalExtension>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -363,7 +378,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.max")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -371,7 +386,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.mean")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -379,7 +394,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.min")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -387,7 +402,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.prod")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -395,7 +410,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.std")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -403,7 +418,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.sum")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 
@@ -411,7 +426,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.variance")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<StatisticalAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStatistical)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeStatistical>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStatistical)
       .set_attr<bool>("FPurity", true);
 }

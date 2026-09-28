@@ -400,7 +400,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("relative_byte_offset",
                           "The view's byte offset, relative to the input tensor's byte offset."))
       .set_attr<bool>("RequiresArgumentShapes", false)
-      .set_attr<FInferType>("FInferType", InferTypeView)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeView)
       .set_attr<bool>("FPurity", true)
       .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinView);
 }
@@ -415,13 +415,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.memory.ensure_zero_offset", ensure_zero_offset);
 }
 
-Type InferTypeEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
+ffi::Expected<Type> InferTypeEnsureZeroOffset(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Operator " << call->op << " should receive 1 argument, "
         << "but received " << call->args;
   }
   return GetType(call->args[0]);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
@@ -434,7 +439,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.memory.ensure_zero_offset")
       .signature(sig::arg("x", "The input tensor."))
       .set_attr<bool>("RequiresArgumentShapes", false)
-      .set_attr<FInferType>("FInferType", InferTypeEnsureZeroOffset)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeEnsureZeroOffset>())
       .set_attr<bool>("FPurity", true)
       .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinEnsureZeroOffset);
 }

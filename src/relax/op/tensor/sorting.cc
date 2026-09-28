@@ -53,14 +53,19 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.sort", sort);
 }
 
-Type InferTypeSort(const Call& call, const BlockBuilder& ctx) {
-  return GetUnaryInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeSort(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  return GetUnaryInputTensorType(call);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.sort")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SortAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeSort)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeSort>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -81,8 +86,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.argsort", argsort);
 }
 
-Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeArgsort(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ArgsortAttrs>();
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
@@ -91,12 +97,16 @@ Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
     return TensorType(data_ty->shape.value(), out_type, data_ty->vdevice);
   }
   return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.argsort")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ArgsortAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeArgsort)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeArgsort>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -120,8 +130,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.topk", topk);
 }
 
-Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeTopK(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   const auto* attrs = call->attrs.as<TopKAttrs>();
   ffi::Optional<PrimType> indices_type =
@@ -159,12 +170,16 @@ Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
   }
   TVM_FFI_THROW(InternalError) << "Unsupported ret type: " << ret_type;
   TVM_FFI_UNREACHABLE();
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.topk")
       .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TopKAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeTopK)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTopK>())
       .set_attr<bool>("FPurity", true);
 }
 

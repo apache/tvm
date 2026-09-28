@@ -65,20 +65,8 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
 
 UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   auto result = StmtExprMutator::Mutate_(op, inplace_mode);
-  if (!result.IsUnchanged()) {
-    op = ffi::AnyView(result).as<CallNode>();
-    if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
-  }
-  if (!op->op.same_as(builtin::buffer_data()) || op->args.size() != 1) return result;
-  PointerType type = op->args[0].as_or_throw<BufferVar>().DataPointerType();
-  if (ffi::StructuralEqual()(op->ty, type)) return result;
-  if (inplace_mode == InplaceMode::kAllow) {
-    const_cast<CallNode*>(op)->ty = std::move(type);
-    return result;
-  }
-  auto copy = ffi::make_object<CallNode>(*op);
-  copy->ty = std::move(type);
-  return Expr(std::move(copy));
+  if (!op->op.same_as(builtin::buffer_data())) return result;
+  return ReinferMutatedCallType(std::move(result), op, inplace_mode);
 }
 
 }  // namespace tirx

@@ -32,19 +32,23 @@
 namespace tvm::tirx {
 namespace {
 
-TVMFFIAny TensorMapTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TensorMapTypeVisit(
+    ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return std::nullopt;
 }
 
-TVMFFIAny TensorMapTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorMapTypeMutate(
+    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
-TVMFFIAny TensorMapTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorMapTypeMaybeInplaceMutate(
+    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
-TVMFFIAny BufferTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> BufferTypeVisit(
+    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: storage_scope, data_alignment, offset_factor
   const BufferTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value);
@@ -62,10 +66,11 @@ TVMFFIAny BufferTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value
   if (!self->allocated_addr.empty()) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->allocated_addr));
   }
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+  return std::nullopt;
 }
 
-TVMFFIAny BufferTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferTypeMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: storage_scope, data_alignment, offset_factor
   const BufferTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value);
@@ -99,7 +104,7 @@ TVMFFIAny BufferTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView valu
       mapped_elem_offset.UnchangedOrSameAs(self->elem_offset) &&
       mapped_layout.UnchangedOrSameAs(self->layout) &&
       mapped_allocated_addr.UnchangedOrSameAs(self->allocated_addr)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   ffi::ObjectPtr<BufferTypeNode> copy = ffi::make_object<BufferTypeNode>(*self);
   copy->dtype = std::move(mapped_dtype).ValueOrUnchanged(std::move(copy->dtype));
@@ -109,11 +114,11 @@ TVMFFIAny BufferTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView valu
   copy->layout = std::move(mapped_layout).ValueOrUnchanged(std::move(copy->layout));
   copy->allocated_addr =
       std::move(mapped_allocated_addr).ValueOrUnchanged(std::move(copy->allocated_addr));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+  return ffi::Any(std::move(copy));
 }
 
-TVMFFIAny BufferTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                       ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferTypeMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: storage_scope, data_alignment, offset_factor
   BufferTypeNode* self = const_cast<BufferTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferTypeNode>(value));
@@ -150,7 +155,7 @@ TVMFFIAny BufferTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
       mapped_elem_offset.UnchangedOrSameAs(self->elem_offset) &&
       mapped_layout.UnchangedOrSameAs(self->layout) &&
       mapped_allocated_addr.UnchangedOrSameAs(self->allocated_addr)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   if (!mapped_dtype.IsUnchanged()) self->dtype = std::move(mapped_dtype).ValueUnchecked();
   if (!mapped_shape.IsUnchanged()) self->shape = std::move(mapped_shape).ValueUnchecked();
@@ -161,19 +166,22 @@ TVMFFIAny BufferTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   if (!mapped_allocated_addr.IsUnchanged()) {
     self->allocated_addr = std::move(mapped_allocated_addr).ValueUnchecked();
   }
-  return ffi::Unchanged().CopyToTVMFFIAny();
+  return ffi::Unchanged();
 }
 
-TVMFFIAny BufferRegionTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> BufferRegionTypeVisit(
+    ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return std::nullopt;
 }
 
-TVMFFIAny BufferRegionTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferRegionTypeMutate(
+    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
-TVMFFIAny BufferRegionTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferRegionTypeMaybeInplaceMutate(
+    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -205,10 +213,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BufferTypeNode::RegisterReflection();
   refl::TypeAttrDef<BufferTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BufferTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferTypeMutate))
+      .attr(refl::type_attr::kStructuralVisit,
+            ffi::FStructuralVisit::FromNative<&BufferTypeVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&BufferTypeMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&BufferTypeMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&BufferTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def(
       "tirx.BufferType",
@@ -231,10 +241,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   BufferRegionTypeNode::RegisterReflection();
   refl::TypeAttrDef<BufferRegionTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&BufferRegionTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&BufferRegionTypeMutate))
+      .attr(refl::type_attr::kStructuralVisit,
+            ffi::FStructuralVisit::FromNative<&BufferRegionTypeVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&BufferRegionTypeMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&BufferRegionTypeMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&BufferRegionTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.BufferRegionType", []() { return BufferRegionType(); });
 }
@@ -249,10 +261,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorMapTypeNode::RegisterReflection();
   refl::TypeAttrDef<TensorMapTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorMapTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorMapTypeMutate))
+      .attr(refl::type_attr::kStructuralVisit,
+            ffi::FStructuralVisit::FromNative<&TensorMapTypeVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&TensorMapTypeMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TensorMapTypeMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&TensorMapTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.TensorMapType", [](Span span) { return TensorMapType(span); });
 }

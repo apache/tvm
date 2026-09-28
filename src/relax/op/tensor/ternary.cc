@@ -138,7 +138,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("x2", "The right hand operand of the multiplication"),
           sig::arg("x3", "The operand of the addition"),
           sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
-      .set_attr<FInferType>("FInferType", InferTypeEwiseFMA)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeEwiseFMA)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutEwiseFMA)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);

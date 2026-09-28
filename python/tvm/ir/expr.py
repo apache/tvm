@@ -593,6 +593,15 @@ class Call(_CallableExprWithOp):
         )
 
 
+def reinfer_type(call: Call) -> "tvm.ir.Type":
+    """Derive a Call's result type from its current inputs without changing the Call.
+
+    The operator must have a context-free inference rule. Invalid inputs and
+    missing rules raise errors.
+    """
+    return _ffi_api.reinfer_type(call)
+
+
 @tvm_ffi.register_object("ir.TensorRegion")
 class TensorRegion(Expr, Scriptable):
     """A region of an arbitrary tensor expression.

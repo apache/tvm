@@ -84,8 +84,11 @@ static bool IsRelaxOwnedCall(const CallNode* call) {
   auto op = call->op.as<Op>();
   if (!op) return true;
   static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+  static auto infer_type_with_builder_map =
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
   static auto legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
-  return infer_type_map.count(op.value()) || legalize_map.count(op.value());
+  return infer_type_map.count(op.value()) || infer_type_with_builder_map.count(op.value()) ||
+         legalize_map.count(op.value());
 }
 
 // Collector to collect PrimExprSlotMap

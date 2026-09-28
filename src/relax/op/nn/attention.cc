@@ -156,7 +156,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("value", "The input values tensor."), sig::call_attrs<AttentionAttrs>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-      .set_attr<FInferType>("FInferType", InferTypeAttention)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeAttention)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.nn.attention_bias")
@@ -166,7 +166,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("bias", "The input bias tensor."), sig::call_attrs<AttentionAttrs>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-      .set_attr<FInferType>("FInferType", InferTypeAttention)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeAttention)
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.nn.attention_var_len")
@@ -180,7 +180,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::call_attrs<AttentionAttrs>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-      .set_attr<FInferType>("FInferType", InferTypeAttention)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeAttention)
       .set_attr<bool>("FPurity", true);
 
   AttentionAttrs::RegisterReflection();

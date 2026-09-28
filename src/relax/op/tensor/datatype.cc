@@ -51,18 +51,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.astype", astype);
 }
 
-Type InferTypeAstype(const Call& call, const BlockBuilder& ctx) {
-  TensorType ty = GetUnaryInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeAstype(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<AstypeAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
   new_ty->dtype = PrimType(attrs->dtype);
   return TensorType(new_ty);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.astype")
       .signature(sig::arg("x", "The input tensor"), sig::call_attrs<AstypeAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeAstype)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAstype>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -83,18 +88,23 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.wrap_param", MakeWrapParam);
 }
 
-Type InferTypeWrapParam(const Call& call, const BlockBuilder& ctx) {
-  TensorType ty = GetUnaryInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeWrapParam(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<WrapParamAttrs>();
   ffi::ObjectPtr<TensorTypeNode> new_ty = ffi::make_object<TensorTypeNode>(*ty.get());
   new_ty->dtype = PrimType(attrs->dtype);
   return TensorType(new_ty);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.wrap_param")
       .signature(sig::arg("data", "The input tensor"), sig::call_attrs<WrapParamAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeWrapParam)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeWrapParam>())
       .set_attr<bool>("FPurity", true);
 }
 

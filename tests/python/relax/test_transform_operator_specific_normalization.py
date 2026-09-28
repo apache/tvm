@@ -57,7 +57,7 @@ def custom_op(define_normalization):
         return call.args[0]
 
     op_attrs = {
-        "FInferType": infer_ty,
+        "relax.FInferTypeWithBuilder": infer_ty,
         "FLegalize": legalize,
         "FPurity": True,
     }

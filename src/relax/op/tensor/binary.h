@@ -49,12 +49,14 @@ namespace relax {
   }
 
 #define RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(OpName) \
-  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName,                 \
-                                    .set_attr<FInferType>("FInferType", InferTypeBroadcastArith))
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(                        \
+      OpName,                                               \
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeBroadcastArith))
 
 #define RELAX_REGISTER_CMP_OP_AND_IMPL(OpName) \
-  RELAX_REGISTER_BINARY_OP_AND_IMPL(OpName,    \
-                                    .set_attr<FInferType>("FInferType", InferTypeBroadcastCMP))
+  RELAX_REGISTER_BINARY_OP_AND_IMPL(           \
+      OpName,                                  \
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeBroadcastCMP))
 
 /***************** Arithmetic operators *****************/
 

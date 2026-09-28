@@ -32,16 +32,19 @@ namespace relax {
 
 namespace {
 
-TVMFFIAny PackedFuncTypeVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> PackedFuncTypeVisit(
+    ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return std::nullopt;
 }
 
-TVMFFIAny PackedFuncTypeMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PackedFuncTypeMutate(
+    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
-TVMFFIAny PackedFuncTypeMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PackedFuncTypeMaybeInplaceMutate(
+    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -56,10 +59,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   PackedFuncTypeNode::RegisterReflection();
   refl::TypeAttrDef<PackedFuncTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&PackedFuncTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&PackedFuncTypeMutate))
+      .attr(refl::type_attr::kStructuralVisit,
+            ffi::FStructuralVisit::FromNative<&PackedFuncTypeVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&PackedFuncTypeMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&PackedFuncTypeMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&PackedFuncTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def("relax.PackedFuncType", [](Span span) { return PackedFuncType(span); });
 }

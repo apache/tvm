@@ -54,8 +54,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.bucketize", bucketize);
 }
 
-Type InferTypeBucketize(const Call& call, const BlockBuilder& ctx) {
-  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeBucketize(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   TensorType input_tensor_info = input_ty[0];
   TensorType boundaries_info = input_ty[1];
 
@@ -75,6 +76,10 @@ Type InferTypeBucketize(const Call& call, const BlockBuilder& ctx) {
     return TensorType(ShapeExpr(data_shape->values), out_dtype, input_tensor_info->vdevice);
   }
   return TensorType(out_dtype, input_tensor_info->ndim, input_tensor_info->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -86,7 +91,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               "1-D tensor, must contain a strictly increasing sequence, or the return value is "
               "undefined."),
           sig::call_attrs<BucketizeAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeBucketize)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBucketize>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -188,19 +193,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("condition", "When True, yield `x1`; otherwise, yield `x2`."),
                  sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."))
-      .set_attr<FInferType>("FInferType", InferTypeWhere)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeWhere)
       .set_attr<bool>("FPurity", true);
 }
 
 /* relax.argmax & relax.argmin */
 
-Type InferTypeArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeArgmaxArgmin(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
 
   int axis = -1;
   if (!data_ty->IsUnknownNdim() && attrs->axis.has_value()) {
-    axis = NormalizeAxis(call, ctx, data_ty->ndim, attrs->axis.value());
+    axis = NormalizeAxis(call, data_ty->ndim, attrs->axis.value());
   }
 
   int out_ndim;
@@ -250,6 +256,10 @@ Type InferTypeArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 Expr argmax(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {
@@ -273,7 +283,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.argmax")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeArgmaxArgmin)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeArgmaxArgmin>())
       .set_attr<bool>("FPurity", true);
 };
 
@@ -282,7 +292,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("relax.argmin")
       .signature(sig::arg("x", "The input data tensor"), sig::call_attrs<ArgmaxArgminAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeArgmaxArgmin)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeArgmaxArgmin>())
       .set_attr<bool>("FPurity", true);
 };
 

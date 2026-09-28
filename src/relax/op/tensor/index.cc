@@ -61,9 +61,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.take", take);
 }
 
-Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
-  CheckNumArguments(call, ctx);
-  TensorType data_ty = GetInputTensorType(call, 0, ctx);
+ffi::Expected<Type> InferTypeTake(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  CheckNumArguments(call);
+  TensorType data_ty = GetInputTensorType(call, 0);
 
   // Type inference when the index is a PrimExpr is equivalent
   // to that of a scalar (0-d) tensor.
@@ -108,7 +109,7 @@ Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
 
   int axis = 0;
   if (attrs->axis.has_value()) {
-    axis = NormalizeAxis(call, ctx, data_ty->ndim, attrs->axis.value());
+    axis = NormalizeAxis(call, data_ty->ndim, attrs->axis.value());
   }
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_ty->shape.as<ShapeExprNode>();
@@ -125,6 +126,10 @@ Type InferTypeTake(const Call& call, const BlockBuilder& ctx) {
     }
   }
   return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -132,7 +137,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("x", "The source tensor."),
                  sig::arg("indices", "The indices of the values to extract."),
                  sig::call_attrs<TakeAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeTake)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTake>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -492,7 +497,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("x", "The source tensor to be sliced."), sig::arg("axes", "The axes."),
                  sig::arg("begin", "The start index."), sig::arg("end", "The end index."),
                  sig::var_args("args"), sig::call_attrs<StridedSliceAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeStridedSlice)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeStridedSlice)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStridedSlice)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
@@ -513,7 +518,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.dynamic_strided_slice", dynamic_strided_slice);
 }
 
-Type InferTypeDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
+ffi::Expected<Type> InferTypeDynStridedSlice(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* begin_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
   const auto* end_ty = GetTypeAs<TensorTypeNode>(call->args[2]);
@@ -566,6 +572,10 @@ Type InferTypeDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
   // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
   // PrimExpr lands.
   return TensorType(data_ty->dtype, n_axis, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutDynStridedSlice(
@@ -592,7 +602,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("begin", "The indices to begin with in the slicing."),
                  sig::arg("end", "Indices indicating end of the slice."),
                  sig::arg("strides", "The stride values."))
-      .set_attr<FInferType>("FInferType", InferTypeDynStridedSlice)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeDynStridedSlice>())
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutDynStridedSlice)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)

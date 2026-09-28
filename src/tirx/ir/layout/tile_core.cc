@@ -35,16 +35,18 @@ using namespace tvm::prim;
 
 namespace {
 
-TVMFFIAny IterVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> IterVisit(
+    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const IterNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->extent));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->stride));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->axis));
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+  return std::nullopt;
 }
 
-TVMFFIAny IterMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const IterNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_extent,
@@ -55,16 +57,17 @@ TVMFFIAny IterMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noe
                                     mutator->MutateExpected(self->axis));
   if (mapped_extent.UnchangedOrSameAs(self->extent) &&
       mapped_stride.UnchangedOrSameAs(self->stride) && mapped_axis.UnchangedOrSameAs(self->axis)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   ffi::ObjectPtr<IterNode> copy = ffi::make_object<IterNode>(*self);
   copy->extent = std::move(mapped_extent).ValueOrUnchanged(std::move(copy->extent));
   copy->stride = std::move(mapped_stride).ValueOrUnchanged(std::move(copy->stride));
   copy->axis = std::move(mapped_axis).ValueOrUnchanged(std::move(copy->axis));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+  return ffi::Any(std::move(copy));
 }
 
-TVMFFIAny IterMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   IterNode* self = const_cast<IterNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IterNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
@@ -77,24 +80,26 @@ TVMFFIAny IterMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVie
                                     mutator->MutateExpected(self->axis, ffi::InplaceMode::kAllow));
   if (mapped_extent.UnchangedOrSameAs(self->extent) &&
       mapped_stride.UnchangedOrSameAs(self->stride) && mapped_axis.UnchangedOrSameAs(self->axis)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   self->extent = std::move(mapped_extent).ValueOrUnchanged(std::move(self->extent));
   self->stride = std::move(mapped_stride).ValueOrUnchanged(std::move(self->stride));
   self->axis = std::move(mapped_axis).ValueOrUnchanged(std::move(self->axis));
-  return ffi::Unchanged().CopyToTVMFFIAny();
+  return ffi::Unchanged();
 }
 
-TVMFFIAny TileLayoutVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TileLayoutVisit(
+    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const TileLayoutNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileLayoutNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->shard));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->replica));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->offset));
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+  return std::nullopt;
 }
 
-TVMFFIAny TileLayoutMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TileLayoutMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const TileLayoutNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileLayoutNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Iter>>, mapped_shard,
@@ -107,17 +112,17 @@ TVMFFIAny TileLayoutMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView valu
   if (mapped_shard.UnchangedOrSameAs(self->shard) &&
       mapped_replica.UnchangedOrSameAs(self->replica) &&
       mapped_offset.UnchangedOrSameAs(self->offset)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   ffi::ObjectPtr<TileLayoutNode> copy = ffi::make_object<TileLayoutNode>(*self);
   copy->shard = std::move(mapped_shard).ValueOrUnchanged(std::move(copy->shard));
   copy->replica = std::move(mapped_replica).ValueOrUnchanged(std::move(copy->replica));
   copy->offset = std::move(mapped_offset).ValueOrUnchanged(std::move(copy->offset));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+  return ffi::Any(std::move(copy));
 }
 
-TVMFFIAny TileLayoutMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                       ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TileLayoutMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   TileLayoutNode* self = const_cast<TileLayoutNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TileLayoutNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Iter>>, mapped_shard,
@@ -132,12 +137,12 @@ TVMFFIAny TileLayoutMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   if (mapped_shard.UnchangedOrSameAs(self->shard) &&
       mapped_replica.UnchangedOrSameAs(self->replica) &&
       mapped_offset.UnchangedOrSameAs(self->offset)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   self->shard = std::move(mapped_shard).ValueOrUnchanged(std::move(self->shard));
   self->replica = std::move(mapped_replica).ValueOrUnchanged(std::move(self->replica));
   self->offset = std::move(mapped_offset).ValueOrUnchanged(std::move(self->offset));
-  return ffi::Unchanged().CopyToTVMFFIAny();
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -157,10 +162,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   IterNode::RegisterReflection();
   refl::TypeAttrDef<IterNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&IterVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&IterMutate))
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&IterVisit>())
+      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&IterMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&IterMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&IterMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.Iter", [](PrimExpr extent, PrimExpr stride, Axis axis) {
     return Iter(extent, stride, axis);
@@ -181,10 +186,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TileLayoutNode::RegisterReflection();
   refl::TypeAttrDef<TileLayoutNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TileLayoutVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TileLayoutMutate))
+      .attr(refl::type_attr::kStructuralVisit,
+            ffi::FStructuralVisit::FromNative<&TileLayoutVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&TileLayoutMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TileLayoutMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&TileLayoutMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.TileLayout", [](ffi::Array<Iter> shard, ffi::Array<Iter> replica,
                                               ffi::Map<Axis, PrimExpr> offset) {

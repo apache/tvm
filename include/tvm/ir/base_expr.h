@@ -26,10 +26,10 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/structural_mutate.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-// Keep raw and typed structural hook return paths available to all TVM IR nodes.
-#include <tvm/ir/ffi_structural_compat.h>
 #include <tvm/ir/source_map.h>
 
 #include <cstddef>

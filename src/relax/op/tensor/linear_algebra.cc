@@ -166,7 +166,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.matmul")
       .signature(sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."), sig::call_attrs<MatmulAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeMatmul)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeMatmul)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionMatmul)
       .set_attr<bool>("FPurity", true);
@@ -187,11 +187,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.einsum", einsum);
 }
 
-Type InferTypeEinsum(const Call& call, const BlockBuilder& ctx) {
+ffi::Expected<Type> InferTypeEinsum(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Einsum op should take 1 argument";
   }
-  ffi::Array<TensorType> operands_tensor_ty = GetTensorTypeFromTuple(call, ctx, call->args[0]);
+  ffi::Array<TensorType> operands_tensor_ty = GetTensorTypeFromTuple(call, call->args[0]);
   if (operands_tensor_ty.empty()) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Einsum op expects at least one tensor in the input Tuple. However, the "
@@ -250,12 +251,16 @@ Type InferTypeEinsum(const Call& call, const BlockBuilder& ctx) {
     return TensorType(ShapeExpr(oshape), operand_ty, vdev);
   }
   return TensorType(ShapeExpr(oshape), operand_ty);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.einsum")
       .signature(sig::arg("operands", "The input tensors."), sig::call_attrs<EinsumAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeEinsum)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeEinsum>())
       .set_attr<bool>("FPurity", true);
 }
 
@@ -271,8 +276,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.outer", outer);
 }
 
-Type InferTypeOuter(const Call& call, const BlockBuilder& ctx) {
-  auto input_ty = GetInputTensorType(call, ctx);
+ffi::Expected<Type> InferTypeOuter(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  auto input_ty = GetInputTensorType(call);
   auto x1_ty = input_ty[0];
   auto x2_ty = input_ty[1];
 
@@ -289,13 +295,17 @@ Type InferTypeOuter(const Call& call, const BlockBuilder& ctx) {
   }
   ffi::Array<PrimExpr> output_shape = {x1_shape->values[0], x2_shape->values[0]};
   return TensorType(ShapeExpr(output_shape), x1_ty->dtype);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.outer")
       .signature(sig::arg("x1", "The first input tensor."),
                  sig::arg("x2", "The second input tensor."))
-      .set_attr<FInferType>("FInferType", InferTypeOuter)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeOuter>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
       .set_attr<bool>("FPurity", true);
 }

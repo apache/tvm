@@ -57,7 +57,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.unique", unique);
 }
 
-Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
+ffi::Expected<Type> InferTypeUnique(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = call->args[0]->ty.as_or_throw<TensorType>();
   PrimExpr axis, return_index, return_inverse, return_counts;
   if (call->args.size() == 6) {
@@ -68,7 +69,7 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   if (!data_ty->IsUnknownNdim() && axis.defined()) {
     // Normalize the axis for sanity check purpose.
     if (const auto* axis_int = axis.as<IntImmNode>()) {
-      NormalizeAxis(call, ctx, data_ty->ndim, axis_int->value.as<int>().value());
+      NormalizeAxis(call, data_ty->ndim, axis_int->value.as<int>().value());
     }
   }
   TVM_FFI_ICHECK(call->args[2].as<PrimExpr>());
@@ -139,6 +140,10 @@ Type InferTypeUnique(const Call& call, const BlockBuilder& ctx) {
   } else {
     return TupleType(output_ty);
   }
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -160,7 +165,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("return_counts",
                    "Whether to return an additional tensor with counts of each unique elements"),
           sig::var_args("args"))
-      .set_attr<FInferType>("FInferType", InferTypeUnique)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeUnique>())
       .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
       .set_attr<bool>("FPurity", true);
 }
@@ -176,15 +181,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nonzero", nonzero);
 }
 
-Type InferTypeNonzero(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetInputTensorType(call, 0, ctx);
+ffi::Expected<Type> InferTypeNonzero(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetInputTensorType(call, 0);
   return TensorType(PrimType::Int(64), 2, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nonzero")
       .signature(sig::arg("x", "The input tensor"))
-      .set_attr<FInferType>("FInferType", InferTypeNonzero)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeNonzero>())
       .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
       .set_attr<bool>("FPurity", true);
 }

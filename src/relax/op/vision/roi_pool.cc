@@ -57,7 +57,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.roi_pool", roi_pool);
 }
 
-Type InferTypeROIPool(const Call& call, const BlockBuilder& ctx) {
+ffi::Expected<Type> InferTypeROIPool(const CallNode* call_node) noexcept try {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIPool expects two arguments, while the given number of arguments is "
@@ -114,6 +115,10 @@ Type InferTypeROIPool(const Call& call, const BlockBuilder& ctx) {
                                     IntImm::Int32(attrs->pooled_size[0]),
                                     IntImm::Int32(attrs->pooled_size[1])};
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -123,7 +128,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           sig::arg("rois",
                    "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format."),
           sig::call_attrs<ROIPoolAttrs>())
-      .set_attr<FInferType>("FInferType", InferTypeROIPool)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeROIPool>())
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
 }

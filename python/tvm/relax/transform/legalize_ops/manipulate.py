@@ -78,8 +78,8 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
 def _expand_dims(bb: BlockBuilder, call: Call) -> Expr:
     def te_expand_dims(data, axis):
         data_relax = relax.Var("data", relax.TensorType(data.shape))
-        f_infer_ty = call.op.get_attr("FInferType")
-        output_shape = f_infer_ty(relax.op.expand_dims(data_relax, axis), bb).shape
+        output_ty = tvm.ir.reinfer_type(relax.op.expand_dims(data_relax, axis))
+        output_shape = output_ty.shape
         output_ndim = len(output_shape)
 
         data_dims = []
