@@ -413,13 +413,12 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       }
     }
 
-    if (auto func_validate = op_map_validate_.get(call->op, nullptr); func_validate != nullptr) {
+    if (auto op = call->op.as<Op>()) {
       try {
-        func_validate(ffi::GetRef<Call>(call));
+        op.value().Validate(call);
       } catch (std::exception& err) {
         TVM_FFI_VISIT_THROW(ValueError, ffi::GetRef<Call>(call))
-            << "Operator-specific validation (FValidate) for " << call->op
-            << " identified error: \n"
+            << "Operator-specific validation for " << call->op << " identified error: \n"
             << err.what();
       }
     }
@@ -715,7 +714,6 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
-  tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");
   tvm::OpAttrMap<FInferType> op_map_infer_type_ = Op::GetAttrMap<FInferType>("FInferType");
 };
 

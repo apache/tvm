@@ -41,12 +41,13 @@ Expr unique(Expr x, PrimExpr sorted, PrimExpr return_index, PrimExpr return_inve
   static const Op op = Op::Get("relax.unique");
   Call call;
   if (!axis) {
-    call = Call(Type::Missing(), op,
-                {std::move(x), sorted, return_index, return_inverse, return_counts});
+    call = Call::Unchecked(Type::Missing(), op,
+                           {std::move(x), sorted, return_index, return_inverse, return_counts});
   } else {
     PrimExpr pv_axis = axis.value();
-    call = Call(Type::Missing(), op,
-                {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
+    call = Call::Unchecked(
+        Type::Missing(), op,
+        {std::move(x), sorted, return_index, return_inverse, return_counts, pv_axis});
   }
   return call;
 }
@@ -144,19 +145,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.unique",
         "Optional axis: The dimension to apply unique. If it is std::nullopt, the unique values of "
         "the flattened input are returned.")
-      .add_arg("x", "The input tensor")
-      .add_arg("sorted",
-               "Whether to sort the unique elements in ascending order before returning as output.")
-      .add_arg(
-          "return_index",
-          "Whether to return an additional tensor with indices for where elements in the unique "
-          "tensor come from the original input.")
-      .add_arg("return_inverse",
-               "Whether to return an additional tensor with indices for where elements in the "
-               "original input ended up in the returned unique list.")
-      .add_arg("return_counts",
-               "Whether to return an additional tensor with counts of each unique elements")
-      .allow_extra_args()
+      .signature(
+          sig::arg("x", "The input tensor"),
+          sig::arg(
+              "sorted",
+              "Whether to sort the unique elements in ascending order before returning as output."),
+          sig::arg("return_index",
+                   "Whether to return an additional tensor with indices for where elements in the "
+                   "unique "
+                   "tensor come from the original input."),
+          sig::arg("return_inverse",
+                   "Whether to return an additional tensor with indices for where elements in the "
+                   "original input ended up in the returned unique list."),
+          sig::arg("return_counts",
+                   "Whether to return an additional tensor with counts of each unique elements"),
+          sig::var_args("args"))
       .set_attr<FInferType>("FInferType", InferTypeUnique)
       .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
       .set_attr<bool>("FPurity", true);
@@ -165,7 +168,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nonzero */
 Expr nonzero(Expr x) {
   static const Op op = Op::Get("relax.nonzero");
-  return Call(Type::Missing(), op, {std::move(x)});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -180,7 +183,7 @@ Type InferTypeNonzero(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nonzero")
-      .add_arg("x", "The input tensor")
+      .signature(sig::arg("x", "The input tensor"))
       .set_attr<FInferType>("FInferType", InferTypeNonzero)
       .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
       .set_attr<bool>("FPurity", true);

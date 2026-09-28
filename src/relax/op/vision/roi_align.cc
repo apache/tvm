@@ -52,7 +52,7 @@ Expr roi_align(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spa
   attrs->mode = mode;
 
   static const Op op = Op::Get("relax.vision.roi_align");
-  return Call(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -130,10 +130,11 @@ Type InferTypeROIAlign(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.vision.roi_align")
-      .add_arg("data", "The input tensor.")
-      .add_arg("rois",
-               "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
-      .attrs_type<ROIAlignAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor."),
+          sig::arg("rois",
+                   "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format."),
+          sig::call_attrs<ROIAlignAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeROIAlign)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);

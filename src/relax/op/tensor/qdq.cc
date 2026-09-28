@@ -44,8 +44,8 @@ Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out_d
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op op = Op::Get("relax.quantize");
-  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
-              Attrs(attrs));
+  return Call::Unchecked(Type::Missing(), op,
+                         {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -157,10 +157,10 @@ Type InferTypeQuantize(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.quantize")
-      .add_arg("data", "The input tensor.")
-      .add_arg("scale", "The quantization scale of the output tensor.")
-      .add_arg("zero_point", "The quantization zero_point of the output tensor.")
-      .attrs_type<QuantizeAttrs>()
+      .signature(sig::arg("data", "The input tensor."),
+                 sig::arg("scale", "The quantization scale of the output tensor."),
+                 sig::arg("zero_point", "The quantization zero_point of the output tensor."),
+                 sig::call_attrs<QuantizeAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeQuantize)
       .set_attr<bool>("FPurity", true);
 }
@@ -172,8 +172,8 @@ Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DLDataType out
   attrs->axis = axis;
   attrs->out_dtype = out_dtype;
   static const Op op = Op::Get("relax.dequantize");
-  return Call(Type::Missing(), op, {std::move(data), std::move(scale), std::move(zero_point)},
-              Attrs(attrs));
+  return Call::Unchecked(Type::Missing(), op,
+                         {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -280,10 +280,10 @@ Type InferTypeDequantize(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.dequantize")
-      .add_arg("data", "The input tensor.")
-      .add_arg("scale", "The quantization scale of the input tensor.")
-      .add_arg("zero_point", "The quantization zero_point of the input tensor.")
-      .attrs_type<QuantizeAttrs>()
+      .signature(sig::arg("data", "The input tensor."),
+                 sig::arg("scale", "The quantization scale of the input tensor."),
+                 sig::arg("zero_point", "The quantization zero_point of the input tensor."),
+                 sig::call_attrs<QuantizeAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeDequantize)
       .set_attr<bool>("FPurity", true);
 }

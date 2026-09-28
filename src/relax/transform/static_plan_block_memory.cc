@@ -970,9 +970,9 @@ class StorageAllocationRewriter : public ExprMutator {
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimExpr offset = IntImm::Int64(0);
       DLDataType dtype = ty->dtype.value()->dtype;
-      return Call(Type::Missing(), mem_alloc_tensor,
-                  {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]},
-                  Attrs());
+      return Call::Unchecked(
+          Type::Missing(), mem_alloc_tensor,
+          {storage_var, offset, ty->shape.value(), DataTypeImm(dtype), call->args[2]}, Attrs());
     } else if (plan_dynamic_output_ && call->op.same_as(alloc_tensor_op)) {
       // Case 2. For a `alloc_tensor` that is not planned for memory reuse,
       // we would still like to allocate **static** memory for the tensor.
@@ -1005,12 +1005,12 @@ class StorageAllocationRewriter : public ExprMutator {
                             /*storage_scope=*/call->args[3].as_or_throw<StringImm>(),  //
                             /*dtype=*/DataTypeImm(dtype)});
         Var storage = builder_->Emit(alloc_storage, "storage");
-        return Call(Type::Missing(), mem_alloc_tensor,
-                    {storage,  //
-                     /*offset=*/IntImm::Int64(0),
-                     /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
-                     /*dtype=*/DataTypeImm(dtype),
-                     /*vdevice_index=*/call->args[2]});
+        return Call::Unchecked(Type::Missing(), mem_alloc_tensor,
+                               {storage,  //
+                                /*offset=*/IntImm::Int64(0),
+                                /*shape=*/ffi::GetRef<ShapeExpr>(shape),  //
+                                /*dtype=*/DataTypeImm(dtype),
+                                /*vdevice_index=*/call->args[2]});
       }
     }
 

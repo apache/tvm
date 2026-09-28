@@ -497,7 +497,7 @@ def test_symbolic_vars_in_shape():
 
 def test_string_shape_expression_is_not_resolved():
     """A quoted expression is ordinary data, not a symbol declaration."""
-    with pytest.raises(TypeError, match="Array<ir.Expr>"):
+    with pytest.raises(TypeError, match=r"Array<ir\.PrimExpr>"):
 
         @R.function
         def foo(x: R.Tensor(("m + 1", "m * 2"), "float32")):

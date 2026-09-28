@@ -133,8 +133,8 @@ class LayoutConvertMutator : public ExprMutator {
         ffi::ObjectPtr<LayoutTransformAttrs> attrs = ffi::make_object<LayoutTransformAttrs>();
         attrs->index_map = ffi::FromJSONGraph(ffi::ToJSONGraph(index_map)).as_or_throw<IndexMap>();
         const Op layout_transform_op_ = Op::Get("relax.layout_transform");
-        auto ret_expr =
-            Call(Type::Missing(), layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
+        auto ret_expr = Call::Unchecked(Type::Missing(), layout_transform_op_, {expr},
+                                        Attrs{std::move(attrs)}, {});
         return ret_expr;
       }
     };

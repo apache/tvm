@@ -87,8 +87,9 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     PrimExpr runtime_device_index = call->args[1].as_or_throw<PrimExpr>();
     StringImm storage_scope = call->args[2].as_or_throw<StringImm>();
     DataTypeImm output_dtype = DataTypeImm((DLDataType{kDLUInt, 8, 1}));
-    return Call(Type::Missing(), vm_alloc_storage_op_,
-                {call->args[0], runtime_device_index, output_dtype, storage_scope}, Attrs());
+    return Call::Unchecked(Type::Missing(), vm_alloc_storage_op_,
+                           {call->args[0], runtime_device_index, output_dtype, storage_scope},
+                           Attrs());
   }
 
   Expr MakeMemAllocTensor(const Call& call) {
@@ -100,12 +101,12 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       call_args.push_back(call->args[4]);
     }
 
-    return Call(Type::Missing(), vm_alloc_tensor_op_, call_args, Attrs());
+    return Call::Unchecked(Type::Missing(), vm_alloc_tensor_op_, call_args, Attrs());
   }
 
   Expr MakeMemKillObject(const Call& call) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
-    return Call(Type::Missing(), vm_kill_object_op_, {call->args[0]}, Attrs());
+    return Call::Unchecked(Type::Missing(), vm_kill_object_op_, {call->args[0]}, Attrs());
   }
 
   Expr CallTIRDyn(const Call& call_node) {
@@ -119,7 +120,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     for (Expr arg : tir_args->fields) {
       args.push_back(arg);
     }
-    return Call(Type::Missing(), builtin_call_tir_dyn_, args, Attrs(), {void_ty_});
+    return Call::Unchecked(Type::Missing(), builtin_call_tir_dyn_, args, Attrs(), {void_ty_});
   }
 
   Expr Reshape(const Call& call_node) {
@@ -133,21 +134,23 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
         << "However, in expression " << call_node << ", the shape argument " << arg << " has type "
         << arg->ty;
 
-    return Call(Type::Missing(), builtin_reshape_, call_node->args, Attrs(), {GetType(call_node)});
+    return Call::Unchecked(Type::Missing(), builtin_reshape_, call_node->args, Attrs(),
+                           {GetType(call_node)});
   }
 
   Expr ShapeOf(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
     TVM_FFI_ICHECK(!call_node->ty.IsMissing());
-    return Call(Type::Missing(), builtin_shape_of_, call_node->args, Attrs(), {GetType(call_node)});
+    return Call::Unchecked(Type::Missing(), builtin_shape_of_, call_node->args, Attrs(),
+                           {GetType(call_node)});
   }
 
   Expr TensorToShape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
     TVM_FFI_ICHECK(!call_node->ty.IsMissing());
 
-    return Call(Type::Missing(), builtin_tensor_to_shape_, call_node->args, Attrs(),
-                {GetType(call_node)});
+    return Call::Unchecked(Type::Missing(), builtin_tensor_to_shape_, call_node->args, Attrs(),
+                           {GetType(call_node)});
   }
 
   Expr CallPyFunc(const Call& call_node) {
@@ -161,8 +164,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     auto combined_tuple = Tuple(tuple_fields);
 
     // Direct call to vm.builtin.call_py_func
-    return Call(Type::Missing(), builtin_call_py_func_, {combined_tuple}, call_node->attrs,
-                call_node->ty_args, call_node->span);
+    return Call::Unchecked(Type::Missing(), builtin_call_py_func_, {combined_tuple},
+                           call_node->attrs, call_node->ty_args, call_node->span);
   }
 
   Expr ToDevice(const Call& call_node) {
@@ -180,7 +183,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     args.push_back(IntImm::Int64(dev_type));
     args.push_back(IntImm::Int64(dev_id));
     args.push_back(storage_scope);
-    return Call(Type::Missing(), builtin_to_device_, args, call_node->attrs, {GetType(call_node)});
+    return Call::Unchecked(Type::Missing(), builtin_to_device_, args, call_node->attrs,
+                           {GetType(call_node)});
   }
 
   Expr MakeClosure(const Call& call_node) {
@@ -197,7 +201,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
       args.push_back(arg);
     }
 
-    return Call(Type::Missing(), builtin_make_closure_, args, Attrs(), {object_ty_});
+    return Call::Unchecked(Type::Missing(), builtin_make_closure_, args, Attrs(), {object_ty_});
   }
 
   Expr InvokeClosure(const Call& call_node) {
@@ -214,8 +218,8 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
     for (Expr arg : invoke_closure_args->fields) {
       args.push_back(arg);
     }
-    return Call(Type::Missing(), call_builtin_with_ctx_op_, {builtin_invoke_closure_, Tuple(args)},
-                Attrs(), {object_ty_});
+    return Call::Unchecked(Type::Missing(), call_builtin_with_ctx_op_,
+                           {builtin_invoke_closure_, Tuple(args)}, Attrs(), {object_ty_});
   }
 
   const Op call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");

@@ -65,7 +65,7 @@ Expr MakePool1d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   const Op op = Op::Get(op_name);
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool1d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -146,8 +146,7 @@ InferLayoutOutput InferLayoutPool1d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool1d")
-      .add_arg("data", "The input tensor")
-      .attrs_type<Pool1DAttrs>()
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypePool1D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -190,7 +189,7 @@ Expr MakePool2d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   const Op op = Op::Get(op_name);
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool2d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -301,8 +300,9 @@ InferLayoutOutput InferLayoutPool2d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool2d")
-      .add_arg("data", "The input tensor")
-      .attrs_type<Pool2DAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>(),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
       .set_attr<FInferType>("FInferType", InferTypePool2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -348,7 +348,7 @@ Expr MakePool3d(ffi::String op_name, Expr data, ffi::Array<int64_t> pool_size,
   attrs->layout = layout;
   attrs->out_layout = out_layout.value_or(layout);
   const Op op = Op::Get(op_name);
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 Expr max_pool3d(Expr data, ffi::Array<int64_t> pool_size, ffi::Array<int64_t> strides,
@@ -451,8 +451,7 @@ InferLayoutOutput InferLayoutPool3d(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.max_pool3d")
-      .add_arg("data", "The input tensor")
-      .attrs_type<Pool3DAttrs>()
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypePool3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -472,8 +471,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.avg_pool1d", avg_pool1d);
 
   OpDef("relax.nn.avg_pool1d")
-      .add_arg("data", "The input tensor")
-      .attrs_type<Pool1DAttrs>()
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool1DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypePool1D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool1d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -493,8 +491,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.avg_pool2d", avg_pool2d);
 
   OpDef("relax.nn.avg_pool2d")
-      .add_arg("data", "The input tensor")
-      .attrs_type<Pool2DAttrs>()
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool2DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypePool2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool2d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -514,8 +511,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.avg_pool3d", avg_pool3d);
 
   OpDef("relax.nn.avg_pool3d")
-      .add_arg("data", "The input tensor")
-      .attrs_type<Pool3DAttrs>()
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<Pool3DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypePool3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPool3d)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -538,7 +534,7 @@ Expr adaptive_avg_pool1d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   }
 
   static const Op op = Op::Get("relax.nn.adaptive_avg_pool1d");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -597,8 +593,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool1D(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool1d")
-      .add_arg("data", "The input tensor")
-      .attrs_type<AdaptivePool1DAttrs>()
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool1DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool1D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool1D)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -624,7 +619,7 @@ Expr adaptive_avg_pool2d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   }
 
   static const Op op = Op::Get("relax.nn.adaptive_avg_pool2d");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -701,8 +696,9 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool2d")
-      .add_arg("data", "The input tensor")
-      .attrs_type<AdaptivePool2DAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool2DAttrs>(),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
       .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool2D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool2D)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -728,7 +724,7 @@ Expr adaptive_avg_pool3d(Expr data, ffi::Optional<ffi::Array<int64_t>> output_si
   }
 
   static const Op op = Op::Get("relax.nn.adaptive_avg_pool3d");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -789,8 +785,7 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool3D(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.adaptive_avg_pool3d")
-      .add_arg("data", "The input tensor")
-      .attrs_type<AdaptivePool3DAttrs>()
+      .signature(sig::arg("data", "The input tensor"), sig::call_attrs<AdaptivePool3DAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeAdaptiveAvgPool3D)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutAdaptiveAvgPool3D)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)

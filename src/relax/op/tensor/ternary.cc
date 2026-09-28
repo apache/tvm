@@ -133,9 +133,11 @@ InferLayoutOutput InferLayoutEwiseFMA(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.ewise_fma")
-      .add_arg("x1", "The left hand operand of the multiplication")
-      .add_arg("x2", "The right hand operand of the multiplication")
-      .add_arg("x3", "The operand of the addition")
+      .signature(
+          sig::arg("x1", "The left hand operand of the multiplication"),
+          sig::arg("x2", "The right hand operand of the multiplication"),
+          sig::arg("x3", "The operand of the addition"),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
       .set_attr<FInferType>("FInferType", InferTypeEwiseFMA)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutEwiseFMA)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -144,7 +146,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr ewise_fma(Expr x1, Expr x2, Expr x3) {
   static const Op op = Op::Get("relax.ewise_fma");
-  return Call(Type::Missing(), op, {x1, x2, x3}, Attrs(), {});
+  return Call::Unchecked(Type::Missing(), op, {x1, x2, x3}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

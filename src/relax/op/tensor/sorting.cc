@@ -45,7 +45,7 @@ Expr sort(Expr data, int axis, bool descending) {
   attrs->descending = std::move(descending);
 
   static const Op op = Op::Get("relax.sort");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -59,8 +59,7 @@ Type InferTypeSort(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.sort")
-      .add_arg("data", "The input tensor.")
-      .attrs_type<SortAttrs>()
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SortAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeSort)
       .set_attr<bool>("FPurity", true);
 }
@@ -74,7 +73,7 @@ Expr argsort(Expr data, int axis, bool descending, ffi::Optional<DLDataType> dty
   attrs->dtype = std::move(dtype);
 
   static const Op op = Op::Get("relax.argsort");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -96,8 +95,7 @@ Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.argsort")
-      .add_arg("data", "The input tensor.")
-      .attrs_type<ArgsortAttrs>()
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ArgsortAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeArgsort)
       .set_attr<bool>("FPurity", true);
 }
@@ -114,7 +112,7 @@ Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest,
   attrs->dtype = std::move(dtype);
 
   static const Op op = Op::Get("relax.topk");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -165,8 +163,7 @@ Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.topk")
-      .add_arg("data", "The input tensor.")
-      .attrs_type<TopKAttrs>()
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TopKAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeTopK)
       .set_attr<bool>("FPurity", true);
 }

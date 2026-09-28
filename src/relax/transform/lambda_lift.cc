@@ -310,9 +310,10 @@ class LambdaLifter : public ExprMutator {
     // Defining the rewrite rule prior to visiting the body, so that
     // recursive closures can be updated.
     if (is_recursive && is_closure) {
-      nested_closure_map_.emplace(current_lambda_var_.value(),
-                                  Call(Type::Missing(), gvar_lifted_func,
-                                       captured_vars.Map([](Var var) -> Expr { return var; })));
+      nested_closure_map_.emplace(
+          current_lambda_var_.value(),
+          Call::Unchecked(Type::Missing(), gvar_lifted_func,
+                          captured_vars.Map([](Var var) -> Expr { return var; })));
     }
 
     if (!is_closure) {
@@ -351,7 +352,7 @@ class LambdaLifter : public ExprMutator {
       Tuple arg_tuple(captured_vars.Map([](Var var) -> Expr { return var; }));
       // Call make_closure intrinsic
       callable_value =
-          Call(Type::Missing(), make_closure_op_, {gvar_lifted_func, arg_tuple}, {}, {});
+          Call::Unchecked(Type::Missing(), make_closure_op_, {gvar_lifted_func, arg_tuple}, {}, {});
     }
 
     return callable_value;
@@ -387,8 +388,9 @@ class LambdaLifter : public ExprMutator {
         }();
 
         auto prev = call;
-        call = Call(Type::Missing(), is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
-                    {var, Tuple(call->args)}, {}, {orig_ty});
+        call =
+            Call::Unchecked(Type::Missing(), is_pure ? invoke_pure_closure_op_ : invoke_closure_op_,
+                            {var, Tuple(call->args)}, {}, {orig_ty});
       }
     }
 
@@ -403,7 +405,8 @@ class LambdaLifter : public ExprMutator {
         }
 
         auto prev = call;
-        call = Call(Type::Missing(), nested_call->op, new_args, call->attrs, call->ty_args);
+        call =
+            Call::Unchecked(Type::Missing(), nested_call->op, new_args, call->attrs, call->ty_args);
       }
     }
 

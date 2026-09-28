@@ -49,8 +49,9 @@ Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip
   attrs->apply_softmax = apply_softmax;
 
   static const Op op = Op::Get("relax.vision.multibox_transform_loc");
-  return Call(Type::Missing(), op, {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
-              Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op,
+                         {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
+                         Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -191,10 +192,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         "Decode SSD/TFLite-style priors and offsets into boxes and class scores. If "
         "cls_pred shape is unknown, N-based loc/anchor shape checks are skipped in "
         "inference. Very large variances (w,h) can overflow exp in half box sizes.")
-      .add_arg("cls_pred", "[B,C,N] class logits or scores.")
-      .add_arg("loc_pred", "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh.")
-      .add_arg("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom).")
-      .attrs_type<MultiboxTransformLocAttrs>()
+      .signature(sig::arg("cls_pred", "[B,C,N] class logits or scores."),
+                 sig::arg("loc_pred",
+                          "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh."),
+                 sig::arg("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom)."),
+                 sig::call_attrs<MultiboxTransformLocAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeMultiboxTransformLoc)
       .set_attr<bool>("FPurity", true);
 }

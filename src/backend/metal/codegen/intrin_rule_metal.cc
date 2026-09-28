@@ -147,8 +147,8 @@ void RegisterMetalIntrinRules() {
 
   // Register low-level Metal device intrinsics.
   OpDef("tirx.metal.simd_shuffle")
-      .add_arg("var", "The variable to sync.")
-      .add_arg("lane", "The source thread id.")
+      .signature(sig::arg("var", "The variable to sync."),
+          sig::arg("lane", "The source thread id."))
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simd_shuffle"))
@@ -156,8 +156,8 @@ void RegisterMetalIntrinRules() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.metal.simd_shuffle_up")
-      .add_arg("var", "The variable to sync.")
-      .add_arg("delta", "The source lane id offset to be added.")
+      .signature(sig::arg("var", "The variable to sync."),
+          sig::arg("delta", "The source lane id offset to be added."))
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -166,8 +166,8 @@ void RegisterMetalIntrinRules() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.metal.simd_shuffle_down")
-      .add_arg("var", "The variable to sync.")
-      .add_arg("delta", "The source lane id offset to be subtracted.")
+      .signature(sig::arg("var", "The variable to sync."),
+          sig::arg("delta", "The source lane id offset to be subtracted."))
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",

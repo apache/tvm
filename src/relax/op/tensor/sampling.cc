@@ -44,9 +44,9 @@ Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indice
   attrs->dtype = dtype;
 
   static const Op op = Op::Get("relax.multinomial_from_uniform");
-  return Call(Type::Missing(), op,
-              {std::move(prob), std::move(uniform_sample), std::move(sample_indices)}, Attrs(attrs),
-              {});
+  return Call::Unchecked(Type::Missing(), op,
+                         {std::move(prob), std::move(uniform_sample), std::move(sample_indices)},
+                         Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -146,10 +146,10 @@ Type InferTypeMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.multinomial_from_uniform")
-      .add_arg("prob", "The probability tensor.")
-      .add_arg("uniform_sample", "The uniform sample tensor.")
-      .add_arg("sample_indices", "The sample indices tensor.")
-      .attrs_type<MultinomialFromUniformAttrs>()
+      .signature(sig::arg("prob", "The probability tensor."),
+                 sig::arg("uniform_sample", "The uniform sample tensor."),
+                 sig::arg("sample_indices", "The sample indices tensor."),
+                 sig::call_attrs<MultinomialFromUniformAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeMultinomialFromUniform)
       .set_attr<bool>("FPurity", true);
 }

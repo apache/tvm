@@ -144,11 +144,11 @@ std::tuple<ArgTypes...> GetArgType(const Call& call, const BlockBuilder& ctx) {
   Op op = call->op.as_or_throw<Op>();
   size_t n_input = op->args_info.size();
 
-  // Unfortunately, because the `.add_arg()` calls in
-  // OpDef occur during initialization of globals and are
+  // Unfortunately, because signature registrations in OpDef
+  // occur during initialization of globals and are
   // not available at compile-time, this cannot be a static_assert.
-  TVM_FFI_ICHECK(op->allow_extra_args ? sizeof...(ArgTypes) >= n_input
-                                      : sizeof...(ArgTypes) == n_input)
+  TVM_FFI_ICHECK(op->var_args_info.has_value() ? sizeof...(ArgTypes) >= n_input
+                                               : sizeof...(ArgTypes) == n_input)
       << "Internal error: " << op << " op defines " << n_input << " arguments in its OpDef() call, "
       << "but GetArgType was given " << sizeof...(ArgTypes) << " template arguments.";
 

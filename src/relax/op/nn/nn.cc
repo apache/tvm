@@ -48,35 +48,36 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.nn.relu */
 Expr relu(Expr x) {
   static const Op op = Op::Get("relax.nn.relu");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 Expr gelu(Expr x) {
   static const Op op = Op::Get("relax.nn.gelu");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 Expr gelu_tanh(Expr x) {
   static const Op op = Op::Get("relax.nn.gelu_tanh");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 Expr selu(Expr x) {
   static const Op op = Op::Get("relax.nn.selu");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 Expr silu(Expr x) {
   static const Op op = Op::Get("relax.nn.silu");
-  return Call(Type::Missing(), op, {std::move(x)}, Attrs(), {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(x)}, Attrs(), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.relu", relu);
 
   OpDef("relax.nn.relu")
-      .add_arg("x", "The input tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .signature(
+          sig::arg("x", "The input tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -87,8 +88,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.gelu", gelu);
 
   OpDef("relax.nn.gelu")
-      .add_arg("x", "The input tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .signature(
+          sig::arg("x", "The input tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -99,8 +101,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.gelu_tanh", gelu_tanh);
 
   OpDef("relax.nn.gelu_tanh")
-      .add_arg("x", "The input tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .signature(
+          sig::arg("x", "The input tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -111,8 +114,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.selu", selu);
 
   OpDef("relax.nn.selu")
-      .add_arg("x", "The input tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .signature(
+          sig::arg("x", "The input tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -123,8 +127,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef().def("relax.op.nn.silu", silu);
 
   OpDef("relax.nn.silu")
-      .add_arg("x", "The input tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .signature(
+          sig::arg("x", "The input tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true)
@@ -137,7 +142,7 @@ Expr leakyrelu(Expr data, double alpha) {
   auto attrs = ffi::make_object<LeakyReluAttrs>();
   attrs->alpha = alpha;
   static const Op op = Op::Get("relax.nn.leakyrelu");
-  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -145,9 +150,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.leakyrelu", leakyrelu);
 
   OpDef("relax.nn.leakyrelu")
-      .add_arg("data", "The input tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
-      .attrs_type<LeakyReluAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
+          sig::call_attrs<LeakyReluAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeUnaryArith</*require_float_dtype=*/true>)
       .set_attr<bool>("FPurity", true);
 }
@@ -159,7 +165,7 @@ Expr softplus(Expr data, double beta, double threshold) {
   attrs->beta = beta;
   attrs->threshold = threshold;
   static const Op op = Op::Get("relax.nn.softplus");
-  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -167,9 +173,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.softplus", softplus);
 
   OpDef("relax.nn.softplus")
-      .add_arg("data", "The input tensor.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
-      .attrs_type<SoftplusAttrs>()
+      .signature(
+          sig::arg("data", "The input tensor."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
+          sig::call_attrs<SoftplusAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeUnaryArith</*require_float_dtype=*/true>)
       .set_attr<bool>("FPurity", true);
 }
@@ -180,7 +187,7 @@ Expr prelu(Expr data, Expr alpha, int axis = 1) {
   auto attrs = ffi::make_object<PReluAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.nn.prelu");
-  return Call(Type::Missing(), op, {data, alpha}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data, alpha}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -232,9 +239,9 @@ InferLayoutOutput InferLayoutPRelu(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.prelu")
-      .add_arg("data", "The input tensor.")
-      .add_arg("alpha", "The channel-wise learnable slope.")
-      .attrs_type<PReluAttrs>()
+      .signature(sig::arg("data", "The input tensor."),
+                 sig::arg("alpha", "The channel-wise learnable slope."),
+                 sig::call_attrs<PReluAttrs>())
       .set_attr<FInferType>("FInferType", InferTypePRelu)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPRelu)
       .set_attr<bool>("FPurity", true);
@@ -246,7 +253,7 @@ Expr softmax(Expr data, int axis) {
   auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.nn.softmax");
-  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -299,8 +306,7 @@ InferLayoutOutput InferLayoutSoftmax(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.softmax")
-      .add_arg("data", "The input tensor.")
-      .attrs_type<SoftmaxAttrs>()
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeSoftmax)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutSoftmax)
       .set_attr<bool>("FPurity", true);
@@ -311,7 +317,7 @@ Expr log_softmax(Expr data, int axis) {
   auto attrs = ffi::make_object<SoftmaxAttrs>();
   attrs->axis = axis;
   static const Op op = Op::Get("relax.nn.log_softmax");
-  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -319,8 +325,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.log_softmax", log_softmax);
 
   OpDef("relax.nn.log_softmax")
-      .add_arg("data", "The input tensor.")
-      .attrs_type<SoftmaxAttrs>()
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SoftmaxAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeSoftmax)
       .set_attr<bool>("FPurity", true);
 }
@@ -333,7 +338,7 @@ Expr pad(Expr data, ffi::Array<int64_t> pad_width, ffi::String pad_mode, double 
   attrs->pad_mode = std::move(pad_mode);
   attrs->pad_value = pad_value;
   static const Op op = Op::Get("relax.nn.pad");
-  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -367,8 +372,7 @@ Type InferTypePad(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pad")
-      .add_arg("data", "The input tensor.")
-      .attrs_type<PadAttrs>()
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PadAttrs>())
       .set_attr<FInferType>("FInferType", InferTypePad)
       .set_attr<bool>("FPurity", true);
 }
@@ -379,7 +383,7 @@ Expr pixel_shuffle(Expr data, int upscale_factor) {
   auto attrs = ffi::make_object<PixelShuffleAttrs>();
   attrs->upscale_factor = upscale_factor;
   static const Op op = Op::Get("relax.nn.pixel_shuffle");
-  return Call(Type::Missing(), op, {data}, Attrs(attrs), {});
+  return Call::Unchecked(Type::Missing(), op, {data}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -440,8 +444,7 @@ Type InferTypePixelShuffle(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.pixel_shuffle")
-      .add_arg("data", "The input tensor.")
-      .attrs_type<PixelShuffleAttrs>()
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<PixelShuffleAttrs>())
       .set_attr<FInferType>("FInferType", InferTypePixelShuffle)
       .set_attr<bool>("FPurity", true);
 }
@@ -529,10 +532,10 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
   attrs->training = training;
 
   static const Op op = Op::Get("relax.nn.batch_norm");
-  return Call(Type::Missing(), op,
-              {std::move(data), std::move(gamma), std::move(beta), std::move(moving_mean),
-               std::move(moving_var)},
-              Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op,
+                         {std::move(data), std::move(gamma), std::move(beta),
+                          std::move(moving_mean), std::move(moving_var)},
+                         Attrs{attrs}, {});
 }
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -588,12 +591,11 @@ InferLayoutOutput InferLayoutBatchNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.batch_norm")
-      .add_arg("data", "Input to which batch_norm will be applied.")
-      .add_arg("gamma", "The gamma scale factor.")
-      .add_arg("beta", "The beta offset factor.")
-      .add_arg("moving_mean", "Running mean of input.")
-      .add_arg("moving_var", "Running variance of input.")
-      .attrs_type<BatchNormAttrs>()
+      .signature(
+          sig::arg("data", "Input to which batch_norm will be applied."),
+          sig::arg("gamma", "The gamma scale factor."), sig::arg("beta", "The beta offset factor."),
+          sig::arg("moving_mean", "Running mean of input."),
+          sig::arg("moving_var", "Running variance of input."), sig::call_attrs<BatchNormAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeBatchNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutBatchNorm)
       .set_attr<bool>("FPurity", true);
@@ -610,8 +612,8 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, ffi::Array<int64_t> axes, doub
   attrs->scale = scale;
 
   static const Op op = Op::Get("relax.nn.layer_norm");
-  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
-              Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+                         Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -658,10 +660,9 @@ InferLayoutOutput InferLayoutLayerNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.layer_norm")
-      .add_arg("data", "Input to which layer_norm will be applied.")
-      .add_arg("gamma", "The gamma scale factor.")
-      .add_arg("beta", "The beta offset factor.")
-      .attrs_type<LayerNormAttrs>()
+      .signature(sig::arg("data", "Input to which layer_norm will be applied."),
+                 sig::arg("gamma", "The gamma scale factor."),
+                 sig::arg("beta", "The beta offset factor."), sig::call_attrs<LayerNormAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeLayerNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutLayerNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -681,8 +682,8 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
   attrs->scale = scale;
 
   static const Op op = Op::Get("relax.nn.group_norm");
-  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
-              Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+                         Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -773,10 +774,9 @@ InferLayoutOutput InferLayoutGroupNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.group_norm")
-      .add_arg("data", "Input to which group_norm will be applied.")
-      .add_arg("gamma", "The gamma scale factor.")
-      .add_arg("beta", "The beta offset factor.")
-      .attrs_type<GroupNormAttrs>()
+      .signature(sig::arg("data", "Input to which group_norm will be applied."),
+                 sig::arg("gamma", "The gamma scale factor."),
+                 sig::arg("beta", "The beta offset factor."), sig::call_attrs<GroupNormAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeGroupNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutGroupNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -795,8 +795,8 @@ Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, ffi::Arra
   attrs->scale = scale;
 
   static const Op op = Op::Get("relax.nn.instance_norm");
-  return Call(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
-              Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(gamma), std::move(beta)},
+                         Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -876,10 +876,9 @@ InferLayoutOutput InferLayoutInstanceNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.instance_norm")
-      .add_arg("data", "Input to which instance_norm will be applied.")
-      .add_arg("gamma", "The gamma scale factor.")
-      .add_arg("beta", "The beta offset factor.")
-      .attrs_type<InstanceNormAttrs>()
+      .signature(sig::arg("data", "Input to which instance_norm will be applied."),
+                 sig::arg("gamma", "The gamma scale factor."),
+                 sig::arg("beta", "The beta offset factor."), sig::call_attrs<InstanceNormAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeInstanceNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutInstanceNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -893,7 +892,8 @@ Expr rms_norm(Expr data, Expr weight, ffi::Array<int64_t> axes, double epsilon) 
   attrs->epsilon = epsilon;
 
   static const Op op = Op::Get("relax.nn.rms_norm");
-  return Call(Type::Missing(), op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(weight)}, Attrs{attrs},
+                         {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -937,9 +937,8 @@ InferLayoutOutput InferLayoutRMSNorm(
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.rms_norm")
-      .add_arg("data", "Input to which rms_norm will be applied.")
-      .add_arg("weight", "The scale factor.")
-      .attrs_type<RMSNormAttrs>()
+      .signature(sig::arg("data", "Input to which rms_norm will be applied."),
+                 sig::arg("weight", "The scale factor."), sig::call_attrs<RMSNormAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeRMSNorm)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutRMSNorm)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -953,7 +952,7 @@ Expr dropout(Expr data, double rate) {
   attrs->rate = rate;
 
   static const Op op = Op::Get("relax.nn.dropout");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -968,8 +967,8 @@ Type InferTypeDropout(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.dropout")
-      .add_arg("data", "Input to which dropout will be applied.")
-      .attrs_type<DropoutAttrs>()
+      .signature(sig::arg("data", "Input to which dropout will be applied."),
+                 sig::call_attrs<DropoutAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeDropout)
       .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutUnaryEwise)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
@@ -1023,7 +1022,7 @@ Type InferTypeCrossEntropy(const Call& call, const BlockBuilder& ctx) {
 
 Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
   static const Op op = Op::Get("relax.nn.cross_entropy_with_logits");
-  return Call(Type::Missing(), op, {std::move(predictions), std::move(labels)}, {}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(predictions), std::move(labels)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1031,9 +1030,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.nn.cross_entropy_with_logits", cross_entropy_with_logits);
 
   OpDef("relax.nn.cross_entropy_with_logits")
-      .add_arg("predictions", "The predictions.")
-      .add_arg("labels", "The labels.")
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
+      .signature(
+          sig::arg("predictions", "The predictions."), sig::arg("labels", "The labels."),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."))
       .set_attr<FInferType>("FInferType", InferTypeCrossEntropy)
       .set_attr<bool>("FPurity", true);
 }
@@ -1054,11 +1053,12 @@ Expr nll_loss(Expr predictions, Expr targets, ffi::Optional<Expr> weights, ffi::
 
   static const Op op = Op::Get("relax.nn.nll_loss");
   if (weights.has_value()) {
-    return Call(Type::Missing(), op, {std::move(predictions), std::move(targets), weights.value()},
-                Attrs{attrs}, {});
+    return Call::Unchecked(Type::Missing(), op,
+                           {std::move(predictions), std::move(targets), weights.value()},
+                           Attrs{attrs}, {});
   } else {
-    return Call(Type::Missing(), op, {std::move(predictions), std::move(targets)}, Attrs{attrs},
-                {});
+    return Call::Unchecked(Type::Missing(), op, {std::move(predictions), std::move(targets)},
+                           Attrs{attrs}, {});
   }
 }
 
@@ -1259,11 +1259,11 @@ Type InferTypeNLLLoss(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.nll_loss", "Optional weights: The weight of each target values.")
-      .add_arg("predictions", "The prediction tensor.")
-      .add_arg("targets", "The target tensor.")
-      .allow_extra_args()
-      .add_ty_arg("out_type", "Optional output tensor type carrying the virtual device.")
-      .attrs_type<NLLLossAttrs>()
+      .signature(
+          sig::arg("predictions", "The prediction tensor."),
+          sig::arg("targets", "The target tensor."), sig::var_args("args"),
+          sig::var_ty_args("out_type", "Optional output tensor type carrying the virtual device."),
+          sig::call_attrs<NLLLossAttrs>())
       .set_attr<FInferType>("FInferType", InferTypeNLLLoss)
       .set_attr<bool>("FPurity", true);
 }
@@ -1272,7 +1272,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr batch_flatten(Expr data) {
   static const Op op = Op::Get("relax.nn.batch_flatten");
-  return Call(Type::Missing(), op, {std::move(data)}, {}, {});
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, {}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -1313,7 +1313,7 @@ Type InferTypeBatchFlatten(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.nn.batch_flatten")
-      .add_arg("data", "The input tensor.")
+      .signature(sig::arg("data", "The input tensor."))
       .set_attr<FInferType>("FInferType", InferTypeBatchFlatten)
       .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
       .set_attr<bool>("FPurity", true);
