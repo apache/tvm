@@ -509,6 +509,18 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const CallNode* node, InplaceMode inplace
   return Expr(std::move(copy));
 }
 
+UnchangedOr<Expr> ExprMutator::UpdateCallType(const CallNode* node, Type type,
+                                              InplaceMode inplace_mode) {
+  if (node->ty.same_as(type)) return ffi::Unchanged();
+  if (inplace_mode == InplaceMode::kAllow && node->unique()) {
+    const_cast<CallNode*>(node)->ty = std::move(type);
+    return ffi::Unchanged();
+  }
+  auto copy = ffi::make_object<CallNode>(*node);
+  copy->ty = std::move(type);
+  return Expr(std::move(copy));
+}
+
 UnchangedOr<Expr> ExprMutator::Mutate_(const GenericConstNode* node, InplaceMode inplace_mode) {
   auto ty = Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
   if (ty.UnchangedOrSameAs(node->ty)) return ffi::Unchanged();

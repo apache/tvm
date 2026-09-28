@@ -511,6 +511,16 @@ class TVM_DLL ExprMutator : public ObjectMutator {
 
  protected:
   /*!
+   * \brief Install a Call result type while preserving copy-on-write behavior.
+   * \param node The borrowed Call after ordinary mutation.
+   * \param type The type to install; inference is the caller's responsibility.
+   * \param inplace_mode Inherited mutation permission.
+   * \return Unchanged when the type is identical or updated in place, otherwise a copied Call.
+   */
+  static UnchangedOr<Expr> UpdateCallType(const CallNode* node, Type type,
+                                          InplaceMode inplace_mode);
+
+  /*!
    * \brief Construct a mutator with an extended native dispatch table.
    * \param vtable The finalized table, which must outlive this mutator.
    */
