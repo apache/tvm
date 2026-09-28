@@ -546,7 +546,8 @@ TVMFFIAny CallVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noex
   return ffi::AnyView(nullptr).CopyToTVMFFIAny();
 }
 
-TVMFFIAny CallMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> CallMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: attrs, constant metadata left untouched like the classic Expr functors.
   const CallNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(value);
@@ -579,17 +580,18 @@ TVMFFIAny CallMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noe
   if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_op_u.UnchangedOrSameAs(self->op) &&
       mapped_args_u.UnchangedOrSameAs(self->args) &&
       mapped_ty_args_u.UnchangedOrSameAs(self->ty_args)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   ffi::ObjectPtr<CallNode> copy = ffi::make_object<CallNode>(*self);
   if (!mapped_ty_u.IsUnchanged()) copy->ty = std::move(mapped_ty_u).ValueUnchecked();
   if (!mapped_op_u.IsUnchanged()) copy->op = std::move(mapped_op_u).ValueUnchecked();
   if (!mapped_args_u.IsUnchanged()) copy->args = std::move(mapped_args_u).ValueUnchecked();
   if (!mapped_ty_args_u.IsUnchanged()) copy->ty_args = std::move(mapped_ty_args_u).ValueUnchecked();
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+  return ffi::Any(std::move(copy));
 }
 
-TVMFFIAny CallMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> CallMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: attrs, constant metadata left untouched like the classic Expr functors.
   CallNode* self = const_cast<CallNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(value));
@@ -623,13 +625,13 @@ TVMFFIAny CallMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVie
   if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_op_u.UnchangedOrSameAs(self->op) &&
       mapped_args_u.UnchangedOrSameAs(self->args) &&
       mapped_ty_args_u.UnchangedOrSameAs(self->ty_args)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   if (!mapped_ty_u.IsUnchanged()) self->ty = std::move(mapped_ty_u).ValueUnchecked();
   if (!mapped_op_u.IsUnchanged()) self->op = std::move(mapped_op_u).ValueUnchecked();
   if (!mapped_args_u.IsUnchanged()) self->args = std::move(mapped_args_u).ValueUnchecked();
   if (!mapped_ty_args_u.IsUnchanged()) self->ty_args = std::move(mapped_ty_args_u).ValueUnchecked();
-  return ffi::Unchanged().CopyToTVMFFIAny();
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -1179,9 +1181,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   CallNode::RegisterReflection();
   refl::TypeAttrDef<CallNode>()
       .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&CallVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&CallMutate))
+      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&CallMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&CallMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&CallMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Call", [](Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
                                       ffi::Array<Type> ty_args, Span span) {
