@@ -401,7 +401,7 @@ def test_call_reinfer_type_from_current_inputs():
     with pytest.raises(tvm.error.InternalError, match="type is not populated"):
         tvm.ir.reinfer_type(rx.Call("relax.abs", [rx.Var("untyped")]))
     with pytest.raises(ValueError, match="No context-free"):
-        tvm.ir.reinfer_type(rx.Call("relax.matmul", [x, x]))
+        tvm.ir.reinfer_type(rx.Call.unchecked("relax.matmul", [x, x]))
     func = rx.Var("func", rx.FuncType([original_ty], original_ty))
     with pytest.raises(ValueError, match="Op callee"):
         tvm.ir.reinfer_type(rx.Call(func, [x]))
