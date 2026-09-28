@@ -651,38 +651,25 @@ UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::SelectNode* node, Inplace
 }
 
 UnchangedOr<PrimExpr> ExprMutator::Mutate_(const prim::LetNode* node, InplaceMode inplace_mode) {
-  Type old_type = node->value->ty;
-  auto value_u = Mutate(node->value, inplace_mode);
-  PrimExpr value = std::move(value_u).ValueOrUnchanged(node->value);
-  bool has_explicit_remap = VarRemapGet(node->var).type_index() != ffi::TypeIndex::kTVMFFINone;
   auto var_u = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&] {
                  return Mutate(node->var, inplace_mode);
                }).as_or_throw<UnchangedOr<Var>>();
-  Var var = std::move(var_u).ValueOrUnchanged(node->var);
-  if (!has_explicit_remap &&
-      !(old_type.same_as(value->ty) || ffi::StructuralEqual()(old_type, value->ty)) &&
-      !(var->ty.same_as(value->ty) || ffi::StructuralEqual()(var->ty, value->ty))) {
-    var = var.CopyWithType(value->ty);
-    VarRemapSet(node->var, var);
-  }
+  auto value_u = Mutate(node->value, inplace_mode);
   auto body_u = Mutate(node->body, inplace_mode);
-  PrimExpr body = std::move(body_u).ValueOrUnchanged(node->body);
-  if (var.same_as(node->var) && value.same_as(node->value) && body.same_as(node->body) &&
-      body->ty.same_as(node->ty))
+  if (var_u.UnchangedOrSameAs(node->var) && value_u.UnchangedOrSameAs(node->value) &&
+      body_u.UnchangedOrSameAs(node->body))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<prim::LetNode*>(node);
-    writable->var = std::move(var);
-    writable->value = std::move(value);
-    writable->body = std::move(body);
-    writable->ty = writable->body->ty;
+    if (!var_u.IsUnchanged()) writable->var = std::move(var_u).ValueUnchecked();
+    if (!value_u.IsUnchanged()) writable->value = std::move(value_u).ValueUnchecked();
+    if (!body_u.IsUnchanged()) writable->body = std::move(body_u).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<prim::LetNode>(*node);
-  copy->var = std::move(var);
-  copy->value = std::move(value);
-  copy->body = std::move(body);
-  copy->ty = copy->body->ty;
+  if (!var_u.IsUnchanged()) copy->var = std::move(var_u).ValueUnchecked();
+  if (!value_u.IsUnchanged()) copy->value = std::move(value_u).ValueUnchecked();
+  if (!body_u.IsUnchanged()) copy->body = std::move(body_u).ValueUnchecked();
   return PrimExpr(std::move(copy));
 }
 

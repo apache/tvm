@@ -292,26 +292,15 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
-  Type old_type = op->value->ty;
-  auto value_u = Mutate(op->value, inplace_mode);
-  Expr value = std::move(value_u).ValueOrUnchanged(op->value);
-  Var var = op->var;
-  if (VarRemapGet(op->var).type_index() == ffi::TypeIndex::kTVMFFINone &&
-      !(old_type.same_as(value->ty) || ffi::StructuralEqual()(old_type, value->ty)) &&
-      !(var->ty.same_as(value->ty) || ffi::StructuralEqual()(var->ty, value->ty))) {
-    var = var.CopyWithType(value->ty);
-    VarRemapSet(op->var, var);
-  }
-  if (value.same_as(op->value) && var.same_as(op->var)) return ffi::Unchanged();
+  auto value = Mutate(op->value, inplace_mode);
+  if (value.UnchangedOrSameAs(op->value)) return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
     auto* writable = const_cast<BindNode*>(op);
-    writable->value = std::move(value);
-    writable->var = std::move(var);
+    if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
     return ffi::Unchanged();
   }
   auto copy = ffi::make_object<BindNode>(*op);
-  copy->value = std::move(value);
-  copy->var = std::move(var);
+  if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
   return Stmt(std::move(copy));
 }
 
