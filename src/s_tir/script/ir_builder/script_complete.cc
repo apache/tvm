@@ -117,34 +117,15 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    // AllocBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(op->var.as_or_throw<BufferVar>().var())) {
-      buffer_var_map_->Set(op->var.as_or_throw<BufferVar>().var(),
-                           op->var.as_or_throw<BufferVar>());
-    }
-    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
-  }
-
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
-    if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, inplace_mode);
+    Stmt stmt =
+        s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    const Var& var = stmt.as<BindNode>()->var;
+    // A flat definition registers its buffer for access detection in subsequent siblings.
+    if (auto buffer = var.as<BufferVar>(); buffer && !buffer_var_map_->count(var)) {
+      buffer_var_map_->Set(var, buffer.value());
     }
-    if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_buffer())) {
-      return Mutate_DeclBuffer(op, inplace_mode);
-    }
-    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
-  }
-
-  UnchangedOr<Stmt> Mutate_DeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    // DeclBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(op->var.as_or_throw<BufferVar>().var())) {
-      buffer_var_map_->Set(op->var.as_or_throw<BufferVar>().var(),
-                           op->var.as_or_throw<BufferVar>());
-    }
-    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
+    return stmt;
   }
 
   bool is_root_block_ = true;
