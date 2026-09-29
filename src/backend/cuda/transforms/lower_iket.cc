@@ -595,8 +595,12 @@ class StripIket : public StmtExprMutator {
   explicit StripIket(TokenBufferSet token_buffers) : token_buffers_(std::move(token_buffers)) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* alloc, InplaceMode inplace_mode) final {
-    if (token_buffers_.count(alloc->buffer.get())) return Evaluate(0);
+  UnchangedOr<Stmt> Mutate_(const BindNode* alloc, InplaceMode inplace_mode) final {
+    if (const auto* call = alloc->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer()) &&
+        token_buffers_.count(alloc->var.get())) {
+      return Evaluate(0);
+    }
     return StmtExprMutator::Mutate_(alloc, inplace_mode);
   }
 

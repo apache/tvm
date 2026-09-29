@@ -109,10 +109,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable()  //
       .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
         if (var->ty.as<tirx::BufferTypeNode>()) {
-          tirx::BufferVar buffer(var);
+          tirx::BufferVar buffer = var.as_or_throw<tirx::BufferVar>();
           if (!d->IsVarDefined(buffer)) {
             if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
-              ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
+              ExprDoc lhs = DefineVar(buffer.var(), opt_f.value(), d);
               ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
                                        BufferVarDefinition::DataPointer);
               opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
@@ -238,7 +238,55 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
+ExprDoc CallAttrsDoc(const ffi::Any& value, const AccessPath& p, const IRDocsifier& d) {
+  if (value == nullptr) return LiteralDoc::None(p);
+  if (const auto* imm = value.as<IntImmNode>()) {
+    return TIR(d, DType2Str(imm->ty.as_or_throw<PrimType>()->dtype))
+        ->Call({LiteralDoc::Int(ffi::GetRef<IntImm>(imm), p->Attr("value"))});
+  }
+  if (const auto* imm = value.as<FloatImmNode>()) {
+    return TIR(d, DType2Str(imm->ty.as_or_throw<PrimType>()->dtype))
+        ->Call({LiteralDoc::Float(imm->value, p->Attr("value"))});
+  }
+  if (const auto* imm = value.as<StringImmNode>()) {
+    return IdDoc("tvm")
+        ->Attr("ir")
+        ->Attr("StringImm")
+        ->Call({LiteralDoc::Str(imm->value, p->Attr("value"))});
+  }
+  if (auto tuple = value.as<Tuple>()) {
+    return IdDoc("tvm")->Attr("ir")->Attr("Tuple")->Call(
+        {CallAttrsDoc(tuple.value()->fields, p->Attr("fields"), d)});
+  }
+  if (const auto* attrs = value.as<DictAttrsNode>()) {
+    return IdDoc("tvm")
+        ->Attr("ir")
+        ->Attr("DictAttrs")
+        ->Call({CallAttrsDoc(attrs->dict, p->Attr("dict"), d)});
+  }
+  if (auto array = value.as<ffi::Array<ffi::Any>>()) {
+    ffi::Array<ExprDoc> items;
+    for (size_t i = 0; i < array.value().size(); ++i) {
+      items.push_back(CallAttrsDoc(array.value()[i], p->ArrayItem(i), d));
+    }
+    return ListDoc(items);
+  }
+  if (auto map = value.as<ffi::Map<ffi::Any, ffi::Any>>()) {
+    ffi::Array<ExprDoc> keys, values;
+    for (const auto& [key, item] : map.value()) {
+      keys.push_back(CallAttrsDoc(key, p->MapItem(key), d));
+      values.push_back(CallAttrsDoc(item, p->MapItem(key), d));
+    }
+    return DictDoc(keys, values);
+  }
+  return d->AsDoc<ExprDoc>(value, p);
+}
+
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
+  if (call->op.same_as(tirx::builtin::alloc_buffer()) ||
+      call->op.same_as(tirx::builtin::decl_buffer())) {
+    if (auto doc = BufferOperationCall(call, call_p, d)) return doc.value();
+  }
   if (call->op.same_as(tirx::builtin::buffer_data())) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
     return d->AsDoc<ExprDoc>(call->args[0], call_p->Attr("args")->ArrayItem(0))->Attr("data");
@@ -265,6 +313,18 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
                                 "types, but got "
                              << call->ty;
   };
+  std::function<ExprDoc(const Type&, AccessPath)> type_value_doc;
+  type_value_doc = [&](const Type& type, AccessPath p) -> ExprDoc {
+    if (type.as<tirx::BufferTypeNode>()) return d->AsDoc<ExprDoc>(type, p);
+    if (const auto* tuple = type.as<TupleTypeNode>()) {
+      ffi::Array<ExprDoc> fields;
+      for (size_t i = 0; i < tuple->fields.size(); ++i) {
+        fields.push_back(type_value_doc(tuple->fields[i], p->Attr("fields")->ArrayItem(i)));
+      }
+      return IdDoc("tvm")->Attr("ir")->Attr("TupleType")->Call({ListDoc(fields)});
+    }
+    return d->AddMetadata(type);
+  };
   auto get_call_return_type_doc = [&]() -> ExprDoc {
     if (call->ty.IsMissing()) {
       return IdDoc("tvm")->Attr("ir")->Attr("Type")->Attr("missing")->Call({});
@@ -273,14 +333,21 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
       return get_call_type_doc(call_p->Attr("ty"));
     }
     // Annotation spellings such as None for an empty tuple are not type values.
-    return d->AddMetadata(call->ty);
+    return type_value_doc(call->ty, call_p->Attr("ty"));
   };
-  if (call->attrs.defined()) {
+  if (call->attrs.defined() || call->op.same_as(tirx::builtin::alloc_buffer()) ||
+      call->op.same_as(tirx::builtin::decl_buffer())) {
     ffi::Array<ExprDoc> call_args;
     int n_args = call->args.size();
     call_args.reserve(n_args);
     for (int i = 0; i < n_args; ++i) {
-      call_args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
+      AccessPath arg_p = call_p->Attr("args")->ArrayItem(i);
+      if (auto tuple = call->args[i].as<Tuple>()) {
+        call_args.push_back(IdDoc("tvm")->Attr("ir")->Attr("Tuple")->Call(
+            {d->AsDoc<ExprDoc>(tuple.value()->fields, arg_p->Attr("fields"))}));
+      } else {
+        call_args.push_back(d->AsDoc<ExprDoc>(call->args[i], arg_p));
+      }
     }
     if (call->op.same_as(tirx::builtin::tensormap_encode_tiled())) {
       const auto* attrs = call->attrs.as<tirx::TensorMapEncodeTiledAttr>();
@@ -312,9 +379,18 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
                          ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
                          : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
     ExprDoc ret_ty_doc = get_call_return_type_doc();
-    return TIR(d, "Call")->Call(
-        {op_doc, ListDoc(call_args)}, {"attrs", "ret_ty"},
-        {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")), ret_ty_doc});
+    ffi::Array<ffi::String> keys = {"attrs", "ret_ty"};
+    ffi::Array<ExprDoc> values = {CallAttrsDoc(call->attrs, call_p->Attr("attrs"), d), ret_ty_doc};
+    if (!call->ty_args.empty()) {
+      keys.push_back("ty_args");
+      ffi::Array<ExprDoc> type_args;
+      for (size_t i = 0; i < call->ty_args.size(); ++i) {
+        type_args.push_back(
+            type_value_doc(call->ty_args[i], call_p->Attr("ty_args")->ArrayItem(i)));
+      }
+      values.push_back(ListDoc(type_args));
+    }
+    return TIR(d, "Call")->Call({op_doc, ListDoc(call_args)}, keys, values);
   }
   static const OpAttrMap<tirx::TScriptPrinterName>& op_names =
       Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");

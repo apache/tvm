@@ -35,9 +35,6 @@ def test_stmt_simplify():
 
     mod = tvm.IRModule.from_expr(func)
     body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
-    # Navigate through DeclBuffer nodes to reach the inner body
-    while isinstance(body, tvm.tirx.DeclBuffer):
-        body = body.body
     # After simplification, Bind is kept (not inlined) but the if is eliminated
     # since i < 12 is always true for i in 0..10.
     # Body is SeqStmt(Bind(n_val, 10), For(i, ...))
@@ -61,9 +58,6 @@ def test_thread_extent_simplify():
 
     mod = tvm.IRModule.from_expr(func)
     body = tvm.tirx.transform.StmtSimplify()(mod)["main"].body
-    # Navigate through DeclBuffer nodes to reach the inner body
-    while isinstance(body, tvm.tirx.DeclBuffer):
-        body = body.body
     # After simplification: Bind is kept but the if is eliminated
     # since tx + ty < 12 is always true for tx in 0..10 and ty = 0.
     stmts = list(body) if isinstance(body, tvm.tirx.SeqStmt) else [body]

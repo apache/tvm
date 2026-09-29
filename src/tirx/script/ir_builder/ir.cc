@@ -648,8 +648,11 @@ BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String st
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
   BufferVar buffer = BufferDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
                                 storage_scope, 0, 0, std::nullopt, {});
-  AddToParent(
-      tvm::tirx::AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, ffi::Any>())));
+  AddToParent(tvm::tirx::Bind(
+      buffer.var(), Call(buffer.type(), tvm::tirx::builtin::alloc_buffer(),
+                         {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                          StringImm(buffer.scope())},
+                         DictAttrs(annotations.value_or(ffi::Map<ffi::String, ffi::Any>())))));
   return buffer;
 }
 

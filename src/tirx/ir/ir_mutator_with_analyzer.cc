@@ -55,7 +55,7 @@ void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::PrimFunc& func) {
     if (!param->ty.as<tirx::BufferTypeNode>()) {
       continue;
     }
-    tirx::BufferVar buffer(param);
+    tirx::BufferVar buffer = param.as_or_throw<tirx::BufferVar>();
     for (PrimExpr shape : buffer->shape) {
       analyzer_->MarkGlobalNonNegValue(shape);
     }
@@ -125,6 +125,9 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const ForNode* op, InplaceMode 
 }
 
 UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  if (!op->value.as<PrimExpr>()) {
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
   auto value_result = this->Mutate(op->value, inplace_mode);
   bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
   Expr value = std::move(value_result).ValueOrUnchanged(op->value);

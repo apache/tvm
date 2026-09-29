@@ -79,7 +79,12 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
-      new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
+      new_stmt =
+          SeqStmt::Flatten(Bind(buf, Call(buf.type(), tirx::builtin::decl_buffer(),
+                                          {source.data(), tvm::Tuple(buf->shape),
+                                           DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                                          {})),
+                           std::move(new_stmt));
     }
     return std::make_pair(new_stmt, new_params);
   }
@@ -103,32 +108,44 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return any;
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    if (!op->buffer->layout.has_value()) {
-      return ffi::Unchanged();
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
+      if (!original_buffer->layout.has_value()) {
+        return ffi::Unchanged();
+      }
+      auto buffer = GetFlattenedBuffer(original_buffer, /*is_alloc=*/true);
+      if (buffer.same_as(original_buffer)) {
+        return ffi::Unchanged();
+      }
+      return Bind(buffer.var(),
+                  Call(buffer.type(), tirx::builtin::alloc_buffer(),
+                       {tvm::Tuple(buffer->shape, call->args[0]->span),
+                        DataTypeImm(buffer->dtype->dtype, call->args[1]->span),
+                        StringImm(buffer.scope(), call->args[2]->span)},
+                       call->attrs, call->ty_args, call->span),
+                  op->span);
     }
-    auto buffer = GetFlattenedBuffer(op->buffer, /*is_alloc=*/true);
-    if (buffer.same_as(op->buffer)) {
-      return ffi::Unchanged();
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_buffer())) {
+      BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
+      Expr original_data = call->args[0];
+      auto data_update = Mutate(original_data, inplace_mode);
+      bool data_unchanged = data_update.UnchangedOrSameAs(original_data);
+      Expr data = std::move(data_update).ValueOrUnchanged(original_data);
+      auto buffer = GetFlattenedBuffer(original_buffer);
+      if (buffer.same_as(original_buffer) && data_unchanged) {
+        return ffi::Unchanged();
+      }
+      return Bind(buffer,
+                  Call(buffer.type(), tirx::builtin::decl_buffer(),
+                       {std::move(data), tvm::Tuple(buffer->shape),
+                        DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+                       call->attrs, call->ty_args, call->span),
+                  op->span);
     }
-    if (inplace_mode == InplaceMode::kAllow) {
-      const_cast<AllocBufferNode*>(op)->buffer = std::move(buffer);
-      return ffi::Unchanged();
-    }
-    auto n = ffi::make_object<AllocBufferNode>(*op);
-    n->buffer = std::move(buffer);
-    return Stmt(n);
-  }
-
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    auto data_update = Mutate(op->data, inplace_mode);
-    bool data_unchanged = data_update.UnchangedOrSameAs(op->data);
-    Expr data = std::move(data_update).ValueOrUnchanged(op->data);
-    auto buffer = GetFlattenedBuffer(op->buffer);
-    if (buffer.same_as(op->buffer) && data_unchanged) {
-      return ffi::Unchanged();
-    }
-    return DeclBuffer(buffer, std::move(data), op->span);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   BufferVar GetFlattenedBuffer(BufferVar buf, bool is_alloc = false) {

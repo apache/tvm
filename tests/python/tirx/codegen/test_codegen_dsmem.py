@@ -25,6 +25,15 @@ from tvm.ir import PointerType, PrimType, assert_structural_equal
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def _get_source(func: tvm.tirx.PrimFunc) -> str:
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     mod = tvm.IRModule({"main": func})
@@ -118,10 +127,10 @@ def test_mapa_pointer_bind_codegen():
     loads = []
 
     def collect(node):
-        if isinstance(node, tvm.tirx.Bind):
-            binds.append(node)
-        elif isinstance(node, tvm.tirx.DeclBuffer):
+        if _is_buffer_binding(node, "tirx.decl_buffer"):
             decl_buffers.append(node)
+        elif isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+            binds.append(node)
         elif isinstance(node, tvm.ir.TensorLoad):
             loads.append(node)
 
@@ -132,8 +141,8 @@ def test_mapa_pointer_bind_codegen():
     assert binds[0].value.ty.storage_scope == "shared"
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
     assert len(decl_buffers) == 1
-    assert decl_buffers[0].data.same_as(binds[0].var)
-    assert any(load.source.same_as(decl_buffers[0].buffer) for load in loads)
+    assert decl_buffers[0].value.args[0].same_as(binds[0].var)
+    assert any(load.source.same_as(decl_buffers[0].var) for load in loads)
 
     assert_structural_equal(
         main,

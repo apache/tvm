@@ -332,6 +332,10 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
 }
 
 void CodeGenMetal::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+  }
   // Stateful reads cannot be substituted after the underlying state changes.
   if (auto prim_value = op->value.as<PrimExpr>();
       prim_value && SideEffect(prim_value.value()) <= CallEffectKind::kPure) {
@@ -361,22 +365,27 @@ void CodeGenMetal::Dispatch_(const BindNode* op) {
   stream << "*)" << value << ";\n";
 }
 
-void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
-  TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer.get());
+void CodeGenMetal::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+  TVM_FFI_ICHECK(buffer.defined());
+  std::string vid = AllocVarID(buffer.get());
 
   this->PrintIndent();
   // Compute a compile-time upper bound on the number of buffer elements.
   size_t constant_size = 1;
-  for (const auto& dim : op->buffer->shape) {
+  for (const auto& dim : shape->fields) {
     const auto* dim_imm = dim.as<IntImmNode>();
-    int64_t dim_size =
-        dim_imm ? static_cast<int64_t>(dim_imm->value) : analyzer_->const_int_bound(dim)->max_value;
+    int64_t dim_size = dim_imm ? static_cast<int64_t>(dim_imm->value)
+                               : analyzer_->const_int_bound(dim.as_or_throw<PrimExpr>())->max_value;
     if (dim_imm == nullptr) {
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
       TVM_FFI_ICHECK(dim_size != sym::ConstIntBound::kPosInf)
           << "Metal allocation extent requires a finite compile-time upper bound, but got " << dim;
-      if (const auto* dtype_max = max_value(dim.ty()).as<IntImmNode>()) {
+      if (const auto* dtype_max = max_value(dim->ty.as_or_throw<PrimType>()).as<IntImmNode>()) {
         TVM_FFI_ICHECK_LT(dim_size, dtype_max->value)
             << "Metal allocation extent requires a finite compile-time upper bound, but got "
             << dim;
@@ -390,32 +399,31 @@ void CodeGenMetal::Dispatch_(const AllocBufferNode* op) {
     constant_size *= static_cast<size_t>(dim_size);
   }
 
-  auto scope = op->buffer.scope();
-  alloc_storage_scope_[op->buffer.get()] = scope;
-  const PrimType& dtype = op->buffer->dtype;
+  alloc_storage_scope_[buffer.get()] = scope;
   if (scope == "metal.simdgroup") {
-    bool supported_simdgroup_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Float(32) ||
-                                     dtype == PrimType::BFloat(16);
+    bool supported_simdgroup_dtype = PrimType(dtype) == PrimType::Float(16) ||
+                                     PrimType(dtype) == PrimType::Float(32) ||
+                                     PrimType(dtype) == PrimType::BFloat(16);
     TVM_FFI_ICHECK(supported_simdgroup_dtype)
         << "Only float16, float32, and bfloat16 are supported, but got "
-        << ffi::DLDataTypeToString(dtype->dtype);
+        << ffi::DLDataTypeToString(dtype);
     TVM_FFI_ICHECK(constant_size % 64 == 0)
         << "Only 8x8 matrix is supported, but got " << constant_size << " bytes\n";
 
     std::ostringstream dtype_os;
-    PrintType(dtype, dtype_os);
+    PrintType(PrimType(dtype), dtype_os);
     std::string dtype_str = dtype_os.str();
-    simdgroup_dtype_[op->buffer.get()] = dtype_str;
+    simdgroup_dtype_[buffer.get()] = dtype_str;
     stream << "simdgroup_" << dtype_str << "8x8 " << vid << '[' << constant_size / 64 << "];\n";
   } else {
     PrintStorageScope(scope, stream);
-    PrintType(dtype, stream);
+    PrintType(PrimType(dtype), stream);
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer.get(), op->buffer->dtype);
-  if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer.get());
+  RegisterHandleType(buffer.get(), PrimType(dtype));
+  if (annotations->dict.count(tirx::attr::kVolatile)) {
+    MarkVolatile(buffer.get());
   }
 }
 

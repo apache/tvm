@@ -117,7 +117,7 @@ class BufferVar : public Var {
    *
    * If flattening changes the type, the result is a fresh BufferVar.  Callers
    * that use it as a view over this buffer must bind the returned variable with
-   * `DeclBuffer(flattened, this->data())`.
+   * a `Bind` of `flattened` to a `decl_buffer` Call over `this->data()`.
    */
   BufferVar GetFlattenedBuffer() const;
 

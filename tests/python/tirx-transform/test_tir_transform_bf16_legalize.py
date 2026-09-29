@@ -23,6 +23,15 @@ from tvm.target import Target
 from tvm.tirx.transform.transform import BindTarget
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def u16tof32(v):
     uint32_v = v.astype("uint32")
     uint32_v = uint32_v << tvm.tirx.const(16, "uint32")
@@ -157,12 +166,12 @@ def test_bf16_masked_load_store_will_legalize():
 
         tvm_ffi.structural_walk(
             mod["main"].body,
-            ((tvm.tirx.DeclBuffer, tvm.tirx.AllocBuffer, tvm.ir.Call), collect_once),
+            ((tvm.tirx.Bind, tvm.ir.Call), collect_once),
         )
         buffers = {
-            node.buffer.name: str(node.buffer.dtype)
+            node.var.name: str(node.var.dtype)
             for node in nodes
-            if isinstance(node, tvm.tirx.DeclBuffer | tvm.tirx.AllocBuffer)
+            if _is_buffer_binding(node, "tirx.alloc_buffer", "tirx.decl_buffer")
         }
         masked_loads = [
             node
