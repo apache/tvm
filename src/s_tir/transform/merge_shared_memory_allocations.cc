@@ -295,8 +295,6 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       in_thread_env_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
       in_thread_env_ = false;
-    } else if (op->attr_key == tirx::attr::extern_scope) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else if (op->attr_key == s_tir::attr::virtual_thread) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else {
@@ -461,7 +459,6 @@ class SharedMemoryRewriter : public StmtExprMutator {
       }
 
       in_thread_env_ = false;
-
       // 6. If this scope has no shmem allocs, skip the wrapper.
       if (scope.shmem_allocs.empty()) {
         scope_stack_.pop_back();
