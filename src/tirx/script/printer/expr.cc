@@ -259,7 +259,10 @@ ExprDoc CallAttrsDoc(const ffi::Any& value, const AccessPath& p, const IRDocsifi
         {CallAttrsDoc(tuple.value()->fields, p->Attr("fields"), d)});
   }
   if (const auto* attrs = value.as<DictAttrsNode>()) {
-    return CallAttrsDoc(attrs->dict, p->Attr("dict"), d);
+    return IdDoc("tvm")
+        ->Attr("ir")
+        ->Attr("DictAttrs")
+        ->Call({CallAttrsDoc(attrs->dict, p->Attr("dict"), d)});
   }
   if (auto array = value.as<ffi::Array<ffi::Any>>()) {
     ffi::Array<ExprDoc> items;
