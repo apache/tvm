@@ -113,9 +113,12 @@ def header_generator(tags):
 #endif
 """
 
+    # The low-precision type headers below are also visible to NVCC's host pass
+    # (no __CUDA_ARCH__), which parses kernel signatures when this source shares
+    # a translation unit with host code, e.g. tvm.backend.cuda.export_cuda_host.
     if "fp16" in tags:
         header += R"""
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
+#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 530)
 #include <cuda_fp16.h>
 __device__ half max(half a, half b)
 {
@@ -173,7 +176,7 @@ CUDA_UNSUPPORTED_HALF_MATH_UNARY(hexp, exp)
 
     if "bf16" in tags:
         header += R"""
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 800)
 #include <cuda_bf16.h>
 __device__ nv_bfloat16 max(nv_bfloat16 a, nv_bfloat16 b)
 {
@@ -224,7 +227,7 @@ CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
 
     if "fp8" in tags:
         header += R"""
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 890)
+#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 890)
 #include <cuda_fp8.h>
 using fp8_e4_t = __nv_fp8_e4m3;
 using fp8_e4x2_t = __nv_fp8x2_e4m3;
@@ -258,7 +261,7 @@ struct fp8_e8x16_t {
 
     if "fp6" in tags:
         header += R"""
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)
+#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 1000)
 #include <cuda_fp6.h>
 using fp6_e2_t = __nv_fp6_e2m3;
 using fp6_e2x2_t = __nv_fp6x2_e2m3;
@@ -283,7 +286,7 @@ struct fp6_e3x16_t {
 
     if "fp4" in tags:
         header += R"""
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+#if !defined(__CUDA_ARCH__) || (__CUDA_ARCH__ >= 800)
 #include <cuda_fp4.h>
 using fp4_e2_t = __nv_fp4_e2m1;
 using fp4_e2x2_t = __nv_fp4x2_e2m1;
