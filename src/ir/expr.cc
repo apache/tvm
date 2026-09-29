@@ -1213,7 +1213,7 @@ Type Call::ReinferType(const CallNode* call) {
   static auto infer_type = Op::GetAttrMap<FInferType>("FInferType");
   TVM_FFI_CHECK(infer_type.count(op.value()), ValueError)
       << "No context-free FInferType hook is registered for " << op.value();
-  Type result = infer_type[op.value()](call).value();
+  Type result = infer_type[op.value()].CallExpected(call).value();
   TVM_FFI_CHECK(!result.IsMissing(), InternalError)
       << "FInferType for " << op.value() << " returned Type::Missing()";
   return result;
