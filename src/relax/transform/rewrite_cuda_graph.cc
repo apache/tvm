@@ -456,6 +456,17 @@ class CUDAGraphRewritePlanner : public ExprVisitor {
     AddStaticBinding(binding, false);
   }
 
+  void VisitBinding_(const MatchCastNode* binding) final {
+    // A match_cast stays in the original function even when its value was lifted into the
+    // current capture region, so the region has to return that value.
+    if (const auto* var = binding->value.as<VarNode>()) {
+      if (auto it = binding_to_region_.find(var); it != binding_to_region_.end()) {
+        it->second->MarkOutput(var);
+      }
+    }
+    ExprVisitor::VisitBinding_(binding);
+  }
+
   void VisitBinding_(const VarBindingNode* binding, const TupleNode* tuple) final {
     std::vector<const VarNode*> args;
     std::vector<PrimVar> tir_vars;
