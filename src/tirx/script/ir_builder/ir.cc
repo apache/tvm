@@ -19,7 +19,6 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/variant.h>
-#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
@@ -654,29 +653,6 @@ BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String st
   return buffer;
 }
 
-// Resolve a builder-only allocation shape after its enclosing scope has been
-// emitted. Replacing the buffer definition and every use together preserves the
-// allocation's original position and the identity shared by its views.
-BufferVar AllocBufferDeferred(ffi::TypedFunction<ffi::Array<PrimExpr>()> shape, PrimType dtype,
-                              ffi::String storage_scope) {
-  BufferVar buffer = AllocBuffer({IntImm::Int64(0)}, dtype, storage_scope, std::nullopt);
-  auto* frame = IRBuilder::Current()->frames.back().as_or_throw<TIRFrame>().get();
-  frame->callbacks.push_back([frame, buffer, shape, dtype, storage_scope]() {
-    Var resolved =
-        buffer.CopyWithType(BufferDecl(shape(), dtype, buffer.name(), std::nullopt, std::nullopt,
-                                       std::nullopt, storage_scope, 0, 0, std::nullopt, {})
-                                .type());
-    auto replace = [&buffer,
-                    &resolved](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-      if (var.same_as(buffer)) return ffi::Any(resolved);
-      return ffi::Unchanged();
-    };
-    frame->stmts = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(frame->stmts, replace)
-                       .as_or_throw<ffi::Array<tvm::tirx::Stmt>>();
-  });
-  return buffer;
-}
-
 tvm::tirx::Stmt Evaluate(Expr value) {
   tvm::tirx::Stmt stmt = tvm::tirx::Evaluate(value);
   AddToParent(stmt);
@@ -768,7 +744,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
               ffi::String cur,
               PrimType dtype) { return ScopeId(extents, parent, name, cur, dtype); })
       .def("script.ir_builder.tirx.AllocBuffer", AllocBuffer)
-      .def("script.ir_builder.tirx.AllocBufferDeferred", AllocBufferDeferred)
       .def("script.ir_builder.tirx.Serial", Serial)
       .def("script.ir_builder.tirx.Parallel", Parallel)
       .def("script.ir_builder.tirx.Vectorized", Vectorized)

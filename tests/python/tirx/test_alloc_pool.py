@@ -17,10 +17,7 @@
 """Tests for CUDA allocation pool validation."""
 
 import pytest
-import tvm_ffi
 
-import tvm
-from tvm.script import tirx as T
 from tvm.tirx.cuda.lang.alloc_pool import _validate_mma_alloc_shape
 from tvm.tirx.cuda.tile_primitive.tma_utils import SwizzleMode
 
@@ -114,74 +111,6 @@ class TestAllocMmaValidationValid:
         _validate_mma_alloc_shape((128, 32), "bfloat16", SwizzleMode.SWIZZLE_NONE)
         _validate_mma_alloc_shape((3, 5), "bfloat16", SwizzleMode.SWIZZLE_NONE)
         _validate_mma_alloc_shape((128,), "bfloat16", SwizzleMode.SWIZZLE_NONE)
-
-
-@pytest.mark.parametrize("size", [None, 128])
-def test_smem_pool_commits_allocation_extent(size):
-    @T.prim_func
-    def kernel():
-        T.func_attr({"target": T.target("cuda", host="c")})
-        T.attr(T.target("cuda"), "target", 0)
-        pool = T.SMEMPool()
-        first = pool.alloc((3,), "float4_e2m1fn")
-        second = pool.alloc((4,), "float32", align=16)
-        pool.move_base_to(64)
-        pool.commit(size)
-        T.evaluate(first.data)
-        T.evaluate(second.data)
-
-    allocations = []
-    views = []
-
-    def collect(node):
-        if isinstance(node, tvm.tirx.AllocBuffer):
-            allocations.append(node)
-        if isinstance(node, tvm.tirx.DeclBuffer):
-            views.append(node)
-
-    tvm_ffi.structural_walk(kernel.body, collect)
-    assert len(allocations) == 1
-    backing = allocations[0].buffer
-    assert int(backing.shape[0]) == (64 if size is None else size)
-    assert len(views) == 2
-    assert all(view.data.args[0].same_as(backing) for view in views)
-    assert int(views[1].buffer.elem_offset) == 4
-    tvm.ir.assert_structural_equal(
-        kernel, tvm.script.from_source(kernel.script(), extra_vars={"T": T})
-    )
-
-    split = tvm.tirx.transform.SplitHostDevice()(tvm.IRModule({"kernel": kernel}))
-    calls = []
-
-    def collect_launch(node):
-        if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.call_ffi_kernel":
-            calls.append(node)
-
-    tvm_ffi.structural_walk(split["kernel"].body, collect_launch)
-    assert len(calls) == 1
-    analyzer = tvm.sym.Analyzer()
-    assert int(analyzer.simplify(calls[0].args[-1])) == (64 if size is None else size)
-
-
-def test_smem_pool_requires_commit():
-    with pytest.raises(ValueError, match=r"SMEMPool.commit\(\) must be called"):
-
-        @T.prim_func
-        def kernel():
-            pool = T.SMEMPool()
-            view = pool.alloc((16,), "uint8")
-            T.evaluate(view.data)
-
-
-def test_smem_pool_commit_rejects_small_size():
-    with pytest.raises(AssertionError, match="smaller than"):
-
-        @T.prim_func
-        def kernel():
-            pool = T.SMEMPool()
-            view = pool.alloc((16,), "uint8")
-            pool.commit(8)
-            T.evaluate(view.data)
 
 
 if __name__ == "__main__":

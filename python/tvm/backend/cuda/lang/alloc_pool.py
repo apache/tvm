@@ -400,18 +400,17 @@ class SMEMPool:
     Parameters
     ----------
     ptr : Var or None, optional
-        If omitted, a ``uint8`` backing allocation in ``shared.dyn`` is created
-        automatically. Call ``commit()`` after all allocations to finalize its
-        byte extent before the enclosing builder scope closes.
+        If omitted, an ``alloc_buffer([0], "uint8", scope="shared.dyn")`` is
+        created automatically and ``commit()`` must be called after all
+        allocations to emit the size annotation.
         If a ``Var`` is provided, the caller manages the backing buffer and
         ``commit()`` is a no-op.
     """
 
     def __init__(self, ptr=_POOL_UNSET):
         ir = _get_ir()
-        self._committed_size = None
         if ptr is _POOL_UNSET:
-            self.buf = ir._alloc_buffer_deferred(self._allocation_shape, "uint8", "shared.dyn")
+            self.buf = ir.alloc_buffer([0], "uint8", scope="shared.dyn")
             self.ptr = self.buf.data
             self._owns_buffer = True
         else:
@@ -420,13 +419,6 @@ class SMEMPool:
             self._owns_buffer = False
         self.offset = 0
         self.max_offset = 0
-
-    def _allocation_shape(self):
-        if self._committed_size is None:
-            raise ValueError("SMEMPool.commit() must be called before leaving its scope")
-        from tvm.tirx import IntImm
-
-        return [IntImm("int64", self._committed_size)]
 
     def alloc(
         self,
@@ -437,8 +429,6 @@ class SMEMPool:
         align=0,
         layout="default",
     ):
-        if self._owns_buffer and self._committed_size is not None:
-            raise ValueError("Cannot allocate from SMEMPool after commit()")
         ir = _get_ir()
         if align > 0:
             self.offset = (self.offset + align - 1) // align * align
@@ -482,14 +472,12 @@ class SMEMPool:
         return self.alloc(shape, dtype, align=align, layout=layout)
 
     def move_base_to(self, offset):
-        if self._owns_buffer and self._committed_size is not None:
-            raise ValueError("Cannot move SMEMPool base after commit()")
         self.offset = offset
         if self._owns_buffer:
             self.max_offset = max(self.max_offset, self.offset)
 
     def commit(self, size=None):
-        """Finalize the backing allocation's byte extent.
+        """Emit pool size annotation into the IR.
 
         Must be called after all ``alloc()`` / ``move_base_to()`` calls.
 
@@ -501,11 +489,16 @@ class SMEMPool:
         """
         if not self._owns_buffer:
             return
-        if self._committed_size is not None:
-            raise ValueError("SMEMPool.commit() can only be called once")
         resolved = size if size is not None else self.max_offset
         assert resolved >= self.max_offset, (
             f"Specified smem size ({resolved}) is smaller than "
             f"the pool high-water mark ({self.max_offset})"
         )
-        self._committed_size = resolved
+        import tvm.tirx
+        from tvm.tirx.script.ir_builder.parser_protocol import add_to_parent
+
+        add_to_parent(
+            tvm.tirx.AttrStmt(
+                0, "tirx.dyn_smem_bytes", tvm.tirx.IntImm("int64", resolved), tvm.tirx.Evaluate(0)
+            )
+        )
