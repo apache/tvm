@@ -459,6 +459,13 @@ def thread_id_in_wg(
     return tuple(ret)
 
 
+def _alloc_buffer_deferred(shape, dtype, scope):
+    """Allocate a buffer whose shape is resolved when its builder scope closes."""
+    buf = _ffi_api.AllocBufferDeferred(shape, _normalize_prim_type(dtype), scope)
+    _record_meta_resource(buf, skip_frames=2)
+    return buf
+
+
 @_register_mutable_decl("tirx.alloc_buffer")
 def alloc_buffer(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,

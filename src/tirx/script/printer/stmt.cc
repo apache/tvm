@@ -786,23 +786,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
           }
         }
-        if (stmt->attr_key == "tirx_hint") {
-          if (auto map_node = stmt->node.as<ffi::Map<ffi::String, ffi::Any>>()) {
-            ffi::Array<ExprDoc> args;
-            ffi::Array<ffi::String> kwargs_keys;
-            ffi::Array<ExprDoc> kwargs_values;
-            for (const auto& [k, v] : map_node.value()) {
-              if (k == "message") {
-                auto s = v.as<ffi::String>().value();
-                args.push_back(LiteralDoc::Str(s, stmt_p->Attr("node")));
-              } else {
-                kwargs_keys.push_back(k);
-                kwargs_values.push_back(d->AsDoc<ExprDoc>(v, stmt_p->Attr("node")));
-              }
-            }
-            rhs = TIR(d, "hint")->Call(args, kwargs_keys, kwargs_values);
-          }
-        }
         if (!rhs.has_value()) {
           // Try to collapse consecutive dict-attr-pattern AttrStmts into T.attr({...})
           if (IsDictAttrPattern(stmt)) {

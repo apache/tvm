@@ -100,7 +100,3 @@ class LaunchThreadFrame(TIRFrame):
     def __enter__(self) -> Var:
         super().__enter__()
         return self.iter_var.var
-
-
-@_register_object("script.ir_builder.tirx.HintFrame")
-class HintFrame(TIRFrame): ...

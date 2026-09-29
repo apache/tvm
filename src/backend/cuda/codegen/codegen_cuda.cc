@@ -1619,20 +1619,6 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(inner);
     this->Dispatch(inner->body);
     return;
-  } else if (op->attr_key == "disable_unroll") {
-    PrintIndent();
-    stream << "#pragma unroll 1\n";
-    this->Dispatch(op->body);
-    return;
-  } else if (op->attr_key == "pragma_unroll") {
-    PrintIndent();
-    stream << "#pragma unroll";
-    if (const auto* count = op->value.as<IntImmNode>(); count && count->value != 1) {
-      stream << " " << count->value;
-    }
-    stream << "\n";
-    this->Dispatch(op->body);
-    return;
   } else if (op->attr_key == tirx::attr::thread_extent) {
   }
   CodeGenC::Dispatch_(op);

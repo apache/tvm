@@ -14,145 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Tests for T.hint() — universal directive primitive for TIRx sketch language."""
-
-import tvm_ffi
+"""Tests for hint configuration on tile primitive calls."""
 
 import tvm
 import tvm.script
 import tvm.testing
-from tvm.ir import TensorRegion, assert_structural_equal
+from tvm.ir import assert_structural_equal
 from tvm.script import tirx as T
-from tvm.tirx import AttrStmt
 
 
 def from_source(code):
     return tvm.script.from_source(code, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
-
-
-def test_hint_statement():
-    """T.hint("msg") as a bare statement produces an AttrStmt with attr_key=tirx_hint."""
-
-    @T.prim_func
-    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
-        bx, by, bz = T.cta_id([1, 1, 1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        T.hint("persistent tile scheduler with L2 swizzle")
-        T.evaluate(0)
-
-    # Walk the IR to find the AttrStmt with tirx_hint
-    found = [False]
-
-    def visit(stmt):
-        if isinstance(stmt, AttrStmt) and stmt.attr_key == "tirx_hint":
-            # node is now a Map with "message" key
-            assert isinstance(stmt.node, tvm.ir.Map)
-            assert str(stmt.node["message"]) == "persistent tile scheduler with L2 swizzle"
-            found[0] = True
-
-    tvm_ffi.structural_walk(func.body, visit)
-    assert found[0], "Expected AttrStmt with attr_key='tirx_hint' not found"
-
-
-def test_hint_context_manager():
-    """with T.hint("msg"): scopes its body inside the AttrStmt."""
-
-    @T.prim_func
-    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
-        bx, by, bz = T.cta_id([1, 1, 1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        with T.hint("software pipeline, depth 4"):
-            T.evaluate(0)
-
-    found = [False]
-
-    def visit(stmt):
-        if isinstance(stmt, AttrStmt) and stmt.attr_key == "tirx_hint":
-            assert isinstance(stmt.node, tvm.ir.Map)
-            assert str(stmt.node["message"]) == "software pipeline, depth 4"
-            found[0] = True
-
-    tvm_ffi.structural_walk(func.body, visit)
-    assert found[0], "Expected AttrStmt with attr_key='tirx_hint' not found"
-
-
-def test_hint_with_attrs():
-    """T.hint("msg", key="value") passes structured attrs in Map node."""
-
-    @T.prim_func
-    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
-        bx, by, bz = T.cta_id([1, 1, 1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        T.hint("scheduler", mode="persistent", depth="4")
-        T.evaluate(0)
-
-    found = [False]
-
-    def visit(stmt):
-        if isinstance(stmt, AttrStmt) and stmt.attr_key == "tirx_hint":
-            assert isinstance(stmt.node, tvm.ir.Map)
-            assert str(stmt.node["message"]) == "scheduler"
-            assert str(stmt.node["mode"]) == "persistent"
-            assert str(stmt.node["depth"]) == "4"
-            found[0] = True
-
-    tvm_ffi.structural_walk(func.body, visit)
-    assert found[0], "Expected AttrStmt with attr_key='tirx_hint' not found"
-
-
-def test_hint_printer_roundtrip_statement():
-    """Verify T.hint("msg") prints as T.hint("msg") and roundtrips through script/parse."""
-
-    @T.prim_func
-    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
-        bx, by, bz = T.cta_id([1, 1, 1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        T.hint("persistent tile scheduler with L2 swizzle")
-        T.evaluate(0)
-
-    code = func.script()
-    assert 'hint("persistent tile scheduler with L2 swizzle")' in code
-    reparsed = from_source(code)
-    assert_structural_equal(func, reparsed)
-
-
-def test_hint_printer_roundtrip_context_manager():
-    """Verify with T.hint("msg"): prints correctly and roundtrips."""
-
-    @T.prim_func
-    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
-        bx, by, bz = T.cta_id([1, 1, 1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        with T.hint("software pipeline, depth 4"):
-            T.evaluate(0)
-
-    code = func.script()
-    assert 'hint("software pipeline, depth 4")' in code
-    reparsed = from_source(code)
-    assert_structural_equal(func, reparsed)
-
-
-def test_hint_printer_roundtrip_with_attrs():
-    """Verify T.hint("msg", key="val") prints with kwargs and roundtrips."""
-
-    @T.prim_func
-    def func(_A: T.Buffer((64,), "float32", scope="global")) -> None:
-        bx, by, bz = T.cta_id([1, 1, 1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        T.hint("scheduler", mode="persistent")
-        T.evaluate(0)
-
-    code = func.script()
-    assert 'hint("scheduler"' in code
-    assert 'mode="persistent"' in code
-    reparsed = from_source(code)
-    assert_structural_equal(func, reparsed)
 
 
 def test_hint_keyword_arg_on_tx_op():
@@ -191,70 +63,5 @@ def test_hint_keyword_arg_on_tx_op_roundtrip():
     assert_structural_equal(func, reparsed)
 
 
-def test_hint_no_message():
-    """T.hint(access=...) with no message string."""
-
-    @T.prim_func
-    def func(A: T.Buffer((128,), "float32", scope="global")) -> None:
-        bx, by, bz = T.cta_id([1, 1, 1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        T.hint(access=A[0:64])
-        T.evaluate(0)
-
-    found = [False]
-
-    def visit(stmt):
-        if isinstance(stmt, AttrStmt) and stmt.attr_key == "tirx_hint":
-            assert isinstance(stmt.node, tvm.ir.Map)
-            # Should have "access" key but no "message" key
-            assert "access" in stmt.node
-            assert "message" not in stmt.node
-
-            assert isinstance(stmt.node["access"], TensorRegion)
-            found[0] = True
-
-    tvm_ffi.structural_walk(func.body, visit)
-    assert found[0], "Expected AttrStmt with attr_key='tirx_hint' containing access not found"
-
-
-def test_hint_access_buffer_region():
-    """T.hint(access=A[region]) stores the BufferRegion structurally in the IR."""
-
-    @T.prim_func
-    def func(A: T.Buffer((128, 64), "float32", scope="global")) -> None:
-        bx, by, bz = T.cta_id([2, 1, 1])
-        warp_id = T.warp_id([1])
-        lane_id = T.lane_id([32])
-        T.hint("partition", access=A[bx * 64 : (bx + 1) * 64, 0:64])
-        T.evaluate(0)
-
-    found = [False]
-
-    def visit(stmt):
-        if isinstance(stmt, AttrStmt) and stmt.attr_key == "tirx_hint":
-            assert isinstance(stmt.node, tvm.ir.Map)
-            assert str(stmt.node["message"]) == "partition"
-            assert "access" in stmt.node
-
-            assert isinstance(stmt.node["access"], TensorRegion)
-            br = stmt.node["access"]
-            assert br.source.name == "A"
-            assert len(br.region) == 2
-            found[0] = True
-
-    tvm_ffi.structural_walk(func.body, visit)
-    assert found[0], "Expected AttrStmt with structured BufferRegion access not found"
-
-
 if __name__ == "__main__":
-    test_hint_statement()
-    test_hint_context_manager()
-    test_hint_with_attrs()
-    test_hint_printer_roundtrip_statement()
-    test_hint_printer_roundtrip_context_manager()
-    test_hint_printer_roundtrip_with_attrs()
-    test_hint_keyword_arg_on_tx_op()
-    test_hint_keyword_arg_on_tx_op_roundtrip()
-    test_hint_no_message()
-    test_hint_access_buffer_region()
+    tvm.testing.main()
