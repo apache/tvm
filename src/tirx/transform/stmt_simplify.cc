@@ -138,6 +138,23 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace
   return Parent::Mutate_(op, inplace_mode);
 }
 
+UnchangedOr<Expr> StmtSimplifier::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
+  // Buffer metadata is preserved by this pass, including its explicit shape operands.
+  if (op->op.same_as(builtin::alloc_buffer())) return ffi::Unchanged();
+  if (op->op.same_as(builtin::decl_buffer())) {
+    auto data = this->Mutate(op->args[0], inplace_mode);
+    if (data.UnchangedOrSameAs(op->args[0])) return ffi::Unchanged();
+    if (inplace_mode == InplaceMode::kAllow) {
+      const_cast<CallNode*>(op)->args.Set(0, std::move(data).ValueUnchecked());
+      return ffi::Unchanged();
+    }
+    auto copy = ffi::make_object<CallNode>(*op);
+    copy->args.Set(0, std::move(data).ValueUnchecked());
+    return Expr(std::move(copy));
+  }
+  return Parent::Mutate_(op, inplace_mode);
+}
+
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   auto prim_value = op->value.as<PrimExpr>();
   if (!prim_value) {
