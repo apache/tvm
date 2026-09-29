@@ -75,7 +75,12 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
-      new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
+      new_stmt =
+          SeqStmt::Flatten(Bind(buf, Call(buf.type(), builtin::decl_buffer(),
+                                          {source.data(), tvm::Tuple(buf->shape),
+                                           DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                                          {})),
+                           std::move(new_stmt));
     }
     return std::make_pair(new_stmt, new_params);
   }
@@ -111,7 +116,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         if (auto mapped = VarRemapGet(root); mapped != nullptr) {
           root = mapped.as_or_throw<Var>();
         }
-        return BufferVar(root).data();
+        return root.as_or_throw<BufferVar>().data();
       }
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
@@ -119,14 +124,15 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
-      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::alloc_buffer()))
+        return MutateAllocBuffer(op, call, inplace_mode);
+      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, call, inplace_mode);
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    const auto* buffer_call = op->value.as<CallNode>();
+  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, const CallNode* buffer_call,
+                                      InplaceMode inplace_mode) {
     buffer_aliases_.Set(op->var, op->var);
     auto mutate = [this](BufferVar buf) {
       if (target_->kind->name == "trn" && !buf->layout.has_value()) {
@@ -134,24 +140,29 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
       }
       return GetFlattenedBuffer(buf, /*is_alloc=*/true);
     };
-    auto buffer = mutate(BufferVar(op->var));
-    if (buffer.same_as(BufferVar(op->var))) {
+    auto buffer = mutate(op->var.as_or_throw<BufferVar>());
+    if (buffer.same_as(op->var.as_or_throw<BufferVar>())) {
       return ffi::Unchanged();
     }
     return AllocBuffer(buffer, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span);
   }
 
-  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    const auto* buffer_call = op->value.as<CallNode>();
-    RegisterBufferAlias(BufferVar(op->var), buffer_call->args[0]);
+  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, const CallNode* buffer_call,
+                                     InplaceMode inplace_mode) {
+    RegisterBufferAlias(op->var.as_or_throw<BufferVar>(), buffer_call->args[0]);
     auto data_result = Mutate(buffer_call->args[0], inplace_mode);
     bool data_unchanged = data_result.UnchangedOrSameAs(buffer_call->args[0]);
     Expr data = std::move(data_result).ValueOrUnchanged(buffer_call->args[0]);
-    auto buffer = GetFlattenedBuffer(BufferVar(op->var));
-    if (buffer.same_as(BufferVar(op->var)) && data_unchanged) {
+    auto buffer = GetFlattenedBuffer(op->var.as_or_throw<BufferVar>());
+    if (buffer.same_as(op->var.as_or_throw<BufferVar>()) && data_unchanged) {
       return ffi::Unchanged();
     }
-    return DeclBuffer(buffer, std::move(data), op->span);
+    return Bind(buffer,
+                Call(buffer.type(), builtin::decl_buffer(),
+                     {std::move(data), tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                      StringImm(buffer.scope())},
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                op->span);
   }
 
   BufferVar GetFlattenedBuffer(BufferVar buf, bool is_alloc = false) {

@@ -233,7 +233,11 @@ TEST(IRF, StmtVisitor) {
     PrimType dtype = PrimType::Float(32);
     tirx::Var buf_var("b", PointerType(dtype));
     BufferVar buffer = decl_buffer({16});
-    body = SeqStmt({DeclBuffer(buffer, buf_var), std::move(body)});
+    body =
+        SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::builtin::decl_buffer(),
+                                   {buf_var, tvm::Tuple(buffer->shape),
+                                    DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())})),
+                 std::move(body)});
     TensorRegion buffer_region = BufferRegion(buffer, {Range::FromMinExtent(x + 1, 1)});
     s_tir::MatchBufferRegion match_buffer_region(decl_buffer({1}), buffer_region);
 
@@ -360,7 +364,9 @@ TEST(IRF, StmtExprMutator) {
     Stmt eval_body = Evaluate(x + 1);
     BufferVar buffer = decl_buffer({16});
     tirx::Var buffer_data("buffer_data", buffer.DataPointerType());
-    Stmt decl = DeclBuffer(buffer, buffer_data);
+    Stmt decl = Bind(buffer, Call(buffer.type(), tvm::tirx::builtin::decl_buffer(),
+                                  {buffer_data, tvm::Tuple(buffer->shape),
+                                   DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())}));
     Stmt alloc = fmakealloc();
     // body is: DeclBuffer, AllocBuffer, Evaluate
     Stmt body = SeqStmt({decl, alloc, eval_body});
@@ -689,7 +695,11 @@ TEST(IRF, StructuralMapBufferDefinition) {
     PrimVar m("m", PrimType::Int(32));
     BufferVar buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
-    Stmt decl = SeqStmt({DeclBuffer(buffer, x), store});
+    Stmt decl =
+        SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::builtin::decl_buffer(),
+                                   {x, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                    StringImm(buffer.scope())})),
+                 store});
     auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       if (var.same_as(x)) return ffi::Any(y);
       if (var.same_as(n)) return ffi::Any(m);

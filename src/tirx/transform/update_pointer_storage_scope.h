@@ -37,11 +37,16 @@ class UpdatePointerStorageScope : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate_;
 
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final;
+
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final;
 
   explicit UpdatePointerStorageScope(
       const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
           new_storage_scopes);
+
+ private:
+  std::unordered_map<const CallNode*, ffi::String> buffer_scopes_;
 };
 
 }  // namespace tirx

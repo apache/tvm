@@ -64,16 +64,16 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, inplace_mode);
+      return Mutate_AllocBuffer(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+                                       InplaceMode inplace_mode) {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    const auto* call = op->value.as<CallNode>();
-    ffi::String storage_scope = call->args[2].as_or_throw<StringImm>()->value;
-    if (IsTextureStorage(storage_scope)) {
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    if (IsTextureStorage(scope)) {
       op = stmt.as<BindNode>();
       if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
           !call || !call->op.same_as(tirx::builtin::alloc_buffer())) {
@@ -91,16 +91,23 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       TVM_FFI_ICHECK(channel_size == 128 || channel_size == 64)
           << "Invalid Channel Size: " << channel_size << " bits";
 
-      size_t axis = DefaultTextureLayoutSeparator(extents.size(), storage_scope);
+      size_t axis = DefaultTextureLayoutSeparator(extents.size(), scope);
       auto texture = ApplyTexture2DFlattening<PrimExpr>(extents, extents.size(), axis);
       ffi::Array<Expr> args;
-      args.push_back(StringImm(storage_scope));
+      args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(3));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
-      stmt = DeclBuffer(BufferVar(op->var), Call(BufferVar(op->var).DataPointerType(),
-                                                 tirx::builtin::nd_mem_alloc_with_scope(), args));
+      stmt = Bind(op->var.as_or_throw<BufferVar>(),
+                  Call(op->var.as_or_throw<BufferVar>().type(), tirx::builtin::decl_buffer(),
+                       {Call(op->var.as_or_throw<BufferVar>().DataPointerType(),
+                             tirx::builtin::nd_mem_alloc_with_scope(), args),
+                        tvm::Tuple(op->var.as_or_throw<BufferVar>()->shape),
+                        DataTypeImm(op->var.as_or_throw<BufferVar>()->dtype->dtype),
+                        StringImm(op->var.as_or_throw<BufferVar>().scope())},
+                       {}, allocation->ty_args, allocation->span),
+                  op->span);
     }
     return stmt;
   }

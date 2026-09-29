@@ -217,18 +217,19 @@ class InferFragmenter : public s_tir::StmtExprMutator {
   UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
     Stmt stmt =
         s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    const VarNode* buffer = BufferVar(op->var).get();
+    const VarNode* buffer = op->var.as_or_throw<BufferVar>().get();
     if (fragment_getter.fragments.count(buffer)) {
       FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
       Expr shape_expr = StringImm(shape);
-      Stmt shape_attr =
-          AttrStmt(BufferVar(op->var).var(), s_tir::attr::fragment_shape, shape_expr, stmt);
+      Stmt shape_attr = AttrStmt(op->var.as_or_throw<BufferVar>().var(),
+                                 s_tir::attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
-        Stmt layout_attr = AttrStmt(BufferVar(op->var).var(), s_tir::attr::fragment_layout,
-                                    StringImm(info.layout), shape_attr);
+        Stmt layout_attr =
+            AttrStmt(op->var.as_or_throw<BufferVar>().var(), s_tir::attr::fragment_layout,
+                     StringImm(info.layout), shape_attr);
         return layout_attr;
       } else {
         return shape_attr;

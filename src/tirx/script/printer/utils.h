@@ -146,12 +146,12 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
       const auto* alloc = body[i].as<tirx::BindNode>();
       if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
           d->cfg->syntax_sugar && call && call->op.same_as(tirx::builtin::alloc_buffer()) &&
-          tirx::BufferVar(alloc->var).IsScalar(true) && i + 1 < n) {
+          alloc->var.as_or_throw<tirx::BufferVar>().IsScalar(true) && i + 1 < n) {
         const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
-        bool can_merge_init = store != nullptr &&
-                              store->buffer.same_as(tirx::BufferVar(alloc->var)) &&
-                              store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]) &&
-                              !value_refs_buffer(store->value, tirx::BufferVar(alloc->var));
+        bool can_merge_init =
+            store != nullptr && store->buffer.same_as(alloc->var.as_or_throw<tirx::BufferVar>()) &&
+            store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]) &&
+            !value_refs_buffer(store->value, alloc->var.as_or_throw<tirx::BufferVar>());
         if (can_merge_init) {
           Doc alloc_doc = d->AsDoc(body[i], item_p);
           if (const auto* assign = alloc_doc.as<AssignDocNode>()) {

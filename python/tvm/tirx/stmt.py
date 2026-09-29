@@ -47,24 +47,6 @@ class Stmt(Object, Scriptable):
     """Base class of all the statements."""
 
 
-def _normalize_legacy_stmt(stmt: Stmt | None) -> Stmt | None:
-    """Expand legacy body-carrying leaf stmt wrappers into SeqStmt form.
-
-    Legacy python compatibility may attach a `body` attribute to leaf statements
-    (Bind/DeclBuffer). This helper converts such wrappers to the new
-    leaf + SeqStmt representation when embedding inside another statement node.
-    """
-
-    if stmt is None:
-        return None
-
-    if isinstance(stmt, Bind) and hasattr(stmt, "body"):
-        tail = _normalize_legacy_stmt(stmt.body)
-        binding = Bind(stmt.var, stmt.value, stmt.span)
-        return SeqStmt([binding, tail]) if tail is not None else binding
-    return stmt
-
-
 @tvm_ffi.register_object("tirx.Bind")
 class Bind(Stmt):
     """Bind node.
@@ -215,7 +197,6 @@ class For(Stmt):
         step: Expr | None = None,
         span: Span | None = None,
     ) -> None:
-        body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(
             _ffi_api.For,  # type: ignore
             loop_var,
@@ -251,7 +232,6 @@ class While(Stmt):
     span: Span | None
 
     def __init__(self, condition: Expr, body: Stmt, span: Span | None = None) -> None:
-        body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
 
 
@@ -295,58 +275,6 @@ class BufferStore(Stmt):
         )
 
 
-def DeclBuffer(buffer: Buffer, *args, **kwargs) -> Bind:
-    """Bind a buffer to the corresponding buffer-returning operation."""
-    body: Stmt | None = None
-    data: Expr | None = kwargs.pop("data", None)
-    span: Span | None = None
-
-    if len(args) == 1:
-        arg0 = args[0]
-        if isinstance(arg0, Stmt):
-            body = arg0
-        elif arg0 is None or isinstance(arg0, Span):
-            span = arg0
-        else:
-            raise TypeError("DeclBuffer expects (buffer[, span]) or legacy (buffer, body[, span])")
-    elif len(args) == 2:
-        body, span = args
-        if body is not None and not isinstance(body, Stmt):
-            raise TypeError("Legacy DeclBuffer body must be a Stmt or None")
-        if span is not None and not isinstance(span, Span):
-            raise TypeError("DeclBuffer span must be a Span or None")
-    elif len(args) > 2:
-        raise TypeError("DeclBuffer expects (buffer[, span]) or legacy (buffer, body[, span])")
-
-    if kwargs:
-        invalid_keys = set(kwargs.keys()) - {"body", "span"}
-        if invalid_keys:
-            raise TypeError(f"Unexpected keyword arguments for DeclBuffer: {invalid_keys}")
-        if "body" in kwargs:
-            kw_body = kwargs["body"]
-            if kw_body is not None and not isinstance(kw_body, Stmt):
-                raise TypeError("DeclBuffer body must be a Stmt or None")
-            if body is not None and kw_body is not None and body is not kw_body:
-                raise TypeError("DeclBuffer body specified by both args and kwargs")
-            body = kw_body if kw_body is not None else body
-        if "span" in kwargs:
-            kw_span = kwargs["span"]
-            if kw_span is not None and not isinstance(kw_span, Span):
-                raise TypeError("DeclBuffer span must be a Span or None")
-            if span is not None and kw_span is not None and span is not kw_span:
-                raise TypeError("DeclBuffer span specified by both args and kwargs")
-            span = kw_span if kw_span is not None else span
-
-    if data is None:
-        raise TypeError("DeclBuffer requires a physical data binding")
-    result = _ffi_api.DeclBuffer(buffer, data, span)
-    # Legacy compatibility. Body is carried on python side only.
-    if body is not None:
-        result.body = body
-
-    return result
-
-
 @tvm_ffi.register_object("tirx.AttrStmt")
 class AttrStmt(Stmt):
     """AttrStmt node.
@@ -378,7 +306,6 @@ class AttrStmt(Stmt):
     def __init__(
         self, node: Any, attr_key: str, value: Expr, body: Stmt, span: Span | None = None
     ) -> None:
-        body = _normalize_legacy_stmt(body)
         self.__init_handle_by_constructor__(
             _ffi_api.AttrStmt,
             node,
@@ -406,7 +333,6 @@ class SeqStmt(Stmt):
     span: Span | None
 
     def __init__(self, seq: list[Stmt], span: Span | None = None) -> None:
-        seq = [_normalize_legacy_stmt(s) for s in seq]
         self.__init_handle_by_constructor__(_ffi_api.SeqStmt, seq, span)  # type: ignore
 
     def __getitem__(self, i: int):
@@ -442,8 +368,6 @@ class IfThenElse(Stmt):
     def __init__(
         self, condition: Expr, then_case: Stmt, else_case: Stmt | None, span: Span | None = None
     ) -> None:
-        then_case = _normalize_legacy_stmt(then_case)
-        else_case = _normalize_legacy_stmt(else_case)
         self.__init_handle_by_constructor__(
             _ffi_api.IfThenElse,
             condition,

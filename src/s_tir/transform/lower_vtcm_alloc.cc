@@ -42,23 +42,30 @@ class VtcmAllocator : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, inplace_mode);
+      return Mutate_AllocBuffer(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    const auto* call = op->value.as<CallNode>();
-    ffi::String storage_scope = call->args[2].as_or_throw<StringImm>()->value;
-    if (IsVtcmStorage(storage_scope)) {
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+                                       InplaceMode inplace_mode) {
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    if (IsVtcmStorage(scope)) {
       tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
       ffi::Array<Expr> args;
-      args.push_back(StringImm(storage_scope));
+      args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(shape->fields.size()));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           shape->fields));
-      return DeclBuffer(BufferVar(op->var), Call(BufferVar(op->var).DataPointerType(),
-                                                 tirx::builtin::nd_mem_alloc_with_scope(), args));
+      return Bind(op->var.as_or_throw<BufferVar>(),
+                  Call(op->var.as_or_throw<BufferVar>().type(), tirx::builtin::decl_buffer(),
+                       {Call(op->var.as_or_throw<BufferVar>().DataPointerType(),
+                             tirx::builtin::nd_mem_alloc_with_scope(), args),
+                        tvm::Tuple(op->var.as_or_throw<BufferVar>()->shape),
+                        DataTypeImm(op->var.as_or_throw<BufferVar>()->dtype->dtype),
+                        StringImm(op->var.as_or_throw<BufferVar>().scope())},
+                       {}, call->ty_args, call->span),
+                  op->span);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }

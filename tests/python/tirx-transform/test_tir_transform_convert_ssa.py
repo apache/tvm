@@ -579,10 +579,23 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
         0,
         128,
         tirx.ForKind.SERIAL,
-        tirx.DeclBuffer(
-            buffer,
-            tirx.Evaluate(tirx.BufferLoad(buffer, [0])),
-            data=buffer_data,
+        tirx.SeqStmt(
+            [
+                tirx.Bind(
+                    buffer,
+                    tvm.ir.Call(
+                        "tirx.decl_buffer",
+                        [
+                            buffer_data,
+                            tvm.ir.Tuple(buffer.shape),
+                            tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
+                            tvm.ir.StringImm(buffer.scope()),
+                        ],
+                        ret_ty=buffer.ty,
+                    ),
+                ),
+                tirx.Evaluate(tirx.BufferLoad(buffer, [0])),
+            ]
         ),
     )
     func = tirx.PrimFunc([buffer_data], tirx.SeqStmt([loop, loop, loop]))

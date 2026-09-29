@@ -183,16 +183,16 @@ class StorageAlignCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
-    auto annotations = call->attrs.as<DictAttrsNode>()->dict;
-    auto it = annotations.find(attr::buffer_dim_align);
-    if (it != annotations.end()) {
+    DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
+    auto it = annotations->dict.find(attr::buffer_dim_align);
+    if (it != annotations->dict.end()) {
       auto storage_align_annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& storage_align_tuple : storage_align_annotation) {
         int buffer_index = storage_align_tuple.get<0>();
         // the first buffer idx info is meaningless for alloc
         // stmt and should set as negative intentionally.
         TVM_FFI_ICHECK_EQ(buffer_index, -1);
-        storage_align_[BufferVar(op->var).var()].push_back(storage_align_tuple);
+        storage_align_[op->var.as_or_throw<BufferVar>().var()].push_back(storage_align_tuple);
       }
     }
     return StmtExprVisitor::Visit_(op);

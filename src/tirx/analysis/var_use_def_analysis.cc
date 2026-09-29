@@ -94,7 +94,7 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const prim::LetNode* op)
 ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
   if (var->ty.as<BufferTypeNode>()) {
-    BufferVar buffer(var);
+    BufferVar buffer = var.as_or_throw<BufferVar>();
     if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
       bool is_first_buffer_definition = !buffer_def_count_.count(op);
       HandleDef(buffer);
@@ -158,7 +158,7 @@ void VarUseDefAnalyzer::HandleUse(const BufferVar& buf) {
       ++it->second;
     }
   } else {
-    undefined_buffers_.push_back(BufferVar(ffi::GetRef<Var>(ptr)));
+    undefined_buffers_.push_back(ffi::GetRef<Var>(ptr).as_or_throw<BufferVar>());
     buffer_use_count_[ptr] = -1;
   }
   // BufferVar fields (shape, strides, data) are visited at the definition

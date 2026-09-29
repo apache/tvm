@@ -79,7 +79,12 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
-      new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
+      new_stmt =
+          SeqStmt::Flatten(Bind(buf, Call(buf.type(), tirx::builtin::decl_buffer(),
+                                          {source.data(), tvm::Tuple(buf->shape),
+                                           DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                                          {})),
+                           std::move(new_stmt));
     }
     return std::make_pair(new_stmt, new_params);
   }
@@ -106,7 +111,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      BufferVar original_buffer(op->var);
+      BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
       if (!original_buffer->layout.has_value()) {
         return ffi::Unchanged();
       }
@@ -118,7 +123,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::decl_buffer())) {
-      BufferVar original_buffer(op->var);
+      BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
       Expr original_data = call->args[0];
       auto data_update = Mutate(original_data, inplace_mode);
       bool data_unchanged = data_update.UnchangedOrSameAs(original_data);
@@ -127,7 +132,12 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       if (buffer.same_as(original_buffer) && data_unchanged) {
         return ffi::Unchanged();
       }
-      return DeclBuffer(buffer, std::move(data), op->span);
+      return Bind(buffer,
+                  Call(buffer.type(), tirx::builtin::decl_buffer(),
+                       {std::move(data), tvm::Tuple(buffer->shape),
+                        DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+                       call->attrs, call->ty_args, call->span),
+                  op->span);
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }

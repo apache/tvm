@@ -84,7 +84,12 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
         if (pass->buffers_used_.count(old_buf.value())) {
           auto new_buf = pass->Lookup(old_buf.value()).flattened;
           if (!old_buf.value().same_as(new_buf)) {
-            body = SeqStmt::Flatten(DeclBuffer(new_buf, old_buf.value().data()), std::move(body));
+            body = SeqStmt::Flatten(
+                Bind(new_buf, Call(new_buf.type(), builtin::decl_buffer(),
+                                   {old_buf.value().data(), tvm::Tuple(new_buf->shape),
+                                    DataTypeImm(new_buf->dtype->dtype), StringImm(new_buf.scope())},
+                                   {})),
+                std::move(body));
             body_unchanged = false;
           }
         }
@@ -180,39 +185,47 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
-      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::alloc_buffer()))
+        return MutateAllocBuffer(op, call, inplace_mode);
+      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, call, inplace_mode);
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    const auto* buffer_call = op->value.as<CallNode>();
-    const FlatInfo& info = Define(BufferVar(op->var));
-    if (info.flattened.same_as(BufferVar(op->var))) {
+  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, const CallNode* buffer_call,
+                                      InplaceMode inplace_mode) {
+    const FlatInfo& info = Define(op->var.as_or_throw<BufferVar>());
+    if (info.flattened.same_as(op->var.as_or_throw<BufferVar>())) {
       return ffi::Unchanged();
     }
     return AllocBuffer(info.flattened, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span);
   }
 
-  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    const auto* buffer_call = op->value.as<CallNode>();
+  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, const CallNode* buffer_call,
+                                     InplaceMode inplace_mode) {
     Expr data = buffer_call->args[0];
     bool is_extern_buffer_source = false;
     if (const auto* call = buffer_call->args[0].as<CallNode>();
         call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
       if (const auto* var = call->args[0].as<VarNode>(); var && var->ty.as<BufferTypeNode>()) {
-        is_extern_buffer_source = extern_buffers_.count(BufferVar(ffi::GetRef<Var>(var)));
+        is_extern_buffer_source =
+            extern_buffers_.count(ffi::GetRef<Var>(var).as_or_throw<BufferVar>());
       }
     }
     if (!is_extern_buffer_source) {
       data = Mutate(buffer_call->args[0], inplace_mode).ValueOrUnchanged(buffer_call->args[0]);
     }
-    const FlatInfo& info = Define(BufferVar(op->var));
-    if (info.flattened.same_as(BufferVar(op->var)) && data.same_as(buffer_call->args[0])) {
+    const FlatInfo& info = Define(op->var.as_or_throw<BufferVar>());
+    if (info.flattened.same_as(op->var.as_or_throw<BufferVar>()) &&
+        data.same_as(buffer_call->args[0])) {
       return ffi::Unchanged();
     }
-    return DeclBuffer(info.flattened, std::move(data), op->span);
+    return Bind(info.flattened,
+                Call(info.flattened.type(), builtin::decl_buffer(),
+                     {std::move(data), tvm::Tuple(info.flattened->shape),
+                      DataTypeImm(info.flattened->dtype->dtype), StringImm(info.flattened.scope())},
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                op->span);
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
@@ -242,7 +255,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
-      BufferVar original(op->args[0].as_or_throw<Var>());
+      BufferVar original = op->args[0].as_or_throw<BufferVar>();
       ffi::Array<PrimExpr> indices;
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
         indices.push_back(
@@ -262,7 +275,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
         if (var.value()->ty.as<BufferTypeNode>()) {
-          BufferVar original(var.value());
+          BufferVar original = var.value().as_or_throw<BufferVar>();
           buffers_used_.insert(original);
           return Lookup(original).flattened.data();
         }

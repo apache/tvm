@@ -109,7 +109,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable()  //
       .set_dispatch<tirx::Var>("", [](tirx::Var var, AccessPath p, IRDocsifier d) -> Doc {
         if (var->ty.as<tirx::BufferTypeNode>()) {
-          tirx::BufferVar buffer(var);
+          tirx::BufferVar buffer = var.as_or_throw<tirx::BufferVar>();
           if (!d->IsVarDefined(buffer)) {
             if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
               ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);

@@ -177,7 +177,7 @@ void TIRVisitorWithPath::Dispatch_(const BindNode* op, AccessPath path) {
   if (const auto* call = op->value.as<CallNode>();
       call &&
       (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
-    bind_scope_.Current().push_back(WithDef(BufferVar(op->var), path->Attr("var")));
+    bind_scope_.Current().push_back(WithDef(op->var.as_or_throw<BufferVar>(), path->Attr("var")));
   } else {
     bind_scope_.Current().push_back(WithDef(op->var, path->Attr("var")));
   }

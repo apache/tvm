@@ -80,42 +80,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> BindVisit(
   return std::nullopt;
 }
 
-ffi::Expected<Expr> ReconcileBufferCall(Expr value, const Var& var) noexcept {
-  try {
-    const auto* call = value.as<CallNode>();
-    if (!call ||
-        (!call->op.same_as(builtin::alloc_buffer()) && !call->op.same_as(builtin::decl_buffer()))) {
-      return value;
-    }
-    BufferVar buffer(var);
-    int shape_index = call->op.same_as(builtin::alloc_buffer()) ? 0 : 1;
-    tvm::Tuple shape = call->args[shape_index].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = call->args[shape_index + 1].as_or_throw<DataTypeImm>()->value;
-    ffi::String scope = call->args[shape_index + 2].as_or_throw<StringImm>()->value;
-    bool shape_changed = !ffi::StructuralEqual()(shape->fields, buffer->shape);
-    if (!call->ty.same_as(var->ty) || shape_changed || dtype != buffer->dtype->dtype ||
-        scope != buffer.scope()) {
-      auto mapped_call = ffi::make_object<CallNode>(*call);
-      mapped_call->ty = var->ty;
-      if (shape_changed) {
-        mapped_call->args.Set(shape_index, tvm::Tuple(buffer->shape, shape->span));
-      }
-      if (dtype != buffer->dtype->dtype) {
-        auto original = call->args[shape_index + 1].as_or_throw<DataTypeImm>();
-        mapped_call->args.Set(shape_index + 1, DataTypeImm(buffer->dtype->dtype, original->span));
-      }
-      if (scope != buffer.scope()) {
-        mapped_call->args.Set(shape_index + 2,
-                              StringImm(buffer.scope(), call->args[shape_index + 2]->span));
-      }
-      return Call(std::move(mapped_call));
-    }
-    return value;
-  } catch (const ffi::Error& error) {
-    return ffi::Unexpected(error);
-  }
-}
-
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BindMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const BindNode* self =
@@ -134,10 +98,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BindMutate(
   bool var_changed = !mapped_var.UnchangedOrSameAs(self->var);
   Var new_var = std::move(mapped_var).ValueOrUnchanged(self->var);
   var_changed |= !old_var_type.same_as(new_var->ty);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(Expr, reconciled_value,
-                                    ReconcileBufferCall(new_value, new_var));
-  value_changed |= !reconciled_value.same_as(new_value);
-  new_value = std::move(reconciled_value);
   if ((value_changed || var_changed) && !new_var->ty.same_as(new_value->ty)) {
     new_var = new_var.CopyWithType(new_value->ty);
   }
@@ -173,10 +133,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BindMaybeInplaceMutate(
   bool var_changed = !mapped_var.UnchangedOrSameAs(self->var);
   Var new_var = std::move(mapped_var).ValueOrUnchanged(self->var);
   var_changed |= !old_var_type.same_as(new_var->ty);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(Expr, reconciled_value,
-                                    ReconcileBufferCall(new_value, new_var));
-  value_changed |= !reconciled_value.same_as(new_value);
-  new_value = std::move(reconciled_value);
   if ((value_changed || var_changed) && !new_var->ty.same_as(new_value->ty)) {
     new_var = new_var.CopyWithType(new_value->ty);
   }
@@ -992,52 +948,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Buffer definitions are ordinary bindings of buffer-returning calls.
-Bind DeclBuffer(BufferVar buffer, Expr data, Span span) {
-  std::string scope = static_cast<std::string>(buffer.scope());
-  if (scope.empty()) scope = "global";
-  if (scope == "tmem") {
-    TVM_FFI_ICHECK_EQ(buffer->allocated_addr.size(), 1U)
-        << "ValueError: For `tmem` scope, DeclBuffer requires exactly one `allocated_addr` "
-           "PrimExpr";
-  } else if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
-    TVM_FFI_ICHECK(buffer->allocated_addr.empty())
-        << "ValueError: For `" << scope << "` scope, DeclBuffer does not accept `allocated_addr`";
-  }
-  auto call = Call(buffer.var()->ty, builtin::decl_buffer(),
-                   {std::move(data), tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                    StringImm(buffer.scope())},
-                   {}, {}, span);
-  return Bind(buffer.var(), std::move(call), std::move(span));
-}
-
 Bind AllocBuffer(BufferVar buffer, ffi::Map<ffi::String, Any> annotations, Span span) {
   auto call = Call(
       buffer.var()->ty, builtin::alloc_buffer(),
       {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
       DictAttrs(std::move(annotations)), {}, span);
   return Bind(buffer.var(), std::move(call), std::move(span));
-}
-
-std::optional<int64_t> ConstantAllocationSize(const BufferVar& buffer) {
-  int64_t result = 1;
-  for (const PrimExpr& extent : buffer->shape) {
-    const auto* size = extent.as<IntImmNode>();
-    if (!size) return std::nullopt;
-    auto product = (result * size->value).as<int64_t>();
-    if (!product.has_value()) return std::nullopt;
-    result = *product;
-  }
-  return result;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::GlobalDef()
-      .def("tirx.DeclBuffer",
-           [](BufferVar buffer, Expr data, Span span) { return DeclBuffer(buffer, data, span); })
-      .def("tirx.AllocBuffer",
-           [](BufferVar buffer, ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
-             return AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, Any>()), span);
-           });
 }
 
 // SeqStmt

@@ -620,7 +620,12 @@ void TVMFFIABIBuilder::DecodeAllParams() {
                                                    ->Attr(ffi::String(buffer.value().name()));
       Expr data = DecodeParamDLTensor(buffer.value(), device_type_, device_id_, handle,
                                       func_name_ + "." + param->name, param_path);
-      decl_buffers_.push_back(DeclBuffer(buffer.value(), data));
+      decl_buffers_.push_back(
+          Bind(buffer.value(),
+               Call(buffer.value().type(), builtin::decl_buffer(),
+                    {data, tvm::Tuple(buffer.value()->shape),
+                     DataTypeImm(buffer.value()->dtype->dtype), StringImm(buffer.value().scope())},
+                    {})));
     }
   }
 }

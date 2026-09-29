@@ -118,7 +118,8 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>();
       call && call->op.same_as(tirx::builtin::decl_buffer())) {
     if (auto source = GetBufferDataVar(call->args[0])) {
-      buffer_aliases_.insert_or_assign(BufferVar(op->var).get(), ResolveBuffer(source.value()));
+      buffer_aliases_.insert_or_assign(op->var.as_or_throw<BufferVar>().get(),
+                                       ResolveBuffer(source.value()));
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -275,7 +276,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   if (op->op.same_as(tirx::builtin::masked_load()) ||
       op->op.same_as(tirx::builtin::masked_store())) {
     bool is_load = op->op.same_as(tirx::builtin::masked_load());
-    BufferVar buffer(op->args[0].as_or_throw<Var>());
+    BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
     PrimType value_dtype =
         is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
     Var buf = ResolveBuffer(buffer.var());

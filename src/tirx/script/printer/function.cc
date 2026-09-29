@@ -58,7 +58,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           if (!param->ty.as<tirx::BufferTypeNode>()) {
             continue;
           }
-          tirx::BufferVar buffer(param);
+          tirx::BufferVar buffer = param.as_or_throw<tirx::BufferVar>();
           for (const PrimExpr& extent : buffer->shape) {
             collect_type_vars(extent);
           }
@@ -89,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           tirx::Var var = func->params[i];
           AccessPath var_p = p->Attr("params")->ArrayItem(i);
           if (var->ty.as<tirx::BufferTypeNode>()) {
-            tirx::BufferVar buffer(var);
+            tirx::BufferVar buffer = var.as_or_throw<tirx::BufferVar>();
             auto check_annotation_var =
                 [&](const tirx::Var& annotation_var) -> ffi::Expected<ffi::WalkResult> {
               has_dependent_annotations =

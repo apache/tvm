@@ -177,17 +177,17 @@ class DoubleBufferInjector : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, inplace_mode);
+      return Mutate_AllocBuffer(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    const VarNode* buf = BufferVar(op->var).get();
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+                                       InplaceMode inplace_mode) {
+    const VarNode* buf = op->var.as_or_throw<BufferVar>().get();
     auto it = dbuffer_info_.find(buf);
     if (it != dbuffer_info_.end()) {
       StorageEntry& entry = it->second;
-      const auto* call = op->value.as<CallNode>();
       tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
       entry.scope = call->args[2].as_or_throw<StringImm>()->value;
 
@@ -217,7 +217,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       if (db_it != dbuffer_info_.end() && db_it->second.loop != nullptr) {
         StorageEntry& entry = db_it->second;
         const Bind& alloc = pend_it->second;
-        auto new_buf = GetRemappedBuffer(BufferVar(alloc->var), entry.stride);
+        auto new_buf = GetRemappedBuffer(alloc->var.as_or_throw<BufferVar>(), entry.stride);
         auto& alloc_nest = loop_allocs_[entry.loop];
         const auto* call = alloc->value.as<CallNode>();
         alloc_nest.emplace_back(AllocBuffer(new_buf, call->attrs.as<DictAttrsNode>()->dict));
@@ -404,7 +404,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap[e.loop->loop_var.get()] = loop_shift;
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(body, map_var).as_or_throw<Stmt>();
-    body = AttrStmt(GetRemappedBuffer(BufferVar(buffer), e.stride).data(),
+    body = AttrStmt(GetRemappedBuffer(buffer.as_or_throw<BufferVar>(), e.stride).data(),
                     s_tir::attr::double_buffer_write, IntImm::Int32(1), body);
     body = IfThenElse(loop_shift < e.loop->extent, body);
     return body;

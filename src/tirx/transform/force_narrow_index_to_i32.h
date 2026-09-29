@@ -99,7 +99,7 @@ class Int32DTypeNarrowerBase : public Normalizer {
     auto result = Normalizer::Mutate_(op, inplace_mode);
     auto alloc =
         std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).template as_or_throw<Bind>();
-    CheckAllocatedBuffer(BufferVar(alloc->var));
+    CheckAllocatedBuffer(alloc->var.template as_or_throw<BufferVar>());
     return alloc;
   }
 

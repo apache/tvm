@@ -80,14 +80,23 @@ def test_buffer_pointer_type_derived_from_dtype_and_scope():
     assert buffer.data.ty == tvm.ir.PointerType(tvm.ir.PrimType("float16"), "local")
 
 
-def test_decl_buffer_requires_physical_data_binding():
+def test_decl_buffer_physical_data_binding():
     buffer = tvm.tirx.decl_buffer((8,), "float32")
     data = tvm.tirx.Var("data", buffer.data.ty)
 
-    with pytest.raises(TypeError, match="requires a physical data binding"):
-        tvm.tirx.DeclBuffer(buffer)
-
-    decl = tvm.tirx.DeclBuffer(buffer, data=data)
+    decl = tvm.tirx.Bind(
+        buffer,
+        tvm.ir.Call(
+            "tirx.decl_buffer",
+            [
+                data,
+                tvm.ir.Tuple(buffer.shape),
+                tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
+                tvm.ir.StringImm(buffer.scope()),
+            ],
+            ret_ty=buffer.ty,
+        ),
+    )
     assert decl.var.same_as(buffer)
     assert decl.value.args[0].same_as(data)
 

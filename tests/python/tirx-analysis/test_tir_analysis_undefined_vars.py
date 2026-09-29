@@ -35,7 +35,19 @@ def test_decl_buffer_data_is_use():
     buf = tirx.decl_buffer((n,), "float32", "buf", data=data_ptr)
 
     body = tirx.Evaluate(tirx.BufferLoad(buf, [0]))
-    decl = tirx.DeclBuffer(buf, data=data_ptr)
+    decl = tirx.Bind(
+        buf,
+        tvm.ir.Call(
+            "tirx.decl_buffer",
+            [
+                data_ptr,
+                tvm.ir.Tuple(buf.shape),
+                tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
+                tvm.ir.StringImm(buf.scope()),
+            ],
+            ret_ty=buf.ty,
+        ),
+    )
     stmt = tirx.SeqStmt([decl, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])
@@ -58,7 +70,19 @@ def test_decl_buffer_elem_offset_is_use():
     buf = tirx.decl_buffer((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
 
     body = tirx.Evaluate(tirx.BufferLoad(buf, [0]))
-    decl = tirx.DeclBuffer(buf, data=data_ptr)
+    decl = tirx.Bind(
+        buf,
+        tvm.ir.Call(
+            "tirx.decl_buffer",
+            [
+                data_ptr,
+                tvm.ir.Tuple(buf.shape),
+                tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
+                tvm.ir.StringImm(buf.scope()),
+            ],
+            ret_ty=buf.ty,
+        ),
+    )
     stmt = tirx.SeqStmt([decl, body])
 
     undef = tvm.tirx.analysis.undefined_vars(stmt, [])

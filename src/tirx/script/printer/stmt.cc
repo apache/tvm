@@ -271,7 +271,7 @@ std::vector<tirx::BufferVar> FindParentBuffers(const tirx::BufferVar& child,
   if (!parent_var.has_value() || !parent_var.value()->ty.as<tirx::BufferTypeNode>()) {
     return {};
   }
-  tirx::BufferVar parent(parent_var.value());
+  tirx::BufferVar parent = parent_var.value().as_or_throw<tirx::BufferVar>();
   if (parent.same_as(child) || !d->GetVarDoc(parent).has_value()) {
     return {};
   }
@@ -663,43 +663,43 @@ Doc DeclBufferDoc(tirx::Bind stmt, const CallNode* call, AccessPath p, IRDocsifi
   Expr data = call->args[0];
   // Try sugar detection when syntax_sugar is enabled
   if (d->cfg->syntax_sugar) {
-    if (auto sugar = TryDeclBufferSugar(tirx::BufferVar(stmt->var), p, data, d)) {
-      ExprDoc lhs = DefineBuffer(tirx::BufferVar(stmt->var), d->frames.back(), d);
+    if (auto sugar = TryDeclBufferSugar(stmt->var.as_or_throw<tirx::BufferVar>(), p, data, d)) {
+      ExprDoc lhs = DefineBuffer(stmt->var.as_or_throw<tirx::BufferVar>(), d->frames.back(), d);
       return AssignDoc(lhs, sugar.value(), std::nullopt);
     }
   }
-  ExprDoc rhs = BufferDecl(tirx::BufferVar(stmt->var), "decl_buffer", {}, p->Attr("var"),
-                           d->frames.back(), d, var_definitions, data);
-  ExprDoc lhs = DefineBuffer(tirx::BufferVar(stmt->var), d->frames.back(), d);
+  ExprDoc rhs = BufferDecl(stmt->var.as_or_throw<tirx::BufferVar>(), "decl_buffer", {},
+                           p->Attr("var"), d->frames.back(), d, var_definitions, data);
+  ExprDoc lhs = DefineBuffer(stmt->var.as_or_throw<tirx::BufferVar>(), d->frames.back(), d);
   return AssignDoc(lhs, rhs, std::nullopt);
 }
 }  // namespace
 
 namespace {
 Doc AllocBufferDoc(tirx::Bind stmt, const CallNode* call, AccessPath p, IRDocsifier d) {
-  if (d->cfg->syntax_sugar && tirx::BufferVar(stmt->var).IsScalar(true)) {
-    ExprDoc lhs = DefineBuffer(tirx::BufferVar(stmt->var), d->frames.back(), d);
+  if (d->cfg->syntax_sugar && stmt->var.as_or_throw<tirx::BufferVar>().IsScalar(true)) {
+    ExprDoc lhs = DefineBuffer(stmt->var.as_or_throw<tirx::BufferVar>(), d->frames.back(), d);
     DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
     ExprDoc type_ann = TIR(d, DType2Str(dtype));
     return AssignDoc(lhs, std::nullopt, type_ann);
   }
-  ExprDoc rhs = BufferDecl(tirx::BufferVar(stmt->var), "alloc_buffer", {}, p->Attr("var"),
-                           d->frames.back(), d, BufferVarDefinition::DataPointer);
+  ExprDoc rhs = BufferDecl(stmt->var.as_or_throw<tirx::BufferVar>(), "alloc_buffer", {},
+                           p->Attr("var"), d->frames.back(), d, BufferVarDefinition::DataPointer);
   // The allocation call carries annotations that BufferDecl
   // doesn't know about. When non-empty, append it as an `annotations=...`
   // kwarg on the emitted call so round-trip preserves the annotation map.
-  auto annotations = call->attrs.as<DictAttrsNode>()->dict;
-  if (!annotations.empty()) {
+  DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
+  if (!annotations->dict.empty()) {
     if (const auto* call_doc = rhs.as<CallDocNode>()) {
       ffi::Array<ffi::String> new_keys = call_doc->kwargs_keys;
       ffi::Array<ExprDoc> new_values = call_doc->kwargs_values;
       new_keys.push_back("annotations");
-      new_values.push_back(d->AsDoc<ExprDoc>(
-          annotations, p->Attr("value")->Attr("attrs")->Attr("dict")->MapItem("annotations")));
+      new_values.push_back(
+          d->AsDoc<ExprDoc>(annotations->dict, p->Attr("value")->Attr("attrs")->Attr("dict")));
       rhs = CallDoc(call_doc->callee, call_doc->args, new_keys, new_values);
     }
   }
-  ExprDoc lhs = DefineBuffer(tirx::BufferVar(stmt->var), d->frames.back(), d);
+  ExprDoc lhs = DefineBuffer(stmt->var.as_or_throw<tirx::BufferVar>(), d->frames.back(), d);
   return AssignDoc(lhs, rhs, std::nullopt);
 }
 

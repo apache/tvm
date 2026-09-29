@@ -150,7 +150,7 @@ ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const Pri
     if (!var->ty.as<BufferTypeNode>()) {
       continue;
     }
-    BufferVar buffer(var);
+    BufferVar buffer = var.as_or_throw<BufferVar>();
     auto& access = buffer_access_map[buffer.get()];
     ffi::Array<ffi::Array<IntSet>> loads, stores, combined;
     for (std::vector<IntSet>& touch : std::get<LoadAccess>(access).set) {

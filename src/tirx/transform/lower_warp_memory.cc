@@ -299,12 +299,12 @@ class WarpAccessRewriter : public StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    auto type = CopyBufferType(BufferVar(op->var));
+    auto type = CopyBufferType(op->var.as_or_throw<BufferVar>());
     type->storage_scope = "local";
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
-    type->elem_offset = IntImm(BufferVar(op->var)->elem_offset.ty(), 0);
-    BufferVar new_buf = RebuildBufferVar(BufferVar(op->var), std::move(type));
+    type->elem_offset = IntImm(op->var.as_or_throw<BufferVar>()->elem_offset.ty(), 0);
+    BufferVar new_buf = RebuildBufferVar(op->var.as_or_throw<BufferVar>(), std::move(type));
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
     return SeqStmt::Flatten(AllocBuffer(new_buf, buffer_call->attrs.as<DictAttrsNode>()->dict),

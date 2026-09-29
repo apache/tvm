@@ -75,11 +75,11 @@ class AllocBufferCalculator : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
     tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
-    ffi::String storage_scope = call->args[2].as_or_throw<StringImm>()->value;
-    auto search = _current_size.find(storage_scope);
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    auto search = _current_size.find(scope);
     if (search == _current_size.end()) {
-      _current_size[storage_scope] = 0;
-      _max_size[storage_scope] = 0;
+      _current_size[scope] = 0;
+      _max_size[scope] = 0;
     }
     int64_t size = 1;
     for (const Expr& e : shape->fields) {
@@ -91,8 +91,8 @@ class AllocBufferCalculator : public StmtExprVisitor {
       }
     }
     size *= static_cast<int64_t>(PrimType(dtype).StorageBytes());
-    _current_size[storage_scope] += size;
-    _max_size[storage_scope] = std::max(_current_size[storage_scope], _max_size[storage_scope]);
+    _current_size[scope] += size;
+    _max_size[scope] = std::max(_current_size[scope], _max_size[scope]);
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {

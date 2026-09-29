@@ -153,7 +153,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op);
+      return DispatchAllocBuffer(op, call);
     }
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::decl_buffer()))
@@ -189,14 +189,13 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     }
     return std::nullopt;
   }
-  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op) {
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
     expr_touched_->Reset(false);
-    const auto* call = op->value.as<CallNode>();
     tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     for (const Expr& extent : shape->fields) {
       expr_touched_->Visit(extent);
     }
-    Record(BufferVar(op->var).get(), *expr_touched_);
+    Record(op->var.as_or_throw<BufferVar>().get(), *expr_touched_);
     return StmtExprVisitor::Visit_(op);
   }
   void Record(const VarNode* var, const ExprTouched& tc) {
@@ -299,7 +298,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     if (op->op.same_as(tirx::builtin::masked_load()) ||
         op->op.same_as(tirx::builtin::masked_store())) {
       bool is_load = op->op.same_as(tirx::builtin::masked_load());
-      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
       PrimExpr value;
       if (!is_load)
         value = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
@@ -330,7 +329,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
       visit_touched_var_ = true;
-      return GetRemappedBuffer(BufferVar(buffer), it->second).data();
+      return GetRemappedBuffer(buffer.as_or_throw<BufferVar>(), it->second).data();
     } else if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
@@ -345,9 +344,10 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       PrimExpr extent = Mutate(op->args[3]).ValueOrUnchanged(op->args[3]).as_or_throw<PrimExpr>();
       PrimExpr stride = it->second / prim::MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
-      Expr data = buffer.value()->ty.as<BufferTypeNode>()
-                      ? GetRemappedBuffer(BufferVar(buffer.value()), it->second).data()
-                      : op->args[1];
+      Expr data =
+          buffer.value()->ty.as<BufferTypeNode>()
+              ? GetRemappedBuffer(buffer.value().as_or_throw<BufferVar>(), it->second).data()
+              : op->args[1];
 
       return Call(op->ty, op->op, {op->args[0], data, offset, extent, op->args[4]});
     } else {
@@ -450,7 +450,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, inplace_mode);
+      return Mutate_AllocBuffer(op, call, inplace_mode);
     }
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::decl_buffer()))
@@ -592,12 +592,12 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   }
   // Allocate
   // AllocBuffer
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    const auto* call = op->value.as<CallNode>();
-    tvm::Tuple shape_arg = call->args[0].as_or_throw<tvm::Tuple>();
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+                                       InplaceMode inplace_mode) {
+    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     ffi::Array<PrimExpr> original_shape =
-        shape_arg->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); });
-    ffi::Array<PrimExpr> shape = original_shape.Map([this](const PrimExpr& s) {
+        shape->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); });
+    ffi::Array<PrimExpr> new_shape = original_shape.Map([this](const PrimExpr& s) {
       // Keep the retained allocation and its buffer type unchanged.
       return Mutate(s, InplaceMode::kDisallow).ValueOrUnchanged(s);
     });
@@ -608,21 +608,21 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
 
     visit_touched_var_ = false;
 
-    if (touched_var_.count(BufferVar(op->var).get()) || !allow_share_) {
-      TVM_FFI_ICHECK_EQ(shape.size(), 1)
+    if (touched_var_.count(op->var.as_or_throw<BufferVar>().get()) || !allow_share_) {
+      TVM_FFI_ICHECK_EQ(new_shape.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
-      PrimExpr stride = shape[0];
-      shape = {stride * num_threads_};
-      alloc_remap_[BufferVar(op->var).get()] = stride;
+      PrimExpr stride = new_shape[0];
+      new_shape = {stride * num_threads_};
+      alloc_remap_[op->var.as_or_throw<BufferVar>().get()] = stride;
     }
 
-    if (shape.same_as(original_shape)) {
+    if (new_shape.same_as(original_shape)) {
       return ffi::Unchanged();
     } else {
-      auto type = CopyBufferType(BufferVar(op->var));
-      type->shape = shape;
-      BufferVar new_buffer = RebuildBufferVar(BufferVar(op->var), std::move(type));
-      VarRemapSet(BufferVar(op->var), new_buffer);
+      auto type = CopyBufferType(op->var.as_or_throw<BufferVar>());
+      type->shape = new_shape;
+      BufferVar new_buffer = RebuildBufferVar(op->var.as_or_throw<BufferVar>(), std::move(type));
+      VarRemapSet(op->var.as_or_throw<BufferVar>(), new_buffer);
       return AllocBuffer(new_buffer, call->attrs.as<DictAttrsNode>()->dict);
     }
   }

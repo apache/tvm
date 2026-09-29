@@ -387,7 +387,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         if (const auto* call = bind->value.as<CallNode>();
             call && (call->op.same_as(builtin::alloc_buffer()) ||
                      call->op.same_as(builtin::decl_buffer()))) {
-          changed |= AppendPostBufferDefStmts(&rebuilt, BufferVar(bind->var), BufferVar(bind->var));
+          changed |= AppendPostBufferDefStmts(&rebuilt, bind->var.as_or_throw<BufferVar>(),
+                                              bind->var.as_or_throw<BufferVar>());
         }
       }
     }
@@ -475,7 +476,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
             var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
           auto it = buffer_root_.find(var.value());
           if (it != buffer_root_.end() && !it->second.same_as(var.value())) {
-            return BufferVar(it->second).data();
+            return it->second.as_or_throw<BufferVar>().data();
           }
         }
       }
@@ -486,19 +487,19 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   };
 
   UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    BufferVar old_buffer = BufferVar(op->var);
+    BufferVar old_buffer = op->var.as_or_throw<BufferVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
     RegisterStorageRoot(old_buffer.var(), op->var, std::nullopt);
 
     std::vector<Stmt> seq{stmt};
-    AppendPostBufferDefStmts(&seq, old_buffer, BufferVar(op->var));
+    AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<BufferVar>());
     return SeqStmt::Flatten(seq);
   }
 
   UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    BufferVar old_buffer = BufferVar(op->var);
+    BufferVar old_buffer = op->var.as_or_throw<BufferVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
@@ -506,7 +507,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     RegisterStorageRoot(old_buffer.var(), op->var, buffer_call->args[0]);
 
     std::vector<Stmt> seq{stmt};
-    AppendPostBufferDefStmts(&seq, old_buffer, BufferVar(op->var));
+    AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<BufferVar>());
     return SeqStmt::Flatten(seq);
   }
 

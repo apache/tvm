@@ -333,7 +333,7 @@ BufferVar IRConvertSSA::GetRemappedBuffer(BufferVar buf) {
   // the desired BufferType.  Reuse that exact Var so the definition and all
   // subsequent uses remain in SSA.
   if (const auto* type = new_buffer_var->ty.as<BufferTypeNode>()) {
-    BufferVar candidate(new_buffer_var);
+    BufferVar candidate = new_buffer_var.as_or_throw<BufferVar>();
     if (shape.same_as(type->shape) && strides.same_as(type->strides) &&
         elem_offset.same_as(type->elem_offset) && !layout_changed) {
       buffers.push_back(candidate);
@@ -448,17 +448,17 @@ UnchangedOr<Stmt> IRConvertSSA::MutateBufferBinding(const BindNode* op, InplaceM
   } else {
     defined_.insert(v.get());
   }
+  ffi::Any previous_remap = VarRemapGet(v);
   Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-  op = stmt.as<BindNode>();
-  const auto* buffer_call = op->value.as<CallNode>();
-  // Keep definitions and subsequent buffer accesses on the same remapped identity.
-  BufferVar buffer(op->var);
-  BufferVar new_buffer = GetRemappedBuffer(buffer);
-  if (!new_buffer.same_as(buffer)) {
-    return buffer_call->op.same_as(builtin::alloc_buffer())
-               ? AllocBuffer(new_buffer, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span)
-               : DeclBuffer(new_buffer, buffer_call->args[0], op->span);
+  Var bound_var = stmt.as<BindNode>()->var;
+  // Generic Bind mutation owns type propagation. Record its final identity in
+  // the scoped environment used by SSA renaming, including scope-exit cleanup.
+  if (!bound_var.same_as(GetRemappedVar(v))) {
+    PushVarRemap(v, bound_var);
   }
+  // The generic remap must not outlive the scoped binding and shadow an outer
+  // definition after this scope exits.
+  VarRemapSet(v, previous_remap);
   return stmt;
 }
 

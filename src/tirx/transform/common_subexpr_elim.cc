@@ -624,9 +624,9 @@ class CSEPlanner : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> DispatchDeclBuffer(const BindNode* op) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
-        WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(BufferVar(op->var)); }));
-    return VisitBufferMetadata(BufferVar(op->var));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(WithDefRegionKind(
+        kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var.as_or_throw<BufferVar>()); }));
+    return VisitBufferMetadata(op->var.as_or_throw<BufferVar>());
   }
 
   // ------------------------------------------------------------------

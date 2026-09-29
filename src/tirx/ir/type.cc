@@ -30,6 +30,19 @@
 #include <utility>
 
 namespace tvm::tirx {
+
+std::optional<int64_t> BufferTypeNode::ConstantAllocationSize() const {
+  int64_t result = 1;
+  for (const PrimExpr& extent : shape) {
+    const auto* size = extent.as<IntImmNode>();
+    if (!size) return std::nullopt;
+    auto product = (result * size->value).as<int64_t>();
+    if (!product.has_value()) return std::nullopt;
+    result = *product;
+  }
+  return result;
+}
+
 namespace {
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TensorMapTypeVisit(

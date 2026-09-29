@@ -130,7 +130,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BindNode* op) {
       (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
         kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->var); }));
-    return VisitBufferMetadata(BufferVar(op->var), true);
+    return VisitBufferMetadata(op->var.as_or_throw<BufferVar>(), true);
   }
   return std::nullopt;
 }
@@ -245,7 +245,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TilePrimitiveCallNod
     if (auto buffer_region = e.as<TensorRegion>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer_region.value()));
     } else if (auto var = e.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(BufferVar(var.value())));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(var.value().as_or_throw<BufferVar>()));
     } else if (auto expr = e.as<PrimExpr>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(expr.value()));
     } else if (auto stmt = e.as<Stmt>()) {
@@ -297,32 +297,6 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inpla
   bool var_changed = !var_u.UnchangedOrSameAs(op->var);
   Var var = std::move(var_u).ValueOrUnchanged(op->var);
   var_changed |= !old_var_type.same_as(var->ty);
-  if (const auto* call = value.as<CallNode>(); call && (call->op.same_as(builtin::alloc_buffer()) ||
-                                                        call->op.same_as(builtin::decl_buffer()))) {
-    BufferVar buffer(var);
-    int shape_index = call->op.same_as(builtin::alloc_buffer()) ? 0 : 1;
-    tvm::Tuple shape = call->args[shape_index].as_or_throw<tvm::Tuple>();
-    DLDataType dtype = call->args[shape_index + 1].as_or_throw<DataTypeImm>()->value;
-    ffi::String scope = call->args[shape_index + 2].as_or_throw<StringImm>()->value;
-    if (!call->ty.same_as(var->ty) || !ffi::StructuralEqual()(shape->fields, buffer->shape) ||
-        dtype != buffer->dtype->dtype || scope != buffer.scope()) {
-      auto mapped_call = ffi::make_object<CallNode>(*call);
-      mapped_call->ty = var->ty;
-      if (!ffi::StructuralEqual()(shape->fields, buffer->shape)) {
-        mapped_call->args.Set(shape_index, tvm::Tuple(buffer->shape, shape->span));
-      }
-      if (dtype != buffer->dtype->dtype) {
-        auto original = call->args[shape_index + 1].as_or_throw<DataTypeImm>();
-        mapped_call->args.Set(shape_index + 1, DataTypeImm(buffer->dtype->dtype, original->span));
-      }
-      if (scope != buffer.scope()) {
-        mapped_call->args.Set(shape_index + 2,
-                              StringImm(buffer.scope(), call->args[shape_index + 2]->span));
-      }
-      value = Call(std::move(mapped_call));
-      value_changed = true;
-    }
-  }
   if ((value_changed || var_changed) && !var->ty.same_as(value->ty)) {
     var = var.CopyWithType(value->ty);
   }

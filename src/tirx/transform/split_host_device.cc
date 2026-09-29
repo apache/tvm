@@ -249,7 +249,7 @@ class HostDeviceSplitter : public StmtExprMutator {
     auto kernel_rewriter = ffi::make_object<StmtExprMutator>();
     for (const Var& param : params) {
       if (param->ty.as<BufferTypeNode>()) {
-        BufferVar buffer(param);
+        BufferVar buffer = param.as_or_throw<BufferVar>();
         BufferVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
         Var data_param(buffer.name() + "_ptr", buffer.DataPointerType());
         kernel_params.push_back(data_param);
@@ -287,7 +287,13 @@ class HostDeviceSplitter : public StmtExprMutator {
           << "Undefined buffer " << buf.name() << " was not captured as a kernel parameter";
       TVM_FFI_ICHECK(kernel_buffer != nullptr);
       body = SeqStmt::Flatten(
-          DeclBuffer(kernel_buffer.as_or_throw<BufferVar>(), data_param.value()), std::move(body));
+          Bind(kernel_buffer.as_or_throw<BufferVar>(),
+               Call(kernel_buffer.as_or_throw<BufferVar>().type(), builtin::decl_buffer(),
+                    {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<BufferVar>()->shape),
+                     DataTypeImm(kernel_buffer.as_or_throw<BufferVar>()->dtype->dtype),
+                     StringImm(kernel_buffer.as_or_throw<BufferVar>().scope())},
+                    {})),
+          std::move(body));
     }
     auto launch_bounds_attr = ffi::make_object<LaunchBoundsAttrExtractor>();
     body = launch_bounds_attr->Extract(std::move(body));

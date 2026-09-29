@@ -119,8 +119,9 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
     // AllocBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(BufferVar(op->var).var())) {
-      buffer_var_map_->Set(BufferVar(op->var).var(), BufferVar(op->var));
+    if (!buffer_var_map_->count(op->var.as_or_throw<BufferVar>().var())) {
+      buffer_var_map_->Set(op->var.as_or_throw<BufferVar>().var(),
+                           op->var.as_or_throw<BufferVar>());
     }
     return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }
@@ -139,8 +140,9 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_DeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
     // DeclBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(BufferVar(op->var).var())) {
-      buffer_var_map_->Set(BufferVar(op->var).var(), BufferVar(op->var));
+    if (!buffer_var_map_->count(op->var.as_or_throw<BufferVar>().var())) {
+      buffer_var_map_->Set(op->var.as_or_throw<BufferVar>().var(),
+                           op->var.as_or_throw<BufferVar>());
     }
     return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }

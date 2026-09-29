@@ -191,8 +191,13 @@ class BuiltinLower : public StmtExprMutator {
         scope.stack_shape = decl_buffer({IntImm::Int64(scope.max_sizes.shape_stack)},
                                         PrimType::Int(64), "stack_shape");
         stmt = SeqStmt::Flatten(
-            DeclBuffer(scope.stack_shape, StackAlloca(scope.stack_shape.DataPointerType(), "shape",
-                                                      scope.max_sizes.shape_stack)),
+            Bind(scope.stack_shape, Call(scope.stack_shape.type(), builtin::decl_buffer(),
+                                         {StackAlloca(scope.stack_shape.DataPointerType(), "shape",
+                                                      scope.max_sizes.shape_stack),
+                                          tvm::Tuple(scope.stack_shape->shape),
+                                          DataTypeImm(scope.stack_shape->dtype->dtype),
+                                          StringImm(scope.stack_shape.scope())},
+                                         {})),
             stmt);
       }
 
@@ -269,9 +274,9 @@ class BuiltinLower : public StmtExprMutator {
     DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
     PrimType element_type(dtype);
     ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-    auto annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
-    if (annotations.count(transform::kDisableLowerTVMBuiltin)) {
-      if (annotations[transform::kDisableLowerTVMBuiltin].as_or_throw<IntImm>()->value) {
+    DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+    if (annotations->dict.count(transform::kDisableLowerTVMBuiltin)) {
+      if (annotations->dict[transform::kDisableLowerTVMBuiltin].as_or_throw<IntImm>()->value) {
         return stmt;
       }
     }
@@ -282,7 +287,7 @@ class BuiltinLower : public StmtExprMutator {
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
       if (scope == "global") {
-        auto constant_size = ConstantAllocationSize(BufferVar(op->var));
+        auto constant_size = op->var->ty.as_or_throw<BufferType>()->ConstantAllocationSize();
         if (constant_size.has_value() && constant_size.value() > 0 &&
             static_cast<size_t>(constant_size.value()) * nbytes < runtime::kMaxStackAlloca) {
           return stmt;
@@ -298,29 +303,35 @@ class BuiltinLower : public StmtExprMutator {
     Stmt throw_last_error = Evaluate(
         Call(PrimType::Int(32), builtin::tvm_throw_last_error(), {}).as_or_throw<PrimExpr>());
 
-    Stmt alloc_nullptr_check =
-        IfThenElse(Call(PrimType::Bool(), builtin::isnullptr(), {BufferVar(op->var).data()})
-                       .as_or_throw<PrimExpr>(),
-                   throw_last_error);
+    Stmt alloc_nullptr_check = IfThenElse(
+        Call(PrimType::Bool(), builtin::isnullptr(), {op->var.as_or_throw<BufferVar>().data()})
+            .as_or_throw<PrimExpr>(),
+        throw_last_error);
 
     static const Op free_workspace_op = Op::Get("tirx.TVMBackendFreeWorkspace");
     static const Op alloc_workspace_op = Op::Get("tirx.TVMBackendAllocWorkspace");
-    PrimExpr free_op =
-        Call(PrimType::Int(32), free_workspace_op,
-             {prim::cast(PrimType::Int(32), device_type_.value()),
-              prim::cast(PrimType::Int(32), device_id_.value()), BufferVar(op->var).data()})
-            .as_or_throw<PrimExpr>();
+    PrimExpr free_op = Call(PrimType::Int(32), free_workspace_op,
+                            {prim::cast(PrimType::Int(32), device_type_.value()),
+                             prim::cast(PrimType::Int(32), device_id_.value()),
+                             op->var.as_or_throw<BufferVar>().data()})
+                           .as_or_throw<PrimExpr>();
     Stmt free_stmt = IfThenElse(free_op != IntImm::Int32(0), throw_last_error);
 
     // Push free to enclosing scope's pending_frees (LIFO ordering preserved).
     scope_.Current().pending_frees.push_back(free_stmt);
 
     Stmt alloc_bind =
-        DeclBuffer(BufferVar(op->var),
-                   Call(BufferVar(op->var).DataPointerType(), alloc_workspace_op,
+        Bind(op->var.as_or_throw<BufferVar>(),
+             Call(op->var.as_or_throw<BufferVar>().type(), builtin::decl_buffer(),
+                  {Call(op->var.as_or_throw<BufferVar>().DataPointerType(), alloc_workspace_op,
                         {prim::cast(PrimType::Int(32), device_type_.value()),
                          prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
-                         IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())}));
+                         IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())}),
+                   tvm::Tuple(op->var.as_or_throw<BufferVar>()->shape),
+                   DataTypeImm(op->var.as_or_throw<BufferVar>()->dtype->dtype),
+                   StringImm(op->var.as_or_throw<BufferVar>().scope())},
+                  {}, buffer_call->ty_args, buffer_call->span),
+             op->span);
 
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }

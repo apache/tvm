@@ -63,8 +63,33 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
   }
 }
 
+UnchangedOr<Stmt> UpdatePointerStorageScope::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  const auto* call = op->value.as<CallNode>();
+  if (call &&
+      (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
+    if (auto mapped = VarRemapGet(op->var); mapped != nullptr) {
+      buffer_scopes_.emplace(call, mapped.as_or_throw<BufferVar>().scope());
+      auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+      buffer_scopes_.erase(call);
+      return result;
+    }
+  }
+  return StmtExprMutator::Mutate_(op, inplace_mode);
+}
+
 UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
   auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+  if (auto it = buffer_scopes_.find(op); it != buffer_scopes_.end()) {
+    Expr value = std::move(result).ValueOrUnchanged(ffi::GetRef<Expr>(op));
+    auto call = value.as_or_throw<Call>();
+    size_t scope_index = call->op.same_as(builtin::alloc_buffer()) ? 2 : 3;
+    if (call->args[scope_index].as_or_throw<StringImm>()->value != it->second) {
+      auto copy = ffi::make_object<CallNode>(*call.get());
+      copy->args.Set(scope_index, StringImm(it->second, call->args[scope_index]->span));
+      return ReinferMutatedCallType(Expr(std::move(copy)), op, inplace_mode);
+    }
+    return value;
+  }
   if (!op->op.same_as(builtin::buffer_data())) return result;
   return ReinferMutatedCallType(std::move(result), op, inplace_mode);
 }

@@ -95,7 +95,8 @@ class RenewDefMutator : public StmtExprMutator {
     if (const auto* call = op->value.as<CallNode>();
         call && (call->op.same_as(tirx::builtin::alloc_buffer()) ||
                  call->op.same_as(tirx::builtin::decl_buffer()))) {
-      // Buffer definitions must renew shape/layout expressions before registering the variable.
+      // Define metadata symbols before the RHS type and operands use their renewed identities.
+      DefineBuffer(op->var.as_or_throw<BufferVar>());
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     Var new_var = ReDefineVar(op->var);

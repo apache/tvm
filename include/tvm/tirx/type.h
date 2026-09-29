@@ -28,6 +28,8 @@
 #include <tvm/ir/type.h>
 #include <tvm/tirx/layout.h>
 
+#include <optional>
+
 namespace tvm::tirx {
 
 #ifndef TVM_INDEX_DEFAULT_I64
@@ -126,6 +128,9 @@ class BufferTypeNode : public TypeNode {
 
   /*! \return type of the physical pointer projected by buffer_data. */
   PointerType DataPointerType() const { return PointerType(dtype, storage_scope); }
+
+  /*! \brief Return the constant element count, or nullopt for symbolic extents or overflow. */
+  TVM_DLL std::optional<int64_t> ConstantAllocationSize() const;
 
   /*! \brief Determine the offset in the buffer of the given index.
    *

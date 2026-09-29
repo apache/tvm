@@ -234,10 +234,6 @@ class BufferStore : public Stmt {
 /*! \brief Bind a buffer to an allocation operation returning its BufferType. */
 TVM_DLL Bind AllocBuffer(BufferVar buffer, ffi::Map<ffi::String, ffi::Any> annotations = {},
                          Span span = Span());
-/*! \brief Bind a buffer to a declaration over an existing physical pointer. */
-TVM_DLL Bind DeclBuffer(BufferVar buffer, Expr data, Span span = Span());
-/*! \brief Return a constant allocation's element count, or nullopt on overflow. */
-TVM_DLL std::optional<int64_t> ConstantAllocationSize(const BufferVar& buffer);
 
 /*!
  * \brief The container of seq statement.

@@ -82,14 +82,14 @@ class BoundChecker : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, inplace_mode);
+      return Mutate_AllocBuffer(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    if (UpdateIsNeeded(BufferVar(op->var).var())) {
-      const auto* call = op->value.as<CallNode>();
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+                                       InplaceMode inplace_mode) {
+    if (UpdateIsNeeded(op->var.as_or_throw<BufferVar>().var())) {
       tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
       DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
       Update(op->var, shape->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); }),

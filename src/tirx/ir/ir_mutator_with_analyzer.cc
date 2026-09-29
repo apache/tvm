@@ -55,7 +55,7 @@ void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::PrimFunc& func) {
     if (!param->ty.as<tirx::BufferTypeNode>()) {
       continue;
     }
-    tirx::BufferVar buffer(param);
+    tirx::BufferVar buffer = param.as_or_throw<tirx::BufferVar>();
     for (PrimExpr shape : buffer->shape) {
       analyzer_->MarkGlobalNonNegValue(shape);
     }

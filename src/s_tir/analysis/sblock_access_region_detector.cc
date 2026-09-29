@@ -238,11 +238,11 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BindNode* op)
       call && call->op.same_as(tirx::builtin::decl_buffer())) {
     // A DeclBuffer data expression defines the alias source.  It is not an
     // opaque buffer access by the containing block.
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
-        WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(BufferVar(op->var)); }));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(WithDefRegionKind(
+        kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var.as_or_throw<BufferVar>()); }));
     tvm::Tuple shape = call->args[1].as_or_throw<tvm::Tuple>();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(shape));
-    return VisitBufferMetadata(BufferVar(op->var), true);
+    return VisitBufferMetadata(op->var.as_or_throw<BufferVar>(), true);
   }
   if (auto value = op->value.as<PrimExpr>()) {
     let_bindings_[op->var.get()] = value.value();
@@ -276,7 +276,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
   if (op->op.same_as(tirx::builtin::masked_load()) ||
       op->op.same_as(tirx::builtin::masked_store())) {
     bool is_load = op->op.same_as(tirx::builtin::masked_load());
-    BufferVar buffer(op->args[0].as_or_throw<Var>());
+    BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
     ffi::Array<PrimExpr> indices;
     for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
       indices.push_back(op->args[i].as_or_throw<PrimExpr>());
