@@ -44,7 +44,7 @@ template <typename>
 class OpAttrMap;
 
 /*! \brief Infer a Call's result type from its explicit inputs without builder state. */
-using FInferType = ffi::reflection::NativeFunctionView<ffi::Expected<Type>(const CallNode* call)>;
+using FInferType = ffi::reflection::NativeFunctionView<Type(const CallNode* call)>;
 
 /*! \brief An operator argument's name and documentation. */
 class ArgumentInfoNode : public ffi::Object {
@@ -171,9 +171,11 @@ class Op : public Expr {
       if (TVM_FFI_PREDICT_FALSE(!call)) {
         ThrowInvalidCall(get());
       }
-      using View = ffi::reflection::NativeFunctionView<ffi::Expected<void>(const CallNode*)>;
+      using View = ffi::reflection::NativeFunctionView<void(const CallNode*)>;
       // set_validator stores only an owning NativeFunction with this signature.
-      ffi::details::AnyUnsafe::CopyFromAnyViewAfterCheck<View>(validator)(call).value();
+      ffi::details::AnyUnsafe::CopyFromAnyViewAfterCheck<View>(validator)
+          .CallExpected(call)
+          .value();
     }
   }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Op, Expr, OpNode);
@@ -502,7 +504,7 @@ class OpDef {
     auto updated = ffi::make_object<OpNode>();
     (ApplySignatureTrait(updated.get(), specs), ...);
     if (op_->validator == nullptr) {
-      using View = ffi::reflection::NativeFunctionView<ffi::Expected<void>(const CallNode*)>;
+      using View = ffi::reflection::NativeFunctionView<void(const CallNode*)>;
       set_validator(View::FromNative<&ValidateSignature<Specs...>>());
       get()->validator_is_custom = false;
     }
@@ -531,10 +533,10 @@ class OpDef {
   /*!
    * \brief Register a validator that checks a Call with this operator.
    *
-   * The callback accepts a `const CallNode*` and returns Expected<void>, with
-   * an error for invalid input. A native function pointer can be bound with
-   * NativeFunctionView::FromNative; a borrowed packed function may also be
-   * passed while it remains alive for this call. The setter retains an owning
+   * The callback accepts a `const CallNode*` and reports invalid input by
+   * throwing or returning an `Expected<void>` error. A native function pointer
+   * can be bound with NativeFunctionView::FromNative. A borrowed packed function
+   * may also be passed while it remains alive for this call. The setter retains an owning
    * copy, so the original packed function may then be destroyed.
    * Ordinary Call construction invokes it; Call::Unchecked skips that initial
    * check, while Relax normalization and well-formedness may validate later.
@@ -547,13 +549,11 @@ class OpDef {
    * \param override Whether to replace the current validator.
    * \return This builder.
    */
-  OpDef& set_validator(
-      ffi::reflection::NativeFunctionView<ffi::Expected<void>(const CallNode*)> validator,
-      bool override = false) {
+  OpDef& set_validator(ffi::reflection::NativeFunctionView<void(const CallNode*)> validator,
+                       bool override = false) {
     TVM_FFI_CHECK(override || op_->validator == nullptr, ValueError)
         << "Validator of " << op_->name << " is already registered";
-    get()->validator =
-        ffi::reflection::NativeFunction<ffi::Expected<void>(const CallNode*)>::From(validator);
+    get()->validator = ffi::reflection::NativeFunction<void(const CallNode*)>::From(validator);
     get()->validator_is_custom = true;
     return *this;
   }

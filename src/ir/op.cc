@@ -208,8 +208,8 @@ void SetOpSignature(Op op, const ffi::Array<ffi::String>& arg_names,
   auto var_ty_args_info = MakeTailInfo(var_ty_args);
   auto* node = const_cast<OpNode*>(op.operator->());
   if (!node->validator_is_custom) {
-    using View = ffi::reflection::NativeFunctionView<ffi::Expected<void>(const CallNode*)>;
-    node->validator = ffi::reflection::NativeFunction<ffi::Expected<void>(const CallNode*)>::From(
+    using View = ffi::reflection::NativeFunctionView<void(const CallNode*)>;
+    node->validator = ffi::reflection::NativeFunction<void(const CallNode*)>::From(
         View::FromNative<&ValidateCountSignature>());
   }
   node->args_info = std::move(args_info);
