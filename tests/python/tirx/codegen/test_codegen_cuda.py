@@ -144,6 +144,39 @@ def test_cuda_module_destructor_preserves_current_device():
         torch.cuda.set_device(original_device)
 
 
+def _subbyte_shared_alloc_kernel(shape: int, dtype: str):
+    @T.prim_func
+    def main(A: T.Buffer((shape,), dtype), B: T.Buffer((shape,), dtype)):
+        T.device_entry()
+        tx = T.thread_id([shape])
+        smem = T.alloc_shared([shape], dtype)
+        smem[tx] = A[tx]
+        B[tx] = smem[tx]
+
+    return main
+
+
+@pytest.mark.parametrize(
+    ("shape", "dtype", "expected_storage_size"),
+    [
+        (12, "int1", 1),
+        (32, "int1", 1),
+        (33, "int1", 2),
+        (6, "int4", 1),
+        (8, "int4", 1),
+        (9, "int4", 2),
+        (6, "uint4", 1),
+        (8, "uint4", 1),
+        (9, "uint4", 2),
+    ],
+)
+def test_subbyte_shared_alloc_uses_ceil_div(shape, dtype, expected_storage_size):
+    src, _ = _get_source(_subbyte_shared_alloc_kernel(shape, dtype))
+    match = re.search(r"__shared__ alignas\(\d+\) (?:int|uint) \w+\[(\d+)\];", src)
+    assert match is not None, src
+    assert int(match.group(1)) == expected_storage_size
+
+
 def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
     buffer = tvm.tirx.decl_buffer((8,), "int4x4", name="A")
     data = tvm.tirx.Var("A_data", tvm.tirx.buffer_data_pointer_type(buffer))
