@@ -143,7 +143,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
     Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
     if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
-      return it->second.as_or_throw<BufferVar>();
+      return it->second.template as_or_throw<BufferVar>();
     }
 
     return std::nullopt;
@@ -991,7 +991,7 @@ class DeferredRemapper : public DialectMutator {
   ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
     Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
     if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
-      return it->second.as_or_throw<BufferVar>();
+      return it->second.template as_or_throw<BufferVar>();
     }
     return std::nullopt;
   }
