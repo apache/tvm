@@ -27,7 +27,7 @@ using namespace tirx;
 using AccessPath = ffi::reflection::AccessPath;
 
 void TIRVisitorWithPath::Dispatch_(const SBlockNode* op, AccessPath path) {
-  std::vector<std::variant<DefContext<Var>, DefContext<IterVar>, DefContext<BufferVar>>> context;
+  std::vector<std::variant<DefContext<Var>, DefContext<IterVar>>> context;
 
   {
     auto iter_path = path->Attr("iter_vars");
@@ -43,7 +43,7 @@ void TIRVisitorWithPath::Dispatch_(const SBlockNode* op, AccessPath path) {
     for (size_t i = 0; i < op->alloc_buffers.size(); i++) {
       auto buffer_path = alloc_path->ArrayItem(i);
       auto buf = op->alloc_buffers[i];
-      context.push_back(WithDef(buf, buffer_path));
+      context.push_back(WithDef(buf.var(), buffer_path));
     }
   }
 
@@ -54,10 +54,10 @@ void TIRVisitorWithPath::Dispatch_(const SBlockNode* op, AccessPath path) {
       auto buf = op->match_buffers[i]->buffer;
       auto buffer_path = match_path->ArrayItem(i)->Attr("buffer");
 
-      for (auto& def : WithMatchBufferDefs(buf, buffer_path)) {
+      for (auto& def : WithMatchBufferDefs(buf, buffer_path->Attr("ty"))) {
         context.push_back(std::move(def));
       }
-      context.push_back(WithDef(buf, buffer_path));
+      context.push_back(WithDef(buf.var(), buffer_path));
     }
   }
 

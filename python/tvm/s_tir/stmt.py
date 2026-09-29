@@ -24,7 +24,7 @@ from tvm.ir import Expr, Span, TensorRegion
 from tvm.runtime import Object, Scriptable, const
 from tvm.tirx.buffer import Buffer
 from tvm.tirx.expr import IterVar
-from tvm.tirx.stmt import Stmt, _normalize_legacy_stmt
+from tvm.tirx.stmt import Stmt
 
 from . import _ffi_api
 
@@ -120,8 +120,6 @@ class SBlock(Stmt):
             match_buffers = []
         if annotations is None:
             annotations = {}
-        body = _normalize_legacy_stmt(body)
-        init = _normalize_legacy_stmt(init)
         self.__init_handle_by_constructor__(
             _ffi_api.SBlock,  # type: ignore
             iter_vars,

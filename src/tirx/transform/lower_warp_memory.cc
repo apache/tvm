@@ -270,12 +270,16 @@ class WarpAccessRewriter : public StmtExprMutator {
       : warp_size_(warp_size), analyzer_(analyzer) {}
   // Rewrite the AllocBuffer statement which transforms
   // warp memory to local memory.
-  // \param op  The AllocBuffer node for warp memory.
+  // \param op The allocation binding for warp memory.
+  // \param buffer_call The matched allocation Call.
   // \param body The remaining statements (siblings) that use this buffer.
-  Stmt Rewrite(const AllocBufferNode* op, Stmt body) {
-    buffer_ = op->buffer.get();
+  Stmt Rewrite(const BindNode* op, const CallNode* buffer_call, Stmt body) {
+    tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+    PrimType element_type(dtype);
+    buffer_ = op->var.get();
     int64_t alloc_size = 1;
-    for (const auto& dim : op->buffer->shape) {
+    for (const auto& dim : shape->fields) {
       if (const IntImmNode* int_size = dim.as<IntImmNode>()) {
         alloc_size = static_cast<int64_t>(alloc_size * int_size->value);
       } else {
@@ -283,7 +287,7 @@ class WarpAccessRewriter : public StmtExprMutator {
       }
     }
     TVM_FFI_ICHECK_GT(alloc_size, 0) << "warp memory only support constant alloc size";
-    alloc_size *= op->buffer->dtype.lanes();
+    alloc_size *= element_type.lanes();
     std::tie(warp_index_, width_) = ffi::make_object<WarpIndexFinder>(warp_size_)->Find(body);
     warp_coeff_ =
         ffi::make_object<WarpStoreCoeffFinder>(buffer_, warp_index_, analyzer_)->Find(body);
@@ -295,15 +299,23 @@ class WarpAccessRewriter : public StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    auto type = CopyBufferType(op->buffer);
+    auto type = CopyBufferType(op->var.as_or_throw<BufferVar>());
     type->storage_scope = "local";
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
-    type->elem_offset = IntImm(op->buffer->elem_offset.ty(), 0);
-    BufferVar new_buf = RebuildBufferVar(op->buffer, std::move(type));
+    type->elem_offset = IntImm(op->var.as_or_throw<BufferVar>()->elem_offset.ty(), 0);
+    BufferVar new_buf = RebuildBufferVar(op->var.as_or_throw<BufferVar>(), std::move(type));
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
-    return SeqStmt::Flatten(AllocBuffer(new_buf, op->annotations), rewritten_body);
+    return SeqStmt::Flatten(
+        Bind(new_buf.var(),
+             Call(new_buf.type(), tirx::builtin::alloc_buffer(),
+                  {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
+                   DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
+                   StringImm(new_buf.scope(), buffer_call->args[2]->span)},
+                  buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+             op->span),
+        rewritten_body);
   }
 
  protected:
@@ -545,9 +557,11 @@ class WarpMemoryRewriter : public StmtExprMutator {
     ffi::Array<Stmt> new_seq;
     bool changed = false;
     for (size_t i = 0; i < op->seq.size(); ++i) {
-      const auto* alloc = op->seq[i].as<AllocBufferNode>();
-      if (alloc && alloc->buffer.scope() == "warp") {
-        new_storage_scopes_[alloc->buffer.var()] = "local";
+      const auto* alloc = op->seq[i].as<BindNode>();
+      if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
+          call && call->op.same_as(builtin::alloc_buffer()) &&
+          call->args[2].as_or_throw<StringImm>()->value == "warp") {
+        new_storage_scopes_[alloc->var] = "local";
         // Gather remaining siblings as the "body" for rewriting.
         ffi::Array<Stmt> remaining;
         for (size_t j = i + 1; j < op->seq.size(); ++j) {
@@ -555,7 +569,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
         }
         Stmt body = remaining.empty() ? Stmt(Evaluate(0)) : SeqStmt::Flatten(remaining);
         auto rewriter = ffi::make_object<WarpAccessRewriter>(warp_size_, analyzer_.get());
-        Stmt rewritten = rewriter->Rewrite(alloc, body);
+        Stmt rewritten = rewriter->Rewrite(alloc, call, body);
         new_seq.push_back(rewritten);
         changed = true;
         break;

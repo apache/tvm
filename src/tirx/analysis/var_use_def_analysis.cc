@@ -56,11 +56,6 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const AttrStmtNode* op) 
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const BindNode* op) {
-  this->HandleDef(op->var);
-  return StmtExprVisitor::Visit_(op);
-}
-
 ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const ForNode* op) {
   this->HandleDef(op->loop_var);
   return StmtExprVisitor::Visit_(op);
@@ -88,7 +83,7 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const prim::LetNode* op)
 ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
   if (var->ty.as<BufferTypeNode>()) {
-    BufferVar buffer(var);
+    BufferVar buffer = var.as_or_throw<BufferVar>();
     if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
       bool is_first_buffer_definition = !buffer_def_count_.count(op);
       HandleDef(buffer);
@@ -99,10 +94,12 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const VarNode* op) {
       HandleUse(buffer);
       HandleUse(var);
     }
+  } else if (def_region_kind() != kTVMFFIDefRegionKindNone) {
+    HandleDef(var);
   } else {
-    this->HandleUse(var);
+    HandleUse(var);
   }
-  return std::nullopt;
+  return StmtExprVisitor::Visit_(op);
 }
 
 void VarUseDefAnalyzer::HandleDef(const Var& var) {
@@ -152,7 +149,7 @@ void VarUseDefAnalyzer::HandleUse(const BufferVar& buf) {
       ++it->second;
     }
   } else {
-    undefined_buffers_.push_back(BufferVar(ffi::GetRef<Var>(ptr)));
+    undefined_buffers_.push_back(ffi::GetRef<Var>(ptr).as_or_throw<BufferVar>());
     buffer_use_count_[ptr] = -1;
   }
   // BufferVar fields (shape, strides, data) are visited at the definition

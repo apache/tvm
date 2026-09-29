@@ -24,6 +24,7 @@
 #include "tir_visitor_with_path.h"
 
 #include <tvm/ffi/reflection/access_path.h>
+#include <tvm/ffi/reflection/accessor.h>
 
 #include <algorithm>
 #include <optional>
@@ -77,7 +78,7 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {
 void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   // BufferType metadata may introduce symbolic dimensions.  Define those
   // symbols before entering the buffer parameter itself.
-  std::vector<std::variant<DefContext<Var>, DefContext<BufferVar>>> context;
+  std::vector<DefContext<Var>> context;
 
   auto ppath = path->Attr("params");
   for (size_t i = 0; i < func->params.size(); i++) {
@@ -102,7 +103,7 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   // visit the buffer definition itself.
   for (size_t i = 0; i < func->params.size(); i++) {
     if (auto opt = func->params[i].as<BufferVar>()) {
-      context.push_back(WithDef(opt.value(), ppath->ArrayItem(i)));
+      context.push_back(WithDef(opt.value().var(), ppath->ArrayItem(i)));
     }
   }
 
@@ -122,30 +123,32 @@ void TIRVisitorWithPath::ExitDef(const IterVar& iter_var, AccessPath path) {
   ExitDef(iter_var->var, path->Attr("var"));
 }
 
-void TIRVisitorWithPath::EnterDef(const BufferVar& buffer, AccessPath path) {
-  // BufferVar is a checked view over an ordinary Var.  Its definition
-  // therefore introduces both the variable identity and the buffer metadata.
-  EnterDef(buffer.var(), path);
-  // Defining a buffer counts as using all parameters in the buffer
-  // (e.g. shape/strides).
-  VisitBufferDef(buffer, path);
-}
-void TIRVisitorWithPath::ExitDef(const BufferVar& buffer, AccessPath path) {
-  ExitDef(buffer.var(), path);
+void TIRVisitorWithPath::Visit(const Type& type, AccessPath path) {
+  Visit(ffi::AnyView(type), path);
 }
 
-void TIRVisitorWithPath::VisitBufferDef(const BufferVar& buffer, AccessPath path) {
-  Visit(buffer->shape, path->Attr("shape"));
-  Visit(buffer->strides, path->Attr("strides"));
-  Visit(buffer->elem_offset, path->Attr("elem_offset"));
-  Visit(buffer->allocated_addr, path->Attr("allocated_addr"));
+void TIRVisitorWithPath::Visit(ffi::AnyView obj, AccessPath path) {
+  if (obj == nullptr) return;
+  if (auto expr = obj.as<Expr>()) {
+    Visit(expr.value(), path);
+  } else if (auto array = obj.as<ffi::Array<ffi::Any>>()) {
+    for (size_t i = 0; i < array.value().size(); ++i) {
+      Visit(ffi::AnyView(array.value()[i]), path->ArrayItem(i));
+    }
+  } else if (auto map = obj.as<ffi::Map<ffi::Any, ffi::Any>>()) {
+    for (const auto& [key, value] : map.value()) {
+      Visit(ffi::AnyView(value), path->MapItem(key));
+    }
+  } else if (auto object = obj.as<ffi::ObjectRef>()) {
+    ffi::reflection::ForEachFieldInfo(
+        TVMFFIGetTypeInfo(object.value()->type_index()), [&](const TVMFFIFieldInfo* field) {
+          Visit(ffi::AnyView(ffi::reflection::FieldGetter(field)(object.value())),
+                path->Attr(ffi::String(field->name)));
+        });
+  }
 }
 
-// Default: buffer use sites do not re-visit buffer fields. BufferVar fields
-// (shape, strides, elem_offset) are visited at the definition site via
-// VisitBufferDef/EnterDef. Re-visiting at use sites would require those
-// variables to be in scope at every use, which may not hold when buffers
-// are allocated in a different scope than where they are used.
+// Uses retain their definition's identity without revisiting its type metadata.
 void TIRVisitorWithPath::VisitBufferUse(const BufferVar& buffer, AccessPath path) {}
 
 void TIRVisitorWithPath::Visit(const TensorRegion& region, AccessPath path) {
@@ -179,7 +182,7 @@ void TIRVisitorWithPath::Dispatch_(const BindNode* op, AccessPath path) {
 void TIRVisitorWithPath::Dispatch_(const AttrStmtNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
 
-  std::vector<std::variant<DefContext<IterVar>, DefContext<Var>, DefContext<BufferVar>>> context;
+  std::vector<DefContext<IterVar>> context;
   if (auto iter_var = op->node.as<IterVar>();
       iter_var &&
       (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread)) {
@@ -216,18 +219,6 @@ void TIRVisitorWithPath::Dispatch_(const ReturnNode* op, AccessPath path) {
 void TIRVisitorWithPath::Dispatch_(const BreakNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const ContinueNode* op, AccessPath path) {}
-
-void TIRVisitorWithPath::Dispatch_(const AllocBufferNode* op, AccessPath path) {
-  // Push definitions into the current scope so they are visible to subsequent siblings.
-  auto buf_path = path->Attr("buffer");
-  bind_scope_.Current().push_back(WithDef(op->buffer, buf_path));
-}
-
-void TIRVisitorWithPath::Dispatch_(const DeclBufferNode* op, AccessPath path) {
-  Visit(op->data, path->Attr("data"));
-  // Push buffer definition into the current scope so it is visible to subsequent siblings.
-  bind_scope_.Current().push_back(WithDef(op->buffer, path->Attr("buffer")));
-}
 
 void TIRVisitorWithPath::Dispatch_(const BufferStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));

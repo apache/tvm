@@ -253,19 +253,11 @@ class CuTensorMapDedupRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
-    auto value_result = Mutate(op->value, inplace_mode);
-    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
-    Expr value = std::move(value_result).ValueOrUnchanged(op->value);
-    if (IsTensorMapAlloca(op)) {
-      // If this bind allocates a tensormap that is remapped to a canonical var, drop it.
-      if (VarRemapGet(op->var) != nullptr) {
-        return Evaluate(0);
-      }
+    // Drop a duplicate allocation before generic definition mutation can bind its canonical Var.
+    if (IsTensorMapAlloca(op) && VarRemapGet(op->var) != nullptr) {
+      return Evaluate(0);
     }
-    if (value_unchanged) {
-      return ffi::Unchanged();
-    }
-    return Bind(op->var, value, op->span);
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {

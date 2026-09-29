@@ -446,13 +446,22 @@ def test_buffer_local_ir():
     assert_structural_equal(func, from_source(code))
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def _collect_buffers(func):
     """Collect native buffers in declaration order, including anonymous views."""
     buffers = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.DeclBuffer | tvm.tirx.AllocBuffer):
-            buffers.append(node.buffer)
+        if _is_buffer_binding(node, "tirx.alloc_buffer", "tirx.decl_buffer"):
+            buffers.append(node.var)
 
     tvm_ffi.structural_walk(func.body, visit)
     return buffers
@@ -463,8 +472,8 @@ def _buffer_source(func, buffer):
     sources = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.DeclBuffer) and node.buffer.same_as(buffer):
-            sources.append(node.data)
+        if _is_buffer_binding(node, "tirx.decl_buffer") and node.var.same_as(buffer):
+            sources.append(node.value.args[0])
 
     tvm_ffi.structural_walk(func.body, visit)
     assert len(sources) == 1
@@ -1369,9 +1378,9 @@ def test_roundtrip_tmem_decl_buffer():
     decls = []
     tvm_ffi.structural_walk(
         func.body,
-        lambda node: decls.append(node) if isinstance(node, tvm.tirx.DeclBuffer) else None,
+        lambda node: decls.append(node) if _is_buffer_binding(node, "tirx.decl_buffer") else None,
     )
     # The shared alias has an explicit definition before the tensor-memory use.
     assert len(decls) == 2
-    tmem_decl = next(decl for decl in decls if decl.buffer.scope() == "tmem")
-    assert tmem_decl.data.op.name == "tirx.reinterpret"
+    tmem_decl = next(decl for decl in decls if decl.var.scope() == "tmem")
+    assert tmem_decl.value.args[0].op.name == "tirx.reinterpret"

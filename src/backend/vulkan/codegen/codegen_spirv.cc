@@ -875,20 +875,24 @@ void CodeGenSPIRV::Dispatch_(const IfThenElseNode* op) {
   builder_->StartLabel(merge_label);
 }
 
-void CodeGenSPIRV::Dispatch_(const AllocBufferNode* op) {
-  TVM_FFI_ICHECK(!op->buffer->dtype.IsVoid());
-  const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+void CodeGenSPIRV::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+  TVM_FFI_ICHECK(!PrimType(dtype).IsVoid());
+  const IntImmNode* dim_imm = shape->fields[0].as<IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
   size_t constant_size = dim_imm->value.as<size_t>().value();
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
   spirv::Value buf;
-  const std::string scope = GetPtrStorageScope(op->buffer.var());
   auto storage_scope = runtime::StorageScope::Create(scope);
-  spirv::SType etype = builder_->GetSType(op->buffer->dtype);
+  spirv::SType etype = builder_->GetSType(PrimType(dtype));
   runtime::StorageRank rank = storage_scope.rank;
   spv::StorageClass storage_class;
-  const VarNode* var_node = op->buffer.get();
+  const VarNode* var_node = buffer.get();
 
   switch (rank) {
     case runtime::StorageRank::kWMMAMatrixA:
@@ -896,7 +900,7 @@ void CodeGenSPIRV::Dispatch_(const AllocBufferNode* op) {
     case runtime::StorageRank::kWMMAAccumulator: {
       TVM_FFI_ICHECK(fragment_info_.count(var_node));
       fragment_info_[var_node].scope = scope;
-      etype = GetFragmentSType(var_node, op->buffer->dtype);
+      etype = GetFragmentSType(var_node, PrimType(dtype));
       storage_class = spv::StorageClassFunction;
       fragment_info_[var_node].sclass = storage_class;
       TVM_FFI_ICHECK(fragment_info_.count(var_node));
@@ -917,7 +921,7 @@ void CodeGenSPIRV::Dispatch_(const AllocBufferNode* op) {
       int32_t aligned_constant_size = ((constant_size + 3) & ~0x3);
       buf = builder_->Allocate(etype, static_cast<uint32_t>(aligned_constant_size), storage_class);
 
-      size_t num_bytes = ((op->buffer->dtype.bits() + 7) / 8) * op->buffer->dtype.lanes() *
+      size_t num_bytes = ((dtype.bits + 7) / 8) * PrimType(dtype).lanes() *
                          static_cast<uint32_t>(aligned_constant_size);
       shared_memory_bytes_used_ += num_bytes;
     } break;
@@ -925,48 +929,51 @@ void CodeGenSPIRV::Dispatch_(const AllocBufferNode* op) {
       TVM_FFI_THROW(InternalError) << "Can only allocate shared or local memory inside kernel";
   }
 
-  builder_->SetName(buf, op->buffer.name());
+  builder_->SetName(buf, buffer.name());
 
   StorageInfo& info = storage_info_[var_node];
   TVM_FFI_ICHECK(!info.element_type_known);
-  info.SetContentType(op->buffer->dtype, op->buffer.name());
+  info.SetContentType(PrimType(dtype), buffer.name());
 
   TVM_FFI_ICHECK(!var_map_.count(var_node));
   var_map_[var_node] = buf;
-  if (op->annotations.count(tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tirx::attr::kVolatile)) {
     storage_info_[var_node].is_volatile = true;
   }
 }
 
-void CodeGenSPIRV::Dispatch_(const DeclBufferNode* op) {
-  const VarNode* buffer_var = op->buffer.get();
+void CodeGenSPIRV::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
+  Expr data = buffer_call->args[0];
+  DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  const VarNode* buffer_var = buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer_var))
-      << "Buffer variable " << op->buffer.name() << " is already defined";
+      << "Buffer variable " << buffer.name() << " is already defined";
   TVM_FFI_ICHECK(!storage_info_.count(buffer_var))
-      << "Storage metadata for buffer variable " << op->buffer.name() << " is already defined";
+      << "Storage metadata for buffer variable " << buffer.name() << " is already defined";
 
-  spirv::Value data = MakeValue(op->data);
+  spirv::Value data_value = MakeValue(data);
 
-  PrimType declared_storage_type = op->buffer->dtype;
+  PrimType declared_storage_type(dtype);
   if (declared_storage_type == PrimType::Bool()) {
     declared_storage_type = boolean_storage_type_.WithLanes(declared_storage_type.lanes());
   }
 
-  const VarNode* source = AsBufferVarNode(op->data);
+  const VarNode* source = AsBufferVarNode(data);
 
   StorageInfo info;
   if (source) {
     auto it = storage_info_.find(source);
     if (it != storage_info_.end()) {
       info = it->second;
-      info.name_hint = op->buffer.name();
+      info.name_hint = buffer.name();
     }
   }
   if (!info.element_type_known) {
-    info.SetContentType(declared_storage_type, op->buffer.name());
+    info.SetContentType(declared_storage_type, buffer.name());
   }
 
-  var_map_[buffer_var] = data;
+  var_map_[buffer_var] = data_value;
   storage_info_[buffer_var] = std::move(info);
 }
 
@@ -995,6 +1002,10 @@ void CodeGenSPIRV::Dispatch_(const AssertStmtNode* op) {
 }
 
 void CodeGenSPIRV::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+  }
   TVM_FFI_ICHECK(!var_map_.count(op->var.get()));
   if (auto prim_type = op->var->ty.as<PrimType>()) {
     TVM_FFI_ICHECK(!prim_type.value().IsVoid());

@@ -116,20 +116,15 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    // AllocBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(op->buffer.var())) {
-      buffer_var_map_->Set(op->buffer.var(), op->buffer);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt =
+        s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    const Var& var = stmt.as<BindNode>()->var;
+    // A flat definition registers its buffer for access detection in subsequent siblings.
+    if (auto buffer = var.as<BufferVar>(); buffer && !buffer_var_map_->count(var)) {
+      buffer_var_map_->Set(var, buffer.value());
     }
-    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
-  }
-
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    // DeclBuffer is flat: register buffer for subsequent siblings
-    if (!buffer_var_map_->count(op->buffer.var())) {
-      buffer_var_map_->Set(op->buffer.var(), op->buffer);
-    }
-    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
+    return stmt;
   }
 
   bool is_root_block_ = true;

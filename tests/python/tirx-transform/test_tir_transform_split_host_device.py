@@ -26,6 +26,15 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def test_public_api_surface():
     assert hasattr(tvm.tirx.transform, "SplitHostDevice")
     assert not hasattr(tvm.tirx.transform, "AnnotateDeviceRegions")
@@ -366,8 +375,8 @@ def test_buffer_used_only_through_data_projection():
     declared_buffers = []
 
     def collect(node):
-        if isinstance(node, tvm.tirx.DeclBuffer):
-            declared_buffers.append(node.buffer)
+        if _is_buffer_binding(node, "tirx.decl_buffer"):
+            declared_buffers.append(node.var)
 
     tvm_ffi.structural_walk(kernel.body, collect)
     assert len(declared_buffers) == 1

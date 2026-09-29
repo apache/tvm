@@ -69,7 +69,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
     // Prepare the return
     ffi::Map<BufferVar, ffi::Optional<Stmt>> buffer_lca;
     for (const auto& kv : detector->buffer_lca_) {
-      BufferVar buffer(ffi::GetRef<Var>(kv.first));
+      BufferVar buffer = ffi::GetRef<Var>(kv.first).as_or_throw<BufferVar>();
       const ffi::Optional<Stmt> stmt =
           kv.second ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(kv.second->stmt)) : std::nullopt;
       buffer_lca.Set(buffer, stmt);
@@ -297,7 +297,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
 
   // Works for Load/Store and opaque access.
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
     VisitBufferVar(op);
     return std::nullopt;
   }
@@ -320,8 +320,8 @@ class LCADetector : public s_tir::StmtExprVisitor {
 
   void UpdateWithBlockidx() {
     for (const auto& it : buffer_lca_) {
-      const runtime::StorageScope& scope =
-          runtime::StorageScope::Create(BufferVar(ffi::GetRef<Var>(it.first)).scope());
+      const runtime::StorageScope& scope = runtime::StorageScope::Create(
+          ffi::GetRef<Var>(it.first).as_or_throw<BufferVar>().scope());
       if (scope.rank == runtime::StorageRank::kGlobal) {
         const ScopeInfo*& lca = buffer_lca_[it.first];
         for (const ScopeInfo* blockidx_scope : blockidx_scopes_) {

@@ -26,6 +26,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/function.h>
@@ -93,19 +94,8 @@ inline ExprDoc DefineVar(const tirx::Var& var, const Frame& frame, const IRDocsi
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
-  return d->Define(var, frame, var->name.empty() ? "v" : var->name);
-}
-
-/*!
- * \brief Defines a buffer in the IRDocsifier at the given frame,
- * and returns the corresponding IdDoc
- * \param buffer The buffer to define
- * \param frame The frame to define the buffer in
- * \param d The IRDocsifier
- * \return The IdDoc corresponding to the buffer
- */
-inline IdDoc DefineBuffer(const tirx::BufferVar& buffer, const Frame& frame, const IRDocsifier& d) {
-  return d->Define(buffer, frame, buffer.name().empty() ? "buffer" : buffer.name());
+  ffi::String default_name = var->ty.as<tirx::BufferTypeNode>() ? "buffer" : "v";
+  return d->Define(var, frame, var->name.empty() ? default_name : var->name);
 }
 
 /*!
@@ -140,45 +130,41 @@ inline void AsDocBody(const tirx::Stmt& stmt, AccessPath p, TIRFrameNode* f, con
     for (int i = 0, n = body.size(); i < n;) {
       int consumed = 1;
       AccessPath item_p = p->Attr("seq")->ArrayItem(i);
-      Doc doc{ffi::UnsafeInit()};
+      Doc doc = d->AsDoc(body[i], item_p);
 
-      const auto* alloc = body[i].as<tirx::AllocBufferNode>();
-      if (d->cfg->syntax_sugar && alloc != nullptr && alloc->buffer.IsScalar(true) && i + 1 < n) {
-        const auto* store = body[i + 1].as<tirx::BufferStoreNode>();
-        bool can_merge_init = store != nullptr && store->buffer.same_as(alloc->buffer) &&
-                              store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]) &&
-                              !value_refs_buffer(store->value, alloc->buffer);
-        if (can_merge_init) {
-          Doc alloc_doc = d->AsDoc(body[i], item_p);
-          if (const auto* assign = alloc_doc.as<AssignDocNode>()) {
-            if (assign->annotation.has_value() && !assign->rhs.has_value()) {
-              ExprDoc init_rhs =
-                  d->AsDoc<ExprDoc>(store->value, p->Attr("seq")->ArrayItem(i + 1)->Attr("value"));
-              auto fused = AssignDoc(assign->lhs, init_rhs, assign->annotation);
-              // Preserve comments that obj_to_annotate attached to either the
-              // AllocBuffer (alloc_doc) or the BufferStore source, since the
-              // user only sees the single fused line.
-              ffi::Optional<ffi::String> merged_comment = assign->comment;
-              if (d->cfg->obj_to_annotate.count(body[i + 1])) {
-                ffi::String store_comment = d->cfg->obj_to_annotate.at(body[i + 1]);
-                merged_comment = merged_comment.has_value()
-                                     ? merged_comment.value() + "\n" + store_comment
-                                     : store_comment;
-              }
-              fused->comment = merged_comment;
-              doc = fused;
-              consumed = 2;
-            } else {
-              doc = alloc_doc;
-            }
-          } else {
-            doc = alloc_doc;
-          }
-        } else {
-          doc = d->AsDoc(body[i], item_p);
+      // Collapse the local_scalar expression spelling into a declaration, and
+      // fuse an immediately following initialization that does not read itself.
+      const auto* binding = body[i].as<tirx::BindNode>();
+      const auto* assign = doc.as<AssignDocNode>();
+      const auto* rhs =
+          assign && assign->rhs.has_value() ? assign->rhs.value().as<CallDocNode>() : nullptr;
+      const auto* callee = rhs ? rhs->callee.as<AttrAccessDocNode>() : nullptr;
+      if (d->cfg->syntax_sugar && binding && assign && !assign->annotation.has_value() && callee &&
+          callee->name == "local_scalar" && rhs->kwargs_keys.empty()) {
+        auto buffer = binding->var.as_or_throw<tirx::BufferVar>();
+        const auto* store = i + 1 < n ? body[i + 1].as<tirx::BufferStoreNode>() : nullptr;
+        ffi::Optional<ExprDoc> initializer;
+        if (store && store->buffer.same_as(buffer) && store->indices.size() == 1 &&
+            tvm::prim::is_zero(store->indices[0]) && !value_refs_buffer(store->value, buffer)) {
+          initializer =
+              d->AsDoc<ExprDoc>(store->value, p->Attr("seq")->ArrayItem(i + 1)->Attr("value"));
+          consumed = 2;
         }
-      } else {
-        doc = d->AsDoc(body[i], item_p);
+        auto declaration =
+            AssignDoc(assign->lhs, initializer, TIR(d, DType2Str(buffer->dtype->dtype)));
+        declaration->source_paths = assign->source_paths;
+        declaration->source_paths.push_back(item_p->Attr("value"));
+        declaration->comment = assign->comment;
+        if (consumed == 2) {
+          declaration->source_paths.push_back(p->Attr("seq")->ArrayItem(i + 1));
+          if (d->cfg->obj_to_annotate.count(body[i + 1])) {
+            ffi::String store_comment = d->cfg->obj_to_annotate.at(body[i + 1]);
+            declaration->comment = declaration->comment.has_value()
+                                       ? declaration->comment.value() + "\n" + store_comment
+                                       : store_comment;
+          }
+        }
+        doc = declaration;
       }
 
       f->allow_concise_scoping = (i + consumed >= n);
@@ -274,7 +260,10 @@ inline std::string ReprPrintTIR(const ffi::ObjectRef& obj, const PrinterConfig& 
   return Docsify(obj, d, *f, cfg);
 }
 
+ExprDoc CallAttrsDoc(const ffi::Any& value, const AccessPath& p, const IRDocsifier& d);
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d);
+ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p,
+                                           const IRDocsifier& d);
 
 /* \brief Specify which variables are defined along with the buffer
  *

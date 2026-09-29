@@ -96,25 +96,37 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     function_->addFnAttr("amdgpu-flat-work-group-size", attr.str());
   }
 
-  void Dispatch_(const AllocBufferNode* op) final {
+  void Dispatch_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return DispatchAllocBuffer(op, call);
+    }
+    CodeGenLLVM::Dispatch_(op);
+  }
+
+  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+    tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+    ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+    BufferVar buffer = op->var.as_or_throw<BufferVar>();
+    DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
     llvm::Value* buf = nullptr;
-    StorageInfo& info = alloc_storage_info_[op->buffer.get()];
-    auto storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(op->buffer.var()));
-    PrimType dtype = op->buffer->dtype;
+    StorageInfo& info = alloc_storage_info_[buffer.get()];
+    auto storage_scope = runtime::StorageScope::Create(scope);
 
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       LOG(WARNING) << "Dynamic shared memory support for rocm is experimental.";
-      buf = AllocateSharedMemory(dtype, 0, 3, std::min(info.alignment, 16),
+      buf = AllocateSharedMemory(PrimType(dtype), 0, 3, std::min(info.alignment, 16),
                                  llvm::GlobalValue::ExternalLinkage);
     } else {
-      const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+      const IntImmNode* dim_imm = shape->fields[0].as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
       size_t constant_size = dim_imm->value.as<size_t>().value();
       TVM_FFI_ICHECK_GT(constant_size, 0)
           << "Can only handle constant size stack allocation in GPU";
 
       if (constant_size % 4 == 0 && info.alignment == 0) {
-        info.alignment = GetTempAllocaAlignment(dtype, constant_size);
+        info.alignment = GetTempAllocaAlignment(PrimType(dtype), constant_size);
       }
       // maximum necessary alignment in the AMD devices
       if (info.alignment > 16) {
@@ -122,7 +134,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       }
       if (storage_scope.rank == runtime::StorageRank::kLocal) {
         llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-          return builder_->CreateAlloca(DTypeToLLVMType(dtype), ConstInt32(constant_size));
+          return builder_->CreateAlloca(DTypeToLLVMType(PrimType(dtype)),
+                                        ConstInt32(constant_size));
         });
         auto alignment = static_cast<unsigned>(alloca->getAlign().value());
         if (alignment < static_cast<unsigned>(info.alignment)) {
@@ -133,17 +146,18 @@ class CodeGenAMDGPU : public CodeGenLLVM {
         TVM_FFI_ICHECK(storage_scope.rank == runtime::StorageRank::kShared)
             << "Can only allocate shared or local memory inside kernel";
         // Shared memory: address space == 3
-        buf = AllocateSharedMemory(dtype, constant_size, 3, info.alignment,
+        buf = AllocateSharedMemory(PrimType(dtype), constant_size, 3, info.alignment,
                                    llvm::GlobalValue::PrivateLinkage);
       }
     }
 
-    buf = builder_->CreatePointerCast(
-        buf, llvmGetPointerTo(DTypeToLLVMType(dtype), buf->getType()->getPointerAddressSpace()));
-    TVM_FFI_ICHECK(!var_map_.count(op->buffer.get()));
-    var_map_[op->buffer.get()] = buf;
-    if (op->annotations.count(tirx::attr::kVolatile)) {
-      volatile_buf_.insert(op->buffer.get());
+    buf = builder_->CreatePointerCast(buf,
+                                      llvmGetPointerTo(DTypeToLLVMType(PrimType(dtype)),
+                                                       buf->getType()->getPointerAddressSpace()));
+    TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
+    var_map_[buffer.get()] = buf;
+    if (annotations->dict.count(tirx::attr::kVolatile)) {
+      volatile_buf_.insert(buffer.get());
     }
   }
 

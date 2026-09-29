@@ -1771,7 +1771,7 @@ class ReIndexCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* var) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(var);
     if (var == buffer_.get()) {
       throw MakeScheduleError<InvalidBufferAccessError>(
           mod_, buffer_, block_, InvalidBufferAccessError::ErrorKind::kOpaqueAccess);

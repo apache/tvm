@@ -444,98 +444,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ContinueMaybeInplaceMut
   return ffi::Unchanged();
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> DeclBufferVisit(
-    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  const DeclBufferNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DeclBufferNode>(value);
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-      kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->buffer); }));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->data));
-  return std::nullopt;
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> DeclBufferMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  const DeclBufferNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DeclBufferNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<BufferVar>, mapped_buffer,
-                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
-                                      return mutator->MutateExpected(self->buffer);
-                                    }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_data,
-                                    mutator->MutateExpected(self->data));
-  if (mapped_buffer.UnchangedOrSameAs(self->buffer) && mapped_data.UnchangedOrSameAs(self->data)) {
-    return ffi::Unchanged();
-  }
-  ffi::ObjectPtr<DeclBufferNode> copy = ffi::make_object<DeclBufferNode>(*self);
-  copy->buffer = std::move(mapped_buffer).ValueOrUnchanged(std::move(copy->buffer));
-  copy->data = std::move(mapped_data).ValueOrUnchanged(std::move(copy->data));
-  return ffi::Any(std::move(copy));
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> DeclBufferMaybeInplaceMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  DeclBufferNode* self = const_cast<DeclBufferNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DeclBufferNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<BufferVar>, mapped_buffer,
-                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
-                                      return mutator->MutateExpected(self->buffer,
-                                                                     ffi::InplaceMode::kAllow);
-                                    }));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_data,
-                                    mutator->MutateExpected(self->data, ffi::InplaceMode::kAllow));
-  if (mapped_buffer.UnchangedOrSameAs(self->buffer) && mapped_data.UnchangedOrSameAs(self->data)) {
-    return ffi::Unchanged();
-  }
-  if (!mapped_buffer.IsUnchanged()) self->buffer = std::move(mapped_buffer).ValueUnchecked();
-  if (!mapped_data.IsUnchanged()) self->data = std::move(mapped_data).ValueUnchecked();
-  return ffi::Unchanged();
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> AllocBufferVisit(
-    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: constant annotations; unlike SBlock annotations, these carry no expressions.
-  const AllocBufferNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const AllocBufferNode>(value);
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
-      kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->buffer); }));
-  return std::nullopt;
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> AllocBufferMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: constant annotations; unlike SBlock annotations, these carry no expressions.
-  const AllocBufferNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const AllocBufferNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<BufferVar>, mapped_buffer,
-                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
-                                      return mutator->MutateExpected(self->buffer);
-                                    }));
-  if (mapped_buffer.UnchangedOrSameAs(self->buffer)) {
-    return ffi::Unchanged();
-  }
-  ffi::ObjectPtr<AllocBufferNode> copy = ffi::make_object<AllocBufferNode>(*self);
-  copy->buffer = std::move(mapped_buffer).ValueOrUnchanged(std::move(copy->buffer));
-  return ffi::Any(std::move(copy));
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> AllocBufferMaybeInplaceMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: constant annotations; unlike SBlock annotations, these carry no expressions.
-  AllocBufferNode* self = const_cast<AllocBufferNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const AllocBufferNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<BufferVar>, mapped_buffer,
-                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
-                                      return mutator->MutateExpected(self->buffer,
-                                                                     ffi::InplaceMode::kAllow);
-                                    }));
-  if (mapped_buffer.UnchangedOrSameAs(self->buffer)) {
-    return ffi::Unchanged();
-  }
-  if (!mapped_buffer.IsUnchanged()) self->buffer = std::move(mapped_buffer).ValueUnchecked();
-  return ffi::Unchanged();
-}
-
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> SeqStmtVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const SeqStmtNode* self =
@@ -838,7 +746,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&AssertStmtMaybeInplaceMutate>());
 
-  namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.AssertStmt", [](PrimExpr condition, StringImm error_kind,
                                               ffi::Array<StringImm> message_parts, Span span) {
     return AssertStmt(condition, error_kind, message_parts, span);
@@ -1037,72 +944,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&ContinueMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.Continue", [](Span span) { return Continue(span); });
-}
-
-// DeclBuffer
-DeclBuffer::DeclBuffer(BufferVar buffer, Expr data, Span span) {
-  // Enforce storage scope rules for DeclBuffer.
-  std::string scope = static_cast<std::string>(buffer.scope());
-  if (scope.empty()) {
-    scope = "global";
-  }
-  if (scope == "tmem") {
-    TVM_FFI_ICHECK_EQ(buffer->allocated_addr.size(), 1U)
-        << "ValueError: For `tmem` scope, DeclBuffer requires exactly one `allocated_addr` "
-           "PrimExpr";
-  } else if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
-    TVM_FFI_ICHECK(buffer->allocated_addr.empty())
-        << "ValueError: For `" << scope << "` scope, DeclBuffer does not accept `allocated_addr`";
-  }
-  ffi::ObjectPtr<DeclBufferNode> node = ffi::make_object<DeclBufferNode>();
-  node->buffer = std::move(buffer);
-  node->data = std::move(data);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  DeclBufferNode::RegisterReflection();
-  refl::TypeAttrDef<DeclBufferNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&DeclBufferVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&DeclBufferMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&DeclBufferMaybeInplaceMutate>());
-
-  refl::GlobalDef().def("tirx.DeclBuffer", [](BufferVar buffer, Expr data, Span span) {
-    return DeclBuffer(buffer, data, span);
-  });
-}
-
-// AllocBuffer
-AllocBuffer::AllocBuffer(BufferVar buffer, ffi::Map<ffi::String, Any> annotations, Span span) {
-  ffi::ObjectPtr<AllocBufferNode> node = ffi::make_object<AllocBufferNode>();
-  node->buffer = std::move(buffer);
-  node->annotations = std::move(annotations);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  AllocBufferNode::RegisterReflection();
-  refl::TypeAttrDef<AllocBufferNode>()
-      .attr(refl::type_attr::kStructuralVisit,
-            ffi::FStructuralVisit::FromNative<&AllocBufferVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&AllocBufferMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&AllocBufferMaybeInplaceMutate>());
-
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tirx.AllocBuffer",
-      [](BufferVar buffer, ffi::Optional<ffi::Map<ffi::String, Any>> annotations, Span span) {
-        return AllocBuffer(buffer, annotations.value_or(ffi::Map<ffi::String, Any>()), span);
-      });
 }
 
 // SeqStmt

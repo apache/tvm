@@ -58,8 +58,6 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   std::unordered_map<const VarNode*, const prim::LetNode*> let_binding_;
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final;
 
-  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final;
-
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final;

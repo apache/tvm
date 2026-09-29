@@ -26,13 +26,22 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def _has_volatile_alloc_buffer(mod):
     has_volatile_alloc = False
 
     def visit(node):
         nonlocal has_volatile_alloc
-        if isinstance(node, tvm.tirx.AllocBuffer) and "tirx.volatile" in node.annotations:
-            has_volatile_alloc = has_volatile_alloc or node.annotations["tirx.volatile"] is True
+        if _is_buffer_binding(node, "tirx.alloc_buffer") and "tirx.volatile" in node.value.attrs:
+            has_volatile_alloc = has_volatile_alloc or node.value.attrs["tirx.volatile"] is True
 
     tvm_ffi.structural_walk(mod["main"].body, visit)
     return has_volatile_alloc

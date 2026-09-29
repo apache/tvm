@@ -29,6 +29,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/builtin.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -205,20 +206,28 @@ class InferFragmenter : public s_tir::StmtExprMutator {
 
   explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return Mutate_AllocBuffer(op, inplace_mode);
+    }
+    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
     Stmt stmt =
         s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    const VarNode* buffer = op->buffer.get();
+    const VarNode* buffer = op->var.get();
     if (fragment_getter.fragments.count(buffer)) {
       FragmentInfo info = fragment_getter.fragments.at(buffer);
 
       std::string shape =
           std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
       Expr shape_expr = StringImm(shape);
-      Stmt shape_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_shape, shape_expr, stmt);
+      Stmt shape_attr = AttrStmt(op->var, s_tir::attr::fragment_shape, shape_expr, stmt);
       if (info.layout != "") {
-        Stmt layout_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_layout,
-                                    StringImm(info.layout), shape_attr);
+        Stmt layout_attr =
+            AttrStmt(op->var, s_tir::attr::fragment_layout, StringImm(info.layout), shape_attr);
         return layout_attr;
       } else {
         return shape_attr;

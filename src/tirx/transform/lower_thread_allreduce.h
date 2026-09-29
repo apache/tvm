@@ -98,16 +98,24 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       return stmt;
     }
   }
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, call, inplace_mode);
+    }
+    return DialectMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    buffer_aliases_.Set(op->var, op->var);
     // In flat IR, alloc_remap_ may not yet be populated when this AllocBuffer is visited
     // (the remap is set up by MakeAllreduce which runs during AttrStmt/Evaluate visit
     // that appears later in the sequence). We record the original data pointer and
     // attempt the remap; if it's not ready, the post-processing pass will handle it.
-    const VarNode* orig_data_ptr = op->buffer.get();
+    const VarNode* orig_data_ptr = op->var.get();
     auto node = DialectMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                    .template as_or_throw<AllocBuffer>();
+                    .template as_or_throw<Bind>();
 
     if (auto it = alloc_remap_.find(orig_data_ptr); it != alloc_remap_.end()) {
       return RemapAllocBuffer(node, it->second);
@@ -123,28 +131,33 @@ class ThreadAllreduceBuilder final : public DialectMutator {
    * \param replacement The replacement buffer.
    * \return The remapped statement(s).
    */
-  Stmt RemapAllocBuffer(AllocBuffer node, const BufferVar& replacement) {
-    auto* cow = node.CopyOnWrite();
-    cow->buffer = replacement;
+  Stmt RemapAllocBuffer(Bind node, const BufferVar& replacement) {
+    const CallNode* call = node->value.template as<CallNode>();
+    DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
     if (replacement.scope() == "shared") {
-      auto annotations = cow->annotations;
-      annotations.Set(tirx::attr::kVolatile, true);
-      cow->annotations = annotations;
+      annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
     }
-    return node;
+    return Bind(replacement.var(),
+                Call(replacement.type(), tirx::builtin::alloc_buffer(),
+                     {tvm::Tuple(replacement->shape, call->args[0]->span),
+                      DataTypeImm(replacement->dtype->dtype, call->args[1]->span),
+                      StringImm(replacement.scope(), call->args[2]->span)},
+                     annotations, call->ty_args, call->span),
+                node->span);
   }
 
   ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
     Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
     if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
-      return BufferVar(it->second);
+      return it->second.template as_or_throw<BufferVar>();
     }
 
     return std::nullopt;
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    RegisterBufferAlias(op->buffer, op->data);
+  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, const CallNode* buffer_call,
+                                     InplaceMode inplace_mode) {
+    RegisterBufferAlias(op->var.as_or_throw<BufferVar>(), buffer_call->args[0]);
     // Remap declarations only after the complete traversal has populated the
     // physical-root maps.  Eagerly replacing an alias declared after its
     // allreduce would retain the old source pointer on the new buffer.
@@ -445,7 +458,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         load_remap_[alloc_key] = reduce_results[i];
 
         // The AllocBuffer doesn't need to be emitted here since alloc_remap_
-        // will cause the existing allocation to be rewritten in VisitStmt_(AllocBufferNode*).
+        // will cause the existing allocation to be rewritten in MutateAllocBuffer.
         alloc_remap_[alloc_key] = buf;
         allreduce_var_remap_[alloc_key] = buf.var();
         allreduce_var_remap_[buffers[i].get()] = buf.var();
@@ -490,7 +503,11 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     // Fix all local allocations as all statements are built.
     ffi::Array<Stmt> alloc_stmts;
     for (BufferVar buf : new_alloc_bufs) {
-      alloc_stmts.push_back(AllocBuffer(buf));
+      alloc_stmts.push_back(Bind(
+          buf.var(),
+          Call(buf.type(), tirx::builtin::alloc_buffer(),
+               {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+               DictAttrs())));
     }
     // Prepend allocations before the sequence
     for (const auto& s : seq) {
@@ -932,36 +949,56 @@ class DeferredRemapper : public DialectMutator {
     return false;
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
+    }
+    return DialectMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
     auto node = DialectMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                    .template as_or_throw<AllocBuffer>();
-    const VarNode* data_ptr = op->buffer.get();
+                    .template as_or_throw<Bind>();
+    const VarNode* data_ptr = op->var.get();
     if (pending_set_.count(data_ptr)) {
       if (auto it = alloc_remap_.find(data_ptr); it != alloc_remap_.end()) {
         const BufferVar& replacement = it->second;
-        auto* cow = node.CopyOnWrite();
-        cow->buffer = replacement;
+        const CallNode* call = node->value.template as<CallNode>();
+        DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
         if (replacement.scope() == "shared") {
-          auto annotations = cow->annotations;
-          annotations.Set(tirx::attr::kVolatile, true);
-          cow->annotations = annotations;
+          annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
         }
+        return Bind(replacement.var(),
+                    Call(replacement.type(), tirx::builtin::alloc_buffer(),
+                         {tvm::Tuple(replacement->shape, call->args[0]->span),
+                          DataTypeImm(replacement->dtype->dtype, call->args[1]->span),
+                          StringImm(replacement.scope(), call->args[2]->span)},
+                         annotations, call->ty_args, call->span),
+                    node->span);
       }
     }
     return node;
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    const VarNode* root = buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
+  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
+    const VarNode* root = buffer_aliases_.Get(op->var).value_or(op->var).get();
     if (pending_set_.count(root) && alloc_remap_.count(root)) {
       return Evaluate(0);
     }
     auto node = DialectMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                    .template as_or_throw<DeclBuffer>();
-    if (auto new_buf = GetRemappedBuffer(node->buffer)) {
-      node.CopyOnWrite()->buffer = new_buf.value();
+                    .template as_or_throw<Bind>();
+    if (auto new_buf = GetRemappedBuffer(node->var.template as_or_throw<BufferVar>())) {
+      const CallNode* call = node->value.template as<CallNode>();
+      return Bind(
+          new_buf.value(),
+          Call(new_buf.value().type(), builtin::decl_buffer(),
+               {call->args[0], tvm::Tuple(new_buf.value()->shape),
+                DataTypeImm(new_buf.value()->dtype->dtype), StringImm(new_buf.value().scope())},
+               call->attrs, call->ty_args, call->span),
+          node->span);
     }
     return node;
   }
@@ -970,7 +1007,7 @@ class DeferredRemapper : public DialectMutator {
   ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
     Var root = buffer_aliases_.Get(buf.var()).value_or(buf.var());
     if (auto it = allreduce_var_remap_.find(root.get()); it != allreduce_var_remap_.end()) {
-      return BufferVar(it->second);
+      return it->second.template as_or_throw<BufferVar>();
     }
     return std::nullopt;
   }

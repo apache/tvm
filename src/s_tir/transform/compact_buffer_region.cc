@@ -25,10 +25,12 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/int_set.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <numeric>
@@ -99,13 +101,10 @@ class Var2BufferCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-    var2buffer_[op->buffer.var()].insert(op->buffer);
-    return StmtExprVisitor::Visit_(op);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    var2buffer_[op->buffer.var()].insert(op->buffer);
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (auto buffer = op->var.as<BufferVar>()) {
+      var2buffer_[op->var].insert(buffer.value());
+    }
     return StmtExprVisitor::Visit_(op);
   }
 };
@@ -179,7 +178,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
     VisitBufferVar(ffi::GetRef<Var>(op));
     return std::nullopt;
   }
@@ -203,6 +202,13 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return DispatchAllocBuffer(op);
+    }
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_buffer()))
+      return StmtExprVisitor::Visit_(op);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
     if (auto value = op->value.as<PrimExpr>(); value && sym::IsIndexTypedExpr(value.value())) {
       dom_analyzer_->Bind(op->var, value.value());
@@ -340,10 +346,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op) {
     // AllocBuffer is flat: register the buffer def and track for post-scope compaction.
-    RecordBufferDefinition(op->buffer.var());
-    pending_flat_alloc_buffers_.push_back(op->buffer);
+    RecordBufferDefinition(op->var.as_or_throw<BufferVar>().var());
+    pending_flat_alloc_buffers_.push_back(op->var.as_or_throw<BufferVar>());
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -647,26 +653,30 @@ class BufferCompactor : public StmtExprMutator {
         .ValueOrUnchanged(block);
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    RewriteAllocBuffer(op->buffer);
-    return StmtExprMutator::Mutate_(op, inplace_mode);
-  }
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    const auto* call = op->value.as<CallNode>();
+    if (!call || (!call->op.same_as(tirx::builtin::alloc_buffer()) &&
+                  !call->op.same_as(tirx::builtin::decl_buffer()))) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+    BufferVar buffer = op->var.as_or_throw<BufferVar>();
+    BufferVar new_buffer = RewriteAllocBuffer(buffer);
+    bool is_alloc = call->op.same_as(tirx::builtin::alloc_buffer());
+    if (new_buffer.same_as(buffer) ||
+        (is_alloc &&
+         PrimType(call->args[1].as_or_throw<DataTypeImm>()->value) != new_buffer->dtype)) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    RewriteAllocBuffer(op->buffer);
-    AllocBuffer alloc_buf = StmtExprMutator::Mutate_(op, inplace_mode)
-                                .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                                .as_or_throw<AllocBuffer>();
-    auto it = buffer_info_.find(op->buffer.var());
-    if (it == buffer_info_.end()) {
-      return alloc_buf;
-    }
-    const BufferVar& new_buffer = it->second.new_buffer;
-    if (op->buffer->dtype != new_buffer->dtype) {
-      return alloc_buf;
-    }
-    alloc_buf.CopyOnWrite()->buffer = new_buffer;
-    return alloc_buf;
+    // Update the producer before generic Bind mutation propagates its result type.
+    size_t shape_index = is_alloc ? 0 : 1;
+    ffi::Array<Expr> args = call->args;
+    args.Set(shape_index, tvm::Tuple(new_buffer->shape, args[shape_index]->span));
+    auto rewritten = ffi::make_object<BindNode>(*op);
+    rewritten->value =
+        Call(new_buffer.type(), call->op, args, call->attrs, call->ty_args, call->span);
+    tirx::Bind binding(std::move(rewritten));
+    return StmtExprMutator::Mutate_(binding.get(), inplace_mode).ValueOrUnchanged(binding);
   }
 
   BufferVar RewriteAllocBuffer(const BufferVar& buffer) {

@@ -536,7 +536,24 @@ def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
 
     # AllocBuffer with shape [n] in the body (flat, no body)
     C = tirx.decl_buffer((n,), "float32", "C")
-    body = tirx.SeqStmt([tirx.AllocBuffer(C), tirx.Evaluate(1)])
+    body = tirx.SeqStmt(
+        [
+            tvm.tirx.Bind(
+                C,
+                tvm.ir.Call(
+                    "tirx.alloc_buffer",
+                    [
+                        tvm.ir.Tuple(C.shape),
+                        tvm.ir.DataTypeImm(tvm.DataType(C.dtype)),
+                        tvm.ir.StringImm(C.scope()),
+                    ],
+                    attrs=tvm.ir.DictAttrs({}),
+                    ret_ty=C.ty,
+                ),
+            ),
+            tirx.Evaluate(1),
+        ]
+    )
 
     before = tirx.PrimFunc([A, B], body)
 
@@ -562,10 +579,23 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
         0,
         128,
         tirx.ForKind.SERIAL,
-        tirx.DeclBuffer(
-            buffer,
-            tirx.Evaluate(tirx.BufferLoad(buffer, [0])),
-            data=buffer_data,
+        tirx.SeqStmt(
+            [
+                tirx.Bind(
+                    buffer,
+                    tvm.ir.Call(
+                        "tirx.decl_buffer",
+                        [
+                            buffer_data,
+                            tvm.ir.Tuple(buffer.shape),
+                            tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
+                            tvm.ir.StringImm(buffer.scope()),
+                        ],
+                        ret_ty=buffer.ty,
+                    ),
+                ),
+                tirx.Evaluate(tirx.BufferLoad(buffer, [0])),
+            ]
         ),
     )
     func = tirx.PrimFunc([buffer_data], tirx.SeqStmt([loop, loop, loop]))

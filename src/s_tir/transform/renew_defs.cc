@@ -23,7 +23,6 @@
  */
 
 #include <tvm/ffi/cast.h>
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -52,37 +51,14 @@ class RenewDefMutator : public StmtExprMutator {
 
   static PrimFunc Transform(const PrimFunc& func) {
     auto generator = ffi::make_object<RenewDefMutator>();
-    // Redefine scalar parameters first, because they may occur in a buffer
-    // parameter's type annotation.
-    for (const auto& param : func->params) {
-      if (!param.as<BufferVar>()) {
-        generator->ReDefineVar(param);
-      }
+    // Establish explicit parameters and symbols in their types before visiting uses.
+    for (const Var& param : func->params) {
+      if (param->ty.as<PrimTypeNode>()) generator->ReDefineVar(param);
     }
-    for (const auto& param : func->params) {
-      if (auto opt_buffer = param.as<BufferVar>()) {
-        const BufferVar& buffer = opt_buffer.value();
-        auto walk_fn = [&generator](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          if (generator->VarRemapGet(var) == nullptr) {
-            generator->ReDefineVar(var);
-          }
-          return ffi::WalkResult::Advance();
-        };
-        for (const PrimExpr& e : buffer->shape) {
-          ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
-        }
-      }
-    }
-    // Redefine buffer parameters in order, preserving the original signature.
-    // TODO(Siyuan Feng): checking var is used after define
-    ffi::Array<Var> params;
-    for (const auto& param : func->params) {
-      if (auto opt_buffer = param.as<BufferVar>()) {
-        params.push_back(generator->DefineBuffer(opt_buffer.value()));
-      } else {
-        params.push_back(generator->Mutate(param).ValueOrUnchanged(param).as_or_throw<Var>());
-      }
-    }
+    ffi::Array<Var> params = func->params.Map([&](const Var& param) {
+      auto mapped = generator->VarRemapGet(param);
+      return mapped != nullptr ? mapped.as_or_throw<Var>() : generator->ReDefineVar(param);
+    });
     // Visit body
     Stmt body = generator->Mutate(func->body).ValueOrUnchanged(func->body);
     // Recreate function
@@ -90,18 +66,23 @@ class RenewDefMutator : public StmtExprMutator {
   }
 
  private:
-  STMT_REGENERATE_VAR_DEF(BindNode, var);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    // Result-type patterns may introduce metadata symbols. Renew those before
+    // rewriting the RHS; the Bind's own definition is published only afterwards.
+    WithDefRegionKind(kTVMFFIDefRegionKindPattern,
+                      [&] { return Mutate(op->value->ty, InplaceMode::kDisallow); });
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
   STMT_REGENERATE_VAR_DEF(ForNode, loop_var);
 
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone && VarRemapGet(ffi::AnyView(op)) == nullptr) {
-      if (op->ty.as<BufferTypeNode>()) {
-        WithDefRegionKind(kTVMFFIDefRegionKindNone, [&] { return DefineBuffer(GetBufferVar(op)); });
-      } else {
-        ReDefineVar(ffi::GetRef<Var>(op));
-      }
+    Var var = ffi::GetRef<Var>(op);
+    if (auto mapped = VarRemapGet(var); mapped != nullptr) {
+      return mapped.as_or_throw<Expr>();
     }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return ReDefineVar(var);
+    return ffi::Unchanged();
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
@@ -110,8 +91,9 @@ class RenewDefMutator : public StmtExprMutator {
         op->iter_vars.Map(std::bind(&RenewDefMutator::VisitIterVar, this, std::placeholders::_1));
 
     // Step 1. Re-define buffers allocated under the block
-    ffi::Array<BufferVar> alloc_buffers =
-        op->alloc_buffers.Map([this](const BufferVar& buf) { return this->DefineBuffer(buf); });
+    ffi::Array<BufferVar> alloc_buffers = op->alloc_buffers.Map([this](const BufferVar& buf) {
+      return this->ReDefineVar(buf.var()).as_or_throw<BufferVar>();
+    });
 
     // Step 2. Re-define match_buffers
     ffi::Array<MatchBufferRegion> match_buffers = op->match_buffers.Map(
@@ -144,75 +126,15 @@ class RenewDefMutator : public StmtExprMutator {
   }
 
   Var ReDefineVar(const Var& var) {
-    Var new_var(var->name, var->ty, var->span);
-    this->AddDefRemap(var, new_var);
+    if (auto mapped = VarRemapGet(var); mapped != nullptr) return mapped.as_or_throw<Var>();
+    Type type = WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&] {
+      return Mutate(var->ty, InplaceMode::kDisallow)
+          .as_or_throw<UnchangedOr<Type>>()
+          .ValueOrUnchanged(var->ty);
+    });
+    Var new_var(var->name, type, var->span);
+    VarRemapSet(var, new_var);
     return new_var;
-  }
-
-  template <typename T>
-  void AddDefRemap(const T& source, const T& target) {
-    TVM_FFI_ICHECK(VarRemapGet(source) == nullptr);
-    VarRemapSet(source, target);
-  }
-
-  BufferVar DefineBuffer(const BufferVar& buffer) {
-    auto mapped = VarRemapGet(buffer);
-    if (mapped != nullptr) return mapped.as_or_throw<BufferVar>();
-
-    auto redefine_if_is_var = [this](const Expr& expr) -> Expr {
-      auto mapped = VarRemapGet(expr);
-      if (mapped != nullptr) {
-        return mapped.as_or_throw<Expr>();
-      } else if (auto var = expr.as<Var>()) {
-        return this->ReDefineVar(var.value());
-      } else {
-        return StmtExprMutator::Mutate(ffi::AnyView(expr), InplaceMode::kDisallow)
-            .ValueOrUnchanged(expr)
-            .as_or_throw<Expr>();
-      }
-    };
-
-    // shape is USED (references existing definitions like buffer-parameter shape vars),
-    // Remap the expression without creating spurious variable definitions.
-    auto visit_expr = [this](const PrimExpr& e) -> PrimExpr {
-      return this->Mutate(e, InplaceMode::kDisallow).ValueOrUnchanged(e);
-    };
-    ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
-    // strides/elem_offset may define NEW vars (e.g. in match_buffer),
-    // so use redefine_if_is_var to create fresh copies for unknown vars
-    ffi::Array<PrimExpr> strides = buffer->strides.Map(
-        [&](const PrimExpr& expr) { return redefine_if_is_var(expr).as_or_throw<PrimExpr>(); });
-    PrimExpr elem_offset = redefine_if_is_var(buffer->elem_offset).as_or_throw<PrimExpr>();
-
-    auto n = CopyBufferType(buffer);
-    n->shape = std::move(shape);
-    n->strides = std::move(strides);
-    n->elem_offset = std::move(elem_offset);
-    BufferVar new_buffer = RebuildBufferVar(buffer, std::move(n));
-    this->AddDefRemap(buffer, new_buffer);
-    return new_buffer;
-  }
-
-  BufferVar UseOrRemapBuffer(const BufferVar& buffer) {
-    // If the buffer has been remapped, return the remapped buffer, otherwise,
-    // remap it without creating new var definitions.
-    auto mapped = VarRemapGet(buffer);
-    if (mapped != nullptr) return mapped.as_or_throw<BufferVar>();
-    auto visit_expr = [this](const PrimExpr& e) -> PrimExpr {
-      return this->Mutate(e, InplaceMode::kDisallow).ValueOrUnchanged(e);
-    };
-    ffi::Array<PrimExpr> shape = buffer->shape.Map(visit_expr);
-    ffi::Array<PrimExpr> strides = buffer->strides.Map(visit_expr);
-    PrimExpr elem_offset =
-        Mutate(buffer->elem_offset, InplaceMode::kDisallow).ValueOrUnchanged(buffer->elem_offset);
-
-    auto n = CopyBufferType(buffer);
-    n->shape = std::move(shape);
-    n->strides = std::move(strides);
-    n->elem_offset = std::move(elem_offset);
-    BufferVar new_buffer = RebuildBufferVar(buffer, std::move(n));
-    this->AddDefRemap(buffer, new_buffer);
-    return new_buffer;
   }
 
   IterVar VisitIterVar(const IterVar& iter_var) {
@@ -224,40 +146,20 @@ class RenewDefMutator : public StmtExprMutator {
                           .ValueOrUnchanged(iter_var->dom->extent);
     IterVar new_iter_var(Range(min, extent), ReDefineVar(iter_var->var).as_or_throw<PrimVar>(),
                          iter_var->iter_type, iter_var->thread_tag);
-    this->AddDefRemap(iter_var, new_iter_var);
+    VarRemapSet(iter_var, new_iter_var);
     return new_iter_var;
   }
 
   MatchBufferRegion VisitMatchBuffer(const MatchBufferRegion& match_buffer) {
-    BufferVar buffer = DefineBuffer(match_buffer->buffer);
+    BufferVar buffer = ReDefineVar(match_buffer->buffer.var()).as_or_throw<BufferVar>();
     TensorRegion region = VisitBufferRegion(match_buffer->source);
     return MatchBufferRegion(std::move(buffer), std::move(region));
   }
 
-  Range VisitRange(const Range& range) {
-    auto min_result = Mutate(range->min, InplaceMode::kDisallow);
-    bool min_unchanged = min_result.UnchangedOrSameAs(range->min);
-    PrimExpr min = std::move(min_result).ValueOrUnchanged(range->min);
-    auto extent_result = Mutate(range->extent, InplaceMode::kDisallow);
-    bool extent_unchanged = extent_result.UnchangedOrSameAs(range->extent);
-    PrimExpr extent = std::move(extent_result).ValueOrUnchanged(range->extent);
-    if (min_unchanged && extent_unchanged) {
-      return range;
-    } else {
-      return Range::FromMinExtent(std::move(min), std::move(extent));
-    }
-  }
-
   TensorRegion VisitBufferRegion(const TensorRegion& buffer_region) {
-    BufferVar buffer = UseOrRemapBuffer(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>());
-    ffi::Array<Range> region = buffer_region->region.Map(
-        std::bind(&RenewDefMutator::VisitRange, this, std::placeholders::_1));
-    if (buffer.same_as(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>()) &&
-        region.same_as(buffer_region->region)) {
-      return buffer_region;
-    } else {
-      return BufferRegion(std::move(buffer), std::move(region));
-    }
+    return Mutate(buffer_region, InplaceMode::kDisallow)
+        .ValueOrUnchanged(buffer_region)
+        .as_or_throw<TensorRegion>();
   }
 };
 

@@ -26,7 +26,7 @@ import functools
 import operator
 
 import tvm
-from tvm.ir import TensorRegion
+from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, TensorRegion, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
@@ -44,7 +44,7 @@ from tvm.tirx.layout import (
     tmem_mma_operand_layout,
 )
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt
+from tvm.tirx.stmt import Bind, Evaluate, SeqStmt
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ...cpp.descriptors import (
@@ -1089,8 +1089,32 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         pack = T.ptx.mov.b64(desc_buf[0], desc_lo[0], desc_hi[0])
         return SeqStmt(
             [
-                AllocBuffer(desc_lo),
-                AllocBuffer(desc_hi),
+                Bind(
+                    desc_lo,
+                    Call(
+                        "tirx.alloc_buffer",
+                        [
+                            Tuple(desc_lo.ty.shape),
+                            DataTypeImm(desc_lo.ty.dtype.dtype),
+                            StringImm(desc_lo.scope()),
+                        ],
+                        attrs=DictAttrs({}),
+                        ret_ty=desc_lo.ty,
+                    ),
+                ),
+                Bind(
+                    desc_hi,
+                    Call(
+                        "tirx.alloc_buffer",
+                        [
+                            Tuple(desc_hi.ty.shape),
+                            DataTypeImm(desc_hi.ty.dtype.dtype),
+                            StringImm(desc_hi.scope()),
+                        ],
+                        attrs=DictAttrs({}),
+                        ret_ty=desc_hi.ty,
+                    ),
+                ),
                 Evaluate(unpack),
                 Evaluate(shuffle),
                 Evaluate(pack),
@@ -1112,7 +1136,22 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
             sdo,
             swizzle_val,
         )
-        wrap_stmts = [AllocBuffer(desc_buf), Evaluate(encode_call)]
+        wrap_stmts = [
+            Bind(
+                desc_buf,
+                Call(
+                    "tirx.alloc_buffer",
+                    [
+                        Tuple(desc_buf.ty.shape),
+                        DataTypeImm(desc_buf.ty.dtype.dtype),
+                        StringImm(desc_buf.scope()),
+                    ],
+                    attrs=DictAttrs({}),
+                    ret_ty=desc_buf.ty,
+                ),
+            ),
+            Evaluate(encode_call),
+        ]
         if warp_scope:
             wrap_stmts.append(_make_lo_uniform(desc_buf))
         wrap_stmts.append(_krp)

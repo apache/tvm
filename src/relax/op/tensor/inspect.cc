@@ -282,11 +282,17 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                  tvm::prim::cast(axis->ty.as_or_throw<PrimType>(), ndim.as_or_throw<PrimExpr>()),
              StringImm("RuntimeError"),
              {StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
-         tirx::DeclBuffer(
+         tirx::Bind(
              shape_buffer,
-             tvm::Call(shape_buffer.DataPointerType(), tirx::builtin::tvm_struct_get(),
-                       {dlpack_handle, IntImm::Int32(0),
-                        IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorShape)})),
+             tvm::Call(shape_buffer.type(), tvm::tirx::builtin::decl_buffer(),
+                       {tvm::Call(
+                            shape_buffer.DataPointerType(), tirx::builtin::tvm_struct_get(),
+                            {dlpack_handle, IntImm::Int32(0),
+                             IntImm::Int32(tirx::builtin::TVMStructFieldKind::kDLTensorShape)}),
+                        tvm::Tuple(shape_buffer->shape),
+                        tvm::DataTypeImm(shape_buffer->dtype->dtype),
+                        tvm::StringImm(shape_buffer.scope())},
+                       {})),
          tirx::Bind(extent, tirx::BufferLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
          tirx::Return(extent)});
 

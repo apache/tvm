@@ -98,7 +98,7 @@ static Expr LowerAccessPtr(const CallNode* call,
   ffi::String storage_scope;
   Expr access_data;
   if (buffer_var->ty.as<BufferTypeNode>()) {
-    BufferVar source_buffer(buffer_var);
+    BufferVar source_buffer = buffer_var.as_or_throw<BufferVar>();
     if (source_buffer->dtype == scalar_dtype && source_buffer->shape.size() == 1) {
       access_buffer = source_buffer;
     } else {
@@ -173,7 +173,13 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     Stmt result = std::move(mutated).ValueOrUnchanged(input).as_or_throw<Stmt>();
     for (size_t i = access_ptr_buffer_aliases_.size(); i > alias_begin; --i) {
       const auto& alias = access_ptr_buffer_aliases_[i - 1];
-      result = SeqStmt::Flatten(DeclBuffer(alias.buffer, alias.data), std::move(result));
+      result = SeqStmt::Flatten(
+          Bind(alias.buffer,
+               Call(alias.buffer.type(), builtin::decl_buffer(),
+                    {alias.data, tvm::Tuple(alias.buffer->shape),
+                     DataTypeImm(alias.buffer->dtype->dtype), StringImm(alias.buffer.scope())},
+                    {})),
+          std::move(result));
     }
     access_ptr_buffer_aliases_.resize(alias_begin);
     return result;

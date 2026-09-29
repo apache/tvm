@@ -79,6 +79,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
   explicit DataTypeVisitor(int target_bits) : bits_(target_bits), target_bits_(target_bits) {}
 
   ffi::Optional<VisitInterrupt> Visit(ffi::AnyView expr) final {
+    if (expr == nullptr) return std::nullopt;
     auto prim_expr = expr.as<PrimExpr>();
     if (!prim_expr) {
       return StmtExprVisitor::Visit(expr);
@@ -150,7 +151,7 @@ class DataTypeVisitor final : public StmtExprVisitor {
         it->second = op_ty.WithBits(std::max(it->second.bits(), bits));
       }
     }
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const IntImmNode* op) {

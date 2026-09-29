@@ -279,13 +279,27 @@ void ElseFrameNode::ExitWithScope() {
 void DeclBufferFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   if (allocated) {
-    AddToParent(tvm::tirx::SeqStmt::Flatten(tvm::tirx::DeclBuffer(buffer, data, source_span),
-                                            AsStmt(stmts)),
+    AddToParent(tvm::tirx::SeqStmt::Flatten(
+                    tvm::tirx::Bind(buffer,
+                                    tvm::Call(buffer.type(), tvm::tirx::builtin::decl_buffer(),
+                                              {data, tvm::Tuple(buffer->shape),
+                                               tvm::DataTypeImm(buffer->dtype->dtype),
+                                               tvm::StringImm(buffer.scope())},
+                                              {}, {}, source_span),
+                                    source_span),
+                    AsStmt(stmts)),
                 source_span);
   } else {
     // data is undefined in `decl_buffer(...)`, lower to `alloc_buffer(...)`.
     AddToParent(
-        tvm::tirx::SeqStmt::Flatten(tvm::tirx::AllocBuffer(buffer, {}, source_span), AsStmt(stmts)),
+        tvm::tirx::SeqStmt::Flatten(
+            tvm::tirx::Bind(buffer.var(),
+                            Call(buffer.type(), tvm::tirx::builtin::alloc_buffer(),
+                                 {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                  StringImm(buffer.scope())},
+                                 DictAttrs(), {}, source_span),
+                            source_span),
+            AsStmt(stmts)),
         source_span);
   }
 }

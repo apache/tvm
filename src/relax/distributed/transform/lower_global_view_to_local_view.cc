@@ -136,7 +136,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
         new_params.push_back(param);
         continue;
       }
-      BufferVar buffer(param);
+      BufferVar buffer = param.as_or_throw<BufferVar>();
       BufferVar shard_buffer = compactor->ShardBuffer(buffer);
       new_params.push_back(shard_buffer.var());
       if (!shard_buffer.same_as(buffer)) {
@@ -166,7 +166,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
       if (!param_var->ty.as<BufferTypeNode>()) {
         continue;
       }
-      BufferVar param_buffer(param_var);
+      BufferVar param_buffer = param_var.as_or_throw<BufferVar>();
       ShardingSpec spec = sharding_specs_[j++];
 
       for (int mesh_dim = 0; mesh_dim < static_cast<int>(spec.first->shape.size()); mesh_dim++) {

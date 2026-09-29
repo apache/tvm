@@ -26,6 +26,7 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 
@@ -50,18 +51,48 @@ class PTXRewriter : public StmtExprMutator {
       return body;
     }
     EnsureBuffers();
-    body = SeqStmt::Flatten(AllocBuffer(predicate_buffer), AllocBuffer(addr_buffer), body);
+    body = SeqStmt::Flatten(
+        Bind(predicate_buffer.var(),
+             Call(predicate_buffer.type(), tirx::builtin::alloc_buffer(),
+                  {tvm::Tuple(predicate_buffer->shape), DataTypeImm(predicate_buffer->dtype->dtype),
+                   StringImm(predicate_buffer.scope())},
+                  DictAttrs())),
+        Bind(addr_buffer.var(),
+             Call(addr_buffer.type(), tirx::builtin::alloc_buffer(),
+                  {tvm::Tuple(addr_buffer->shape), DataTypeImm(addr_buffer->dtype->dtype),
+                   StringImm(addr_buffer.scope())},
+                  DictAttrs())),
+        body);
     has_buffer_2 = true;
     return body;
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return Mutate_AllocBuffer(op, inplace_mode);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
     Stmt result =
         StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     if (needs_buffer && !has_buffer_2) {
       EnsureBuffers();
       has_buffer_2 = true;
-      result = SeqStmt::Flatten(AllocBuffer(predicate_buffer), AllocBuffer(addr_buffer), result);
+      result = SeqStmt::Flatten(
+          Bind(predicate_buffer.var(), Call(predicate_buffer.type(), tirx::builtin::alloc_buffer(),
+                                            {tvm::Tuple(predicate_buffer->shape),
+                                             DataTypeImm(predicate_buffer->dtype->dtype),
+                                             StringImm(predicate_buffer.scope())},
+                                            DictAttrs())),
+          Bind(addr_buffer.var(),
+               Call(addr_buffer.type(), tirx::builtin::alloc_buffer(),
+                    {tvm::Tuple(addr_buffer->shape), DataTypeImm(addr_buffer->dtype->dtype),
+                     StringImm(addr_buffer.scope())},
+                    DictAttrs())),
+          result);
     }
     return result;
   }

@@ -95,8 +95,10 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   // By default, does not re-visit buffer fields (shape, strides, elem_offset),
   // as those are visited at the definition site via EnterDef.
   virtual void VisitBufferUse(const BufferVar& obj, ffi::reflection::AccessPath path);
-  // Visit a buffer at a definition site. By default visits buffer fields.
-  virtual void VisitBufferDef(const BufferVar& obj, ffi::reflection::AccessPath path);
+
+  // Visit type metadata through its reflected fields, preserving source access paths.
+  virtual void Visit(const Type& obj, ffi::reflection::AccessPath path);
+  virtual void Visit(ffi::AnyView obj, ffi::reflection::AccessPath path);
 
   // Visitors for TIR constructs that are neither PrimExpr nor Stmt
   virtual void Visit(const IRModule& obj, ffi::reflection::AccessPath path);
@@ -119,12 +121,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   // scope of the internal `tirx::Var`.
   virtual void EnterDef(const IterVar& var, ffi::reflection::AccessPath path);
   virtual void ExitDef(const IterVar& var, ffi::reflection::AccessPath path);
-
-  // Called when entering/exiting the scope of a BufferVar definition.
-  // By default, visits the buffer's data pointer, shape, strides, and
-  // elem_offset, which must be defined prior to defining the BufferVar.
-  virtual void EnterDef(const BufferVar& buffer, ffi::reflection::AccessPath path);
-  virtual void ExitDef(const BufferVar& buffer, ffi::reflection::AccessPath path);
 
   // Utility to visit an array of nodes
   template <typename T>
@@ -151,8 +147,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   void Dispatch_(const ReturnNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const BreakNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ContinueNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const AllocBufferNode* op, ffi::reflection::AccessPath path) override;
-  void Dispatch_(const DeclBufferNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const AssertStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const SeqStmtNode* op, ffi::reflection::AccessPath path) override;
@@ -236,6 +230,9 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
     DefContext(TIRVisitorWithPath* self, T obj, ffi::reflection::AccessPath path)
         : self_(self), obj_(obj), path_(path), uncaught_exceptions_(std::uncaught_exceptions()) {
+      if (auto var = obj_.template as<Var>()) {
+        self_->Visit(var.value()->ty, path_->Attr("ty"));
+      }
       self_->in_scope_definitions_.insert(obj_);
       self_->EnterDef(obj_, path_);
     }
@@ -316,8 +313,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
    * BindNode pushes its WithDef into the current scope.  When the
    * scope exits, all Bind defs are cleaned up automatically.
    */
-  using BindScopeEntry = std::variant<DefContext<Var>, DefContext<BufferVar>>;
-  ScopeStack<std::vector<BindScopeEntry>> bind_scope_;
+  ScopeStack<std::vector<DefContext<Var>>> bind_scope_;
 };
 
 namespace {

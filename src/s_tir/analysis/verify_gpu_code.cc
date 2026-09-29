@@ -31,6 +31,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt.h>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -67,12 +68,22 @@ class GPUCodeVerifier : public StmtExprVisitor {
     return errors_;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+      return DispatchAllocBuffer(op, call);
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    auto scope = op->buffer.scope();
+    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
     runtime::StorageScope storage_scope = runtime::StorageScope::Create(scope);
     int64_t const_size = 1;
-    for (const PrimExpr& e : op->buffer->shape) {
+    for (const Expr& e : shape->fields) {
       if (auto* imm = e.as<IntImmNode>()) {
         const_size = static_cast<int64_t>(const_size * imm->value);
       } else {
@@ -80,7 +91,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
         break;
       }
     }
-    PrimType dtype_ty = op->buffer->dtype;
+    PrimType dtype_ty(dtype);
     TVM_FFI_ICHECK(!dtype_ty.IsScalableVector())
         << "Cannot verify GPU memory usage for scalable vector dtype " << dtype_ty;
     if (storage_scope.rank == runtime::StorageRank::kLocal) {

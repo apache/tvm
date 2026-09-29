@@ -284,11 +284,12 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
         item.same_as(value) and location.same_as(produced_span) for item, location in observed
     )
     nodes = list(main.body.seq)
-    assert len(nodes) == 3 and not any(isinstance(node, tirx.Bind) for node in nodes)
-    assert nodes[0].buffer.same_as(value) and nodes[1].buffer.same_as(value)
-    assert nodes[2].buffer.same_as(produced[1][0])
-    ir.assert_structural_equal(nodes[0].data, captured.data)
-    ir.assert_structural_equal(nodes[2].data, captured.data)
+    assert len(nodes) == 3 and isinstance(nodes[0], tirx.Bind)
+    assert isinstance(nodes[1], tirx.BufferStore) and isinstance(nodes[2], tirx.Bind)
+    assert nodes[0].var.same_as(value) and nodes[1].buffer.same_as(value)
+    assert nodes[2].var.same_as(produced[1][0])
+    ir.assert_structural_equal(nodes[0].value.args[0], captured.data)
+    ir.assert_structural_equal(nodes[2].value.args[0], captured.data)
 
 
 def test_native_binding_preserves_metadata_but_binds_buffer_expressions():

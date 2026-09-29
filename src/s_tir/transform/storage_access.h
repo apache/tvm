@@ -86,7 +86,6 @@ class StorageAccessVisitor : public StmtExprVisitor {
   // override visitor pattern
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final;
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final;
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final;

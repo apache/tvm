@@ -27,6 +27,15 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 @tvm.script.ir_module
 class Transpose:
     @Ts.prim_func
@@ -1133,9 +1142,9 @@ def verify_single_allocation(stmt, alloc_size=None):
     alloc_extents = []
 
     def verify(n):
-        if isinstance(n, tvm.tirx.AllocBuffer) and n.buffer.scope() == "shared.dyn":
+        if _is_buffer_binding(n, "tirx.alloc_buffer") and n.var.scope() == "shared.dyn":
             num_alloc[0] += 1
-            alloc_extents.append(n.buffer.shape)
+            alloc_extents.append(n.var.shape)
 
     tvm_ffi.structural_walk(stmt, verify)
     assert num_alloc[0] == 1

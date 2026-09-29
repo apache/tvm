@@ -25,6 +25,15 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def test_double_buffer():
     n = 100
     m = 4
@@ -59,12 +68,12 @@ def test_double_buffer():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tirx.AllocBuffer) and "B" in str(op.buffer.data):
+        if _is_buffer_binding(op, "tirx.alloc_buffer") and "B" in str(op.var.data):
             allocate_node = op
 
     tvm_ffi.structural_walk(stmt, visitor)
     assert allocate_node is not None
-    assert list(allocate_node.buffer.shape) == [m * 2]
+    assert list(allocate_node.var.shape) == [m * 2]
 
     f = tvm.s_tir.transform.ThreadSync("shared")(mod)["db"]
     count = [0]
@@ -107,12 +116,12 @@ def test_double_buffer_transform():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(op, "tirx.alloc_buffer"):
             allocate_node = op
 
     tvm_ffi.structural_walk(After["main"].body, visitor)
     assert allocate_node is not None
-    assert list(allocate_node.buffer.shape) == [64]
+    assert list(allocate_node.var.shape) == [64]
 
 
 def test_double_buffer_with_decl_buffer():

@@ -924,40 +924,43 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimEx
   }
 }
 
-void CodeGenC::Dispatch_(const DeclBufferNode* op) {
-  const VarNode* source = op->data.as<VarNode>();
-  if (const auto* call = op->data.as<CallNode>();
+void CodeGenC::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
+  Expr data = buffer_call->args[0];
+  DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  const VarNode* source = data.as<VarNode>();
+  if (const auto* call = data.as<CallNode>();
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source && var_idmap_.count(source)) {
-    TVM_FFI_ICHECK(!var_idmap_.count(op->buffer.get()));
-    var_idmap_[op->buffer.get()] = GetVarID(source);
+    TVM_FFI_ICHECK(!var_idmap_.count(buffer.get()));
+    var_idmap_[buffer.get()] = GetVarID(source);
     if (auto it = alloc_storage_scope_.find(source); it != alloc_storage_scope_.end()) {
-      alloc_storage_scope_[op->buffer.get()] = it->second;
+      alloc_storage_scope_[buffer.get()] = it->second;
     } else {
-      alloc_storage_scope_[op->buffer.get()] = op->buffer.scope();
+      alloc_storage_scope_[buffer.get()] = scope;
     }
     if (IsVolatile(source)) {
-      MarkVolatile(op->buffer.get());
+      MarkVolatile(buffer.get());
     }
     auto it = handle_data_type_.find(source);
-    RegisterHandleType(op->buffer.get(),
-                       it == handle_data_type_.end() ? op->buffer->dtype : it->second);
+    RegisterHandleType(buffer.get(), it == handle_data_type_.end() ? PrimType(dtype) : it->second);
     return;
   }
 
-  std::string scope = op->buffer.scope();
-  alloc_storage_scope_[op->buffer.get()] = scope;
+  alloc_storage_scope_[buffer.get()] = scope;
   this->PrintIndent();
   if (IsScopePartOfType()) {
     PrintStorageScope(scope, stream);
   }
-  PrintType(op->buffer.DataPointerType(), stream);
-  stream << ' ' << AllocVarID(op->buffer.get()) << " = ";
-  PrintExpr(Call(op->buffer.DataPointerType(), tirx::builtin::reinterpret(), {op->data}), stream);
+  PrintType(PointerType(PrimType(dtype), scope), stream);
+  stream << ' ' << AllocVarID(buffer.get()) << " = ";
+  PrintExpr(Call(PointerType(PrimType(dtype), scope), tirx::builtin::reinterpret(), {data}),
+            stream);
   stream << ";\n";
-  RegisterHandleType(op->buffer.get(), op->buffer->dtype);
+  RegisterHandleType(buffer.get(), PrimType(dtype));
 }
 
 void CodeGenC::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLINT(*)
@@ -1227,6 +1230,10 @@ void CodeGenC::Dispatch_(const prim::SelectNode* op, std::ostream& os) {  // NOL
 }
 
 void CodeGenC::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+  }
   RegisterHandleTypeFromPointer(op->var, &op->value);
   std::string value = PrintExpr(op->value);
   if (print_ssa_form_) {
@@ -1247,30 +1254,33 @@ void CodeGenC::Dispatch_(const BindNode* op) {
   }
 }
 
-void CodeGenC::Dispatch_(const AllocBufferNode* op) {
-  TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
+void CodeGenC::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+  TVM_FFI_ICHECK(buffer.defined());
+  std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
 
   this->PrintIndent();
-  const auto& shape = op->buffer->shape;
   size_t constant_size = 1;
-  for (const auto& dim : shape) {
+  for (const auto& dim : shape->fields) {
     const IntImmNode* dim_imm = dim.as<IntImmNode>();
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
     constant_size *= dim_imm->value.as<size_t>().value();
   }
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-  auto scope = op->buffer.scope();
-  alloc_storage_scope_[op->buffer.get()] = scope;
+  alloc_storage_scope_[buffer.get()] = scope;
   PrintStorageScope(scope, stream);
 
-  PrintType(op->buffer->dtype, stream);
+  PrintType(PrimType(dtype), stream);
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
-  RegisterHandleType(op->buffer.get(), op->buffer->dtype);
-  if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer.get());
+  RegisterHandleType(buffer.get(), PrimType(dtype));
+  if (annotations->dict.count(tirx::attr::kVolatile)) {
+    MarkVolatile(buffer.get());
   }
 }
 

@@ -58,7 +58,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           if (!param->ty.as<tirx::BufferTypeNode>()) {
             continue;
           }
-          tirx::BufferVar buffer(param);
+          tirx::BufferVar buffer = param.as_or_throw<tirx::BufferVar>();
           for (const PrimExpr& extent : buffer->shape) {
             collect_type_vars(extent);
           }
@@ -89,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           tirx::Var var = func->params[i];
           AccessPath var_p = p->Attr("params")->ArrayItem(i);
           if (var->ty.as<tirx::BufferTypeNode>()) {
-            tirx::BufferVar buffer(var);
+            tirx::BufferVar buffer = var.as_or_throw<tirx::BufferVar>();
             auto check_annotation_var =
                 [&](const tirx::Var& annotation_var) -> ffi::Expected<ffi::WalkResult> {
               has_dependent_annotations =
@@ -112,7 +112,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             for (const PrimExpr& address : buffer->allocated_addr) {
               ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(address, check_annotation_var);
             }
-            IdDoc lhs = DefineBuffer(buffer, *f, d);
+            ExprDoc lhs = DefineVar(buffer.var(), *f, d);
             ExprDoc annotation = BufferAttn(buffer, var_p->Attr("ty"), *f, d);
             args.push_back(AssignDoc(lhs, std::nullopt, annotation));
             continue;
@@ -189,7 +189,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           for (int i = 0, n = root_block->alloc_buffers.size(); i < n; ++i) {
             tirx::BufferVar buffer = root_block->alloc_buffers[i];
             AccessPath buffer_p = root_block_p->Attr("alloc_buffers")->ArrayItem(i);
-            IdDoc lhs = DefineBuffer(buffer, *f, d);
+            ExprDoc lhs = DefineVar(buffer.var(), *f, d);
             ExprDoc rhs = BufferDecl(buffer, "sblock_alloc_buffer", {}, buffer_p, *f, d,
                                      BufferVarDefinition::DataPointer);
             (*f)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));

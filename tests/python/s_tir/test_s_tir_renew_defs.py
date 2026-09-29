@@ -149,7 +149,7 @@ def test_undefined_buffer():
     tvm.ir.assert_structural_equal(f1, f2)
 
     # AllocBuffer is now a flat statement in SeqStmt
-    assert f1.body.seq[0].buffer.data != f2.body.seq[0].buffer.data
+    assert f1.body.seq[0].var.data != f2.body.seq[0].var.data
 
     def _get_buffer_store_buffer(f):
         # SeqStmt: [AllocBuffer, Evaluate, For]; For body has the BufferStore

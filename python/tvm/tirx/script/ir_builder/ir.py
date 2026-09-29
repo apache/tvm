@@ -474,9 +474,9 @@ def alloc_buffer(
     allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
 ) -> Buffer:
-    """Statement-level buffer allocation (creates an AllocBuffer IR node).
+    """Statement-level buffer allocation (creates a buffer-returning allocation Call).
 
-    Emits an AllocBuffer statement and returns the Buffer directly::
+    Emits a Bind statement with an allocation Call and returns the Buffer directly::
 
         buf = T.alloc_buffer((128, 128))
 
@@ -529,7 +529,7 @@ def alloc_buffer(
     )
     _record_meta_resource(buf, skip_frames=2)
 
-    # AllocBuffer.annotations holds typed IR values. The C++ side stores
+    # The allocation call annotations hold typed IR values. The C++ side stores
     # alignment / shape-like ints as ``IntImm(int32, ...)``; if the user
     # (or a parsed-source round-trip) passes a bare Python int, normalize
     # it so structural equality is preserved against the LowerOpaqueBlock
@@ -544,7 +544,17 @@ def alloc_buffer(
         return v
 
     norm_annotations = {k: _normalize_ann_value(v) for k, v in (annotations or {}).items()}
-    _ffi_api.AddToParent(tir.AllocBuffer(buf, norm_annotations))  # type: ignore[attr-defined] # pylint: disable=no-member
+    allocation = ir.Call(
+        "tirx.alloc_buffer",
+        [
+            ir.Tuple(buf.shape),
+            ir.DataTypeImm(DataType(buf.dtype)),
+            ir.StringImm(buf.scope()),
+        ],
+        attrs=ir.DictAttrs(norm_annotations),
+        ret_ty=buf.ty,
+    )
+    _ffi_api.AddToParent(tir.Bind(buf, allocation))
     return buf
 
 
@@ -843,9 +853,16 @@ def alloc_cast_frag(src, dtype):
 
 
 @_register_mutable_decl("tirx.alloc_scalar")
-def alloc_scalar(dtype: str = "float32", scope: str = "global") -> TensorLoad:
-    """Allocate a zero-dimensional buffer (scalar)."""
-    buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
+def alloc_scalar(
+    dtype: str = "float32",
+    scope: str = "global",
+    *,
+    annotations: dict[str, Any] | None = None,
+) -> TensorLoad:
+    """Allocate a zero-dimensional buffer (scalar), with optional allocation annotations."""
+    buf = alloc_buffer(
+        shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]), annotations=annotations
+    )
     assert is_buffer_var(buf)
     scalar = buf[0]
     return scalar
@@ -871,15 +888,19 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
 
 
 @_register_mutable_decl("tirx.shared_scalar")
-def shared_scalar(dtype: str = "float32") -> TensorLoad:
+def shared_scalar(
+    dtype: str = "float32", *, annotations: dict[str, Any] | None = None
+) -> TensorLoad:
     """Allocate a zero-dimensional buffer in shared memory."""
-    return alloc_scalar(dtype=dtype, scope="shared")
+    return alloc_scalar(dtype=dtype, scope="shared", annotations=annotations)
 
 
 @_register_mutable_decl("tirx.local_scalar")
-def local_scalar(dtype: str = "float32") -> TensorLoad:
+def local_scalar(
+    dtype: str = "float32", *, annotations: dict[str, Any] | None = None
+) -> TensorLoad:
     """Allocate a zero-dimensional buffer in local memory."""
-    return alloc_scalar(dtype=dtype, scope="local")
+    return alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
 
 
 def _is_meta_class_instance(value: Any) -> bool:
