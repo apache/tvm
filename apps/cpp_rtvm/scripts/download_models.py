@@ -155,8 +155,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv1: R.Tensor((1, 3, 224, 224), dtype="float32") = lv[0]
-                lv2: R.Tensor((3,), dtype="float32") = lv[1]
-                lv3: R.Tensor((3,), dtype="float32") = lv[2]
                 lv4: R.Tensor((1, 64, 112, 112), dtype="float32") = R.nn.conv2d(
                     lv1,
                     resnetv22_conv0_weight,
@@ -185,8 +183,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv6: R.Tensor((1, 64, 112, 112), dtype="float32") = lv5[0]
-                lv7: R.Tensor((64,), dtype="float32") = lv5[1]
-                lv8: R.Tensor((64,), dtype="float32") = lv5[2]
                 lv9: R.Tensor((1, 64, 112, 112), dtype="float32") = R.nn.relu(lv6)
                 lv10: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.max_pool2d(
                     lv9,
@@ -216,8 +212,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv12: R.Tensor((1, 64, 56, 56), dtype="float32") = lv11[0]
-                lv13: R.Tensor((64,), dtype="float32") = lv11[1]
-                lv14: R.Tensor((64,), dtype="float32") = lv11[2]
                 lv15: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv12)
                 lv16: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
                     lv15,
@@ -247,8 +241,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv18: R.Tensor((1, 64, 56, 56), dtype="float32") = lv17[0]
-                lv19: R.Tensor((64,), dtype="float32") = lv17[1]
-                lv20: R.Tensor((64,), dtype="float32") = lv17[2]
                 lv21: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv18)
                 lv22: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
                     lv21,
@@ -279,8 +271,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv25: R.Tensor((1, 64, 56, 56), dtype="float32") = lv24[0]
-                lv26: R.Tensor((64,), dtype="float32") = lv24[1]
-                lv27: R.Tensor((64,), dtype="float32") = lv24[2]
                 lv28: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv25)
                 lv29: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
                     lv28,
@@ -310,8 +300,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv31: R.Tensor((1, 64, 56, 56), dtype="float32") = lv30[0]
-                lv32: R.Tensor((64,), dtype="float32") = lv30[1]
-                lv33: R.Tensor((64,), dtype="float32") = lv30[2]
                 lv34: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv31)
                 lv35: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.conv2d(
                     lv34,
@@ -342,8 +330,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv38: R.Tensor((1, 64, 56, 56), dtype="float32") = lv37[0]
-                lv39: R.Tensor((64,), dtype="float32") = lv37[1]
-                lv40: R.Tensor((64,), dtype="float32") = lv37[2]
                 lv41: R.Tensor((1, 64, 56, 56), dtype="float32") = R.nn.relu(lv38)
                 lv42: R.Tensor((1, 128, 28, 28), dtype="float32") = R.nn.conv2d(
                     lv41,
@@ -373,8 +359,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv44: R.Tensor((1, 128, 28, 28), dtype="float32") = lv43[0]
-                lv45: R.Tensor((128,), dtype="float32") = lv43[1]
-                lv46: R.Tensor((128,), dtype="float32") = lv43[2]
                 lv47: R.Tensor((1, 128, 28, 28), dtype="float32") = R.nn.relu(lv44)
                 lv48: R.Tensor((1, 128, 28, 28), dtype="float32") = R.nn.conv2d(
                     lv47,
@@ -416,8 +400,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv52: R.Tensor((1, 128, 28, 28), dtype="float32") = lv51[0]
-                lv53: R.Tensor((128,), dtype="float32") = lv51[1]
-                lv54: R.Tensor((128,), dtype="float32") = lv51[2]
                 lv55: R.Tensor((1, 128, 28, 28), dtype="float32") = R.nn.relu(lv52)
                 lv56: R.Tensor((1, 128, 28, 28), dtype="float32") = R.nn.conv2d(
                     lv55,
@@ -447,8 +429,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv58: R.Tensor((1, 128, 28, 28), dtype="float32") = lv57[0]
-                lv59: R.Tensor((128,), dtype="float32") = lv57[1]
-                lv60: R.Tensor((128,), dtype="float32") = lv57[2]
                 lv61: R.Tensor((1, 128, 28, 28), dtype="float32") = R.nn.relu(lv58)
                 lv62: R.Tensor((1, 128, 28, 28), dtype="float32") = R.nn.conv2d(
                     lv61,
@@ -479,8 +459,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv65: R.Tensor((1, 128, 28, 28), dtype="float32") = lv64[0]
-                lv66: R.Tensor((128,), dtype="float32") = lv64[1]
-                lv67: R.Tensor((128,), dtype="float32") = lv64[2]
                 lv68: R.Tensor((1, 128, 28, 28), dtype="float32") = R.nn.relu(lv65)
                 lv69: R.Tensor((1, 256, 14, 14), dtype="float32") = R.nn.conv2d(
                     lv68,
@@ -510,8 +488,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv71: R.Tensor((1, 256, 14, 14), dtype="float32") = lv70[0]
-                lv72: R.Tensor((256,), dtype="float32") = lv70[1]
-                lv73: R.Tensor((256,), dtype="float32") = lv70[2]
                 lv74: R.Tensor((1, 256, 14, 14), dtype="float32") = R.nn.relu(lv71)
                 lv75: R.Tensor((1, 256, 14, 14), dtype="float32") = R.nn.conv2d(
                     lv74,
@@ -553,8 +529,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv79: R.Tensor((1, 256, 14, 14), dtype="float32") = lv78[0]
-                lv80: R.Tensor((256,), dtype="float32") = lv78[1]
-                lv81: R.Tensor((256,), dtype="float32") = lv78[2]
                 lv82: R.Tensor((1, 256, 14, 14), dtype="float32") = R.nn.relu(lv79)
                 lv83: R.Tensor((1, 256, 14, 14), dtype="float32") = R.nn.conv2d(
                     lv82,
@@ -584,8 +558,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv85: R.Tensor((1, 256, 14, 14), dtype="float32") = lv84[0]
-                lv86: R.Tensor((256,), dtype="float32") = lv84[1]
-                lv87: R.Tensor((256,), dtype="float32") = lv84[2]
                 lv88: R.Tensor((1, 256, 14, 14), dtype="float32") = R.nn.relu(lv85)
                 lv89: R.Tensor((1, 256, 14, 14), dtype="float32") = R.nn.conv2d(
                     lv88,
@@ -616,8 +588,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv92: R.Tensor((1, 256, 14, 14), dtype="float32") = lv91[0]
-                lv93: R.Tensor((256,), dtype="float32") = lv91[1]
-                lv94: R.Tensor((256,), dtype="float32") = lv91[2]
                 lv95: R.Tensor((1, 256, 14, 14), dtype="float32") = R.nn.relu(lv92)
                 lv96: R.Tensor((1, 512, 7, 7), dtype="float32") = R.nn.conv2d(
                     lv95,
@@ -647,8 +617,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv98: R.Tensor((1, 512, 7, 7), dtype="float32") = lv97[0]
-                lv99: R.Tensor((512,), dtype="float32") = lv97[1]
-                lv100: R.Tensor((512,), dtype="float32") = lv97[2]
                 lv101: R.Tensor((1, 512, 7, 7), dtype="float32") = R.nn.relu(lv98)
                 lv102: R.Tensor((1, 512, 7, 7), dtype="float32") = R.nn.conv2d(
                     lv101,
@@ -690,8 +658,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv106: R.Tensor((1, 512, 7, 7), dtype="float32") = lv105[0]
-                lv107: R.Tensor((512,), dtype="float32") = lv105[1]
-                lv108: R.Tensor((512,), dtype="float32") = lv105[2]
                 lv109: R.Tensor((1, 512, 7, 7), dtype="float32") = R.nn.relu(lv106)
                 lv110: R.Tensor((1, 512, 7, 7), dtype="float32") = R.nn.conv2d(
                     lv109,
@@ -721,8 +687,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv112: R.Tensor((1, 512, 7, 7), dtype="float32") = lv111[0]
-                lv113: R.Tensor((512,), dtype="float32") = lv111[1]
-                lv114: R.Tensor((512,), dtype="float32") = lv111[2]
                 lv115: R.Tensor((1, 512, 7, 7), dtype="float32") = R.nn.relu(lv112)
                 lv116: R.Tensor((1, 512, 7, 7), dtype="float32") = R.nn.conv2d(
                     lv115,
@@ -753,8 +717,6 @@ def get_network():
                     momentum=0.10000000000000001,
                 )
                 lv119: R.Tensor((1, 512, 7, 7), dtype="float32") = lv118[0]
-                lv120: R.Tensor((512,), dtype="float32") = lv118[1]
-                lv121: R.Tensor((512,), dtype="float32") = lv118[2]
                 lv122: R.Tensor((1, 512, 7, 7), dtype="float32") = R.nn.relu(lv119)
                 lv123: R.Tensor((1, 512, 1, 1), dtype="float32") = R.mean(
                     lv122, axis=[2, 3], keepdims=True
