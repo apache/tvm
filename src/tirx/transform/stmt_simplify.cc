@@ -138,24 +138,25 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const ForNode* op, InplaceMode inplace
   return Parent::Mutate_(op, inplace_mode);
 }
 
-UnchangedOr<Expr> StmtSimplifier::Mutate_(const CallNode* op, InplaceMode inplace_mode) {
-  // Buffer metadata is preserved by this pass, including its explicit shape operands.
-  if (op->op.same_as(builtin::alloc_buffer())) return ffi::Unchanged();
-  if (op->op.same_as(builtin::decl_buffer())) {
-    auto data = this->Mutate(op->args[0], inplace_mode);
-    if (data.UnchangedOrSameAs(op->args[0])) return ffi::Unchanged();
-    if (inplace_mode == InplaceMode::kAllow) {
-      const_cast<CallNode*>(op)->args.Set(0, std::move(data).ValueUnchecked());
-      return ffi::Unchanged();
-    }
-    auto copy = ffi::make_object<CallNode>(*op);
-    copy->args.Set(0, std::move(data).ValueUnchecked());
-    return Expr(std::move(copy));
-  }
-  return Parent::Mutate_(op, inplace_mode);
-}
-
 UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  if (const auto* call = op->value.as<CallNode>()) {
+    // Preserve buffer metadata and shape operands; only declaration data is simplified.
+    if (call->op.same_as(builtin::alloc_buffer())) return ffi::Unchanged();
+    if (call->op.same_as(builtin::decl_buffer())) {
+      // The Call and its arguments may be shared even when the Bind is writable.
+      auto data = this->Mutate(call->args[0], InplaceMode::kDisallow);
+      if (data.UnchangedOrSameAs(call->args[0])) return ffi::Unchanged();
+      auto value = ffi::make_object<CallNode>(*call);
+      value->args.Set(0, std::move(data).ValueUnchecked());
+      if (inplace_mode == InplaceMode::kAllow) {
+        const_cast<BindNode*>(op)->value = Expr(std::move(value));
+        return ffi::Unchanged();
+      }
+      auto copy = ffi::make_object<BindNode>(*op);
+      copy->value = Expr(std::move(value));
+      return Stmt(std::move(copy));
+    }
+  }
   auto prim_value = op->value.as<PrimExpr>();
   if (!prim_value) {
     return Parent::Mutate_(op, inplace_mode);
