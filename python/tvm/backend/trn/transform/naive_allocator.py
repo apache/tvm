@@ -57,7 +57,7 @@ def _get_alloc_pool_start(stmt) -> int:
     def collect_alloc_buffer(op: Bind):
         nonlocal alloc_pool_start
         if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_buffer"):
-            return op
+            return
         buffer = op.var
         if len(buffer.ty.allocated_addr) == 0:
             return

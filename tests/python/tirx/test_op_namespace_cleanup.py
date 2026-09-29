@@ -299,6 +299,7 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
     calls = _expr_calls(device_namespaces)
     assert [call.op.name for call in calls] == [
+        "tirx.alloc_buffer",
         "tirx.cuda.cta_sync",
         "tirx.s_tir.ldg32",
         "tirx.metal.simd_shuffle",
