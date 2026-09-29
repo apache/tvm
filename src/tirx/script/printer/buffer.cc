@@ -18,6 +18,7 @@
  */
 #include <tvm/runtime/device_api.h>  // For `kAllocAlignment`
 #include <tvm/s_tir/stmt.h>
+#include <tvm/sym/analyzer.h>
 
 #include <algorithm>
 #include <utility>
@@ -29,10 +30,10 @@ namespace script {
 
 namespace printer {
 
-ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessPath& buffer_p,
-                                           const Frame& frame, const IRDocsifier& d,
-                                           BufferVarDefinition var_definitions,
-                                           ffi::Optional<Expr> data = std::nullopt) {
+ffi::Map<ffi::String, ExprDoc> BufferAttrs(
+    tirx::BufferType buffer, const AccessPath& buffer_p, const Frame& frame, const IRDocsifier& d,
+    BufferVarDefinition var_definitions, ffi::Optional<Expr> data = std::nullopt,
+    ffi::Optional<tirx::BufferVar> buffer_var = std::nullopt) {
   using tvm::tirx::Var;
   using tvm::tirx::VarNode;
   ffi::Map<ffi::String, ExprDoc> kwargs;
@@ -108,14 +109,14 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessP
   }
   // Step 3. Handle `buffer.data`
   // For tmem scope, DeclBuffer does not accept `data` (it auto-creates the data var).
-  bool is_tmem_scope = buffer.scope() == "tmem";
+  bool is_tmem_scope = buffer->storage_scope == "tmem";
   bool is_inline_data = false;
   if (!is_tmem_scope && data.has_value()) {
     Expr source = data.value();
     if (is_new_var(source)) {
-      if (var_definitions >= BufferVarDefinition::DataPointer) {
+      if (buffer_var.has_value() && var_definitions >= BufferVarDefinition::DataPointer) {
         is_inline_data = try_inline_def(source, buffer_p->Attr("data"), [=]() {
-          return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("data");
+          return d->AsDoc<ExprDoc>(buffer_var.value(), buffer_p)->Attr("data");
         });
       } else {
         add_out_of_line_var_def(source.as_or_throw<Var>(), buffer_p->Attr("data"));
@@ -150,9 +151,10 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessP
       kwargs.Set("elem_offset",
                  d->AsDoc<ExprDoc>(buffer->elem_offset, buffer_p->Attr("elem_offset")));
     }
-  } else if (is_new_var(buffer->elem_offset)) {
-    try_inline_def(buffer->elem_offset, buffer_p->Attr("elem_offset"),
-                   [=]() { return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("elem_offset"); });
+  } else if (buffer_var.has_value() && is_new_var(buffer->elem_offset)) {
+    try_inline_def(buffer->elem_offset, buffer_p->Attr("elem_offset"), [=]() {
+      return d->AsDoc<ExprDoc>(buffer_var.value(), buffer_p)->Attr("elem_offset");
+    });
     needs_print_factor = true;
   } else {
     kwargs.Set("elem_offset",
@@ -160,10 +162,9 @@ ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessP
   }
   // Step 6. Handle `buffer.scope`
   {
-    ffi::String scope = buffer.scope();
+    ffi::String scope = buffer->storage_scope;
     if (scope != "global") {
-      kwargs.Set("scope",
-                 LiteralDoc::Str(scope, buffer_p->Attr("data")->Attr("ty")->Attr("storage_scope")));
+      kwargs.Set("scope", LiteralDoc::Str(scope, buffer_p->Attr("storage_scope")));
     }
   }
   // Step 7. Handle `buffer.data_alignment`
@@ -252,57 +253,513 @@ ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
                    ffi::Optional<Expr> data) {
   auto prefix = (method == "sblock_alloc_buffer" || method == "match_buffer") ? STIR(d, method)
                                                                               : TIR(d, method);
-  auto attrs = BufferAttrs(buffer, p, frame, d, var_definitions, data);
-  if (method == "alloc_buffer") {
-    if (buffer.IsScalar()) {
-      // The buffer can be allocated by the alloc_scalar function
-      auto dtype = d->AsDoc<ExprDoc>(buffer->dtype, p->Attr("dtype"));
-      if (buffer.scope() == "shared") {
-        // shared_scalar
-        prefix = TIR(d, "shared_scalar");
-        attrs = ffi::Map<ffi::String, ExprDoc>({{"dtype", dtype}});
-      } else if (buffer.scope() == "local") {
-        // local_scalar
-        prefix = TIR(d, "local_scalar");
-        attrs = ffi::Map<ffi::String, ExprDoc>({{"dtype", dtype}});
-      } else {
-        // alloc_scalar
-        prefix = TIR(d, "alloc_scalar");
-        auto scope = d->AsDoc<ExprDoc>(buffer.scope(), p->Attr("scope"));
-        attrs = ffi::Map<ffi::String, ExprDoc>({{"dtype", dtype}, {"scope", scope}});
-      }
-    } else {
-      if (buffer.scope() == "shared") {
-        // alloc_shared
-        prefix = TIR(d, "alloc_shared");
-        attrs.erase("scope");
-      } else if (buffer.scope() == "local") {
-        // alloc_local
-        prefix = TIR(d, "alloc_local");
-        attrs.erase("scope");
-      }
-    }
-  } else if (method == "decl_buffer") {
-    if (buffer.IsScalar(false)) {
-      // decl_scalar
-      prefix = TIR(d, "decl_scalar");
-      auto dtype = d->AsDoc<ExprDoc>(buffer->dtype, p->Attr("dtype"));
-      auto scope = d->AsDoc<ExprDoc>(buffer.scope(), p->Attr("scope"));
-      auto elem_offset = d->AsDoc<ExprDoc>(buffer->elem_offset, p->Attr("elem_offset"));
-      attrs = ffi::Map<ffi::String, ExprDoc>(
-          {{"dtype", dtype}, {"scope", scope}, {"elem_offset", elem_offset}});
-      if (data.has_value()) {
-        attrs.Set("data", d->AsDoc<ExprDoc>(data.value(), p->Attr("data")));
+  auto attrs = BufferAttrs(buffer.var()->ty.as_or_throw<tirx::BufferType>(), p->Attr("ty"), frame,
+                           d, var_definitions, data, buffer);
+  return BufferCall(prefix, attrs, args);
+}
+
+namespace {
+
+/*!
+ * \brief Check if a layout is the default layout for a given shape.
+ */
+bool IsDefaultLayout(const ffi::Optional<tirx::Layout>& layout, const ffi::Array<PrimExpr>& shape) {
+  if (!layout.has_value()) return false;
+  return StructuralEqual()(layout.value(), tirx::TileLayoutNode::DefaultLayout(shape));
+}
+
+/*!
+ * \brief Try to produce a DeclBuffer sugar expression for the given child buffer
+ *        with respect to a specific parent buffer.
+ *
+ * Returns std::nullopt if no sugar pattern matches.
+ */
+ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferType& child,
+                                                    const AccessPath& p, const IRDocsifier& d,
+                                                    const tirx::BufferVar& parent,
+                                                    bool require_same_layout) {
+  ffi::Optional<ExprDoc> parent_doc = d->GetVarDoc(parent);
+  if (!parent_doc.has_value()) return std::nullopt;
+  ExprDoc pdoc = parent_doc.value();
+
+  prim::ExprDeepEqual expr_equal;
+
+  // Check elem_offset equality
+  bool same_elem_offset = expr_equal(child->elem_offset, parent->elem_offset);
+  // Check dtype equality
+  bool same_dtype = (child->dtype == parent->dtype);
+  // Check shape equality
+  bool same_shape = (child->shape.size() == parent->shape.size());
+  if (same_shape) {
+    for (size_t i = 0; i < child->shape.size(); ++i) {
+      if (!expr_equal(child->shape[i], parent->shape[i])) {
+        same_shape = false;
+        break;
       }
     }
   }
-  return BufferCall(prefix, attrs, args);
+  bool same_strides = (child->strides.size() == parent->strides.size());
+  if (same_strides) {
+    for (size_t i = 0; i < child->strides.size(); ++i) {
+      if (!expr_equal(child->strides[i], parent->strides[i])) {
+        same_strides = false;
+        break;
+      }
+    }
+  }
+
+  bool child_is_default = IsDefaultLayout(child->layout, child->shape);
+  bool parent_is_default = IsDefaultLayout(parent->layout, parent->shape);
+
+  // NOTE: an earlier sugar printed rank-preserving aliases with a different
+  // elem_offset as ``parent[slices]``. That print is not roundtrippable: it
+  // reparses as a TensorRegion, not a Buffer, so any later Buffer use of the
+  // alias (stores, views) breaks. Such aliases now print as plain
+  // T.decl_buffer, which reparses exactly.
+
+  // Differences in these Buffer fields cannot be expressed by the alias sugar
+  // below, so conservatively fall back to T.decl_buffer.
+  // Shape, strides, elem_offset, dtype, and layout are checked by each helper
+  // because those are the fields that individual transformations may change.
+  //
+  // The explicit data projection was checked by TryDeclBufferSugar.  name/span
+  // do not participate in structural equality, and BufferTypeNode has no
+  // axis-separators field (unlike tir::Buffer).
+  bool same_common_metadata = child->storage_scope == parent.scope() &&
+                              child->data_alignment == parent->data_alignment &&
+                              child->offset_factor == parent->offset_factor &&
+                              StructuralEqual()(child->allocated_addr, parent->allocated_addr);
+  if (!same_common_metadata) return std::nullopt;
+
+  // --- (b) Local: parent has thread axes and child spans its physical storage ---
+  if (same_elem_offset && same_dtype && same_strides && !parent_is_default &&
+      parent->layout.has_value() && child->layout.has_value()) {
+    if (auto* parent_tile = parent->layout.value().as<tirx::TileLayoutNode>()) {
+      if (parent_tile->HasThreadAxis()) {
+        // Compute the raw physical storage span after filtering thread axes.
+        std::vector<tirx::Iter> storage_shard;
+        std::vector<tirx::Iter> storage_replica;
+        ffi::Map<tirx::Axis, PrimExpr> storage_offset;
+        for (const auto& iter : parent_tile->shard) {
+          if (!iter->axis->IsThreadAxis()) {
+            storage_shard.push_back(iter);
+          }
+        }
+        for (const auto& iter : parent_tile->replica) {
+          if (!iter->axis->IsThreadAxis()) {
+            storage_replica.push_back(iter);
+          }
+        }
+        for (const auto& [axis, off] : parent_tile->offset) {
+          if (!axis->IsThreadAxis()) {
+            storage_offset.Set(axis, off);
+          }
+        }
+        tirx::TileLayout expected_storage(
+            ffi::Array<tirx::Iter>(storage_shard.begin(), storage_shard.end()),
+            ffi::Array<tirx::Iter>(storage_replica.begin(), storage_replica.end()), storage_offset);
+
+        PrimExpr storage_span = expected_storage->GetSpan(ffi::Optional<ffi::String>());
+        PrimExpr storage_size = expected_storage->GetSize(ffi::Optional<ffi::String>());
+        PrimExpr child_total = IntImm::Int32(1);
+        for (const PrimExpr& dim : child->shape) {
+          child_total = child_total * dim;
+        }
+        sym::Analyzer analyzer;
+        bool default_physical =
+            child_is_default && analyzer->CanProveEqual(child_total, storage_span);
+        bool child_has_thread_axis = false;
+        if (const auto* child_tile = child->layout.value().as<tirx::TileLayoutNode>()) {
+          child_has_thread_axis = child_tile->HasThreadAxis();
+        }
+        bool explicit_override = !default_physical && !child_has_thread_axis;
+        if (default_physical || explicit_override) {
+          PrimExpr expected_extent = default_physical ? storage_span : storage_size;
+          bool auto_shape =
+              child->shape.size() == 1 && analyzer->CanProveEqual(child->shape[0], expected_extent);
+          ffi::Array<ExprDoc> args;
+          if (!auto_shape) {
+            for (size_t i = 0; i < child->shape.size(); ++i) {
+              args.push_back(d->AsDoc<ExprDoc>(child->shape[i], p->Attr("shape")->ArrayItem(i)));
+            }
+          }
+          ffi::Array<ffi::String> kwargs_keys;
+          ffi::Array<ExprDoc> kwargs_values;
+          if (explicit_override) {
+            kwargs_keys.push_back("layout");
+            kwargs_values.push_back(d->AsDoc<ExprDoc>(child->layout.value(), p->Attr("layout")));
+          }
+          return pdoc->Attr("local")->Call(args, kwargs_keys, kwargs_values);
+        }
+      }
+    }
+  }
+
+  // --- (c) View(dtype): different dtype, same elem_offset ---
+  if (same_elem_offset && !same_dtype && child->shape.size() == parent->shape.size()) {
+    // Verify shape compatibility with dtype reinterpret cast
+    int child_bits = child->dtype.bits();
+    int parent_bits = parent->dtype.bits();
+    bool shapes_compatible = true;
+    // All dims except last must match
+    for (size_t i = 0; i + 1 < child->shape.size(); ++i) {
+      if (!expr_equal(child->shape[i], parent->shape[i])) {
+        shapes_compatible = false;
+        break;
+      }
+    }
+    if (shapes_compatible && !child->shape.empty()) {
+      auto* child_last = child->shape.back().as<IntImmNode>();
+      auto* parent_last = parent->shape.back().as<IntImmNode>();
+      if (child_last && parent_last) {
+        if (child_bits > parent_bits) {
+          // Cast up: child_last = parent_last / ratio
+          int ratio = child_bits / parent_bits;
+          shapes_compatible = (parent_last->value == child_last->value * ratio);
+        } else {
+          // Cast down: child_last = parent_last * ratio
+          int ratio = parent_bits / child_bits;
+          shapes_compatible = (child_last->value == parent_last->value * ratio);
+        }
+      } else {
+        shapes_compatible = false;
+      }
+    }
+    // Also verify the parent's layout is compatible with the pack/unpack operation
+    if (shapes_compatible && parent->layout.has_value()) {
+      if (auto* ptile = parent->layout.value().as<tirx::TileLayoutNode>()) {
+        if (!ptile->shard.empty() && child_bits > parent_bits) {
+          // Cast up requires pack: last shard iter must have stride=1
+          // and extent divisible by ratio
+          const auto& last_iter = ptile->shard.back();
+          auto* last_stride = last_iter->stride.as<IntImmNode>();
+          auto* last_extent = last_iter->extent.as<IntImmNode>();
+          int ratio = child_bits / parent_bits;
+          if (!last_stride || last_stride->value != 1 || !last_extent ||
+              last_extent->value % ratio != 0) {
+            shapes_compatible = false;
+          }
+        }
+      }
+    }
+    if (shapes_compatible) {
+      ExprDoc dtype_doc = LiteralDoc::Str(DType2Str(child->dtype->dtype), p->Attr("dtype"));
+      return pdoc->Attr("view")->Call({dtype_doc});
+    }
+  }
+
+  // --- (d) Permute: child shape is a permutation of parent shape, same elem_offset ---
+  if (same_elem_offset && same_dtype && !same_shape &&
+      child->shape.size() == parent->shape.size()) {
+    // Try to find a permutation
+    std::vector<int> perm(child->shape.size(), -1);
+    std::vector<bool> used(parent->shape.size(), false);
+    bool is_permutation = true;
+    for (size_t i = 0; i < child->shape.size(); ++i) {
+      bool found = false;
+      for (size_t j = 0; j < parent->shape.size(); ++j) {
+        if (!used[j] && expr_equal(child->shape[i], parent->shape[j])) {
+          perm[i] = j;
+          used[j] = true;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        is_permutation = false;
+        break;
+      }
+    }
+    // Check it's not identity
+    bool is_identity = is_permutation;
+    if (is_permutation) {
+      for (size_t i = 0; i < perm.size(); ++i) {
+        if (perm[i] != static_cast<int>(i)) {
+          is_identity = false;
+          break;
+        }
+      }
+    }
+    if (is_permutation && !is_identity) {
+      // Verify the layout matches permutation by comparing shard iters directly
+      bool layout_matches = false;
+      if (parent->layout.has_value() && child->layout.has_value()) {
+        auto* parent_tile = parent->layout.value().as<tirx::TileLayoutNode>();
+        auto* child_tile = child->layout.value().as<tirx::TileLayoutNode>();
+        if (parent_tile && child_tile && parent_tile->shard.size() == child_tile->shard.size()) {
+          StructuralEqual seq;
+          layout_matches = true;
+          for (size_t i = 0; i < perm.size(); ++i) {
+            if (!seq(child_tile->shard[i], parent_tile->shard[perm[i]])) {
+              layout_matches = false;
+              break;
+            }
+          }
+          // Also check replica and offset are unchanged
+          if (layout_matches) {
+            layout_matches = seq(child_tile->replica, parent_tile->replica) &&
+                             seq(child_tile->offset, parent_tile->offset);
+          }
+        }
+      }
+      if (layout_matches) {
+        ffi::Array<ExprDoc> args;
+        for (int idx : perm) {
+          args.push_back(LiteralDoc::Int(idx, p->Attr("shape")));
+        }
+        return pdoc->Attr("permute")->Call(args);
+      }
+    }
+  }
+
+  // --- (e) Partition: child has 2*parent_ndim dims with grid+tile strides ---
+  if (same_elem_offset && same_dtype && !parent->shape.empty() &&
+      child->shape.size() == 2 * parent->shape.size() && !child->strides.empty() &&
+      child->strides.size() == 2 * parent->shape.size()) {
+    size_t ndim = parent->shape.size();
+    // Compute parent's row-major strides
+    std::vector<int64_t> parent_rm_strides(ndim);
+    int64_t stride = 1;
+    bool all_const = true;
+    for (int i = static_cast<int>(ndim) - 1; i >= 0; --i) {
+      parent_rm_strides[i] = stride;
+      if (auto* s = parent->shape[i].as<IntImmNode>()) {
+        auto product = (stride * s->value).as<int64_t>();
+        if (!product.has_value()) {
+          all_const = false;
+          break;
+        }
+        stride = *product;
+      } else {
+        all_const = false;
+        break;
+      }
+    }
+    if (all_const) {
+      bool is_partition = true;
+      for (size_t i = 0; i < ndim; ++i) {
+        auto* grid_dim = child->shape[i].as<IntImmNode>();
+        auto* tile_dim = child->shape[ndim + i].as<IntImmNode>();
+        auto* parent_dim = parent->shape[i].as<IntImmNode>();
+        auto* grid_stride = child->strides[i].as<IntImmNode>();
+        auto* tile_stride = child->strides[ndim + i].as<IntImmNode>();
+        if (!grid_dim || !tile_dim || !parent_dim || !grid_stride || !tile_stride) {
+          is_partition = false;
+          break;
+        }
+        // grid × tile == parent dim
+        if (grid_dim->value * tile_dim->value != parent_dim->value) {
+          is_partition = false;
+          break;
+        }
+        // inner strides match parent's row-major strides
+        if (tile_stride->value != parent_rm_strides[i]) {
+          is_partition = false;
+          break;
+        }
+        // grid stride == tile_dim × inner stride
+        if (grid_stride->value != tile_dim->value * tile_stride->value) {
+          is_partition = false;
+          break;
+        }
+      }
+      if (is_partition) {
+        ffi::Array<ExprDoc> tuple_elems;
+        for (size_t i = 0; i < ndim; ++i) {
+          tuple_elems.push_back(d->AsDoc<ExprDoc>(child->shape[i], p->Attr("shape")->ArrayItem(i)));
+        }
+        return pdoc->Attr("partition")->Call({}, {"num_tiles"}, {TupleDoc(tuple_elems)});
+      }
+    }
+  }
+
+  // --- (f) View(*shape, layout=L): different shape/layout, same dtype and elem_offset ---
+  if (same_elem_offset && same_dtype && !same_shape) {
+    // Buffer.view(...) copies the parent's strides onto the child (see
+    // python/tvm/tirx/buffer.py:view). If parent has strides but child
+    // doesn't (or vice versa), the sugar can't faithfully round-trip
+    // through view — fall back to T.decl_buffer where strides is an
+    // explicit kwarg.
+    if (!same_strides) return std::nullopt;
+
+    ffi::Array<ExprDoc> args;
+    ffi::Array<ffi::String> kwargs_keys;
+    ffi::Array<ExprDoc> kwargs_values;
+    for (size_t i = 0; i < child->shape.size(); ++i) {
+      args.push_back(d->AsDoc<ExprDoc>(child->shape[i], p->Attr("shape")->ArrayItem(i)));
+    }
+    // Check if layout differs
+    bool same_layout = false;
+    if (child->layout.has_value() && parent->layout.has_value()) {
+      same_layout = StructuralEqual()(child->layout.value(), parent->layout.value());
+    } else if (!child->layout.has_value() && !parent->layout.has_value()) {
+      same_layout = true;
+    }
+    // First pass prefers a parent whose layout matches structurally, so the
+    // sugar prints as a bare reshape instead of restating the layout.
+    if (require_same_layout && !same_layout) return std::nullopt;
+    // Default layouts are shape-specific objects, but a default-to-default
+    // reshape is still represented by view(*shape) without an explicit layout.
+    if (!same_layout && !(child_is_default && parent_is_default)) {
+      // Buffer.view(..., layout=None) means "inherit the parent layout", so it
+      // cannot reconstruct a layout-less child from a laid-out parent.
+      if (!child->layout.has_value()) return std::nullopt;
+      kwargs_keys.push_back("layout");
+      kwargs_values.push_back(d->AsDoc<ExprDoc>(child->layout.value(), p->Attr("layout")));
+    }
+    return pdoc->Attr("view")->Call(args, kwargs_keys, kwargs_values);
+  }
+
+  return std::nullopt;
+}
+
+/*!
+ * \brief Try to produce a DeclBuffer sugar expression, trying all parent buffer candidates.
+ */
+ffi::Optional<ExprDoc> TryDeclBufferSugar(const tirx::BufferType& child, const AccessPath& p,
+                                          const ffi::Optional<Expr>& data, const IRDocsifier& d) {
+  if (!data.has_value()) return std::nullopt;
+  const auto* call = data.value().as<CallNode>();
+  if (!call || !call->op.same_as(tirx::builtin::buffer_data()) || call->args.size() != 1) {
+    return std::nullopt;
+  }
+  auto parent = call->args[0].as<tirx::BufferVar>();
+  if (!parent.has_value() || !d->GetVarDoc(parent.value()).has_value()) return std::nullopt;
+  if (auto sugar = TryDeclBufferSugarWithParent(child, p, d, parent.value(),
+                                                /*require_same_layout=*/true)) {
+    return sugar;
+  }
+  return TryDeclBufferSugarWithParent(child, p, d, parent.value(),
+                                      /*require_same_layout=*/false);
+}
+
+}  // namespace
+
+ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p,
+                                           const IRDocsifier& d) {
+  bool is_alloc = call->op.same_as(tirx::builtin::alloc_buffer());
+  auto buffer = call->ty.as_or_throw<tirx::BufferType>();
+  auto type_p = p->Attr("ty");
+  ffi::Optional<Expr> data;
+  if (!is_alloc) data = call->args[0];
+  // The surface builders emit DictAttrs for allocations and no attrs for declarations.
+  if (call->attrs.defined() != is_alloc || !call->ty_args.empty()) return std::nullopt;
+  if (call->attrs.defined() && !call->attrs.as<DictAttrsNode>()) return std::nullopt;
+  auto annotations = call->attrs.defined() ? call->attrs.as_or_throw<DictAttrs>() : DictAttrs();
+  // Allocation builders normalize top-level numeric Python attributes into IR literals.
+  for (const auto& [key, value] : annotations->dict) {
+    if (value.type_index() == ffi::TypeIndex::kTVMFFIInt ||
+        value.type_index() == ffi::TypeIndex::kTVMFFIBool ||
+        value.type_index() == ffi::TypeIndex::kTVMFFIFloat) {
+      return std::nullopt;
+    }
+  }
+  int shape_index = is_alloc ? 0 : 1;
+  auto shape = call->args[shape_index].as_or_throw<Tuple>();
+  auto dtype = call->args[shape_index + 1].as_or_throw<DataTypeImm>()->value;
+  auto scope = call->args[shape_index + 2].as_or_throw<StringImm>()->value;
+  // Surface builders infer these fields from operands. Keep a raw Call if that
+  // would alter its explicit result type or discard unsupported attributes.
+  if (!StructuralEqual()(shape->fields, buffer->shape) || dtype != buffer->dtype->dtype ||
+      scope != buffer->storage_scope || (!is_alloc && !annotations->dict.empty())) {
+    return std::nullopt;
+  }
+  if (!buffer->allocated_addr.empty() &&
+      (!tvm::prim::is_zero(buffer->elem_offset) || buffer->offset_factor != 1 ||
+       (!is_alloc && scope != "tmem"))) {
+    return std::nullopt;
+  }
+  if (!is_alloc && scope == "tmem") {
+    const auto* pointer = data.value().as<CallNode>();
+    if (buffer->allocated_addr.size() != 1 || !pointer ||
+        !pointer->op.same_as(tirx::builtin::reinterpret()) || pointer->args.size() != 1 ||
+        !StructuralEqual()(pointer->args[0], buffer->allocated_addr[0])) {
+      return std::nullopt;
+    }
+  }
+  if (!is_alloc && d->cfg->syntax_sugar && annotations->dict.empty()) {
+    if (auto sugar = TryDeclBufferSugar(buffer, type_p, data, d)) {
+      sugar.value()->source_paths.push_back(p->Attr("args")->ArrayItem(0));
+      return sugar.value();
+    }
+  }
+  auto attrs = BufferAttrs(buffer, type_p, d->frames.back(), d, BufferVarDefinition::None);
+  attrs.Set("shape",
+            d->AsDoc<ExprDoc>(call->args[shape_index], p->Attr("args")->ArrayItem(shape_index)));
+  attrs.Set("dtype", LiteralDoc::DataType(
+                         dtype, p->Attr("args")->ArrayItem(shape_index + 1)->Attr("value")));
+  attrs.Set("scope", d->AsDoc<ExprDoc>(call->args[shape_index + 2],
+                                       p->Attr("args")->ArrayItem(shape_index + 2)));
+  if (data.has_value() && scope != "tmem") {
+    attrs.Set("data", d->AsDoc<ExprDoc>(data.value(), p->Attr("args")->ArrayItem(0)));
+  }
+  ExprDoc prefix = TIR(d, is_alloc ? "alloc_buffer" : "decl_buffer");
+  if (buffer->IsScalar(is_alloc)) {
+    auto dtype = attrs.at("dtype");
+    auto scope = attrs.at("scope");
+    auto elem_offset = d->AsDoc<ExprDoc>(buffer->elem_offset, type_p->Attr("elem_offset"));
+    attrs = {{"dtype", dtype}, {"scope", scope}};
+    if (is_alloc) {
+      prefix = TIR(d, "alloc_scalar");
+      if (buffer->storage_scope == "local" || buffer->storage_scope == "shared") {
+        prefix = TIR(d, buffer->storage_scope == "local" ? "local_scalar" : "shared_scalar");
+        attrs.erase("scope");
+      }
+    } else {
+      prefix = TIR(d, "decl_scalar");
+      attrs.Set("elem_offset", elem_offset);
+      attrs.Set("data", d->AsDoc<ExprDoc>(data.value(), p->Attr("args")->ArrayItem(0)));
+    }
+  } else if (is_alloc && (buffer->storage_scope == "local" || buffer->storage_scope == "shared")) {
+    prefix = TIR(d, buffer->storage_scope == "local" ? "alloc_local" : "alloc_shared");
+    attrs.erase("scope");
+  }
+  if (!buffer->IsScalar(is_alloc)) {
+    if (dtype == d->cfg->buffer_dtype) attrs.erase("dtype");
+    if (scope == "global") attrs.erase("scope");
+  }
+  ExprDoc result = BufferCall(prefix, attrs, {});
+  if (!annotations->dict.empty()) {
+    auto call_doc = result.as_or_throw<CallDoc>();
+    auto keys = call_doc->kwargs_keys;
+    auto values = call_doc->kwargs_values;
+    keys.push_back("annotations");
+    values.push_back(CallAttrsDoc(annotations->dict, p->Attr("attrs")->Attr("dict"), d));
+    result = CallDoc(call_doc->callee, call_doc->args, keys, values);
+  }
+  return result;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::BufferType>(
+      "tirx", [](tirx::BufferType buffer, AccessPath p, IRDocsifier d) -> Doc {
+        // Construct the type directly so symbolic fields refer to the current definitions.
+        return IdDoc("tvm")
+            ->Attr("ir")
+            ->Attr("make_node")
+            ->Call({LiteralDoc::Str("tirx.BufferType", p)},
+                   {"dtype", "storage_scope", "shape", "strides", "elem_offset", "data_alignment",
+                    "offset_factor", "layout", "allocated_addr"},
+                   {IdDoc("tvm")
+                        ->Attr("ir")
+                        ->Attr("PrimType")
+                        ->Call({LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype"))}),
+                    d->AsDoc<ExprDoc>(buffer->storage_scope, p->Attr("storage_scope")),
+                    d->AsDoc<ExprDoc>(buffer->shape, p->Attr("shape")),
+                    d->AsDoc<ExprDoc>(buffer->strides, p->Attr("strides")),
+                    d->AsDoc<ExprDoc>(buffer->elem_offset, p->Attr("elem_offset")),
+                    LiteralDoc::Int(buffer->data_alignment, p->Attr("data_alignment")),
+                    LiteralDoc::Int(buffer->offset_factor, p->Attr("offset_factor")),
+                    d->AsDoc<ExprDoc>(buffer->layout, p->Attr("layout")),
+                    d->AsDoc<ExprDoc>(buffer->allocated_addr, p->Attr("allocated_addr"))});
+      });
 }
 
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d) {
   ffi::Map<ffi::String, ExprDoc> attrs =
-      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer);
+      BufferAttrs(buffer.var()->ty.as_or_throw<tirx::BufferType>(), p, frame, d,
+                  BufferVarDefinition::MatchBuffer, std::nullopt, buffer);
   if (!attrs.count("dtype")) {
     attrs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
   }
@@ -551,7 +1008,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<s_tir::MatchBufferRegion>(
       "", [](s_tir::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
         Frame frame = d->frames.back();
-        ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
+        ExprDoc lhs = DefineVar(stmt->buffer.var(), frame, d);
         ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
         ExprDoc rhs = BufferDecl(stmt->buffer, "match_buffer", {src_buffer}, p->Attr("buffer"),
                                  d->frames.back(), d, BufferVarDefinition::MatchBuffer);

@@ -129,6 +129,9 @@ UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::LetNode* op,
 }
 
 UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  if (!op->value.as<PrimExpr>()) {
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
   auto value_result = this->Mutate(op->value, inplace_mode);
   bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
   Expr value = std::move(value_result).ValueOrUnchanged(op->value);
@@ -480,6 +483,9 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const ForNode* op, InplaceMode 
 }
 
 UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
+  if (!op->value.as<PrimExpr>()) {
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
   auto mapped = VarRemapGet(op->var);
   if (mapped == nullptr || mapped.type_index() == ffi::TypeIndex::kTVMFFIUnchanged) {
     return DataTypeLegalizer::Mutate_(op, inplace_mode);

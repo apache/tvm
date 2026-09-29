@@ -58,11 +58,6 @@ class PrimFunc(BaseFunc, Scriptable):
     """
 
     def __init__(self, params, body, ret_type=None, attrs=None, span=None):
-        # Legacy compatibility: expand body-carrying leaf stmt wrappers
-        # (e.g. DeclBuffer/AllocBuffer forms) into SeqStmt form.
-        from .stmt import _normalize_legacy_stmt
-
-        body = _normalize_legacy_stmt(body)
         if ret_type is None:
             ret_type = tvm.ir.Type.missing()
         param_list = []

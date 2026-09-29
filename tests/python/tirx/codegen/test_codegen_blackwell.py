@@ -27,6 +27,15 @@ from tvm.script.tirx import tile as Tx
 from tvm.testing import env
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def _get_source(func: tvm.tirx.PrimFunc) -> str:
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
@@ -45,8 +54,8 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
         if isinstance(node, tvm.tirx.Bind) and node.var.name == "remote_mbar_ptr":
             bindings.append(node)
         if (
-            isinstance(node, tvm.tirx.DeclBuffer)
-            and getattr(node.data, "name", None) == "remote_mbar_ptr"
+            _is_buffer_binding(node, "tirx.decl_buffer")
+            and getattr(node.value.args[0], "name", None) == "remote_mbar_ptr"
         ):
             buffers.append(node)
         if isinstance(node, tvm.ir.Call) and node.op.name == "tirx.ptx.mapa":
@@ -62,9 +71,9 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
     assert isinstance(bindings[0].var.ty, tvm.ir.PointerType)
     assert bindings[0].var.ty.storage_scope == "shared"
     assert bindings[0].value.ty.storage_scope == "shared"
-    assert buffers[0].data.same_as(bindings[0].var)
-    assert buffers[0].data.ty.storage_scope == "shared"
-    assert buffers[0].buffer.scope() == "shared"
+    assert buffers[0].value.args[0].same_as(bindings[0].var)
+    assert buffers[0].value.args[0].ty.storage_scope == "shared"
+    assert buffers[0].var.scope() == "shared"
     # ptx operand order is the PTX operand order: mapa writes its result into
     # a destination the caller declared, so args are (d, a, b) and the arrive
     # reads the mapped address back out of that destination rather than

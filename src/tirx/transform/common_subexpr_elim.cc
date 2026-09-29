@@ -72,6 +72,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
@@ -612,13 +613,6 @@ class CSEPlanner : public StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
     current_scope_ = saved;
     return std::nullopt;
-  }
-
-  /*! \brief DeclBuffer is flat (no body). Visit buffer shape expressions. */
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
-        WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->buffer); }));
-    return VisitBufferMetadata(op->buffer);
   }
 
   // ------------------------------------------------------------------

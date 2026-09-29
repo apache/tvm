@@ -25,6 +25,15 @@ from tvm.ir.prim import expr_deep_equal
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def test_expr_constructor():
     x = tvm.tirx.Var(name="xx", ty="float32")
     assert isinstance(x, tvm.tirx.Var)
@@ -314,9 +323,21 @@ def test_stmt_constructor():
     assert x.value.value == 1
 
     buf = tvm.tirx.decl_buffer([10], "float32")
-    x = tvm.tirx.AllocBuffer(buf)
-    assert isinstance(x, tvm.tirx.AllocBuffer)
-    assert x.buffer == buf
+    x = tvm.tirx.Bind(
+        buf,
+        tvm.ir.Call(
+            "tirx.alloc_buffer",
+            [
+                tvm.ir.Tuple(buf.shape),
+                tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
+                tvm.ir.StringImm(buf.scope()),
+            ],
+            attrs=tvm.ir.DictAttrs({}),
+            ret_ty=buf.ty,
+        ),
+    )
+    assert _is_buffer_binding(x, "tirx.alloc_buffer")
+    assert x.var == buf
 
     x = tvm.tirx.AttrStmt(buffer_var, "xyz", 1, nop)
     assert isinstance(x, tvm.tirx.AttrStmt)

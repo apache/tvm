@@ -28,6 +28,15 @@ from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def test_ir_builder_tir_primfunc_base():
     with IRBuilder() as ib:
         with build_prim_func():
@@ -253,7 +262,7 @@ def test_ir_builder_tir_allocate():
     # AllocBuffer is flat: body should be a SeqStmt with [AllocBuffer, Evaluate(1)]
     assert isinstance(body, tirx.SeqStmt), f"Expected SeqStmt but got {type(body)}"
     assert len(body) == 2
-    assert isinstance(body[0], tirx.AllocBuffer)
+    assert _is_buffer_binding(body[0], "tirx.alloc_buffer")
     assert isinstance(body[1], tirx.Evaluate)
     assert body[1].value.value == 1
 
@@ -272,7 +281,7 @@ def test_ir_builder_tir_decl_buffer():
     # decl_buffer without data emits AllocBuffer (flat): body should be SeqStmt
     assert isinstance(body, tirx.SeqStmt), f"Expected SeqStmt but got {type(body)}"
     assert len(body) == 2
-    assert isinstance(body[0], tirx.AllocBuffer)
+    assert _is_buffer_binding(body[0], "tirx.alloc_buffer")
     assert isinstance(body[1], tirx.Evaluate)
     assert body[1].value.value == 1
 

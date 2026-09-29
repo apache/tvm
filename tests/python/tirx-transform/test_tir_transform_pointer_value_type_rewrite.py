@@ -24,6 +24,15 @@ from tvm.script import ir as I
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def test_rewrite_to_shuffle_0():
     transform = tvm.tirx.transform.PointerValueTypeRewrite()
 
@@ -167,14 +176,14 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
         func.body,
         lambda node: (
             decl_buffers.append(node)
-            if isinstance(node, tvm.tirx.DeclBuffer)
+            if _is_buffer_binding(node, "tirx.decl_buffer")
             else buffer_stores.append(node)
             if isinstance(node, tvm.tirx.BufferStore)
             else None
         ),
     )
     assert len(decl_buffers) == 2
-    assert all(decl.buffer.ty.dtype == tvm.ir.PrimType("float32x4") for decl in decl_buffers)
+    assert all(decl.var.ty.dtype == tvm.ir.PrimType("float32x4") for decl in decl_buffers)
     assert len(buffer_stores) == 1
     assert buffer_stores[0].buffer.ty.dtype == tvm.ir.PrimType("float32x4")
 

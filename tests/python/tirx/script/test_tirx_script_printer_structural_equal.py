@@ -142,14 +142,14 @@ def test_allocate():
         func2,
         AccessPath.root()
         .attr("body")
-        .attr("buffer")
+        .attr("var")
         .attr("ty")
         .attr("shape")
         .array_item(0)
         .attr("value"),
         AccessPath.root()
         .attr("body")
-        .attr("buffer")
+        .attr("var")
         .attr("ty")
         .attr("shape")
         .array_item(0)

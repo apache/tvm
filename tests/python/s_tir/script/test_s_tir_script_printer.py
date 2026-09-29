@@ -86,7 +86,24 @@ def test_prim_func_symbolic_alloc_buffer_roundtrip():
     buf = tirx.decl_buffer(shape=[size], dtype="float32", name="buf", layout=None)
     func = tirx.PrimFunc(
         params=[],
-        body=tirx.SeqStmt([tirx.AllocBuffer(buf), tirx.Evaluate(tirx.BufferLoad(buf, [0]))]),
+        body=tirx.SeqStmt(
+            [
+                tvm.tirx.Bind(
+                    buf,
+                    tvm.ir.Call(
+                        "tirx.alloc_buffer",
+                        [
+                            tvm.ir.Tuple(buf.shape),
+                            tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
+                            tvm.ir.StringImm(buf.scope()),
+                        ],
+                        attrs=tvm.ir.DictAttrs({}),
+                        ret_ty=buf.ty,
+                    ),
+                ),
+                tirx.Evaluate(tirx.BufferLoad(buf, [0])),
+            ]
+        ),
     ).with_attr("s_tir", True)
 
     source = func.script()
