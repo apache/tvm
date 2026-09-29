@@ -74,7 +74,7 @@ def test_cuda_host_bundle(tmp_path):
     target = tvm.target.Target("cuda", host="cuda_host")
     built = tvm.compile(add_one, target=target).mod
     source = export_cuda_host(built)
-    assert source.index("__global__") < source.index("<<<")
+    assert source.index("__global__") < source.index("cudaLaunchKernelEx")
     library = tvm_ffi.cpp.build_inline(
         name="cuda_host_add_one",
         cuda_sources=source,
@@ -93,6 +93,142 @@ def test_cuda_host_bundle(tmp_path):
         tvm.testing.assert_allclose(b.numpy(), values + 1)
 
     tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cuda_host_bundle_bf16_cluster(tmp_path):
+    """bfloat16 pointers and cluster launch attributes in a CUDA-host bundle."""
+    from shutil import which
+
+    import tvm_ffi.cpp
+
+    from tvm.backend.cuda import export_cuda_host
+
+    ml_dtypes = pytest.importorskip("ml_dtypes")
+    if which("nvcc") is None:
+        pytest.skip("CUDA-host compilation requires NVCC")
+    if int(tvm.cuda(0).compute_version.split(".")[0]) < 9:
+        pytest.skip("thread block clusters require SM90 or newer")
+
+    @T.prim_func
+    def main(A_ptr: T.handle, B_ptr: T.handle, R_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (128,), "bfloat16")
+        B = T.match_buffer(B_ptr, (128,), "bfloat16")
+        R = T.match_buffer(R_ptr, (4,), "int32")
+        T.device_entry()
+        for cx in T.thread_binding(2, thread="clusterCtaIdx.x"):
+            for bx in T.thread_binding(4, thread="blockIdx.x"):
+                for tx in T.thread_binding(32, thread="threadIdx.x"):
+                    B[bx * 32 + tx] = A[bx * 32 + tx] + T.bfloat16(1)
+                    if tx == 0:
+                        R[bx] = cx
+
+    arch = env.cuda_arch()
+    target = tvm.target.Target({"kind": "cuda", "arch": arch}, host="cuda_host")
+    with target:
+        built = tvm.compile(tvm.IRModule({"main": main}), target=target, tir_pipeline="tirx").mod
+    source = export_cuda_host(built)
+    assert "cudaLaunchAttributeClusterDimension" in source
+    library = tvm_ffi.cpp.build_inline(
+        name="cuda_host_bf16_cluster",
+        cuda_sources=source,
+        extra_cuda_cflags=[f"-arch={arch}"],
+        build_directory=str(tmp_path),
+        backend="cuda",
+    )
+    loaded = tvm_ffi.load_module(library)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        values = np.arange(128).astype(ml_dtypes.bfloat16)
+        a = tvm.runtime.tensor(values, dev)
+        b = tvm.runtime.empty((128,), "bfloat16", dev)
+        r = tvm.runtime.empty((4,), "int32", dev)
+        loaded["main"](a, b, r)
+        tvm.testing.assert_allclose(b.numpy().astype("float32"), np.arange(128) + 1)
+        # Each CTA reports its rank within a two-CTA cluster.
+        np.testing.assert_array_equal(r.numpy(), [0, 1, 0, 1])
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cuda_host_bundle_programmatic_dependent_launch(tmp_path):
+    """A programmatic-dependent-launch flag becomes a launch attribute."""
+    from shutil import which
+
+    import tvm_ffi.cpp
+
+    from tvm.backend.cuda import export_cuda_host
+
+    if which("nvcc") is None:
+        pytest.skip("CUDA-host compilation requires NVCC")
+    if int(tvm.cuda(0).compute_version.split(".")[0]) < 9:
+        pytest.skip("programmatic dependent launch requires SM90 or newer")
+
+    @T.prim_func(s_tir=True)
+    def add_one(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")):
+        T.func_attr({"tirx.kernel_launch_params": ["tirx.use_programtic_dependent_launch"]})
+        for tx in T.thread_binding(32, "threadIdx.x"):
+            B[tx] = A[tx] + T.float32(1)
+
+    target = tvm.target.Target("cuda", host="cuda_host")
+    source = export_cuda_host(tvm.compile(add_one, target=target).mod)
+    assert "cudaLaunchAttributeProgrammaticStreamSerialization" in source
+    library = tvm_ffi.cpp.build_inline(
+        name="cuda_host_programmatic_dependent_launch",
+        cuda_sources=source,
+        extra_cuda_cflags=[f"-arch={target.arch}"],
+        build_directory=str(tmp_path),
+        backend="cuda",
+    )
+    loaded = tvm_ffi.load_module(library)
+
+    def run_and_check():
+        dev = tvm.cuda(0)
+        values = np.arange(32, dtype="float32")
+        a = tvm.runtime.tensor(values, dev)
+        b = tvm.runtime.empty((32,), "float32", dev)
+        loaded["add_one"](a, b)
+        tvm.testing.assert_allclose(b.numpy(), values + 1)
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
+def test_cuda_host_bundle_tensor_map_parameter(tmp_path, monkeypatch):
+    """A tensor-map parameter handle compiles in the C++ host wrapper."""
+    from shutil import which
+
+    import tvm_ffi.cpp
+
+    from tvm.backend.cuda import export_cuda_host
+
+    if which("nvcc") is None:
+        pytest.skip("CUDA-host compilation requires NVCC")
+
+    @T.prim_func
+    def main(A_map: T.TensorMap()):
+        T.device_entry()
+        tx = T.thread_id([32])
+        if tx == 0:
+            T.evaluate(T.address_of(A_map))
+
+    target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"}, host="cuda_host")
+    with target:
+        built = tvm.compile(tvm.IRModule({"main": main}), target=target, tir_pipeline="tirx").mod
+    source = export_cuda_host(built)
+    assert "(CUtensorMap*)" in source
+    monkeypatch.setenv("TVM_FFI_CUDA_ARCH_LIST", "9.0a")
+    tvm_ffi.cpp.build_inline(
+        name="cuda_host_tensor_map_parameter",
+        cuda_sources=source,
+        build_directory=str(tmp_path),
+        backend="cuda",
+    )
 
 
 @pytest.mark.gpu

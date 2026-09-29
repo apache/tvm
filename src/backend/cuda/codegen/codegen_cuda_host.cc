@@ -62,6 +62,16 @@ class CodeGenCUDAHost : public CodeGenCHost {
                 << "  TVMFFIErrorSetRaisedFromCStrParts(\"CUDAError\", parts, 2);\n"
                 << "  cudaGetLastError();\n"
                 << "  return -1;\n}\n";
+    // Host C types spell some device types differently (bfloat16 is uint16_t on
+    // the host), so convert each argument to the kernel's own parameter type.
+    launch_ = name_supply_->FreshName("tvm_cuda_host_launch");
+    decl_stream << "template <typename... Params, typename... Args>\n"
+                << "static cudaError_t " << launch_
+                << "(void (*kernel)(Params...), const cudaLaunchConfig_t* config, "
+                << "Args... args) {\n"
+                << "  static_assert(sizeof...(Params) == sizeof...(Args), "
+                << "\"kernel argument count mismatch\");\n"
+                << "  return cudaLaunchKernelEx(config, kernel, ((Params)args)...);\n}\n";
   }
 
   using CodeGenCHost::PrintType;
@@ -101,6 +111,20 @@ class CodeGenCUDAHost : public CodeGenCHost {
   }
 
   ffi::Array<ffi::String> GetFunctionNames() { return function_names_; }
+
+  void Dispatch_(const BindNode* op) override {
+    // C accepts the implicit void* conversion emitted for descriptor handles;
+    // the CUDA translation unit is C++, which requires an explicit cast.
+    auto* ptr = op->var->ty.as<PointerTypeNode>();
+    if (print_ssa_form_ || !ptr || !ptr->element_type.as<tirx::TensorMapTypeNode>()) {
+      CodeGenC::Dispatch_(op);
+      return;
+    }
+    std::string value = PrintExpr(op->value);
+    PrintIndent();
+    stream << "CUtensorMap* " << AllocVarID(op->var.get()) << " = (CUtensorMap*)(" << value
+           << ");\n";
+  }
 
   void Dispatch_(const CallNode* op, std::ostream& os) override {
     if (op->op.same_as(tirx::builtin::tvm_stack_alloca()) &&
@@ -168,10 +192,13 @@ class CodeGenCUDAHost : public CodeGenCHost {
         << "cuda_host kernel calls require a string kernel symbol";
     const auto& symbol = op->args[0].as<StringImmNode>()->value;
 
-    std::array<int, 6> axes;
+    // Match LaunchParamConfig's layout: grid, block, cluster and preferred cluster.
+    std::array<int, 12> axes;
     axes.fill(-1);
     int shared_memory = -1;
     size_t num_launch_values = 0;
+    bool use_programmatic_dependent_launch = false;
+    bool use_cooperative_launch = false;
     std::unordered_set<std::string> seen;
     for (size_t i = 0; i < attr->launch_params.size(); ++i) {
       std::string tag = attr->launch_params[i];
@@ -179,19 +206,24 @@ class CodeGenCUDAHost : public CodeGenCHost {
           << "cuda_host duplicate launch parameter: " << tag;
       // These are flags, not values in the argument suffix.  Reject unsupported
       // launch semantics before decoding any operands, rather than dropping them.
-      if (tag == runtime::launch_param::kUseProgramaticDependentLaunch ||
-          tag == runtime::launch_param::kUseCooperativeLaunch ||
-          tag == runtime::launch_param::kUseRequiredBlockDimension) {
+      if (tag == runtime::launch_param::kUseProgramaticDependentLaunch) {
+        use_programmatic_dependent_launch = true;
+      } else if (tag == runtime::launch_param::kUseCooperativeLaunch) {
+        use_cooperative_launch = true;
+      } else if (tag == runtime::launch_param::kUseRequiredBlockDimension) {
         TVM_FFI_THROW(ValueError) << "cuda_host does not support launch flag: " << tag;
       } else if (tag == runtime::launch_param::kUseDynamicSharedMemoryTag) {
         TVM_FFI_CHECK_EQ(i + 1, attr->launch_params.size(), ValueError)
             << "cuda_host dynamic shared memory must be the last launch parameter";
         shared_memory = static_cast<int>(num_launch_values++);
       } else {
+        static const char* kScopes[] = {"blockIdx.", "threadIdx.", "clusterCtaIdx.",
+                                        "preferredClusterCtaIdx."};
         int axis = -1;
-        for (int j = 0; j < 3; ++j) {
-          if (tag == std::string("blockIdx.") + "xyz"[j]) axis = j;
-          if (tag == std::string("threadIdx.") + "xyz"[j]) axis = j + 3;
+        for (int rank = 0; rank < 4; ++rank) {
+          for (int j = 0; j < 3; ++j) {
+            if (tag == std::string(kScopes[rank]) + "xyz"[j]) axis = rank * 3 + j;
+          }
         }
         TVM_FFI_CHECK_GE(axis, 0, ValueError)
             << "cuda_host does not support launch parameter: " << tag;
@@ -229,7 +261,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
       arguments.push_back(name);
     }
     auto launch_arg = [&](int index) { return arguments[launch_begin - 1 + index]; };
-    std::array<std::string, 6> dimensions;
+    std::array<std::string, 12> dimensions;
     for (size_t i = 0; i < axes.size(); ++i) {
       if (axes[i] < 0) {
         dimensions[i] = "1";
@@ -262,16 +294,78 @@ class CodeGenCUDAHost : public CodeGenCHost {
       PrintIndent();
       stream << "}\n";
     }
-    PrintIndent();
-    stream << "::" << symbol << "<<<dim3(" << dimensions[0] << ", " << dimensions[1] << ", "
-           << dimensions[2] << "), dim3(" << dimensions[3] << ", " << dimensions[4] << ", "
-           << dimensions[5] << "), " << bytes << ", " << cuda_stream << ">>>(";
-    for (size_t i = 0; i + 1 < launch_begin; ++i) {
-      if (i != 0) stream << ", ";
-      stream << arguments[i];
+    auto has_axis = [&](int rank) {
+      return axes[rank * 3] >= 0 || axes[rank * 3 + 1] >= 0 || axes[rank * 3 + 2] >= 0;
+    };
+    bool use_cluster = has_axis(2);
+    bool use_preferred_cluster = has_axis(3);
+    if (use_cluster) {
+      CheckError("cudaFuncSetAttribute(::" + std::string(symbol) +
+                 ", cudaFuncAttributeNonPortableClusterSizeAllowed, 1)");
     }
-    stream << ");\n";
-    CheckError("cudaGetLastError()", true);
+    std::string config = name_supply_->FreshName("cuda_config");
+    PrintIndent();
+    stream << "cudaLaunchConfig_t " << config << " = {};\n";
+    PrintIndent();
+    stream << config << ".gridDim = dim3(" << dimensions[0] << ", " << dimensions[1] << ", "
+           << dimensions[2] << ");\n";
+    PrintIndent();
+    stream << config << ".blockDim = dim3(" << dimensions[3] << ", " << dimensions[4] << ", "
+           << dimensions[5] << ");\n";
+    PrintIndent();
+    stream << config << ".dynamicSmemBytes = " << bytes << ";\n";
+    PrintIndent();
+    stream << config << ".stream = " << cuda_stream << ";\n";
+    int max_attrs = use_cluster + use_preferred_cluster + use_programmatic_dependent_launch +
+                    use_cooperative_launch;
+    if (max_attrs > 0) {
+      std::string attrs = name_supply_->FreshName("cuda_attrs");
+      PrintIndent();
+      stream << "cudaLaunchAttribute " << attrs << "[" << max_attrs << "] = {};\n";
+      PrintIndent();
+      stream << config << ".attrs = " << attrs << ";\n";
+      auto set_dimension = [&](const std::string& id, const std::string& field, int rank) {
+        PrintIndent();
+        stream << attrs << "[" << config << ".numAttrs].id = " << id << ";\n";
+        for (int j = 0; j < 3; ++j) {
+          PrintIndent();
+          stream << attrs << "[" << config << ".numAttrs].val." << field << "." << "xyz"[j] << " = "
+                 << dimensions[rank * 3 + j] << ";\n";
+        }
+        PrintIndent();
+        stream << "++" << config << ".numAttrs;\n";
+      };
+      if (use_cluster) {
+        set_dimension("cudaLaunchAttributeClusterDimension", "clusterDim", 2);
+      }
+      if (use_preferred_cluster) {
+        // Match the CUDA runtime module: a unit preferred cluster adds no attribute.
+        PrintIndent();
+        stream << "if (" << dimensions[9] << " != 1 || " << dimensions[10] << " != 1 || "
+               << dimensions[11] << " != 1) {\n";
+        int scope = BeginScope();
+        set_dimension("cudaLaunchAttributePreferredClusterDimension", "preferredClusterDim", 3);
+        EndScope(scope);
+        PrintIndent();
+        stream << "}\n";
+      }
+      auto set_flag = [&](const std::string& id, const std::string& field) {
+        PrintIndent();
+        stream << attrs << "[" << config << ".numAttrs].id = " << id << ";\n";
+        PrintIndent();
+        stream << attrs << "[" << config << ".numAttrs++].val." << field << " = 1;\n";
+      };
+      if (use_programmatic_dependent_launch) {
+        set_flag("cudaLaunchAttributeProgrammaticStreamSerialization",
+                 "programmaticStreamSerializationAllowed");
+      }
+      if (use_cooperative_launch) {
+        set_flag("cudaLaunchAttributeCooperative", "cooperative");
+      }
+    }
+    std::string launch = launch_ + "(::" + std::string(symbol) + ", &" + config;
+    for (size_t i = 0; i + 1 < launch_begin; ++i) launch += ", " + arguments[i];
+    CheckError(launch + ")", true);
     os << "0";
   }
 
@@ -375,6 +469,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
   }
 
   std::string check_error_;
+  std::string launch_;
   ffi::Array<ffi::String> function_names_;
 };
 
