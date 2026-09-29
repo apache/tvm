@@ -269,6 +269,18 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
                                 "types, but got "
                              << call->ty;
   };
+  std::function<ExprDoc(const Type&, AccessPath)> type_value_doc;
+  type_value_doc = [&](const Type& type, AccessPath p) -> ExprDoc {
+    if (type.as<tirx::BufferTypeNode>()) return d->AsDoc<ExprDoc>(type, p);
+    if (const auto* tuple = type.as<TupleTypeNode>()) {
+      ffi::Array<ExprDoc> fields;
+      for (size_t i = 0; i < tuple->fields.size(); ++i) {
+        fields.push_back(type_value_doc(tuple->fields[i], p->Attr("fields")->ArrayItem(i)));
+      }
+      return IdDoc("tvm")->Attr("ir")->Attr("TupleType")->Call({ListDoc(fields)});
+    }
+    return d->AddMetadata(type);
+  };
   auto get_call_return_type_doc = [&]() -> ExprDoc {
     if (call->ty.IsMissing()) {
       return IdDoc("tvm")->Attr("ir")->Attr("Type")->Attr("missing")->Call({});
@@ -277,7 +289,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
       return get_call_type_doc(call_p->Attr("ty"));
     }
     // Annotation spellings such as None for an empty tuple are not type values.
-    return d->AddMetadata(call->ty);
+    return type_value_doc(call->ty, call_p->Attr("ty"));
   };
   if (call->attrs.defined() || call->op.same_as(tirx::builtin::alloc_buffer()) ||
       call->op.same_as(tirx::builtin::decl_buffer())) {
@@ -285,7 +297,13 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     int n_args = call->args.size();
     call_args.reserve(n_args);
     for (int i = 0; i < n_args; ++i) {
-      call_args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayItem(i)));
+      AccessPath arg_p = call_p->Attr("args")->ArrayItem(i);
+      if (auto tuple = call->args[i].as<Tuple>()) {
+        call_args.push_back(IdDoc("tvm")->Attr("ir")->Attr("Tuple")->Call(
+            {d->AsDoc<ExprDoc>(tuple.value()->fields, arg_p->Attr("fields"))}));
+      } else {
+        call_args.push_back(d->AsDoc<ExprDoc>(call->args[i], arg_p));
+      }
     }
     if (call->op.same_as(tirx::builtin::tensormap_encode_tiled())) {
       const auto* attrs = call->attrs.as<tirx::TensorMapEncodeTiledAttr>();
@@ -322,9 +340,12 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
                                   ret_ty_doc};
     if (!call->ty_args.empty()) {
       keys.push_back("ty_args");
-      ExprDoc type_args = d->AddMetadata(call->ty_args);
-      type_args->source_paths.push_back(call_p->Attr("ty_args"));
-      values.push_back(type_args);
+      ffi::Array<ExprDoc> type_args;
+      for (size_t i = 0; i < call->ty_args.size(); ++i) {
+        type_args.push_back(
+            type_value_doc(call->ty_args[i], call_p->Attr("ty_args")->ArrayItem(i)));
+      }
+      values.push_back(ListDoc(type_args));
     }
     return TIR(d, "Call")->Call({op_doc, ListDoc(call_args)}, keys, values);
   }

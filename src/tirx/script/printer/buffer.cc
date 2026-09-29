@@ -717,6 +717,31 @@ ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p
   return result;
 }
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  IRDocsifier::vtable().set_dispatch<tirx::BufferType>(
+      "tirx", [](tirx::BufferType buffer, AccessPath p, IRDocsifier d) -> Doc {
+        // Construct the type directly so symbolic fields refer to the current definitions.
+        return IdDoc("tvm")
+            ->Attr("ir")
+            ->Attr("make_node")
+            ->Call({LiteralDoc::Str("tirx.BufferType", p)},
+                   {"dtype", "storage_scope", "shape", "strides", "elem_offset", "data_alignment",
+                    "offset_factor", "layout", "allocated_addr"},
+                   {IdDoc("tvm")
+                        ->Attr("ir")
+                        ->Attr("PrimType")
+                        ->Call({LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype"))}),
+                    d->AsDoc<ExprDoc>(buffer->storage_scope, p->Attr("storage_scope")),
+                    d->AsDoc<ExprDoc>(buffer->shape, p->Attr("shape")),
+                    d->AsDoc<ExprDoc>(buffer->strides, p->Attr("strides")),
+                    d->AsDoc<ExprDoc>(buffer->elem_offset, p->Attr("elem_offset")),
+                    LiteralDoc::Int(buffer->data_alignment, p->Attr("data_alignment")),
+                    LiteralDoc::Int(buffer->offset_factor, p->Attr("offset_factor")),
+                    d->AsDoc<ExprDoc>(buffer->layout, p->Attr("layout")),
+                    d->AsDoc<ExprDoc>(buffer->allocated_addr, p->Attr("allocated_addr"))});
+      });
+}
+
 ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d) {
   ffi::Map<ffi::String, ExprDoc> attrs =
