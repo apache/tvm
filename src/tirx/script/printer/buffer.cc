@@ -646,6 +646,14 @@ ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p
   if (call->attrs.defined() != is_alloc || !call->ty_args.empty()) return std::nullopt;
   if (call->attrs.defined() && !call->attrs.as<DictAttrsNode>()) return std::nullopt;
   auto annotations = call->attrs.defined() ? call->attrs.as_or_throw<DictAttrs>() : DictAttrs();
+  // Allocation builders normalize top-level numeric Python attributes into IR literals.
+  for (const auto& [key, value] : annotations->dict) {
+    if (value.type_index() == ffi::TypeIndex::kTVMFFIInt ||
+        value.type_index() == ffi::TypeIndex::kTVMFFIBool ||
+        value.type_index() == ffi::TypeIndex::kTVMFFIFloat) {
+      return std::nullopt;
+    }
+  }
   int shape_index = is_alloc ? 0 : 1;
   auto shape = call->args[shape_index].as_or_throw<Tuple>();
   auto dtype = call->args[shape_index + 1].as_or_throw<DataTypeImm>()->value;
@@ -654,6 +662,11 @@ ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p
   // would alter its explicit result type or discard unsupported attributes.
   if (!StructuralEqual()(shape->fields, buffer->shape) || dtype != buffer->dtype->dtype ||
       scope != buffer->storage_scope || (!is_alloc && !annotations->dict.empty())) {
+    return std::nullopt;
+  }
+  if (!buffer->allocated_addr.empty() &&
+      (!tvm::prim::is_zero(buffer->elem_offset) || buffer->offset_factor != 1 ||
+       (!is_alloc && scope != "tmem"))) {
     return std::nullopt;
   }
   if (!is_alloc && scope == "tmem") {
@@ -711,7 +724,7 @@ ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p
     auto keys = call_doc->kwargs_keys;
     auto values = call_doc->kwargs_values;
     keys.push_back("annotations");
-    values.push_back(d->AsDoc<ExprDoc>(annotations->dict, p->Attr("attrs")->Attr("dict")));
+    values.push_back(CallAttrsDoc(annotations->dict, p->Attr("attrs")->Attr("dict"), d));
     result = CallDoc(call_doc->callee, call_doc->args, keys, values);
   }
   return result;

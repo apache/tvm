@@ -260,6 +260,7 @@ inline std::string ReprPrintTIR(const ffi::ObjectRef& obj, const PrinterConfig& 
   return Docsify(obj, d, *f, cfg);
 }
 
+ExprDoc CallAttrsDoc(const ffi::Any& value, const AccessPath& p, const IRDocsifier& d);
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d);
 ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p,
                                            const IRDocsifier& d);

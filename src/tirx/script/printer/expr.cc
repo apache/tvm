@@ -238,6 +238,47 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
+ExprDoc CallAttrsDoc(const ffi::Any& value, const AccessPath& p, const IRDocsifier& d) {
+  if (value == nullptr) return LiteralDoc::None(p);
+  if (const auto* imm = value.as<IntImmNode>()) {
+    return TIR(d, DType2Str(imm->ty.as_or_throw<PrimType>()->dtype))
+        ->Call({LiteralDoc::Int(ffi::GetRef<IntImm>(imm), p->Attr("value"))});
+  }
+  if (const auto* imm = value.as<FloatImmNode>()) {
+    return TIR(d, DType2Str(imm->ty.as_or_throw<PrimType>()->dtype))
+        ->Call({LiteralDoc::Float(imm->value, p->Attr("value"))});
+  }
+  if (const auto* imm = value.as<StringImmNode>()) {
+    return IdDoc("tvm")
+        ->Attr("ir")
+        ->Attr("StringImm")
+        ->Call({LiteralDoc::Str(imm->value, p->Attr("value"))});
+  }
+  if (auto tuple = value.as<Tuple>()) {
+    return IdDoc("tvm")->Attr("ir")->Attr("Tuple")->Call(
+        {CallAttrsDoc(tuple.value()->fields, p->Attr("fields"), d)});
+  }
+  if (const auto* attrs = value.as<DictAttrsNode>()) {
+    return CallAttrsDoc(attrs->dict, p->Attr("dict"), d);
+  }
+  if (auto array = value.as<ffi::Array<ffi::Any>>()) {
+    ffi::Array<ExprDoc> items;
+    for (size_t i = 0; i < array.value().size(); ++i) {
+      items.push_back(CallAttrsDoc(array.value()[i], p->ArrayItem(i), d));
+    }
+    return ListDoc(items);
+  }
+  if (auto map = value.as<ffi::Map<ffi::Any, ffi::Any>>()) {
+    ffi::Array<ExprDoc> keys, values;
+    for (const auto& [key, item] : map.value()) {
+      keys.push_back(CallAttrsDoc(key, p->MapItem(key), d));
+      values.push_back(CallAttrsDoc(item, p->MapItem(key), d));
+    }
+    return DictDoc(keys, values);
+  }
+  return d->AsDoc<ExprDoc>(value, p);
+}
+
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
   if (call->op.same_as(tirx::builtin::alloc_buffer()) ||
       call->op.same_as(tirx::builtin::decl_buffer())) {
@@ -336,8 +377,7 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
                          : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
     ExprDoc ret_ty_doc = get_call_return_type_doc();
     ffi::Array<ffi::String> keys = {"attrs", "ret_ty"};
-    ffi::Array<ExprDoc> values = {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")),
-                                  ret_ty_doc};
+    ffi::Array<ExprDoc> values = {CallAttrsDoc(call->attrs, call_p->Attr("attrs"), d), ret_ty_doc};
     if (!call->ty_args.empty()) {
       keys.push_back("ty_args");
       ffi::Array<ExprDoc> type_args;
