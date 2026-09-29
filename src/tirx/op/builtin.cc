@@ -701,7 +701,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.decl_buffer")
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBuffer<1>>())
-      .set_validator(ffi::reflection::NativeFunctionView<ffi::Expected<void>(
+      .set_validator(ffi::reflection::NativeFunctionView<void(
                          const CallNode*)>::FromNative<&ValidateDeclBuffer>())
       .add_arg("data", "The existing data pointer.")
       .add_arg("shape", "The tuple of buffer extents.")
