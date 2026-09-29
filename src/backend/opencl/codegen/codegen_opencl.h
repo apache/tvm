@@ -64,11 +64,12 @@ class CodeGenOpenCL final : public CodeGenC {
   void SetTextureScope(const std::unordered_map<const VarNode*, std::string>&);  // NOLINT(*)
 
   // overload visitor
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) final;  // NOLINT(*)
-  void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;            // NOLINT(*)
-  void Dispatch_(const prim::RampNode* op, std::ostream& os) final;                 // NOLINT(*)
-  void Dispatch_(const CallNode* op, std::ostream& os) final;                       // NOLINT(*)
-  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;                   // NOLINT(*)
+  void Dispatch_(const BindNode* op) final;
+  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const prim::RampNode* op, std::ostream& os) final;       // NOLINT(*)
+  void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
+  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
 
   // overload min and max to avoid ambiguous call errors
   void Dispatch_(const prim::MinNode* op, std::ostream& os) final;

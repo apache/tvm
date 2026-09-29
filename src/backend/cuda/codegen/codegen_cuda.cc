@@ -1624,39 +1624,46 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
   CodeGenC::Dispatch_(op);
 }
 
+void CodeGenCUDA::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+  }
+  CodeGenC::Dispatch_(op);
+}
+
 void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
-  auto shape = buffer_call->args[0].as_or_throw<tvm::Tuple>()->fields.Map(
-      [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  PrimType dtype(buffer_call->args[1].as_or_throw<DataTypeImm>()->value);
-  std::string scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer(op->var);
-  auto annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
 
   this->PrintIndent();
-  if (scope.find("wmma.") == 0) {
+  if (std::string(scope).find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-      bool supported_wmma_input_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Int(8) ||
-                                        dtype == PrimType::UInt(8) || dtype == PrimType::Int(4) ||
-                                        dtype == PrimType::UInt(4) || dtype == PrimType::Int(1) ||
-                                        dtype == PrimType::BFloat(16);
+      bool supported_wmma_input_dtype =
+          PrimType(dtype) == PrimType::Float(16) || PrimType(dtype) == PrimType::Int(8) ||
+          PrimType(dtype) == PrimType::UInt(8) || PrimType(dtype) == PrimType::Int(4) ||
+          PrimType(dtype) == PrimType::UInt(4) || PrimType(dtype) == PrimType::Int(1) ||
+          PrimType(dtype) == PrimType::BFloat(16);
       TVM_FFI_ICHECK(supported_wmma_input_dtype)
           << "Matrix_a and matrix_b only support half or char or unsigned char "
           << "or uint4 or int4 or int1 type for now";
     } else {
-      bool supported_wmma_accumulator_dtype = dtype == PrimType::Float(16) ||
-                                              dtype == PrimType::Float(32) ||
-                                              dtype == PrimType::Int(32);
+      bool supported_wmma_accumulator_dtype = PrimType(dtype) == PrimType::Float(16) ||
+                                              PrimType(dtype) == PrimType::Float(32) ||
+                                              PrimType(dtype) == PrimType::Int(32);
       TVM_FFI_ICHECK(supported_wmma_accumulator_dtype)
           << "Accumulator only support half, float and int type for now";
     }
-    PrintWmmaScope(scope, dtype, buffer.get(), stream);
+    PrintWmmaScope(scope, PrimType(dtype), buffer.get(), stream);
   } else {
     PrintStorageScope(scope, stream);
     int align = buffer->data_alignment;
-    auto it = annotations.find(tirx::attr::buffer_data_alignment);
-    if (it != annotations.end()) {
+    auto it = annotations->dict.find(tirx::attr::buffer_data_alignment);
+    if (it != annotations->dict.end()) {
       if (const auto* n = (*it).second.as<IntImmNode>()) {
         align = n->value.as<int>().value();
       }
@@ -1666,7 +1673,7 @@ void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer
     } else if (align > 0) {
       stream << "alignas(" << align << ") ";
     }
-    PrintType(dtype, stream);
+    PrintType(PrimType(dtype), stream);
   }
 
   if (scope == "shared.dyn") {
@@ -1674,26 +1681,27 @@ void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer
   } else {
     // Compute constant_size from buffer shape
     size_t constant_size = 1;
-    for (const auto& dim : shape) {
+    for (const auto& dim : shape->fields) {
       const IntImmNode* dim_imm = dim.as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
       constant_size *= dim_imm->value.as<size_t>().value();
     }
     TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-    if (scope.find("wmma.") == 0) {
+    if (std::string(scope).find("wmma.") == 0) {
       constant_size = GetWmmaFragmentSize(scope, buffer.get(), constant_size);
     }
-    bool is_packed_integer_dtype =
-        dtype == PrimType::Int(4) || dtype == PrimType::UInt(4) || dtype == PrimType::Int(1);
+    bool is_packed_integer_dtype = PrimType(dtype) == PrimType::Int(4) ||
+                                   PrimType(dtype) == PrimType::UInt(4) ||
+                                   PrimType(dtype) == PrimType::Int(1);
     if (is_packed_integer_dtype && scope == "shared") {
-      constant_size = constant_size / (32 / dtype.bits());
+      constant_size = constant_size / (32 / dtype.bits);
     }
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(buffer.get(), dtype);
-  if (annotations.count(tirx::attr::kVolatile)) {
+  RegisterHandleType(buffer.get(), PrimType(dtype));
+  if (annotations->dict.count(tirx::attr::kVolatile)) {
     MarkVolatile(buffer.get());
   }
 }

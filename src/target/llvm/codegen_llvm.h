@@ -244,13 +244,13 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   void Dispatch_(const BreakNode* op) override;
   void Dispatch_(const ContinueNode* op) override;
   void Dispatch_(const IfThenElseNode* op) override;
-  virtual void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
+  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const BindNode* op) override;
   void Dispatch_(const SeqStmtNode* op) override;
   void Dispatch_(const EvaluateNode* op) override;
-  virtual void DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call);
+  void DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call);
 
   // Get constant string
   llvm::Constant* GetConstString(const std::string& str);

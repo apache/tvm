@@ -925,10 +925,10 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimEx
 }
 
 void CodeGenC::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
-  PrimType dtype(buffer_call->args[2].as_or_throw<DataTypeImm>()->value);
-  ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
-  BufferVar buffer(op->var);
   Expr data = buffer_call->args[0];
+  DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
@@ -946,7 +946,7 @@ void CodeGenC::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_cal
       MarkVolatile(buffer.get());
     }
     auto it = handle_data_type_.find(source);
-    RegisterHandleType(buffer.get(), it == handle_data_type_.end() ? dtype : it->second);
+    RegisterHandleType(buffer.get(), it == handle_data_type_.end() ? PrimType(dtype) : it->second);
     return;
   }
 
@@ -955,11 +955,12 @@ void CodeGenC::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_cal
   if (IsScopePartOfType()) {
     PrintStorageScope(scope, stream);
   }
-  PrintType(PointerType(dtype, scope), stream);
+  PrintType(PointerType(PrimType(dtype), scope), stream);
   stream << ' ' << AllocVarID(buffer.get()) << " = ";
-  PrintExpr(Call(PointerType(dtype, scope), tirx::builtin::reinterpret(), {data}), stream);
+  PrintExpr(Call(PointerType(PrimType(dtype), scope), tirx::builtin::reinterpret(), {data}),
+            stream);
   stream << ";\n";
-  RegisterHandleType(buffer.get(), dtype);
+  RegisterHandleType(buffer.get(), PrimType(dtype));
 }
 
 void CodeGenC::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLINT(*)
@@ -1254,18 +1255,17 @@ void CodeGenC::Dispatch_(const BindNode* op) {
 }
 
 void CodeGenC::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
-  auto shape = buffer_call->args[0].as_or_throw<tvm::Tuple>()->fields.Map(
-      [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  PrimType dtype(buffer_call->args[1].as_or_throw<DataTypeImm>()->value);
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer(op->var);
-  auto annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
 
   this->PrintIndent();
   size_t constant_size = 1;
-  for (const auto& dim : shape) {
+  for (const auto& dim : shape->fields) {
     const IntImmNode* dim_imm = dim.as<IntImmNode>();
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
     constant_size *= dim_imm->value.as<size_t>().value();
@@ -1275,11 +1275,11 @@ void CodeGenC::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_ca
   alloc_storage_scope_[buffer.get()] = scope;
   PrintStorageScope(scope, stream);
 
-  PrintType(dtype, stream);
+  PrintType(PrimType(dtype), stream);
   stream << ' ' << vid << '[' << constant_size << "];\n";
 
-  RegisterHandleType(buffer.get(), dtype);
-  if (annotations.count(tirx::attr::kVolatile)) {
+  RegisterHandleType(buffer.get(), PrimType(dtype));
+  if (annotations->dict.count(tirx::attr::kVolatile)) {
     MarkVolatile(buffer.get());
   }
 }

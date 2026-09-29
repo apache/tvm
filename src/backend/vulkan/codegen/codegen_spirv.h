@@ -118,8 +118,8 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   void Dispatch_(const ForNode* op) override;
   void Dispatch_(const WhileNode* op) override;
   void Dispatch_(const IfThenElseNode* op) override;
-  virtual void DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call);
-  virtual void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
+  void DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call);
+  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const BindNode* op) override;

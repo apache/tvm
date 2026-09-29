@@ -876,20 +876,20 @@ void CodeGenSPIRV::Dispatch_(const IfThenElseNode* op) {
 }
 
 void CodeGenSPIRV::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
-  Array<Expr> shape = buffer_call->args[0].as_or_throw<tvm::Tuple>()->fields;
-  PrimType dtype(buffer_call->args[1].as_or_throw<DataTypeImm>()->value);
-  std::string scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer(op->var);
-  auto annotations = buffer_call->attrs.as<DictAttrsNode>()->dict;
-  TVM_FFI_ICHECK(!dtype.IsVoid());
-  const IntImmNode* dim_imm = shape[0].as<IntImmNode>();
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+  TVM_FFI_ICHECK(!PrimType(dtype).IsVoid());
+  const IntImmNode* dim_imm = shape->fields[0].as<IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation in GPU";
   size_t constant_size = dim_imm->value.as<size_t>().value();
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation in GPU";
 
   spirv::Value buf;
   auto storage_scope = runtime::StorageScope::Create(scope);
-  spirv::SType etype = builder_->GetSType(dtype);
+  spirv::SType etype = builder_->GetSType(PrimType(dtype));
   runtime::StorageRank rank = storage_scope.rank;
   spv::StorageClass storage_class;
   const VarNode* var_node = buffer.get();
@@ -900,7 +900,7 @@ void CodeGenSPIRV::DispatchAllocBuffer(const BindNode* op, const CallNode* buffe
     case runtime::StorageRank::kWMMAAccumulator: {
       TVM_FFI_ICHECK(fragment_info_.count(var_node));
       fragment_info_[var_node].scope = scope;
-      etype = GetFragmentSType(var_node, dtype);
+      etype = GetFragmentSType(var_node, PrimType(dtype));
       storage_class = spv::StorageClassFunction;
       fragment_info_[var_node].sclass = storage_class;
       TVM_FFI_ICHECK(fragment_info_.count(var_node));
@@ -921,8 +921,8 @@ void CodeGenSPIRV::DispatchAllocBuffer(const BindNode* op, const CallNode* buffe
       int32_t aligned_constant_size = ((constant_size + 3) & ~0x3);
       buf = builder_->Allocate(etype, static_cast<uint32_t>(aligned_constant_size), storage_class);
 
-      size_t num_bytes =
-          ((dtype.bits() + 7) / 8) * dtype.lanes() * static_cast<uint32_t>(aligned_constant_size);
+      size_t num_bytes = ((dtype.bits + 7) / 8) * PrimType(dtype).lanes() *
+                         static_cast<uint32_t>(aligned_constant_size);
       shared_memory_bytes_used_ += num_bytes;
     } break;
     default:
@@ -933,19 +933,19 @@ void CodeGenSPIRV::DispatchAllocBuffer(const BindNode* op, const CallNode* buffe
 
   StorageInfo& info = storage_info_[var_node];
   TVM_FFI_ICHECK(!info.element_type_known);
-  info.SetContentType(dtype, buffer.name());
+  info.SetContentType(PrimType(dtype), buffer.name());
 
   TVM_FFI_ICHECK(!var_map_.count(var_node));
   var_map_[var_node] = buf;
-  if (annotations.count(tirx::attr::kVolatile)) {
+  if (annotations->dict.count(tirx::attr::kVolatile)) {
     storage_info_[var_node].is_volatile = true;
   }
 }
 
 void CodeGenSPIRV::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
-  PrimType dtype(buffer_call->args[2].as_or_throw<DataTypeImm>()->value);
-  BufferVar buffer(op->var);
   Expr data = buffer_call->args[0];
+  DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
   const VarNode* buffer_var = buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer_var))
       << "Buffer variable " << buffer.name() << " is already defined";
@@ -954,7 +954,7 @@ void CodeGenSPIRV::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer
 
   spirv::Value data_value = MakeValue(data);
 
-  PrimType declared_storage_type = dtype;
+  PrimType declared_storage_type(dtype);
   if (declared_storage_type == PrimType::Bool()) {
     declared_storage_type = boolean_storage_type_.WithLanes(declared_storage_type.lanes());
   }

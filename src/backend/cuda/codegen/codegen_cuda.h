@@ -78,7 +78,8 @@ class CodeGenCUDA final : public CodeGenC {
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;
   void Dispatch_(const EvaluateNode* op) final;
   void Dispatch_(const ReturnNode* op) final;
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) final;
+  void Dispatch_(const BindNode* op) final;
+  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AttrStmtNode* op) final;
 
   // Target

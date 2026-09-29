@@ -53,12 +53,12 @@ class CodeGenMetal final : public CodeGenC {
   void PrintVecElemStore(const std::string& vec, const PrimType& t, int i,
                          const std::string& value) final;
   // overload visitor
-  void Dispatch_(const BindNode* op) final;                                         // NOLINT(*)
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) final;  // NOLINT(*)
-  void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;               // NOLINT(*)
-  void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;            // NOLINT(*)
-  void Dispatch_(const CallNode* op, std::ostream& os) final;                       // NOLINT(*)
-  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;                   // NOLINT(*)
+  void Dispatch_(const BindNode* op) final;  // NOLINT(*)
+  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
+  void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
+  void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)
+  void Dispatch_(const FloatImmNode* op, std::ostream& os) final;         // NOLINT(*)
 
   // reuse parent's function.
   using CodeGenC::PrintType;

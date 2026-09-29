@@ -448,19 +448,25 @@ std::string CodeGenOpenCL::CastTo(std::string value, const PrimType& target) {
   }
 }
 
+void CodeGenOpenCL::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+  }
+  CodeGenC::Dispatch_(op);
+}
+
 void CodeGenOpenCL::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
-  auto shape = buffer_call->args[0].as_or_throw<tvm::Tuple>()->fields.Map(
-      [](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
-  PrimType dtype(buffer_call->args[1].as_or_throw<DataTypeImm>()->value);
-  BufferVar buffer(op->var);
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
   // Compute constant_size from buffer shape
   size_t constant_size = 1;
-  for (const auto& dim : shape) {
+  for (const auto& dim : shape->fields) {
     const IntImmNode* dim_imm = dim.as<IntImmNode>();
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
     constant_size *= dim_imm->value.as<size_t>().value();
   }
-  allocation_size_.insert({buffer.get(), constant_size * dtype.lanes()});
+  allocation_size_.insert({buffer.get(), constant_size * PrimType(dtype).lanes()});
   CodeGenC::DispatchAllocBuffer(op, buffer_call);
 }
 
