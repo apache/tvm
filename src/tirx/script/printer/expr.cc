@@ -112,7 +112,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
           tirx::BufferVar buffer = var.as_or_throw<tirx::BufferVar>();
           if (!d->IsVarDefined(buffer)) {
             if (ffi::Optional<Frame> opt_f = FindLowestVarDef(buffer, d)) {
-              ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
+              ExprDoc lhs = DefineVar(buffer.var(), opt_f.value(), d);
               ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
                                        BufferVarDefinition::DataPointer);
               opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));

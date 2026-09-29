@@ -94,19 +94,8 @@ inline ExprDoc DefineVar(const tirx::Var& var, const Frame& frame, const IRDocsi
   if (ffi::Optional<ExprDoc> doc = d->GetVarDoc(var)) {
     return doc.value();
   }
-  return d->Define(var, frame, var->name.empty() ? "v" : var->name);
-}
-
-/*!
- * \brief Defines a buffer in the IRDocsifier at the given frame,
- * and returns the corresponding IdDoc
- * \param buffer The buffer to define
- * \param frame The frame to define the buffer in
- * \param d The IRDocsifier
- * \return The IdDoc corresponding to the buffer
- */
-inline IdDoc DefineBuffer(const tirx::BufferVar& buffer, const Frame& frame, const IRDocsifier& d) {
-  return d->Define(buffer, frame, buffer.name().empty() ? "buffer" : buffer.name());
+  ffi::String default_name = var->ty.as<tirx::BufferTypeNode>() ? "buffer" : "v";
+  return d->Define(var, frame, var->name.empty() ? default_name : var->name);
 }
 
 /*!

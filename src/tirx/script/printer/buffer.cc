@@ -654,6 +654,14 @@ ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p
       scope != buffer->storage_scope || (!is_alloc && !annotations->dict.empty())) {
     return std::nullopt;
   }
+  if (!is_alloc && scope == "tmem") {
+    const auto* pointer = data.value().as<CallNode>();
+    if (buffer->allocated_addr.size() != 1 || !pointer ||
+        !pointer->op.same_as(tirx::builtin::reinterpret()) || pointer->args.size() != 1 ||
+        !StructuralEqual()(pointer->args[0], buffer->allocated_addr[0])) {
+      return std::nullopt;
+    }
+  }
   if (!is_alloc && d->cfg->syntax_sugar && annotations->dict.empty()) {
     if (auto sugar = TryDeclBufferSugar(buffer, type_p, data, d)) {
       sugar.value()->source_paths.push_back(p->Attr("args")->ArrayItem(0));
@@ -667,7 +675,7 @@ ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p
                          dtype, p->Attr("args")->ArrayItem(shape_index + 1)->Attr("value")));
   attrs.Set("scope", d->AsDoc<ExprDoc>(call->args[shape_index + 2],
                                        p->Attr("args")->ArrayItem(shape_index + 2)));
-  if (data.has_value()) {
+  if (data.has_value() && scope != "tmem") {
     attrs.Set("data", d->AsDoc<ExprDoc>(data.value(), p->Attr("args")->ArrayItem(0)));
   }
   ExprDoc prefix = TIR(d, is_alloc ? "alloc_buffer" : "decl_buffer");
@@ -960,7 +968,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IRDocsifier::vtable().set_dispatch<s_tir::MatchBufferRegion>(
       "", [](s_tir::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
         Frame frame = d->frames.back();
-        ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
+        ExprDoc lhs = DefineVar(stmt->buffer.var(), frame, d);
         ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
         ExprDoc rhs = BufferDecl(stmt->buffer, "match_buffer", {src_buffer}, p->Attr("buffer"),
                                  d->frames.back(), d, BufferVarDefinition::MatchBuffer);
