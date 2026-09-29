@@ -513,13 +513,6 @@ ElseFrame Else() {
   return ElseFrame(n);
 }
 
-HintFrame Hint(ffi::String message, ffi::Map<ffi::String, ffi::Any> attrs) {
-  ffi::ObjectPtr<HintFrameNode> n = ffi::make_object<HintFrameNode>();
-  n->message = message;
-  n->attrs = attrs;
-  return HintFrame(n);
-}
-
 Var EnvThread(ffi::String thread_tag, PrimType dtype) {
   IterVar iter_var(Range{nullptr}, tvm::PrimVar("", dtype), tvm::tirx::IterVarType::kThreadIndex,
                    thread_tag);
@@ -782,7 +775,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
              }
            })
       .def("script.ir_builder.tirx.EnvThread", EnvThread)
-      .def("script.ir_builder.tirx.Hint", Hint)
       .def("script.ir_builder.tirx.BufferStore", BufferStore)
       .def("script.ir_builder.tirx.Evaluate", Evaluate)
       .def("script.ir_builder.tirx.Ptr", Ptr);

@@ -240,8 +240,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       in_thread_env_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
       in_thread_env_ = false;
-    } else if (op->attr_key == attr::extern_scope) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else if (op->attr_key == tvm::tirx::attr::virtual_thread) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else {
@@ -389,15 +387,6 @@ class InplaceOpVerifier : public StmtExprVisitor {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
     }
     return std::nullopt;
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    // always reject extern code
-    if (op->attr_key == attr::extern_scope) {
-      result_ = false;
-      return std::nullopt;
-    }
-    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
@@ -1091,8 +1080,6 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (op->attr_key == attr::thread_extent ||
             op->attr_key == tvm::tirx::attr::virtual_thread || attr::IsPragmaKey(op->attr_key)) {
           PlanNewScope(op);
-        } else {
-          TVM_FFI_ICHECK(op->attr_key == attr::extern_scope);
         }
       } else if (s.stmt->IsInstance<ForNode>()) {
         const auto* op = static_cast<const ForNode*>(s.stmt);

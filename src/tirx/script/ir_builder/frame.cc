@@ -49,7 +49,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
   DeclBufferFrameNode::RegisterReflection();
-  HintFrameNode::RegisterReflection();
 }
 
 namespace {
@@ -289,21 +288,6 @@ void DeclBufferFrameNode::ExitWithScope() {
         tvm::tirx::SeqStmt::Flatten(tvm::tirx::AllocBuffer(buffer, {}, source_span), AsStmt(stmts)),
         source_span);
   }
-}
-
-void HintFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  // Always store attrs as a structured Map in the node field
-  ffi::Map<ffi::String, Any> full_attrs;
-  if (!message.empty()) {
-    full_attrs.Set("message", ffi::String(message));
-  }
-  for (const auto& [k, v] : attrs) {
-    full_attrs.Set(k, v);
-  }
-  AddToParent(
-      tvm::tirx::AttrStmt(full_attrs, "tirx_hint", IntImm::Int32(1), AsStmt(stmts), source_span),
-      source_span);
 }
 
 }  // namespace tirx

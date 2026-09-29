@@ -503,24 +503,6 @@ def attr(
         return _ffi_api.Attr(node_or_dict, attr_key, value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def hint(message: str = "", **attrs) -> frame.HintFrame:
-    """Universal directive primitive for the sketch language.
-
-    Parameters
-    ----------
-    message : str
-        Free-form directive string that the agent interprets.
-    **attrs
-        Optional structured key-value attributes for known patterns.
-
-    Returns
-    -------
-    res : frame.HintFrame
-        Usable as context manager (with T.hint("msg"):) or bare statement (T.hint("msg")).
-    """
-    return _ffi_api.Hint(message, attrs or {})  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def buffer_store(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
     value: Expr,
@@ -1079,7 +1061,6 @@ __all__ = [
     "ge_",
     "grid",
     "gt_",
-    "hint",
     "if_",
     "if_then_else_",
     "launch_thread",
