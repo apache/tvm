@@ -19,6 +19,7 @@ import tvm.testing
 from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
+from tvm.script import tirx as T
 
 
 @I.ir_module
@@ -157,6 +158,49 @@ class Expected:
 def test_single_attention():
     rewritten = relax.transform.AllocateWorkspace()(Module)
     tvm.ir.assert_structural_equal(rewritten, Expected)
+
+
+@I.ir_module
+class NestedGlobalFunctions:
+    @T.prim_func
+    def add_one(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
+        for i in T.serial(4):
+            B[i] = A[i] + T.float32(1)
+
+    @R.function
+    def main(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
+        cls = NestedGlobalFunctions
+        with R.dataflow():
+            gv = cls.outer(x)
+            R.output(gv)
+        return gv
+
+    @R.function
+    def outer(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
+        R.func_attr({"Codegen": "test_backend"})
+        cls = NestedGlobalFunctions
+        with R.dataflow():
+            gv = cls.inner(x)
+            R.output(gv)
+        return gv
+
+    @R.function
+    def inner(x: R.Tensor((4,), dtype="float32")) -> R.Tensor((4,), dtype="float32"):
+        R.func_attr({"Composite": "test_backend.add_one", "WorkspaceSize": 1024})
+        cls = NestedGlobalFunctions
+        with R.dataflow():
+            gv = R.call_tir(
+                cls.add_one,
+                (x,),
+                out_ty=R.Tensor((4,), dtype="float32"),
+            )
+            R.output(gv)
+        return gv
+
+
+def test_nested_global_function_is_well_formed():
+    rewritten = relax.transform.AllocateWorkspace()(NestedGlobalFunctions)
+    relax.analysis.well_formed(rewritten)
 
 
 if __name__ == "__main__":
