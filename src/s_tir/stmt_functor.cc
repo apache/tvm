@@ -55,7 +55,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
   for (const BufferVar& buf : op->alloc_buffers) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(buf); }));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitBufferMetadata(buf));
   }
   // Define match-buffer targets before visiting reads/writes that may use them.
   // This differs from the old TIRX native order (reads/writes before matches)
@@ -63,7 +62,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
   for (const MatchBufferRegion& match_buffer_region : op->match_buffers) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(match_buffer_region->buffer); }));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitBufferMetadata(match_buffer_region->buffer));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(match_buffer_region->source));
   }
   for (const TensorRegion& region : op->reads) {

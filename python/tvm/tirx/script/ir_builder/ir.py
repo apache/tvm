@@ -853,9 +853,16 @@ def alloc_cast_frag(src, dtype):
 
 
 @_register_mutable_decl("tirx.alloc_scalar")
-def alloc_scalar(dtype: str = "float32", scope: str = "global") -> TensorLoad:
-    """Allocate a zero-dimensional buffer (scalar)."""
-    buf = alloc_buffer(shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]))
+def alloc_scalar(
+    dtype: str = "float32",
+    scope: str = "global",
+    *,
+    annotations: dict[str, Any] | None = None,
+) -> TensorLoad:
+    """Allocate a zero-dimensional buffer (scalar), with optional allocation annotations."""
+    buf = alloc_buffer(
+        shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]), annotations=annotations
+    )
     assert is_buffer_var(buf)
     scalar = buf[0]
     return scalar
@@ -881,15 +888,19 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
 
 
 @_register_mutable_decl("tirx.shared_scalar")
-def shared_scalar(dtype: str = "float32") -> TensorLoad:
+def shared_scalar(
+    dtype: str = "float32", *, annotations: dict[str, Any] | None = None
+) -> TensorLoad:
     """Allocate a zero-dimensional buffer in shared memory."""
-    return alloc_scalar(dtype=dtype, scope="shared")
+    return alloc_scalar(dtype=dtype, scope="shared", annotations=annotations)
 
 
 @_register_mutable_decl("tirx.local_scalar")
-def local_scalar(dtype: str = "float32") -> TensorLoad:
+def local_scalar(
+    dtype: str = "float32", *, annotations: dict[str, Any] | None = None
+) -> TensorLoad:
     """Allocate a zero-dimensional buffer in local memory."""
-    return alloc_scalar(dtype=dtype, scope="local")
+    return alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
 
 
 def _is_meta_class_instance(value: Any) -> bool:

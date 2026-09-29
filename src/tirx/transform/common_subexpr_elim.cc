@@ -615,20 +615,6 @@ class CSEPlanner : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  /*! \brief DeclBuffer is flat (no body). Visit buffer shape expressions. */
-  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) override {
-    if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(builtin::decl_buffer()))
-      return DispatchDeclBuffer(op);
-    return StmtExprVisitor::Visit_(op);
-  }
-
-  ffi::Optional<VisitInterrupt> DispatchDeclBuffer(const BindNode* op) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(WithDefRegionKind(
-        kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var.as_or_throw<BufferVar>()); }));
-    return VisitBufferMetadata(op->var.as_or_throw<BufferVar>());
-  }
-
   // ------------------------------------------------------------------
   // ComputePlan: convert scan results into the output plan
   // ------------------------------------------------------------------

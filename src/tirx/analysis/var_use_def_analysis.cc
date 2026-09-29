@@ -25,7 +25,6 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/builtin.h>
 namespace tvm {
 namespace tirx {
 
@@ -55,16 +54,6 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const AttrStmtNode* op) 
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   }
   return std::nullopt;
-}
-
-ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const BindNode* op) {
-  // Buffer definitions are registered by the base visitor in the definition region.
-  if (const auto* call = op->value.as<CallNode>();
-      !call || (!call->op.same_as(tirx::builtin::alloc_buffer()) &&
-                !call->op.same_as(tirx::builtin::decl_buffer()))) {
-    this->HandleDef(op->var);
-  }
-  return StmtExprVisitor::Visit_(op);
 }
 
 ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const ForNode* op) {
@@ -105,10 +94,12 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const VarNode* op) {
       HandleUse(buffer);
       HandleUse(var);
     }
+  } else if (def_region_kind() != kTVMFFIDefRegionKindNone) {
+    HandleDef(var);
   } else {
-    this->HandleUse(var);
+    HandleUse(var);
   }
-  return std::nullopt;
+  return StmtExprVisitor::Visit_(op);
 }
 
 void VarUseDefAnalyzer::HandleDef(const Var& var) {

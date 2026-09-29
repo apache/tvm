@@ -325,7 +325,7 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
                            ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
 
 /*!
- * \brief Statement-level buffer allocation (creates an AllocBuffer IR node).
+ * \brief Statement-level buffer allocation (binds a buffer-returning allocation Call).
  * \param shape The shape of the buffer to allocate.
  * \param dtype The data type of buffer elements.
  * \param storage_scope The storage scope (e.g., "global", "shared").

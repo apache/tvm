@@ -57,15 +57,15 @@ class VtcmAllocator : public StmtExprMutator {
       args.push_back(IntImm::Int64(shape->fields.size()));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           shape->fields));
-      return Bind(op->var.as_or_throw<BufferVar>(),
-                  Call(op->var.as_or_throw<BufferVar>().type(), tirx::builtin::decl_buffer(),
-                       {Call(op->var.as_or_throw<BufferVar>().DataPointerType(),
-                             tirx::builtin::nd_mem_alloc_with_scope(), args),
-                        tvm::Tuple(op->var.as_or_throw<BufferVar>()->shape),
-                        DataTypeImm(op->var.as_or_throw<BufferVar>()->dtype->dtype),
-                        StringImm(op->var.as_or_throw<BufferVar>().scope())},
-                       {}, call->ty_args, call->span),
-                  op->span);
+      BufferVar buffer = op->var.as_or_throw<BufferVar>();
+      return Bind(
+          buffer,
+          Call(buffer.type(), tirx::builtin::decl_buffer(),
+               {Call(buffer.DataPointerType(), tirx::builtin::nd_mem_alloc_with_scope(), args),
+                tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                StringImm(buffer.scope())},
+               {}, call->ty_args, call->span),
+          op->span);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }

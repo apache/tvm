@@ -121,7 +121,7 @@ class DoubleBufferDetector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
     if (touched_.count(op)) {
       touched_.erase(op);
     }
@@ -220,7 +220,13 @@ class DoubleBufferInjector : public StmtExprMutator {
         auto new_buf = GetRemappedBuffer(alloc->var.as_or_throw<BufferVar>(), entry.stride);
         auto& alloc_nest = loop_allocs_[entry.loop];
         const auto* call = alloc->value.as<CallNode>();
-        alloc_nest.emplace_back(AllocBuffer(new_buf, call->attrs.as<DictAttrsNode>()->dict));
+        alloc_nest.emplace_back(Bind(new_buf.var(),
+                                     Call(new_buf.type(), tirx::builtin::alloc_buffer(),
+                                          {tvm::Tuple(new_buf->shape, call->args[0]->span),
+                                           DataTypeImm(new_buf->dtype->dtype, call->args[1]->span),
+                                           StringImm(new_buf.scope(), call->args[2]->span)},
+                                          call->attrs, call->ty_args, call->span),
+                                     alloc->span));
         pend_it = pending_dbuffer_allocs_.erase(pend_it);
       } else {
         ++pend_it;

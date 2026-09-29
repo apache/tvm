@@ -51,7 +51,18 @@ class PTXRewriter : public StmtExprMutator {
       return body;
     }
     EnsureBuffers();
-    body = SeqStmt::Flatten(AllocBuffer(predicate_buffer), AllocBuffer(addr_buffer), body);
+    body = SeqStmt::Flatten(
+        Bind(predicate_buffer.var(),
+             Call(predicate_buffer.type(), tirx::builtin::alloc_buffer(),
+                  {tvm::Tuple(predicate_buffer->shape), DataTypeImm(predicate_buffer->dtype->dtype),
+                   StringImm(predicate_buffer.scope())},
+                  DictAttrs())),
+        Bind(addr_buffer.var(),
+             Call(addr_buffer.type(), tirx::builtin::alloc_buffer(),
+                  {tvm::Tuple(addr_buffer->shape), DataTypeImm(addr_buffer->dtype->dtype),
+                   StringImm(addr_buffer.scope())},
+                  DictAttrs())),
+        body);
     has_buffer_2 = true;
     return body;
   }
@@ -70,7 +81,18 @@ class PTXRewriter : public StmtExprMutator {
     if (needs_buffer && !has_buffer_2) {
       EnsureBuffers();
       has_buffer_2 = true;
-      result = SeqStmt::Flatten(AllocBuffer(predicate_buffer), AllocBuffer(addr_buffer), result);
+      result = SeqStmt::Flatten(
+          Bind(predicate_buffer.var(), Call(predicate_buffer.type(), tirx::builtin::alloc_buffer(),
+                                            {tvm::Tuple(predicate_buffer->shape),
+                                             DataTypeImm(predicate_buffer->dtype->dtype),
+                                             StringImm(predicate_buffer.scope())},
+                                            DictAttrs())),
+          Bind(addr_buffer.var(),
+               Call(addr_buffer.type(), tirx::builtin::alloc_buffer(),
+                    {tvm::Tuple(addr_buffer->shape), DataTypeImm(addr_buffer->dtype->dtype),
+                     StringImm(addr_buffer.scope())},
+                    DictAttrs())),
+          result);
     }
     return result;
   }

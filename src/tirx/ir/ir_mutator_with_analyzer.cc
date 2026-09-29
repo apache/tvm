@@ -125,9 +125,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const ForNode* op, InplaceMode 
 }
 
 UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
-  if (const auto* call = op->value.as<CallNode>();
-      call &&
-      (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
+  if (!op->value.as<PrimExpr>()) {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
   auto value_result = this->Mutate(op->value, inplace_mode);

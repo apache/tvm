@@ -292,7 +292,14 @@ void DeclBufferFrameNode::ExitWithScope() {
   } else {
     // data is undefined in `decl_buffer(...)`, lower to `alloc_buffer(...)`.
     AddToParent(
-        tvm::tirx::SeqStmt::Flatten(tvm::tirx::AllocBuffer(buffer, {}, source_span), AsStmt(stmts)),
+        tvm::tirx::SeqStmt::Flatten(
+            tvm::tirx::Bind(buffer.var(),
+                            Call(buffer.type(), tvm::tirx::builtin::alloc_buffer(),
+                                 {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                  StringImm(buffer.scope())},
+                                 DictAttrs(), {}, source_span),
+                            source_span),
+            AsStmt(stmts)),
         source_span);
   }
 }

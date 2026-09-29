@@ -231,10 +231,6 @@ class BufferStore : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
-/*! \brief Bind a buffer to an allocation operation returning its BufferType. */
-TVM_DLL Bind AllocBuffer(BufferVar buffer, ffi::Map<ffi::String, ffi::Any> annotations = {},
-                         Span span = Span());
-
 /*!
  * \brief The container of seq statement.
  *        Represent a sequence of statements.

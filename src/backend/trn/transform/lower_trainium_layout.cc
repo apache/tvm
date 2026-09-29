@@ -119,7 +119,13 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       if (buffer.same_as(original_buffer)) {
         return ffi::Unchanged();
       }
-      return AllocBuffer(buffer, call->attrs.as<DictAttrsNode>()->dict, op->span);
+      return Bind(buffer.var(),
+                  Call(buffer.type(), tirx::builtin::alloc_buffer(),
+                       {tvm::Tuple(buffer->shape, call->args[0]->span),
+                        DataTypeImm(buffer->dtype->dtype, call->args[1]->span),
+                        StringImm(buffer.scope(), call->args[2]->span)},
+                       call->attrs, call->ty_args, call->span),
+                  op->span);
     }
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::decl_buffer())) {

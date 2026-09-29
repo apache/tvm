@@ -137,7 +137,13 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     if (replacement.scope() == "shared") {
       annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
     }
-    return AllocBuffer(replacement, annotations->dict, node->span);
+    return Bind(replacement.var(),
+                Call(replacement.type(), tirx::builtin::alloc_buffer(),
+                     {tvm::Tuple(replacement->shape, call->args[0]->span),
+                      DataTypeImm(replacement->dtype->dtype, call->args[1]->span),
+                      StringImm(replacement.scope(), call->args[2]->span)},
+                     annotations, call->ty_args, call->span),
+                node->span);
   }
 
   ffi::Optional<BufferVar> GetRemappedBuffer(const BufferVar& buf) {
@@ -497,7 +503,11 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     // Fix all local allocations as all statements are built.
     ffi::Array<Stmt> alloc_stmts;
     for (BufferVar buf : new_alloc_bufs) {
-      alloc_stmts.push_back(AllocBuffer(buf));
+      alloc_stmts.push_back(Bind(
+          buf.var(),
+          Call(buf.type(), tirx::builtin::alloc_buffer(),
+               {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+               DictAttrs())));
     }
     // Prepend allocations before the sequence
     for (const auto& s : seq) {
@@ -960,7 +970,13 @@ class DeferredRemapper : public DialectMutator {
         if (replacement.scope() == "shared") {
           annotations.CopyOnWrite()->dict.Set(tirx::attr::kVolatile, true);
         }
-        return AllocBuffer(replacement, annotations->dict, node->span);
+        return Bind(replacement.var(),
+                    Call(replacement.type(), tirx::builtin::alloc_buffer(),
+                         {tvm::Tuple(replacement->shape, call->args[0]->span),
+                          DataTypeImm(replacement->dtype->dtype, call->args[1]->span),
+                          StringImm(replacement.scope(), call->args[2]->span)},
+                         annotations, call->ty_args, call->span),
+                    node->span);
       }
     }
     return node;

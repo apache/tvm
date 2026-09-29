@@ -129,6 +129,9 @@ class BufferTypeNode : public TypeNode {
   /*! \return type of the physical pointer projected by buffer_data. */
   PointerType DataPointerType() const { return PointerType(dtype, storage_scope); }
 
+  /*! \brief Whether this type supports scalar buffer syntax. */
+  TVM_DLL bool IsScalar(bool alloc_or_decl = true) const;
+
   /*! \brief Return the constant element count, or nullopt for symbolic extents or overflow. */
   TVM_DLL std::optional<int64_t> ConstantAllocationSize() const;
 

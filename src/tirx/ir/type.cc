@@ -21,15 +21,26 @@
  * \file tirx/ir/type.cc
  * \brief Types specific to TIRX.
  */
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/prim/op.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/tirx/layout.h>
 #include <tvm/tirx/type.h>
 
 #include <utility>
 
 namespace tvm::tirx {
+
+bool BufferTypeNode::IsScalar(bool alloc_or_decl) const {
+  // TODO(@bohan): logical scope is not considered
+  return shape.size() == 1 && tvm::prim::is_one(shape[0]) && strides.empty() &&
+         (!alloc_or_decl || tvm::prim::is_zero(elem_offset)) && data_alignment == 64 &&
+         offset_factor == 1 && allocated_addr.empty() && layout.has_value() &&
+         ffi::StructuralEqual()(layout.value(), TileLayoutNode::DefaultLayout({1}));
+}
 
 std::optional<int64_t> BufferTypeNode::ConstantAllocationSize() const {
   int64_t result = 1;

@@ -144,7 +144,13 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     if (buffer.same_as(op->var.as_or_throw<BufferVar>())) {
       return ffi::Unchanged();
     }
-    return AllocBuffer(buffer, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span);
+    return Bind(buffer.var(),
+                Call(buffer.type(), tirx::builtin::alloc_buffer(),
+                     {tvm::Tuple(buffer->shape, buffer_call->args[0]->span),
+                      DataTypeImm(buffer->dtype->dtype, buffer_call->args[1]->span),
+                      StringImm(buffer.scope(), buffer_call->args[2]->span)},
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                op->span);
   }
 
   UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, const CallNode* buffer_call,

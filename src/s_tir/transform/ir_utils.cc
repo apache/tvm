@@ -53,22 +53,7 @@ class SIRConvertSSA final : public tirx::IRConvertSSA {
         if (!var.same_as(iter->var)) iter.CopyOnWrite()->var = var.as_or_throw<PrimVar>();
         return iter;
       });
-      auto remap_region = [&](TensorRegion region) {
-        BufferVar buffer = GetRemappedBuffer(region->source.as_or_throw<BufferVar>());
-        if (!buffer.same_as(region->source.as_or_throw<BufferVar>())) {
-          region.CopyOnWrite()->source = buffer.var();
-        }
-        return region;
-      };
-      auto reads = block->reads.Map(remap_region);
-      auto writes = block->writes.Map(remap_region);
-      if (!reads.same_as(block->reads) || !writes.same_as(block->writes) ||
-          !iter_vars.same_as(op->iter_vars)) {
-        auto* writer = block.CopyOnWrite();
-        writer->reads = reads;
-        writer->writes = writes;
-        writer->iter_vars = iter_vars;
-      }
+      if (!iter_vars.same_as(op->iter_vars)) block.CopyOnWrite()->iter_vars = iter_vars;
       return s_tir::StmtExprMutator::MutateBlock(this, block.get(),
                                                  block.unique() ? mode : InplaceMode::kDisallow)
           .ValueOrUnchanged(block);

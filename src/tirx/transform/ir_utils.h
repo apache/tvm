@@ -239,25 +239,17 @@ class IRConvertSSA : public StmtExprMutator {
  protected:
   explicit IRConvertSSA(const VTable* table) : StmtExprMutator(table) {}
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final;
   Stmt WithScope(const std::function<Stmt()>& body);
   Var DefineVar(Var var);
-  BufferStore VisitBufferAccess(BufferStore node);
-  TensorLoad VisitBufferAccess(TensorLoad node);
   Var GetRemappedVar(Var var);
-  BufferVar GetRemappedBuffer(BufferVar buf);
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<Stmt> MutateBufferBinding(const BindNode* op, InplaceMode inplace_mode);
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
-  static bool BufferDependsOnVar(const BufferVar& buffer, const VarNode* var);
   static Var MakeNewVar(const Var& old_var);
   void PushVarRemap(const Var& old_var, const Var& new_var);
-  void PopVarRemap(const Var& old_var, const Var& new_var);
   void PopAllRemapsInCurrentScope();
 
  private:
@@ -286,45 +278,24 @@ class IRConvertSSA : public StmtExprMutator {
     VarRemap& back() { return remaps.back(); }
     void pop_back() { remaps.pop_back(); }
 
-    ~ScopeLevel() {
+    void Clear() {
       if (!parent) return;
-      // Pop remaps in reverse order
-      while (remaps.size()) {
-        auto& remap = remaps.back();
-        parent->scoped_var_remap_[remap.old_var.get()].pop_back();
-        for (auto& kv : parent->buf_remap_) {
-          std::vector<BufferVar>& buffers = kv.second;
-          if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
-            buffers.pop_back();
-          }
-        }
+      while (!remaps.empty()) {
+        parent->scoped_var_remap_[remaps.back().old_var.get()].pop_back();
         remaps.pop_back();
       }
     }
-
+    ~ScopeLevel() { Clear(); }
     ScopeLevel() = default;
     ScopeLevel(const ScopeLevel&) = delete;
     ScopeLevel& operator=(const ScopeLevel&) = delete;
     ScopeLevel(ScopeLevel&& other) noexcept
         : remaps(std::move(other.remaps)), parent(other.parent) {
-      other.parent = nullptr;  // prevent other's destructor from popping
+      other.parent = nullptr;
     }
     ScopeLevel& operator=(ScopeLevel&& other) noexcept {
       if (this != &other) {
-        // Run our destructor logic first
-        if (parent) {
-          while (remaps.size()) {
-            auto& remap = remaps.back();
-            parent->scoped_var_remap_[remap.old_var.get()].pop_back();
-            for (auto& kv : parent->buf_remap_) {
-              std::vector<BufferVar>& buffers = kv.second;
-              if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
-                buffers.pop_back();
-              }
-            }
-            remaps.pop_back();
-          }
-        }
+        Clear();
         remaps = std::move(other.remaps);
         parent = other.parent;
         other.parent = nullptr;
@@ -335,7 +306,6 @@ class IRConvertSSA : public StmtExprMutator {
 
   std::unordered_map<const VarNode*, std::vector<Var>> scoped_var_remap_;
   std::unordered_set<const VarNode*> defined_;
-  std::unordered_map<const VarNode*, std::vector<BufferVar>> buf_remap_;
   std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
   ScopeStack<ScopeLevel> scope_;
 };

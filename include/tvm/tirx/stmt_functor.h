@@ -217,10 +217,6 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const prim::BroadcastNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const prim::ShuffleNode* op) override;
 
-  /*! \brief Visit definition metadata as uses, separately from the buffer Var definition. */
-  ffi::Optional<VisitInterrupt> VisitBufferMetadata(const BufferVar& buffer,
-                                                    bool skip_shape = false);
-
  protected:
   explicit StmtExprVisitor(const VTable* vtable) : tvm::ExprVisitor(vtable) {}
   static void InitVTable(VTable* vtable);

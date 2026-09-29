@@ -177,7 +177,7 @@ ffi::Array<TensorRegion> BlockReadWriteDetector::CollectOpaques() {
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const VarNode* op) {
-  if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+  if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
   UpdateOpaque(ffi::GetRef<Var>(op));
   return std::nullopt;
 }
@@ -238,11 +238,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BindNode* op)
       call && call->op.same_as(tirx::builtin::decl_buffer())) {
     // A DeclBuffer data expression defines the alias source.  It is not an
     // opaque buffer access by the containing block.
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(WithDefRegionKind(
-        kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var.as_or_throw<BufferVar>()); }));
-    tvm::Tuple shape = call->args[1].as_or_throw<tvm::Tuple>();
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(shape));
-    return VisitBufferMetadata(op->var.as_or_throw<BufferVar>(), true);
+    return WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var); });
   }
   if (auto value = op->value.as<PrimExpr>()) {
     let_bindings_[op->var.get()] = value.value();

@@ -270,10 +270,10 @@ class WarpAccessRewriter : public StmtExprMutator {
       : warp_size_(warp_size), analyzer_(analyzer) {}
   // Rewrite the AllocBuffer statement which transforms
   // warp memory to local memory.
-  // \param op  The AllocBuffer node for warp memory.
+  // \param op The allocation binding for warp memory.
+  // \param buffer_call The matched allocation Call.
   // \param body The remaining statements (siblings) that use this buffer.
-  Stmt Rewrite(const BindNode* op, Stmt body) {
-    const auto* buffer_call = op->value.as<CallNode>();
+  Stmt Rewrite(const BindNode* op, const CallNode* buffer_call, Stmt body) {
     tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
     DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
     PrimType element_type(dtype);
@@ -307,8 +307,15 @@ class WarpAccessRewriter : public StmtExprMutator {
     BufferVar new_buf = RebuildBufferVar(op->var.as_or_throw<BufferVar>(), std::move(type));
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
-    return SeqStmt::Flatten(AllocBuffer(new_buf, buffer_call->attrs.as<DictAttrsNode>()->dict),
-                            rewritten_body);
+    return SeqStmt::Flatten(
+        Bind(new_buf.var(),
+             Call(new_buf.type(), tirx::builtin::alloc_buffer(),
+                  {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
+                   DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
+                   StringImm(new_buf.scope(), buffer_call->args[2]->span)},
+                  buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+             op->span),
+        rewritten_body);
   }
 
  protected:
@@ -562,7 +569,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
         }
         Stmt body = remaining.empty() ? Stmt(Evaluate(0)) : SeqStmt::Flatten(remaining);
         auto rewriter = ffi::make_object<WarpAccessRewriter>(warp_size_, analyzer_.get());
-        Stmt rewritten = rewriter->Rewrite(alloc, body);
+        Stmt rewritten = rewriter->Rewrite(alloc, call, body);
         new_seq.push_back(rewritten);
         changed = true;
         break;

@@ -239,6 +239,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
+  if (call->op.same_as(tirx::builtin::alloc_buffer()) ||
+      call->op.same_as(tirx::builtin::decl_buffer())) {
+    if (auto doc = BufferOperationCall(call, call_p, d)) return doc.value();
+  }
   if (call->op.same_as(tirx::builtin::buffer_data())) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1);
     return d->AsDoc<ExprDoc>(call->args[0], call_p->Attr("args")->ArrayItem(0))->Attr("data");
@@ -275,7 +279,8 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
     // Annotation spellings such as None for an empty tuple are not type values.
     return d->AddMetadata(call->ty);
   };
-  if (call->attrs.defined()) {
+  if (call->attrs.defined() || call->op.same_as(tirx::builtin::alloc_buffer()) ||
+      call->op.same_as(tirx::builtin::decl_buffer())) {
     ffi::Array<ExprDoc> call_args;
     int n_args = call->args.size();
     call_args.reserve(n_args);

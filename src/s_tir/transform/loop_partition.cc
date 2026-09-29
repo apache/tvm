@@ -208,7 +208,7 @@ class CandidateSelector final : public StmtExprVisitor {
     if (in_likely_ && record_.count(op)) {
       record_.at(op) = true;
     }
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   std::unordered_set<Stmt, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> candidates;

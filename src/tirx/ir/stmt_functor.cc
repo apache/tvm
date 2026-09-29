@@ -58,7 +58,11 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprVisitor, TilePrimitiveCallNode>(vtable);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const VarNode* op) { return std::nullopt; }
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const VarNode* op) {
+  // Types belong to definitions; uses retain the identity introduced in that region.
+  if (def_region_kind() == kTVMFFIDefRegionKindNone) return std::nullopt;
+  return ExprVisitor::Visit_(op);
+}
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const OpaqueExprNode* op) {
   return std::nullopt;
@@ -125,14 +129,8 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const prim::ShuffleNode* o
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BindNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
-  if (const auto* call = op->value.as<CallNode>();
-      call &&
-      (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-        kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->var); }));
-    return VisitBufferMetadata(op->var.as_or_throw<BufferVar>(), true);
-  }
-  return std::nullopt;
+  return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
+                                 [&]() { return this->Visit(op->var); });
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AttrStmtNode* op) {
@@ -156,35 +154,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const WhileNode* op) {
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ReturnNode* op) {
   return this->Visit(op->value);
-}
-
-ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBufferMetadata(const BufferVar& buffer,
-                                                                   bool skip_shape) {
-  if (!skip_shape) {
-    for (const auto& child : buffer->shape) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
-    }
-  }
-  for (const auto& child : buffer->strides) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
-  }
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->elem_offset));
-  for (const auto& child : buffer->allocated_addr) {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(child));
-  }
-  if (buffer->layout.has_value()) {
-    const auto* layout = buffer->layout.value().as<TileLayoutNode>();
-    if (layout == nullptr) return std::nullopt;
-    for (const Iter& iter : layout->shard) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter->extent));
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter->stride));
-    }
-    for (const Iter& iter : layout->replica) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter->extent));
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(iter->stride));
-    }
-  }
-  return std::nullopt;
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BufferStoreNode* op) {
@@ -244,9 +213,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TilePrimitiveCallNod
     if (e == nullptr) return std::nullopt;
     if (auto buffer_region = e.as<TensorRegion>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer_region.value()));
-    } else if (auto var = e.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(var.value().as_or_throw<BufferVar>()));
-    } else if (auto expr = e.as<PrimExpr>()) {
+    } else if (auto expr = e.as<Expr>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(expr.value()));
     } else if (auto stmt = e.as<Stmt>()) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(stmt.value()));
@@ -527,10 +494,7 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const TilePrimitiveCallNode* op,
     if (value.as<TensorRegionNode>()) {
       return Mutate(value, mode);
     }
-    if (const auto* var = value.as<VarNode>(); var && var->ty.as<BufferTypeNode>()) {
-      return Mutate(value, mode);
-    }
-    if (value.as<PrimExpr>() || value.as<StmtNode>()) return Mutate(value, mode);
+    if (value.as<Expr>() || value.as<StmtNode>()) return Mutate(value, mode);
     if (const auto* array = value.as<ffi::ArrayObj>()) {
       return MutateTileArray<ffi::Any>(array, mode, mutate_arg);
     }

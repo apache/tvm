@@ -595,8 +595,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
-    ffi::Array<PrimExpr> original_shape =
-        shape->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); });
+    ffi::Array<PrimExpr> original_shape = shape->fields.as_or_throw<ffi::Array<PrimExpr>>();
     ffi::Array<PrimExpr> new_shape = original_shape.Map([this](const PrimExpr& s) {
       // Keep the retained allocation and its buffer type unchanged.
       return Mutate(s, InplaceMode::kDisallow).ValueOrUnchanged(s);
@@ -623,7 +622,13 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       type->shape = new_shape;
       BufferVar new_buffer = RebuildBufferVar(op->var.as_or_throw<BufferVar>(), std::move(type));
       VarRemapSet(op->var.as_or_throw<BufferVar>(), new_buffer);
-      return AllocBuffer(new_buffer, call->attrs.as<DictAttrsNode>()->dict);
+      return Bind(new_buffer.var(),
+                  Call(new_buffer.type(), tirx::builtin::alloc_buffer(),
+                       {tvm::Tuple(new_buffer->shape, call->args[0]->span),
+                        DataTypeImm(new_buffer->dtype->dtype, call->args[1]->span),
+                        StringImm(new_buffer.scope(), call->args[2]->span)},
+                       call->attrs, call->ty_args, call->span),
+                  op->span);
     }
   }
 

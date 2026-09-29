@@ -53,10 +53,6 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
     }
   }
 
-  void EnterDef(const BufferVar& buffer, AccessPath path) override {
-    Verifier::EnterDef(buffer, path);
-  }
-
   void EnterDef(const Var& var, AccessPath path) override {
     bool redefine_is_allowed = redefine_allowed_within_function_.count(var);
     {
@@ -152,13 +148,15 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisi
     previously_defined_.clear();
   }
 
-  void EnterDef(const BufferVar& buffer, AccessPath path) override {
-    // Call the base class to visit buffer's internal vars (shape, strides, etc.)
-    Verifier::EnterDef(buffer, path);
-    currently_defined_.insert({buffer, path});
+  void EnterDef(const Var& var, AccessPath path) override {
+    if (auto buffer = var.as<BufferVar>()) {
+      currently_defined_.insert({buffer.value(), path});
+    }
   }
 
-  void ExitDef(const BufferVar& buffer, AccessPath path) override {
+  void ExitDef(const Var& var, AccessPath path) override {
+    if (!var->ty.as<BufferTypeNode>()) return;
+    auto buffer = var.as_or_throw<BufferVar>();
     auto active_def = currently_defined_.find(buffer);
     if (active_def != currently_defined_.end()) {
       currently_defined_.erase(active_def);

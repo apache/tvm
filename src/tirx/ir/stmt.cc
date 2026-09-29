@@ -26,7 +26,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -945,15 +944,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&ContinueMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.Continue", [](Span span) { return Continue(span); });
-}
-
-// Buffer definitions are ordinary bindings of buffer-returning calls.
-Bind AllocBuffer(BufferVar buffer, ffi::Map<ffi::String, Any> annotations, Span span) {
-  auto call = Call(
-      buffer.var()->ty, builtin::alloc_buffer(),
-      {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
-      DictAttrs(std::move(annotations)), {}, span);
-  return Bind(buffer.var(), std::move(call), std::move(span));
 }
 
 // SeqStmt

@@ -309,7 +309,11 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       std::vector<Stmt> seq;
       seq.reserve(alloc_buffers_.size() + 1);
       for (const auto& buffer : alloc_buffers_) {
-        seq.push_back(tvm::tirx::AllocBuffer(buffer));
+        seq.push_back(
+            Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_buffer(),
+                                    {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                     StringImm(buffer.scope())},
+                                    DictAttrs())));
       }
       seq.push_back(std::move(body));
       body = SeqStmt::Flatten(seq);

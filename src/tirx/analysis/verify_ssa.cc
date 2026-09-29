@@ -28,7 +28,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
@@ -66,12 +65,7 @@ class SSAVerifier final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
-    if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_buffer())) {
-      MarkDef(op->var, op->value, true);
-    } else {
-      MarkDef(op->var, op->value);
-    }
+    MarkDef(op->var, op->value);
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {
@@ -84,7 +78,7 @@ class SSAVerifier final : public StmtExprVisitor {
     if (match_scope_) {
       MarkDef(var, var, true);
     }
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(node);
   }
 
   void Run(const PrimFunc& func) {
@@ -92,30 +86,12 @@ class SSAVerifier final : public StmtExprVisitor {
       MarkDef(param, param);
     }
 
-    for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>()) {
-        this->DefineBuffer(buffer.value());
-      }
-    }
-    this->Visit(func->body);
-  }
-
-  ffi::Optional<VisitInterrupt> DefineBuffer(const BufferVar& buffer) {
     match_scope_ = true;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer.var()));
-    for (size_t i = 0; i < buffer->shape.size(); ++i) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->shape[i]));
+    for (const Var& param : func->params) {
+      WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&] { return Visit(param->ty); });
     }
-
-    if (buffer->strides.defined()) {
-      for (size_t i = 0; i < buffer->strides.size(); ++i) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->strides[i]));
-      }
-    }
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->elem_offset));
-
     match_scope_ = false;
-    return std::nullopt;
+    this->Visit(func->body);
   }
 
  private:

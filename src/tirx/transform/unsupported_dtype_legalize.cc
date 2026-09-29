@@ -113,7 +113,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
     if (op->ty.as<PointerTypeNode>()) {
       opaque_var_access_.insert(ffi::GetRef<Var>(op));
     }
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
  private:

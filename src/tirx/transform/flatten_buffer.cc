@@ -198,7 +198,13 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     if (info.flattened.same_as(op->var.as_or_throw<BufferVar>())) {
       return ffi::Unchanged();
     }
-    return AllocBuffer(info.flattened, buffer_call->attrs.as<DictAttrsNode>()->dict, op->span);
+    return Bind(info.flattened.var(),
+                Call(info.flattened.type(), tirx::builtin::alloc_buffer(),
+                     {tvm::Tuple(info.flattened->shape, buffer_call->args[0]->span),
+                      DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->span),
+                      StringImm(info.flattened.scope(), buffer_call->args[2]->span)},
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                op->span);
   }
 
   UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, const CallNode* buffer_call,

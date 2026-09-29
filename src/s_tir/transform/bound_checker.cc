@@ -92,8 +92,7 @@ class BoundChecker : public StmtExprMutator {
     if (UpdateIsNeeded(op->var.as_or_throw<BufferVar>().var())) {
       tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
       DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
-      Update(op->var, shape->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); }),
-             PrimType(dtype));
+      Update(op->var, shape->fields.as_or_throw<ffi::Array<PrimExpr>>(), PrimType(dtype));
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }

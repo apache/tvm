@@ -200,7 +200,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* buf) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(buf);
     // Directly reference to the variable count as a read.
     if (buf->ty.as<BufferTypeNode>()) {
       Var var = ffi::GetRef<Var>(buf);
@@ -370,7 +370,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
     // assume all opaque access is unsafe
     if (op == dst_ || op == src_) {
       result_ = false;
@@ -867,7 +867,11 @@ class StoragePlanRewriter : public StmtExprMutator {
           if (e->is_volatile) {
             annotations.Set(attr::kVolatile, true);
           }
-          e->alloc_nest.push_back(AllocBuffer(buf, annotations));
+          e->alloc_nest.push_back(Bind(
+              buf.var(),
+              Call(buf.type(), tirx::builtin::alloc_buffer(),
+                   {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                   DictAttrs(annotations))));
           continue;
         }
         // Get the allocation size;
@@ -911,7 +915,11 @@ class StoragePlanRewriter : public StmtExprMutator {
           if (e->is_volatile) {
             annotations.Set(attr::kVolatile, true);
           }
-          e->alloc_nest.push_back(AllocBuffer(buf, annotations));
+          e->alloc_nest.push_back(Bind(
+              buf.var(),
+              Call(buf.type(), tirx::builtin::alloc_buffer(),
+                   {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                   DictAttrs(annotations))));
         } else {
           // Build a merged allocation
           PrimExpr combo_size;
@@ -961,7 +969,11 @@ class StoragePlanRewriter : public StmtExprMutator {
           if (e->is_volatile) {
             annotations.Set(attr::kVolatile, true);
           }
-          e->alloc_nest.push_back(AllocBuffer(buf, annotations));
+          e->alloc_nest.push_back(Bind(
+              buf.var(),
+              Call(buf.type(), tirx::builtin::alloc_buffer(),
+                   {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                   DictAttrs(annotations))));
         }
       }
     }
@@ -1009,7 +1021,11 @@ class StoragePlanRewriter : public StmtExprMutator {
     if (any_volatile) {
       annotations.Set(attr::kVolatile, true);
     }
-    e->alloc_nest.push_back(AllocBuffer(buf, annotations));
+    e->alloc_nest.push_back(
+        Bind(buf.var(),
+             Call(buf.type(), tirx::builtin::alloc_buffer(),
+                  {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                  DictAttrs(annotations))));
   }
   // Liveness analysis to find gen and kill point of each variable.
   void LivenessAnalysis(const std::vector<StmtEntry>& seq) {
@@ -1980,7 +1996,13 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (new_buf.same_as(op->var.as_or_throw<BufferVar>())) {
       return ffi::Unchanged();
     }
-    return AllocBuffer(std::move(new_buf), buffer_call->attrs.as<DictAttrsNode>()->dict, op->span);
+    return Bind(new_buf.var(),
+                Call(new_buf.type(), tirx::builtin::alloc_buffer(),
+                     {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
+                      DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
+                      StringImm(new_buf.scope(), buffer_call->args[2]->span)},
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                op->span);
   }
 
   UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, const CallNode* buffer_call,

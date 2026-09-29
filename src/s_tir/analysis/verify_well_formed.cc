@@ -73,7 +73,7 @@ class BlockVarAccessVerifier : public StmtExprVisitor {
         }
       }
     }
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final {

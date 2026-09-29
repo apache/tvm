@@ -162,10 +162,6 @@ class PrimFuncSpecializer : public StmtExprMutator {
         if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
           const BufferVar buffer = GetBufferVar(op);
           specializer_->MutateAllocBuffer(buffer);
-          // Structural extension nodes expose buffer definitions without a native
-          // statement hook. Plan their metadata as uses after defining the buffer.
-          return this->WithDefRegionKind(kTVMFFIDefRegionKindNone,
-                                         [&]() { return VisitBufferMetadata(buffer); });
         } else {
           specializer_->ValidateBufferUse(GetBufferVar(op));
         }

@@ -220,7 +220,11 @@ TEST(IRF, StmtVisitor) {
     PrimType dtype = PrimType::Float(32);
     BufferVar buf("b", BufferType("global", dtype, {z, z}, {}, PrimExpr(), 0, 0));
     // AllocBuffer is flat (no body). Return as SeqStmt with eval.
-    return SeqStmt({AllocBuffer(buf), eval_body});
+    return SeqStmt({Bind(buf.var(), Call(buf.type(), tirx::builtin::alloc_buffer(),
+                                         {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype),
+                                          StringImm(buf.scope())},
+                                         DictAttrs())),
+                    eval_body});
   };
   v->Visit(fmaketest());
   // AllocBuffer visits buffer shape at its definition site.
@@ -270,7 +274,10 @@ TEST(IRF, StmtExprMutator) {
     auto z = x + 1;
     PrimType dtype = PrimType::Float(32);
     BufferVar buf("b", BufferType("global", dtype, {1, z}, {}, PrimExpr(), 0, 0));
-    return AllocBuffer(buf);
+    return Bind(buf.var(), Call(buf.type(), tirx::builtin::alloc_buffer(),
+                                {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype),
+                                 StringImm(buf.scope())},
+                                DictAttrs()));
   };
 
   auto fmakeif = [&]() {
@@ -714,7 +721,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     auto* decl_call = decl_node->value.as<CallNode>();
     TVM_FFI_ICHECK(decl_call && decl_call->op.same_as(tirx::builtin::decl_buffer()));
     TVM_FFI_ICHECK(decl_call->args[0].same_as(y));
-    TVM_FFI_ICHECK(BufferVar(decl_node->var)->shape[0].same_as(m));
+    TVM_FFI_ICHECK(decl_node->var.as_or_throw<BufferVar>()->shape[0].same_as(m));
     TVM_FFI_ICHECK(!decl_node->var.same_as(buffer));
     auto* store_node = seq_node->seq[1].as<BufferStoreNode>();
     TVM_FFI_ICHECK(store_node != nullptr);

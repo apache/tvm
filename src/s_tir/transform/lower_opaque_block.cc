@@ -26,6 +26,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/builtin.h>
 
 #include "ir_utils.h"
 
@@ -79,7 +80,12 @@ class OpaqueBlockLower : public StmtExprMutator {
       allocate_annotations.Set(tirx::attr::buffer_data_alignment,
                                IntImm::Int32(buffer->data_alignment));
       allocate_annotations.Set(tirx::attr::buffer_allocated_addr, buffer->allocated_addr);
-      body = SeqStmt::Flatten(AllocBuffer(buffer, allocate_annotations), std::move(body));
+      body = SeqStmt::Flatten(
+          Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_buffer(),
+                                  {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                   StringImm(buffer.scope())},
+                                  DictAttrs(allocate_annotations))),
+          std::move(body));
     }
     // Step 4. Handle annotations, block annotations are not preserved by default.
     std::vector<std::pair<std::string, Expr>> pragma_attrs;

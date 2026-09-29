@@ -297,7 +297,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
 
   // Works for Load/Store and opaque access.
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
     VisitBufferVar(op);
     return std::nullopt;
   }

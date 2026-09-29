@@ -280,7 +280,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* buf) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(buf);
     // Directly reference to the variable count as a read.
     buf = ResolveAlias(buf);
     auto it = alloc_info_.find(buf);
@@ -500,7 +500,12 @@ class SharedMemoryRewriter : public StmtExprMutator {
       if (scope.has_volatile_alloc) {
         annotations.Set(tirx::attr::kVolatile, true);
       }
-      Stmt alloc_stmt = AllocBuffer(scope.merged_buffer, annotations);
+      Stmt alloc_stmt = Bind(scope.merged_buffer.var(),
+                             Call(scope.merged_buffer.type(), tirx::builtin::alloc_buffer(),
+                                  {tvm::Tuple(scope.merged_buffer->shape),
+                                   DataTypeImm(scope.merged_buffer->dtype->dtype),
+                                   StringImm(scope.merged_buffer.scope())},
+                                  DictAttrs(annotations)));
       Stmt new_body = SeqStmt::Flatten(alloc_stmt, visited_body);
 
       // 8. Pop the scope.
