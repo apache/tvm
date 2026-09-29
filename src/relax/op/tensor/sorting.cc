@@ -53,13 +53,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.sort", sort);
 }
 
-ffi::Expected<Type> InferTypeSort(const CallNode* call_node) noexcept try {
+Type InferTypeSort(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   return GetUnaryInputTensorType(call);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -86,7 +82,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.argsort", argsort);
 }
 
-ffi::Expected<Type> InferTypeArgsort(const CallNode* call_node) noexcept try {
+Type InferTypeArgsort(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ArgsortAttrs>();
@@ -97,10 +93,6 @@ ffi::Expected<Type> InferTypeArgsort(const CallNode* call_node) noexcept try {
     return TensorType(data_ty->shape.value(), out_type, data_ty->vdevice);
   }
   return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -130,7 +122,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.topk", topk);
 }
 
-ffi::Expected<Type> InferTypeTopK(const CallNode* call_node) noexcept try {
+Type InferTypeTopK(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
@@ -170,10 +162,6 @@ ffi::Expected<Type> InferTypeTopK(const CallNode* call_node) noexcept try {
   }
   TVM_FFI_THROW(InternalError) << "Unsupported ret type: " << ret_type;
   TVM_FFI_UNREACHABLE();
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

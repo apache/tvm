@@ -414,7 +414,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.expand_dims", expand_dims);
 }
 
-ffi::Expected<Type> InferTypeExpandDims(const CallNode* call_node) noexcept try {
+Type InferTypeExpandDims(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ExpandDimsAttrs>();
@@ -452,10 +452,6 @@ ffi::Expected<Type> InferTypeExpandDims(const CallNode* call_node) noexcept try 
   }
   TVM_FFI_ICHECK_EQ(i_data_shape, data_ty->ndim);
   return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutExpandDims(
@@ -528,7 +524,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.flatten", flatten);
 }
 
-ffi::Expected<Type> InferTypeFlatten(const CallNode* call_node) noexcept try {
+Type InferTypeFlatten(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   if (data_ty->IsUnknownNdim()) {
@@ -545,10 +541,6 @@ ffi::Expected<Type> InferTypeFlatten(const CallNode* call_node) noexcept try {
   }
   PrimExpr shape_prod = ComputeShapeProduct(data_shape->values);
   return TensorType(ShapeExpr({std::move(shape_prod)}), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -725,7 +717,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.layout_transform", layout_transform);
 }
 
-ffi::Expected<Type> InferTypeLayoutTransform(const CallNode* call_node) noexcept try {
+Type InferTypeLayoutTransform(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<LayoutTransformAttrs>();
@@ -768,10 +760,6 @@ ffi::Expected<Type> InferTypeLayoutTransform(const CallNode* call_node) noexcept
   sym::Analyzer analyzer;
   ffi::Array<PrimExpr> output_shape = index_map->MapShape(shape_ty->values.value(), analyzer);
   return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -806,7 +794,7 @@ bool IsIdentityPermutation(const std::vector<int>& permutation) {
   return true;
 }
 
-ffi::Expected<Type> InferTypePermuteDims(const CallNode* call_node) noexcept try {
+Type InferTypePermuteDims(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
 
@@ -850,10 +838,6 @@ ffi::Expected<Type> InferTypePermuteDims(const CallNode* call_node) noexcept try
     new_shape.push_back(data_shape->values[axes[i]]);
   }
   return TensorType(ShapeExpr(new_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutPermuteDims(
@@ -1262,7 +1246,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.squeeze", squeeze);
 }
 
-ffi::Expected<Type> InferTypeSqueeze(const CallNode* call_node) noexcept try {
+Type InferTypeSqueeze(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<SqueezeAttrs>();
@@ -1336,10 +1320,6 @@ ffi::Expected<Type> InferTypeSqueeze(const CallNode* call_node) noexcept try {
   } else {
     return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
   }
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutSqueeze(
@@ -2046,7 +2026,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.flip", flip);
 }
 
-ffi::Expected<Type> InferTypeFlip(const CallNode* call_node) noexcept try {
+Type InferTypeFlip(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Flip op should take 1 argument";
@@ -2063,10 +2043,6 @@ ffi::Expected<Type> InferTypeFlip(const CallNode* call_node) noexcept try {
     }
   }
   return data_ty;
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutFlip(
@@ -2218,7 +2194,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.gather_elements", gather_elements);
 }
 
-ffi::Expected<Type> InferTypeGatherElements(const CallNode* call_node) noexcept try {
+Type InferTypeGatherElements(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* indices_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
@@ -2263,10 +2239,6 @@ ffi::Expected<Type> InferTypeGatherElements(const CallNode* call_node) noexcept 
     return TensorType(indices_ty->shape.value(), data_ty->dtype, data_ty->vdevice);
   }
   return TensorType(data_ty->dtype, indices_ty->ndim, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutGatherElements(
@@ -2325,7 +2297,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.gather_nd", gather_nd);
 }
 
-ffi::Expected<Type> InferTypeGatherND(const CallNode* call_node) noexcept try {
+Type InferTypeGatherND(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* indices_ty = GetTypeAs<TensorTypeNode>(call->args[1]);
@@ -2395,10 +2367,6 @@ ffi::Expected<Type> InferTypeGatherND(const CallNode* call_node) noexcept try {
   }
   TVM_FFI_ICHECK_EQ(out_shape.size(), output_ndim);
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2423,7 +2391,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.index_put", index_put);
 }
 
-ffi::Expected<Type> InferTypeIndexPut(const CallNode* call_node) noexcept try {
+Type InferTypeIndexPut(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   const auto* data_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   const auto* values_ty = GetTypeAs<TensorTypeNode>(call->args[2]);
@@ -2550,10 +2518,6 @@ ffi::Expected<Type> InferTypeIndexPut(const CallNode* call_node) noexcept try {
     return TensorType(ShapeExpr(data_shape->values), data_ty->dtype, data_ty->vdevice);
   }
   return TensorType(data_ty->dtype, data_ty->ndim, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2579,7 +2543,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.meshgrid", meshgrid);
 }
 
-ffi::Expected<Type> InferTypeMeshgrid(const CallNode* call_node) noexcept try {
+Type InferTypeMeshgrid(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "meshgrid op expects 1 Tuple input argument.";
@@ -2661,10 +2625,6 @@ ffi::Expected<Type> InferTypeMeshgrid(const CallNode* call_node) noexcept try {
   }
 
   return TupleType(out_fields);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -3179,7 +3139,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.one_hot", one_hot);
 }
 
-ffi::Expected<Type> InferTypeOneHot(const CallNode* call_node) noexcept try {
+Type InferTypeOneHot(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType indices_ty = GetInputTensorType(call, 0);
   const auto* attrs = call->attrs.as<OneHotAttrs>();
@@ -3227,10 +3187,6 @@ ffi::Expected<Type> InferTypeOneHot(const CallNode* call_node) noexcept try {
   output_shape.insert(output_shape.begin() + axis, attrs->depth);
 
   return TensorType(ShapeExpr(output_shape), dtype, indices_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

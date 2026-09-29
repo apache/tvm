@@ -68,7 +68,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * skips those N-based relations; other checks (ndim, dtype, loc dim divisible by 4, etc.)
  * still apply when their inputs are known.
  */
-ffi::Expected<Type> InferTypeMultiboxTransformLoc(const CallNode* call_node) noexcept try {
+Type InferTypeMultiboxTransformLoc(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -186,10 +186,6 @@ ffi::Expected<Type> InferTypeMultiboxTransformLoc(const CallNode* call_node) noe
   ffi::Array<Type> fields = {TensorType(ShapeExpr(boxes_shape), cls_ty->dtype, vdev),
                              TensorType(ShapeExpr(scores_shape), cls_ty->dtype, vdev)};
   return TupleType(fields);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

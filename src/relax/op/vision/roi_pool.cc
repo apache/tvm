@@ -57,7 +57,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.roi_pool", roi_pool);
 }
 
-ffi::Expected<Type> InferTypeROIPool(const CallNode* call_node) noexcept try {
+Type InferTypeROIPool(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -115,10 +115,6 @@ ffi::Expected<Type> InferTypeROIPool(const CallNode* call_node) noexcept try {
                                     IntImm::Int32(attrs->pooled_size[0]),
                                     IntImm::Int32(attrs->pooled_size[1])};
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

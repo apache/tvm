@@ -31,13 +31,9 @@
 namespace tvm {
 namespace relax {
 
-ffi::Expected<Type> InferTypeUnaryCheck(const CallNode* call_node) noexcept try {
+Type InferTypeUnaryCheck(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   return InferTypeUnary<false>(call, [](const TensorType& input_ty) { return PrimType::Bool(); });
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 /***************** Arithmetic operators *****************/

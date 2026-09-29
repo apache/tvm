@@ -54,7 +54,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.bucketize", bucketize);
 }
 
-ffi::Expected<Type> InferTypeBucketize(const CallNode* call_node) noexcept try {
+Type InferTypeBucketize(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   TensorType input_tensor_info = input_ty[0];
@@ -76,10 +76,6 @@ ffi::Expected<Type> InferTypeBucketize(const CallNode* call_node) noexcept try {
     return TensorType(ShapeExpr(data_shape->values), out_dtype, input_tensor_info->vdevice);
   }
   return TensorType(out_dtype, input_tensor_info->ndim, input_tensor_info->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -199,7 +195,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /* relax.argmax & relax.argmin */
 
-ffi::Expected<Type> InferTypeArgmaxArgmin(const CallNode* call_node) noexcept try {
+Type InferTypeArgmaxArgmin(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
@@ -256,10 +252,6 @@ ffi::Expected<Type> InferTypeArgmaxArgmin(const CallNode* call_node) noexcept tr
   }
   TVM_FFI_ICHECK_EQ(static_cast<int>(out_shape.size()), out_ndim);
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 Expr argmax(Expr x, ffi::Optional<int64_t> axis, bool keepdims) {

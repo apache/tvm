@@ -64,7 +64,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
 }
 
-ffi::Expected<Type> InferTypeResize2D(const CallNode* call_node) noexcept try {
+Type InferTypeResize2D(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -113,10 +113,6 @@ ffi::Expected<Type> InferTypeResize2D(const CallNode* call_node) noexcept try {
 
   ffi::Array<PrimExpr> out_shape = data2NCHW.BackwardShape(out_NCHW_shape);
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutResize2d(
@@ -185,7 +181,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.resize3d", resize3d);
 }
 
-ffi::Expected<Type> InferTypeResize3D(const CallNode* call_node) noexcept try {
+Type InferTypeResize3D(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -235,10 +231,6 @@ ffi::Expected<Type> InferTypeResize3D(const CallNode* call_node) noexcept try {
 
   ffi::Array<PrimExpr> out_shape = data2NCDHW.BackwardShape(out_NCDHW_shape);
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 InferLayoutOutput InferLayoutResize3d(
@@ -299,7 +291,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.grid_sample", grid_sample);
 }
 
-ffi::Expected<Type> InferTypeGridSample(const CallNode* call_node) noexcept try {
+Type InferTypeGridSample(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -358,10 +350,6 @@ ffi::Expected<Type> InferTypeGridSample(const CallNode* call_node) noexcept try 
 
   ffi::Array<PrimExpr> out_shape = data2tgt.BackwardShape(out_tgt_shape);
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -390,7 +378,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.image.affine_grid", affine_grid);
 }
 
-ffi::Expected<Type> InferTypeAffineGrid(const CallNode* call_node) noexcept try {
+Type InferTypeAffineGrid(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -463,10 +451,6 @@ ffi::Expected<Type> InferTypeAffineGrid(const CallNode* call_node) noexcept try 
   }
 
   return TensorType(ShapeExpr(out_shape), out_dtype, data_ty->vdevice);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

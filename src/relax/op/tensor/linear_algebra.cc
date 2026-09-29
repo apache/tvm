@@ -187,7 +187,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.einsum", einsum);
 }
 
-ffi::Expected<Type> InferTypeEinsum(const CallNode* call_node) noexcept try {
+Type InferTypeEinsum(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call) << "Einsum op should take 1 argument";
@@ -251,10 +251,6 @@ ffi::Expected<Type> InferTypeEinsum(const CallNode* call_node) noexcept try {
     return TensorType(ShapeExpr(oshape), operand_ty, vdev);
   }
   return TensorType(ShapeExpr(oshape), operand_ty);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -276,7 +272,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.outer", outer);
 }
 
-ffi::Expected<Type> InferTypeOuter(const CallNode* call_node) noexcept try {
+Type InferTypeOuter(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   auto input_ty = GetInputTensorType(call);
   auto x1_ty = input_ty[0];
@@ -295,10 +291,6 @@ ffi::Expected<Type> InferTypeOuter(const CallNode* call_node) noexcept try {
   }
   ffi::Array<PrimExpr> output_shape = {x1_shape->values[0], x2_shape->values[0]};
   return TensorType(ShapeExpr(output_shape), x1_ty->dtype);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

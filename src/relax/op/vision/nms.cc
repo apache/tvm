@@ -63,7 +63,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         all_class_non_max_suppression);
 }
 
-ffi::Expected<Type> InferTypeAllClassNMS(const CallNode* call_node) noexcept try {
+Type InferTypeAllClassNMS(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   tvm::ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   const auto boxes_ty = input_ty[0];
@@ -102,10 +102,6 @@ ffi::Expected<Type> InferTypeAllClassNMS(const CallNode* call_node) noexcept try
                                   TensorType(scores_shape, PrimType::Float(32), vdev),
                                   TensorType(counts_shape, PrimType::Int(64), vdev)};
   return TupleType(fields);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -139,7 +135,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.get_valid_counts", get_valid_counts);
 }
 
-ffi::Expected<Type> InferTypeGetValidCounts(const CallNode* call_node) noexcept try {
+Type InferTypeGetValidCounts(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
@@ -188,10 +184,6 @@ ffi::Expected<Type> InferTypeGetValidCounts(const CallNode* call_node) noexcept 
       TensorType(ShapeExpr({batch, num_anchors, elem_length}), data_ty->dtype, vdev),
       TensorType(ShapeExpr({batch, num_anchors}), PrimType::Int(32), vdev)};
   return TupleType(fields);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
