@@ -317,9 +317,16 @@ Doc PrintTIRCall(Call call, AccessPath call_p, IRDocsifier d) {
                          ? LiteralDoc::Str(call->op.as<Op>().value()->name, call_p->Attr("op"))
                          : d->AsDoc<ExprDoc>(call->op, call_p->Attr("op"));
     ExprDoc ret_ty_doc = get_call_return_type_doc();
-    return TIR(d, "Call")->Call(
-        {op_doc, ListDoc(call_args)}, {"attrs", "ret_ty"},
-        {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")), ret_ty_doc});
+    ffi::Array<ffi::String> keys = {"attrs", "ret_ty"};
+    ffi::Array<ExprDoc> values = {d->AsDoc<ExprDoc>(call->attrs, call_p->Attr("attrs")),
+                                  ret_ty_doc};
+    if (!call->ty_args.empty()) {
+      keys.push_back("ty_args");
+      ExprDoc type_args = d->AddMetadata(call->ty_args);
+      type_args->source_paths.push_back(call_p->Attr("ty_args"));
+      values.push_back(type_args);
+    }
+    return TIR(d, "Call")->Call({op_doc, ListDoc(call_args)}, keys, values);
   }
   static const OpAttrMap<tirx::TScriptPrinterName>& op_names =
       Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");

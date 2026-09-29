@@ -642,6 +642,8 @@ ffi::Optional<ExprDoc> BufferOperationCall(const Call& call, const AccessPath& p
   auto type_p = p->Attr("ty");
   ffi::Optional<Expr> data;
   if (!is_alloc) data = call->args[0];
+  // The surface builders emit DictAttrs for allocations and no attrs for declarations.
+  if (call->attrs.defined() != is_alloc || !call->ty_args.empty()) return std::nullopt;
   if (call->attrs.defined() && !call->attrs.as<DictAttrsNode>()) return std::nullopt;
   auto annotations = call->attrs.defined() ? call->attrs.as_or_throw<DictAttrs>() : DictAttrs();
   int shape_index = is_alloc ? 0 : 1;
