@@ -1190,3 +1190,90 @@ def test_static_input_with_symbolic_shape():
 
 if __name__ == "__main__":
     tvm.testing.main()
+
+
+def test_match_cast_of_captured_value():
+    m = T.dynamic("m")
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((8,), "float16")):
+            R.func_attr({"relax.force_pure": True, "num_input": 1})
+            storage1 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
+            alloc1 = R.memory.alloc_tensor(storage1, 0, R.shape([8]), "float16")
+            _ = R.call_packed("dummy", x, alloc1, ty_args=(R.Tuple,))
+            storage2 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
+            alloc2 = R.memory.alloc_tensor(storage2, 0, R.shape([8]), "float16")
+            _1 = R.call_packed("dummy", alloc1, alloc2, ty_args=(R.Tuple,))
+            lv = R.reshape(alloc2, R.shape([2, 4]))
+            lv1 = R.match_cast(lv, R.Tensor((m, 4), "float16"))
+            storage3 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
+            alloc3 = R.memory.alloc_tensor(storage3, 0, R.shape([8]), "float16")
+            _2 = R.call_packed("dummy", lv1, alloc3, ty_args=(R.Tuple,))
+            gv = (alloc3,)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def cuda_graph_alloc() -> R.Tuple(R.Any, R.Any):
+            R.func_attr({"relax.force_pure": True})
+            storage1: R.Any = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            storage2: R.Any = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            gv: R.Tuple(R.Any, R.Any) = storage1, storage2
+            return gv
+
+        @R.function(private=True)
+        def main_cuda_graph_capture(
+            alloc1: R.Tensor((8,), dtype="float16"), alloc2: R.Tensor((8,), dtype="float16")
+        ) -> R.Tuple(R.Tensor((2, 4), dtype="float16")):
+            R.func_attr({"relax.force_pure": True})
+            R.call_packed("dummy", alloc1, alloc2, ty_args=(R.Tuple,))
+            lv: R.Tensor((2, 4), dtype="float16") = R.reshape(alloc2, R.shape([2, 4]))
+            gv: R.Tuple(R.Tensor((2, 4), dtype="float16")) = (lv,)
+            return gv
+
+        @R.function
+        def main(x: R.Tensor((8,), dtype="float16")) -> R.Tuple(R.Tensor((8,), dtype="float16")):
+            R.func_attr({"num_input": 1, "relax.force_pure": True})
+            cls = Expected
+            gv: R.Tuple(R.Any, R.Any) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.get_cached_alloc",
+                (cls.cuda_graph_alloc, R.prim_value(0)),
+                ty_args=(R.Tuple(R.Any, R.Any),),
+            )
+            storage1: R.Any = gv[0]
+            alloc1: R.Tensor((8,), dtype="float16") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([8]), R.dtype("float16")
+            )
+            R.call_packed("dummy", x, alloc1, ty_args=(R.Tuple,))
+            storage2: R.Any = gv[1]
+            alloc2: R.Tensor((8,), dtype="float16") = R.memory.alloc_tensor(
+                storage2, R.prim_value(0), R.shape([8]), R.dtype("float16")
+            )
+            gv1: R.Tuple(R.Tensor((2, 4), dtype="float16")) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (cls.main_cuda_graph_capture, (alloc1, alloc2), R.prim_value(0)),
+                ty_args=(R.Tuple(R.Tensor((2, 4), dtype="float16")),),
+            )
+            lv: R.Tensor((2, 4), dtype="float16") = gv1[0]
+            lv1: R.Tensor((m, 4), dtype="float16") = R.match_cast(
+                lv, R.Tensor((m, 4), dtype="float16")
+            )
+            storage3: R.Any = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            alloc3: R.Tensor((8,), dtype="float16") = R.memory.alloc_tensor(
+                storage3, R.prim_value(0), R.shape([8]), R.dtype("float16")
+            )
+            R.call_packed("dummy", lv1, alloc3, ty_args=(R.Tuple,))
+            gv_1: R.Tuple(R.Tensor((8,), dtype="float16")) = (alloc3,)
+            return gv_1
+
+    after = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
