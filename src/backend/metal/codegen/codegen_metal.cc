@@ -385,7 +385,8 @@ void CodeGenMetal::DispatchAllocBuffer(const BindNode* op, const CallNode* buffe
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
       TVM_FFI_ICHECK(dim_size != sym::ConstIntBound::kPosInf)
           << "Metal allocation extent requires a finite compile-time upper bound, but got " << dim;
-      if (const auto* dtype_max = max_value(dim->ty.as_or_throw<PrimType>()).as<IntImmNode>()) {
+      PrimExpr dtype_max_value = max_value(dim->ty.as_or_throw<PrimType>());
+      if (const auto* dtype_max = dtype_max_value.as<IntImmNode>()) {
         TVM_FFI_ICHECK_LT(dim_size, dtype_max->value)
             << "Metal allocation extent requires a finite compile-time upper bound, but got "
             << dim;
