@@ -28,12 +28,15 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
+
+#include "../op/op_common.h"
 
 namespace tvm {
 namespace relax {
@@ -50,6 +53,40 @@ class SymbolicVarCanonicalizer : public ExprMutator {
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
     if (!canonicalize_shape_values_) return expr;
     return CanonicalizeShapeValue(expr);
+  }
+
+  Expr VisitExpr_(const CallNode* op) final {
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
+    static const Op& call_tir_with_grad_op = Op::Get("relax.call_tir_with_grad");
+    bool is_call_tir = op->op.same_as(call_tir_op) || op->op.same_as(call_tir_inplace_op) ||
+                       op->op.same_as(call_tir_with_grad_op);
+    if (!is_call_tir || op->args.size() != 2 || op->ty_args.size() != 1) {
+      return ExprMutator::VisitExpr_(op);
+    }
+    // The out_ty of a call_tir is checked against the argument types. Canonicalizing the
+    // two independently can leave them mentioning different variables for the same value,
+    // so when the canonical out_ty no longer follows from the arguments, use the type the
+    // arguments imply.
+    Expr new_op = this->VisitExpr(op->op);
+    ffi::Array<Expr> new_args =
+        op->args.Map([this](const Expr& arg) { return this->VisitExpr(arg); });
+    Type out_ty = this->VisitExprDepTypeField(op->ty_args[0]);
+    ffi::Optional<ffi::Array<int64_t>> inplace_indices;
+    if (const auto* attrs = op->attrs.as<CallTIRInplaceAttrs>()) {
+      inplace_indices = attrs->inplace_indices;
+    }
+    auto implied = InferCallTIROutputTypeFromArguments(GetType(new_args[0]), GetType(new_args[1]),
+                                                       inplace_indices);
+    if (implied.has_value() && !IsBaseOf(implied.value(), out_ty)) {
+      out_ty = implied.value();
+    }
+    bool unchanged =
+        new_op.same_as(op->op) && new_args.same_as(op->args) && out_ty.same_as(op->ty_args[0]);
+    if (unchanged) {
+      return ffi::GetRef<Expr>(op);
+    }
+    return Call(Type::Missing(), new_op, new_args, op->attrs, {out_ty}, op->span);
   }
 
   Expr VisitExpr_(const ShapeExprNode* op) final {

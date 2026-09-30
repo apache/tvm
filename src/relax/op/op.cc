@@ -309,7 +309,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \return The `arg_ty`, if it can be inferred from the arguments.
  *     Otherwise, std::nullopt.
  */
-static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
+ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
     Type func_ty, Type arg_ty, ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices) {
   auto opt_callee_ty = func_ty.as<FuncType>();
   TVM_FFI_CHECK(opt_callee_ty, TypeError)
