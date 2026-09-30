@@ -759,6 +759,25 @@ def test_data_dependent_reshape():
     tvm.ir.assert_structural_equal(out_mod, Expected)
 
 
+def test_data_dependent_reshape_without_decompose_ops_is_skipped():
+    # fmt: off
+    @tvm.script.ir_module
+    class DDReshape:
+        @R.function
+        def main(
+            x: R.Tensor([2], dtype="int64"),
+            y: R.Tensor([16],dtype='float32'),
+        ):
+            lv: R.Shape(ndim=2) = R.tensor_to_shape(x)
+            gv = R.reshape(y, lv)
+            return gv
+    # fmt: on
+
+    relax.analysis.well_formed(DDReshape)
+    out_mod = relax.transform.LegalizeOps()(DDReshape)
+    tvm.ir.assert_structural_equal(out_mod, DDReshape)
+
+
 def test_split_by_indices():
     # fmt: off
     @tvm.script.ir_module
