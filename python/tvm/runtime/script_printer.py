@@ -30,15 +30,18 @@ from . import _ffi_node_api
 
 @register_object("script.PrinterConfig")
 class PrinterConfig(Object):
-    """Configuration of TVMScript printer"""
+    """Configuration of TVMScript printer.
+
+    The ``int_dtype`` and ``float_dtype`` arguments populate the string-valued
+    ``script.int_dtype`` and ``script.float_dtype`` entries in ``extra_config``.
+    Explicit entries in ``extra_config`` override those arguments.
+    """
 
     binding_names: Sequence[str]
     show_meta: bool
     ir_prefix: str
     module_alias: str
     buffer_dtype: str
-    int_dtype: str
-    float_dtype: str
     verbose_expr: bool
     indent_spaces: int
     print_line_numbers: bool
@@ -81,8 +84,8 @@ class PrinterConfig(Object):
             "ir_prefix": ir_prefix,
             "module_alias": module_alias,
             "buffer_dtype": buffer_dtype,
-            "int_dtype": int_dtype,
-            "float_dtype": float_dtype,
+            "script.int_dtype": int_dtype,
+            "script.float_dtype": float_dtype,
             "verbose_expr": verbose_expr,
             "indent_spaces": indent_spaces,
             "print_line_numbers": print_line_numbers,
@@ -152,8 +155,7 @@ class Scriptable:
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
         module_alias : str = "cls"
-            The alias of the current module at cross-function call,
-            Directly use module name if it's empty.
+            Retained for compatibility. Cross-function calls use the module name directly.
         int_dtype : str = "int32"
             The default data type of integer
         float_dtype : str = "void"
@@ -200,6 +202,9 @@ class Scriptable:
         merged_extra: dict = {}
         if extra_config is not None:
             merged_extra.update(extra_config)
+        # Keep the historical interactive display header. Direct printer calls
+        # retain executable imports for standalone parser round-trips.
+        merged_extra.setdefault("script.comment_imports", True)
         if "script.use_pep695" not in merged_extra:
             merged_extra["script.use_pep695"] = merged_extra.get(
                 "relax.use_pep695", sys.version_info >= (3, 12)
@@ -362,8 +367,7 @@ class Scriptable:
         ir_prefix : str = "I"
             The prefix of AST nodes from tvm.ir
         module_alias : str = "cls"
-            The alias of the current module at cross-function call,
-            Directly use module name if it's empty.
+            Retained for compatibility. Cross-function calls use the module name directly.
         int_dtype : str = "int32"
             The default data type of integer
         float_dtype : str = "void"

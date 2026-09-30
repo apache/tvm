@@ -9,86 +9,68 @@
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 #include <tvm/target/target.h>
 #include <tvm/tirx/type.h>
 
-#include "../../../script/printer/dialect_prefix.h"
-#include "./utils.h"
+#include <optional>
+
+#include "../../../script/printer/ir/utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-TVM_FFI_STATIC_INIT_BLOCK() { TIRFrameNode::RegisterReflection(); }
+namespace {
 
-TVM_FFI_STATIC_INIT_BLOCK() { RegisterDialectPrefix("tirx.prefix", "T"); }
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<Range>(
-      "tirx", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
-        return TIR(d, "Range")
-            ->Call({
-                d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
-                d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
-            });
-      });
+ffi::Optional<ExprDoc> TranslatePointerType(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object*) {
+  const auto* ty =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(input);
+  if (auto primitive = ty->element_type.as<PrimType>()) {
+    if (primitive.value().IsVoid()) {
+      if (ty->storage_scope == "global") return NamespaceDoc("tirx")->Attr("handle");
+      return NamespaceDoc("tirx")->Attr("handle")->Call(
+          {}, {"storage_scope"}, {LiteralDoc::Str(ty->storage_scope, std::nullopt)});
+    }
+    ExprDoc element = LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
+    if (ty->storage_scope.empty()) return NamespaceDoc("tirx")->Attr("handle")->Call({element});
+    return NamespaceDoc("tirx")->Attr("handle")->Call(
+        {element, LiteralDoc::Str(ty->storage_scope, std::nullopt)});
+  }
+  if (ty->element_type.as<tirx::TensorMapTypeNode>())
+    return NamespaceDoc("tirx")->Attr("TensorMap")->Call({});
+  return NamespaceDoc("tirx")->Attr("handle")->Call(
+      {d->Translate(ty->element_type).value(), LiteralDoc::Str(ty->storage_scope, std::nullopt)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<PointerType>(
-      "", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
-        ExprDoc element_type{ffi::UnsafeInit()};
-        TVM_FFI_ICHECK(!ty->element_type.IsMissing())
-            << "InternalError: PointerType.element_type is missing";
-        if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
-          if (ffi::GetRef<PrimType>(prim_type).IsVoid()) {
-            if (ty->storage_scope == "global") {
-              return TIR(d, "handle");
-            }
-            return TIR(d, "handle")
-                ->Call({}, {"storage_scope"},
-                       {LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
-          }
-          element_type = LiteralDoc::DataType(prim_type->dtype,  //
-                                              ty_p->Attr("element_type")->Attr("dtype"));
-        } else if (ty->element_type.as<tirx::TensorMapTypeNode>()) {
-          return TIR(d, "TensorMap")->Call({});
-        } else {
-          element_type = d->AsDoc<ExprDoc>(ty->element_type, ty_p->Attr("element_type"));
-        }
-        if (ty->storage_scope == "") {
-          return TIR(d, "handle")->Call({element_type});
-        } else {
-          return TIR(d, "handle")
-              ->Call(
-                  {element_type, LiteralDoc::Str(ty->storage_scope, ty_p->Attr("storage_scope"))});
-        }
-      });
+  ffi::reflection::TypeAttrDef<PointerTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TranslatePointerType>());
+}
+
+ffi::Optional<ExprDoc> TranslateTarget(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object*) {
+  const auto* target =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TargetNode>(input);
+  return NamespaceDoc("tirx")->Attr("target")->Call({AnyValue(d, target->ToConfig())});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<Target>(
-      "", [](Target target, AccessPath p, IRDocsifier d) -> Doc {
-        ffi::Map<ffi::String, ffi::Any> config = target->ToConfig();
-        return TIR(d, "target")->Call({d->AsDoc<ExprDoc>(config, p)});
-      });
+  ffi::reflection::TypeAttrDef<TargetNode>().attr(kDocTranslate,
+                                                  FDocTranslate::FromNative<&TranslateTarget>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<IntImmNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<FloatImmNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<PrimTypeNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<PointerTypeNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<TupleTypeNode>(ReprPrintTIR);
-}
+}  // namespace
 
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

@@ -825,8 +825,7 @@ void ValidateCallPyFunc(const CallNode* call) {
 
   TVM_FFI_ICHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
       << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
-      << "However, " << ffi::GetRef<Call>(call) << " has arguments " << arg_tuple
-      << ", which is neither an in-line tuple, "
+      << "However, the argument tuple is " << arg_tuple << ", which is neither an in-line tuple, "
       << "nor a variable binding that may be normalized to an in-line tuple.";
 }
 

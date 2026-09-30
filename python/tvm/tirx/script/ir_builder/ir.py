@@ -37,7 +37,7 @@ from typing import Literal
 from tvm import DataType, ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, Type, is_prim_expr
-from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.ir_builder.base import MISSING, IRBuilder
 from tvm.script.ir_builder.ir import meta_var
 from tvm.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
@@ -74,18 +74,22 @@ from . import _ffi_api, frame
 
 
 def _get_layout(layout: str | Layout | None, shape: list[Expr], scope: str) -> Layout | None:
-    if layout is None:
-        return None
-    if isinstance(layout, Layout):
-        return layout
-    assert isinstance(layout, str)
-    if layout == "default":
+    if layout is MISSING:
         if IRBuilder.is_in_scope():
             for function_frame in reversed(list(IRBuilder.current().frames)):
                 if isinstance(function_frame, frame.PrimFuncFrame):
                     return function_frame.default_buffer_layout(shape, scope)
         if scope in ["trn.sbuf", "trn.psum"]:
             return None
+        return TileLayout(S[tuple(shape)])
+    if layout is None:
+        return None
+    if isinstance(layout, Layout):
+        return layout
+    assert isinstance(layout, str)
+    if layout == "default":
+        # An explicit default denotes the same TileLayout in every dialect.
+        # Only an omitted argument consults the enclosing function's policy.
         return TileLayout(S[tuple(shape)])
     shape = tuple(shape)
     if scope == "trn.sbuf":
@@ -216,7 +220,7 @@ def buffer(
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
+    layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
     buffer_name: str = "",
     *,
@@ -254,7 +258,8 @@ def buffer(
         The factor of elem_offset field.
 
     layout : str or Layout, optional
-        The buffer layout; "default" selects the layout for the buffer scope.
+        The buffer layout. "default" constructs the shape's default TileLayout;
+        omission uses the enclosing dialect and scope default. None omits a layout.
 
     allocated_addr : int or tuple of int, optional
         Addresses assigned to the buffer allocation.
@@ -470,7 +475,7 @@ def alloc_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
+    layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
 ) -> Buffer:
@@ -678,7 +683,7 @@ def decl_buffer(
     scope="global",
     align=0,
     offset_factor=0,
-    layout="default",
+    layout=MISSING,
     allocated_addr=None,
 ) -> Buffer:
     """Create a buffer declaration node.

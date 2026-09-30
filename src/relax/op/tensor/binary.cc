@@ -42,10 +42,10 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
 
   TVM_FFI_CHECK(lhs_ty.as<PrimTypeNode>() || lhs_ty.as<TensorTypeNode>(), TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
-      << "but expression " << call << " has LHS " << call->args[0] << ", which has Type " << lhs_ty;
+      << "but " << call->op << " has LHS type " << lhs_ty;
   TVM_FFI_CHECK(rhs_ty.as<PrimTypeNode>() || rhs_ty.as<TensorTypeNode>(), TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
-      << "but expression " << call << " has RHS " << call->args[1] << ", which has Type " << rhs_ty;
+      << "but " << call->op << " has RHS type " << rhs_ty;
 
   // Dtype
   ffi::Optional<PrimType> output_dtype = f_compute_out_dtype(call, ctx, lhs_ty, rhs_ty);

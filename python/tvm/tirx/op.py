@@ -508,7 +508,9 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     return call_intrin(
         dtype,
         Op.get("tirx.call_llvm_intrin"),
-        tvm.tirx.const(llvm_id, "uint32"),
+        name
+        if isinstance(name, IntImm)
+        else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         span=span,
     )
@@ -550,7 +552,9 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     return call_intrin(
         dtype,
         Op.get("tirx.call_llvm_pure_intrin"),
-        tvm.tirx.const(llvm_id, "uint32"),
+        name
+        if isinstance(name, IntImm)
+        else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         span=span,
     )

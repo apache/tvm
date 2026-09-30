@@ -32,6 +32,30 @@ namespace intrin {
 
 using tirx::FLowerIntrinsic;
 
+static Type InferTypeWebGPUShuffle(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Shuffle result requires a value operand";
+  return call->args[0]->ty;
+}
+
+static void ValidateWebGPUShuffle(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), 2U, ValueError)
+      << "WebGPU subgroup shuffle expects a value and a lane or delta";
+  PrimType value = call->args[0]->ty.as_or_throw<PrimType>();
+  bool integer =
+      value.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) && value.bits() == 32;
+  bool floating =
+      value.MatchesCode(DLDataTypeCode::kDLFloat) && (value.bits() == 16 || value.bits() == 32);
+  TVM_FFI_CHECK(!value.IsScalableVector() && value.lanes() >= 1 && value.lanes() <= 4 &&
+                    (integer || floating),
+                ValueError)
+      << "WebGPU subgroup shuffle expects a supported numeric value";
+  PrimType lane = call->args[1]->ty.as_or_throw<PrimType>();
+  TVM_FFI_CHECK(lane.IsScalar() && lane.bits() == 32 &&
+                    lane.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+                ValueError)
+      << "WebGPU subgroup shuffle expects a scalar integer lane or delta";
+}
+
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
 struct WebGPUWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
@@ -176,6 +200,7 @@ void RegisterWebGPUIntrinRules() {
   OpDef("tirx.webgpu.subgroup_shuffle")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("lane", "The source thread id."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeWebGPUShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -186,6 +211,7 @@ void RegisterWebGPUIntrinRules() {
   OpDef("tirx.webgpu.subgroup_shuffle_up")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be added."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeWebGPUShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -196,6 +222,7 @@ void RegisterWebGPUIntrinRules() {
   OpDef("tirx.webgpu.subgroup_shuffle_down")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be subtracted."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeWebGPUShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -203,6 +230,17 @@ void RegisterWebGPUIntrinRules() {
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleDown")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
   // clang-format on
+  for (const char* name : {"tirx.webgpu.subgroup_shuffle", "tirx.webgpu.subgroup_shuffle_up",
+                           "tirx.webgpu.subgroup_shuffle_down"}) {
+    OpDef def(name);
+    auto signature =
+        def.op()->validator.cast<ffi::reflection::NativeFunction<void(const CallNode*)>>();
+    ffi::TypedFunction<void(const CallNode*)> validator([signature](const CallNode* call) {
+      signature(call);
+      ValidateWebGPUShuffle(call);
+    });
+    def.set_validator(validator, true);
+  }
 }
 
 }  // namespace intrin

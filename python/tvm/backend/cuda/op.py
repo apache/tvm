@@ -1368,7 +1368,7 @@ def cuda_syncthreads_and(cond):
     call : Expr
         The call expression.
     """
-    return call_intrin("int64", "tirx.cuda.syncthreads_and", cond)
+    return call_intrin("int32", "tirx.cuda.syncthreads_and", cond)
 
 
 def cuda_syncthreads_or(cond):
@@ -1384,7 +1384,7 @@ def cuda_syncthreads_or(cond):
     call : Expr
         The call expression.
     """
-    return call_intrin("int64", "tirx.cuda.syncthreads_or", cond)
+    return call_intrin("int32", "tirx.cuda.syncthreads_or", cond)
 
 
 def cuda_nano_sleep(time):

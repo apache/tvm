@@ -9,101 +9,136 @@
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-#include <tvm/ffi/cast.h>
 
-#include "./utils.h"
+#include <tvm/tirx/type.h>
+
+#include <optional>
+
+#include "../../../script/printer/ir/utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-ffi::Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p,
-                                 const IRDocsifier& d, bool use_ret) {
-  With<RelaxFrame> f(d);
-  const ffi::Array<relax::BindingBlock>& blocks = n->blocks;
-  AccessPath blocks_p = n_p->Attr("blocks");
-  ffi::Array<StmtDoc>* stmts = &(*f)->stmts;
-  for (int i = 0, l = blocks.size(); i < l; ++i) {
-    Doc block = d->AsDoc(blocks[i], blocks_p->ArrayItem(i));
-    if (const auto* stmt_block = block.as<StmtBlockDocNode>()) {
-      stmts->insert(stmts->end(), stmt_block->stmts.begin(), stmt_block->stmts.end());
-    } else if (const auto* stmt = block.as<StmtDocNode>()) {
-      stmts->push_back(ffi::GetRef<StmtDoc>(stmt));
+namespace {
+
+ffi::Optional<Var> BindingVar(const ffi::Object* destination) {
+  if (!destination) return std::nullopt;
+  TVM_FFI_CHECK(destination->IsInstance<VarNode>(), TypeError)
+      << "printer binding destination must be a Var";
+  return ffi::GetRef<Var>(static_cast<const VarNode*>(destination));
+}
+
+}  // namespace
+
+ffi::Array<StmtDoc> RelaxSeqBody(DocTranslatorObj* d, const relax::SeqExprNode* seq,
+                                 ffi::Optional<IdDoc> destination,
+                                 ffi::Optional<ExprDoc> annotation,
+                                 const ffi::Object* destination_object) {
+  auto docs = d->WithDocScope([&]() {
+    ffi::Optional<ExprDoc> value =
+        d->Translate(ffi::GetRef<relax::SeqExpr>(seq), BindingVar(destination_object));
+    if (destination.has_value()) {
+      if (value.has_value()) {
+        d->Emit(AssignDoc(destination.value(), value.value(), annotation),
+                ffi::GetRef<ffi::ObjectRef>(seq));
+      } else {
+        TVM_FFI_CHECK(destination_object != nullptr, ValueError)
+            << "printer Relax SeqExpr completed a binding without a destination";
+      }
     } else {
-      TVM_FFI_THROW(TypeError) << "Unknown type: " << block->GetTypeKey();
+      TVM_FFI_CHECK(value.has_value(), ValueError)
+          << "printer Relax SeqExpr needs a value without a destination";
+      d->Emit(ExprStmtDoc(value.value()), ffi::GetRef<ffi::ObjectRef>(seq));
+    }
+  });
+  return ToStmtDocArray(docs);
+}
+
+namespace {
+
+ffi::Optional<ExprDoc> EmitRelaxSeqExpr(DocTranslatorObj* d, ffi::AnyView input,
+                                        const ffi::Object* destination) {
+  const auto* seq =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::SeqExprNode>(input);
+  for (const relax::BindingBlock& block : seq->blocks) d->Translate(block);
+  if (seq->blocks.empty()) {
+    if (auto var = seq->body.as<Var>()) {
+      d->VarGetOrAllocId(var.value(), false);
+      if (d->GetImplicitDefs().count(var.value()) && !var.value()->ty.as<PrimTypeNode>()) {
+        IdDoc id = VarDoc(d, var.value());
+        d->Emit(AssignDoc(id, std::nullopt,
+                          (var.value()->ty.as<tirx::BufferTypeNode>()
+                               ? TypeValue(d, var.value()->ty, false)
+                               : d->Translate(var.value()->ty).value())),
+                ffi::GetRef<ffi::ObjectRef>(var.value().get()));
+      }
     }
   }
-  ExprDoc ret = d->AsDoc<ExprDoc>(n->body, n_p->Attr("body"));
-  if (use_ret) {
-    stmts->push_back(ReturnDoc(ret));
-  } else {
-    stmts->push_back(ExprStmtDoc(ret));
-  }
-  return *stmts;
+  return d->Translate(seq->body, BindingVar(destination));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::SeqExpr>(
-      "", [](relax::SeqExpr n, AccessPath n_p, IRDocsifier d) -> Doc {
-        return StmtBlockDoc(PrintSeqExpr(n, n_p, d, false));
-      });
+  ffi::reflection::TypeAttrDef<relax::SeqExprNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&EmitRelaxSeqExpr>());
 }
 
-ffi::Array<StmtDoc> PrintBindingBlock(const relax::BindingBlock& n, const AccessPath& n_p,
-                                      const IRDocsifier& d,
-                                      ffi::Array<ExprDoc>* non_dataflow_vars) {
-  const ffi::Array<relax::Binding>& bindings = n->bindings;
-  AccessPath bindings_p = n_p->Attr("bindings");
-  ffi::Array<StmtDoc> stmts;
-  for (int i = 0, l = bindings.size(); i < l; ++i) {
-    const relax::Binding& binding = bindings[i];
-    AccessPath binding_p = bindings_p->ArrayItem(i);
-    TVM_FFI_ICHECK(binding->var.defined());
-    Doc binding_doc = d->AsDoc(binding, binding_p);
-    if (const auto* stmt = binding_doc.as<StmtDocNode>()) {
-      stmts.push_back(ffi::GetRef<StmtDoc>(stmt));
-    } else if (const auto* stmt_block = binding_doc.as<StmtBlockDocNode>()) {
-      stmts.insert(stmts.end(), stmt_block->stmts.begin(), stmt_block->stmts.end());
-    } else {
-      TVM_FFI_THROW(TypeError) << "Unknown type: " << binding_doc->GetTypeKey();
+ffi::Optional<ExprDoc> EmitRelaxBindingBlock(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object* destination) {
+  const auto* block =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::BindingBlockNode>(
+          input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  for (const relax::Binding& binding : block->bindings) d->Translate(binding);
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<relax::BindingBlockNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&EmitRelaxBindingBlock>());
+}
+
+ffi::Optional<ExprDoc> EmitRelaxDataflowBlock(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object* destination) {
+  const auto* block =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::DataflowBlockNode>(
+          input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  auto docs = d->WithDocScope([&]() {
+    ffi::Array<ExprDoc> outputs;
+    for (const relax::Binding& binding : block->bindings) {
+      d->Translate(binding);
+      if (!binding->var.as<relax::DataflowVarNode>()) {
+        outputs.push_back(d->Translate(binding->var).value());
+      }
     }
-    if (non_dataflow_vars != nullptr && !binding->var->IsInstance<relax::DataflowVarNode>()) {
-      non_dataflow_vars->push_back(d->AsDoc<ExprDoc>(binding->var, binding_p->Attr("var")));
-    }
-  }
-  return stmts;
+    d->Emit(ExprStmtDoc(NamespaceDoc("relax")->Attr("output")->Call(outputs)),
+            ffi::GetRef<ffi::ObjectRef>(block));
+  });
+  d->Emit(ScopeDoc(std::nullopt, NamespaceDoc("relax")->Attr("dataflow")->Call({}),
+                   ToStmtDocArray(docs)),
+          ffi::GetRef<ffi::ObjectRef>(block));
+  return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::BindingBlock>(  //
-      "", [](relax::BindingBlock n, AccessPath n_p, IRDocsifier d) -> Doc {
-        return StmtBlockDoc(PrintBindingBlock(n, n_p, d, nullptr));
-      });
+  ffi::reflection::TypeAttrDef<relax::DataflowBlockNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&EmitRelaxDataflowBlock>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::DataflowBlock>(  //
-      "", [](relax::DataflowBlock n, AccessPath n_p, IRDocsifier d) -> Doc {
-        ffi::Array<ExprDoc> non_dataflow_vars;
-        ffi::Array<StmtDoc> stmts = PrintBindingBlock(n, n_p, d, &non_dataflow_vars);
-        stmts.push_back(ExprStmtDoc(Relax(d, "output")->Call(non_dataflow_vars)));
-        return ScopeDoc(std::nullopt, Relax(d, "dataflow")->Call({}), stmts);
-      });
-}
+}  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<relax::SeqExprNode>(ReprPrintRelax);
-  TVMScriptPrinter::Register<relax::BindingBlockNode>(ReprPrintRelax);
-  TVMScriptPrinter::Register<relax::DataflowBlockNode>(ReprPrintRelax);
-}
-
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

@@ -58,12 +58,15 @@ def test_pass_error_renders_underlined_tvmscript():
         "Error in pass: Normalize\n"
         "Location (TVMScript):\n"
         "Access path: <root>.body.blocks[0].bindings[0].value\n\n"
+        "# from tvm.script import ir as I\n"
         "# from tvm.script import relax as R\n\n"
         "@R.function\n"
         'def main(x: R.Tensor((3, 4), dtype="float32"), '
         'y: R.Tensor((5, 6), dtype="float32")) -> R.Tensor((3, 6), dtype="float32"):\n'
-        "    lv = R.matmul(x, y, out_dtype=None)\n"
-        "         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
+        '    lv = I.Call("relax.matmul", [x, y], '
+        'attrs=I.make_node("relax.attrs.MatmulAttrs", out_dtype=None), ty=I.Type.missing())\n'
+        "         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+        "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"
         "    return lv"
     )
 

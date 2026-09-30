@@ -16,13 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*!
- * \file tvm/script/printer/printer.h
- * \brief Compatibility include for the TVMScript translation entry points.
- */
-#ifndef TVM_SCRIPT_PRINTER_PRINTER_H_
-#define TVM_SCRIPT_PRINTER_PRINTER_H_
+#ifndef SRC_SCRIPT_PRINTER_DOC_PRINTER_H_
+#define SRC_SCRIPT_PRINTER_DOC_PRINTER_H_
 
-#include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/doc.h>
 
-#endif  // TVM_SCRIPT_PRINTER_PRINTER_H_
+namespace tvm {
+namespace script {
+namespace printer {
+namespace details {
+
+// Render a Doc with this invocation's recovered paths and statement annotations.
+ffi::String RenderPythonScript(Doc doc, const PrinterConfig& config,
+                               const ffi::Array<ffi::Any>& header,
+                               const ffi::Array<AccessPath>& underline_paths,
+                               const ffi::Map<AccessPath, ffi::String>& annotations);
+
+}  // namespace details
+}  // namespace printer
+}  // namespace script
+}  // namespace tvm
+
+#endif  // SRC_SCRIPT_PRINTER_DOC_PRINTER_H_

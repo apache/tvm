@@ -441,7 +441,10 @@ def test_buffer_local_ir():
 
     # Round-trip
     code = func.script()
-    assert "buffer_1 = buffer.local()" in code
+    assert (
+        'buffer_1 = T.decl_buffer((2,), "float16", data=buffer.data, '
+        'scope="local", layout="default")'
+    ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -514,8 +517,14 @@ def test_buffer_local_physical_order():
     assert int(flat_offset) == int(reshaped_offset) == 2
 
     code = func.script()
-    assert "buffer_1 = buffer.local()" in code
-    assert "buffer_2 = buffer.local(4, 8)" in code
+    assert (
+        'buffer_1 = T.decl_buffer((32,), "float32", data=buffer.data, '
+        'scope="local", layout="default")'
+    ) in code
+    assert (
+        'buffer_2 = T.decl_buffer((4, 8), "float32", data=buffer.data, '
+        'scope="local", layout="default")'
+    ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -546,8 +555,13 @@ def test_buffer_local_layout_overrides_roundtrip():
     code = func.script()
     storage_line = next(line for line in code.splitlines() if "buffer_1 =" in line)
     custom_line = next(line for line in code.splitlines() if "buffer_2 =" in line)
-    assert ".local(layout=" in storage_line
-    assert ".local(2, 4, layout=" in custom_line
+    assert (
+        'T.decl_buffer((32,), "float32", data=buffer.data, scope="local", layout='
+    ) in storage_line
+    assert (
+        'T.decl_buffer((2, 4), "float32", data=buffer.data, scope="local", '
+        'layout='
+    ) in custom_line
     assert_structural_equal(func, from_source(code))
     assert from_source(code).script() == code
 
@@ -595,7 +609,7 @@ def test_buffer_local_compose_layout_printer_roundtrip():
     assert b_buf.ty.layout.is_trivial()
     code = func.script()
     local_line = next(line for line in code.splitlines() if "buffer =" in line)
-    assert ".view(64, layout=" in local_line
+    assert 'T.decl_buffer((64,), "float32", data=A.data, scope="local", layout=' in local_line
     parsed = from_source(code)
     assert_structural_equal(func, parsed)
     assert parsed.script() == code
@@ -648,7 +662,7 @@ def test_buffer_local_physical_span_includes_gaps_and_offset():
 
     code = func.script()
     storage_line = next(line for line in code.splitlines() if "buffer_3 =" in line)
-    assert ".local(layout=" in storage_line
+    assert 'T.decl_buffer((2,), "float32", data=buffer.data, scope="local", layout=' in storage_line
     assert_structural_equal(func, from_source(code))
     assert from_source(code).script() == code
 
@@ -670,10 +684,18 @@ def test_buffer_local_printer_is_stable_with_multiple_aliases():
         # fmt: on
 
     expected = func.script()
-    assert "buffer_1 = buffer.local()" in expected
-    assert "buffer_2 = buffer.local(4, 8)" in expected
+    assert (
+        'buffer_1 = T.decl_buffer((32,), "float32", data=buffer.data, '
+        'scope="local", layout="default")'
+    ) in expected
+    assert (
+        'buffer_2 = T.decl_buffer((4, 8), "float32", data=buffer.data, '
+        'scope="local", layout="default")'
+    ) in expected
     storage_line = next(line for line in expected.splitlines() if "buffer_3 =" in line)
-    assert ".local(layout=" in storage_line
+    assert (
+        'T.decl_buffer((32,), "float32", data=buffer.data, scope="local", layout='
+    ) in storage_line
     for _ in range(20):
         parsed = from_source(expected)
         assert parsed.script() == expected

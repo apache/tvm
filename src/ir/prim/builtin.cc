@@ -23,6 +23,8 @@ namespace tvm {
 namespace prim {
 namespace builtin {
 
+Type InferTypeVScale(const CallNode*) { return PrimType::Int(32); }
+
 #define TVM_DEFINE_CACHED_OP_GETTER(Name, RegisteredName) \
   const Op& Name() {                                      \
     static const Op op = Op::Get(RegisteredName);         \
@@ -52,6 +54,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.vscale")
+      .signature()
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVScale>())
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.ceil")

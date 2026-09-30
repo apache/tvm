@@ -24,6 +24,7 @@ from typing import Any
 from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
+from tvm.script.ir_builder.base import MISSING
 from tvm.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
 from tvm.tirx import Buffer, Expr, IntImm, Var
 from tvm.tirx.layout import Layout
@@ -43,7 +44,7 @@ def match_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
+    layout: str | Layout | None = MISSING,
     allocated_addr: Expr | int | tuple[Expr | int, ...] | None = None,
 ) -> Buffer:
     """Bind a buffer subregion inside an S-TIR block.
@@ -191,7 +192,7 @@ def sblock_alloc_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
+    layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
 ) -> Buffer:
     """SBlock-level buffer allocation function.
@@ -284,7 +285,7 @@ class axis:  # pylint: disable=invalid-name
     @staticmethod
     def spatial(
         dom: ir.Range | list[Expr] | tuple[Expr],
-        binding: Expr,
+        binding: Expr | None = None,
         dtype: str = "int32",
     ) -> Var:
         """The spatial block axis defining function.
@@ -294,8 +295,9 @@ class axis:  # pylint: disable=invalid-name
         dom : Union[Range, List[Expr], Tuple[Expr]]
             The domain of the iteration variable.
 
-        binding : Expr
-            The binding value of the iteration variable.
+        binding : Expr, optional
+            The binding value of the iteration variable. Omit only inside a
+            block with no_realize=True.
 
         dtype : str
             The data type of the iteration variable.
@@ -312,7 +314,7 @@ class axis:  # pylint: disable=invalid-name
     @staticmethod
     def reduce(
         dom: ir.Range | list[Expr] | tuple[Expr],
-        binding: Expr,
+        binding: Expr | None = None,
         dtype: str = "int32",
     ) -> Var:
         """The reduced block axis defining function.
@@ -322,8 +324,9 @@ class axis:  # pylint: disable=invalid-name
         dom : Union[Range, List[Expr], Tuple[Expr]]
             The domain of the iteration variable.
 
-        binding : Expr
-            The binding value of the iteration variable.
+        binding : Expr, optional
+            The binding value of the iteration variable. Omit only inside a
+            block with no_realize=True.
 
         dtype : str
             The data type of the iteration variable.
@@ -340,7 +343,7 @@ class axis:  # pylint: disable=invalid-name
     @staticmethod
     def scan(
         dom: ir.Range | list[Expr] | tuple[Expr],
-        binding: Expr,
+        binding: Expr | None = None,
         dtype: str = "int32",
     ) -> Var:
         """The scanning block axis defining function.
@@ -350,8 +353,9 @@ class axis:  # pylint: disable=invalid-name
         dom : Union[Range, List[Expr], Tuple[Expr]]
             The domain of the iteration variable.
 
-        binding : Expr
-            The binding value of the iteration variable.
+        binding : Expr, optional
+            The binding value of the iteration variable. Omit only inside a
+            block with no_realize=True.
 
         dtype : str
             The data type of the iteration variable.
@@ -368,7 +372,7 @@ class axis:  # pylint: disable=invalid-name
     @staticmethod
     def opaque(
         dom: ir.Range | list[Expr] | tuple[Expr],
-        binding: Expr,
+        binding: Expr | None = None,
         dtype: str = "int32",
     ) -> Var:
         """The opaque block axis defining function.
@@ -378,8 +382,9 @@ class axis:  # pylint: disable=invalid-name
         dom : Union[Range, List[Expr], Tuple[Expr]]
             The domain of the iteration variable.
 
-        binding : Expr
-            The binding value of the iteration variable.
+        binding : Expr, optional
+            The binding value of the iteration variable. Omit only inside a
+            block with no_realize=True.
 
         dtype : str
             The data type of the iteration variable.

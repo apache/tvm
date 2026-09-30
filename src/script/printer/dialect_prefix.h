@@ -26,7 +26,7 @@ namespace script {
 namespace printer {
 
 // Register during dialect static initialization so configuration can validate
-// and reserve the prefix before any docsifier assigns variable names.
+// and reserve the prefix before translation assigns variable names.
 void RegisterDialectPrefix(const ffi::String& key, const ffi::String& default_prefix);
 
 }  // namespace printer

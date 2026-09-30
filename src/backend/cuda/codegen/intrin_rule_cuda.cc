@@ -26,6 +26,8 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op_attr_types.h>
 
+#include <initializer_list>
+
 #include "../../../target/intrin_rule.h"
 
 namespace tvm {
@@ -33,6 +35,38 @@ namespace codegen {
 namespace intrin {
 // Add float suffix to the intrinsics, CUDA fast math.
 using tirx::FLowerIntrinsic;
+
+Type InferTypeCudaActiveMask(const CallNode*) { return PrimType::UInt(32); }
+
+Type InferTypeCudaShuffle(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
+      << "CUDA warp shuffle inference requires a value operand";
+  return call->args[1]->ty;
+}
+
+void ValidateCudaShuffle(const CallNode* call) {
+  for (size_t index : {0U, 2U, 3U}) {
+    PrimType control = call->args[index]->ty.as_or_throw<PrimType>();
+    TVM_FFI_CHECK(
+        control.IsScalar() && control.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+        ValueError)
+        << "CUDA warp shuffle mask, lane and width must be scalar integers";
+  }
+  if (const auto* width = call->args[3].as<IntImmNode>()) {
+    TVM_FFI_CHECK(
+        width->value > 0 && width->value <= 32 && (width->value & (width->value - 1)) == 0,
+        ValueError)
+        << "CUDA warp shuffle width must be a power of two no greater than 32";
+  }
+  PrimType value = call->args[1]->ty.as_or_throw<PrimType>();
+  bool integer = value.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
+                 (value.bits() == 32 || value.bits() == 64);
+  bool floating = value.MatchesCode(DLDataTypeCode::kDLFloat) &&
+                  (value.bits() == 16 || value.bits() == 32 || value.bits() == 64);
+  bool bfloat = value.MatchesElementType(DLDataTypeCode::kDLBfloat, 16);
+  TVM_FFI_CHECK(value.IsScalar() && (integer || floating || bfloat), ValueError)
+      << "CUDA warp shuffle expects a supported scalar numeric value";
+}
 
 struct CUDAMath {
   std::string operator()(const PrimType& ty, std::string name) const {
@@ -278,6 +312,7 @@ void RegisterCudaIntrinRules() {
           sig::arg("var", "The variable to sync."),
           sig::arg("lane", "The source thread id."),
           sig::arg("width", "The warp thread width, must be a power of 2."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.__shfl_sync"))
@@ -290,6 +325,7 @@ void RegisterCudaIntrinRules() {
           sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be added."),
           sig::arg("width", "The warp thread width, must be a power of 2."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.__shfl_up_sync"))
@@ -302,6 +338,7 @@ void RegisterCudaIntrinRules() {
           sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be subtracted."),
           sig::arg("width", "The warp thread width, must be a power of 2."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -315,6 +352,7 @@ void RegisterCudaIntrinRules() {
           sig::arg("var", "The variable to sync."),
           sig::arg("lane_mask", "The lane mask."),
           sig::arg("width", "The warp thread width, must be a power of 2."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.__shfl_xor_sync"))
@@ -323,6 +361,8 @@ void RegisterCudaIntrinRules() {
       .set_attr<bool>("cuda.need_warp_shuffle", true);
 
   OpDef("tirx.cuda.__activemask")
+      .signature()
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaActiveMask>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.__activemask"))
@@ -330,6 +370,17 @@ void RegisterCudaIntrinRules() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<bool>("cuda.need_warp_shuffle", true);
   // clang-format on
+  for (const char* name : {"tirx.cuda.__shfl_sync", "tirx.cuda.__shfl_up_sync",
+                           "tirx.cuda.__shfl_down_sync", "tirx.cuda.__shfl_xor_sync"}) {
+    OpDef def(name);
+    auto signature =
+        def.op()->validator.cast<ffi::reflection::NativeFunction<void(const CallNode*)>>();
+    ffi::TypedFunction<void(const CallNode*)> validator([signature](const CallNode* call) {
+      signature(call);
+      ValidateCudaShuffle(call);
+    });
+    def.set_validator(validator, true);
+  }
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() { RegisterCudaIntrinRules(); }

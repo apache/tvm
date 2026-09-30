@@ -30,6 +30,28 @@ namespace codegen {
 namespace intrin {
 using tirx::FLowerIntrinsic;
 
+static Type InferTypeMetalShuffle(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Shuffle result requires a value operand";
+  return call->args[0]->ty;
+}
+
+static void ValidateMetalShuffle(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), 2U, ValueError)
+      << "Metal simd shuffle expects a value and a lane or delta";
+  PrimType value = call->args[0]->ty.as_or_throw<PrimType>();
+  bool integer =
+      value.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) && value.bits() == 32;
+  bool floating =
+      value.MatchesCode(DLDataTypeCode::kDLFloat) && (value.bits() == 16 || value.bits() == 32);
+  TVM_FFI_CHECK(value.IsScalar() && (integer || floating), ValueError)
+      << "Metal simd shuffle expects a supported scalar numeric value";
+  PrimType lane = call->args[1]->ty.as_or_throw<PrimType>();
+  TVM_FFI_CHECK(lane.IsScalar() && lane.bits() == 32 &&
+                    lane.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+                ValueError)
+      << "Metal simd shuffle expects a scalar integer lane or delta";
+}
+
 struct MetalWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
     if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
@@ -149,6 +171,7 @@ void RegisterMetalIntrinRules() {
   OpDef("tirx.metal.simd_shuffle")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("lane", "The source thread id."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeMetalShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simd_shuffle"))
@@ -158,6 +181,7 @@ void RegisterMetalIntrinRules() {
   OpDef("tirx.metal.simd_shuffle_up")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be added."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeMetalShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -168,6 +192,7 @@ void RegisterMetalIntrinRules() {
   OpDef("tirx.metal.simd_shuffle_down")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be subtracted."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeMetalShuffle>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
@@ -175,6 +200,17 @@ void RegisterMetalIntrinRules() {
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_down")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
   // clang-format on
+  for (const char* name :
+       {"tirx.metal.simd_shuffle", "tirx.metal.simd_shuffle_up", "tirx.metal.simd_shuffle_down"}) {
+    OpDef def(name);
+    auto signature =
+        def.op()->validator.cast<ffi::reflection::NativeFunction<void(const CallNode*)>>();
+    ffi::TypedFunction<void(const CallNode*)> validator([signature](const CallNode* call) {
+      signature(call);
+      ValidateMetalShuffle(call);
+    });
+    def.set_validator(validator, true);
+  }
 }
 
 }  // namespace intrin

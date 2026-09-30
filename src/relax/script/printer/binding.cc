@@ -9,102 +9,184 @@
  *
  *   http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-#include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/op.h>
+#include <tvm/relax/block_builder.h>
+#include <tvm/relax/op_attr_types.h>
+#include <tvm/tirx/type.h>
 
-#include "./utils.h"
+#include <optional>
+
+#include "../../../script/printer/ir/utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-IfDoc PrintIfExpr(const relax::If& n, const AccessPath& n_p,
-                  const IRDocsifier& d,  //
-                  const ffi::Optional<ExprDoc>& var, const ffi::Optional<ExprDoc>& ann) {
-  using relax::SeqExpr;
-  ExprDoc cond = d->AsDoc<ExprDoc>(n->cond, n_p->Attr("cond"));
-  std::vector<ffi::Array<StmtDoc>> branches{
-      PrintSeqExpr(n->true_branch, n_p->Attr("true_branch"), d, false),
-      PrintSeqExpr(n->false_branch, n_p->Attr("false_branch"), d, false),
-  };
-  if (var.has_value()) {
-    for (ffi::Array<StmtDoc>& stmts : branches) {
-      ExprDoc ret = stmts.back().as_or_throw<ExprStmtDoc>()->expr;
-      stmts.Set(stmts.size() - 1, AssignDoc(var.value(), ret, ann));
+namespace {
+
+ffi::Optional<ExprDoc> EmitRelaxMatchCast(DocTranslatorObj* d, ffi::AnyView input,
+                                          const ffi::Object* destination) {
+  const auto* binding =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::MatchCastNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  ExprDoc rhs =
+      NamespaceDoc("relax")
+          ->Attr("match_cast")
+          ->Call({d->Translate(binding->value).value(),
+                  (binding->ty.as<tirx::BufferTypeNode>() ? TypeValue(d, binding->ty, false)
+                                                          : d->Translate(binding->ty).value())});
+  IdDoc lhs = VarDoc(d, binding->var);
+  ffi::Optional<ExprDoc> annotation = std::nullopt;
+  if (!binding->var->ty.IsMissing())
+    annotation =
+        (binding->var->ty.as<tirx::BufferTypeNode>() ? TypeValue(d, binding->var->ty, false)
+                                                     : d->Translate(binding->var->ty).value());
+  if (!d->GetExtraConfig<bool>("relax.show_all_ty", true)) annotation = std::nullopt;
+  d->Emit(AssignDoc(lhs, rhs, annotation), ffi::GetRef<ffi::ObjectRef>(binding));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<relax::MatchCastNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&EmitRelaxMatchCast>());
+}
+
+ffi::Optional<ExprDoc> EmitRelaxVarBinding(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object* destination) {
+  const auto* binding =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::VarBindingNode>(
+          input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  if (auto func = binding->value.as<relax::FunctionNode>()) {
+    d->Emit(CommentDoc("from tvm.script import relax as R"), ffi::GetRef<ffi::ObjectRef>(binding));
+    d->Emit(CommentDoc(""), ffi::GetRef<ffi::ObjectRef>(binding));
+    IdDoc lhs = VarDoc(d, binding->var);
+    d->Translate(binding->value);
+    FunctionDoc function = d->CurrentScopeDocs().back().as_or_throw<FunctionDoc>();
+    function->name = lhs;
+    ExprDoc decorator = NamespaceDoc("relax")->Attr("function");
+    if (!func->is_pure) {
+      decorator = decorator->Call({}, {"pure"}, {LiteralDoc::Boolean(false, std::nullopt)});
+    }
+    function->decorators = {decorator};
+    return std::nullopt;
+  }
+  if (relax::HasVoidType(binding->value) && relax::HasVoidType(binding->var)) {
+    VarDoc(d, binding->var);
+    ffi::Optional<ExprDoc> rhs = d->Translate(binding->value, binding->var);
+    if (rhs.has_value()) d->Emit(ExprStmtDoc(rhs.value()), ffi::GetRef<ffi::ObjectRef>(binding));
+    return std::nullopt;
+  }
+  IdDoc lhs = VarDoc(d, binding->var);
+  ffi::Optional<ExprDoc> rhs = d->Translate(binding->value, binding->var);
+  if (!rhs.has_value()) return std::nullopt;
+  ffi::Optional<ExprDoc> annotation = std::nullopt;
+  bool infer_vdevice = false;
+  bool explicit_output_type = false;
+  if (auto tensor = binding->var->ty.as<relax::TensorTypeNode>();
+      tensor && tensor->vdevice.has_value()) {
+    if (auto call = binding->value.as<CallNode>()) {
+      if (auto op = call->op.as<Op>()) infer_vdevice = op.value()->name == "relax.to_vdevice";
     }
   }
-  return IfDoc(cond, branches[0], branches[1]);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::MatchCast>(
-      "", [](relax::MatchCast n, AccessPath n_p, IRDocsifier d) -> Doc {
-        using tvm::Type;
-        using relax::MatchType;
-        ffi::Optional<ExprDoc> ann = std::nullopt;
-        if (d->cfg->GetExtraConfig<bool>("relax.show_all_ty", true)) {
-          ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
-        }
-        ExprDoc rhs = Relax(d, "match_cast")
-                          ->Call({d->AsDoc<ExprDoc>(n->value, n_p->Attr("value")),
-                                  d->AsDoc<ExprDoc>(n->ty, n_p->Attr("ty"))});
-        ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
-        return AssignDoc(lhs, rhs, ann);
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::VarBinding>(  //
-      "", [](relax::VarBinding n, AccessPath n_p, IRDocsifier d) -> Doc {
-        if (const auto if_ = n->value.as<relax::IfNode>()) {
-          ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
-          if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
-            ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
+  if (auto call = binding->value.as<CallNode>(); call && call->ty_args.size() == 1) {
+    if (auto op = call->op.as<Op>()) {
+      const auto& name = op.value()->name;
+      explicit_output_type =
+          (name == "relax.call_tir" || name == "relax.call_dps_packed" ||
+           name == "relax.call_tir_with_grad" || name == "relax.call_tir_inplace" ||
+           name == "relax.dist.call_tir_local_view") &&
+          ffi::StructuralEqual()(binding->var->ty, call->ty_args[0]);
+    }
+  }
+  if (!binding->var->ty.IsMissing() && !infer_vdevice && !explicit_output_type)
+    annotation =
+        (binding->var->ty.as<tirx::BufferTypeNode>() ? TypeValue(d, binding->var->ty, false)
+                                                     : d->Translate(binding->var->ty).value());
+  bool inferable = false;
+  if (annotation.has_value()) {
+    ffi::Optional<Type> inferred = binding->value->ty;
+    if (auto call = binding->value.as<CallNode>()) {
+      inferred = std::nullopt;
+      if (auto op = call->op.as<Op>()) {
+        static const OpAttrMap<FInferType> context_free = Op::GetAttrMap<FInferType>("FInferType");
+        static const OpAttrMap<relax::FInferTypeWithBuilder> with_builder =
+            Op::GetAttrMap<relax::FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+        try {
+          if (context_free.count(op.value())) {
+            inferred = Call::ReinferType(call);
+          } else if (with_builder.count(op.value())) {
+            auto builder = relax::BlockBuilder::Create(std::nullopt);
+            inferred = with_builder[op.value()](ffi::GetRef<Call>(call), builder);
           }
-          ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
-          return PrintIfExpr(ffi::GetRef<relax::If>(if_), n_p->Attr("value"), d, lhs, ann);
-        } else if (n->value->IsInstance<tvm::BaseFuncNode>() &&
-                   !n->value->IsInstance<relax::ExternFuncNode>()) {
-          IdDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
-          d->cfg->binding_names.push_back(lhs->name);
-          Doc ret = d->AsDoc(n->value, n_p->Attr("value"));
-          d->cfg->binding_names.pop_back();
-          return ret;
-        } else if (d->cfg->syntax_sugar && relax::HasVoidType(n->value) &&
-                   relax::HasVoidType(n->var)) {
-          ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
-          return ExprStmtDoc(rhs);
-        } else {
-          ExprDoc rhs = d->AsDoc<ExprDoc>(n->value, n_p->Attr("value"));
-          ffi::Optional<ExprDoc> ann = TypeAsAnn(n->var, n_p->Attr("var"), d, n->value);
-          if (!ann.has_value() && n->var->ty.as<PrimTypeNode>()) {
-            ann = d->AsDoc<ExprDoc>(n->var->ty, n_p->Attr("var")->Attr("ty"));
-          }
-          ExprDoc lhs = DefineRelaxVar(n->var, d->frames.back(), d);
-          return AssignDoc(lhs, rhs, ann);
+        } catch (const ffi::Error&) {
+          inferred = std::nullopt;
         }
-      });
+      }
+    }
+    // Primitive bindings retain their annotation even when the expression's
+    // type is known.  The Relax parser uses it to keep primitive aliases as
+    // typed bindings rather than plain Python assignments.
+    inferable = !binding->var->ty.as<PrimTypeNode>() && inferred.has_value() &&
+                !inferred.value().IsMissing() &&
+                ffi::StructuralEqual()(binding->var->ty, inferred.value());
+  }
+  if (inferable && !d->GetExtraConfig<bool>("relax.show_all_ty", true)) annotation = std::nullopt;
+  d->Emit(AssignDoc(lhs, rhs.value(), annotation), ffi::GetRef<ffi::ObjectRef>(binding));
+  return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::If>(
-      "", [](relax::If n, AccessPath n_p, IRDocsifier d) -> Doc {
-        return PrintIfExpr(n, n_p, d, std::nullopt, std::nullopt);
-      });
+  ffi::reflection::TypeAttrDef<relax::VarBindingNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&EmitRelaxVarBinding>());
+}
+
+ffi::Optional<ExprDoc> EmitRelaxIf(DocTranslatorObj* d, ffi::AnyView input,
+                                   const ffi::Object* destination) {
+  const auto* branch =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::IfNode>(input);
+  // A value context needs a usable expression after the conditional.  A
+  // destination supplied by a binding is completed directly on both arms.
+  ffi::Optional<Var> temporary = std::nullopt;
+  if (!destination) {
+    temporary = Var("if_result", branch->ty);
+    VarDoc(d, temporary.value());
+    destination = temporary.value().get();
+  }
+  TVM_FFI_CHECK(destination->IsInstance<VarNode>(), TypeError)
+      << "printer Relax If destination must be a Var";
+  Var var = ffi::GetRef<Var>(static_cast<const VarNode*>(destination));
+  ffi::Optional<IdDoc> lhs = VarDoc(d, var);
+  ffi::Optional<ExprDoc> annotation = std::nullopt;
+  if (!var->ty.IsMissing())
+    annotation = (var->ty.as<tirx::BufferTypeNode>() ? TypeValue(d, var->ty, false)
+                                                     : d->Translate(var->ty).value());
+  ExprDoc condition = d->Translate(branch->cond).value();
+  d->Emit(IfDoc(condition, RelaxSeqBody(d, branch->true_branch.get(), lhs, annotation, destination),
+                RelaxSeqBody(d, branch->false_branch.get(), lhs, annotation, destination)),
+          ffi::GetRef<ffi::ObjectRef>(branch));
+  return temporary.has_value() ? ffi::Optional<ExprDoc>(lhs.value()) : std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<relax::MatchCastNode>(ReprPrintRelax);
-  TVMScriptPrinter::Register<relax::VarBindingNode>(ReprPrintRelax);
-  TVMScriptPrinter::Register<relax::IfNode>(ReprPrintRelax);
+  ffi::reflection::TypeAttrDef<relax::IfNode>().attr(kDocTranslate,
+                                                     FDocTranslate::FromNative<&EmitRelaxIf>());
 }
 
+}  // namespace
+
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

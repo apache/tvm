@@ -187,5 +187,5 @@ class FuncType(Type):
         """
 
         if isinstance(derive_func, str):
-            derive_func = EnvFunc.get("tvm.relax.type.infer_view_ty")
+            derive_func = EnvFunc.get(derive_func)
         return _ffi_api.FuncTypeOpaqueFunc(ret, derive_func, purity, span)  # type: ignore

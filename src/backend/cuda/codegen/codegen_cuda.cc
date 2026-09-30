@@ -1295,14 +1295,26 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     std::string global_buffer =
         this->PrintExpr(addr_buffer->source.as_or_throw<tvm::tirx::BufferVar>().data());
     std::string local_addr = this->PrintExpr(op->args[3]);
+    std::string destination = reg + "[" + local_addr + "]";
+    if (const auto* load = op->args[0].as<TensorLoadNode>()) {
+      const auto* offset = op->args[3].as<IntImmNode>();
+      auto offset_type = op->args[3]->ty.as<PrimType>();
+      TVM_FFI_CHECK(
+          load->indices.size() == 1 && load->ty.as_or_throw<PrimType>() == PrimType::Float(32) &&
+              load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype == PrimType::Float(32) &&
+              offset && offset->value == 0 && offset_type && offset_type.value().IsScalar() &&
+              offset_type.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+          ValueError)
+          << "s_tir.ldg32 buffer-load destination requires scalar float32 and a zero local offset";
+      destination = reg;
+    }
     this->stream << "asm volatile (\n";
     this->stream << "\"{.reg .pred p;\\n\"\n";
     this->stream << "\" setp.ne.b32 p, %2, 0;\\n\"\n";
     this->stream << "\" @!p mov.b32 %0, 0;\\n\"\n";
     this->stream << "\" @p ld.global.nc.f32 %0, [%1];}\\n\"\n";
     // stream << "\" @p ld.global.nc.L2::128B.f32 %0, [%1];}\\n\"\n" ;
-    stream << ": \"=f\"(" << reg << "[" << local_addr << "]"
-           << ")\n";
+    stream << ": \"=f\"(" << destination << ")\n";
     stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
            << guard << ")\n";
     stream << ");\n";

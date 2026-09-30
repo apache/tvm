@@ -51,6 +51,20 @@ using tirx::TIRxOpCategory;
 using tirx::TScriptPrinterName;
 using tirx::TVectorizable;
 
+static Type InferTypeAtan(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "atan result requires an input operand";
+  return call->args[0]->ty;
+}
+
+static void ValidateAtan(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError) << "atan expects one argument";
+  PrimType input = call->args[0]->ty.as_or_throw<PrimType>();
+  TVM_FFI_CHECK(input.MatchesCode(DLDataTypeCode::kDLFloat) &&
+                    (input.bits() == 16 || input.bits() == 32 || input.bits() == 64),
+                ValueError)
+      << "atan expects a floating-point argument";
+}
+
 // macro to register an unary op
 
 // macro to register an binary op
@@ -628,9 +642,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.atan")
       .signature(sig::arg("x", "The input value."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAtan>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("atan"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  {
+    OpDef def("tirx.atan");
+    auto signature =
+        def.op()->validator.cast<ffi::reflection::NativeFunction<void(const CallNode*)>>();
+    ffi::TypedFunction<void(const CallNode*)> validator([signature](const CallNode* call) {
+      signature(call);
+      ValidateAtan(call);
+    });
+    def.set_validator(validator, true);
+  }
 
   OpDef("tirx.acosh")
       .signature(sig::arg("x", "The input value."))

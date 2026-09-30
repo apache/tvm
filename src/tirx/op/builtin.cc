@@ -33,6 +33,126 @@ namespace tvm {
 namespace tirx {
 namespace builtin {
 
+Type InferTypeVoid(const CallNode*) { return PrimType::Void(); }
+
+Type InferTypeWarpShuffle(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError) << "Result requires a value operand";
+  return call->args[1]->ty;
+}
+
+void ValidateWarpShuffle(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), 5U, ValueError) << "Warp shuffle expects five arguments";
+  PrimType value = call->args[1]->ty.as_or_throw<PrimType>();
+  TVM_FFI_CHECK(!value.IsVoid() && !value.MatchesCode(DLDataTypeCode::kDLOpaqueHandle), ValueError)
+      << "Warp shuffle expects a primitive value";
+  for (size_t i : {0U, 2U, 3U, 4U}) {
+    PrimType control = call->args[i]->ty.as_or_throw<PrimType>();
+    TVM_FFI_CHECK(
+        control.IsScalar() && control.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+        ValueError)
+        << "Warp shuffle expects scalar integer control operands";
+  }
+}
+
+Type InferTypeAddressOf(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Address type requires an object";
+  if (const auto* load = call->args[0].as<TensorLoadNode>()) {
+    return load->source.as_or_throw<BufferVar>().DataPointerType();
+  }
+  Var variable = call->args[0].as_or_throw<Var>();
+  if (auto pointer = variable->ty.as<PointerType>();
+      pointer && pointer.value()->element_type.as<TensorMapType>()) {
+    return PrimType::UInt(64);
+  }
+  return PointerType(variable->ty.as_or_throw<PrimType>());
+}
+
+Type InferTypeMaskedLoad(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
+      << "Masked load type requires a buffer and index operands";
+  BufferVar buffer = call->args[0].as_or_throw<BufferVar>();
+  ffi::Array<PrimExpr> indices;
+  for (size_t i = 1; i + 1 < call->args.size(); ++i) {
+    indices.push_back(call->args[i].as_or_throw<PrimExpr>());
+  }
+  // Ordinary load typing computes vector elements and scalable index lanes.
+  return BufferLoad(buffer, indices).ty();
+}
+
+template <bool is_store>
+void ValidateMaskedAccess(const CallNode* call) {
+  constexpr size_t index_begin = is_store ? 2 : 1;
+  TVM_FFI_CHECK_GE(call->args.size(), index_begin + 1, ValueError)
+      << "Masked buffer access expects a buffer, indices, and a lane mask";
+  BufferVar buffer = call->args[0].as_or_throw<BufferVar>();
+  TVM_FFI_CHECK_EQ(call->args.size(), buffer->shape.size() + index_begin + 1, ValueError)
+      << "Masked buffer access indices must match the buffer rank";
+  ffi::Array<PrimExpr> indices;
+  for (size_t i = index_begin; i + 1 < call->args.size(); ++i) {
+    PrimExpr index = call->args[i].as_or_throw<PrimExpr>();
+    TVM_FFI_CHECK(index.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+                  ValueError)
+        << "Masked buffer access expects integer indices";
+    indices.push_back(index);
+  }
+  // Reuse ordinary buffer-load typing, including vector elements and scalable indices.
+  PrimType value = BufferLoad(buffer, indices).ty();
+  PrimType mask = call->args.back()->ty.as_or_throw<PrimType>();
+  TVM_FFI_CHECK(mask.MatchesCode(DLDataTypeCode::kDLBool) ||
+                    (mask.MatchesCode(DLDataTypeCode::kDLUInt) && mask.bits() == 1),
+                ValueError)
+      << "Masked buffer access expects a boolean lane mask";
+  TVM_FFI_CHECK_EQ(mask->dtype.lanes, value->dtype.lanes, ValueError)
+      << "Masked buffer access mask must match the value lanes and scalability";
+  if constexpr (is_store) {
+    TVM_FFI_CHECK(call->args[1]->ty.as_or_throw<PrimType>() == value, ValueError)
+        << "Masked store value must match the indexed buffer type";
+  }
+}
+
+void ValidateStorageSync(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError)
+      << "tirx.tvm_storage_sync expects a storage scope argument";
+  TVM_FFI_CHECK(call->args[0].as<StringImmNode>(), ValueError)
+      << "tirx.tvm_storage_sync expects a StringImm storage scope";
+}
+
+void ValidateIsNaN(const CallNode* call) {
+  TVM_FFI_CHECK(call->args[0]->ty.as_or_throw<PrimType>().MatchesCode(DLDataTypeCode::kDLFloat),
+                ValueError)
+      << "tirx.isnan expects a floating-point operand";
+}
+
+Type InferTypeIsNaN(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "tirx.isnan expects one argument";
+  PrimType input = call->args[0]->ty.as_or_throw<PrimType>();
+  if (input.IsScalableVector()) {
+    return PrimType::ScalableVector(DLDataTypeCode::kDLBool, PrimType::Bool().bits(),
+                                    input.VScaleFactor());
+  }
+  return PrimType::Bool(input.lanes());
+}
+
+Type InferTypeSelector(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Result requires a value operand";
+  return call->args[0]->ty;
+}
+
+void ValidateSelector(const CallNode* call) {
+  TVM_FFI_CHECK_EQ(call->args.size(), 2U, ValueError) << "tirx.selector expects two arguments";
+  PrimType variable = call->args[0]->ty.as_or_throw<PrimType>();
+  PrimType predicate = call->args[1]->ty.as_or_throw<PrimType>();
+  TVM_FFI_CHECK(
+      variable.IsScalar() && variable.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+      ValueError)
+      << "tirx.selector expects a scalar integer thread-axis variable";
+  TVM_FFI_CHECK(
+      predicate.IsScalar() && predicate.MatchesCode(DLDataTypeCode::kDLBool, DLDataTypeCode::kDLInt,
+                                                    DLDataTypeCode::kDLUInt),
+      ValueError)
+      << "tirx.selector expects a scalar boolean or integer predicate";
+}
+
 ffi::Expected<Type> InferTypeBufferData(const CallNode* call) noexcept try {
   TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError)
       << "tirx.buffer_data expects one BufferVar argument";
@@ -86,6 +206,17 @@ ffi::Expected<void> ValidateDeclBuffer(const CallNode* call) noexcept try {
   return ffi::Unexpected(error);
 } catch (const std::exception& error) {
   return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+}
+
+void AddBuiltinValidator(const char* name, void (*validate)(const CallNode*)) {
+  OpDef def(name);
+  auto signature =
+      def.op()->validator.cast<ffi::reflection::NativeFunction<void(const CallNode*)>>();
+  ffi::TypedFunction<void(const CallNode*)> validator([signature, validate](const CallNode* call) {
+    signature(call);
+    validate(call);
+  });
+  def.set_validator(validator, true);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -244,12 +375,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.selector")
       .signature(sig::arg("var", "The thread-axis variable."), sig::arg("pred", "The predicate."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeSelector>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("selector"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.address_of")
       .signature(sig::arg("obj", "The referenced object."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeAddressOf>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("address_of"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
@@ -283,6 +416,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.isnan")
       .signature(sig::arg("x", "The input value."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeIsNaN>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("isnan"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
@@ -337,7 +471,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.call_spirv_pure_glsl450")
       .signature(sig::arg("intrin_id", "The intrinsic identifier."), sig::var_args("args"))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("call_spirv_pure_glsl450"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
@@ -345,7 +478,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("ptr", "The pointer."), sig::arg("rw", "The read/write mode."),
                  sig::arg("locality", "The locality hint."),
                  sig::arg("cache_type", "The cache policy."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("prefetch"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -366,7 +498,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.tvm_static_handle")
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_static_handle"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kSpecialCallArg));
@@ -473,11 +604,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.tvm_storage_sync")
       .signature(sig::arg("storage_scope", "The storage scope."), sig::var_args("args"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVoid>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_storage_sync"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_kernel_replace_point")
+      .signature()
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVoid>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_kernel_replace_point"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -486,6 +620,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("mask", "The mask."), sig::arg("value", "The value to use."),
                  sig::arg("warp_id", "The warp identifier."), sig::arg("width", "The width."),
                  sig::arg("warp_size", "The number of threads per warp."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeWarpShuffle>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_warp_shuffle"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -494,6 +629,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("mask", "The mask."), sig::arg("value", "The value to use."),
                  sig::arg("offset", "The offset."), sig::arg("width", "The width."),
                  sig::arg("warp_size", "The number of threads per warp."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeWarpShuffle>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_warp_shuffle_up"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -502,6 +638,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("mask", "The mask."), sig::arg("value", "The value to use."),
                  sig::arg("offset", "The offset."), sig::arg("width", "The width."),
                  sig::arg("warp_size", "The number of threads per warp."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeWarpShuffle>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_warp_shuffle_down"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -510,6 +647,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("mask", "The mask."), sig::arg("value", "The value to use."),
                  sig::arg("lane_mask", "The lane mask."), sig::arg("width", "The width."),
                  sig::arg("warp_size", "The number of threads per warp."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeWarpShuffle>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_warp_shuffle_xor"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -611,7 +749,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.atomic_add")
       .signature(sig::arg("ptr", "The pointer."), sig::arg("value", "The value to use."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("atomic_add"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -619,7 +756,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("storage_scope", "The storage scope."),
                  sig::arg("ndim", "The number of dimensions."), sig::arg("shape", "The shape."),
                  sig::var_args("args"))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("nd_mem_alloc_with_scope"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -628,7 +764,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("y", "The second input value."), sig::arg("z", "The third input value."),
                  sig::arg("channel_size", "The number of channels."),
                  sig::arg("value", "The value to use."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("texture2d_store"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TVectorizable>("TVectorizable", true)
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -638,7 +773,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                  sig::arg("y", "The second input value."), sig::arg("z", "The third input value."),
                  sig::arg("channel_size", "The number of channels."),
                  sig::arg("element_index", "The element index within a texture channel."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("texture2d_load"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TVectorizable>("TVectorizable", true)
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
@@ -667,6 +801,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.masked_load")
       .signature(sig::arg("buffer", "The buffer."), sig::arg("index", "The index."),
                  sig::var_args("args"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeMaskedLoad>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("masked_load"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
@@ -677,6 +812,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.masked_store")
       .signature(sig::arg("buffer", "The buffer."), sig::arg("value", "The value to use."),
                  sig::arg("index", "The index."), sig::var_args("args"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVoid>())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("masked_store"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
@@ -711,14 +847,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.buffer_offset")
       .signature(sig::arg("load", "The buffer load whose offset is returned."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("buffer_offset"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.buffer_data")
       .signature(sig::arg("buffer", "The buffer."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBufferData>())
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("buffer_data"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
@@ -730,6 +864,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("print_buffer"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  AddBuiltinValidator("tirx.selector", ValidateSelector);
+  AddBuiltinValidator("tirx.isnan", ValidateIsNaN);
+  AddBuiltinValidator("tirx.tvm_storage_sync", ValidateStorageSync);
+  AddBuiltinValidator("tirx.masked_load", ValidateMaskedAccess<false>);
+  AddBuiltinValidator("tirx.masked_store", ValidateMaskedAccess<true>);
+  AddBuiltinValidator("tirx.tvm_warp_shuffle", ValidateWarpShuffle);
+  AddBuiltinValidator("tirx.tvm_warp_shuffle_up", ValidateWarpShuffle);
+  AddBuiltinValidator("tirx.tvm_warp_shuffle_down", ValidateWarpShuffle);
+  AddBuiltinValidator("tirx.tvm_warp_shuffle_xor", ValidateWarpShuffle);
 }
 
 }  // namespace builtin

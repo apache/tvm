@@ -107,7 +107,7 @@ def test_prim_func_symbolic_alloc_buffer_roundtrip():
     ).with_attr("s_tir", True)
 
     source = func.script()
-    assert "T.alloc_buffer((size,))" in source
+    assert 'T.alloc_buffer((size,), "float32", layout=None)' in source
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source,
@@ -138,7 +138,7 @@ def test_prim_func():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
     T.evaluate(0)""",
     )
 
@@ -163,7 +163,7 @@ def test_prim_func_buffer_data_use():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
     T.evaluate(A.data)
 """,
     )
@@ -190,7 +190,7 @@ def test_prim_func_buffer_data_argument_is_scope_hint():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
     T.evaluate(0)
 """,
     )
@@ -267,8 +267,8 @@ def test_match_buffer_region():
     _assert_print(
         obj,
         """
-src = T.Buffer((128, 128))
-tgt = Ts.match_buffer(src[64:128, 64:128], (64, 64))
+src = T.Buffer((128, 128), "float32", layout="default")
+tgt = Ts.match_buffer(src[64:128, 64:128], (64, 64), "float32", layout="default")
 """,
     )
 
@@ -326,15 +326,22 @@ def test_remap():
 @Ts.prim_func
 def main():
     # with Ts.sblock("root"):
-    for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-        with Ts.sblock("update"):
-            v = Ts.axis.spatial(128, i0 + 1)
-            v_1, v_2 = Ts.axis.remap("SR", [i1, i2])
-            v_3 = Ts.axis.spatial(128, i3 - 1)
-            v_4, v_5 = Ts.axis.remap("RS", [i4, i5])
-            Ts.reads()
-            Ts.writes()
-            T.evaluate(0)"""
+    for i0 in range(128):
+        for i1 in range(128):
+            for i2 in range(128):
+                for i3 in range(128):
+                    for i4 in range(128):
+                        for i5 in range(128):
+                            with Ts.sblock("update"):
+                                v = Ts.axis.spatial(128, i0 + 1)
+                                v_1 = Ts.axis.spatial(128, i1)
+                                v_2 = Ts.axis.reduce(128, i2)
+                                v_3 = Ts.axis.spatial(128, i3 - 1)
+                                v_4 = Ts.axis.reduce(128, i4)
+                                v_5 = Ts.axis.spatial(128, i5)
+                                Ts.reads()
+                                Ts.writes()
+                                T.evaluate(0)"""
     _assert_print(block_with_remap_explicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(block_with_remap_implicitly.with_attr("global_symbol", "main"), expected_output)
 
@@ -365,13 +372,13 @@ def test_root_block():
 @Ts.prim_func
 def main():
     # with Ts.sblock("root"):
-    buffer = Ts.sblock_alloc_buffer((128, 128))
-    for i, j in T.grid(128, 128):
-        with Ts.sblock(""):
-            Ts.reads()
-            Ts.writes()
-            T.evaluate(0)
-    """
+    buffer = Ts.sblock_alloc_buffer((128, 128), "float32", layout=None)
+    for i in range(128):
+        for j in range(128):
+            with Ts.sblock(""):
+                Ts.reads()
+                Ts.writes()
+                T.evaluate(0)"""
     _assert_print(root_block_implicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(root_block_explicitly.with_attr("global_symbol", "main"), expected_output)
 
@@ -392,7 +399,7 @@ def test_private_primfunc():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func(private=True)
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
     T.evaluate(0)""",
     )
 
@@ -411,9 +418,8 @@ def test_prim_func_different_symbol():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func
-def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    T.evaluate(0)
-    """
+def func(A: T.Buffer((128, 128), "float32", layout=None), B: T.Buffer((256, 256), "float32", layout=None)):
+    T.evaluate(0)"""
     _assert_print(main, expected_output)
 
 
@@ -556,10 +562,9 @@ def test_predicated_load_store():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func
-def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def func(A: T.Buffer((128, 128), "float32", layout=None), B: T.Buffer((256, 256), "float32", layout=None)):
     a_load: T.let[T.float32x4] = T.masked_load("float32x4", A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4))
-    T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
-    """
+    T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
     _assert_print(main, expected_output)
 
 
@@ -601,9 +606,8 @@ def test_predicated_buffer_load_store():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func(private=True)
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    T.masked_store(A, T.masked_load("float32x4", B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
-    """
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
+    T.masked_store(A, T.masked_load("float32x4", B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
     _assert_print(func, expected_output)
 
 
@@ -626,16 +630,17 @@ def test_predicated_scalable_load_store():
         )
 
     expected_output = """
+# from tvm.script import ir as I
 # from tvm.script import tirx as T
 # from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func
-def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    mask: T.let[T.uint1xvscalex4] = T.get_active_lane_mask("uint1xvscalex4", 0, 13)
-    a_load: T.let[T.float32xvscalex4] = T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
+def func(A: T.Buffer((128, 128), "float32", layout=None), B: T.Buffer((256, 256), "float32", layout=None)):
+    mask: T.let[I.PrimType("uint1xvscalex4")] = T.get_active_lane_mask("uint1xvscalex4", 0, 13)
+    a_load: T.let[I.PrimType("float32xvscalex4")] = T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, T.vscale() * 4), mask)
-    """
+"""
     _assert_print(main, expected_output)
 
 
@@ -671,9 +676,8 @@ def test_vload_with_explicit_scalable_data_type():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func
-def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
-    B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]
-    """
+def main(A: T.Buffer((128,), "float32", layout=None), B: T.Buffer((128,), "float32", layout=None)):
+    B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]"""
     _assert_print(main, expected_output)
 
 
@@ -692,9 +696,8 @@ def test_vectorize_llvm_pure_intrin():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func
-def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
-    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])
-    """
+def main(A: T.Buffer((4,), "float32", layout=None), B: T.Buffer((4,), "float32", layout=None)):
+    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])"""
     _assert_print(main, expected_output)
 
 
@@ -716,14 +719,13 @@ def test_func_with_loop_jumps():
 # from tvm.script import s_tir as Ts
 
 @Ts.prim_func
-def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
+def main(A: T.Buffer((4,), "float32", layout=None), B: T.Buffer((4,), "float32", layout=None)):
     for i in range(1000):
         if i % 13 == 0:
             A[1] = A[1] + T.float32(1.0)
             continue
         if A[0] >= B[0]:
-            break
-    """
+            break"""
     _assert_print(main, expected_output)
 
 
@@ -1321,9 +1323,10 @@ def test_same_name_var():
         },
     )
     tvm.ir.assert_structural_equal(func, rt_func)
-    assert out_str.count("for i, j in T.grid(16, 16)") == 2
-    assert out_str.find("i_") == -1
-    assert out_str.find("i_") == -1
+    assert out_str.count("for i in range(16):\n        for j in range(16):") == 1
+    assert out_str.count("for i_1 in range(16):\n        for j_1 in range(16):") == 1
+    assert out_str.find("i_2") == -1
+    assert out_str.find("j_2") == -1
 
 
 def primfunc_with_allocate_annotations():
@@ -2230,9 +2233,9 @@ class Module:
 
 
 def test_str_metadata():
-    # This test is to check we reuse the existing metadata element for the same tvm.ir.StringImm
-    # So metadata["ir.StringImm"][0] will occur in the printed script for three times
-    str_imm = tvm.ir.StringImm("aaa\nbbb\n")
+    # This test is to check we reuse the existing metadata element for the same metadata-backed GenericConst
+    # So metadata["ir.GenericConst"][0] will occur in the printed script for three times
+    str_imm = tvm.ir.GenericConst(tvm.runtime.convert(["aaa\nbbb\n"]), tvm.ir.AnyType())
 
     @I.ir_module
     class Module:
@@ -2247,8 +2250,8 @@ def test_str_metadata():
 
     printed_str = Module.script(verbose_expr=True)
     assert (
-        printed_str.count('metadata["ir.StringImm"][0]') == 3
-        and printed_str.count('metadata["ir.StringImm"][1]') == 0
+        printed_str.count('metadata["ir.GenericConst"][0]') == 3
+        and printed_str.count('metadata["ir.GenericConst"][1]') == 0
     )
 
 

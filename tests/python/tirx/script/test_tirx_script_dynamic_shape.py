@@ -136,7 +136,7 @@ def test_type_vars_roundtrip():
     if sys.version_info >= (3, 12):
         assert script.startswith("from __future__ import annotations\n\n")
         assert "def main[M](" in script
-        assert 'T.Buffer((M, M * T.int64(2)), "float32")' in script
+        assert 'T.Buffer((M, M * T.int64(2)), "float32", layout="default")' in script
         assert "M = T.int64()" not in script
         typed = tvm.script.from_source(
             """
@@ -155,7 +155,7 @@ def func[M: int](A: T.Buffer((M, M * 2), "float32")):
     portable = func.script(extra_config={"script.use_pep695": False})
     assert "from __future__ import annotations" not in portable
     assert 'M = I.dynamic("M", dtype="int64")' in portable
-    assert 'T.Buffer((M, M * T.int64(2)), "float32")' in portable
+    assert 'T.Buffer((M, M * T.int64(2)), "float32", layout="default")' in portable
     assert "UNUSED" not in script
     assert "M = T.int64()" not in portable
     assert len(func.params) == 1

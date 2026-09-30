@@ -21,8 +21,8 @@
  * \brief Configuration object for the TVMScript printer.
  *
  * Contains PrinterConfig / PrinterConfigNode, GetBuiltinKeywords, GetExtraConfig,
- * and RedirectedReprPrinterMethod.  The entry-point free function tvm::Script()
- * and the dispatch vtable TVMScriptPrinter live in printer.h.
+ * and RedirectedReprPrinterMethod. The translation entry points live in
+ * doc_translator.h.
  */
 #ifndef TVM_SCRIPT_PRINTER_CONFIG_H_
 #define TVM_SCRIPT_PRINTER_CONFIG_H_
@@ -55,14 +55,6 @@ class PrinterConfigNode : public ffi::Object {
   ffi::String module_alias = "cls";
   /*! \brief Default buffer dtype */
   DLDataType buffer_dtype = DLDataType{kDLFloat, 32, 1};
-  /*! \brief Default data type of integer literals */
-  DLDataType int_dtype = DLDataType{kDLInt, 32, 1};
-  /*!
-   * \brief Default data type of float literals. Right now we always print out the explicit type
-   * of floating point values, so setting it to Void means we do not print without the
-   * T.float32/T.float64 wrapper.
-   */
-  DLDataType float_dtype = DLDataType{kDLOpaqueHandle, 0, 0};
   /*! \brief Whether or not to verbose print expressions. */
   bool verbose_expr = false;
   /*! \brief Number of spaces used for indentation*/
@@ -121,8 +113,6 @@ class PrinterConfigNode : public ffi::Object {
         .def_ro("ir_prefix", &PrinterConfigNode::ir_prefix)
         .def_ro("module_alias", &PrinterConfigNode::module_alias)
         .def_ro("buffer_dtype", &PrinterConfigNode::buffer_dtype)
-        .def_ro("int_dtype", &PrinterConfigNode::int_dtype)
-        .def_ro("float_dtype", &PrinterConfigNode::float_dtype)
         .def_ro("verbose_expr", &PrinterConfigNode::verbose_expr)
         .def_ro("indent_spaces", &PrinterConfigNode::indent_spaces)
         .def_ro("print_line_numbers", &PrinterConfigNode::print_line_numbers)
@@ -152,9 +142,9 @@ class TVM_DLL PrinterConfig : public ffi::ObjectRef {
 };
 
 /*!
- * \brief The fallback body used by TVMScriptPrinter::Register.
+ * \brief Render an IR object for its registered repr callback.
  *
- * Tries to format \p obj via tvm::Script; on error falls back to a plain
+ * Tries to translate \p obj directly; on error falls back to a plain
  * address string.  Defined in src/script/printer/script_printer.cc so that
  * <tvm/runtime/logging.h> is not pulled into this public header.
  */

@@ -44,6 +44,7 @@ def test_underline_from_obj():
 
         @T.prim_func
         def main(a: T.int32, b: T.int32):
+                 ^
             T.evaluate(a)
                        ^
             T.evaluate(b)

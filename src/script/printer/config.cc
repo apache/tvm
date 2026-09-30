@@ -23,6 +23,7 @@
 #include <map>
 #include <string>
 #include <unordered_set>
+#include <utility>
 
 #include "./dialect_prefix.h"
 
@@ -84,10 +85,14 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     n->buffer_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
   }
   if (auto v = get("int_dtype")) {
-    n->int_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
+    n->extra_config.Set(
+        "script.int_dtype",
+        ffi::DLDataTypeToString(ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>())));
   }
   if (auto v = get("float_dtype")) {
-    n->float_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
+    n->extra_config.Set(
+        "script.float_dtype",
+        ffi::DLDataTypeToString(ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>())));
   }
   if (auto v = get("verbose_expr")) {
     n->verbose_expr = v.value().cast<bool>();
@@ -147,7 +152,15 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     }
   }
 
-  // Validate all registered prefixes before names can be assigned by a docsifier.
+  // Keep legacy constructor arguments as adapters; explicit extra_config values
+  // take precedence. Store validated dtype strings with the existing defaults.
+  for (const auto& [key, fallback] :
+       {std::pair{"script.int_dtype", "int32"}, std::pair{"script.float_dtype", "void"}}) {
+    ffi::String value = n->GetExtraConfig<ffi::String>(key, fallback);
+    n->extra_config.Set(key, ffi::DLDataTypeToString(ffi::StringToDLDataType(value)));
+  }
+
+  // Validate all registered prefixes before translation assigns names.
   n->GetBuiltinKeywords();
 
   this->data_ = std::move(n);

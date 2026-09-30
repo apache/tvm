@@ -1247,8 +1247,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     ss << ref;
     return ss.str();
   });
-  // Note: kRepr for GlobalVarNode is registered in script/printer/ir/ir.cc
-  // via TVMScriptPrinter::Register<GlobalVarNode>(ReprPrintIR).
+  // Note: kRepr for GlobalVarNode is registered in script/printer/script_printer.cc.
 }
 
 }  // namespace tvm

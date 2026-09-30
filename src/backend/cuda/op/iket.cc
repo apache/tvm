@@ -27,9 +27,16 @@
 namespace tvm {
 namespace tirx {
 
+namespace {
+Type InferTypeVoid(const CallNode*) { return PrimType::Void(); }
+
+Type InferTypeUInt32(const CallNode*) { return PrimType::UInt(32); }
+}  // namespace
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.cuda.iket_mark")
       .signature(sig::arg("name", "The name."), sig::var_args("args"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVoid>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
@@ -38,6 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.cuda.iket_range_start")
       .signature(sig::arg("name", "The name."), sig::var_args("args"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeUInt32>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
@@ -46,6 +54,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.cuda.iket_range_end")
       .signature(sig::arg("token", "The token."), sig::var_args("args"))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVoid>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.iket."
