@@ -752,7 +752,8 @@ void CodeGenWebGPU::DispatchAllocBuffer(const BindNode* op, const CallNode* buff
     int64_t dim_size = dim_imm ? static_cast<int64_t>(dim_imm->value)
                                : analyzer_->const_int_bound(dim.as_or_throw<PrimExpr>())->max_value;
     if (dim_imm == nullptr) {
-      const auto* dtype_max = max_value(dim->ty.as_or_throw<PrimType>()).as<IntImmNode>();
+      PrimExpr dtype_max_value = max_value(dim->ty.as_or_throw<PrimType>());
+      const auto* dtype_max = dtype_max_value.as<IntImmNode>();
       // An integer dtype's intrinsic maximum is not a program-derived allocation bound.
       TVM_FFI_ICHECK(dtype_max && dim_size < dtype_max->value)
           << "WebGPU allocation extent requires a finite compile-time upper bound, but got " << dim;
