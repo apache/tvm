@@ -1070,9 +1070,11 @@ export class Instance implements Disposable {
    */
   withNewScope<T>(action: () => T): T {
     this.beginScope();
-    const val = action();
-    this.endScope();
-    return val;
+    try {
+      return action();
+    } finally {
+      this.endScope();
+    }
   }
 
   /**
@@ -1156,16 +1158,19 @@ export class Instance implements Disposable {
       const ioverride = override ? 1 : 0;
 
       const stack = this.lib.getOrAllocCallStack();
-      const nameOffset = stack.allocByteArrayForString(name);
-      stack.commitToWasmMemory();
-      this.lib.checkCall(
-        (this.lib.exports.TVMFFIFunctionSetGlobal as ctypes.FTVMFFIFunctionSetGlobal)(
-          stack.ptrFromOffset(nameOffset),
-          packedFunc._tvmPackedCell.getHandle(),
-          ioverride
-        )
-      );
-      this.lib.recycleCallStack(stack);
+      try {
+        const nameOffset = stack.allocByteArrayForString(name);
+        stack.commitToWasmMemory();
+        this.lib.checkCall(
+          (this.lib.exports.TVMFFIFunctionSetGlobal as ctypes.FTVMFFIFunctionSetGlobal)(
+            stack.ptrFromOffset(nameOffset),
+            packedFunc._tvmPackedCell.getHandle(),
+            ioverride
+          )
+        );
+      } finally {
+        this.lib.recycleCallStack(stack);
+      }
     });
   }
 
@@ -1191,20 +1196,24 @@ export class Instance implements Disposable {
     autoAttachToScope = true,
   ): PackedFunc | undefined {
     const stack = this.lib.getOrAllocCallStack();
-    const nameOffset = stack.allocByteArrayForString(name);
-    const outOffset = stack.allocPtrArray(1);
-    const outPtr = stack.ptrFromOffset(outOffset);
+    let handle: Pointer;
+    try {
+      const nameOffset = stack.allocByteArrayForString(name);
+      const outOffset = stack.allocPtrArray(1);
+      const outPtr = stack.ptrFromOffset(outOffset);
 
-    stack.commitToWasmMemory(outOffset);
+      stack.commitToWasmMemory(outOffset);
 
-    this.lib.checkCall(
-      (this.exports.TVMFFIFunctionGetGlobal as ctypes.FTVMFFIFunctionGetGlobal)(
-        stack.ptrFromOffset(nameOffset),
-        outPtr
-      )
-    );
-    const handle = this.memory.loadPointer(outPtr);
-    this.lib.recycleCallStack(stack);
+      this.lib.checkCall(
+        (this.exports.TVMFFIFunctionGetGlobal as ctypes.FTVMFFIFunctionGetGlobal)(
+          stack.ptrFromOffset(nameOffset),
+          outPtr
+        )
+      );
+      handle = this.memory.loadPointer(outPtr);
+    } finally {
+      this.lib.recycleCallStack(stack);
+    }
     if (handle === 0) {
       return undefined;
     }
@@ -1885,20 +1894,22 @@ export class Instance implements Disposable {
     typeKey: string
   ): number {
     const stack = this.lib.getOrAllocCallStack();
-    const typeKeyOffset = stack.allocByteArrayForString(typeKey);
-    const outOffset = stack.allocPtrArray(1);
-    const outPtr = stack.ptrFromOffset(outOffset);
+    try {
+      const typeKeyOffset = stack.allocByteArrayForString(typeKey);
+      const outOffset = stack.allocPtrArray(1);
+      const outPtr = stack.ptrFromOffset(outOffset);
 
-    stack.commitToWasmMemory(outOffset);
-    this.lib.checkCall(
-      (this.lib.exports.TVMFFITypeKeyToIndex as ctypes.FTVMFFITypeKeyToIndex)(
-        stack.ptrFromOffset(typeKeyOffset),
-        outPtr
-      )
-    );
-    const typeIndex = this.memory.loadU32(outPtr);
-    this.lib.recycleCallStack(stack);
-    return typeIndex;
+      stack.commitToWasmMemory(outOffset);
+      this.lib.checkCall(
+        (this.lib.exports.TVMFFITypeKeyToIndex as ctypes.FTVMFFITypeKeyToIndex)(
+          stack.ptrFromOffset(typeKeyOffset),
+          outPtr
+        )
+      );
+      return this.memory.loadU32(outPtr);
+    } finally {
+      this.lib.recycleCallStack(stack);
+    }
   }
 
   /**
@@ -2187,18 +2198,20 @@ export class Instance implements Disposable {
     this.env.packedCFuncTable[findex] = func;
 
     const stack = this.lib.getOrAllocCallStack();
-    const outOffset = stack.allocPtrArray(1);
-    const outPtr = stack.ptrFromOffset(outOffset);
-    this.lib.checkCall(
-      (this.exports
-        .TVMFFIWasmFunctionCreate as ctypes.FTVMFFIWasmFunctionCreate)(
-          findex,
-          outPtr
-        )
-    );
-    const ret = this.makePackedFunc(this.memory.loadPointer(outPtr));
-    this.lib.recycleCallStack(stack);
-    return ret;
+    try {
+      const outOffset = stack.allocPtrArray(1);
+      const outPtr = stack.ptrFromOffset(outOffset);
+      this.lib.checkCall(
+        (this.exports
+          .TVMFFIWasmFunctionCreate as ctypes.FTVMFFIWasmFunctionCreate)(
+            findex,
+            outPtr
+          )
+      );
+      return this.makePackedFunc(this.memory.loadPointer(outPtr));
+    } finally {
+      this.lib.recycleCallStack(stack);
+    }
   }
 
   /**
