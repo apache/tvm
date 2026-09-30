@@ -768,6 +768,8 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
       TVM_FFI_ICHECK_EQ(shape.value().size(), 1);
       copy_dst.ndim = 1;
       copy_dst.shape = const_cast<int64_t*>(shape.value()->data);
+      // The strides still describe the multi-row view this copies one row of.
+      copy_dst.strides = nullptr;
     }
     copy_dst.byte_offset = dst_elem_offset * sizeof(int32_t);
 
