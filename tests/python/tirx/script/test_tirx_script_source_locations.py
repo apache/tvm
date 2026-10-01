@@ -246,7 +246,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     from tvm import ir, tirx
     from tvm.script.ir_builder import base
 
-    captured = T.Buffer((4, 4), "float32")
+    captured = T.buffer((4, 4), "float32")
     original = type(captured).view
     seen, produced, observed = [], [], []
     span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
@@ -299,7 +299,7 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     from tvm.script.ir_builder import base
 
     producer_span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
-    buffer = T.Buffer((4,), "float32")
+    buffer = T.buffer((4,), "float32")
     base.at_(producer_span, buffer)
     layout = T.TileLayout(T.S[4])
 

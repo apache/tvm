@@ -58,14 +58,14 @@ def test_native_concise_scopes_unwind_with_their_parent():
 def test_tir_buffer_annotation():
     buffer_0 = T.Buffer((128, 128), "float32")
     assert (
-        tirx.is_buffer_var(buffer_0)
+        isinstance(buffer_0, tirx.BufferType)
         and list(buffer_0.shape) == [128, 128]
         and buffer_0.dtype == ir.PrimType("float32")
     )
 
     buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
-        tirx.is_buffer_var(buffer_1)
+        isinstance(buffer_1, tirx.BufferType)
         and list(buffer_1.shape) == [64, 64, 64]
         and buffer_1.dtype == ir.PrimType("int32")
     )
