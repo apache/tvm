@@ -4270,7 +4270,7 @@ class BatchNormalization(OnnxOpConverter):
             moving_var=cast_for_compute(var, var_dtype),
             axis=1,
             epsilon=epsilon,
-            momentum=momentum,
+            momentum=1 - momentum,
             training=bool(training_mode),
         )
 
@@ -4603,6 +4603,7 @@ class LayerNormalization(OnnxOpConverter):
         bias = inputs[2]
         axis = attr.get("axis", -1)
         epsilon = attr.get("epsilon", 1e-05)
+        stash_type = attr.get("stash_type", 1)
 
         gamma_shape = get_const_tuple(scale.ty.shape)
 
@@ -4613,15 +4614,24 @@ class LayerNormalization(OnnxOpConverter):
             if gamma_shape != beta_shape:
                 raise ValueError("gamma and beta shapes do not match")
 
-        axis = list(axis) if isinstance(axis, list | tuple) else [axis]
-        if len(axis) < len(gamma_shape):
-            axis.extend(range(axis[-1] + 1, axis[-1] + 1 + len(gamma_shape) - len(axis)))
+        if stash_type != 1:
+            raise ValueError("LayerNormalization currently only supports stash_type=1 (FLOAT).")
+        ndim = _get_known_tensor_rank(data)
+        if ndim is None:
+            raise ValueError("LayerNormalization requires a statically known input rank.")
+        axis = _normalize_constant_axes([axis], ndim, "LayerNormalization")[0]
+        axes = list(range(axis, ndim))
 
-        output = relax.op.nn.layer_norm(data, scale, bias, axis, epsilon)
-        # Onnx layernorm has 3 outputs but only the first is used.
-        # We construct two empty constants for this.
-        placeholder = relax.const(0, dtype="float32")
-        return relax.Tuple([output, placeholder, placeholder])
+        output = relax.op.nn.layer_norm(data, scale, bias, axes, epsilon)
+        stats_data = data
+        if str(data.ty.dtype) != "float32":
+            stats_data = relax.op.astype(data, "float32")
+        mean = relax.op.mean(stats_data, axis=axes, keepdims=True)
+        variance = relax.op.variance(stats_data, axis=axes, keepdims=True)
+        inv_std_dev = relax.op.rsqrt(
+            relax.op.add(variance, relax.const(epsilon, dtype="float32"))
+        )
+        return relax.Tuple([output, mean, inv_std_dev])
 
 
 class RMSNormalization(OnnxOpConverter):
