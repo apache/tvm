@@ -247,11 +247,23 @@ class LambdaLifter : public ExprMutator {
     current_lambda_var_ = binding->var;
 
     auto new_value = VisitExpr(binding->value);
+    const auto* call = new_value.as<CallNode>();
+    if (call && call->op.same_as(make_closure_op_)) {
+      closures_.insert(binding->var);
+    }
     if (!rebind_map_.count(binding->var)) {
       ReEmitBinding(binding, new_value);
     }
 
     current_lambda_var_ = cache;
+  }
+
+  void VisitBinding_(const VarBindingNode* binding, const VarNode* var_node) final {
+    auto new_value = VisitExpr(ffi::GetRef<Var>(var_node));
+    if (IsClosure(new_value)) {
+      closures_.insert(binding->var);
+    }
+    ReEmitBinding(binding, new_value);
   }
 
   Expr VisitExpr_(const FunctionNode* func_node) final {
@@ -368,24 +380,9 @@ class LambdaLifter : public ExprMutator {
 
       // Call "relax.invoke_closure" to invoke closure
 
-      auto bound_value = LookupBinding(var);
-      if (IsClosure(var) && bound_value.as<CallNode>()) {
+      if (IsClosure(var)) {
         // if the original op was pure, we should use invoke_pure_closure
-        Call orig_call = bound_value.value().as_or_throw<Call>();
-        bool is_pure = [&]() -> bool {
-          if (auto op = orig_call->op.as<Op>()) {
-            static const auto& purity_map = Op::GetAttrMap<bool>("FPurity");
-            return purity_map.get(op.value(), false);
-          } else if (const auto* func_ty = orig_call->op->ty.as<FuncTypeNode>()) {
-            return func_ty->purity;
-          } else {
-            TVM_FFI_THROW(InternalError)
-                << "Could not determine purity of call to " << orig_call->op
-                << ", as it is neither a tvm::Op (type = \"" << orig_call->op->GetTypeKey()
-                << "\"), "
-                << "nor is is annotated with FuncType (ty = " << orig_call->op->ty << ")";
-          }
-        }();
+        bool is_pure = GetType(var).as_or_throw<FuncType>()->purity;
 
         auto prev = call;
         call =
