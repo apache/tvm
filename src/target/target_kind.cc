@@ -189,7 +189,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_default_device_type(kDLCPU)  // line break
       .def_option<ffi::Array<Target>>(
           "devices",
-          ir::ConfigSchema::AttrValidator(ffi::TypedFunction<ffi::Any(ffi::Any)>(  //
+          ConfigSchema::AttrValidator(ffi::TypedFunction<ffi::Any(ffi::Any)>(  //
               [](ffi::Any val) -> ffi::Any {
                 // Allow elements to be strings or dicts, converting them to Target objects.
                 if (val.try_cast<ffi::Array<Target>>().has_value()) return val;

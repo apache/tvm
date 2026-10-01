@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file tvm/ir/config_schema.h
+ * \file tvm/target/config_schema.h
  * \brief Minimal schema for dynamic config canonicalization and validation.
  *
  * This utility is intended for dynamic map-like configs (e.g. Target options),
  * where we still want type checking, optional defaulting, and canonicalization.
  */
-#ifndef TVM_IR_CONFIG_SCHEMA_H_
-#define TVM_IR_CONFIG_SCHEMA_H_
+#ifndef TVM_TARGET_CONFIG_SCHEMA_H_
+#define TVM_TARGET_CONFIG_SCHEMA_H_
 
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
@@ -39,7 +39,6 @@
 #include <vector>
 
 namespace tvm {
-namespace ir {
 
 /*!
  * \brief Dynamic config schema for map-like options.
@@ -236,7 +235,6 @@ class ConfigSchema {
   bool error_on_unknown_ = true;
 };
 
-}  // namespace ir
 }  // namespace tvm
 
-#endif  // TVM_IR_CONFIG_SCHEMA_H_
+#endif  // TVM_TARGET_CONFIG_SCHEMA_H_

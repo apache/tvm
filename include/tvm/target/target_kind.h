@@ -27,8 +27,8 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ir/config_schema.h>
 #include <tvm/runtime/base.h>
+#include <tvm/target/config_schema.h>
 
 #include <utility>
 #include <vector>
@@ -75,7 +75,7 @@ class TargetKindNode : public ffi::Object {
 
  private:
   /*! \brief ConfigSchema for validating and resolving target attributes */
-  ir::ConfigSchema schema_;
+  ConfigSchema schema_;
   friend class TargetKindRegistry;
   friend class TargetKindDef;
   friend class TargetInternal;
