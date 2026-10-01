@@ -157,6 +157,12 @@ details::TranslationResult TranslateComplete(ffi::AnyView obj, TranslationEngine
       engine->AllocId(value.cast<ffi::String>());
   }
   for (const ffi::String& name : binding_names) engine->AllocId(name);
+  if (binding_names.empty()) {
+    if (auto name = engine->GetExtraConfig<ffi::Optional<ffi::String>>("script.module_name",
+                                                                       std::nullopt)) {
+      engine->AllocId(name.value());
+    }
+  }
   // Allocate generated names after all configured names. A dialect or module
   // named tvm/metadata must not shadow the loader or metadata registry.
   IdDoc metadata_id = engine->AllocId("metadata");
