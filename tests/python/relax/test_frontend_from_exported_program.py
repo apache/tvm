@@ -236,6 +236,21 @@ def test_sqrt_integer_input():
     verify_model(SqrtIntModel(), example_args_int32, {}, expected_int32)
 
 
+def test_selu_and_elu_scale_arguments():
+    # run_decompositions rewrites selu to aten.elu(x, alpha, scale), so scale must be applied.
+    class Selu(Module):
+        def forward(self, x):
+            return torch.nn.functional.selu(x)
+
+    class EluScaled(Module):
+        def forward(self, x):
+            return torch.ops.aten.elu(x, 0.5, 2.0, 3.0)
+
+    example_args = (torch.tensor([[-2.0, -0.5, 0.0, 1.5]], dtype=torch.float32),)
+    verify_model_numerically(Selu(), example_args, rtol=1e-5, atol=1e-5)
+    verify_model_numerically(EluScaled(), example_args, rtol=1e-5, atol=1e-5)
+
+
 def test_extended_unary_ops():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
 
@@ -706,7 +721,10 @@ def test_extended_unary_ops():
                 )
                 lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input)
                 lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv3, lv4)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv5,)
+                lv6: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    lv5, R.const(1.0507009873554805, "float32")
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv6,)
                 R.output(gv)
             return gv
 
