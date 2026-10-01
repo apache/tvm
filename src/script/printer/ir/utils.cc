@@ -17,15 +17,13 @@
  */
 #include "utils.h"
 
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ir/global_info.h>
 #include <tvm/ir/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
-#include <tvm/tirx/type.h>
 
 #include <algorithm>
-#include <functional>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -91,7 +89,10 @@ bool HasAnnotatedDescendant(DocTranslatorObj* d, const ffi::ObjectRef& object) {
 }
 
 ExprDoc GlobalReference(DocTranslatorObj* d, const ffi::String& name) {
-  return IdDoc(d->GetExtraConfig<ffi::String>("script.module_name", "Module"))->Attr(name);
+  auto names = d->GetExtraConfig<ffi::Array<ffi::String>>("script.binding_names", {});
+  return IdDoc(names.empty() ? d->GetExtraConfig<ffi::String>("script.module_name", "Module")
+                             : names.back())
+      ->Attr(name);
 }
 
 namespace {
@@ -104,23 +105,8 @@ ExprDoc TypeValueImpl(DocTranslatorObj* d, const Type& type, bool dtype_literal)
     return NamespaceDoc("relax")->Attr("Tuple")->Call({});
   }
   if (auto function = type.as<relax::FuncTypeNode>(); function && !function->params.has_value()) {
-    ffi::Array<ffi::String> keys;
-    ffi::Array<ExprDoc> values;
-    if (!function->ret.as<AnyTypeNode>()) {
-      keys.push_back("ret");
-      values.push_back((function->ret.as<tirx::BufferTypeNode>()
-                            ? TypeValue(d, function->ret, false)
-                            : d->Translate(function->ret).value()));
-    }
-    if (function->purity) {
-      keys.push_back("purity");
-      values.push_back(LiteralDoc::Boolean(true, std::nullopt));
-    }
-    if (function->derive_func.has_value()) {
-      keys.push_back("derive_func");
-      values.push_back(LiteralDoc::Str(function->derive_func.value()->name, std::nullopt));
-    }
-    return NamespaceDoc("relax")->Attr("Callable")->Call({}, keys, values);
+    ExprDoc doc = d->Translate(type).value();
+    return doc.as<AttrAccessDocNode>() ? doc->Call({}) : doc;
   }
   if (auto primitive = type.as<PrimType>()) {
     ExprDoc dtype = LiteralDoc::DataType(primitive.value()->dtype, std::nullopt);
@@ -144,12 +130,6 @@ ExprDoc TypeValueImpl(DocTranslatorObj* d, const Type& type, bool dtype_literal)
     return d->Translate(type).value()->Attr("ty");
   }
   ExprDoc doc = d->Translate(type).value();
-  if (type.as<tirx::BufferTypeNode>()) {
-    if (auto call = doc.as<CallDoc>();
-        call && call.value()->callee.as_or_throw<AttrAccessDoc>()->name == "Buffer") {
-      return doc->Attr("ty");
-    }
-  }
   if (type.as<relax::TensorTypeNode>() && doc.as<AttrAccessDocNode>()) return doc->Call({});
   return doc;
 }
@@ -251,7 +231,11 @@ ffi::Dict<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d) {
 
 void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Dict<Var, IdDoc>& signature,
                                  const FunctionDoc& function) {
-  bool use_pep695 = d->GetExtraConfig<bool>("script.use_pep695", false);
+  // A module's existing scoped registry also identifies shared external captures.
+  auto module =
+      d->GetOrCreateExtraState<ffi::Optional<ffi::Dict<ffi::String, ffi::List<GlobalInfo>>>>(
+          "ir.global_info_map");
+  bool use_pep695 = !module.has_value() && d->GetExtraConfig<bool>("script.use_pep695", false);
   auto pending = d->GetImplicitDefs();
   std::vector<Var> parameters;
   if (use_pep695) {
@@ -270,34 +254,6 @@ void FinalizeFunctionDefinitions(DocTranslatorObj* d, const ffi::Dict<Var, IdDoc
       }
     }
   }
-  // Definitions discovered while translating dependent types must precede their
-  // users. Promote before recursion to terminate malformed recursive types.
-  std::function<void(const Var&)> declare = [&](const Var& var) {
-    if (!pending.count(var)) return;
-    IdDoc id = VarDoc(d, var);
-    ffi::Optional<ExprDoc> rhs = std::nullopt;
-    ffi::Optional<ExprDoc> annotation = std::nullopt;
-    if (auto primitive = var->ty.as<PrimType>()) {
-      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
-          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
-          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
-    } else {
-      TVM_FFI_CHECK(!var->ty.IsMissing(), TypeError)
-          << "printer free non-scalar variable requires a type annotation";
-      annotation = d->Translate(var->ty).value();
-    }
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        var->ty, [&](const Var& dependency) -> ffi::Expected<ffi::WalkResult> {
-          declare(dependency);
-          return ffi::WalkResult::Advance();
-        });
-    d->Emit(AssignDoc(id, rhs, annotation), var);
-  };
-  auto remaining = CopyImplicitDefs(d);
-  std::vector<std::pair<Var, IdDoc>> ordered(remaining.begin(), remaining.end());
-  std::sort(ordered.begin(), ordered.end(),
-            [](const auto& a, const auto& b) { return a.second->name < b.second->name; });
-  for (const auto& [var, id] : ordered) declare(var);
 }
 
 }  // namespace details

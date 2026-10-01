@@ -30,17 +30,17 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateAnyType(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
+ffi::Optional<ExprDoc> AnyTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
   return NamespaceDoc("relax")->Attr("Any");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<AnyTypeNode>().attr(kDocTranslate,
-                                                   FDocTranslate::FromNative<&TranslateAnyType>());
+  ffi::reflection::TypeAttrDef<AnyTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&AnyTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateShapeType(DocTranslatorObj* d, ffi::AnyView input,
-                                          const ffi::Object*) {
+ffi::Optional<ExprDoc> ShapeTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::ShapeTypeNode>(input);
   if (ty->values.has_value()) {
@@ -54,7 +54,7 @@ ffi::Optional<ExprDoc> TranslateShapeType(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ShapeTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateShapeType>());
+      kDocTranslate, FDocTranslate::FromNative<&ShapeTypeDocTranslate>());
 }
 
 }  // namespace
@@ -95,8 +95,8 @@ ExprDoc RelaxTensorTypeDoc(DocTranslatorObj* d, const relax::TensorTypeNode* ty,
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateRelaxTensorType(DocTranslatorObj* d, ffi::AnyView input,
-                                                const ffi::Object*) {
+ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::TensorTypeNode>(
           input);
@@ -105,11 +105,11 @@ ffi::Optional<ExprDoc> TranslateRelaxTensorType(DocTranslatorObj* d, ffi::AnyVie
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::TensorTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateRelaxTensorType>());
+      kDocTranslate, FDocTranslate::FromNative<&TensorTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateFuncType(DocTranslatorObj* d, ffi::AnyView input,
-                                         const ffi::Object*) {
+ffi::Optional<ExprDoc> RelaxFuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::FuncTypeNode>(input);
   if (!ty->params.has_value()) {
@@ -117,8 +117,7 @@ ffi::Optional<ExprDoc> TranslateFuncType(DocTranslatorObj* d, ffi::AnyView input
     ffi::Array<ExprDoc> values;
     if (!ty->ret.as<AnyTypeNode>()) {
       keys.push_back("ret");
-      values.push_back((ty->ret.as<tirx::BufferTypeNode>() ? TypeValue(d, ty->ret, false)
-                                                           : d->Translate(ty->ret).value()));
+      values.push_back(d->Translate(ty->ret).value());
     }
     if (ty->purity) {
       keys.push_back("purity");
@@ -132,20 +131,16 @@ ffi::Optional<ExprDoc> TranslateFuncType(DocTranslatorObj* d, ffi::AnyView input
                         : NamespaceDoc("relax")->Attr("Callable")->Call({}, keys, values);
   }
   ffi::Array<ExprDoc> params;
-  for (const Type& param : ty->params.value())
-    params.push_back((param.as<tirx::BufferTypeNode>() ? TypeValue(d, param, false)
-                                                       : d->Translate(param).value()));
+  for (const Type& param : ty->params.value()) params.push_back(d->Translate(param).value());
   return NamespaceDoc("relax")
       ->Attr("Callable")
-      ->Call({TupleDoc(params),
-              (ty->ret.as<tirx::BufferTypeNode>() ? TypeValue(d, ty->ret, false)
-                                                  : d->Translate(ty->ret).value()),
+      ->Call({TupleDoc(params), d->Translate(ty->ret).value(),
               LiteralDoc::Boolean(ty->purity, std::nullopt)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::FuncTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateFuncType>());
+      kDocTranslate, FDocTranslate::FromNative<&RelaxFuncTypeDocTranslate>());
 }
 
 }  // namespace

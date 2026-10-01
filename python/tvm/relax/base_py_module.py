@@ -549,7 +549,6 @@ class BasePyModule:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
-        show_object_address: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
     ) -> str:
@@ -571,7 +570,6 @@ class BasePyModule:
             print_line_numbers=print_line_numbers,
             num_context_lines=num_context_lines,
             syntax_sugar=syntax_sugar,
-            show_object_address=show_object_address,
             show_all_ty=show_all_ty,
             extra_config=extra_config,
         )

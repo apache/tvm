@@ -59,6 +59,8 @@ void RegisterDialectPrefix(const ffi::String& key, const ffi::String& default_pr
       << "Duplicate printer dialect prefix: " << key;
 }
 
+const std::map<ffi::String, ffi::String>& GetDialectPrefixes() { return DialectPrefixes(); }
+
 }  // namespace printer
 }  // namespace script
 
@@ -86,7 +88,7 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   }
   if (auto v = get("int_dtype")) {
     n->extra_config.Set(
-        "script.int_dtype",
+        "ir.int_dtype",
         ffi::DLDataTypeToString(ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>())));
   }
   if (auto v = get("float_dtype")) {
@@ -130,9 +132,6 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
   if (auto v = get("syntax_sugar")) {
     n->syntax_sugar = v.value().cast<bool>();
   }
-  if (auto v = get("show_object_address")) {
-    n->show_object_address = v.value().cast<bool>();
-  }
   if (auto v = get("render_invisible_path_info")) {
     n->render_invisible_path_info = v.value().cast<bool>();
   }
@@ -152,10 +151,12 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     }
   }
 
+  n->extra_config.Set("ir.prefix", n->ir_prefix);
+
   // Keep legacy constructor arguments as adapters; explicit extra_config values
   // take precedence. Store validated dtype strings with the existing defaults.
   for (const auto& [key, fallback] :
-       {std::pair{"script.int_dtype", "int32"}, std::pair{"script.float_dtype", "void"}}) {
+       {std::pair{"ir.int_dtype", "int32"}, std::pair{"script.float_dtype", "void"}}) {
     ffi::String value = n->GetExtraConfig<ffi::String>(key, fallback);
     n->extra_config.Set(key, ffi::DLDataTypeToString(ffi::StringToDLDataType(value)));
   }

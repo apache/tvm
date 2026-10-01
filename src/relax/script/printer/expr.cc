@@ -29,7 +29,8 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateTuple(DocTranslatorObj* d, ffi::AnyView input, const ffi::Object*) {
+ffi::Optional<ExprDoc> TupleDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                         const ffi::Object*) {
   const auto* tuple =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleNode>(input);
   if (tuple->fields.empty()) return NamespaceDoc("relax")->Attr("tuple")->Call({});
@@ -40,11 +41,11 @@ ffi::Optional<ExprDoc> TranslateTuple(DocTranslatorObj* d, ffi::AnyView input, c
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TupleNode>().attr(kDocTranslate,
-                                                 FDocTranslate::FromNative<&TranslateTuple>());
+                                                 FDocTranslate::FromNative<&TupleDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateTupleGetItem(DocTranslatorObj* d, ffi::AnyView input,
-                                             const ffi::Object*) {
+ffi::Optional<ExprDoc> TupleGetItemDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                const ffi::Object*) {
   const auto* item =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleGetItemNode>(input);
   return d->Translate(item->tuple).value()[{LiteralDoc::Int(item->index, std::nullopt)}];
@@ -52,11 +53,11 @@ ffi::Optional<ExprDoc> TranslateTupleGetItem(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TupleGetItemNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateTupleGetItem>());
+      kDocTranslate, FDocTranslate::FromNative<&TupleGetItemDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateRelaxShapeExpr(DocTranslatorObj* d, ffi::AnyView input,
-                                               const ffi::Object*) {
+ffi::Optional<ExprDoc> ShapeExprDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object*) {
   const auto* shape =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::ShapeExprNode>(input);
   ffi::Array<ExprDoc> dimensions;
@@ -66,17 +67,17 @@ ffi::Optional<ExprDoc> TranslateRelaxShapeExpr(DocTranslatorObj* d, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ShapeExprNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateRelaxShapeExpr>());
+      kDocTranslate, FDocTranslate::FromNative<&ShapeExprDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateDataflowVar(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object* destination) {
-  return TranslateVar(d, input, destination);
+ffi::Optional<ExprDoc> DataflowVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object* destination) {
+  return VarDocTranslate(d, input, destination);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DataflowVarNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateDataflowVar>());
+      kDocTranslate, FDocTranslate::FromNative<&DataflowVarDocTranslate>());
 }
 
 }  // namespace

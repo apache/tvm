@@ -41,6 +41,7 @@
 
 #include "../../support/str_escape.h"
 #include "../../support/utils.h"
+#include "dialect_prefix.h"
 
 namespace tvm {
 namespace script {
@@ -1177,17 +1178,12 @@ void PythonDocPrinter::PrintTypedDoc(const IdDoc& doc) { output_ << doc->name; }
 
 void PythonDocPrinter::PrintTypedDoc(const NamespaceDoc& doc) {
   const ffi::String& name = doc->canonical_name;
-  if (name == "ir") {
-    output_ << config()->ir_prefix;
-  } else if (name == "tirx") {
-    output_ << config()->GetExtraConfig<ffi::String>("tirx.prefix", "T");
-  } else if (name == "s_tir") {
-    output_ << config()->GetExtraConfig<ffi::String>("s_tir.prefix", "Ts");
-  } else if (name == "relax") {
-    output_ << config()->GetExtraConfig<ffi::String>("relax.prefix", "R");
-  } else {
-    TVM_FFI_THROW(ValueError) << "Unknown canonical TVMScript namespace: " << name;
-  }
+  ffi::String key = std::string(name) + ".prefix";
+  const auto& prefixes = GetDialectPrefixes();
+  auto registered = prefixes.find(key);
+  ffi::String fallback = registered == prefixes.end() ? name : registered->second;
+  output_ << (name == "ir" ? config()->ir_prefix
+                           : config()->GetExtraConfig<ffi::String>(key, fallback));
 }
 
 void PythonDocPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {

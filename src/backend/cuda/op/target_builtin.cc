@@ -40,175 +40,6 @@ namespace builtin {
 namespace {
 void RegisterDeviceIntrinsicAliases();
 
-Type InferTypeVoid(const CallNode*) { return PrimType::Void(); }
-
-Type InferTypeInt32(const CallNode*) { return PrimType::Int(32); }
-
-Type InferTypeUInt32(const CallNode*) { return PrimType::UInt(32); }
-
-Type InferTypeFloat32(const CallNode*) { return PrimType::Float(32); }
-
-void CheckScalarInteger(const Expr& arg) {
-  PrimType type = arg->ty.as_or_throw<PrimType>();
-  bool integer = type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
-                 (type.bits() == 8 || type.bits() == 16 || type.bits() == 32 || type.bits() == 64);
-  TVM_FFI_CHECK(type.IsScalar() && (integer || type.MatchesElementType(DLDataTypeCode::kDLBool, 8)),
-                ValueError)
-      << "Device intrinsic expects a scalar integer argument";
-}
-
-PrimType CheckPointerArgument(const Expr& arg) {
-  const auto* pointer = arg->ty.as<PointerTypeNode>();
-  TVM_FFI_CHECK(pointer, ValueError) << "Device intrinsic expects a pointer argument";
-  PrimType element = pointer->element_type.as_or_throw<PrimType>();
-  TVM_FFI_CHECK(element.IsVoid() || element.IsScalar(), ValueError)
-      << "Device intrinsic expects a void or scalar element pointer";
-  return element;
-}
-
-void CheckPointerElement(const Expr& arg, PrimType expected) {
-  PrimType element = CheckPointerArgument(arg);
-  TVM_FFI_CHECK(element.IsVoid() || element.MatchesElementType(expected.code(), expected.bits()),
-                ValueError)
-      << "Device intrinsic pointer element type does not match its value type";
-}
-
-void CheckStringChoice(const Expr& arg, std::initializer_list<const char*> choices) {
-  const auto* value = arg.as<StringImmNode>();
-  TVM_FFI_CHECK(value, ValueError) << "Device intrinsic expects a literal string argument";
-  for (const char* choice : choices) {
-    if (value->value == choice) return;
-  }
-  TVM_FFI_THROW(ValueError) << "Unsupported device intrinsic string argument: " << value->value;
-}
-
-void CheckNvshmemRmaArguments(const CallNode* call) {
-  CheckPointerArgument(call->args[0]);
-  CheckPointerArgument(call->args[1]);
-  CheckScalarInteger(call->args[2]);
-}
-
-void CheckNvshmemSignalArguments(const CallNode* call, size_t offset) {
-  CheckPointerElement(call->args[offset], PrimType::UInt(64));
-  CheckScalarInteger(call->args[offset + 1]);
-  CheckStringChoice(call->args[offset + 2], {"set", "add"});
-  CheckScalarInteger(call->args[offset + 3]);
-}
-
-void ValidateCudaPrintf(const CallNode* call) {
-  TVM_FFI_CHECK(call->args[0].as<StringImmNode>(), ValueError)
-      << "cuda.printf expects a literal format string";
-  for (size_t i = 1; i < call->args.size(); ++i) {
-    PrimType arg = call->args[i]->ty.as_or_throw<PrimType>();
-    bool integer = arg.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
-                   (arg.bits() == 8 || arg.bits() == 16 || arg.bits() == 32 || arg.bits() == 64);
-    bool floating =
-        arg.MatchesCode(DLDataTypeCode::kDLFloat) && (arg.bits() == 32 || arg.bits() == 64);
-    TVM_FFI_CHECK(arg.IsScalar() &&
-                      (integer || floating || arg.MatchesElementType(DLDataTypeCode::kDLBool, 8)),
-                  ValueError)
-        << "cuda.printf expects supported scalar numeric arguments";
-  }
-}
-
-void ValidateCudaSyncthreadsPredicate(const CallNode* call) {
-  PrimType predicate = call->args[0]->ty.as_or_throw<PrimType>();
-  TVM_FFI_CHECK(
-      predicate.IsScalar() && predicate.MatchesCode(DLDataTypeCode::kDLBool, DLDataTypeCode::kDLInt,
-                                                    DLDataTypeCode::kDLUInt),
-      ValueError)
-      << "CUDA predicate synchronization expects a scalar integral predicate";
-}
-
-void ValidateCudaMatrixDescriptor(const CallNode* call) {
-  CheckPointerArgument(call->args[0]);
-  CheckPointerArgument(call->args[1]);
-  for (size_t i = 2; i < 5; ++i) CheckScalarInteger(call->args[i]);
-}
-
-template <bool block_scaled>
-void ValidateCudaInstructionDescriptor(const CallNode* call) {
-  constexpr size_t size = block_scaled ? 17 : 14;
-  constexpr size_t dtype_end = block_scaled ? 6 : 4;
-  constexpr size_t fields_begin = block_scaled ? 8 : 4;
-  constexpr size_t cta_group = block_scaled ? 13 : 9;
-  CheckPointerArgument(call->args[0]);
-  for (size_t i = 1; i < dtype_end; ++i) {
-    TVM_FFI_CHECK(call->args[i].as<StringImmNode>(), ValueError)
-        << "CUDA instruction descriptor expects literal dtype names";
-  }
-  if constexpr (block_scaled) {
-    for (size_t i : {6U, 7U}) {
-      if (call->args[i]->ty.as<PointerTypeNode>()) {
-        CheckPointerArgument(call->args[i]);
-      } else {
-        CheckScalarInteger(call->args[i]);
-      }
-    }
-  }
-  for (size_t i = fields_begin; i < size; ++i) CheckScalarInteger(call->args[i]);
-  if (const auto* value = call->args[cta_group].as<IntImmNode>()) {
-    TVM_FFI_CHECK(value->value == 1 || value->value == 2, ValueError)
-        << "CUDA instruction descriptor expects one or two CTA groups";
-  }
-}
-
-void ValidateCudaWgmmaNoopBarrier(const CallNode* call) {
-  PrimType type = call->args[0]->ty.as_or_throw<PrimType>();
-  TVM_FFI_CHECK(
-      type.IsScalar() && !type.IsVoid() && !type.MatchesCode(DLDataTypeCode::kDLOpaqueHandle),
-      ValueError)
-      << "WGMMA noop barrier expects a primitive scalar register";
-}
-
-void ValidateCudaNanoSleep(const CallNode* call) { CheckScalarInteger(call->args[0]); }
-
-void ValidateNvshmemRma(const CallNode* call) {
-  CheckNvshmemRmaArguments(call);
-  CheckScalarInteger(call->args[3]);
-}
-
-void ValidateNvshmemSignal(const CallNode* call) { CheckNvshmemSignalArguments(call, 0); }
-
-void ValidateNvshmemWaitUntil(const CallNode* call) {
-  CheckPointerElement(call->args[0], PrimType::UInt(64));
-  CheckStringChoice(call->args[1], {"eq", "ne", "gt", "ge", "lt", "le"});
-  CheckScalarInteger(call->args[2]);
-  CheckStringChoice(call->args[3], {"uint64_t", "uint64"});
-}
-
-void ValidateNvshmemPutmemSignal(const CallNode* call) {
-  CheckNvshmemRmaArguments(call);
-  CheckNvshmemSignalArguments(call, 3);
-}
-
-void ValidateCudaMBarrierWait(const CallNode* call) {
-  const Type& barrier = call->args[0]->ty;
-  if (auto integer = barrier.as<PrimType>()) {
-    const auto* literal = call->args[0].as<IntImmNode>();
-    bool null_pointer = literal && literal->value == 0 &&
-                        integer.value().MatchesElementType(DLDataTypeCode::kDLInt, 32);
-    TVM_FFI_CHECK(
-        integer.value().IsScalar() &&
-            (integer.value().MatchesElementType(DLDataTypeCode::kDLUInt, 32) || null_pointer),
-        ValueError)
-        << "cuda.mbarrier_wait expects a uint32 shared address or pointer";
-  } else {
-    TVM_FFI_CHECK(barrier.as<PointerTypeNode>(), ValueError)
-        << "cuda.mbarrier_wait expects a uint32 shared address or pointer";
-  }
-  PrimType phase = call->args[1]->ty.as_or_throw<PrimType>();
-  TVM_FFI_CHECK(
-      phase.IsScalar() && phase.MatchesCode(DLDataTypeCode::kDLBool, DLDataTypeCode::kDLInt,
-                                            DLDataTypeCode::kDLUInt),
-      ValueError)
-      << "cuda.mbarrier_wait expects a scalar phase";
-}
-
-void ValidateCudaLdg(const CallNode* call) {
-  if (call->args.size() == 2) CheckPointerArgument(call->args[0]);
-}
-
 Type InferTypeCudaLdg(const CallNode* call) {
   TVM_FFI_CHECK_EQ(call->args.size(), 2U, ValueError) << "Scalar cuda.ldg expects two arguments";
   const auto* dtype = call->args[1].as<StringImmNode>();
@@ -228,33 +59,6 @@ Type InferTypeCudaAtomic(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
       << "CUDA atomic inference requires a value operand";
   return call->args[1]->ty;
-}
-
-void ValidateCudaAtomicAdd(const CallNode* call) {
-  PrimType value = call->args[1]->ty.as_or_throw<PrimType>();
-  bool integer =
-      value.MatchesElementType(DLDataTypeCode::kDLInt, 32) ||
-      (value.MatchesCode(DLDataTypeCode::kDLUInt) && (value.bits() == 32 || value.bits() == 64));
-  bool floating = value.MatchesCode(DLDataTypeCode::kDLFloat) &&
-                  (value.bits() == 16 || value.bits() == 32 || value.bits() == 64);
-  TVM_FFI_CHECK(value.IsScalar() && (integer || floating ||
-                                     value.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)),
-                ValueError)
-      << "cuda.atomic_add expects a supported scalar value";
-  CheckPointerElement(call->args[0], value);
-}
-
-void ValidateCudaAtomicCas(const CallNode* call) {
-  PrimType compare = call->args[1]->ty.as_or_throw<PrimType>();
-  PrimType replacement = call->args[2]->ty.as_or_throw<PrimType>();
-  bool supported = compare.MatchesElementType(DLDataTypeCode::kDLInt, 32) ||
-                   (compare.MatchesCode(DLDataTypeCode::kDLUInt) &&
-                    (compare.bits() == 16 || compare.bits() == 32 || compare.bits() == 64));
-  TVM_FFI_CHECK(compare.IsScalar() && supported && replacement.IsScalar() &&
-                    replacement.MatchesElementType(compare.code(), compare.bits()),
-                ValueError)
-      << "cuda.atomic_cas expects matching supported scalar values";
-  CheckPointerElement(call->args[0], compare);
 }
 
 }  // namespace
@@ -472,17 +276,6 @@ void RegisterDeviceIntrinsic(const char* op_name, const char* op_namespace,
   RegisterDeviceIntrinsicAttrs(def, op_namespace, effect_kind, names.printer);
 }
 
-void AddDeviceIntrinsicValidator(const char* name, void (*validate)(const CallNode*)) {
-  OpDef def(name);
-  auto signature =
-      def.op()->validator.cast<ffi::reflection::NativeFunction<void(const CallNode*)>>();
-  ffi::TypedFunction<void(const CallNode*)> validator([signature, validate](const CallNode* call) {
-    signature(call);
-    validate(call);
-  });
-  def.set_validator(validator, true);
-}
-
 void RegisterDeviceIntrinsicAliases() {
   RegisterDeviceIntrinsic("cuda_any_sync", "cuda", CallEffectKind::kPure, sig::arg("mask"),
                           sig::arg("pred"));
@@ -639,36 +432,6 @@ void RegisterDeviceIntrinsicAliases() {
                           sig::arg("b_offset"), sig::arg("acc_ptr"), sig::arg("c_offset"),
                           sig::arg("saturate"), sig::var_args("args"));
 
-  for (const char* name :
-       {"tirx.cuda.tcgen05_encode_matrix_descriptor", "tirx.cuda.wgmma_encode_matrix_descriptor"}) {
-    AddDeviceIntrinsicValidator(name, ValidateCudaMatrixDescriptor);
-  }
-  AddDeviceIntrinsicValidator("tirx.cuda.tcgen05_encode_instr_descriptor",
-                              ValidateCudaInstructionDescriptor<false>);
-  AddDeviceIntrinsicValidator("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled",
-                              ValidateCudaInstructionDescriptor<true>);
-  AddDeviceIntrinsicValidator("tirx.cuda.wgmma_noop_barrier", ValidateCudaWgmmaNoopBarrier);
-  AddDeviceIntrinsicValidator("tirx.cuda.printf", ValidateCudaPrintf);
-  for (const char* name : {"tirx.cuda.syncthreads_and", "tirx.cuda.syncthreads_or"}) {
-    AddDeviceIntrinsicValidator(name, ValidateCudaSyncthreadsPredicate);
-  }
-  AddDeviceIntrinsicValidator("tirx.cuda.nano_sleep", ValidateCudaNanoSleep);
-  AddDeviceIntrinsicValidator("tirx.cuda.ldg", ValidateCudaLdg);
-  AddDeviceIntrinsicValidator("tirx.cuda.atomic_add", ValidateCudaAtomicAdd);
-  AddDeviceIntrinsicValidator("tirx.cuda.atomic_cas", ValidateCudaAtomicCas);
-  AddDeviceIntrinsicValidator("tirx.cuda.mbarrier_wait", ValidateCudaMBarrierWait);
-  for (const char* name :
-       {"tirx.nvshmem.getmem_nbi", "tirx.nvshmem.getmem_nbi_warp", "tirx.nvshmem.putmem_nbi",
-        "tirx.nvshmem.putmem_nbi_warp", "tirx.nvshmem.putmem_nbi_block"}) {
-    AddDeviceIntrinsicValidator(name, ValidateNvshmemRma);
-  }
-  AddDeviceIntrinsicValidator("tirx.nvshmem.signal_op", ValidateNvshmemSignal);
-  AddDeviceIntrinsicValidator("tirx.nvshmem.wait_until", ValidateNvshmemWaitUntil);
-  for (const char* name : {"tirx.nvshmem.putmem_signal_nbi", "tirx.nvshmem.putmem_signal_nbi_warp",
-                           "tirx.nvshmem.putmem_signal_nbi_block"}) {
-    AddDeviceIntrinsicValidator(name, ValidateNvshmemPutmemSignal);
-  }
-
   for (const char* name : {
            "tirx.cuda.tcgen05_encode_matrix_descriptor",
            "tirx.cuda.wgmma_encode_matrix_descriptor",
@@ -697,18 +460,16 @@ void RegisterDeviceIntrinsicAliases() {
            "tirx.nvshmem.putmem_signal_nbi_warp",
            "tirx.nvshmem.putmem_signal_nbi_block",
        }) {
-    OpDef(name).set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeVoid>());
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   }
   for (const char* name : {"tirx.cuda.syncthreads_and", "tirx.cuda.syncthreads_or",
                            "tirx.nvshmem.my_pe", "tirx.nvshmem.n_pes"}) {
-    OpDef(name).set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeInt32>());
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32));
   }
-  OpDef("tirx.cuda.elect_sync")
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeUInt32>());
+  OpDef("tirx.cuda.elect_sync").set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(32));
   OpDef("tirx.cuda.ldg")
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaLdg>());
-  OpDef("tirx.s_tir.ldg32")
-      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeFloat32>());
+  OpDef("tirx.s_tir.ldg32").set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Float(32));
   OpDef("tirx.cuda.atomic_add")
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaAtomic>());
   OpDef("tirx.cuda.atomic_cas")

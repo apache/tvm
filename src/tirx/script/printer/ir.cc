@@ -30,8 +30,8 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslatePointerType(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object*) {
+ffi::Optional<ExprDoc> PointerTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PointerTypeNode>(input);
   if (auto primitive = ty->element_type.as<PrimType>()) {
@@ -53,11 +53,11 @@ ffi::Optional<ExprDoc> TranslatePointerType(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<PointerTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslatePointerType>());
+      kDocTranslate, FDocTranslate::FromNative<&PointerTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateTarget(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object*) {
+ffi::Optional<ExprDoc> TargetDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                          const ffi::Object*) {
   const auto* target =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TargetNode>(input);
   return NamespaceDoc("tirx")->Attr("target")->Call({AnyValue(d, target->ToConfig())});
@@ -65,7 +65,7 @@ ffi::Optional<ExprDoc> TranslateTarget(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TargetNode>().attr(kDocTranslate,
-                                                  FDocTranslate::FromNative<&TranslateTarget>());
+                                                  FDocTranslate::FromNative<&TargetDocTranslate>());
 }
 
 }  // namespace

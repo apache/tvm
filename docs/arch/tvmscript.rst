@@ -146,6 +146,11 @@ paths; the private Doc printer formats the tree, annotations and underlines as P
 text. Printer configuration stays read-only throughout. ``DocToPythonScript`` also
 formats an existing Doc directly. This tree is separate from the parser's Python AST.
 
+The public ``Script`` text entry points are declared in
+``tvm/script/printer/printer.h``. Their orchestration and diagnostic path mapping
+live in ``src/script/printer/printer.cc``; ``doc_translator.h`` exposes the
+IR-to-Doc translation protocol.
+
 For example, a small function can be authored, printed and parsed again:
 
 .. code-block:: python

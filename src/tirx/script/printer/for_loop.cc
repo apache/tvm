@@ -33,8 +33,8 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> EmitFor(DocTranslatorObj* d, ffi::AnyView input,
-                               const ffi::Object* destination) {
+ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object* destination) {
   const auto* loop =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ForNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -144,7 +144,7 @@ ffi::Optional<ExprDoc> EmitFor(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ForNode>().attr(kDocTranslate,
-                                                     FDocTranslate::FromNative<&EmitFor>());
+                                                     FDocTranslate::FromNative<&ForDocTranslate>());
 }
 
 }  // namespace

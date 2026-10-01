@@ -21,8 +21,8 @@
  * \brief Configuration object for the TVMScript printer.
  *
  * Contains PrinterConfig / PrinterConfigNode, GetBuiltinKeywords, GetExtraConfig,
- * and RedirectedReprPrinterMethod. The translation entry points live in
- * doc_translator.h.
+ * and RedirectedReprPrinterMethod. Translation APIs live in doc_translator.h,
+ * and text entry points live in printer.h.
  */
 #ifndef TVM_SCRIPT_PRINTER_CONFIG_H_
 #define TVM_SCRIPT_PRINTER_CONFIG_H_
@@ -49,11 +49,10 @@ class PrinterConfigNode : public ffi::Object {
   /*! \brief The prefix of IR nodes */
   ffi::String ir_prefix = "I";
   /*!
-   * \brief The alias of the current module at cross-function call
-   * \note Directly use module name if it's empty.
+   * \brief Compatibility option; global references use the actual module name.
    */
   ffi::String module_alias = "cls";
-  /*! \brief Default buffer dtype */
+  /*! \brief Compatibility option; buffer hooks print the actual dtype. */
   DLDataType buffer_dtype = DLDataType{kDLFloat, 32, 1};
   /*! \brief Whether or not to verbose print expressions. */
   bool verbose_expr = false;
@@ -65,8 +64,6 @@ class PrinterConfigNode : public ffi::Object {
   int num_context_lines = -1;
   /*! \brief Whether to output with syntax sugar, set false for complete printing. */
   bool syntax_sugar = true;
-  /*! \brief Whether variable names should include the object's address */
-  bool show_object_address = false;
 
   /*! \brief Whether to render access-path context for invisible underlined paths. Defaults true. */
   bool render_invisible_path_info = true;
@@ -118,7 +115,6 @@ class PrinterConfigNode : public ffi::Object {
         .def_ro("print_line_numbers", &PrinterConfigNode::print_line_numbers)
         .def_ro("num_context_lines", &PrinterConfigNode::num_context_lines)
         .def_ro("syntax_sugar", &PrinterConfigNode::syntax_sugar)
-        .def_ro("show_object_address", &PrinterConfigNode::show_object_address)
         .def_ro("render_invisible_path_info", &PrinterConfigNode::render_invisible_path_info)
         .def_ro("path_to_underline", &PrinterConfigNode::path_to_underline)
         .def_ro("path_to_annotate", &PrinterConfigNode::path_to_annotate)

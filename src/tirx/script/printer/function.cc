@@ -17,6 +17,7 @@
  */
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/function.h>
+#include <tvm/ir/global_info.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/analysis.h>
@@ -29,6 +30,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../script/printer/dialect_prefix.h"
 #include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
@@ -39,12 +41,22 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> EmitFunction(DocTranslatorObj* d, ffi::AnyView input,
-                                    const ffi::Object* destination) {
+ffi::Optional<ExprDoc> PrimFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
   const auto* func =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::PrimFuncNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
+  auto module =
+      d->GetOrCreateExtraState<ffi::Optional<ffi::Dict<ffi::String, ffi::List<GlobalInfo>>>>(
+          "ir.global_info_map");
+  auto names = d->GetExtraConfig<ffi::Array<ffi::String>>("script.binding_names", {});
+  if (!module.has_value() && !names.empty()) {
+    if (auto symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
+      TVM_FFI_CHECK(symbol.value() == names.back(), TypeError)
+          << "printer PrimFunc global_symbol must match its definition name";
+    }
+  }
   VarScope vars(d);
 
   bool legacy_s_tir = func->attrs->dict.count(tvm::attr::kSTir);
@@ -60,7 +72,9 @@ ffi::Optional<ExprDoc> EmitFunction(DocTranslatorObj* d, ffi::AnyView input,
       IdDoc lhs = param_ids[param_index++];
       ExprDoc annotation = d->Translate(var->ty).value();
       d->RecordOrigin(annotation, var->ty);
-      args.push_back(AssignDoc(lhs, std::nullopt, annotation));
+      AssignDoc argument(lhs, std::nullopt, annotation);
+      d->RecordOrigin(argument, var);
+      args.push_back(argument);
     }
 
     auto signature_candidates = CopyImplicitDefs(d);
@@ -201,8 +215,9 @@ ffi::Optional<ExprDoc> EmitFunction(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterDialectPrefix("tirx.prefix", "T");
   ffi::reflection::TypeAttrDef<tirx::PrimFuncNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitFunction>());
+      kDocTranslate, FDocTranslate::FromNative<&PrimFuncDocTranslate>());
 }
 
 }  // namespace

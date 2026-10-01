@@ -24,6 +24,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../script/printer/dialect_prefix.h"
 #include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
@@ -34,8 +35,8 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> EmitRelaxFunction(DocTranslatorObj* d, ffi::AnyView input,
-                                         const ffi::Object* destination) {
+ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
   const auto* func =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::FunctionNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -53,10 +54,10 @@ ffi::Optional<ExprDoc> EmitRelaxFunction(DocTranslatorObj* d, ffi::AnyView input
   for (const Var& param : func->params) {
     IdDoc lhs = param_ids[param_index++];
     ffi::Optional<ExprDoc> annotation = std::nullopt;
-    if (!param->ty.IsMissing())
-      annotation = (param->ty.as<tirx::BufferTypeNode>() ? TypeValue(d, param->ty, false)
-                                                         : d->Translate(param->ty).value());
-    args.push_back(AssignDoc(lhs, std::nullopt, annotation));
+    if (!param->ty.IsMissing()) annotation = d->Translate(param->ty).value();
+    AssignDoc argument(lhs, std::nullopt, annotation);
+    d->RecordOrigin(argument, param);
+    args.push_back(argument);
   }
   auto signature_candidates = CopyImplicitDefs(d);
   ffi::Optional<ExprDoc> ret_type = std::nullopt;
@@ -64,8 +65,7 @@ ffi::Optional<ExprDoc> EmitRelaxFunction(DocTranslatorObj* d, ffi::AnyView input
     if (auto tensor = func->ret_ty.as<relax::TensorTypeNode>()) {
       ret_type = RelaxTensorTypeDoc(d, tensor, true);
     } else {
-      ret_type = (func->ret_ty.as<tirx::BufferTypeNode>() ? TypeValue(d, func->ret_ty, false)
-                                                          : d->Translate(func->ret_ty).value());
+      ret_type = d->Translate(func->ret_ty).value();
     }
   }
   ffi::Array<ffi::String> decorator_keys;
@@ -115,12 +115,13 @@ ffi::Optional<ExprDoc> EmitRelaxFunction(DocTranslatorObj* d, ffi::AnyView input
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
+  RegisterDialectPrefix("relax.prefix", "R");
   ffi::reflection::TypeAttrDef<relax::FunctionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitRelaxFunction>());
+      kDocTranslate, FDocTranslate::FromNative<&FunctionDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateExternFunc(DocTranslatorObj* d, ffi::AnyView input,
-                                           const ffi::Object*) {
+ffi::Optional<ExprDoc> ExternFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
   const auto* func =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::ExternFuncNode>(
           input);
@@ -143,7 +144,7 @@ ffi::Optional<ExprDoc> TranslateExternFunc(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::ExternFuncNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateExternFunc>());
+      kDocTranslate, FDocTranslate::FromNative<&ExternFuncDocTranslate>());
 }
 
 }  // namespace

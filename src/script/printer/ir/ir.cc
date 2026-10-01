@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "../dialect_prefix.h"
 #include "utils.h"
 
 namespace tvm {
@@ -64,12 +65,16 @@ class GlobalInfoScope {
   std::optional<ffi::Any> saved_;
 };
 
-ffi::Optional<ExprDoc> EmitModule(DocTranslatorObj* d, ffi::AnyView input,
-                                  const ffi::Object* destination) {
+ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
   const auto* mod =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IRModuleNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
+  auto names = d->GetExtraConfig<ffi::Array<ffi::String>>("script.binding_names", {});
+  ffi::String module_name =
+      names.empty() ? d->GetExtraConfig<ffi::String>("script.module_name", "Module") : names.back();
+  d->AllocId(module_name);
   GlobalInfoScope global_infos(d, mod);
   std::vector<std::pair<GlobalVar, BaseFunc>> functions(mod->functions.begin(),
                                                         mod->functions.end());
@@ -148,19 +153,20 @@ ffi::Optional<ExprDoc> EmitModule(DocTranslatorObj* d, ffi::AnyView input,
     }
   });
   global_infos.Close();
-  d->Emit(ClassDoc(IdDoc(d->GetExtraConfig<ffi::String>("script.module_name", "Module")),
-                   {NamespaceDoc("ir")->Attr("ir_module")}, ToStmtDocArray(body)),
-          ffi::GetRef<ffi::ObjectRef>(mod));
+  d->Emit(
+      ClassDoc(IdDoc(module_name), {NamespaceDoc("ir")->Attr("ir_module")}, ToStmtDocArray(body)),
+      ffi::GetRef<ffi::ObjectRef>(mod));
   return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<IRModuleNode>().attr(kDocTranslate,
-                                                    FDocTranslate::FromNative<&EmitModule>());
+  RegisterDialectPrefix("ir.prefix", "I");
+  ffi::reflection::TypeAttrDef<IRModuleNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&IRModuleDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateDictAttrs(DocTranslatorObj* d, ffi::AnyView input,
-                                          const ffi::Object*) {
+ffi::Optional<ExprDoc> DictAttrsDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object*) {
   const auto* attrs =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DictAttrsNode>(input);
   return AnyValue(d, attrs->dict);
@@ -168,11 +174,11 @@ ffi::Optional<ExprDoc> TranslateDictAttrs(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<DictAttrsNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateDictAttrs>());
+      kDocTranslate, FDocTranslate::FromNative<&DictAttrsDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateGlobalVar(DocTranslatorObj* d, ffi::AnyView input,
-                                          const ffi::Object*) {
+ffi::Optional<ExprDoc> GlobalVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object*) {
   const auto* var =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const GlobalVarNode>(input);
   return GlobalReference(d, var->name_hint);
@@ -180,11 +186,11 @@ ffi::Optional<ExprDoc> TranslateGlobalVar(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<GlobalVarNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateGlobalVar>());
+      kDocTranslate, FDocTranslate::FromNative<&GlobalVarDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateLegacyFuncType(DocTranslatorObj* d, ffi::AnyView input,
-                                               const ffi::Object*) {
+ffi::Optional<ExprDoc> FuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(input);
   return TypeValue(d, ffi::GetRef<FuncType>(ty), false);
@@ -192,10 +198,11 @@ ffi::Optional<ExprDoc> TranslateLegacyFuncType(DocTranslatorObj* d, ffi::AnyView
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<FuncTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateLegacyFuncType>());
+      kDocTranslate, FDocTranslate::FromNative<&FuncTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateRange(DocTranslatorObj* d, ffi::AnyView input, const ffi::Object*) {
+ffi::Optional<ExprDoc> RangeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                         const ffi::Object*) {
   const auto* range =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RangeNode>(input);
   ExprDoc min = d->Translate(range->min).value();
@@ -205,7 +212,7 @@ ffi::Optional<ExprDoc> TranslateRange(DocTranslatorObj* d, ffi::AnyView input, c
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<RangeNode>().attr(kDocTranslate,
-                                                 FDocTranslate::FromNative<&TranslateRange>());
+                                                 FDocTranslate::FromNative<&RangeDocTranslate>());
 }
 
 }  // namespace

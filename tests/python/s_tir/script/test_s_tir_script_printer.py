@@ -17,9 +17,7 @@
 # ruff: noqa: E501, F841
 """S-TIR script printer."""
 
-import io
 import re
-import tokenize
 
 import pytest
 from tvm_ffi.access_path import AccessPath
@@ -421,55 +419,6 @@ def test_prim_func_different_symbol():
 def func(A: T.Buffer((128, 128), "float32", layout=None), B: T.Buffer((256, 256), "float32", layout=None)):
     T.evaluate(0)"""
     _assert_print(main, expected_output)
-
-
-def test_variable_with_cpp_address():
-    """The show_object_address option displays the C++ addressess
-
-    Because the C++ address may vary with each execution, the output
-    produced with this option cannot be compared to a fixed string.
-    Instead, this test uses the normal script output to generate a
-    regular expression against with the test output must match.  The
-    regular expression validates that all names have been appended
-    with "_0x" followed by a hexadecimal number, and that the address
-    is the same for each variable.
-    """
-    from tvm.script import tirx as TB
-
-    # The test function has all named objects suffixed with "_name",
-    # to avoid spurious replacement when generating the expected
-    # regex.
-    N_name = I.dynamic("N_name")
-
-    @Ts.prim_func
-    def func(A_name: TB.Buffer(N_name, "float32")):
-        for i_name in range(N_name):
-            A_name[i_name] = A_name[i_name] + 1.0
-
-    without_address = func.script(show_object_address=False)
-    script = func.script(show_object_address=True)
-
-    # Address suffixes belong to identifiers, not display-name string literals
-    # passed to constructors such as I.dynamic("N_name").
-    names = {"a_name", "A_name", "N_name", "i_name"}
-    line_offsets = [0]
-    for line in without_address.splitlines(keepends=True):
-        line_offsets.append(line_offsets[-1] + len(line))
-    parts = []
-    seen = set()
-    cursor = 0
-    for token in tokenize.generate_tokens(io.StringIO(without_address).readline):
-        name = token.string
-        if token.type != tokenize.NAME or name not in names:
-            continue
-        start = line_offsets[token.start[0] - 1] + token.start[1]
-        end = line_offsets[token.end[0] - 1] + token.end[1]
-        parts.append(re.escape(without_address[cursor:start]))
-        parts.append(rf"(?P={name})" if name in seen else rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)")
-        seen.add(name)
-        cursor = end
-    parts.append(re.escape(without_address[cursor:]))
-    assert re.fullmatch("".join(parts), script)
 
 
 def test_return_statement():

@@ -60,10 +60,7 @@ ffi::Optional<ExprDoc> TranslateRelaxCall(DocTranslatorObj* d, const CallNode* c
     for (const Expr& arg : tuple->fields) packed_args.push_back(d->Translate(arg).value());
     return NamespaceDoc("relax")
         ->Attr("call_py_func")
-        ->Call(packed_args, {"out_ty"},
-               {(call->ty_args[0].as<tirx::BufferTypeNode>()
-                     ? TypeValue(d, call->ty_args[0], false)
-                     : d->Translate(call->ty_args[0]).value())});
+        ->Call(packed_args, {"out_ty"}, {d->Translate(call->ty_args[0]).value()});
   }
 
   if (auto op = call->op.as<Op>(); op.has_value() && op.value()->name == "relax.print" &&
@@ -166,14 +163,10 @@ ffi::Optional<ExprDoc> TranslateRelaxCall(DocTranslatorObj* d, const CallNode* c
            op.value()->name == "relax.call_tir_with_grad") &&
           call->ty_args.size() == 1) {
         keys.push_back("out_ty");
-        values.push_back((call->ty_args[0].as<tirx::BufferTypeNode>()
-                              ? TypeValue(d, call->ty_args[0], false)
-                              : d->Translate(call->ty_args[0]).value()));
+        values.push_back(d->Translate(call->ty_args[0]).value());
       } else {
         ffi::Array<ExprDoc> types;
-        for (const Type& type : call->ty_args)
-          types.push_back((type.as<tirx::BufferTypeNode>() ? TypeValue(d, type, false)
-                                                           : d->Translate(type).value()));
+        for (const Type& type : call->ty_args) types.push_back(d->Translate(type).value());
         keys.push_back("ty_args");
         values.push_back(TupleDoc(types));
       }
@@ -186,19 +179,13 @@ ffi::Optional<ExprDoc> TranslateRelaxCall(DocTranslatorObj* d, const CallNode* c
       if (op.value()->name == "relax.call_tir_inplace") {
         if (auto tuple = call->ty_args[0].as<relax::TupleTypeNode>()) {
           ffi::Array<ExprDoc> fields;
-          for (const Type& field : tuple->fields)
-            fields.push_back((field.as<tirx::BufferTypeNode>() ? TypeValue(d, field, false)
-                                                               : d->Translate(field).value()));
+          for (const Type& field : tuple->fields) fields.push_back(d->Translate(field).value());
           ordered_values.push_back(ListDoc(fields));
         } else {
-          ordered_values.push_back((call->ty_args[0].as<tirx::BufferTypeNode>()
-                                        ? TypeValue(d, call->ty_args[0], false)
-                                        : d->Translate(call->ty_args[0]).value()));
+          ordered_values.push_back(d->Translate(call->ty_args[0]).value());
         }
       } else {
-        ordered_values.push_back((call->ty_args[0].as<tirx::BufferTypeNode>()
-                                      ? TypeValue(d, call->ty_args[0], false)
-                                      : d->Translate(call->ty_args[0]).value()));
+        ordered_values.push_back(d->Translate(call->ty_args[0]).value());
       }
       auto append_key = [&](const ffi::String& key) {
         for (size_t i = 0; i < keys.size(); ++i) {
@@ -247,8 +234,8 @@ ffi::Optional<ExprDoc> TranslateRelaxCall(DocTranslatorObj* d, const CallNode* c
   return std::nullopt;
 }
 
-ffi::Optional<ExprDoc> TranslateCallDefault(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object* destination) {
+ffi::Optional<ExprDoc> CallDefaultDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object* destination) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   // Eligibility depends on inputs and the registered inference contract, not
@@ -291,12 +278,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"relax.call_tir", "relax.call_tir_with_grad", "relax.call_tir_inplace",
                            "relax.call_dps_packed"}) {
     OpDef(name).set_attr<FDocTranslate>(kOpCallTranslate,
-                                        FDocTranslate::FromNative<&TranslateCallDefault>());
+                                        FDocTranslate::FromNative<&CallDefaultDocTranslate>());
   }
 }
 
-ffi::Optional<ExprDoc> TranslateCall(DocTranslatorObj* d, ffi::AnyView input,
-                                     const ffi::Object* destination) {
+ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                        const ffi::Object* destination) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (auto op = call->op.as<Op>(); op && Op::HasAttrMap(kOpCallTranslate)) {
@@ -317,12 +304,12 @@ ffi::Optional<ExprDoc> TranslateCall(DocTranslatorObj* d, ffi::AnyView input,
           .value();
     }
   }
-  return TranslateCallDefault(d, input, destination);
+  return CallDefaultDocTranslate(d, input, destination);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<CallNode>().attr(kDocTranslate,
-                                                FDocTranslate::FromNative<&TranslateCall>());
+                                                FDocTranslate::FromNative<&CallDocTranslate>());
 }
 
 }  // namespace

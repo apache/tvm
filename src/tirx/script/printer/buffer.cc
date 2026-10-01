@@ -47,8 +47,8 @@ bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source) {
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateBufferOperation(DocTranslatorObj* d, ffi::AnyView input,
-                                                const ffi::Object* destination) {
+ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                   const ffi::Object* destination) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   // Surface buffer constructors emit a binding, so they cannot replace an
@@ -146,17 +146,17 @@ ffi::Optional<ExprDoc> TranslateBufferOperation(DocTranslatorObj* d, ffi::AnyVie
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"tirx.alloc_buffer", "tirx.decl_buffer"}) {
     OpDef(name).set_attr<FDocTranslate>(kOpCallTranslate,
-                                        FDocTranslate::FromNative<&TranslateBufferOperation>());
+                                        FDocTranslate::FromNative<&BufferOperationDocTranslate>());
   }
 }
 
-ffi::Optional<ExprDoc> TranslateBufferType(DocTranslatorObj* d, ffi::AnyView input,
-                                           const ffi::Object*) {
+ffi::Optional<ExprDoc> BufferTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
   const auto* buffer =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::BufferTypeNode>(input);
   bool default_offset =
       ffi::StructuralEqual()(buffer->elem_offset, IntImm(PrimType(buffer->DefaultIndexType()), 0));
-  // Buffer constructors normalize these fields and constrain allocated addresses.
+  // The buffer type constructor normalizes these fields and constrains allocated addresses.
   // Keep the explicit type constructor when that normalization would change the IR.
   if (buffer->storage_scope.empty() || buffer->data_alignment <= 0 || buffer->offset_factor == 0 ||
       (!buffer->allocated_addr.empty() && (!default_offset || buffer->offset_factor != 1))) {
@@ -224,7 +224,7 @@ ffi::Optional<ExprDoc> TranslateBufferType(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::BufferTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateBufferType>());
+      kDocTranslate, FDocTranslate::FromNative<&BufferTypeDocTranslate>());
 }
 
 }  // namespace
@@ -282,8 +282,8 @@ ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region,
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateTensorRegion(DocTranslatorObj* d, ffi::AnyView input,
-                                             const ffi::Object*) {
+ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                const ffi::Object*) {
   const auto* region =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorRegionNode>(input);
   return TensorRegionValue(d, region, false);
@@ -291,11 +291,11 @@ ffi::Optional<ExprDoc> TranslateTensorRegion(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TensorRegionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateTensorRegion>());
+      kDocTranslate, FDocTranslate::FromNative<&TensorRegionDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitBufferStore(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object* destination) {
+ffi::Optional<ExprDoc> BufferStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object* destination) {
   const auto* store =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::BufferStoreNode>(
           input);
@@ -312,11 +312,11 @@ ffi::Optional<ExprDoc> EmitBufferStore(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::BufferStoreNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitBufferStore>());
+      kDocTranslate, FDocTranslate::FromNative<&BufferStoreDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateBufferLoad(DocTranslatorObj* d, ffi::AnyView input,
-                                           const ffi::Object*) {
+ffi::Optional<ExprDoc> BufferLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
   const auto* load =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
   ExprDoc source = d->Translate(load->source).value();
@@ -326,11 +326,11 @@ ffi::Optional<ExprDoc> TranslateBufferLoad(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::BufferTypeNode>().attr(
-      kTensorLoadDocTranslate, FDocTranslate::FromNative<&TranslateBufferLoad>());
+      kTensorLoadDocTranslate, FDocTranslate::FromNative<&BufferLoadDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateTensorLoad(DocTranslatorObj* d, ffi::AnyView input,
-                                           const ffi::Object* destination) {
+ffi::Optional<ExprDoc> TensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object* destination) {
   const auto* load =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
   static ffi::reflection::TypeAttrColumn column(kTensorLoadDocTranslate);
@@ -355,10 +355,11 @@ ffi::Optional<ExprDoc> TranslateTensorLoad(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TensorLoadNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateTensorLoad>());
+      kDocTranslate, FDocTranslate::FromNative<&TensorLoadDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateIter(DocTranslatorObj* d, ffi::AnyView input, const ffi::Object*) {
+ffi::Optional<ExprDoc> IterDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                        const ffi::Object*) {
   const auto* iter =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::IterNode>(input);
   ExprDoc axis = LiteralDoc::Str(iter->axis.name(), std::nullopt);
@@ -368,12 +369,12 @@ ffi::Optional<ExprDoc> TranslateIter(DocTranslatorObj* d, ffi::AnyView input, co
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::IterNode>().attr(kDocTranslate,
-                                                      FDocTranslate::FromNative<&TranslateIter>());
+  ffi::reflection::TypeAttrDef<tirx::IterNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&IterDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateTileLayout(DocTranslatorObj* d, ffi::AnyView input,
-                                           const ffi::Object*) {
+ffi::Optional<ExprDoc> TileLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
   const auto* layout =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TileLayoutNode>(input);
   auto iters = [&](const ffi::Array<tirx::Iter>& source) {
@@ -404,11 +405,11 @@ ffi::Optional<ExprDoc> TranslateTileLayout(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TileLayoutNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateTileLayout>());
+      kDocTranslate, FDocTranslate::FromNative<&TileLayoutDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateComposeLayout(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
+ffi::Optional<ExprDoc> ComposeLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object*) {
   const auto* layout =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ComposeLayoutNode>(
           input);
@@ -429,11 +430,11 @@ ffi::Optional<ExprDoc> TranslateComposeLayout(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ComposeLayoutNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateComposeLayout>());
+      kDocTranslate, FDocTranslate::FromNative<&ComposeLayoutDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitMatchBufferRegion(DocTranslatorObj* d, ffi::AnyView input,
-                                             const ffi::Object* destination) {
+ffi::Optional<ExprDoc> MatchBufferRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                     const ffi::Object* destination) {
   const auto* match = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<
       const s_tir::MatchBufferRegionNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -451,7 +452,7 @@ ffi::Optional<ExprDoc> EmitMatchBufferRegion(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::MatchBufferRegionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitMatchBufferRegion>());
+      kDocTranslate, FDocTranslate::FromNative<&MatchBufferRegionDocTranslate>());
 }
 
 }  // namespace

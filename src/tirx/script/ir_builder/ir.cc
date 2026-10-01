@@ -50,11 +50,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 using tvm::tirx::IterVar;
 using tvm::tirx::Layout;
 
-BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
-                     int offset_factor, ffi::Optional<Layout> layout,
-                     ffi::Array<PrimExpr> allocated_addr) {
+namespace {
+
+tvm::tirx::BufferType BufferTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
+                                     ffi::Optional<Expr> data,
+                                     ffi::Optional<ffi::Array<PrimExpr>> strides,
+                                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
+                                     int align, int offset_factor, ffi::Optional<Layout> layout,
+                                     ffi::Array<PrimExpr> allocated_addr) {
   if (!allocated_addr.empty()) {
     TVM_FFI_ICHECK(!data.has_value() && !elem_offset.has_value() && !offset_factor)
         << "ValueError: `allocated_addr` can only be used with `data`, `elem_offset`, and "
@@ -67,10 +70,21 @@ BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  return BufferVar(buffer_name, tvm::tirx::BufferType(storage_scope, dtype, shape,
-                                                      strides.value_or(ffi::Array<PrimExpr>()),
-                                                      elem_offset.value_or(PrimExpr()), align,
-                                                      offset_factor, layout, allocated_addr));
+  return tvm::tirx::BufferType(
+      storage_scope, dtype, shape, strides.value_or(ffi::Array<PrimExpr>()),
+      elem_offset.value_or(PrimExpr()), align, offset_factor, layout, allocated_addr);
+}
+
+}  // namespace
+
+BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                     int offset_factor, ffi::Optional<Layout> layout,
+                     ffi::Array<PrimExpr> allocated_addr) {
+  return BufferVar(buffer_name,
+                   BufferTypeDecl(shape, dtype, data, strides, elem_offset, storage_scope, align,
+                                  offset_factor, layout, allocated_addr));
 }
 
 PrimFuncFrame PrimFunc(bool is_private, bool persistent) {
@@ -702,6 +716,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                      ffi::Optional<Expr>, ffi::Optional<ffi::Array<PrimExpr>>,
                                      ffi::Optional<PrimExpr>, ffi::String, int, int,
                                      ffi::Optional<Layout>, ffi::Array<PrimExpr>)>(BufferDecl))
+      .def("script.ir_builder.tirx.BufferType", BufferTypeDecl)
       .def("script.ir_builder.tirx.PrimFunc", PrimFunc)
       .def("script.ir_builder.tirx.DeclFunction", DeclFunction)
       .def("script.ir_builder.tirx.Arg",

@@ -38,8 +38,8 @@ ffi::Optional<ExprDoc> TranslateFFIKernel(DocTranslatorObj* d, const CallNode* c
 ffi::Optional<ExprDoc> TranslateTIRCall(DocTranslatorObj* d, const CallNode* call,
                                         const Type& result_type, const ffi::Array<ExprDoc>& args);
 ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region, bool require_region);
-ffi::Optional<ExprDoc> TranslateVar(DocTranslatorObj* d, ffi::AnyView input,
-                                    const ffi::Object* destination);
+ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object* destination);
 
 }  // namespace details
 }  // namespace printer

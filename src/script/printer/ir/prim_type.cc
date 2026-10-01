@@ -31,23 +31,25 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateInt(DocTranslatorObj* d, ffi::AnyView input, const ffi::Object*) {
+ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                          const ffi::Object*) {
   const auto* imm =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IntImmNode>(input);
   DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
   ExprDoc value = LiteralDoc::Int(ffi::GetRef<IntImm>(imm), std::nullopt);
   DLDataType default_dtype =
-      ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("script.int_dtype", "int32"));
+      ffi::StringToDLDataType(d->GetExtraConfig<ffi::String>("ir.int_dtype", "int32"));
   if (dtype == default_dtype) return value;
   return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(dtype))->Call({value});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<IntImmNode>().attr(kDocTranslate,
-                                                  FDocTranslate::FromNative<&TranslateInt>());
+                                                  FDocTranslate::FromNative<&IntImmDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateFloat(DocTranslatorObj* d, ffi::AnyView input, const ffi::Object*) {
+ffi::Optional<ExprDoc> FloatImmDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object*) {
   const auto* imm =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FloatImmNode>(input);
   DLDataType dtype = imm->ty.as_or_throw<PrimType>()->dtype;
@@ -59,37 +61,30 @@ ffi::Optional<ExprDoc> TranslateFloat(DocTranslatorObj* d, ffi::AnyView input, c
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<FloatImmNode>().attr(kDocTranslate,
-                                                    FDocTranslate::FromNative<&TranslateFloat>());
+  ffi::reflection::TypeAttrDef<FloatImmNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&FloatImmDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateType(DocTranslatorObj*, ffi::AnyView input, const ffi::Object*) {
+ffi::Optional<ExprDoc> PrimTypeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+                                            const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const PrimTypeNode>(input);
   if (ty->dtype.lanes != 1) {
-    // Match the fixed-vector constructors exported by tirx/script/ir_builder/ir.py.
-    // Other lane counts, scalable vectors, and unexported element types still
-    // need the shared type constructor.
+    // TIRx exports vectors with 2/4/8/16/32/64 lanes for 8/16/32/64-bit integers,
+    // 16/32/64-bit floats, and the float8, float6, and float4 formats below.
+    // Other fixed or scalable vectors use the generic type constructor.
     if (ty->dtype.lanes == 2 || ty->dtype.lanes == 4 || ty->dtype.lanes == 8 ||
         ty->dtype.lanes == 16 || ty->dtype.lanes == 32 || ty->dtype.lanes == 64) {
-      static constexpr const char* element_names[] = {"int8",           "int16",
-                                                      "int32",          "int64",
-                                                      "uint8",          "uint16",
-                                                      "uint32",         "uint64",
-                                                      "float16",        "float32",
-                                                      "float64",        "float8_e3m4",
-                                                      "float8_e4m3",    "float8_e4m3b11fnuz",
-                                                      "float8_e4m3fn",  "float8_e4m3fnuz",
-                                                      "float8_e5m2",    "float8_e5m2fnuz",
-                                                      "float8_e8m0fnu", "float6_e2m3fn",
-                                                      "float6_e3m2fn",  "float4_e2m1fn"};
-      DLDataType element = ty->dtype;
-      element.lanes = 1;
-      ffi::String element_name = ffi::DLDataTypeToString(element);
-      for (const char* name : element_names) {
-        if (element_name == name)
-          return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(ty->dtype));
-      }
+      PrimType type = ffi::GetRef<PrimType>(ty);
+      bool supported_element =
+          (type.MatchesCode(kDLInt, kDLUInt) &&
+           (type.bits() == 8 || type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
+          (type.MatchesCode(kDLFloat) &&
+           (type.bits() == 16 || type.bits() == 32 || type.bits() == 64)) ||
+          type.MatchesCode(kDLFloat8_e3m4, kDLFloat8_e4m3, kDLFloat8_e4m3b11fnuz, kDLFloat8_e4m3fn,
+                           kDLFloat8_e4m3fnuz, kDLFloat8_e5m2, kDLFloat8_e5m2fnuz,
+                           kDLFloat8_e8m0fnu, kDLFloat6_e2m3fn, kDLFloat6_e3m2fn, kDLFloat4_e2m1fn);
+      if (supported_element) return NamespaceDoc("tirx")->Attr(ffi::DLDataTypeToString(ty->dtype));
     }
     return NamespaceDoc("ir")
         ->Attr("PrimType")
@@ -99,28 +94,26 @@ ffi::Optional<ExprDoc> TranslateType(DocTranslatorObj*, ffi::AnyView input, cons
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<PrimTypeNode>().attr(kDocTranslate,
-                                                    FDocTranslate::FromNative<&TranslateType>());
+  ffi::reflection::TypeAttrDef<PrimTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&PrimTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateStringType(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
+ffi::Optional<ExprDoc> StringTypeDocTranslate(DocTranslatorObj*, ffi::AnyView, const ffi::Object*) {
   return NamespaceDoc("ir")->Attr("StringType")->Call({});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<StringTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateStringType>());
+      kDocTranslate, FDocTranslate::FromNative<&StringTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateTupleType(DocTranslatorObj* d, ffi::AnyView input,
-                                          const ffi::Object*) {
+ffi::Optional<ExprDoc> TupleTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object*) {
   const auto* ty =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleTypeNode>(input);
   if (ty->fields.empty()) return NamespaceDoc("relax")->Attr("Tuple");
   ffi::Array<ExprDoc> fields;
-  for (const Type& field : ty->fields)
-    fields.push_back((field.as<tirx::BufferTypeNode>() ? TypeValue(d, field, false)
-                                                       : d->Translate(field).value()));
+  for (const Type& field : ty->fields) fields.push_back(d->Translate(field).value());
   std::function<bool(const Type&)> is_primitive = [&](const Type& field) {
     if (field.as<PrimType>() || field.as<PointerType>()) return true;
     if (const auto* tuple = field.as<TupleTypeNode>()) {
@@ -135,7 +128,7 @@ ffi::Optional<ExprDoc> TranslateTupleType(DocTranslatorObj* d, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<TupleTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateTupleType>());
+      kDocTranslate, FDocTranslate::FromNative<&TupleTypeDocTranslate>());
 }
 
 }  // namespace

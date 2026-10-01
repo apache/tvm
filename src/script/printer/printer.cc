@@ -22,6 +22,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/printer.h>
 #include <tvm/tirx/function.h>
 
 #include <algorithm>
@@ -93,12 +94,6 @@ void RecoverDocPaths(
                            [&](const AccessPath& existing) { return SamePath(existing, path); })) {
             doc->source_paths.push_back(path);
           }
-          if (origin->second.as<prim::CastNode>()) {
-            if (auto call = value.as<CallDocNode>(); call && call->args.size() == 2) {
-              call->args[0]->source_paths.push_back(path->Attr("dtype"));
-              call->args[1]->source_paths.push_back(path->Attr("value"));
-            }
-          }
         }
       }
     }
@@ -112,31 +107,12 @@ void RecoverDocPaths(
       RecoverDocPaths(entry.second, context, origins, ir_paths, active);
     }
   } else {
-    ffi::reflection::ForEachFieldInfo(
-        TVMFFIGetTypeInfo(object->type_index()), [&](const TVMFFIFieldInfo* field) {
-          if (ffi::String(field->name) == "source_paths") return;
-          // Function parameter order is preserved by both function
-          // hooks. Restrict each binder and its annotation to that
-          // parameter before recovering shared variable occurrences.
-          if (auto function = value.as<FunctionDoc>();
-              function && ffi::String(field->name) == "args") {
-            auto original = origins.find(object);
-            if (original != origins.end() && (original->second.as<tirx::PrimFuncNode>() ||
-                                              original->second.as<relax::FunctionNode>())) {
-              for (size_t i = 0; i < function.value()->args.size(); ++i) {
-                std::vector<AccessPath> parameter_paths;
-                for (const auto& path : context) {
-                  parameter_paths.push_back(path->Attr("params")->ArrayItem(i));
-                }
-                RecoverDocPaths(function.value()->args[i], parameter_paths, origins, ir_paths,
-                                active);
-              }
-              return;
-            }
-          }
-          RecoverDocPaths(ffi::reflection::FieldGetter(field)(object), context, origins, ir_paths,
-                          active);
-        });
+    ffi::reflection::ForEachFieldInfo(TVMFFIGetTypeInfo(object->type_index()),
+                                      [&](const TVMFFIFieldInfo* field) {
+                                        if (ffi::String(field->name) == "source_paths") return;
+                                        RecoverDocPaths(ffi::reflection::FieldGetter(field)(object),
+                                                        context, origins, ir_paths, active);
+                                      });
   }
   active->erase(object);
 }
@@ -246,16 +222,7 @@ class MapDocPaths {
     if (auto array = value.as<ffi::Array<ffi::Any>>()) {
       for (size_t i = 0; i < array->size(); ++i) Index((*array)[i], path->ArrayItem(i), ancestors);
     } else if (auto map = value.as<ffi::Map<ffi::Any, ffi::Any>>()) {
-      std::vector<std::pair<ffi::Any, ffi::Any>> entries(map->begin(), map->end());
-      // Match translation's deterministic module member order.
-      if (std::all_of(entries.begin(), entries.end(),
-                      [](const auto& item) { return item.first.template as<GlobalVarNode>(); })) {
-        std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) {
-          return a.first.template as<GlobalVarNode>()->name_hint <
-                 b.first.template as<GlobalVarNode>()->name_hint;
-        });
-      }
-      for (const auto& [key, child] : entries) Index(child, path->MapItem(key), ancestors);
+      for (const auto& [key, child] : map.value()) Index(child, path->MapItem(key), ancestors);
     } else {
       ffi::reflection::ForEachFieldInfo(TVMFFIGetTypeInfo(object->type_index()),
                                         [&](const TVMFFIFieldInfo* field) {
@@ -282,8 +249,6 @@ ffi::String Script(const ffi::ObjectRef& obj, const PrinterConfig& config) {
   extra_config.Set("script.verbose_expr", config->verbose_expr);
   extra_config.Set("script.syntax_sugar", config->syntax_sugar);
   extra_config.Set("ir.prefix", config->ir_prefix);
-  extra_config.Set("script.show_object_address", config->show_object_address);
-  extra_config.Set("script.buffer_dtype", ffi::DLDataTypeToString(config->buffer_dtype));
   auto annotated_objects = paths.AnnotatedObjects();
   extra_config.Set("script.annotated_objects", annotated_objects);
   extra_config.Set("script.annotation_ancestors", paths.AnnotationAncestors(annotated_objects));

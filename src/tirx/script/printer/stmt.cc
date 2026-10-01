@@ -43,8 +43,8 @@ ffi::Array<StmtDoc> Body(const tirx::Stmt& stmt, DocTranslatorObj* d) {
 
 namespace {
 
-ffi::Optional<ExprDoc> EmitTilePrimitiveCall(DocTranslatorObj* d, ffi::AnyView input,
-                                             const ffi::Object* destination) {
+ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                     const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TilePrimitiveCallNode>(
           input);
@@ -140,11 +140,11 @@ ffi::Optional<ExprDoc> EmitTilePrimitiveCall(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TilePrimitiveCallNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitTilePrimitiveCall>());
+      kDocTranslate, FDocTranslate::FromNative<&TilePrimitiveCallDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitEvaluate(DocTranslatorObj* d, ffi::AnyView input,
-                                    const ffi::Object* destination) {
+ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::EvaluateNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -162,11 +162,11 @@ ffi::Optional<ExprDoc> EmitEvaluate(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::EvaluateNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitEvaluate>());
+      kDocTranslate, FDocTranslate::FromNative<&EvaluateDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitReturn(DocTranslatorObj* d, ffi::AnyView input,
-                                  const ffi::Object* destination) {
+ffi::Optional<ExprDoc> ReturnDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                          const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ReturnNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -176,12 +176,12 @@ ffi::Optional<ExprDoc> EmitReturn(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::ReturnNode>().attr(kDocTranslate,
-                                                        FDocTranslate::FromNative<&EmitReturn>());
+  ffi::reflection::TypeAttrDef<tirx::ReturnNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&ReturnDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitBind(DocTranslatorObj* d, ffi::AnyView input,
-                                const ffi::Object* destination) {
+ffi::Optional<ExprDoc> BindDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                        const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::BindNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -201,12 +201,12 @@ ffi::Optional<ExprDoc> EmitBind(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::BindNode>().attr(kDocTranslate,
-                                                      FDocTranslate::FromNative<&EmitBind>());
+  ffi::reflection::TypeAttrDef<tirx::BindNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BindDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitAssert(DocTranslatorObj* d, ffi::AnyView input,
-                                  const ffi::Object* destination) {
+ffi::Optional<ExprDoc> AssertStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::AssertStmtNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -224,11 +224,11 @@ ffi::Optional<ExprDoc> EmitAssert(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::AssertStmtNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitAssert>());
+      kDocTranslate, FDocTranslate::FromNative<&AssertStmtDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitWhile(DocTranslatorObj* d, ffi::AnyView input,
-                                 const ffi::Object* destination) {
+ffi::Optional<ExprDoc> WhileDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                         const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::WhileNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -239,12 +239,12 @@ ffi::Optional<ExprDoc> EmitWhile(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::WhileNode>().attr(kDocTranslate,
-                                                       FDocTranslate::FromNative<&EmitWhile>());
+  ffi::reflection::TypeAttrDef<tirx::WhileNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&WhileDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitBreak(DocTranslatorObj* d, ffi::AnyView input,
-                                 const ffi::Object* destination) {
+ffi::Optional<ExprDoc> BreakDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                         const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::BreakNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -254,12 +254,12 @@ ffi::Optional<ExprDoc> EmitBreak(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::BreakNode>().attr(kDocTranslate,
-                                                       FDocTranslate::FromNative<&EmitBreak>());
+  ffi::reflection::TypeAttrDef<tirx::BreakNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BreakDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitContinue(DocTranslatorObj* d, ffi::AnyView input,
-                                    const ffi::Object* destination) {
+ffi::Optional<ExprDoc> ContinueDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ContinueNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -270,11 +270,11 @@ ffi::Optional<ExprDoc> EmitContinue(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ContinueNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitContinue>());
+      kDocTranslate, FDocTranslate::FromNative<&ContinueDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitIf(DocTranslatorObj* d, ffi::AnyView input,
-                              const ffi::Object* destination) {
+ffi::Optional<ExprDoc> IfThenElseDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::IfThenElseNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -288,12 +288,12 @@ ffi::Optional<ExprDoc> EmitIf(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::IfThenElseNode>().attr(kDocTranslate,
-                                                            FDocTranslate::FromNative<&EmitIf>());
+  ffi::reflection::TypeAttrDef<tirx::IfThenElseNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&IfThenElseDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitSeq(DocTranslatorObj* d, ffi::AnyView input,
-                               const ffi::Object* destination) {
+ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::SeqStmtNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -338,12 +338,12 @@ ffi::Optional<ExprDoc> EmitSeq(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::SeqStmtNode>().attr(kDocTranslate,
-                                                         FDocTranslate::FromNative<&EmitSeq>());
+  ffi::reflection::TypeAttrDef<tirx::SeqStmtNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&SeqStmtDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitAttr(DocTranslatorObj* d, ffi::AnyView input,
-                                const ffi::Object* destination) {
+ffi::Optional<ExprDoc> AttrStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::AttrStmtNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -417,8 +417,8 @@ ffi::Optional<ExprDoc> EmitAttr(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::AttrStmtNode>().attr(kDocTranslate,
-                                                          FDocTranslate::FromNative<&EmitAttr>());
+  ffi::reflection::TypeAttrDef<tirx::AttrStmtNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&AttrStmtDocTranslate>());
 }
 
 }  // namespace

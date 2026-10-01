@@ -132,8 +132,8 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
   return ToStmtDocArray(docs);
 }
 
-ffi::Optional<ExprDoc> EmitSBlockRealize(DocTranslatorObj* d, ffi::AnyView input,
-                                         const ffi::Object* destination) {
+ffi::Optional<ExprDoc> SBlockRealizeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object* destination) {
   const auto* realize =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const s_tir::SBlockRealizeNode>(
           input);
@@ -150,11 +150,11 @@ ffi::Optional<ExprDoc> EmitSBlockRealize(DocTranslatorObj* d, ffi::AnyView input
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<s_tir::SBlockRealizeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitSBlockRealize>());
+      kDocTranslate, FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitSBlock(DocTranslatorObj* d, ffi::AnyView input,
-                                  const ffi::Object* destination) {
+ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                          const ffi::Object* destination) {
   const auto* block =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const s_tir::SBlockNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
@@ -169,8 +169,8 @@ ffi::Optional<ExprDoc> EmitSBlock(DocTranslatorObj* d, ffi::AnyView input,
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<s_tir::SBlockNode>().attr(kDocTranslate,
-                                                         FDocTranslate::FromNative<&EmitSBlock>());
+  ffi::reflection::TypeAttrDef<s_tir::SBlockNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&SBlockDocTranslate>());
 }
 
 ffi::String ScopeIdApi(tirx::ScopeBinding scope) {
@@ -194,8 +194,8 @@ ExprDoc ScopeExtents(DocTranslatorObj* d, const ffi::Array<PrimExpr>& values) {
   return ListDoc(items);
 }
 
-ffi::Optional<ExprDoc> EmitScopeIdDef(DocTranslatorObj* d, ffi::AnyView input,
-                                      const ffi::Object* destination) {
+ffi::Optional<ExprDoc> ScopeIdDefStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                  const ffi::Object* destination) {
   const auto* stmt =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ScopeIdDefStmtNode>(
           input);
@@ -233,11 +233,11 @@ ffi::Optional<ExprDoc> EmitScopeIdDef(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ScopeIdDefStmtNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitScopeIdDef>());
+      kDocTranslate, FDocTranslate::FromNative<&ScopeIdDefStmtDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateExecScope(DocTranslatorObj*, ffi::AnyView input,
-                                          const ffi::Object*) {
+ffi::Optional<ExprDoc> ExecScopeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+                                             const ffi::Object*) {
   const auto* scope =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ExecScopeNode>(input);
   return NamespaceDoc("tirx")
@@ -247,11 +247,11 @@ ffi::Optional<ExprDoc> TranslateExecScope(DocTranslatorObj*, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ExecScopeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateExecScope>());
+      kDocTranslate, FDocTranslate::FromNative<&ExecScopeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateScopeIdDef(DocTranslatorObj* d, ffi::AnyView input,
-                                           const ffi::Object*) {
+ffi::Optional<ExprDoc> ScopeIdDefDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
   const auto* def =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ScopeIdDefNode>(input);
   auto [parent, current] = tirx::ScopeBindingToStringPair(def->scope);
@@ -270,7 +270,7 @@ ffi::Optional<ExprDoc> TranslateScopeIdDef(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ScopeIdDefNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateScopeIdDef>());
+      kDocTranslate, FDocTranslate::FromNative<&ScopeIdDefDocTranslate>());
 }
 
 }  // namespace

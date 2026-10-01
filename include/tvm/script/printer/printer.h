@@ -18,11 +18,41 @@
  */
 /*!
  * \file tvm/script/printer/printer.h
- * \brief Compatibility include for the TVMScript translation entry points.
+ * \brief TVMScript text entry points.
  */
 #ifndef TVM_SCRIPT_PRINTER_PRINTER_H_
 #define TVM_SCRIPT_PRINTER_PRINTER_H_
 
-#include <tvm/script/printer/doc_translator.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/script/printer/config.h>
+
+#include <optional>
+#include <string>
+
+namespace tvm {
+
+/*!
+ * \brief Print an IR object as TVMScript, using repr when no translation hook exists.
+ * \param node The input IR object.
+ * \param config Optional translation and rendering configuration.
+ * \return The rendered script or fallback representation.
+ */
+TVM_DLL std::string Script(const ffi::ObjectRef& node,
+                           const ffi::Optional<PrinterConfig>& config = std::nullopt);
+
+namespace script {
+namespace printer {
+
+/*!
+ * \brief Translate IR, recover diagnostic paths, and render Python text.
+ * \param obj The input IR object.
+ * \param config The translation and rendering options.
+ * \return The rendered script.
+ */
+TVM_DLL ffi::String Script(const ffi::ObjectRef& obj, const PrinterConfig& config);
+
+}  // namespace printer
+}  // namespace script
+}  // namespace tvm
 
 #endif  // TVM_SCRIPT_PRINTER_PRINTER_H_

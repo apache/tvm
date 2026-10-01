@@ -30,6 +30,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
+#include <tvm/script/printer/printer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>
@@ -107,8 +108,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](const ffi::ObjectRef& obj, const PrinterConfig& config) {
              return script::printer::Script(obj, config);
            });
-  script::printer::RegisterDialectPrefix("tirx.prefix", "T");
-  script::printer::RegisterDialectPrefix("relax.prefix", "R");
 
   RegisterScriptRepr<DataTypeImmNode>();
   RegisterScriptRepr<GenericConstNode>();

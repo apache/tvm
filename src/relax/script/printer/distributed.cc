@@ -29,8 +29,8 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslatePlacement(DocTranslatorObj*, ffi::AnyView input,
-                                          const ffi::Object*) {
+ffi::Optional<ExprDoc> PlacementDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+                                             const ffi::Object*) {
   const auto* placement = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<
       const relax::distributed::PlacementNode>(input);
   return LiteralDoc::Str(placement->ToString(), std::nullopt);
@@ -38,11 +38,11 @@ ffi::Optional<ExprDoc> TranslatePlacement(DocTranslatorObj*, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::distributed::PlacementNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslatePlacement>());
+      kDocTranslate, FDocTranslate::FromNative<&PlacementDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateDTensorType(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object*) {
+ffi::Optional<ExprDoc> DTensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object*) {
   const auto* ty = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<
       const relax::distributed::DTensorTypeNode>(input);
   ffi::Array<ExprDoc> args;
@@ -94,11 +94,11 @@ ffi::Optional<ExprDoc> TranslateDTensorType(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::distributed::DTensorTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateDTensorType>());
+      kDocTranslate, FDocTranslate::FromNative<&DTensorTypeDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateDeviceMesh(DocTranslatorObj* d, ffi::AnyView input,
-                                           const ffi::Object*) {
+ffi::Optional<ExprDoc> DeviceMeshDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
   const auto* mesh = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<
       const relax::distributed::DeviceMeshNode>(input);
   ffi::Array<ExprDoc> dimensions;
@@ -120,7 +120,7 @@ ffi::Optional<ExprDoc> TranslateDeviceMesh(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::distributed::DeviceMeshNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateDeviceMesh>());
+      kDocTranslate, FDocTranslate::FromNative<&DeviceMeshDocTranslate>());
 }
 
 }  // namespace

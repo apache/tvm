@@ -65,8 +65,8 @@ ffi::Array<StmtDoc> RelaxSeqBody(DocTranslatorObj* d, const relax::SeqExprNode* 
 
 namespace {
 
-ffi::Optional<ExprDoc> EmitRelaxSeqExpr(DocTranslatorObj* d, ffi::AnyView input,
-                                        const ffi::Object* destination) {
+ffi::Optional<ExprDoc> SeqExprDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object* destination) {
   const auto* seq =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::SeqExprNode>(input);
   for (const relax::BindingBlock& block : seq->blocks) d->Translate(block);
@@ -75,10 +75,7 @@ ffi::Optional<ExprDoc> EmitRelaxSeqExpr(DocTranslatorObj* d, ffi::AnyView input,
       d->VarGetOrAllocId(var.value(), false);
       if (d->GetImplicitDefs().count(var.value()) && !var.value()->ty.as<PrimTypeNode>()) {
         IdDoc id = VarDoc(d, var.value());
-        d->Emit(AssignDoc(id, std::nullopt,
-                          (var.value()->ty.as<tirx::BufferTypeNode>()
-                               ? TypeValue(d, var.value()->ty, false)
-                               : d->Translate(var.value()->ty).value())),
+        d->Emit(AssignDoc(id, std::nullopt, d->Translate(var.value()->ty).value()),
                 ffi::GetRef<ffi::ObjectRef>(var.value().get()));
       }
     }
@@ -88,11 +85,11 @@ ffi::Optional<ExprDoc> EmitRelaxSeqExpr(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::SeqExprNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitRelaxSeqExpr>());
+      kDocTranslate, FDocTranslate::FromNative<&SeqExprDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitRelaxBindingBlock(DocTranslatorObj* d, ffi::AnyView input,
-                                             const ffi::Object* destination) {
+ffi::Optional<ExprDoc> BindingBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                const ffi::Object* destination) {
   const auto* block =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::BindingBlockNode>(
           input);
@@ -104,11 +101,11 @@ ffi::Optional<ExprDoc> EmitRelaxBindingBlock(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::BindingBlockNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitRelaxBindingBlock>());
+      kDocTranslate, FDocTranslate::FromNative<&BindingBlockDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> EmitRelaxDataflowBlock(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object* destination) {
+ffi::Optional<ExprDoc> DataflowBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object* destination) {
   const auto* block =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::DataflowBlockNode>(
           input);
@@ -133,7 +130,7 @@ ffi::Optional<ExprDoc> EmitRelaxDataflowBlock(DocTranslatorObj* d, ffi::AnyView 
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DataflowBlockNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&EmitRelaxDataflowBlock>());
+      kDocTranslate, FDocTranslate::FromNative<&DataflowBlockDocTranslate>());
 }
 
 }  // namespace

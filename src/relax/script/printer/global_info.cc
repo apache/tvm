@@ -19,7 +19,6 @@
 
 #include <optional>
 #include <string>
-#include <unordered_map>
 
 #include "../../../script/printer/ir/utils.h"
 #include "utils.h"
@@ -34,16 +33,21 @@ using GlobalInfoMap = ffi::Dict<ffi::String, ffi::List<GlobalInfo>>;
 // Selectors are derived from the module's forward registry, never cached as
 // object-to-string state. Definitions and standalone objects keep constructors.
 ffi::Optional<ffi::String> GlobalInfoSelector(DocTranslatorObj* d, const GlobalInfo& info) {
-  auto infos = d->GetOrCreateExtraState<GlobalInfoMap>("ir.global_info_map");
-  if (auto devices = infos.Get("vdevice")) {
-    std::unordered_map<std::string, size_t> indices;
-    for (const GlobalInfo& entry : devices.value()) {
-      if (auto device = entry.as<relax::VDevice>()) {
-        std::string kind = device.value()->target->kind->name;
-        size_t index = indices[kind]++;
-        if (entry.same_as(info)) {
-          return ffi::String(kind + ":" + std::to_string(index) + ":" +
-                             std::string(device.value()->memory_scope));
+  auto scope = d->GetOrCreateExtraState<ffi::Optional<GlobalInfoMap>>("ir.global_info_map");
+  if (!scope.has_value()) return std::nullopt;
+  auto infos = scope.value();
+  if (auto query = info.as<relax::VDevice>()) {
+    if (auto devices = infos.Get("vdevice")) {
+      ffi::String kind = query.value()->target->kind->name;
+      size_t index = 0;
+      for (const GlobalInfo& entry : devices.value()) {
+        if (auto device = entry.as<relax::VDevice>();
+            device && device.value()->target->kind->name == kind) {
+          if (entry.same_as(info)) {
+            return ffi::String(std::string(kind) + ":" + std::to_string(index) + ":" +
+                               std::string(device.value()->memory_scope));
+          }
+          ++index;
         }
       }
     }
@@ -60,14 +64,14 @@ ffi::Optional<ffi::String> GlobalInfoSelector(DocTranslatorObj* d, const GlobalI
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateDummyGlobalInfo(DocTranslatorObj*, ffi::AnyView,
-                                                const ffi::Object*) {
+ffi::Optional<ExprDoc> DummyGlobalInfoDocTranslate(DocTranslatorObj*, ffi::AnyView,
+                                                   const ffi::Object*) {
   return NamespaceDoc("relax")->Attr("dummy_global_info")->Call({});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DummyGlobalInfoNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateDummyGlobalInfo>());
+      kDocTranslate, FDocTranslate::FromNative<&DummyGlobalInfoDocTranslate>());
 }
 
 }  // namespace

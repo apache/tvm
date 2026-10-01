@@ -21,6 +21,8 @@
 
 #include <tvm/ffi/string.h>
 
+#include <map>
+
 namespace tvm {
 namespace script {
 namespace printer {
@@ -28,6 +30,9 @@ namespace printer {
 // Register during dialect static initialization so configuration can validate
 // and reserve the prefix before translation assigns variable names.
 void RegisterDialectPrefix(const ffi::String& key, const ffi::String& default_prefix);
+
+// Read the existing registration table without introducing a second namespace registry.
+const std::map<ffi::String, ffi::String>& GetDialectPrefixes();
 
 }  // namespace printer
 }  // namespace script

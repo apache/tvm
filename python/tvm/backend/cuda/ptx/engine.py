@@ -108,7 +108,7 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         register_op_attr(entry.op_name, "TScriptPrinterName", f"ptx.{family}")
         register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
         register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
-        register_op_attr(entry.op_name, "FInferType", _infer_void_type)
+        register_op_attr(entry.op_name, "TFixedReturnType", PrimType("void"))
         register_codegen(f"ptx.{entry.name}")(_make_codegen(entry))
 
 
@@ -134,10 +134,6 @@ def _unconsumed_addr_codegen(*_args):
 
 def _infer_addr_type(call):
     return call.args[0].ty
-
-
-def _infer_void_type(_call):
-    return PrimType("void")
 
 
 # ---------------------------------------------------------------------------

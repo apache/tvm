@@ -31,15 +31,6 @@
 
 namespace tvm {
 
-/*!
- * \brief Print an IR object as TVMScript, using repr when no translation hook exists.
- * \param node The input IR object.
- * \param config Optional translation and rendering configuration.
- * \return The rendered script or fallback representation.
- */
-TVM_DLL std::string Script(const ffi::ObjectRef& node,
-                           const ffi::Optional<PrinterConfig>& config = std::nullopt);
-
 namespace script {
 namespace printer {
 
@@ -251,7 +242,10 @@ class DocTranslatorObj : public ffi::Object {
     ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(vtable_->begin_var_scope(this)).value();
   }
   /*!
-   * \brief End the latest lexical variable scope, retaining the root scope.
+   * \brief End the latest naming region, retaining the root region.
+   * Explicit local bindings expire. Unresolved implicit references and their
+   * identifiers remain pending in the enclosing region, preserving captures
+   * shared by sibling functions.
    */
   void EndVarScope() {
     ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<void>(vtable_->end_var_scope(this)).value();
@@ -426,13 +420,6 @@ class DocTranslator : public ffi::ObjectRef {
  */
 TVM_DLL Doc DocTranslate(ffi::AnyView ir, ffi::Dict<Doc, ffi::ObjectRef>* doc_origins = nullptr,
                          ffi::Map<ffi::String, ffi::Any> extra_config = {});
-/*!
- * \brief Translate IR, recover diagnostic paths, and render Python text.
- * \param obj The input IR object.
- * \param config The translation and rendering options.
- * \return The rendered script.
- */
-TVM_DLL ffi::String Script(const ffi::ObjectRef& obj, const PrinterConfig& config);
 
 }  // namespace printer
 }  // namespace script

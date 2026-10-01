@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 #include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/te/operation.h>
@@ -38,29 +39,56 @@ namespace script {
 namespace printer {
 namespace details {
 
-ffi::Optional<ExprDoc> TranslateVar(DocTranslatorObj* d, ffi::AnyView input, const ffi::Object*) {
+ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object* destination) {
   const auto* node =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const VarNode>(input);
   Var var = ffi::GetRef<Var>(node);
   IdDoc id = d->VarGetOrAllocId(var, false);
-  if (var->ty.as<tirx::BufferTypeNode>() && d->GetImplicitDefs().count(var)) {
-    CallDoc type = d->Translate(var->ty).value().as_or_throw<CallDoc>();
-    TVM_FFI_CHECK(type->callee.as_or_throw<AttrAccessDoc>()->name == "Buffer", TypeError)
-        << "T.Buffer cannot declare this nonrepresentable free BufferType";
-    d->Emit(AssignDoc(VarDoc(d, var), type, std::nullopt), var);
+  if (destination == node && d->GetImplicitDefs().count(var)) {
+    // Promote before translating the type, which may refer back to this Var.
+    VarDoc(d, var);
+    ffi::Optional<ExprDoc> rhs = std::nullopt;
+    ffi::Optional<ExprDoc> annotation = std::nullopt;
+    if (auto primitive = var->ty.as<PrimType>()) {
+      rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
+          {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
+          {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
+    } else if (var->ty.as<tirx::BufferTypeNode>()) {
+      rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
+          {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
+    } else {
+      annotation = d->Translate(var->ty).value();
+      if (var->ty.as<PointerTypeNode>()) {
+        // A module-level annotation alone does not bind a Python variable.
+        rhs = annotation.value().as<CallDoc>() ? annotation : annotation.value()->Call({});
+      }
+    }
+    // Only this type's referenced Vars must precede its declaration.
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+        var->ty, [&](const Var& dependency) -> ffi::Expected<ffi::WalkResult> {
+          if (d->GetImplicitDefs().count(dependency)) {
+            if (auto rhs = d->Translate(dependency, dependency.get())) {
+              d->Emit(AssignDoc(VarDoc(d, dependency), rhs.value(), std::nullopt), dependency);
+            }
+          }
+          return ffi::WalkResult::Skip();
+        });
+    d->Emit(AssignDoc(IdDoc(id->name), rhs, annotation), var);
+    return std::nullopt;
   }
   return IdDoc(id->name);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<VarNode>().attr(kDocTranslate,
-                                               FDocTranslate::FromNative<&TranslateVar>());
+                                               FDocTranslate::FromNative<&VarDocTranslate>());
 }
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateIterVar(DocTranslatorObj* d, ffi::AnyView input,
-                                        const ffi::Object*) {
+ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
   const auto* iter =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::IterVarNode>(input);
   CallDoc domain = d->Translate(iter->dom).value().as_or_throw<CallDoc>();
@@ -74,11 +102,11 @@ ffi::Optional<ExprDoc> TranslateIterVar(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::IterVarNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateIterVar>());
+      kDocTranslate, FDocTranslate::FromNative<&IterVarDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateCommReducer(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object*) {
+ffi::Optional<ExprDoc> CommReducerDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object*) {
   const auto* reducer =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const te::CommReducerNode>(input);
   TVM_FFI_CHECK(reducer->lhs.size() == reducer->rhs.size(), TypeError)
@@ -101,11 +129,11 @@ ffi::Optional<ExprDoc> TranslateCommReducer(DocTranslatorObj* d, ffi::AnyView in
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<te::CommReducerNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateCommReducer>());
+      kDocTranslate, FDocTranslate::FromNative<&CommReducerDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateIndexMap(DocTranslatorObj* d, ffi::AnyView input,
-                                         const ffi::Object*) {
+ffi::Optional<ExprDoc> IndexMapDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object*) {
   const auto* map =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::IndexMapNode>(input);
   auto translate_lambda = [&](const tirx::IndexMapNode* node) -> ExprDoc {
@@ -128,11 +156,11 @@ ffi::Optional<ExprDoc> TranslateIndexMap(DocTranslatorObj* d, ffi::AnyView input
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::IndexMapNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateIndexMap>());
+      kDocTranslate, FDocTranslate::FromNative<&IndexMapDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateLambda(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object*) {
+ffi::Optional<ExprDoc> LambdaExprDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
   const auto* lambda =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::LambdaExprNode>(input);
   ffi::Array<IdDoc> args;
@@ -142,7 +170,7 @@ ffi::Optional<ExprDoc> TranslateLambda(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::LambdaExprNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateLambda>());
+      kDocTranslate, FDocTranslate::FromNative<&LambdaExprDocTranslate>());
 }
 
 bool CanTranslateExplicitResultCall(const CallNode* call) {
@@ -160,8 +188,8 @@ ExprDoc ExplicitCallResultType(DocTranslatorObj* d, const Type& type) {
   return TypeValue(d, type, dtype_literal);
 }
 
-ffi::Optional<ExprDoc> TranslateCallExtern(DocTranslatorObj* d, ffi::AnyView input,
-                                           const ffi::Object*) {
+ffi::Optional<ExprDoc> CallExternDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (!call->op.same_as(tirx::builtin::call_extern()) || !CanTranslateExplicitResultCall(call) ||
@@ -181,11 +209,12 @@ ffi::Optional<ExprDoc> TranslateCallExtern(DocTranslatorObj* d, ffi::AnyView inp
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_extern")
-      .set_attr<FDocTranslate>(kOpCallTranslate, FDocTranslate::FromNative<&TranslateCallExtern>());
+      .set_attr<FDocTranslate>(kOpCallTranslate,
+                               FDocTranslate::FromNative<&CallExternDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateCUDAFuncCall(DocTranslatorObj* d, ffi::AnyView input,
-                                             const ffi::Object*) {
+ffi::Optional<ExprDoc> CUDAFuncCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   static const Op cuda_func_call = Op::Get("tirx.cuda.func_call");
@@ -216,12 +245,13 @@ ffi::Optional<ExprDoc> TranslateCUDAFuncCall(DocTranslatorObj* d, ffi::AnyView i
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.cuda.func_call")
       .set_attr<FDocTranslate>(kOpCallTranslate,
-                               FDocTranslate::FromNative<&TranslateCUDAFuncCall>());
+                               FDocTranslate::FromNative<&CUDAFuncCallDocTranslate>());
 }
 
 template <bool block_scaled>
-ffi::Optional<ExprDoc> TranslateCUDAInstructionDescriptor(DocTranslatorObj* d, ffi::AnyView input,
-                                                          const ffi::Object*) {
+ffi::Optional<ExprDoc> CUDAInstructionDescriptorDocTranslate(DocTranslatorObj* d,
+                                                             ffi::AnyView input,
+                                                             const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (!CanTranslateExplicitResultCall(call) || call->args.size() != (block_scaled ? 17 : 14) ||
@@ -268,14 +298,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.cuda.tcgen05_encode_instr_descriptor")
       .set_attr<FDocTranslate>(
           kOpCallTranslate,
-          FDocTranslate::FromNative<&TranslateCUDAInstructionDescriptor<false>>());
+          FDocTranslate::FromNative<&CUDAInstructionDescriptorDocTranslate<false>>());
   OpDef("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled")
       .set_attr<FDocTranslate>(
-          kOpCallTranslate, FDocTranslate::FromNative<&TranslateCUDAInstructionDescriptor<true>>());
+          kOpCallTranslate,
+          FDocTranslate::FromNative<&CUDAInstructionDescriptorDocTranslate<true>>());
 }
 
-ffi::Optional<ExprDoc> TranslateLLVMIntrinsic(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
+ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (call->attrs.defined() || !call->ty_args.empty() || call->args.empty() ||
@@ -313,12 +344,12 @@ ffi::Optional<ExprDoc> TranslateLLVMIntrinsic(DocTranslatorObj* d, ffi::AnyView 
 TVM_FFI_STATIC_INIT_BLOCK() {
   for (const char* name : {"tirx.call_llvm_intrin", "tirx.call_llvm_pure_intrin"}) {
     OpDef(name).set_attr<FDocTranslate>(kOpCallTranslate,
-                                        FDocTranslate::FromNative<&TranslateLLVMIntrinsic>());
+                                        FDocTranslate::FromNative<&LLVMIntrinsicDocTranslate>());
   }
 }
 
-ffi::Optional<ExprDoc> TranslateActiveLaneMask(DocTranslatorObj* d, ffi::AnyView input,
-                                               const ffi::Object*) {
+ffi::Optional<ExprDoc> GetActiveLaneMaskDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                     const ffi::Object*) {
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (!call->op.same_as(tirx::builtin::get_active_lane_mask()) || call->attrs.defined() ||
@@ -347,7 +378,7 @@ ffi::Optional<ExprDoc> TranslateActiveLaneMask(DocTranslatorObj* d, ffi::AnyView
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.get_active_lane_mask")
       .set_attr<FDocTranslate>(kOpCallTranslate,
-                               FDocTranslate::FromNative<&TranslateActiveLaneMask>());
+                               FDocTranslate::FromNative<&GetActiveLaneMaskDocTranslate>());
 }
 
 bool IsPTXAddressCall(const CallNode* call) {
@@ -558,8 +589,8 @@ ffi::Optional<ExprDoc> TranslateTIRCall(DocTranslatorObj* d, const CallNode* cal
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateReduce(DocTranslatorObj* d, ffi::AnyView input,
-                                       const ffi::Object*) {
+ffi::Optional<ExprDoc> ReduceDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                          const ffi::Object*) {
   const auto* node =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const te::ReduceNode>(input);
   // Reduction axes bind the source and predicate. Their declarations must use
@@ -589,7 +620,7 @@ ffi::Optional<ExprDoc> TranslateReduce(DocTranslatorObj* d, ffi::AnyView input,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<te::ReduceNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateReduce>());
+      kDocTranslate, FDocTranslate::FromNative<&ReduceDocTranslate>());
 }
 
 }  // namespace

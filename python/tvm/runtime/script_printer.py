@@ -33,7 +33,7 @@ class PrinterConfig(Object):
     """Configuration of TVMScript printer.
 
     The ``int_dtype`` and ``float_dtype`` arguments populate the string-valued
-    ``script.int_dtype`` and ``script.float_dtype`` entries in ``extra_config``.
+    ``ir.int_dtype`` and ``script.float_dtype`` entries in ``extra_config``.
     Explicit entries in ``extra_config`` override those arguments.
     """
 
@@ -47,7 +47,6 @@ class PrinterConfig(Object):
     print_line_numbers: bool
     num_context_lines: int
     syntax_sugar: bool
-    show_object_address: bool
     extra_config: dict
     path_to_underline: list[AccessPath] | None
     path_to_annotate: dict[AccessPath, str] | None
@@ -69,7 +68,6 @@ class PrinterConfig(Object):
         print_line_numbers: bool = False,
         num_context_lines: int | None = None,
         syntax_sugar: bool = True,
-        show_object_address: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
@@ -84,14 +82,13 @@ class PrinterConfig(Object):
             "ir_prefix": ir_prefix,
             "module_alias": module_alias,
             "buffer_dtype": buffer_dtype,
-            "script.int_dtype": int_dtype,
+            "ir.int_dtype": int_dtype,
             "script.float_dtype": float_dtype,
             "verbose_expr": verbose_expr,
             "indent_spaces": indent_spaces,
             "print_line_numbers": print_line_numbers,
             "num_context_lines": num_context_lines,
             "syntax_sugar": syntax_sugar,
-            "show_object_address": show_object_address,
             "path_to_underline": path_to_underline,
             "path_to_annotate": path_to_annotate,
             "obj_to_underline": obj_to_underline,
@@ -136,7 +133,6 @@ class Scriptable:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
-        show_object_address: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
@@ -170,8 +166,6 @@ class Scriptable:
             The number of lines of context to print before and after the line to underline.
         syntax_sugar: bool = True
             Whether to output with syntax sugar, set false for complete printing.
-        show_object_address: bool = False
-            Whether to include the object's address as part of the TVMScript name
         show_all_ty: bool = True
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
@@ -250,7 +244,6 @@ class Scriptable:
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
-                show_object_address=show_object_address,
                 show_all_ty=show_all_ty,
                 extra_config=merged_extra if merged_extra else None,
                 path_to_underline=path_to_underline,
@@ -274,7 +267,6 @@ class Scriptable:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
-        show_object_address: bool = False,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
         path_to_annotate: dict[AccessPath, str] | None = None,
@@ -300,7 +292,6 @@ class Scriptable:
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
-                show_object_address=show_object_address,
                 extra_config=merged_extra,
                 path_to_underline=path_to_underline,
                 path_to_annotate=path_to_annotate,
@@ -325,7 +316,6 @@ class Scriptable:
         print_line_numbers: bool = False,
         num_context_lines: int = -1,
         syntax_sugar: bool = True,
-        show_object_address: bool = False,
         show_all_ty: bool = True,
         extra_config: dict | None = None,
         path_to_underline: list[AccessPath] | None = None,
@@ -382,8 +372,6 @@ class Scriptable:
             The number of lines of context to print before and after the line to underline.
         syntax_sugar: bool = True
             Whether to output with syntax sugar, set false for complete printing.
-        show_object_address: bool = False
-            Whether to include the object's address as part of the TVMScript name
         show_all_ty: bool = True
             If True (default), annotate all variable bindings with the struct
             info of that variable.  If False, only add annotations where
@@ -419,7 +407,6 @@ class Scriptable:
                 print_line_numbers=print_line_numbers,
                 num_context_lines=num_context_lines,
                 syntax_sugar=syntax_sugar,
-                show_object_address=show_object_address,
                 show_all_ty=show_all_ty,
                 extra_config=extra_config,
                 path_to_underline=path_to_underline,

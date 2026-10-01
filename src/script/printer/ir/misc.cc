@@ -22,7 +22,6 @@
 #include <tvm/relax/global_info.h>
 #include <tvm/runtime/tensor.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/type.h>
 
 #include <algorithm>
 #include <cmath>
@@ -41,8 +40,8 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateDataTypeImm(DocTranslatorObj*, ffi::AnyView input,
-                                            const ffi::Object*) {
+ffi::Optional<ExprDoc> DataTypeImmDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+                                               const ffi::Object*) {
   const auto* imm =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DataTypeImmNode>(input);
   return NamespaceDoc("tirx")->Attr("dtype")->Call(
@@ -51,11 +50,11 @@ ffi::Optional<ExprDoc> TranslateDataTypeImm(DocTranslatorObj*, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<DataTypeImmNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateDataTypeImm>());
+      kDocTranslate, FDocTranslate::FromNative<&DataTypeImmDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> TranslateGenericConst(DocTranslatorObj* d, ffi::AnyView input,
-                                             const ffi::Object*) {
+ffi::Optional<ExprDoc> GenericConstDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                const ffi::Object*) {
   const auto* constant =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const GenericConstNode>(input);
   if (auto dtype = constant->value.as<DLDataType>()) {
@@ -120,7 +119,7 @@ ffi::Optional<ExprDoc> TranslateGenericConst(DocTranslatorObj* d, ffi::AnyView i
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<GenericConstNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateGenericConst>());
+      kDocTranslate, FDocTranslate::FromNative<&GenericConstDocTranslate>());
 }
 
 }  // namespace
@@ -182,14 +181,13 @@ ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value) {
     d->RecordOrigin(doc, ffi::GetRef<StringImm>(string));
     return doc;
   }
-  if (auto type = value.as<tirx::BufferType>()) return TypeValue(d, type.value(), false);
   return d->Translate(value).value();
 }
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslateShapeObject(DocTranslatorObj*, ffi::AnyView input,
-                                            const ffi::Object*) {
+ffi::Optional<ExprDoc> ShapeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+                                         const ffi::Object*) {
   const auto* shape =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const ffi::ShapeObj>(input);
   ffi::Array<ExprDoc> dimensions;
@@ -201,7 +199,7 @@ ffi::Optional<ExprDoc> TranslateShapeObject(DocTranslatorObj*, ffi::AnyView inpu
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<ffi::ShapeObj>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslateShapeObject>());
+      kDocTranslate, FDocTranslate::FromNative<&ShapeDocTranslate>());
 }
 
 }  // namespace

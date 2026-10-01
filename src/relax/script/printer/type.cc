@@ -26,14 +26,14 @@ namespace details {
 
 namespace {
 
-ffi::Optional<ExprDoc> TranslatePackedFuncType(DocTranslatorObj*, ffi::AnyView,
-                                               const ffi::Object*) {
+ffi::Optional<ExprDoc> PackedFuncTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
+                                                  const ffi::Object*) {
   return NamespaceDoc("relax")->Attr("PackedFunc");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::PackedFuncTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&TranslatePackedFuncType>());
+      kDocTranslate, FDocTranslate::FromNative<&PackedFuncTypeDocTranslate>());
 }
 
 }  // namespace
