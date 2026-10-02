@@ -432,7 +432,10 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // We rewrite the remapped var to the original dtype
     auto it = var_remap_.find(var);
     if (it != var_remap_.end()) {
-      return RewriteExpr(it->second, NTypeFrom(var));
+      if (IsNestedTensor(var)) {
+        return RewriteExpr(it->second, NTypeFrom(var));
+      }
+      return it->second;
     }
     return var;
   }

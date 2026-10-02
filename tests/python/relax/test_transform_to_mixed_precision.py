@@ -1082,6 +1082,25 @@ def test_call_tir_with_float16_args():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_local_function_in_dataflow_block():
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor((), "float32")):
+            with R.dataflow():
+
+                @R.function
+                def double(y: R.Tensor((), "float32")) -> R.Tensor((), "float32"):
+                    return R.add(y, y)
+
+                gv = double(x)
+                R.output(gv)
+            return gv
+
+    transformed = ToMixedPrecision()(Module)
+    tvm.ir.assert_structural_equal(transformed, Module)
+
+
 def test_dynamic_strided_slice():
     @I.ir_module
     class Input:
