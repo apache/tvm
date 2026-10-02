@@ -40,7 +40,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../tirx/analysis/check_contains.h"
 #include "tvm/ffi/dtype.h"
 #include "tvm/tirx/expr.h"
 
@@ -90,8 +89,15 @@ bool TargetHasVLA(Target target) {
 }
 
 bool ContainsCallNode(const Stmt& stmt) {
-  return CheckContains::StmtContains(
-      stmt, [](const PrimExpr& expr) { return expr.as<CallNode>() != nullptr; });
+  struct CallFinder : StmtExprVisitor {
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+      if (auto expr = value.as<PrimExpr>(); expr && expr->as<CallNode>()) {
+        return VisitInterrupt();
+      }
+      return StmtExprVisitor::Visit(value);
+    }
+  };
+  return ffi::make_object<CallFinder>()->Visit(stmt).has_value();
 }
 
 PrimType GetTextureElementType(const Expr& texture) {
@@ -1319,7 +1325,15 @@ class LoopVectorizer : public StmtExprMutator {
       }
 
       if (!extent_as_int || extent_as_int->value < 1) {
-        bool is_scalable_expr = CheckContains::ExprContains(op->extent, IsVScaleCall);
+        struct VScaleFinder : StmtExprVisitor {
+          ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+            if (auto expr = value.as<PrimExpr>(); expr && IsVScaleCall(*expr)) {
+              return VisitInterrupt();
+            }
+            return StmtExprVisitor::Visit(value);
+          }
+        };
+        bool is_scalable_expr = ffi::make_object<VScaleFinder>()->Visit(op->extent).has_value();
         TVM_FFI_ICHECK(is_scalable_expr && TargetHasVLA(target_))
             << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
       }

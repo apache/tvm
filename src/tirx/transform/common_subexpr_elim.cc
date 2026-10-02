@@ -87,7 +87,6 @@
 #include <vector>
 
 #include "../../support/ordered_map.h"
-#include "../analysis/check_contains.h"
 
 namespace tvm {
 namespace tirx {
@@ -302,8 +301,15 @@ class CSEPlanner : public StmtExprVisitor {
     // (LT/LE/GT/GE/EQ/NE/And/Or/Not/Cast-to-bool/Select-of-bool).
     PrimType expr_ty = expr.ty();
     if (expr_ty.MatchesCode(DLDataTypeCode::kDLBool)) return false;
-    if (CheckContains::ExprContains(expr, IsForbiddenNode)) return false;
-    return true;
+    struct ForbiddenNodeFinder : StmtExprVisitor {
+      ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+        if (auto expr = value.as<PrimExpr>(); expr && IsForbiddenNode(*expr)) {
+          return VisitInterrupt();
+        }
+        return StmtExprVisitor::Visit(value);
+      }
+    };
+    return !ffi::make_object<ForbiddenNodeFinder>()->Visit(expr).has_value();
   }
 
   // ------------------------------------------------------------------
