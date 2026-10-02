@@ -45,7 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.cuda.iket_range_end")
-      .signature(sig::arg("token", "The token."), sig::var_args("args"))
+      .signature(sig::arg<IntExpr>("token", "The token."), sig::var_args("args"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("cuda"))
