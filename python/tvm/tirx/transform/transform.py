@@ -271,17 +271,17 @@ def MakePackedAPI():
     """Transform the PrimFuncs in the module to a packed func API.
 
     Prior to this pass, the PrimFunc may have parameters annotated with
-    `BufferType`.  This pass consumes those annotations to generate
+    `TensorType`.  This pass consumes those annotations to generate
     arguments that implement the packed based TVM FFI API.
 
-    For static shapes, the `BufferType::shape`, `BufferType::strides`,
-    and `BufferType::elem_offset` fields are used to
+    For static shapes, the `TensorType::shape`, `TensorType::strides`,
+    and `TensorType::elem_offset` fields are used to
     generate runtime checks on the corresponding member variables in
     the user-provided `DLTensor*` or `tvm.runtime.tensor` argument.  (e.g. A
     PrimFunc that accepts a buffer of shape `[16,32]` validates that
     the `DLTensor::shape` array is `[16,32]`.)
 
-    For dynamic Buffers, in which one or more of these `BufferType` fields
+    For dynamic Buffers, in which one or more of these `TensorType` fields
     use `tirx.Var` that are not defined by other PrimFunc
     parameters, these are instead used to define the variables based on
     the corresponding `DLTensor` members.  (e.g. A PrimFunc that accepts a
@@ -539,7 +539,7 @@ def LowerTIRx():
 def LowerTIRxOpaque():
     """Lower opaque constructs in TIRX programs.
 
-    Handles AllocBuffer lowering, For(thread_binding) to AttrStmt(thread_extent)
+    Handles allocation call lowering, For(thread_binding) to AttrStmt(thread_extent)
     conversion, unit loop elimination, and pragma annotation handling.
     This is the tirx-specific counterpart of s_tir.LowerOpaqueBlock,
     without any SBlock/SBlockRealize handling.

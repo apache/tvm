@@ -36,9 +36,9 @@ from tvm.testing import env
 class AddModule:
     @T.prim_func
     def main(
-        A: T.Buffer((1024,), "float32"),
-        B: T.Buffer((1024,), "float32"),
-        C: T.Buffer((1024,), "float32"),
+        A: T.Tensor((1024,), "float32"),
+        B: T.Tensor((1024,), "float32"),
+        C: T.Tensor((1024,), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         for i0_0 in T.parallel(256):

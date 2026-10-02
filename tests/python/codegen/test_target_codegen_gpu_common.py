@@ -52,8 +52,8 @@ def test_int_intrin(target, dtype):
         class Module:
             @T.prim_func
             def main(
-                A: T.Buffer((n,), dtype),
-                B: T.Buffer((n,), dtype),
+                A: T.Tensor((n,), dtype),
+                B: T.Tensor((n,), dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0 in T.thread_binding(n, thread="threadIdx.x"):

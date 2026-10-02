@@ -104,7 +104,7 @@ def test_expr_constructor():
     assert x.condition == a
 
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
-    buffer = tvm.tirx.decl_buffer([16], "float32", data=buffer_var)
+    buffer = tvm.tirx.decl_tensor([16], "float32", data=buffer_var)
     x = tvm.tirx.BufferLoad(buffer, [1])
     assert isinstance(x, tvm.ir.TensorLoad)
     assert x.ty == tvm.ir.PrimType("float32")
@@ -222,7 +222,7 @@ def test_expr_constructor():
 
 
 def test_buffer_region_call_wrappers_reject():
-    buffer = tvm.tirx.decl_buffer([4], "int32")
+    buffer = tvm.tirx.decl_tensor([4], "int32")
     region = buffer[0:4]
     calls = [
         lambda: tvm.tirx.call_intrin("int32", "tirx.reinterpret", region),
@@ -242,22 +242,22 @@ def test_buffer_region_call_wrappers_reject():
 
 
 def test_buffer_region_type_is_singleton():
-    lhs = tvm.tirx.decl_buffer([1], "int32")[0:1]
-    rhs = tvm.tirx.decl_buffer([2], "float32")[0:2]
+    lhs = tvm.tirx.decl_tensor([1], "int32")[0:1]
+    rhs = tvm.tirx.decl_tensor([2], "float32")[0:2]
     assert isinstance(lhs, TensorRegion)
     assert isinstance(rhs, TensorRegion)
     assert lhs.ty.same_as(rhs.ty)
 
 
 def test_buffer_region_is_not_arithmetic_operand():
-    int_region = tvm.tirx.decl_buffer([4], "int32")[0:4]
+    int_region = tvm.tirx.decl_tensor([4], "int32")[0:4]
     with pytest.raises(TypeError, match="construct a TensorLoad explicitly"):
         tvm.tirx.IterVar((0, 4), "i", tvm.tirx.IterVar.DataPar) + int_region
 
 
 def test_operator_base_categories_have_primitive_type():
     var = tvm.tirx.Var("x", "int32")
-    buffer = tvm.tirx.decl_buffer([4], "float32")
+    buffer = tvm.tirx.decl_tensor([4], "float32")
     expressions = [
         tvm.tirx.IntImm("int32", 1),
         tvm.tirx.Add(var, 1),
@@ -313,7 +313,7 @@ def test_stmt_constructor():
     assert x.body == nop
 
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("bool")))
-    buffer = tvm.tirx.decl_buffer([16], "bool", data=buffer_var)
+    buffer = tvm.tirx.decl_tensor([16], "bool", data=buffer_var)
     x = tvm.tirx.BufferStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
     assert isinstance(x, tvm.tirx.BufferStore)
     assert x.buffer == buffer
@@ -322,11 +322,11 @@ def test_stmt_constructor():
     assert list(x.indices) == [10]
     assert x.value.value == 1
 
-    buf = tvm.tirx.decl_buffer([10], "float32")
+    buf = tvm.tirx.decl_tensor([10], "float32")
     x = tvm.tirx.Bind(
         buf,
         tvm.ir.Call(
-            "tirx.alloc_buffer",
+            "tirx.alloc_tensor",
             [
                 tvm.ir.Tuple(buf.shape),
                 tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
@@ -336,7 +336,7 @@ def test_stmt_constructor():
             ty=buf.ty,
         ),
     )
-    assert _is_buffer_binding(x, "tirx.alloc_buffer")
+    assert _is_buffer_binding(x, "tirx.alloc_tensor")
     assert x.var == buf
 
     x = tvm.tirx.AttrStmt(buffer_var, "xyz", 1, nop)

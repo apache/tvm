@@ -34,9 +34,9 @@ def test_meta_programming_matmul():
     def matmul_generator(M: int, N: int, K: int, dtype: str):
         @Ts.prim_func
         def matmul(
-            A: T.Buffer([M, K], dtype=dtype),
-            B: T.Buffer([N, K], dtype=dtype),
-            C: T.Buffer([M, N], dtype=dtype),
+            A: T.Tensor([M, K], dtype=dtype),
+            B: T.Tensor([N, K], dtype=dtype),
+            C: T.Tensor([M, N], dtype=dtype),
         ) -> None:
             for i, j, k in T.grid(M, N, K):
                 with Ts.sblock():
@@ -49,9 +49,9 @@ def test_meta_programming_matmul():
 
     @Ts.prim_func
     def matmul_128_128_128_fp16(
-        A: T.Buffer([128, 128], dtype="float16"),
-        B: T.Buffer([128, 128], dtype="float16"),
-        C: T.Buffer([128, 128], dtype="float16"),
+        A: T.Tensor([128, 128], dtype="float16"),
+        B: T.Tensor([128, 128], dtype="float16"),
+        C: T.Tensor([128, 128], dtype="float16"),
     ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock():
@@ -67,7 +67,7 @@ def test_meta_programming_matmul():
 def test_meta_programming_uncaptured_var():
     def generate_erf(dtype):
         @Ts.prim_func
-        def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+        def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
             for i in range(1):
                 with Ts.sblock("C"):
                     C[i] = T.erf(A[i])
@@ -75,13 +75,13 @@ def test_meta_programming_uncaptured_var():
         return main
 
     @Ts.prim_func
-    def fp32(A: T.Buffer((1,), "float32"), C: T.Buffer((1,), "float32")):
+    def fp32(A: T.Tensor((1,), "float32"), C: T.Tensor((1,), "float32")):
         for i in range(1):
             with Ts.sblock("C"):
                 C[i] = T.erf(A[i])
 
     @Ts.prim_func
-    def fp16(A: T.Buffer((1,), "float16"), C: T.Buffer((1,), "float16")):
+    def fp16(A: T.Tensor((1,), "float16"), C: T.Tensor((1,), "float16")):
         for i in range(1):
             with Ts.sblock("C"):
                 C[i] = T.erf(A[i])
@@ -134,7 +134,7 @@ def test_tir_macro_signature():
 
     @Ts.prim_func(private=True)
     def matmul_w_macro(
-        A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+        A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
     ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
@@ -142,7 +142,7 @@ def test_tir_macro_signature():
 
     @Ts.prim_func(private=True)
     def matmul_no_macro(
-        A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+        A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
     ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
@@ -160,12 +160,12 @@ def test_tir_macro_hygienic():
         B[()] = A[x_value]
 
     @Ts.prim_func(private=True)
-    def use_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+    def use_hygienic(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
         for x_value in T.serial(10):
             static_capture(A, B)
 
     @Ts.prim_func(private=True)
-    def expected_hygienic(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+    def expected_hygienic(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
         for x_value in range(10):
             B[()] = A[128]
 
@@ -177,7 +177,7 @@ def test_tir_inline_late_binding():
     it sees the current value of variables from its enclosing scope at call time."""
 
     @Ts.prim_func(private=True)
-    def use_late_binding(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+    def use_late_binding(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
         for x_value in T.serial(10):
 
             @T.inline
@@ -187,7 +187,7 @@ def test_tir_inline_late_binding():
             capture(A, B)
 
     @Ts.prim_func(private=True)
-    def expected(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+    def expected(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
         for x_value in range(10):
             B[()] = A[x_value]
 
@@ -196,11 +196,11 @@ def test_tir_inline_late_binding():
 
 def test_tir_macro_in_class():
     class Object:
-        def __init__(self, x: T.Buffer):
+        def __init__(self, x: T.Tensor):
             self.local_x = Ts.sblock_alloc_buffer(x.shape, x.dtype)
 
         @T.inline
-        def load(self, x: T.Buffer):
+        def load(self, x: T.Tensor):
             N, M = T.meta_var(self.local_x.shape)
             for i, j in T.grid(N, M):
                 with Ts.sblock("update"):
@@ -208,14 +208,14 @@ def test_tir_macro_in_class():
                     self.local_x[vi, vj] = x[vi, vj]
 
     @Ts.prim_func(private=True)
-    def func_w_macro(A: T.Buffer([128, 128])):
+    def func_w_macro(A: T.Tensor([128, 128])):
         o1 = T.meta_var(Object(A))
         o1.load(A)
         o2 = T.meta_var(Object(A))
         o2.load(o1.local_x)
 
     @Ts.prim_func(private=True)
-    def func_no_macro(A: T.Buffer([128, 128])):
+    def func_no_macro(A: T.Tensor([128, 128])):
         local_a = Ts.sblock_alloc_buffer([128, 128])
         N, M = local_a.shape
         for i, j in T.grid(N, M):
@@ -236,12 +236,12 @@ def test_tir_starred_expression():
     dims = (128, 128)
 
     @Ts.prim_func(private=True)
-    def starred(A: T.Buffer([128, *dims], "int32")) -> None:
+    def starred(A: T.Tensor([128, *dims], "int32")) -> None:
         for i, j, k in T.grid(128, *dims):
             A[i, j, k] = T.int32(1)
 
     @Ts.prim_func(private=True)
-    def non_starred(A: T.Buffer([128, 128, 128], "int32")) -> None:
+    def non_starred(A: T.Tensor([128, 128, 128], "int32")) -> None:
         for i, j, k in T.grid(128, 128, 128):
             A[i, j, k] = T.int32(1)
 
@@ -252,12 +252,12 @@ def test_tir_dynamic_for_loop():
     dims = (128, 128)
 
     @Ts.prim_func(private=True)
-    def starred(A: T.Buffer([128, *dims], "int32")) -> None:
+    def starred(A: T.Tensor([128, *dims], "int32")) -> None:
         for (*iters,) in T.grid(*A.shape):
             A[iters] = T.int32(1)
 
     @Ts.prim_func(private=True)
-    def non_starred(A: T.Buffer([128, 128, 128], "int32")) -> None:
+    def non_starred(A: T.Tensor([128, 128, 128], "int32")) -> None:
         for i, j, k in T.grid(128, 128, 128):
             A[i, j, k] = T.int32(1)
 
@@ -268,7 +268,7 @@ def test_tir_starred_for_loop():
     dims = (128, 128)
 
     @Ts.prim_func(private=True)
-    def starred(A: T.Buffer([*dims, 128], "int32"), B: T.Buffer(dims, "int32")):
+    def starred(A: T.Tensor([*dims, 128], "int32"), B: T.Tensor(dims, "int32")):
         for *spatial, reduction in T.grid(*A.shape):
             with Ts.sblock("reduce"):
                 with Ts.init():
@@ -276,7 +276,7 @@ def test_tir_starred_for_loop():
                 B[spatial] = B[spatial] + A[(*spatial, reduction)]
 
     @Ts.prim_func(private=True)
-    def non_starred(A: T.Buffer([128, 128, 128], "int32"), B: T.Buffer([128, 128], "int32")):
+    def non_starred(A: T.Tensor([128, 128, 128], "int32"), B: T.Tensor([128, 128], "int32")):
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("reduce"):
                 with Ts.init():
@@ -290,12 +290,12 @@ def test_tir_builtin_expression():
     dims = (128, 128)
 
     @Ts.prim_func(private=True)
-    def with_builtin(A: T.Buffer([len(dims), *dims], "int32")) -> None:
+    def with_builtin(A: T.Tensor([len(dims), *dims], "int32")) -> None:
         for i, j, k in T.grid(*A.shape):
             A[i, j, k] = T.int32(1 + len(A.shape))
 
     @Ts.prim_func(private=True)
-    def evaluated(A: T.Buffer((2, 128, 128), "int32")):
+    def evaluated(A: T.Tensor((2, 128, 128), "int32")):
         for i, j, k in T.grid(2, 128, 128):
             A[i, j, k] = 4
 
@@ -334,14 +334,14 @@ def test_tir_macro_block_name_suffix():
             A[v] = A[v] * T.float32(2)
 
     @Ts.prim_func(private=True)
-    def func_w_macro(A: T.Buffer([10])) -> None:
+    def func_w_macro(A: T.Tensor([10])) -> None:
         for i in T.serial(0, 10):
             operation(A, i)
             operation(A, i)
             operation(A, i)
 
     @Ts.prim_func(private=True)
-    def expected(A: T.Buffer([10])) -> None:
+    def expected(A: T.Tensor([10])) -> None:
         for i in T.serial(0, 10):
             with Ts.sblock("op"):
                 v = Ts.axis.remap("S", [i])
@@ -366,17 +366,17 @@ def test_prim_func_closure_shape():
 
     def f(M=16):
         @Ts.prim_func
-        def func(A: T.Buffer((M,), "float32")):
+        def func(A: T.Tensor((M,), "float32")):
             T.evaluate(0)
 
         return func
 
     @Ts.prim_func
-    def expected_16(A: T.Buffer((16,), "float32")):
+    def expected_16(A: T.Tensor((16,), "float32")):
         T.evaluate(0)
 
     @Ts.prim_func
-    def expected_32(A: T.Buffer((32,), "float32")):
+    def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
@@ -388,17 +388,17 @@ def test_prim_func_closure_dtype():
 
     def f(dtype="float32"):
         @Ts.prim_func
-        def func(A: T.Buffer((16,), dtype)):
+        def func(A: T.Tensor((16,), dtype)):
             T.evaluate(0)
 
         return func
 
     @Ts.prim_func
-    def expected_f32(A: T.Buffer((16,), "float32")):
+    def expected_f32(A: T.Tensor((16,), "float32")):
         T.evaluate(0)
 
     @Ts.prim_func
-    def expected_f16(A: T.Buffer((16,), "float16")):
+    def expected_f16(A: T.Tensor((16,), "float16")):
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(_normalize(f("float32")), _normalize(expected_f32))
@@ -417,7 +417,7 @@ def test_prim_func_nested_closure():
     def outer(M=16):
         def middle(N=8):
             @Ts.prim_func
-            def func(A: T.Buffer((M, N), "float32")):
+            def func(A: T.Tensor((M, N), "float32")):
                 T.evaluate(0)
 
             return func
@@ -425,11 +425,11 @@ def test_prim_func_nested_closure():
         return middle()
 
     @Ts.prim_func
-    def expected_16_8(A: T.Buffer((16, 8), "float32")):
+    def expected_16_8(A: T.Tensor((16, 8), "float32")):
         T.evaluate(0)
 
     @Ts.prim_func
-    def expected_32_8(A: T.Buffer((32, 8), "float32")):
+    def expected_32_8(A: T.Tensor((32, 8), "float32")):
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(_normalize(outer(16)), _normalize(expected_16_8))
@@ -443,17 +443,17 @@ def test_ir_module_closure():
         @I.ir_module
         class Mod:
             @Ts.prim_func
-            def main(A: T.Buffer((M,), "float32")):
+            def main(A: T.Tensor((M,), "float32")):
                 T.evaluate(0)
 
         return Mod
 
     @Ts.prim_func
-    def expected_16(A: T.Buffer((16,), "float32")):
+    def expected_16(A: T.Tensor((16,), "float32")):
         T.evaluate(0)
 
     @Ts.prim_func
-    def expected_32(A: T.Buffer((32,), "float32")):
+    def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(_normalize(f(16)["main"]), _normalize(expected_16))
@@ -465,17 +465,17 @@ def test_mixed_closure_usage():
 
     def f(M=16):
         @Ts.prim_func
-        def func(A: T.Buffer((M,), "float32")):
+        def func(A: T.Tensor((M,), "float32")):
             T.evaluate(M)
 
         return func
 
     @Ts.prim_func
-    def expected_16(A: T.Buffer((16,), "float32")):
+    def expected_16(A: T.Tensor((16,), "float32")):
         T.evaluate(16)
 
     @Ts.prim_func
-    def expected_32(A: T.Buffer((32,), "float32")):
+    def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(32)
 
     tvm.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
@@ -486,7 +486,7 @@ np_array = numpy.array([0, 1, 2, 3])
 
 
 @Ts.prim_func
-def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -543,9 +543,9 @@ def test_func_call():
 
     @Ts.prim_func
     def mma_sync_m16n16k16_desc(
-        A: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
-        B: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
-        C: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        A: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        B: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        C: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])
@@ -570,9 +570,9 @@ def test_func_call():
 
     @Ts.prim_func
     def mma_sync_m16n16k16_desc_manual(
-        A: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
-        B: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
-        C: T.Buffer((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        A: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        B: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
+        C: T.Tensor((32, 8), "float16", align=64, offset_factor=16, scope="warp"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32, 0:8], A[0:32, 0:8], B[0:32, 0:8])

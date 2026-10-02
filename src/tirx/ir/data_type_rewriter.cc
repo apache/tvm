@@ -359,7 +359,7 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const AttrStmtNode* op, Inplace
 
 UnchangedOr<ffi::Any> IndexDataTypeRewriter::Mutate(ffi::AnyView value, InplaceMode inplace_mode) {
   bool is_enabled = is_enabled_;
-  if (value.as<BufferTypeNode>()) is_enabled_ = true;
+  if (value.as<TensorTypeNode>()) is_enabled_ = true;
   auto result = DataTypeLegalizer::Mutate(value, inplace_mode);
   is_enabled_ = is_enabled;
   return result;

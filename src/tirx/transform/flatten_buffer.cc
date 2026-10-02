@@ -48,7 +48,7 @@ using namespace tvm::prim;
  *  same data origin, dtype, alignment and scope; no layout, no elem_offset.
  *
  *  The pass walks the AST top-down. At each buffer definition point
- *  (AllocBuffer/DeclBuffer; PrimFunc params are seeded up front) it derives,
+ *  (AllocTensor/DeclTensor; PrimFunc params are seeded up front) it derives,
  *  exactly once:
  *    - the fold view: the original geometry with its expression fields
  *      (runtime elem_offset, symbolic shapes/strides, layout iters) rewritten
@@ -85,7 +85,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
           auto new_buf = pass->Lookup(old_buf.value()).flattened;
           if (!old_buf.value().same_as(new_buf)) {
             body = SeqStmt::Flatten(
-                Bind(new_buf, Call(new_buf.type(), builtin::decl_buffer(),
+                Bind(new_buf, Call(new_buf.type(), builtin::decl_tensor(),
                                    {old_buf.value().data(), tvm::Tuple(new_buf->shape),
                                     DataTypeImm(new_buf->dtype->dtype), StringImm(new_buf.scope())},
                                    {})),
@@ -122,7 +122,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     }
 
     // Fold view: rewrite the geometry's expression leaves.
-    auto view_type = CopyBufferType(buf);
+    auto view_type = CopyTensorType(buf);
     auto mutate_expr = [this](const PrimExpr& expr) { return Mutate(expr).ValueOrUnchanged(expr); };
     view_type->shape = view_type->shape.Map(mutate_expr);
     view_type->strides = view_type->strides.Map(mutate_expr);
@@ -152,7 +152,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     // buf': the storage husk. The linearized indices carry layout and
     // elem_offset, so the husk keeps neither.
     auto flat = fold_view.GetFlattenedBuffer();
-    auto type = CopyBufferType(flat);
+    auto type = CopyTensorType(flat);
     for (size_t i = 0; i < type->shape.size(); ++i) {
       type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
     }
@@ -162,10 +162,10 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     }
     // Body-local buffers keep their identity when flattening changes nothing.
     // PrimFunc-parameter buffers always rebuild: the epilogue aliases the
-    // rebuilt view onto the argument buffer with an explicit DeclBuffer, and
+    // rebuilt view onto the argument buffer with an explicit DeclTensor, and
     // downstream s_tir passes pin that shape.
     BufferVar flattened =
-        (!extern_buffers_.count(buf) && ffi::StructuralEqual()(BufferType(type), buf.type()))
+        (!extern_buffers_.count(buf) && ffi::StructuralEqual()(TensorType(type), buf.type()))
             ? buf
             : RebuildBufferVar(buf, std::move(type));
 
@@ -179,27 +179,27 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     auto it = flat_map_.find(buf.var());
     TVM_FFI_ICHECK(it != flat_map_.end())
         << "Buffer " << buf.name()
-        << " is used before its definition (AllocBuffer/DeclBuffer/PrimFunc param)";
+        << " is used before its definition (AllocTensor/DeclTensor/PrimFunc param)";
     return it->second;
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_buffer()))
-        return MutateAllocBuffer(op, call, inplace_mode);
-      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, call, inplace_mode);
+      if (call->op.same_as(builtin::alloc_tensor()))
+        return MutateAllocTensor(op, call, inplace_mode);
+      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, call, inplace_mode);
     }
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, const CallNode* buffer_call,
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
                                       InplaceMode inplace_mode) {
     const FlatInfo& info = Define(op->var.as_or_throw<BufferVar>());
     if (info.flattened.same_as(op->var.as_or_throw<BufferVar>())) {
       return ffi::Unchanged();
     }
     return Bind(info.flattened.var(),
-                Call(info.flattened.type(), tirx::builtin::alloc_buffer(),
+                Call(info.flattened.type(), tirx::builtin::alloc_tensor(),
                      {tvm::Tuple(info.flattened->shape, buffer_call->args[0]->span),
                       DataTypeImm(info.flattened->dtype->dtype, buffer_call->args[1]->span),
                       StringImm(info.flattened.scope(), buffer_call->args[2]->span)},
@@ -207,13 +207,13 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
                 op->span);
   }
 
-  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, const CallNode* buffer_call,
+  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
                                      InplaceMode inplace_mode) {
     Expr data = buffer_call->args[0];
     bool is_extern_buffer_source = false;
     if (const auto* call = buffer_call->args[0].as<CallNode>();
         call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
-      if (const auto* var = call->args[0].as<VarNode>(); var && var->ty.as<BufferTypeNode>()) {
+      if (const auto* var = call->args[0].as<VarNode>(); var && var->ty.as<TensorTypeNode>()) {
         is_extern_buffer_source =
             extern_buffers_.count(ffi::GetRef<Var>(var).as_or_throw<BufferVar>());
       }
@@ -227,7 +227,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
     return Bind(info.flattened,
-                Call(info.flattened.type(), builtin::decl_buffer(),
+                Call(info.flattened.type(), builtin::decl_tensor(),
                      {std::move(data), tvm::Tuple(info.flattened->shape),
                       DataTypeImm(info.flattened->dtype->dtype), StringImm(info.flattened.scope())},
                      buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
@@ -280,7 +280,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>()) {
-        if (var.value()->ty.as<BufferTypeNode>()) {
+        if (var.value()->ty.as<TensorTypeNode>()) {
           BufferVar original = var.value().as_or_throw<BufferVar>();
           buffers_used_.insert(original);
           return Lookup(original).flattened.data();
@@ -314,7 +314,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     return BufferLoad(info.flattened, FoldIndices(info, node->indices), node->span);
   }
 
-  /*! \brief Set of buffers accessed during visitation (used to emit DeclBuffer for param buffers).
+  /*! \brief Set of buffers accessed during visitation (used to emit DeclTensor for param buffers).
    */
   std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers_used_;
 

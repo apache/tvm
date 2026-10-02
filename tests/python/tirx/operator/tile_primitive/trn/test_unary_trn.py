@@ -63,8 +63,8 @@ def test_simple_unary(op_type):
     @T.prim_func
     def unary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         if T.constexpr(op_type == "memset"):
             tx_func(B_sbuf, T.float32(0.0))
         else:
@@ -73,8 +73,8 @@ def test_simple_unary(op_type):
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "unary"})
-        A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -105,8 +105,8 @@ def test_unary_in_a_loop(op_type):
     @T.prim_func
     def unary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         A_sbuf_view = A_sbuf.view(128, 8, 512)
         B_sbuf_view = B_sbuf.view(128, 4, 512)
         for i in range(4):
@@ -118,10 +118,10 @@ def test_unary_in_a_loop(op_type):
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "unary"})
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        A_sbuf_view = T.decl_buffer((128, 4096), data=A_sbuf.data, scope="trn.sbuf", layout=None)
-        B_sbuf_view = T.decl_buffer((128, 2048), data=B_sbuf.data, scope="trn.sbuf", layout=None)
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        A_sbuf_view = T.decl_tensor((128, 4096), data=A_sbuf.data, scope="trn.sbuf", layout=None)
+        B_sbuf_view = T.decl_tensor((128, 2048), data=B_sbuf.data, scope="trn.sbuf", layout=None)
         for i, b_loop in T.grid(4, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -145,13 +145,13 @@ def test_unary_complex1():
     @T.prim_func
     def unary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.memset(A_sbuf, T.float32(0.0))
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "unary"})
-        A_sbuf = T.alloc_buffer((128, 8192), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 8192), scope="trn.sbuf")
         for b_loop in T.serial(0, 16):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -179,17 +179,17 @@ def test_unary_with_bias_scale(op_type):
     @T.prim_func
     def unary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(bias_shape, "float32", scope="trn.sbuf", layout=bias_layout)
-        C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(bias_shape, "float32", scope="trn.sbuf", layout=bias_layout)
+        C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         tx_func(C_sbuf, A_sbuf, bias=B_sbuf, scale=scale)
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "unary"})
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 4), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -216,20 +216,20 @@ def test_unary_with_bias_scale_2(op_type):
     @T.prim_func
     def unary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         tx_func(C_sbuf, A_sbuf, bias=bias, scale=scale)
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "unary"})
-        const_bias = T.alloc_buffer((128, 512), scope="trn.sbuf")
+        const_bias = T.alloc_tensor((128, 512), scope="trn.sbuf")
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(1.0))
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
@@ -256,9 +256,9 @@ def test_unary_with_guard():
     @T.prim_func
     def unary() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(bias_shape, "float32", scope="trn.sbuf", layout=bias_layout)
-        C_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(bias_shape, "float32", scope="trn.sbuf", layout=bias_layout)
+        C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             for j in range(4):
                 Tx.sqrt(C_sbuf[0: (i+1) * 128, 0: (j+1)*256], A_sbuf[0: (i+1) * 128, 0: (j+1)*256], bias=B_sbuf[0: (i+1) * 128, 0], scale=scale)  # noqa: E501
@@ -266,9 +266,9 @@ def test_unary_with_guard():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "unary"})
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 4), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         for i, j, b_loop in T.grid(4, 4, 8):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):

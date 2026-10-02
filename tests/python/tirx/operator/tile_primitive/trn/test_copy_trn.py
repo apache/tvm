@@ -55,17 +55,17 @@ def test_simple_copy():
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, A)
 
     @T.prim_func
-    def expected(A: T.Buffer((128, 512), layout=None)):
+    def expected(A: T.Tensor((128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((65536,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
+        A_1 = T.decl_tensor((65536,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -86,17 +86,17 @@ def test_simple_copy_2():
     dst_layout = TileLayout(S[(128, 4, 128) : (4 @ F, 1 @ F, 1 @ P)])
 
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, A)
 
     @T.prim_func
-    def expected(A: T.Buffer((128, 512), layout=None)):
+    def expected(A: T.Tensor((128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((65536,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
+        A_1 = T.decl_tensor((65536,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 512):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -116,18 +116,18 @@ def test_copy_in_a_loop():
     dst_layout = TileLayout(S[(4, 128, 512) : (512 @ F, 1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
 
     @T.prim_func
-    def expected(A: T.Buffer((512, 512), layout=None)):
+    def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((262144,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_1 = T.decl_tensor((262144,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -149,22 +149,22 @@ def test_copy_in_a_loop_2():
     dst_layout = TileLayout(S[(128, 2048) : (1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         A_sbuf_view = A_sbuf.view(128, 4, 512)
         A_view = A.view(128, 4, 512)
         for i in range(4):
             Tx.copy(A_sbuf_view[:, i, :], A_view[:, i, :])
 
     @T.prim_func
-    def expected(A: T.Buffer((512, 512), layout=None)):
+    def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        _A_flat = T.decl_buffer((262144,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        A_sbuf_view = T.decl_buffer((128, 2048), data=A_sbuf.data, scope="trn.sbuf", layout=None)
-        A_view = T.decl_buffer((262144,), data=_A_flat.data, layout=None)
+        _A_flat = T.decl_tensor((262144,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        A_sbuf_view = T.decl_tensor((128, 2048), data=A_sbuf.data, scope="trn.sbuf", layout=None)
+        A_view = T.decl_tensor((262144,), data=_A_flat.data, layout=None)
         for i, b_loop in T.grid(4, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -191,21 +191,21 @@ def test_copy_transpose():
     @T.prim_func
     def copy() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(B_sbuf, A_sbuf)
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "copy"})
-        identity = T.alloc_buffer((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_buffer((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
+        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
+        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
                     T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for b_loop in range(16):
             for extend_b_loop in range(1):
                 T.attr(0, "tensorized_nki_instruction", 1)
@@ -237,22 +237,22 @@ def test_copy_transpose_2():
     @T.prim_func
     def copy() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(B_sbuf[i, :], A_sbuf)
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "copy"})
-        identity = T.alloc_buffer((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_buffer((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
+        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
+        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
                     T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for i in range(4):
             for b_loop in range(4):
                 for extend_b_loop in range(1):
@@ -283,15 +283,15 @@ def test_copy_different_f():
     @T.prim_func
     def copy() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(B_sbuf, A_sbuf)
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "copy"})
-        A_sbuf = T.alloc_buffer((128, 256), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 256), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 256), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 256), scope="trn.sbuf")
         for b_loop in T.serial(0, 64):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -319,17 +319,17 @@ def test_copy_different_shape():
     @T.prim_func
     def copy() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         B_sbuf_view = B_sbuf.view(512, 4)
         Tx.copy(B_sbuf_view, A_sbuf[:, 0:4])
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "copy"})
-        A_sbuf = T.alloc_buffer((128, 256), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 16), scope="trn.sbuf")
-        B_sbuf_view = T.decl_buffer((128, 16), data=B_sbuf.data, scope="trn.sbuf", layout=None)
+        A_sbuf = T.alloc_tensor((128, 256), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 16), scope="trn.sbuf")
+        B_sbuf_view = T.decl_tensor((128, 16), data=B_sbuf.data, scope="trn.sbuf", layout=None)
         for b_loop in T.serial(0, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -352,18 +352,18 @@ def test_copy_irregular_shape():
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A[:, i * 512 : i * 512 + 512], A_sbuf)
 
     @T.prim_func
-    def expected(A: T.Buffer((128, 10000), layout=None)):
+    def expected(A: T.Tensor((128, 10000), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((1280000,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
+        A_1 = T.decl_tensor((1280000,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -384,19 +384,19 @@ def test_copy_different_shape_dim():
 
     # fmt: off
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, 'float32', layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, 'float32', layout=src_layout)) -> None:
 
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(32):
             Tx.copy(A_sbuf, A[i, :, :])
 
     @T.prim_func
-    def expected(A: T.Buffer((32, 128, 512), layout=None)):
+    def expected(A: T.Tensor((32, 128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((2097152,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf")
+        A_1 = T.decl_tensor((2097152,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for i, b_loop in T.grid(32, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -416,18 +416,18 @@ def test_copy_with_offset():
     dst_layout = TileLayout(S[(4, 128, 512) : (512 @ F, 1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(2):
             Tx.copy(A_sbuf[i * 256 : i * 256 + 256, :], A)
 
     @T.prim_func
-    def expected(A: T.Buffer((256, 512), layout=None)):
+    def expected(A: T.Tensor((256, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((131072,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_1 = T.decl_tensor((131072,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for i, b_loop in T.grid(2, 2):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -450,18 +450,18 @@ def test_large_dma_copy():
     dst_layout = TileLayout(S[(4, 128, 4096) : (4096 @ F, 1 @ P, 1 @ F)])
 
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, "float32", layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
 
     @T.prim_func
-    def expected(A: T.Buffer((512, 4096), layout=None)):
+    def expected(A: T.Tensor((512, 4096), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((2097152,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
+        A_1 = T.decl_tensor((2097152,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -486,16 +486,16 @@ def test_copy_with_inst_size_limit():
     @T.prim_func
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
-        B_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        B_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], B_sbuf[i * 128 : i * 128 + 128, :])
 
     @T.prim_func
     def expected(A_ptr: T.handle):
         T.func_attr({"global_symbol": "copy"})
-        B_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
-        A_sbuf = T.alloc_buffer((128, 16384), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 8):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim": "P"}):
@@ -519,18 +519,18 @@ def test_copy_with_complex_index():
 
     # fmt: off
     @T.prim_func
-    def copy(A: T.Buffer(A_shape, 'float32', layout=A_layout), ) -> None:
+    def copy(A: T.Tensor(A_shape, 'float32', layout=A_layout), ) -> None:
 
         T.device_entry()
-        A_sbuf = T.alloc_buffer(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
+        A_sbuf = T.alloc_tensor(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
         Tx.copy(A_sbuf[1, 0:2048, 0:1024], A[2048: 4096, 3072:4096])
 
     @T.prim_func
-    def expected(A: T.Buffer((4096, 4096), layout=None)):
+    def expected(A: T.Tensor((4096, 4096), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((16777216,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 32768), scope="trn.sbuf")
+        A_1 = T.decl_tensor((16777216,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 32768), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -551,18 +551,18 @@ def test_copy_with_complex_index_2():
 
     # fmt: off
     @T.prim_func
-    def copy(A: T.Buffer(A_shape, 'float32', layout=A_layout), ) -> None:
+    def copy(A: T.Tensor(A_shape, 'float32', layout=A_layout), ) -> None:
 
         T.device_entry()
-        A_sbuf = T.alloc_buffer(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
+        A_sbuf = T.alloc_tensor(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
         Tx.copy(A_sbuf[2048: 4096, 3072:4096], A[1, 0:2048, 0:1024])
 
     @T.prim_func
-    def expected(A: T.Buffer((2, 2048, 1024), layout=None)):
+    def expected(A: T.Tensor((2, 2048, 1024), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((4194304,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 131072), scope="trn.sbuf")
+        A_1 = T.decl_tensor((4194304,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 131072), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -586,10 +586,10 @@ def test_copy_transpose_with_workspace():
     @T.prim_func
     def copy() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        identity = T.alloc_buffer((128, 128), "float32", scope="trn.sbuf")
-        acc_psum = T.alloc_buffer((1, 128, 512), "float32", scope="trn.psum", allocated_addr=(0, 0))
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        identity = T.alloc_tensor((128, 128), "float32", scope="trn.sbuf")
+        acc_psum = T.alloc_tensor((1, 128, 512), "float32", scope="trn.psum", allocated_addr=(0, 0))
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for rhs_f_loop in T.serial(0, 128, annotations={"nki_dim":"F"}):
@@ -599,10 +599,10 @@ def test_copy_transpose_with_workspace():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "copy"})
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        identity = T.alloc_buffer((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_buffer((1, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
+        acc_psum = T.alloc_tensor((1, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
@@ -633,20 +633,20 @@ def test_copy_with_guard():
 
     # fmt: off
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, 'float32', layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, 'float32', layout=src_layout)) -> None:
 
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for j in range(4):
             for i in range(4):
                 Tx.copy(A_sbuf[i * 128 : i * 128 + 128, 0:128*j], A[i * 128 : i * 128 + 128, 0:128*j])  # noqa: E501
 
     @T.prim_func
-    def expected(A: T.Buffer((512, 512), layout=None)):
+    def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((262144,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_1 = T.decl_tensor((262144,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for j, i, b_loop in T.grid(4, 4, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -669,20 +669,20 @@ def test_copy_with_guard_2():
 
     # fmt: off
     @T.prim_func
-    def copy(A: T.Buffer(src_shape, 'float32', layout=src_layout)) -> None:
+    def copy(A: T.Tensor(src_shape, 'float32', layout=src_layout)) -> None:
 
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for j in range(4):
             for i in range(4):
                 Tx.copy(A_sbuf[0:128*j, 0:128*i], A[0:128*j, 0:128*i])
 
     @T.prim_func
-    def expected(A: T.Buffer((512, 512), layout=None)):
+    def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
-        A_1 = T.decl_buffer((262144,), data=A.data, layout=None)
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_1 = T.decl_tensor((262144,), data=A.data, layout=None)
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for j, i, b_loop in T.grid(4, 4, 3):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -707,8 +707,8 @@ def test_copy_transpose_with_guard():
     @T.prim_func
     def copy() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             for j in range(4):
                 Tx.copy(B_sbuf[i * 128 : i * 128 + 128, 0:128*j], A_sbuf[i * 128 : i * 128 + 128, 0:128*j])  # noqa: E501
@@ -716,14 +716,14 @@ def test_copy_transpose_with_guard():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "copy"})
-        identity = T.alloc_buffer((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_buffer((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
+        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
+        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
                     T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for i, j, b_loop in T.grid(4, 4, 3):
             for extend_b_loop in range(1):
                 T.attr(0, "tensorized_nki_instruction", 1)
@@ -756,15 +756,15 @@ def test_copy_with_specified_max_inst_size():
     @T.prim_func
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        B_sbuf = T.alloc_buffer(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
+        B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, B_sbuf, max_inst_size=128)
 
     @T.prim_func
     def expected(A_ptr: T.handle):
         T.func_attr({"global_symbol": "copy"})
-        A_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf", layout=None)
-        B_sbuf = T.alloc_buffer((128, 512), scope="trn.sbuf", layout=None)
+        A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf", layout=None)
+        B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf", layout=None)
         for b_loop in T.serial(0, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
@@ -782,21 +782,21 @@ def test_copy_transpose_with_extended_f():
     @T.prim_func
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((128, 2048), "float32", scope="trn.sbuf", layout="PF")
-        B_sbuf = T.alloc_buffer((128, 2048), "float32", scope="trn.sbuf", layout="FP")
+        A_sbuf = T.alloc_tensor((128, 2048), "float32", scope="trn.sbuf", layout="PF")
+        B_sbuf = T.alloc_tensor((128, 2048), "float32", scope="trn.sbuf", layout="FP")
         Tx.copy(B_sbuf, A_sbuf)
 
     @T.prim_func
     def expected(A_ptr: T.handle):
         T.func_attr({"global_symbol": "copy"})
-        identity = T.alloc_buffer((128, 128), scope="trn.sbuf")
-        acc_psum = T.alloc_buffer((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
+        identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
+        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
         with T.attr(0, "tensorized_nki_instruction", 1):
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
                     T.nki.identity(identity[p_loop, rhs_f_loop], 128)
-        A_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
+        A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for b_loop in range(4):
             for extend_b_loop in range(4):
                 T.attr(0, "tensorized_nki_instruction", 1)

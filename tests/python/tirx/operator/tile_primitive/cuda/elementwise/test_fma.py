@@ -57,11 +57,11 @@ def test_fma_scalar_scalar():
     bias_val = -1.0
 
     @T.prim_func
-    def test_func(A: T.Buffer((N,), dtype, layout=TileLayout(S[N]))) -> None:
+    def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([N])
-        buf = T.alloc_buffer((1,), dtype, scope="local", layout=TileLayout(S[1]))
+        buf = T.alloc_tensor((1,), dtype, scope="local", layout=TileLayout(S[1]))
         Tx.copy(buf, A[tx : tx + 1])
         Tx.fma(buf, buf, T.float32(scale_val), T.float32(bias_val))
         Tx.copy(A[tx : tx + 1], buf)
@@ -99,14 +99,14 @@ def test_fma_buffer_scale_scalar_bias():
 
     @T.prim_func
     def test_func(
-        A: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
-        B: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
+        A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
+        B: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
     ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
-        acc = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        frac = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        acc = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        frac = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
         Tx.copy(acc, A[0:N])
         Tx.copy(frac, B[0:N])
         Tx.fma(acc, acc, frac, T.float32(coeff))
@@ -145,14 +145,14 @@ def test_mul_scalar_broadcast():
 
     @T.prim_func
     def test_func(
-        A: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
-        Scale: T.Buffer((1,), dtype, layout=TileLayout(S[1])),
+        A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
+        Scale: T.Tensor((1,), dtype, layout=TileLayout(S[1])),
     ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
-        a_local = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        s_local = T.alloc_buffer((1,), dtype, scope="local", layout=TileLayout(S[1]))
+        a_local = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        s_local = T.alloc_tensor((1,), dtype, scope="local", layout=TileLayout(S[1]))
         Tx.copy(a_local, A[0:N])
         Tx.copy(s_local, Scale[0:1])
         Tx.mul(a_local, a_local, s_local[0])
@@ -192,11 +192,11 @@ def test_add_rounding_mode():
     round_const = float(2**23 + 2**22)
 
     @T.prim_func
-    def test_func(A: T.Buffer((N,), dtype, layout=TileLayout(S[N]))) -> None:
+    def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
-        buf = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        buf = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
         Tx.copy(buf, A[0:N])
         Tx.add(buf, buf, T.float32(round_const), rounding_mode="rm")
         Tx.copy(A[0:N], buf)
@@ -239,7 +239,7 @@ def test_fma_no_layout():
     bias_val = 1.0
 
     @T.prim_func
-    def test_func(A: T.Buffer((N,), dtype, layout=TileLayout(S[N]))) -> None:
+    def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
@@ -281,14 +281,14 @@ def test_sub_buffer_buffer_rounding():
 
     @T.prim_func
     def test_func(
-        A: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
-        B: T.Buffer((N,), dtype, layout=TileLayout(S[N])),
+        A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
+        B: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
     ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         _tx = T.thread_id([1])
-        a_buf = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
-        b_buf = T.alloc_buffer((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        a_buf = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
+        b_buf = T.alloc_tensor((N,), dtype, scope="local", layout=TileLayout(S[N]))
         Tx.copy(a_buf, A[0:N])
         Tx.copy(b_buf, B[0:N])
         Tx.sub(a_buf, a_buf, b_buf, rounding_mode="rn")
@@ -326,15 +326,15 @@ def test_fma_warpgroup_wg_local_layout():
 
     @T.prim_func
     def test_func(
-        A: T.Buffer((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
-        B: T.Buffer((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
+        A: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
+        B: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
     ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         wg_id = T.warpgroup_id([1])
         tid = T.thread_id_in_wg([rows])
 
-        reg = T.alloc_buffer((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
+        reg = T.alloc_tensor((rows, cols), dtype, scope="local", layout=wg_local_layout(cols))
         reg_row = reg.local(cols)
         for i in T.serial(cols):
             reg_row[i] = A[tid, i]
@@ -373,18 +373,18 @@ def test_fma_f32_sm100_packed_f32x2_dispatch():
 
     @T.prim_func
     def k(
-        A: T.Buffer(shape, "float32", layout=lay),
-        B: T.Buffer(shape, "float32", layout=lay),
-        C: T.Buffer(shape, "float32", layout=lay),
-        D: T.Buffer(shape, "float32", layout=lay),
+        A: T.Tensor(shape, "float32", layout=lay),
+        B: T.Tensor(shape, "float32", layout=lay),
+        C: T.Tensor(shape, "float32", layout=lay),
+        D: T.Tensor(shape, "float32", layout=lay),
     ) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
         tx = T.thread_id([64])
-        ra = T.alloc_buffer(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rb = T.alloc_buffer(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rc = T.alloc_buffer(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
-        rd = T.alloc_buffer(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        ra = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        rb = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        rc = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
+        rd = T.alloc_tensor(shape[1:], "float32", scope="local", layout=TileLayout(S[shape[1:]]))
         Tx.copy(ra, A[tx])
         Tx.copy(rb, B[tx])
         Tx.copy(rc, C[tx])

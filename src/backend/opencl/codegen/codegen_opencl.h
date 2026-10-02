@@ -65,7 +65,7 @@ class CodeGenOpenCL final : public CodeGenC {
 
   // overload visitor
   void Dispatch_(const BindNode* op) final;
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::RampNode* op, std::ostream& os) final;       // NOLINT(*)
   void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)

@@ -90,7 +90,7 @@ def _inject_private_allocations(
                     allocation = Bind(
                         buffer,
                         Call(
-                            "tirx.alloc_buffer",
+                            "tirx.alloc_tensor",
                             [
                                 Tuple(buffer.ty.shape),
                                 DataTypeImm(buffer.ty.dtype.dtype),

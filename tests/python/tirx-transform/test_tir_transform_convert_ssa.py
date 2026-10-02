@@ -171,7 +171,7 @@ def test_reused_buffer_obj():
 
     @T.prim_func(private=True)
     def func(a: T.handle("float32")):
-        A = T.decl_buffer(shape=1, dtype="float32", data=a)
+        A = T.decl_tensor(shape=1, dtype="float32", data=a)
         T.evaluate(A[0])
 
     before = tvm.IRModule(
@@ -185,12 +185,12 @@ def test_reused_buffer_obj():
     class expected:
         @T.prim_func
         def func_a(a: T.handle("float32")):
-            A = T.decl_buffer(shape=1, dtype="float32", data=a)
+            A = T.decl_tensor(shape=1, dtype="float32", data=a)
             T.evaluate(A[0])
 
         @T.prim_func
         def func_b(a: T.handle("float32")):
-            A = T.decl_buffer(shape=1, dtype="float32", data=a)
+            A = T.decl_tensor(shape=1, dtype="float32", data=a)
             T.evaluate(A[0])
 
     after = tvm.tirx.transform.ConvertSSA()(before)
@@ -201,7 +201,7 @@ def test_reused_buffer_parameter():
     """De-duplicate buffer parameters across the entire module."""
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer(1, "float32")):
+    def func(A: T.Tensor(1, "float32")):
         T.evaluate(A[0])
 
     before = tvm.IRModule(
@@ -214,11 +214,11 @@ def test_reused_buffer_parameter():
     @I.ir_module
     class expected:
         @T.prim_func
-        def func_a(A: T.Buffer(1, "float32")):
+        def func_a(A: T.Tensor(1, "float32")):
             T.evaluate(A[0])
 
         @T.prim_func
-        def func_b(A: T.Buffer(1, "float32")):
+        def func_b(A: T.Tensor(1, "float32")):
             T.evaluate(A[0])
 
     after = tvm.tirx.transform.ConvertSSA()(before)
@@ -228,7 +228,7 @@ def test_reused_buffer_parameter():
 def test_reused_compound_buffer_shape_var():
     """De-duplicate implicit Vars nested in buffer parameter shapes."""
     n = tirx.Var("n", "int32")
-    A = tirx.decl_buffer((tirx.max(n, 1),), layout=None)
+    A = tirx.decl_tensor((tirx.max(n, 1),), layout=None)
     func = tirx.PrimFunc([A], tirx.Evaluate(n))
     before = tvm.IRModule(
         {
@@ -253,7 +253,7 @@ def test_no_change_if_already_ssa():
     @I.ir_module
     class before:
         @T.prim_func
-        def func(A: T.Buffer(1, "float32")):
+        def func(A: T.Tensor(1, "float32")):
             T.evaluate(A[0])
 
     after = tvm.tirx.transform.ConvertSSA()(before)
@@ -284,7 +284,7 @@ def test_keep_duplicate_thread_idx_in_same_function():
     @I.ir_module
     class before:
         @T.prim_func
-        def main(A: T.Buffer([256], "float32")):
+        def main(A: T.Tensor([256], "float32")):
             threadIdx_x = T.env_thread("threadIdx.x")
             with T.launch_thread(threadIdx_x, 256):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
@@ -320,7 +320,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
     @I.ir_module(check_well_formed=False)
     class before:
         @T.prim_func
-        def kernel_1(A: T.Buffer([256], "float32")):
+        def kernel_1(A: T.Tensor([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
@@ -329,7 +329,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
         @T.prim_func
-        def kernel_2(A: T.Buffer([256], "float32")):
+        def kernel_2(A: T.Tensor([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
@@ -343,7 +343,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
     @I.ir_module
     class expected:
         @T.prim_func
-        def kernel_1(A: T.Buffer([256], "float32")):
+        def kernel_1(A: T.Tensor([256], "float32")):
             T.attr(
                 T.iter_var(kernel_1_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
@@ -352,7 +352,7 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
             A[kernel_1_threadIdx_x] = A[kernel_1_threadIdx_x] + T.float32(1)
 
         @T.prim_func
-        def kernel_2(A: T.Buffer([256], "float32")):
+        def kernel_2(A: T.Tensor([256], "float32")):
             T.attr(
                 T.iter_var(kernel_2_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
@@ -381,12 +381,12 @@ def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
     @I.ir_module(check_well_formed=False)
     class before:
         @T.prim_func
-        def kernel_1(A: T.Buffer([256], "float32")):
+        def kernel_1(A: T.Tensor([256], "float32")):
             T.attr(iter_var, "thread_extent", 256)
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
         @T.prim_func
-        def kernel_2(A: T.Buffer([256], "float32")):
+        def kernel_2(A: T.Tensor([256], "float32")):
             T.attr(iter_var, "thread_extent", 256)
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
@@ -396,7 +396,7 @@ def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
     @I.ir_module(check_well_formed=False)
     class expected:
         @T.prim_func
-        def kernel_1(A: T.Buffer([256], "float32")):
+        def kernel_1(A: T.Tensor([256], "float32")):
             T.attr(
                 T.iter_var(kernel_1_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
@@ -405,7 +405,7 @@ def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
             A[kernel_1_threadIdx_x] = A[kernel_1_threadIdx_x] + T.float32(1)
 
         @T.prim_func
-        def kernel_2(A: T.Buffer([256], "float32")):
+        def kernel_2(A: T.Tensor([256], "float32")):
             T.attr(
                 T.iter_var(kernel_2_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
@@ -436,14 +436,14 @@ def test_thread_idx_reused_within_and_across_functions():
     @I.ir_module(check_well_formed=False)
     class before:
         @T.prim_func
-        def kernel_1(A: T.Buffer([256], "float32")):
+        def kernel_1(A: T.Tensor([256], "float32")):
             with T.attr(iter_var, "thread_extent", 256):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
             with T.attr(iter_var, "thread_extent", 256):
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
         @T.prim_func
-        def kernel_2(A: T.Buffer([256], "float32")):
+        def kernel_2(A: T.Tensor([256], "float32")):
             with T.attr(iter_var, "thread_extent", 256):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
             with T.attr(iter_var, "thread_extent", 256):
@@ -452,7 +452,7 @@ def test_thread_idx_reused_within_and_across_functions():
     @I.ir_module
     class expected:
         @T.prim_func
-        def kernel_1(A: T.Buffer([256], "float32")):
+        def kernel_1(A: T.Tensor([256], "float32")):
             threadIdx_x = T.env_thread("threadIdx.x")
             with T.launch_thread(threadIdx_x, 256):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
@@ -460,7 +460,7 @@ def test_thread_idx_reused_within_and_across_functions():
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
         @T.prim_func
-        def kernel_2(A: T.Buffer([256], "float32")):
+        def kernel_2(A: T.Tensor([256], "float32")):
             threadIdx_x = T.env_thread("threadIdx.x")
             with T.launch_thread(threadIdx_x, 256):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
@@ -485,8 +485,8 @@ def test_track_forward_declarations_in_attr_stmt():
     i0_outer_inner = tirx.Var("i0_outer_inner", "int32")
     i0_inner = tirx.Var("i0_inner", "int32")
 
-    A = tirx.decl_buffer(1024, "float32", "A")
-    B = tirx.decl_buffer(1024, "float32", "B")
+    A = tirx.decl_tensor(1024, "float32", "A")
+    B = tirx.decl_tensor(1024, "float32", "B")
 
     index = i0_outer_outer * 52 + i0_outer_inner * 4 + i0_inner
 
@@ -522,26 +522,26 @@ def test_track_forward_declarations_in_attr_stmt():
 
 
 def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
-    """Shape var shared across buffer params and AllocBuffer should not be renamed.
+    """Shape var shared across buffer params and AllocTensor should not be renamed.
 
     When the same Var (e.g., `n`) appears in multiple buffer parameter
     annotations (A and B both have shape [n]), ConvertSSA should not treat
     the second occurrence as a redefinition.  All uses of `n` in the
-    function body (including AllocBuffer shapes) must remain the same
+    function body (including AllocTensor shapes) must remain the same
     Var object so that MakePackedAPI can bind it from the DLTensor shape.
     """
     n = tirx.Var("n", "int32")
-    A = tirx.decl_buffer((n,), "float32", "A")
-    B = tirx.decl_buffer((n,), "float32", "B")
+    A = tirx.decl_tensor((n,), "float32", "A")
+    B = tirx.decl_tensor((n,), "float32", "B")
 
-    # AllocBuffer with shape [n] in the body (flat, no body)
-    C = tirx.decl_buffer((n,), "float32", "C")
+    # AllocTensor with shape [n] in the body (flat, no body)
+    C = tirx.decl_tensor((n,), "float32", "C")
     body = tirx.SeqStmt(
         [
             tvm.tirx.Bind(
                 C,
                 tvm.ir.Call(
-                    "tirx.alloc_buffer",
+                    "tirx.alloc_tensor",
                     [
                         tvm.ir.Tuple(C.shape),
                         tvm.ir.DataTypeImm(tvm.DataType(C.dtype)),
@@ -566,7 +566,7 @@ def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
 def test_reused_loop_var_in_decl_buffer_elem_offset():
     """Remap a buffer whose elem_offset depends on an SSA-renamed loop var."""
     loop_var = tirx.Var("loop_var", "int32")
-    buffer = tirx.decl_buffer(
+    buffer = tirx.decl_tensor(
         (128,),
         "float32",
         "buffer",
@@ -584,7 +584,7 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
                 tirx.Bind(
                     buffer,
                     tvm.ir.Call(
-                        "tirx.decl_buffer",
+                        "tirx.decl_tensor",
                         [
                             buffer_data,
                             tvm.ir.Tuple(buffer.shape),

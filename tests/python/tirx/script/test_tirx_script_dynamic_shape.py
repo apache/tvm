@@ -33,10 +33,10 @@ def test_tir_bound_prim_param_reused_in_dependent_annotations():
     @T.prim_func
     def func(
         n: T.int32,
-        direct: T.Buffer((n,), "float32"),
-        repeated: T.Buffer((n,), "float32"),
-        compound: T.Buffer((n + 1,), "float32"),
-    ) -> T.Buffer((n,), "float32"):
+        direct: T.Tensor((n,), "float32"),
+        repeated: T.Tensor((n,), "float32"),
+        compound: T.Tensor((n + 1,), "float32"),
+    ) -> T.Tensor((n,), "float32"):
         return repeated
 
     n, direct, repeated, compound = func.params
@@ -50,7 +50,7 @@ def test_tir_bound_prim_param_reused_in_declared_function_signature():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(n: T.int32, A: T.Buffer((n + 1,), "float32")):
+        def main(n: T.int32, A: T.Tensor((n + 1,), "float32")):
             T.evaluate(n)
 
     n, A = Module["main"].params
@@ -62,13 +62,13 @@ def test_tir_external_symbol_adopted_by_later_prim_param(dtype):
     n = T.dynamic("n", dtype)
 
     @T.prim_func
-    def func(A: T.Buffer((n,), "float32"), n: n):
+    def func(A: T.Tensor((n,), "float32"), n: n):
         T.evaluate(n)
 
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((n,), "float32"), n: n):
+        def main(A: T.Tensor((n,), "float32"), n: n):
             T.evaluate(n)
 
     for function in [func, Module["main"]]:
@@ -81,7 +81,7 @@ def test_tir_external_dynamic_symbol_preserves_dtype():
     n = T.dynamic("n", "int64")
 
     @T.prim_func
-    def func(A: T.Buffer((n,), "float32")):
+    def func(A: T.Tensor((n,), "float32")):
         T.evaluate(n)
 
     n = func.params[0].ty.shape[0]
@@ -93,19 +93,19 @@ def test_tir_undeclared_shape_symbol_is_undefined():
     with pytest.raises(NameError):
 
         @T.prim_func
-        def main(A: T.Buffer((n, n), "float32")):  # noqa: F821
+        def main(A: T.Tensor((n, n), "float32")):  # noqa: F821
             T.evaluate(0)
 
 
 def test_tir_direct_later_prim_param_reuses_shape_symbol():
     @T.prim_func
-    def func(A: T.Buffer((n,), "float32"), n: T.int32):
+    def func(A: T.Tensor((n,), "float32"), n: T.int32):
         T.evaluate(n)
 
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((n,), "float32"), n: T.int32):
+        def main(A: T.Tensor((n,), "float32"), n: T.int32):
             T.evaluate(n)
 
     for function in [func, Module["main"]]:
@@ -119,8 +119,8 @@ def test_tir_return_annotation_does_not_define_symbolic_var():
     with pytest.raises(NameError):
 
         @T.prim_func
-        def main() -> T.Buffer((n,), "float32"):  # noqa: F821
-            A = T.alloc_buffer((n,), "float32")  # noqa: F821
+        def main() -> T.Tensor((n,), "float32"):  # noqa: F821
+            A = T.alloc_tensor((n,), "float32")  # noqa: F821
             return A
 
 
@@ -130,18 +130,18 @@ def test_type_vars_roundtrip():
     UNUSED = I.dynamic("UNUSED")
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((M, M * 2), "float32")):
+    def func(A: T.Tensor((M, M * 2), "float32")):
         A[0, 0] = T.float32(1)
 
     script = func.script()
     assert script.startswith("from __future__ import annotations\n\n")
     assert "def main[M](" in script
-    assert 'T.Buffer((M, M * T.int64(2)), "float32", layout="default")' in script
+    assert 'T.Tensor((M, M * T.int64(2)), "float32", layout="default")' in script
     assert "M = T.int64()" not in script
     typed = tvm.script.from_source(
         """
 @T.prim_func(private=True)
-def func[M: int](A: T.Buffer((M, M * 2), "float32")):
+def func[M: int](A: T.Tensor((M, M * 2), "float32")):
     A[0, 0] = T.float32(1)
 """,
         extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
@@ -152,7 +152,7 @@ def func[M: int](A: T.Buffer((M, M * 2), "float32")):
     repeated = func.script()
     assert "from __future__ import annotations" in repeated
     assert "def main[M](" in repeated
-    assert 'T.Buffer((M, M * T.int64(2)), "float32", layout="default")' in repeated
+    assert 'T.Tensor((M, M * T.int64(2)), "float32", layout="default")' in repeated
     assert "UNUSED" not in script
     assert "M = T.int64()" not in repeated
     assert len(func.params) == 1
@@ -172,7 +172,7 @@ def test_dynamic_int32_roundtrip():
     n = I.dynamic("n", "int32")
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((n,), "float32")):
+    def func(A: T.Tensor((n,), "float32")):
         A[0] = T.float32(1)
 
     source = func.script()
@@ -219,7 +219,7 @@ def test_captured_shape_requires_concrete_symbols():
     # Native shape construction preserves concrete symbols and rejects strings.
     def build(shape):
         @T.prim_func
-        def main(x: T.Buffer(shape, "float32")):
+        def main(x: T.Tensor(shape, "float32")):
             T.evaluate(0)
 
         return main
@@ -243,7 +243,7 @@ def test_dynamic_symbols_are_fresh_and_scope_independent():
     @I.ir_module
     class Module:
         @T.prim_func
-        def first(x: T.Buffer((n,), "float32")):
+        def first(x: T.Tensor((n,), "float32")):
             T.evaluate(n)
 
     assert Module["first"].params[0].ty.shape[0].same_as(n)

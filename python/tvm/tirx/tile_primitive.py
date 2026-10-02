@@ -157,7 +157,7 @@ class DispatchContext(Object, Scriptable):
         _ffi_api.DispatchContextAddInitStmt(self, stmt, host)  # pylint: disable=no-member
 
     def add_post_buffer_def_stmt(self, buffer: Buffer, stmt: Stmt) -> None:
-        """Add a statement to be inserted after a buffer's definition (DeclBuffer/AllocBuffer).
+        """Add a statement to be inserted after a buffer's definition (DeclTensor/AllocTensor).
 
         Parameters
         ----------

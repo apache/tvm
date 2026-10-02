@@ -750,7 +750,7 @@ constexpr const char* thread_extent = "thread_extent";
 constexpr const char* virtual_thread = "virtual_thread";
 constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
 constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
-/*! \brief Annotation key on AllocBuffer marking the allocation as volatile. */
+/*! \brief Annotation key on AllocTensor marking the allocation as volatile. */
 constexpr const char* kVolatile = "tirx.volatile";
 /*! \brief Mark buffer initial addr alignment in bytes */
 constexpr const char* buffer_data_alignment = "buffer_data_alignment";

@@ -121,8 +121,8 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
 /*! \brief Verify that buffers with a declaration are not used outside their declared scope.
  *
  * When a buffer is declared via one of the following sites:
- *   - BufferType-annotated PrimFunc parameters
- *   - DeclBuffer statement
+ *   - TensorType-annotated PrimFunc parameters
+ *   - DeclTensor statement
  *   - Dialect-specific definitions exposed by PathVisitor
  *
  * it must not appear in a BufferLoad, BufferStore, or BufferRegion outside that declaration's
@@ -155,7 +155,7 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisi
   }
 
   void ExitDef(const Var& var, AccessPath path) override {
-    if (!var->ty.as<BufferTypeNode>()) return;
+    if (!var->ty.as<TensorTypeNode>()) return;
     auto buffer = var.as_or_throw<BufferVar>();
     auto active_def = currently_defined_.find(buffer);
     if (active_def != currently_defined_.end()) {
@@ -177,7 +177,7 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisi
     } else if (!is_declared && !was_declared) {
       // BufferVar was never declared — error.
       Verify(false) << "TIR is ill-formed: buffer " << buffer.name() << " is used at " << path
-                    << " without a prior DeclBuffer or other declaration.";
+                    << " without a prior DeclTensor or other declaration.";
     }
     // BufferVar fields are visited at definition site (EnterDef), not here.
     Verifier::VisitBufferUse(buffer, path);

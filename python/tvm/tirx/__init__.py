@@ -29,10 +29,10 @@ from tvm.runtime import const
 from .buffer import (
     Buffer,
     BufferAccessKind,
-    BufferType,
+    TensorType,
     buffer_data,
     buffer_data_pointer_type,
-    decl_buffer,
+    decl_tensor,
     is_buffer_var,
 )
 from .type import TensorMapType

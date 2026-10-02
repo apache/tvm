@@ -80,7 +80,7 @@ def test_ir2():
     storage_type = ir.PrimType("int32")
     handle_type = ir.PointerType(storage_type)
     array = tvm.tirx.Var("array", handle_type)
-    buf = tvm.tirx.decl_buffer([buf_size], "int32", data=array)
+    buf = tvm.tirx.decl_tensor([buf_size], "int32", data=array)
 
     st = tvm.tirx.BufferStore(buf, x + 1, [1])
     assert isinstance(st, tvm.tirx.BufferStore)
@@ -306,7 +306,7 @@ def test_equality_string_imm():
 def test_prim_func():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    b = tvm.tirx.decl_buffer((x,), "float32")
+    b = tvm.tirx.decl_tensor((x,), "float32")
     stmt = tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 10), tvm.tirx.Evaluate(x + 1)])
 
     func = tvm.tirx.PrimFunc([x, y, b], stmt)
@@ -341,7 +341,7 @@ def test_scoped_storage_vars():
 
 
 def test_buffer_load_store():
-    b = tvm.tirx.decl_buffer((10,), "float32")
+    b = tvm.tirx.decl_tensor((10,), "float32")
     x = tvm.tirx.BufferLoad(b, [0])
     assert isinstance(x, tvm.ir.TensorLoad)
     assert callable(tvm.tirx.BufferLoad)
@@ -415,7 +415,7 @@ def test_broadcast_to_scalable_vec():
 
 
 def test_buffer_load_scalable_vec():
-    buf = tvm.tirx.decl_buffer((24,), "float32")
+    buf = tvm.tirx.decl_tensor((24,), "float32")
     index = tvm.tirx.expr.Ramp(1, 1, 8 * tvm.tirx.vscale())
     load = tvm.tirx.BufferLoad(buf, [index])
 
@@ -424,7 +424,7 @@ def test_buffer_load_scalable_vec():
 
 
 def test_buffer_store_scalable_vec():
-    b = tvm.tirx.decl_buffer((24,), "int32")
+    b = tvm.tirx.decl_tensor((24,), "int32")
     value = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
     store = tvm.tirx.BufferStore(b, value, [index])
@@ -434,7 +434,7 @@ def test_buffer_store_scalable_vec():
 
 
 def test_scalable_vec_cast():
-    b = tvm.tirx.decl_buffer((24,), "float32")
+    b = tvm.tirx.decl_tensor((24,), "float32")
     value = tvm.tirx.expr.Broadcast(1, 12 * tvm.tirx.vscale()).astype("float32xvscalex12")
     index = tvm.tirx.expr.Ramp(0, 1, 12 * tvm.tirx.vscale())
 

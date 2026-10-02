@@ -54,14 +54,14 @@ inline DLDataType DefaultIndexType() {
 }
 
 /*!
- * \brief Structural type of a TIRx buffer variable.
+ * \brief Structural type of a TIRx tensor variable.
  *
- * A buffer value is an ordinary VarNode whose ExprNode::ty is BufferType.
- * BufferType owns the immutable access contract.  The physical pointer is
+ * A tensor value is an ordinary VarNode whose ExprNode::ty is TensorType.
+ * TensorType owns the immutable access contract.  The physical pointer is
  * deliberately not stored here; it is obtained with buffer_data(BufferVar)
  * and is bound by the surrounding buffer definition.
  */
-class BufferTypeNode : public TypeNode {
+class TensorTypeNode : public TypeNode {
  public:
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
@@ -98,24 +98,24 @@ class BufferTypeNode : public TypeNode {
   ffi::Array<PrimExpr> allocated_addr;
 
   /*! \brief constructor */
-  BufferTypeNode() {}
+  TensorTypeNode() {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BufferTypeNode>()
-        .def_ro("dtype", &BufferTypeNode::dtype)
-        .def_ro("storage_scope", &BufferTypeNode::storage_scope)
+    refl::ObjectDef<TensorTypeNode>()
+        .def_ro("dtype", &TensorTypeNode::dtype)
+        .def_ro("storage_scope", &TensorTypeNode::storage_scope)
         // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
-        .def_ro("shape", &BufferTypeNode::shape, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("shape", &TensorTypeNode::shape, refl::AttachFieldFlag::SEqHashDefPattern())
         // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
-        .def_ro("strides", &BufferTypeNode::strides, refl::AttachFieldFlag::SEqHashDefPattern())
+        .def_ro("strides", &TensorTypeNode::strides, refl::AttachFieldFlag::SEqHashDefPattern())
         // TODO(tqchen): use SEqHashDefSimple after the next pypi tvm-ffi release
-        .def_ro("elem_offset", &BufferTypeNode::elem_offset,
+        .def_ro("elem_offset", &TensorTypeNode::elem_offset,
                 refl::AttachFieldFlag::SEqHashDefPattern())
-        .def_ro("data_alignment", &BufferTypeNode::data_alignment)
-        .def_ro("offset_factor", &BufferTypeNode::offset_factor)
-        .def_ro("layout", &BufferTypeNode::layout)
-        .def_ro("allocated_addr", &BufferTypeNode::allocated_addr);
+        .def_ro("data_alignment", &TensorTypeNode::data_alignment)
+        .def_ro("offset_factor", &TensorTypeNode::offset_factor)
+        .def_ro("layout", &TensorTypeNode::layout)
+        .def_ro("allocated_addr", &TensorTypeNode::allocated_addr);
   }
 
   /*! \return preferred index type for this buffer node */
@@ -146,22 +146,22 @@ class BufferTypeNode : public TypeNode {
    */
   ffi::Array<PrimExpr> ElemOffset(ffi::Array<PrimExpr> index, bool inner = false) const;
 
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.BufferType", BufferTypeNode, TypeNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.TensorType", TensorTypeNode, TypeNode);
 };
 
 /*!
- * \brief Managed reference to BufferTypeNode.
+ * \brief Managed reference to TensorTypeNode.
  */
-class BufferType : public Type {
+class TensorType : public Type {
  public:
-  TVM_DLL BufferType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+  TVM_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
                      ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
                      int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
                      ffi::Array<PrimExpr> allocated_addr = {}, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferType, Type, BufferTypeNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);
 
-  explicit BufferType(ffi::ObjectPtr<BufferTypeNode> n) : Type(ffi::UnsafeInit{}) {
+  explicit TensorType(ffi::ObjectPtr<TensorTypeNode> n) : Type(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(n != nullptr);
     data_ = std::move(n);
   }

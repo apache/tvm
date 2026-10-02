@@ -50,9 +50,9 @@ def test_fp8_conversions(input):
         class Module:
             @T.prim_func
             def main(
-                A: T.Buffer((64,), dtype),
-                B: T.Buffer((64,), dtype),
-                C: T.Buffer((64,), dtype),
+                A: T.Tensor((64,), dtype),
+                B: T.Tensor((64,), dtype),
+                C: T.Tensor((64,), dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
@@ -100,9 +100,9 @@ def test_fp8_packing(dtype):
         class Module:
             @T.prim_func
             def main(
-                A: T.Buffer((length,), native_dtype),
-                R: T.Buffer((length,), packed_dtype),
-                B: T.Buffer((length,), native_dtype),
+                A: T.Tensor((length,), native_dtype),
+                R: T.Tensor((length,), packed_dtype),
+                B: T.Tensor((length,), native_dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
@@ -157,9 +157,9 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
         class Module:
             @T.prim_func
             def main(
-                A: T.Buffer((64,), native_dtype),
-                B: T.Buffer((64,), native_dtype),
-                C: T.Buffer((64,), native_dtype),
+                A: T.Tensor((64,), native_dtype),
+                B: T.Tensor((64,), native_dtype),
+                C: T.Tensor((64,), native_dtype),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(2, thread="blockIdx.x"):
@@ -215,7 +215,7 @@ def test_half_broadcast(bcast_length):
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
+            def main(a: T.Tensor((), dtype), vec: T.Tensor((bcast_length,), dtype)):
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(1, thread="threadIdx.x"):
                         vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
@@ -250,7 +250,7 @@ def test_half_misaligned_vector_load(vector_length):
 
     @T.prim_func
     def vector_load(
-        A: T.Buffer((length,), dtype), B: T.Buffer((length // vector_length,), vec_dtype)
+        A: T.Tensor((length,), dtype), B: T.Tensor((length // vector_length,), vec_dtype)
     ):
         for b in T.thread_binding(1, thread="blockIdx.x"):
             for i in T.thread_binding(length // vector_length, thread="threadIdx.x"):
@@ -289,9 +289,9 @@ def test_half4_vector_add():
     class Module:
         @T.prim_func
         def main(
-            A: T.Buffer((64,), "float16x4"),
-            B: T.Buffer((64,), "float16x4"),
-            C: T.Buffer((64,), "float16x4"),
+            A: T.Tensor((64,), "float16x4"),
+            B: T.Tensor((64,), "float16x4"),
+            C: T.Tensor((64,), "float16x4"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(2, thread="blockIdx.x"):
@@ -341,13 +341,13 @@ class BaseFP8E4M3QuantScaleOnly:
 
         @T.prim_func
         def quantize(
-            A: T.Buffer(weight_shape, model_dtype),
-            packed: T.Buffer(quant_weight_shape, storage_dtype),
-            scale: T.Buffer(scales_shape, model_dtype),
+            A: T.Tensor(weight_shape, model_dtype),
+            packed: T.Tensor(quant_weight_shape, storage_dtype),
+            scale: T.Tensor(scales_shape, model_dtype),
         ):
             for row in T.thread_binding(rows, thread="blockIdx.x"):
                 for group in T.thread_binding(groups, thread="threadIdx.x"):
-                    maximum = T.alloc_buffer((1,), model_dtype, scope="local")
+                    maximum = T.alloc_tensor((1,), model_dtype, scope="local")
                     maximum[0] = T.Cast(model_dtype, 0)
                     for k in range(group_size):
                         if group * group_size + k < columns:
@@ -368,9 +368,9 @@ class BaseFP8E4M3QuantScaleOnly:
 
         @T.prim_func
         def dequantize(
-            packed: T.Buffer(quant_weight_shape, storage_dtype),
-            scale: T.Buffer(scales_shape, model_dtype),
-            output: T.Buffer(weight_shape, model_dtype),
+            packed: T.Tensor(quant_weight_shape, storage_dtype),
+            scale: T.Tensor(scales_shape, model_dtype),
+            output: T.Tensor(weight_shape, model_dtype),
         ):
             for row in T.thread_binding(rows, thread="blockIdx.x"):
                 for k in T.thread_binding(packed_columns, thread="threadIdx.x"):
@@ -497,8 +497,8 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 @pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn", "float8_e8m0fnu"])
 def test_const(dtype):
     @T.prim_func
-    def func(A: T.Buffer((4,), dtype)) -> None:
-        A_local = T.alloc_buffer((4,), dtype=dtype, scope="local")
+    def func(A: T.Tensor((4,), dtype)) -> None:
+        A_local = T.alloc_tensor((4,), dtype=dtype, scope="local")
         for tx in T.thread_binding(0, 4, "threadIdx.x"):
             for i in T.vectorized(4):
                 A_local[i] = T.float32(1.0).astype(dtype)
@@ -515,14 +515,14 @@ def test_const(dtype):
 def test_copy(dtype, vec_len):
     @T.prim_func
     def func(
-        A: T.Buffer(
+        A: T.Tensor(
             (
                 4,
                 vec_len,
             ),
             dtype,
         ),
-        B: T.Buffer(
+        B: T.Tensor(
             (
                 4,
                 vec_len,
@@ -553,18 +553,18 @@ def test_moe_gemv_shfl_down_illegal_instr():
 
     @T.prim_func
     def moe_dequantize_gemv(
-        x: T.Buffer((1, reduce_size), "float16"),
-        indptr: T.Buffer((1, 2), "int32"),
-        w: T.Buffer((num_experts, spatial_size, reduce_size), "float8_e4m3fn"),
-        scale: T.Buffer((1,), "float32"),
-        output: T.Buffer((2, spatial_size), "float16"),
+        x: T.Tensor((1, reduce_size), "float16"),
+        indptr: T.Tensor((1, 2), "int32"),
+        w: T.Tensor((num_experts, spatial_size, reduce_size), "float8_e4m3fn"),
+        scale: T.Tensor((1,), "float32"),
+        output: T.Tensor((2, spatial_size), "float16"),
     ):
         for expert in T.thread_binding(2, thread="blockIdx.y"):
             for block in T.thread_binding(spatial_size // 4, thread="blockIdx.x"):
                 for spatial in T.thread_binding(4, thread="threadIdx.y"):
                     for reduction in T.thread_binding(64, thread="threadIdx.x"):
-                        partial = T.alloc_buffer((1,), "float16", scope="local")
-                        reduced = T.alloc_buffer((1,), "float16", scope="local")
+                        partial = T.alloc_tensor((1,), "float16", scope="local")
+                        reduced = T.alloc_tensor((1,), "float16", scope="local")
                         partial[0] = T.float16(0)
                         for k in range(reduce_size // 64):
                             partial[0] = partial[0] + x[0, k * 64 + reduction] * (
@@ -617,9 +617,9 @@ def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
         class Module:
             @T.prim_func
             def main(
-                A: T.Buffer((128,), "float8_e4m3fn"),
-                B: T.Buffer((128,), dtype),
-                C: T.Buffer((128,), dtype),
+                A: T.Tensor((128,), "float8_e4m3fn"),
+                B: T.Tensor((128,), dtype),
+                C: T.Tensor((128,), dtype),
             ) -> None:
                 for i_0 in T.thread_binding(num_threads, thread="threadIdx.x"):
                     for i_1 in T.vectorized(vec_length):

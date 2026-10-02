@@ -399,7 +399,7 @@ class VecAllocAccess : public StmtExprMutator {
       }
 
       // Copy everything into the new buffer.
-      auto type = CopyBufferType(node->buffer);
+      auto type = CopyTensorType(node->buffer);
       type->shape = shape;
       type->strides = strides;
       buf = RebuildBufferVar(node->buffer, std::move(type));
@@ -434,7 +434,7 @@ class VecAllocAccess : public StmtExprMutator {
         if (i + 1 != strides.size()) stride *= var_lanes_;
         strides.Set(i, analyzer_->Simplify(stride));
       }
-      auto type = CopyBufferType(buffer);
+      auto type = CopyTensorType(buffer);
       type->shape = shape;
       type->strides = strides;
       buf = RebuildBufferVar(buffer, std::move(type));

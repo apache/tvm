@@ -25,13 +25,13 @@ from tvm.testing import env
 
 
 @T.prim_func
-def ptx_cp_async(A: T.Buffer((32, 128), "float16"), B: T.Buffer((32, 128), "float16")) -> None:
+def ptx_cp_async(A: T.Tensor((32, 128), "float16"), B: T.Tensor((32, 128), "float16")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")
     T.launch_thread(bx, 1)
     T.launch_thread(tx, 32)
-    A_shared = T.alloc_buffer([32, 128], "float16", scope="shared")
+    A_shared = T.alloc_tensor([32, 128], "float16", scope="shared")
     for i in range(16):
         T.evaluate(
             T.s_tir.cp_async_raw.legacy(

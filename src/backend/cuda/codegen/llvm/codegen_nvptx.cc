@@ -80,13 +80,13 @@ class CodeGenNVPTX : public CodeGenLLVM {
 
   void Dispatch_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op, call);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return DispatchAllocTensor(op, call);
     }
     CodeGenLLVM::Dispatch_(op);
   }
 
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
     tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
     DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
     ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;

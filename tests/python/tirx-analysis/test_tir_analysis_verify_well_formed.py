@@ -31,10 +31,10 @@ from tvm.script import tirx as T
 def test_pass_simple():
     @T.prim_func
     def element_wise(
-        A: T.Buffer((128, 128), "float32"),
-        C: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        C: T.Tensor((128, 128), "float32"),
     ):
-        B = T.alloc_buffer((128, 128), "float32")
+        B = T.alloc_tensor((128, 128), "float32")
         for i, j in T.grid(128, 128):
             B[i, j] = A[i, j] * 2.0
         for i, j in T.grid(128, 128):
@@ -144,7 +144,7 @@ def test_reuse_of_env_thread_in_function_is_well_formed():
     """
 
     @T.prim_func
-    def func(A: T.Buffer([256], "float32")):
+    def func(A: T.Tensor([256], "float32")):
         threadIdx_x = T.env_thread("threadIdx.x")
         with T.launch_thread(threadIdx_x, 256):
             A[threadIdx_x] = A[threadIdx_x] + 1.0
@@ -166,7 +166,7 @@ def test_reuse_of_env_thread_in_function_is_mandatory():
     """
 
     @T.prim_func
-    def func(A: T.Buffer([256], "float32")):
+    def func(A: T.Tensor([256], "float32")):
         with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 1.0
 
@@ -189,7 +189,7 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
     @I.ir_module(check_well_formed=False)
     class mod:
         @T.prim_func
-        def kernel_1(A: T.Buffer([256], "float32")):
+        def kernel_1(A: T.Tensor([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
@@ -198,7 +198,7 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
         @T.prim_func
-        def kernel_2(A: T.Buffer([256], "float32")):
+        def kernel_2(A: T.Tensor([256], "float32")):
             T.attr(
                 T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
                 "thread_extent",
@@ -223,7 +223,7 @@ def test_multiple_buffer_arguments_may_share_allocation():
     @I.ir_module
     class mod:
         @T.prim_func
-        def func(A: T.Buffer([256], "float32"), B: T.Buffer([256], "float32", data=A.data)):  # noqa: F821
+        def func(A: T.Tensor([256], "float32"), B: T.Tensor([256], "float32", data=A.data)):  # noqa: F821
             pass
 
     tvm.tirx.analysis.verify_well_formed(mod)
@@ -319,10 +319,10 @@ def test_sequential_redefinition_with_location():
 
 
 def test_buffer_param_is_well_formed():
-    """BufferType-annotated parameters are in scope for the body."""
+    """TensorType-annotated parameters are in scope for the body."""
 
     @T.prim_func
-    def func(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+    def func(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         for i in T.grid(128):
             B[i] = A[i] * 2.0
 
@@ -330,11 +330,11 @@ def test_buffer_param_is_well_formed():
 
 
 def test_decl_buffer_is_well_formed():
-    """A DeclBuffer statement introduces a buffer into scope for its body."""
+    """A DeclTensor statement introduces a buffer into scope for its body."""
 
     @T.prim_func
-    def func(A: T.Buffer((128,), "float32")):
-        B = T.alloc_buffer((128,), "float32")
+    def func(A: T.Tensor((128,), "float32")):
+        B = T.alloc_tensor((128,), "float32")
         for i in T.grid(128):
             B[i] = A[i] * 2.0
 
@@ -347,8 +347,8 @@ def test_alloc_buffer_is_well_formed():
     @I.ir_module
     class mod:
         @T.prim_func
-        def func(A: T.Buffer((128,), "float32")):
-            B = T.alloc_buffer([128], "float32")
+        def func(A: T.Tensor((128,), "float32")):
+            B = T.alloc_tensor([128], "float32")
             for i in T.grid(128):
                 B[i] = A[i] * 2.0
 
@@ -358,7 +358,7 @@ def test_alloc_buffer_is_well_formed():
 def test_tensor_load_asserted_type_matches_source_and_indices():
     @T.prim_func
     def func():
-        buffer = T.alloc_buffer((4,), "float32")
+        buffer = T.alloc_tensor((4,), "float32")
         T.evaluate(buffer[0])
 
     serialized = tvm.ir.save_json(func)
@@ -383,7 +383,7 @@ def test_tensor_load_asserted_type_matches_source_and_indices():
 
 
 def test_tensor_load_malformed_indices_return_false_without_asserting():
-    buffer = tvm.tirx.decl_buffer((4, 4), "float32")
+    buffer = tvm.tirx.decl_tensor((4, 4), "float32")
     vector_index = tvm.tirx.Ramp(0, 1, 4)
     load = tvm.tirx.BufferLoad(buffer, [0, vector_index])
     func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(load))

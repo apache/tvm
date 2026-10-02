@@ -290,7 +290,7 @@ class TMEMPool:
         if layout is None:
             assert len(shape) == 2, "TMEMPool.alloc() requires layout= for non-2D TMEM buffers"
             layout = _default_tmem_layout(shape[0], shape[1])
-        res = ir.decl_buffer(shape, dtype, scope="tmem", allocated_addr=col_start, layout=layout)
+        res = ir.decl_tensor(shape, dtype, scope="tmem", allocated_addr=col_start, layout=layout)
         self.offset = col_end
         self.max_offset = max(self.max_offset, self.offset)
         return res
@@ -400,7 +400,7 @@ class SMEMPool:
     Parameters
     ----------
     ptr : Var or None, optional
-        If omitted, an ``alloc_buffer([0], "uint8", scope="shared.dyn")`` is
+        If omitted, an ``alloc_tensor([0], "uint8", scope="shared.dyn")`` is
         created automatically and ``commit()`` must be called after all
         allocations to emit the size annotation.
         If a ``Var`` is provided, the caller manages the backing buffer and
@@ -410,7 +410,7 @@ class SMEMPool:
     def __init__(self, ptr=_POOL_UNSET):
         ir = _get_ir()
         if ptr is _POOL_UNSET:
-            self.buf = ir.alloc_buffer([0], "uint8", scope="shared.dyn")
+            self.buf = ir.alloc_tensor([0], "uint8", scope="shared.dyn")
             self.ptr = self.buf.data
             self._owns_buffer = True
         else:
@@ -432,7 +432,7 @@ class SMEMPool:
         ir = _get_ir()
         if align > 0:
             self.offset = (self.offset + align - 1) // align * align
-        res = ir.decl_buffer(
+        res = ir.decl_tensor(
             shape,
             dtype,
             data=self.ptr,
