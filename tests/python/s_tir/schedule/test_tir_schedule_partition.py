@@ -287,7 +287,7 @@ def opaque_access(A: T.Buffer([16, 16], "float32"), B: T.Buffer([16, 16], "float
             vi, vj = Ts.axis.remap("SS", [i, j])
             Ts.reads([])
             Ts.writes([B[0:16, 0:16]])
-            T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj, dtype="handle"))
+            T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj))
 
 
 @Ts.prim_func

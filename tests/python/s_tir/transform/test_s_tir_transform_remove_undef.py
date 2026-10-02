@@ -31,7 +31,7 @@ def test_remove_store_undef():
     class Before:
         @Ts.prim_func
         def main(A: T.Buffer(1, "int32")):
-            A[0] = T.undef(dtype="int32")
+            A[0] = T.undef()
 
     @I.ir_module
     class Expected:
@@ -50,7 +50,7 @@ def test_remove_store_undef_expression():
     class Before:
         @Ts.prim_func
         def main(A: T.Buffer(1, "int32")):
-            A[0] = 1 + T.undef(dtype="int32")
+            A[0] = 1 + T.undef()
 
     @I.ir_module
     class Expected:
@@ -69,7 +69,7 @@ def test_keep_other_call_nodes():
     class Before:
         @Ts.prim_func
         def main(A: T.Buffer(1, "int32"), n: T.int32):
-            A[0] = T.shift_left(n, 1, dtype="int32")
+            A[0] = T.shift_left(n, 1)
 
     Expected = Before
 
@@ -84,7 +84,7 @@ def test_remove_let_undef():
     class Before:
         @Ts.prim_func
         def main(A: T.Buffer(1, "int32")):
-            val: T.let[T.int32] = T.undef(dtype="int32")
+            val: T.let[T.int32] = T.undef()
             A[0] = val
 
     @I.ir_module
@@ -104,7 +104,7 @@ def test_raise_error_for_undef_as_store_indices():
     class Before:
         @Ts.prim_func
         def main(A: T.Buffer(1, "int32")):
-            val: T.let[T.int32] = T.undef(dtype="int32")
+            val: T.let[T.int32] = T.undef()
             A[val] = 5
 
     with pytest.raises(RuntimeError):
@@ -122,7 +122,7 @@ def test_raise_error_for_undef_as_load_indices():
     class Before:
         @Ts.prim_func
         def main(A: T.Buffer(1, "int32"), B: T.Buffer(1, "int32")):
-            B[0] = A[T.undef(dtype="int32")]
+            B[0] = A[T.undef()]
 
     with pytest.raises(RuntimeError):
         tvm.s_tir.transform.RemoveStoreUndef()(Before)

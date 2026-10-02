@@ -129,7 +129,7 @@ def test_expr_constructor():
     assert x.vectors[0] == a
     assert x.indices[0].value == 0
 
-    x = tvm.ir.Call("tirx.call_extern", [tvm.ir.StringImm("xyz"), a], ret_ty="float32")
+    x = tvm.ir.Call("tirx.call_extern", [tvm.ir.StringImm("xyz"), a], ty="float32")
     assert isinstance(x, tvm.ir.Call)
     assert tvm.ir.is_prim_expr(x)
     assert x.ty == tvm.ir.PrimType("float32")
@@ -142,7 +142,7 @@ def test_expr_constructor():
         "tirx.call_extern",
         [tvm.ir.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": True},
-        ret_ty="float32",
+        ty="float32",
     )
     assert x_with_attrs.attrs["disable_tma"] is True
     assert not tvm_ffi.structural_equal(x, x_with_attrs)
@@ -174,7 +174,7 @@ def test_expr_constructor():
         "tirx.call_extern",
         [tvm.ir.StringImm("xyz"), attr_arg],
         attrs={"disable_tma": False},
-        ret_ty="float32",
+        ty="float32",
     )
     assert not expr_deep_equal(x_with_attrs, x_with_other_attrs)
 
@@ -186,7 +186,7 @@ def test_expr_constructor():
         return tvm.ir.Call(
             "tirx.call_extern",
             [tvm.ir.StringImm("tuple_arg"), arg],
-            ret_ty="int32",
+            ty="int32",
         )
 
     assert expr_deep_equal(call_with(tuple_arg), call_with(same_tuple_arg))
@@ -201,13 +201,13 @@ def test_expr_constructor():
     inner_if = tvm.ir.Call(
         "prim.if_then_else",
         [cond1, tvm.tirx.IntImm("int32", 1), tvm.tirx.IntImm("int32", 0)],
-        ret_ty="int32",
+        ty="int32",
     )
     outer_if = tvm.ir.Call(
         "prim.if_then_else",
         [cond0, inner_if, tvm.tirx.IntImm("int32", 0)],
         attrs={"keep": True},
-        ret_ty="int32",
+        ty="int32",
     )
     simplified = tvm.tirx.transform.StmtSimplify()(
         tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
@@ -333,7 +333,7 @@ def test_stmt_constructor():
                 tvm.ir.StringImm(buf.scope()),
             ],
             attrs=tvm.ir.DictAttrs({}),
-            ret_ty=buf.ty,
+            ty=buf.ty,
         ),
     )
     assert _is_buffer_binding(x, "tirx.alloc_buffer")

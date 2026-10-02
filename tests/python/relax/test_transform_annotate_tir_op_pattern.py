@@ -283,7 +283,6 @@ def test_annotate_opkind_pooling():
                         1 <= ax2 and ax2 < 113 and 1 <= ax3 and ax3 < 113,
                         rxplaceholder_1[ax0, ax1, ax2 - 1, ax3 - 1],
                         T.float32(-3.4028234663852886e38),
-                        dtype="float32",
                     )
             for i0, i1, i2, i3, i4, i5 in T.grid(1, 64, 56, 56, 3, 3):
                 with Ts.sblock("tensor"):
@@ -336,7 +335,7 @@ def test_annotate_opkind_softmax():
                     Ts.reads(rxplaceholder_1[i0_10, i1_5], T_softmax_maxelem_1[i0_10])
                     Ts.writes(T_softmax_exp_1[i0_10, i1_5])
                     T_softmax_exp_1[i0_10, i1_5] = T.exp(
-                        rxplaceholder_1[i0_10, i1_5] - T_softmax_maxelem_1[i0_10], dtype="float32"
+                        rxplaceholder_1[i0_10, i1_5] - T_softmax_maxelem_1[i0_10]
                     )
             for i0_11, i1_6 in T.grid(16, 16):
                 with Ts.sblock("T_softmax_expsum"):

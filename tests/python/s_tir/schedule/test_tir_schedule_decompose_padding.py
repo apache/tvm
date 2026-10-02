@@ -95,7 +95,7 @@ def test_1d_decompose_padding():
         for i in range(140):
             with Ts.sblock("block"):
                 vi = Ts.axis.remap("S", [i])
-                y[vi] = T.if_then_else(vi >= 6 and vi < 134, x[vi - 6], 0, dtype="int32")
+                y[vi] = T.if_then_else(vi >= 6 and vi < 134, x[vi - 6], 0)
 
     @Ts.prim_func
     def after_decompose(x: T.Buffer(128, "int32"), y: T.Buffer(140, "int32")):
@@ -130,7 +130,6 @@ def sum_pool_2d(
                 3 <= ax2 and ax2 < 228 and 3 <= ax3 and ax3 < 228,
                 x[ax0, ax1, ax2 - 3, ax3 - 3],
                 T.int8(0),
-                dtype="int8",
             )
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 16, 225, 225, 7, 7):
         with Ts.sblock("tensor"):
@@ -372,7 +371,6 @@ def test_decompose_wrt_single_child_subtree():
                     3 <= ax2 and ax2 < 228 and 3 <= ax3 and ax3 < 228,
                     x[ax0, ax1, ax2 - 3, ax3 - 3],
                     T.int8(0),
-                    dtype="int8",
                 )
 
     @Ts.prim_func
@@ -412,7 +410,6 @@ def test_not_to_decompose_trivial_predicate():
                     0 <= ax2 and ax2 < 225 and 0 <= ax3 and ax3 < 225,
                     x[ax0, ax1, ax2, ax3],
                     T.int8(0),
-                    dtype="int8",
                 )
 
     sch = tvm.s_tir.Schedule(trivial_pad, debug_mask="all")

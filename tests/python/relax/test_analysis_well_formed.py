@@ -176,7 +176,7 @@ def test_unchecked_call_constructor():
     assert call.span.same_as(span)
     assert isinstance(call.attrs, tvm.ir.DictAttrs)
     assert len(call.ty_args) == 0
-    assert isinstance(tvm.ir.Call.unchecked(op, [x], ret_ty="handle").ty, tvm.ir.PointerType)
+    assert isinstance(tvm.ir.Call.unchecked(op, [x], ty="handle").ty, tvm.ir.PointerType)
     with pytest.raises(TypeError, match="skip_validate"):
         tvm.ir.Call(op, [x], skip_validate=True)
 
@@ -669,7 +669,7 @@ def test_impure_in_dataflow_block():
     # The throwing form surfaces the offending impure call in its message.
     with pytest.raises(Exception) as excinfo:
         rx.analysis.well_formed(mod)
-    assert 'I.Call("relax.print", ["{}", x], ty=R.Tuple())' in str(excinfo.value)
+    assert 'I.Call.unchecked("relax.print", ["{}", x], ty=R.Tuple())' in str(excinfo.value)
 
 
 def test_well_formed_function():

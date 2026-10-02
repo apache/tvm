@@ -435,7 +435,6 @@ class TestPaddingPattern(BaseCompactTest):
                         2 <= i and i < 18 and 2 <= j and j < 18,
                         B[i - 2, j - 2],
                         0.0,
-                        dtype="float32",
                     )
 
     @Ts.prim_func
@@ -453,7 +452,6 @@ class TestPaddingPattern(BaseCompactTest):
                         2 <= i and i < 18 and 2 <= j and j < 18,
                         B[i - 2, j - 2],
                         0.0,
-                        dtype="float32",
                     )
 
 
@@ -471,13 +469,12 @@ class TestPaddingPatternInlined(BaseCompactTest):
                 Y[h, w] = T.max(
                     Y[h, w],
                     T.if_then_else(
-                        T.likely(1 <= h + kh, dtype="bool")
-                        and T.likely(h + kh < 225, dtype="bool")
-                        and T.likely(1 <= w + kw, dtype="bool")
-                        and T.likely(w + kw < 225, dtype="bool"),
+                        T.likely(1 <= h + kh)
+                        and T.likely(h + kh < 225)
+                        and T.likely(1 <= w + kw)
+                        and T.likely(w + kw < 225),
                         cache[h + kh - 1, w + kw - 1],
                         0.0,
-                        dtype="float32",
                     ),
                 )
 
@@ -492,13 +489,12 @@ class TestPaddingPatternInlined(BaseCompactTest):
                 Y[h, w] = T.max(
                     Y[h, w],
                     T.if_then_else(
-                        T.likely(1 <= h + kh, dtype="bool")
-                        and T.likely(h + kh < 225, dtype="bool")
-                        and T.likely(1 <= w + kw, dtype="bool")
-                        and T.likely(w + kw < 225, dtype="bool"),
+                        T.likely(1 <= h + kh)
+                        and T.likely(h + kh < 225)
+                        and T.likely(1 <= w + kw)
+                        and T.likely(w + kw < 225),
                         cache[h + kh - 1, w + kw - 1],
                         0.0,
-                        dtype="float32",
                     ),
                 )
 
@@ -779,17 +775,16 @@ class TestSpatialTiledPadPooling(BaseCompactTest):
                         Y[h_o * 4 + h_i, w_o * 4 + w_i, c] = T.max(
                             Y[h_o * 4 + h_i, w_o * 4 + w_i, c],
                             T.if_then_else(
-                                T.likely(1 <= (h_o * 4 + h_i) * 2 + kh, dtype="bool")
-                                and T.likely((h_o * 4 + h_i) * 2 + kh < 113, dtype="bool")
-                                and T.likely(1 <= (w_o * 4 + w_i) * 2 + kw, dtype="bool")
-                                and T.likely((w_o * 4 + w_i) * 2 + kw < 113, dtype="bool"),
+                                T.likely(1 <= (h_o * 4 + h_i) * 2 + kh)
+                                and T.likely((h_o * 4 + h_i) * 2 + kh < 113)
+                                and T.likely(1 <= (w_o * 4 + w_i) * 2 + kw)
+                                and T.likely((w_o * 4 + w_i) * 2 + kw < 113),
                                 X_cache[
                                     (h_o * 4 + h_i) * 2 + kh - 1,
                                     (w_o * 4 + w_i) * 2 + kw - 1,
                                     c,
                                 ],
                                 0,
-                                dtype="int32",
                             ),
                         )
 
@@ -831,15 +826,14 @@ class TestSpatialTiledPadPooling(BaseCompactTest):
                         Y[h_o * 4 + h_i, w_o * 4 + w_i, c] = T.max(
                             Y[h_o * 4 + h_i, w_o * 4 + w_i, c],
                             T.if_then_else(
-                                T.likely(1 <= h_o * 8 + h_i * 2 + kh, dtype="bool")
-                                and T.likely(1 <= w_o * 8 + w_i * 2 + kw, dtype="bool"),
+                                T.likely(1 <= h_o * 8 + h_i * 2 + kh)
+                                and T.likely(1 <= w_o * 8 + w_i * 2 + kw),
                                 X_cache[
                                     h_o * 8 + h_i * 2 + kh - T.max(0, h_o * 8 - 1) - 1,
                                     w_o * 8 + w_i * 2 + kw - T.max(0, w_o * 8 - 1) - 1,
                                     c,
                                 ],
                                 0,
-                                dtype="int32",
                             ),
                         )
 

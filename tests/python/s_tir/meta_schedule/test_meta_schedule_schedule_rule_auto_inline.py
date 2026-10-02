@@ -44,7 +44,7 @@ class Conv2DBiasBnReLU:
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
-                pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(i2_1 >= 1 and i2_1 < 57 and i3_1 >= 1 and i3_1 < 57, X[i0_1, i1_1, i2_1 - 1, i3_1 - 1], T.float32(0), dtype="float32")
+                pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(i2_1 >= 1 and i2_1 < 57 and i3_1 >= 1 and i3_1 < 57, X[i0_1, i1_1, i2_1 - 1, i3_1 - 1], T.float32(0))
         for i0, i1, i2, i3, i4, i5, i6 in T.grid(1, 512, 56, 56, 512, 3, 3):
             with Ts.sblock("compute"):
                 nn, ff, yy, xx, rc, ry, rx = Ts.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
@@ -78,7 +78,7 @@ class Conv2DBiasBnReLUInlined:
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
-                pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(i2_1 >= 1 and i2_1 < 57 and i3_1 >= 1 and i3_1 < 57, X[i0_1, i1_1, i2_1 - 1, i3_1 - 1], T.float32(0), dtype="float32")
+                pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(i2_1 >= 1 and i2_1 < 57 and i3_1 >= 1 and i3_1 < 57, X[i0_1, i1_1, i2_1 - 1, i3_1 - 1], T.float32(0))
         for i0, i1, i2, i3, i4, i5, i6 in T.grid(1, 512, 56, 56, 512, 3, 3):
             with Ts.sblock("compute"):
                 nn, ff, yy, xx, rc, ry, rx = Ts.axis.remap("SSSSRRR", [i0, i1, i2, i3, i4, i5, i6])
@@ -103,7 +103,7 @@ class MultiLevelTiledConv2D:
         for i0, i1, i2, i3 in T.grid(1, 512, 58, 58):
             with Ts.sblock("pad_temp"):
                 i0_1, i1_1, i2_1, i3_1 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
-                pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(i2_1 >= 1 and i2_1 < 57 and i3_1 >= 1 and i3_1 < 57, X[i0_1, i1_1, i2_1 - 1, i3_1 - 1], T.float32(0), dtype="float32")
+                pad_temp[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(i2_1 >= 1 and i2_1 < 57 and i3_1 >= 1 and i3_1 < 57, X[i0_1, i1_1, i2_1 - 1, i3_1 - 1], T.float32(0))
         for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(0, 224, thread="blockIdx.x"):
             for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(0, 2, thread="vthread.x"):
                 for i0_2_i1_2_i2_2_i3_2_fused in T.thread_binding(0, 8, thread="threadIdx.x"):
@@ -165,7 +165,7 @@ class MultiLevelTiledConv2DAfterInline:
                             ry, rx = Ts.axis.remap("RR", [i5_0, i6_2])
                             with Ts.init():
                                 compute_local[nn, ff, yy, xx] = T.float32(0)
-                            compute_local[nn, ff, yy, xx] = compute_local[nn, ff, yy, xx] + T.if_then_else(yy + ry >= 1 and yy + ry < 57 and xx + rx >= 1 and xx + rx < 57, X[nn, rc, yy + ry - 1, xx + rx - 1], T.float32(0), dtype="float32") * W[ff, rc, ry, rx]
+                            compute_local[nn, ff, yy, xx] = compute_local[nn, ff, yy, xx] + T.if_then_else(yy + ry >= 1 and yy + ry < 57 and xx + rx >= 1 and xx + rx < 57, X[nn, rc, yy + ry - 1, xx + rx - 1], T.float32(0)) * W[ff, rc, ry, rx]
                     for ax0, ax1, ax2, ax3 in T.grid(1, 8, 2, 28):
                         with Ts.sblock("compute_local"):
                             v0 = Ts.axis.spatial(1, ax0)
@@ -190,7 +190,7 @@ class SoftmaxBeforeInline:
         for i0, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_exp"):
                 i0_2, i1_1 = Ts.axis.remap("SS", [i0, i1])
-                T_softmax_exp[i0_2, i1_1] = T.exp(A[i0_2, i1_1] - T_softmax_maxelem[i0_2], dtype="float32")
+                T_softmax_exp[i0_2, i1_1] = T.exp(A[i0_2, i1_1] - T_softmax_maxelem[i0_2])
         for i0_3, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_expsum"):
                 i0_4, k = Ts.axis.remap("SR", [i0_3, i1])
@@ -219,11 +219,11 @@ class SoftmaxAfterInline:
                 i0_2, k = Ts.axis.remap("SR", [i0, i1])
                 with Ts.init():
                     T_softmax_expsum[i0_2] = T.float32(0)
-                T_softmax_expsum[i0_2] = T_softmax_expsum[i0_2] + T.exp(A[i0_2, k] - T_softmax_maxelem[i0_2], dtype="float32")
+                T_softmax_expsum[i0_2] = T_softmax_expsum[i0_2] + T.exp(A[i0_2, k] - T_softmax_maxelem[i0_2])
         for i0_3, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_norm"):
                 i0_4, i1_1 = Ts.axis.remap("SS", [i0_3, i1])
-                T_softmax_norm[i0_4, i1_1] = T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32") / T_softmax_expsum[i0_4]
+                T_softmax_norm[i0_4, i1_1] = T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4]) / T_softmax_expsum[i0_4]
 
 @tvm.script.ir_module
 class BeforePureSpatial:
@@ -374,7 +374,7 @@ class Conv2dInt8:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 Ts.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
-                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True, dtype="int32")
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True)
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 14, 14, 1024):
             with Ts.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
@@ -398,7 +398,7 @@ class Conv2dInt8:
                 i0_8, i1_8, i2_8, i3_8 = Ts.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 Ts.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 Ts.writes(compute_3[i0_8, i1_8, i2_8, i3_8])
-                compute_3[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1408572815, 31, 1, dtype="int32")
+                compute_3[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1408572815, 31, 1)
         for i0_9, i1_9, i2_9, i3_9 in T.grid(16, 14, 14, 1024):
             with Ts.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_9, i1_9, i2_9, i3_9])

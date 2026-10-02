@@ -1489,7 +1489,7 @@ def test_three_stage_compute_two_stage_async():
                                 with T.attr(
                                     0,
                                     "async_wait_inflight_count",
-                                    T.if_then_else(i + 16 - 1 < 16, 1, 0, dtype="int32"),
+                                    T.if_then_else(i + 16 - 1 < 16, 1, 0),
                                 ):
                                     D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
 

@@ -54,7 +54,6 @@ def tiled_conv2d_with_padding(
                 3 <= i1_1 and i1_1 < 227 and 3 <= i2_1 and i2_1 < 227,
                 inputs[i0_1, i1_1 - 3, i2_1 - 3, i3_1],
                 T.float32(0),
-                dtype="float32",
             )
     for (
         i0_0,

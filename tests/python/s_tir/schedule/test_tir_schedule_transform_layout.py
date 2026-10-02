@@ -120,7 +120,7 @@ def conv2d_nhwc(
                 ((((i1_1 >= 3) and (i1_1 < 227)) and (i2_1 >= 3)) and (i2_1 < 227)),
                 Input[i0_1, (i1_1 - 3), (i2_1 - 3), i3_1],
                 T.float32(0),
-                dtype="float32",
+
             )
     for i0, i1, i2, i3, i4, i5, i6 in T.grid(1, 112, 112, 64, 7, 7, 3):
         with Ts.sblock("conv2d_nhwc"):
@@ -148,7 +148,7 @@ def conv2d_nhwc_transformed(
                 i1_1 >= 3 and i1_1 < 227 and i2_1 >= 3 and i2_1 < 227,
                 Input[i0_1, i1_1 - 3, i2_1 - 3, i3_1],
                 T.float32(0),
-                dtype="float32",
+
             )
     for ax0, ax1, ax2 in T.grid(12544, 64, 147):
         with Ts.sblock("conv2d_nhwc"):
@@ -711,9 +711,7 @@ def test_padded_transform_if_then_else(dtype):
         for i, j in T.grid(4, 4):
             with Ts.sblock("block"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
-                B[vi, vj] = T.if_then_else(
-                    vi == 3 and 2 <= vj, pad_value_imm, A[vi * 4 + vj], dtype=dtype
-                )
+                B[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, pad_value_imm, A[vi * 4 + vj])
 
     Before = tvm.IRModule({"main": before_func})
     Expected = tvm.IRModule({"main": expected_func})
@@ -794,9 +792,9 @@ def test_padded_transform_if_then_else_reduction():
                 with Ts.sblock("block"):
                     vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
                     with Ts.init():
-                        B[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, 0, 0, dtype="int32")
+                        B[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, 0, 0)
                     B[vi, vj] = T.if_then_else(
-                        vi == 3 and 2 <= vj, 0, B[vi, vj] + A[vi * 4 + vj, vk], dtype="int32"
+                        vi == 3 and 2 <= vj, 0, B[vi, vj] + A[vi * 4 + vj, vk]
                     )
 
     sch = tvm.s_tir.Schedule(Before)
@@ -830,12 +828,10 @@ def test_padded_transform_if_then_else_reduction_opaque():
         def main(A: T.Buffer((14, 32), "int32")):
             B = Ts.sblock_alloc_buffer([4, 4], "int32")
             for i, j in T.grid(4, 4):
-                B[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 0, dtype="int32")
+                B[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, 0)
                 for k in T.serial(32):
                     with Ts.sblock("block"):
-                        B[i, j] = T.if_then_else(
-                            i == 3 and 2 <= j, 0, B[i, j] + A[i * 4 + j, k], dtype="int32"
-                        )
+                        B[i, j] = T.if_then_else(i == 3 and 2 <= j, 0, B[i, j] + A[i * 4 + j, k])
 
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
@@ -959,9 +955,7 @@ def test_padded_transform_non_constant_value():
             for i, j in T.grid(4, 4):
                 with Ts.sblock("block"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
-                    B[vi, vj] = T.if_then_else(
-                        vi == 3 and 2 <= vj, vi + vj, A[vi * 4 + vj], dtype="int32"
-                    )
+                    B[vi, vj] = T.if_then_else(vi == 3 and 2 <= vj, vi + vj, A[vi * 4 + vj])
 
     sch = tvm.s_tir.Schedule(Before)
     sch.transform_layout(
@@ -1086,7 +1080,6 @@ def test_transform_layout_with_var():
                         and 16 % n <= (vj + vi * n) % n,
                         0,
                         A[vj + vi * n],
-                        dtype="int32",
                     )
 
     sch = tvm.s_tir.Schedule(Before)

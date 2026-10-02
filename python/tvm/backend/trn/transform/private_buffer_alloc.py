@@ -97,7 +97,7 @@ def _inject_private_allocations(
                                 StringImm(buffer.scope()),
                             ],
                             attrs=DictAttrs({}),
-                            ret_ty=buffer.ty,
+                            ty=buffer.ty,
                         ),
                     )
                     body = SeqStmt([allocation, body])

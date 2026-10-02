@@ -486,7 +486,7 @@ def test_if_then_else_expr():
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             if i < 12:
-                A[i] = T.if_then_else(i < 12, 1.0, 2.0, dtype="float32")
+                A[i] = T.if_then_else(i < 12, 1.0, 2.0)
 
     @T.prim_func(private=True)
     def expected(A: T.Buffer(16, "float32")):
@@ -503,9 +503,7 @@ def test_ceil_log2_int():
 
     @T.prim_func(private=True)
     def before(A: T.Buffer(1, "int32")):
-        A[0] = T.cast(
-            T.ceil(T.log2(T.cast(14, "float64"), dtype="float64"), dtype="float64"), dtype="int32"
-        )
+        A[0] = T.cast(T.ceil(T.log2(T.cast(14, "float64"))), dtype="int32")
 
     @T.prim_func(private=True)
     def expected(A: T.Buffer(1, "int32")):
@@ -526,7 +524,7 @@ def test_left_ceil_log2_lower_bound():
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
             x: T.let[T.int32] = T.cast(
-                T.ceil(T.log2(T.cast(i + 1024 + 1, "float64"), dtype="float64"), dtype="float64"),
+                T.ceil(T.log2(T.cast(i + 1024 + 1, "float64"))),
                 dtype="int32",
             )
             if x == 11:
@@ -556,7 +554,7 @@ def test_left_shift_lower_bound():
     @T.prim_func(private=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
-            if T.shift_left(1, i, dtype="int32") >= 1:
+            if T.shift_left(1, i) >= 1:
                 A[i] = 0.0
 
     @T.prim_func(private=True)
@@ -579,7 +577,7 @@ def test_left_shift_upper_bound():
     @T.prim_func(private=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
-            if T.shift_left(31, i, dtype="int32") <= 1015808:
+            if T.shift_left(31, i) <= 1015808:
                 A[i] = 0.0
 
     @T.prim_func(private=True)
@@ -602,7 +600,7 @@ def test_left_shift_of_negative_value():
     @T.prim_func(private=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
-            if -64 <= T.shift_left(-i, 4, dtype="int32"):
+            if -64 <= T.shift_left(-i, 4):
                 A[i] = 0.0
 
     expected = before
@@ -622,7 +620,7 @@ def test_left_shift_by_negative_value():
     @T.prim_func(private=True)
     def before(A: T.Buffer(16, "float32")):
         for i in T.serial(16):
-            if T.shift_left(16, -i, dtype="int32") <= 16:
+            if T.shift_left(16, -i) <= 16:
                 A[i] = 0.0
 
     expected = before

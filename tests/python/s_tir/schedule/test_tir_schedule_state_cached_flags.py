@@ -103,7 +103,7 @@ def loop_carried_dependency(A: T.Buffer((128,)), B: T.Buffer((128,)), C: T.Buffe
             B[vi] = A[vi] * 2.0
         with Ts.sblock("C"):
             vi = Ts.axis.S(128, i)
-            C[vi] = T.if_then_else(vi >= 1, B[vi - 1] + 1.0, 0.0, dtype="float32")
+            C[vi] = T.if_then_else(vi >= 1, B[vi - 1] + 1.0, 0.0)
 
 @Ts.prim_func
 def concatenate_multi_producer(A: T.Buffer((128,)), B: T.Buffer((128,))) -> None:
@@ -309,13 +309,13 @@ def non_perfect_tiling_cache(X: T.Buffer([224, 224], dtype='float32'), Y: T.Buff
                 Y[h, w] = T.max(
                     Y[h, w],
                     T.if_then_else(
-                        T.likely(1 <= h + kh, dtype="bool")
-                        and T.likely(h + kh < 225, dtype="bool")
-                        and T.likely(1 <= w + kw, dtype="bool")
-                        and T.likely(w + kw < 225, dtype="bool"),
+                        T.likely(1 <= h + kh)
+                        and T.likely(h + kh < 225)
+                        and T.likely(1 <= w + kw)
+                        and T.likely(w + kw < 225),
                         cache[h + kh - 1, w + kw - 1],
                         0.0,
-                        dtype="float32",
+
                     ),
                 )
 
@@ -346,13 +346,13 @@ def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 12
             v0, v1, v2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
             Ts.reads(A[v0, v2])
             Ts.writes(A_reindex[v0, v2])
-            A_reindex[v0, v2] = T.if_then_else(v0 < 127 and v2 < 127, A[v0, v2], T.float16(0), dtype="float16")
+            A_reindex[v0, v2] = T.if_then_else(v0 < 127 and v2 < 127, A[v0, v2], T.float16(0))
     for ax0, ax1, ax2 in T.grid(1, 128, 128):
         with Ts.sblock("B_reindex"):
             v0, v1, v2 = Ts.axis.remap("SSS", [ax0, ax1, ax2])
             Ts.reads(B[v2, v1])
             Ts.writes(B_reindex[v2, v1])
-            B_reindex[v2, v1] = T.if_then_else(v2 < 127 and v1 < 127, B[v2, v1], T.float16(0), dtype="float16")
+            B_reindex[v2, v1] = T.if_then_else(v2 < 127 and v1 < 127, B[v2, v1], T.float16(0))
     for ax0_0_0_ax1_0_0_fused in T.thread_binding(2, thread="blockIdx.y"):
         for ax0_0_1_ax1_0_1_fused in T.thread_binding(1, thread="blockIdx.x"):
             for ax0_0_2_ax1_0_2_fused in T.thread_binding(16, thread="threadIdx.y"):

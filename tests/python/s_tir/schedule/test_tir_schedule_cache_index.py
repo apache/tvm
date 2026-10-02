@@ -91,7 +91,6 @@ def bilinear_resize(
                                             (T.Cast("float32", i2_1) + T.float32(0.5))
                                             * T.float32(0.5)
                                             - T.float32(0.5),
-                                            dtype="float32",
                                         ),
                                     ),
                                     39,
@@ -106,7 +105,6 @@ def bilinear_resize(
                                             (T.Cast("float32", i3_1) + T.float32(0.5))
                                             * T.float32(0.5)
                                             - T.float32(0.5),
-                                            dtype="float32",
                                         ),
                                     ),
                                     39,
@@ -127,7 +125,6 @@ def bilinear_resize(
                                     T.floor(
                                         (T.Cast("float32", i3_1) + T.float32(0.5)) * T.float32(0.5)
                                         - T.float32(0.5),
-                                        dtype="float32",
                                     ),
                                 ),
                             )
@@ -146,7 +143,6 @@ def bilinear_resize(
                                             (T.Cast("float32", i2_1) + T.float32(0.5))
                                             * T.float32(0.5)
                                             - T.float32(0.5),
-                                            dtype="float32",
                                         ),
                                     ),
                                     39,
@@ -161,7 +157,6 @@ def bilinear_resize(
                                             (T.Cast("float32", i3_1) + T.float32(0.5))
                                             * T.float32(0.5)
                                             - T.float32(0.5),
-                                            dtype="float32",
                                         ),
                                     )
                                     + 1,
@@ -181,7 +176,6 @@ def bilinear_resize(
                                 T.floor(
                                     (T.Cast("float32", i3_1) + T.float32(0.5)) * T.float32(0.5)
                                     - T.float32(0.5),
-                                    dtype="float32",
                                 ),
                             ),
                         )
@@ -199,7 +193,6 @@ def bilinear_resize(
                                 T.floor(
                                     (T.Cast("float32", i2_1) + T.float32(0.5)) * T.float32(0.5)
                                     - T.float32(0.5),
-                                    dtype="float32",
                                 ),
                             ),
                         )
@@ -219,7 +212,6 @@ def bilinear_resize(
                                             (T.Cast("float32", i2_1) + T.float32(0.5))
                                             * T.float32(0.5)
                                             - T.float32(0.5),
-                                            dtype="float32",
                                         ),
                                     )
                                     + 1,
@@ -235,7 +227,6 @@ def bilinear_resize(
                                             (T.Cast("float32", i3_1) + T.float32(0.5))
                                             * T.float32(0.5)
                                             - T.float32(0.5),
-                                            dtype="float32",
                                         ),
                                     ),
                                     39,
@@ -256,7 +247,6 @@ def bilinear_resize(
                                     T.floor(
                                         (T.Cast("float32", i3_1) + T.float32(0.5)) * T.float32(0.5)
                                         - T.float32(0.5),
-                                        dtype="float32",
                                     ),
                                 ),
                             )
@@ -275,7 +265,6 @@ def bilinear_resize(
                                             (T.Cast("float32", i2_1) + T.float32(0.5))
                                             * T.float32(0.5)
                                             - T.float32(0.5),
-                                            dtype="float32",
                                         ),
                                     )
                                     + 1,
@@ -291,7 +280,6 @@ def bilinear_resize(
                                             (T.Cast("float32", i3_1) + T.float32(0.5))
                                             * T.float32(0.5)
                                             - T.float32(0.5),
-                                            dtype="float32",
                                         ),
                                     )
                                     + 1,
@@ -311,7 +299,6 @@ def bilinear_resize(
                                 T.floor(
                                     (T.Cast("float32", i3_1) + T.float32(0.5)) * T.float32(0.5)
                                     - T.float32(0.5),
-                                    dtype="float32",
                                 ),
                             ),
                         )
@@ -327,7 +314,6 @@ def bilinear_resize(
                             T.floor(
                                 (T.Cast("float32", i2_1) + T.float32(0.5)) * T.float32(0.5)
                                 - T.float32(0.5),
-                                dtype="float32",
                             ),
                         ),
                     )
@@ -357,7 +343,6 @@ def cached_bilinear_resize(
                         T.floor(
                             (T.Cast("float32", v0) + T.float32(0.5)) * T.float32(0.5)
                             - T.float32(0.5),
-                            dtype="float32",
                         ),
                     ),
                 )
@@ -371,7 +356,6 @@ def cached_bilinear_resize(
                 "int32",
                 T.floor(
                     (T.Cast("float32", v0) + T.float32(0.5)) * T.float32(0.5) - T.float32(0.5),
-                    dtype="float32",
                 ),
             )
     for ax0 in T.serial(80):
@@ -383,7 +367,6 @@ def cached_bilinear_resize(
                 "int32",
                 T.floor(
                     (T.Cast("float32", v0) + T.float32(0.5)) * T.float32(0.5) - T.float32(0.5),
-                    dtype="float32",
                 ),
             )
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):

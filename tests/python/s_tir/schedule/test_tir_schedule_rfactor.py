@@ -195,7 +195,7 @@ def transformed_square_sum_square_root(A: T.Buffer([16, 256, 256]), D: T.Buffer(
             b_1 = Ts.axis.S(16, i0_1)
             Ts.reads([C[b_1]])
             Ts.writes([D[b_1]])
-            D[b_1] = T.sqrt(C[b_1], dtype="float32")
+            D[b_1] = T.sqrt(C[b_1])
 
 
 @Ts.prim_func
@@ -222,7 +222,7 @@ def square_sum_square_root_rfactor(A: T.Buffer([16, 256, 256]), D: T.Buffer([16]
     for i0_2 in T.serial(0, 16):
         with Ts.sblock("D"):
             b_2 = Ts.axis.S(16, i0_2)
-            D[b_2] = T.sqrt(C[b_2], dtype="float32")
+            D[b_2] = T.sqrt(C[b_2])
 
 
 @Ts.prim_func
@@ -242,7 +242,7 @@ def transformed_square_sum_square_root_factor_one_1(
     for i0_1 in T.serial(0, 16):
         with Ts.sblock("D"):
             b_1 = Ts.axis.S(16, i0_1)
-            D[b_1] = T.sqrt(C[b_1], dtype="float32")
+            D[b_1] = T.sqrt(C[b_1])
 
 
 @Ts.prim_func
@@ -269,7 +269,7 @@ def square_sum_square_root_factor_one_1_rfactor(
     for i0_1 in T.serial(16):
         with Ts.sblock("D"):
             b_1 = Ts.axis.spatial(16, i0_1)
-            D[b_1] = T.sqrt(C[b_1], dtype="float32")
+            D[b_1] = T.sqrt(C[b_1])
 
 
 @Ts.prim_func
@@ -289,7 +289,7 @@ def transformed_square_sum_square_root_factor_one_2(
     for i0_1 in T.serial(0, 16):
         with Ts.sblock("D"):
             b_1 = Ts.axis.S(16, i0_1)
-            D[b_1] = T.sqrt(C[b_1], dtype="float32")
+            D[b_1] = T.sqrt(C[b_1])
 
 
 @Ts.prim_func
@@ -316,7 +316,7 @@ def square_sum_square_root_factor_one_2_rfactor(
     for i0_1 in T.serial(16):
         with Ts.sblock("D"):
             b_1 = Ts.axis.spatial(16, i0_1)
-            D[b_1] = T.sqrt(C[b_1], dtype="float32")
+            D[b_1] = T.sqrt(C[b_1])
 
 
 @Ts.prim_func

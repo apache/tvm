@@ -153,7 +153,7 @@ def access_in_if_then_else_func() -> None:
         Ts.reads([A[0:5]])
         Ts.writes([B[0:8]])
         for i in T.serial(0, 8):
-            B[i] = T.if_then_else(i < 5, A[i], 0.0, dtype="float32")
+            B[i] = T.if_then_else(i < 5, A[i], 0.0)
 
 
 @Ts.prim_func
@@ -221,7 +221,7 @@ def access_of_padding_pattern() -> None:
             Ts.reads([X[vi - 2, vj - 2]])
             Ts.writes([X_pad[vi, vj]])
             X_pad[vi, vj] = T.if_then_else(
-                2 <= vi and vi < 30 and 2 <= vj and vj < 30, X[vi - 2, vj - 2], 0.0, dtype="float32"
+                2 <= vi and vi < 30 and 2 <= vj and vj < 30, X[vi - 2, vj - 2], 0.0
             )
         with Ts.sblock("padding_reverse"):
             vi, vj = Ts.axis.remap("SS", [i, j])

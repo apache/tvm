@@ -364,7 +364,7 @@ def test_access_in_let_value():
         for i in range(8):
             B = T.alloc_buffer((1,))
             B[0] = 3.14
-            x: T.let[T.float32] = T.exp(B[0], dtype="float32")
+            x: T.let[T.float32] = T.exp(B[0])
             A[i] = (x + 1.0) / (x - 1.0)
 
     @T.prim_func
@@ -372,7 +372,7 @@ def test_access_in_let_value():
         B = T.alloc_buffer((1,))
         for i in range(8):
             B[0] = 3.14
-            x: T.let[T.float32] = T.exp(B[0], dtype="float32")
+            x: T.let[T.float32] = T.exp(B[0])
             A[i] = (x + 1.0) / (x - 1.0)
 
     mod = tvm.tirx.transform.StorageRewrite()(

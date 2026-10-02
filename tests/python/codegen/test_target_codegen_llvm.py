@@ -78,7 +78,7 @@ def test_llvm_intrin():
         @T.prim_func
         def main(A: T.handle("float32")):
             A_buf = T.decl_buffer((4,), "float32", data=A)
-            T.evaluate(T.Call("tirx.prefetch", [T.address_of(A_buf[0]), 0, 3, 1], ret_ty="void"))
+            T.evaluate(T.Call("tirx.prefetch", [T.address_of(A_buf[0]), 0, 3, 1], ty="void"))
 
     fcode = tvm.compile(Module)
 
@@ -1115,7 +1115,7 @@ def test_call_packed_returning_void():
             T.Call(
                 tvm.ir.Op.get("tirx.tvm_call_packed"),
                 ["dummy_function_name"],
-                ret_ty="void",
+                ty="void",
             )
 
     # Error occurred during build, as part of
@@ -1137,7 +1137,7 @@ def test_call_packed_without_string_arg():
     class Module:
         @T.prim_func
         def main(A: T.Buffer(1, "float32")):
-            T.Call(tvm.ir.Op.get("tirx.tvm_call_packed"), [A.data], ret_ty="int32")
+            T.Call(tvm.ir.Op.get("tirx.tvm_call_packed"), [A.data], ty="int32")
 
     with pytest.raises(RuntimeError):
         built = tvm.compile(Module, target="llvm")
@@ -1151,7 +1151,7 @@ def test_call_extern_returning_void():
     class Module:
         @T.prim_func
         def main():
-            T.Call(tvm.ir.Op.get("tirx.call_extern"), ["dummy_function_name"], ret_ty="void")
+            T.Call(tvm.ir.Op.get("tirx.call_extern"), ["dummy_function_name"], ty="void")
 
     built = tvm.compile(Module, target="llvm")
 

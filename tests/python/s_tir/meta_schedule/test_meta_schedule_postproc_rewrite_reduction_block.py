@@ -177,7 +177,7 @@ class Softmax_cross_thread_reduction:
                         Ts.writes(T_softmax_expsum_shared[i0_2])
                         with Ts.init():
                             T_softmax_expsum_shared[i0_2] = T.float32(0)
-                        T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32")
+                        T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(A[i0_2, k] - T_softmax_maxelem_shared[i0_2])
             for i1_0 in T.serial(8):
                 for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
                     with Ts.sblock("T_softmax_norm"):
@@ -186,7 +186,7 @@ class Softmax_cross_thread_reduction:
                         Ts.reads(A[i0_3, i1], T_softmax_maxelem_shared[i0_3], T_softmax_expsum_shared[i0_3])
                         Ts.writes(T_softmax_norm[i0_3, i1])
                         Ts.sblock_attr({"axis":1})
-                        T_softmax_norm[i0_3, i1] = T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3], dtype="float32") / T_softmax_expsum_shared[i0_3]
+                        T_softmax_norm[i0_3, i1] = T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3]) / T_softmax_expsum_shared[i0_3]
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on

@@ -40,7 +40,7 @@ ExprDoc NamedCallCallee(const ffi::String& canonical_name);
 
 ExprDoc TypeValue(DocTranslatorObj* d, const Type& type, bool dtype_literal = true);
 ExprDoc MaterializeCallArgument(DocTranslatorObj* d, const Expr& arg, ExprDoc doc);
-ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call, bool infer_result,
+ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
                 ffi::Optional<ffi::Array<ExprDoc>> translated_args = std::nullopt);
 ExprDoc AnyValue(DocTranslatorObj* d, ffi::AnyView value);
 ffi::Dict<Var, IdDoc> CopyImplicitDefs(DocTranslatorObj* d);

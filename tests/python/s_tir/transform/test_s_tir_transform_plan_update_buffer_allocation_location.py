@@ -253,7 +253,7 @@ def test_loop_carried_dependency():
                         vj = Ts.axis.opaque(8, j)
                         B[vi, vj, vk] = (
                             C[vi, vj, vk]
-                            + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0, dtype="int32")
+                            + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0)
                             + D[vi, vj, vk]
                         )
 
@@ -280,7 +280,7 @@ def test_loop_carried_dependency():
                             vj = Ts.axis.opaque(8, j)
                             B[vi, vj, vk] = (
                                 C[vi, vj, vk]
-                                + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0, dtype="int32")
+                                + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0)
                                 + D[vi, vj, vk]
                             )
 

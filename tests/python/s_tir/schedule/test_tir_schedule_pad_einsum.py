@@ -74,15 +74,13 @@ def matmul_expected(
             i, j = Ts.axis.remap("SS", [i0, i1])
             Ts.reads(A[i, j])
             Ts.writes(A_shared_padded[i, j])
-            A_shared_padded[i, j] = T.if_then_else(j < 127, A[i, j], T.float32(0), dtype="float32")
+            A_shared_padded[i, j] = T.if_then_else(j < 127, A[i, j], T.float32(0))
     for i0, i1 in T.grid(128, 128):
         with Ts.sblock("B"):
             i, j = Ts.axis.remap("SS", [i0, i1])
             Ts.reads(B[i, j])
             Ts.writes(B_shared_padded[i, j])
-            B_shared_padded[i, j] = T.if_then_else(
-                i < 127 and j < 127, B[i, j], T.float32(0), dtype="float32"
-            )
+            B_shared_padded[i, j] = T.if_then_else(i < 127 and j < 127, B[i, j], T.float32(0))
     for i0, i1, i2 in T.grid(128, 128, 128):
         with Ts.sblock("C_shared"):
             i, j, k = Ts.axis.remap("SSR", [i0, i1, i2])

@@ -692,7 +692,7 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
                         StringImm(desc_buf.scope()),
                     ],
                     attrs=DictAttrs({}),
-                    ret_ty=desc_buf.ty,
+                    ty=desc_buf.ty,
                 ),
             ),
             Evaluate(encode_call),

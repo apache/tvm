@@ -94,7 +94,7 @@ def test_decl_buffer_physical_data_binding():
                 tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
                 tvm.ir.StringImm(buffer.scope()),
             ],
-            ret_ty=buffer.ty,
+            ty=buffer.ty,
         ),
     )
     assert decl.var.same_as(buffer)
