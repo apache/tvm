@@ -1046,7 +1046,6 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
   static const Op mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
   static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-  static const Op ptx_ldg32_op = Op::Get("tirx.s_tir.ldg32");
   static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
   if (op->op.same_as(tvm_fill_fragment_op)) {
@@ -1274,38 +1273,6 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
     os << dst << "[" << dst_offset << " + i] = 0.0;";
     os << "}\n";
-  } else if (IsOp(op, ptx_ldg32_op, "tirx.s_tir.ldg32")) {
-    /*
-    asm volatile (
-        "{.reg .pred p;\n"
-        " setp.ne.b32 p, %2, 0;\n"
-        // " @p ld.global.nc.f32 %0, [%1];}\n"t
-        " @p ld.global.nc.L2::128B.f32 %0, [%1];}\n"
-        : "=f"(reg)
-        : "l"(addr), "r"((int)guard)
-    );
-    */
-
-    // get local
-    std::string reg = this->PrintExpr(op->args[0]);
-    // get guard
-    std::string guard = this->PrintExpr(op->args[1]);
-    const TensorLoadNode* addr_buffer = op->args[2].as<TensorLoadNode>();
-    std::string global_addr = this->PrintExpr(addr_buffer->indices[0]);
-    std::string global_buffer =
-        this->PrintExpr(addr_buffer->source.as_or_throw<tvm::tirx::BufferVar>().data());
-    std::string local_addr = this->PrintExpr(op->args[3]);
-    this->stream << "asm volatile (\n";
-    this->stream << "\"{.reg .pred p;\\n\"\n";
-    this->stream << "\" setp.ne.b32 p, %2, 0;\\n\"\n";
-    this->stream << "\" @!p mov.b32 %0, 0;\\n\"\n";
-    this->stream << "\" @p ld.global.nc.f32 %0, [%1];}\\n\"\n";
-    // stream << "\" @p ld.global.nc.L2::128B.f32 %0, [%1];}\\n\"\n" ;
-    stream << ": \"=f\"(" << reg << "[" << local_addr << "]"
-           << ")\n";
-    stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
-           << guard << ")\n";
-    stream << ");\n";
   } else if (op->op.same_as(tirx::builtin::reinterpret())) {
     // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)

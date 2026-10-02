@@ -20,7 +20,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/prim/vector_expr.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/layout.h>
 
@@ -214,7 +213,7 @@ ffi::Optional<ExprDoc> BufferTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     }
   }
   if (!buffer->layout.has_value()) {
-    bool defaults_to_none = d->GetOrCreateExtraState<bool>("s_tir.function_scope") ||
+    bool defaults_to_none = d->GetOrCreateExtraState<bool>("tirx.buffer_default_layout_none") ||
                             buffer->storage_scope == "trn.sbuf" ||
                             buffer->storage_scope == "trn.psum";
     if (!defaults_to_none) {
@@ -445,28 +444,6 @@ ffi::Optional<ExprDoc> ComposeLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyVi
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::ComposeLayoutNode>().attr(
       kDocTranslate, FDocTranslate::FromNative<&ComposeLayoutDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> MatchBufferRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                                     const ffi::Object* destination) {
-  const auto* match = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<
-      const s_tir::MatchBufferRegionNode>(input);
-  TVM_FFI_CHECK(destination == nullptr, TypeError)
-      << "printer statement-only node cannot fulfill a destination";
-  ExprDoc source = d->Translate(match->source).value();
-  CallDoc rhs = d->Translate(match->buffer.var()->ty).value().as_or_throw<CallDoc>();
-  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Buffer", TypeError)
-      << "Ts.match_buffer cannot reconstruct this nonrepresentable BufferType";
-  rhs->callee = NamespaceDoc("s_tir")->Attr("match_buffer");
-  rhs->args.insert(rhs->args.begin(), source);
-  IdDoc lhs = VarDoc(d, match->buffer);
-  d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(match));
-  return std::nullopt;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<s_tir::MatchBufferRegionNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&MatchBufferRegionDocTranslate>());
 }
 
 }  // namespace
