@@ -486,11 +486,9 @@ class TransformedSharedToWmma:
                                                     src.elem_offset,
                                                     s1 * 16,
                                                     1,
-                                                    dtype="handle",
                                                 ),
                                                 s1,
                                                 "row_major",
-                                                dtype="handle",
                                             )
                                         )
 
@@ -569,11 +567,9 @@ class TransformedWmmaToShared:
                                                     tgt.elem_offset,
                                                     s1 * 16,
                                                     2,
-                                                    dtype="handle",
                                                 ),
                                                 s1,
                                                 "row_major",
-                                                dtype="handle",
                                             )
                                         )
 

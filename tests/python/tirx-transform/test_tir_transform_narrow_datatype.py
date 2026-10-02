@@ -196,7 +196,6 @@ def test_condition():
                 i * T.int64(65) + j >= T.int64(0) and i * T.int64(65) + j < T.int64(128),
                 A[i * T.int64(65) + j],
                 0.0,
-                dtype="float32",
             )
 
     @T.prim_func
@@ -206,7 +205,7 @@ def test_condition():
                 A[i * 65 + j] = T.float32(0)
         for i, j in T.grid(2, 65):
             B[i * 65 + j] = T.if_then_else(
-                i * 65 + j >= 0 and i * 65 + j < 128, A[i * 65 + j], T.float32(0), dtype="float32"
+                i * 65 + j >= 0 and i * 65 + j < 128, A[i * 65 + j], T.float32(0)
             )
 
     after = tvm.tirx.transform.NarrowDataType(32)(

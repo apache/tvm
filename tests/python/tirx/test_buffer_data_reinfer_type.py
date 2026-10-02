@@ -27,7 +27,7 @@ def test_buffer_data_reinfer_type_from_rewritten_argument():
     stale_type = tirx.buffer_data_pointer_type(global_buffer)
     expected_type = tirx.buffer_data_pointer_type(local_buffer)
 
-    call = ir.Call("tirx.buffer_data", [local_buffer], ret_ty=stale_type)
+    call = ir.Call("tirx.buffer_data", [local_buffer], ty=stale_type)
     ir.assert_structural_equal(ir.reinfer_type(call), expected_type)
     ir.assert_structural_equal(call.ty, stale_type)
 

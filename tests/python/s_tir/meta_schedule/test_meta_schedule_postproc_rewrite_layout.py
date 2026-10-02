@@ -242,7 +242,7 @@ class Conv2dCacheRead:
                         i3 = Ts.axis.spatial(64, ax3_fused)
                         Ts.reads(p0[i0, i1 - 1, i2 - 1, i3])
                         Ts.writes(pad_temp[i0, i1, i2, i3])
-                        pad_temp[i0, i1, i2, i3] = T.if_then_else(1 <= i1 and i1 < 57 and 1 <= i2 and i2 < 57, p0[i0, i1 - 1, i2 - 1, i3], T.float32(0), dtype="float32")
+                        pad_temp[i0, i1, i2, i3] = T.if_then_else(1 <= i1 and i1 < 57 and 1 <= i2 and i2 < 57, p0[i0, i1 - 1, i2 - 1, i3], T.float32(0))
             for i3_0 in T.serial(16):
                 for ax0_ax1_ax2_ax3_fused in T.serial(57600):
                     with Ts.sblock("pad_temp_global"):
@@ -327,7 +327,7 @@ class Conv2dCacheReadRewritten:
                         i3 = Ts.axis.spatial(64, ax3_fused)
                         Ts.reads(p0[i0, i1 - 1, i2 - 1, i3])
                         Ts.writes(pad_temp[i0, i1, i2, i3])
-                        pad_temp[i0, i1, i2, i3] = T.if_then_else(1 <= i1 and i1 < 57 and 1 <= i2 and i2 < 57, p0[i0, i1 - 1, i2 - 1, i3], T.float32(0), dtype="float32")
+                        pad_temp[i0, i1, i2, i3] = T.if_then_else(1 <= i1 and i1 < 57 and 1 <= i2 and i2 < 57, p0[i0, i1 - 1, i2 - 1, i3], T.float32(0))
             for i3_0 in T.serial(16):
                 for ax0_ax1_ax2_ax3_fused in T.serial(57600):
                     with Ts.sblock("pad_temp_global"):
@@ -419,7 +419,7 @@ class Conv2dCacheReadMultipleRewritten:
                         i3 = Ts.axis.spatial(64, ax3_fused)
                         Ts.reads(p0[i0, i1 - 1, i2 - 1, i3])
                         Ts.writes(pad_temp[i0, i1, i2, i3])
-                        pad_temp[i0, i1, i2, i3] = T.if_then_else(1 <= i1 and i1 < 57 and 1 <= i2 and i2 < 57, p0[i0, i1 - 1, i2 - 1, i3], T.float32(0), dtype="float32")
+                        pad_temp[i0, i1, i2, i3] = T.if_then_else(1 <= i1 and i1 < 57 and 1 <= i2 and i2 < 57, p0[i0, i1 - 1, i2 - 1, i3], T.float32(0))
             for i3_0 in T.serial(16):
                 for ax0_ax1_ax2_ax3_fused in T.serial(57600):
                     with Ts.sblock("pad_temp_global"):

@@ -178,7 +178,6 @@ def tir_conv2d(
                 1 <= yy and yy < 15 and 1 <= xx and xx < 15,
                 A[nn, cc, yy - 1, xx - 1],
                 0.0,
-                dtype="float32",
             )
     for n, f, y, x, kc, ky, kx in T.grid(16, 32, 14, 14, 16, 3, 3):
         with Ts.sblock("B"):
@@ -260,34 +259,30 @@ def tir_extern(
                 "tvm.contrib.cblas.matmul",
                 T.tvm_stack_make_array(
                     A.data,
-                    T.tvm_stack_make_shape(128, 128, dtype="handle"),
+                    T.tvm_stack_make_shape(128, 128),
                     0,
                     2,
                     0.0,
                     off1,
-                    dtype="handle",
                 ),
                 T.tvm_stack_make_array(
                     B.data,
-                    T.tvm_stack_make_shape(128, 128, dtype="handle"),
+                    T.tvm_stack_make_shape(128, 128),
                     0,
                     2,
                     0.0,
                     off2,
-                    dtype="handle",
                 ),
                 T.tvm_stack_make_array(
                     C.data,
-                    T.tvm_stack_make_shape(128, 128, dtype="handle"),
+                    T.tvm_stack_make_shape(128, 128),
                     0,
                     2,
                     0.0,
                     off3,
-                    dtype="handle",
                 ),
                 0,
                 0,
-                dtype="int32",
             )
         )
 
@@ -762,7 +757,6 @@ def tir_resize2d_symbolic(
                             "int64",
                             T.round(
                                 T.float32(128) / T.Cast("float32", oh) * T.Cast("float32", v_i2),
-                                dtype="float32",
                             ),
                         ),
                         T.int64(127),
@@ -775,7 +769,6 @@ def tir_resize2d_symbolic(
                             "int64",
                             T.round(
                                 T.float32(128) / T.Cast("float32", ow) * T.Cast("float32", v_i3),
-                                dtype="float32",
                             ),
                         ),
                         T.int64(127),

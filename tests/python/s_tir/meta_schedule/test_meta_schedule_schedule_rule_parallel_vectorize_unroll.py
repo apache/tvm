@@ -96,7 +96,7 @@ class PureSpatial:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_sigmoid[ax0, ax1, ax2, ax3, ax4])
-                T_sigmoid[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_sigmoid[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 80):
             with Ts.sblock("T_strided_slice_with_axes_1"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -108,7 +108,7 @@ class PureSpatial:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_sigmoid_1[ax0, ax1, ax2, ax3, ax4])
-                T_sigmoid_1[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_sigmoid_1[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_1[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 52, 52, 3, 80):
             with Ts.sblock("T_multiply"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -132,7 +132,7 @@ class PureSpatial:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_sigmoid_2[ax0, ax1, ax2, ax3, ax4])
-                T_sigmoid_2[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_sigmoid_2[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_2[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 80):
             with Ts.sblock("T_strided_slice_with_axes_3"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -144,7 +144,7 @@ class PureSpatial:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_sigmoid_3[ax0, ax1, ax2, ax3, ax4])
-                T_sigmoid_3[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_sigmoid_3[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_3[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 26, 26, 3, 80):
             with Ts.sblock("T_multiply_1"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -168,7 +168,7 @@ class PureSpatial:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_sigmoid_4[ax0, ax1, ax2, ax3, ax4])
-                T_sigmoid_4[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_sigmoid_4[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_4[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 80):
             with Ts.sblock("T_strided_slice_with_axes_5"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -180,7 +180,7 @@ class PureSpatial:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_sigmoid_5[ax0, ax1, ax2, ax3, ax4])
-                T_sigmoid_5[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_sigmoid_5[ax0, ax1, ax2, ax3, ax4] = T.sigmoid(T_strided_slice_with_axes_5[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 13, 13, 3, 80):
             with Ts.sblock("T_multiply_2"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -198,7 +198,7 @@ class PureSpatial:
                 ax0, ax1 = Ts.axis.remap("SS", [i0, i1])
                 Ts.reads(T_reshape[ax0 - 2535, ax1], T_reshape_1[ax0 - 507, ax1], T_reshape_2[ax0, ax1])
                 Ts.writes(T_concat[ax0, ax1])
-                T_concat[ax0, ax1] = T.if_then_else(2535 <= ax0, T_reshape[ax0 - 2535, ax1], T.if_then_else(507 <= ax0, T_reshape_1[ax0 - 507, ax1], T_reshape_2[ax0, ax1], dtype="float32"), dtype="float32")
+                T_concat[ax0, ax1] = T.if_then_else(2535 <= ax0, T_reshape[ax0 - 2535, ax1], T.if_then_else(507 <= ax0, T_reshape_1[ax0 - 507, ax1], T_reshape_2[ax0, ax1]))
         for i0, i1 in T.grid(80, 10647):
             with Ts.sblock("T_transpose"):
                 ax0, ax1 = Ts.axis.remap("SS", [i0, i1])

@@ -478,7 +478,7 @@ def test_hoist_if_else_expr():
     @Ts.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
-            A[i, j] = T.if_then_else(i < 2, 1.0, 2.0, dtype="float32")
+            A[i, j] = T.if_then_else(i < 2, 1.0, 2.0)
 
     @Ts.prim_func(private=True)
     def expected(A: T.Buffer((4, 4), "float32")):
@@ -498,7 +498,7 @@ def test_suppress_hoist_if_else_expr():
     @Ts.prim_func(private=True)
     def before(A: T.Buffer((4, 4), "float32")):
         for i, j in T.grid(4, 4):
-            A[i, j] = T.if_then_else(i < 2, 1.0, 2.0, dtype="float32")
+            A[i, j] = T.if_then_else(i < 2, 1.0, 2.0)
 
     expected = before
 

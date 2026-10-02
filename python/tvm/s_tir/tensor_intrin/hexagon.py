@@ -54,26 +54,23 @@ def generate_dma_load_intrin(
                 T.tvm_call_packed(
                     "device_api.hexagon.dma_copy_dltensor",
                     T.tvm_stack_make_array(
-                        T.address_of(C[0], dtype="handle"),
-                        T.tvm_stack_make_shape(size, dtype="handle"),
+                        T.address_of(C[0]),
+                        T.tvm_stack_make_shape(size),
                         0,
                         1,
                         C.dtype,
                         0,
-                        dtype="handle",
                     ),
                     T.tvm_stack_make_array(
-                        T.address_of(A[0], dtype="handle"),
-                        T.tvm_stack_make_shape(size, dtype="handle"),
+                        T.address_of(A[0]),
+                        T.tvm_stack_make_shape(size),
                         0,
                         1,
                         A.dtype,
                         0,
-                        dtype="handle",
                     ),
                     T.cast(size, dtype="int"),
                     False,  # Do not use experimental bypass mode.
-                    dtype="int32",
                 )
             )
 

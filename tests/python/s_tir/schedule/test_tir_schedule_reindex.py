@@ -69,7 +69,6 @@ def conv2d_nhwc(
                 ((((i1_1 >= 3) and (i1_1 < 227)) and (i2_1 >= 3)) and (i2_1 < 227)),
                 Input[i0_1, (i1_1 - 3), (i2_1 - 3), i3_1],
                 T.float32(0),
-                dtype="float32",
             )
     for i0, i1, i2, i3, i4, i5, i6 in T.grid(1, 112, 112, 64, 7, 7, 3):
         with Ts.sblock("conv2d_nhwc"):
@@ -97,7 +96,6 @@ def conv2d_nhwc_reindex_data(
                 ((((i1_1 >= 3) and (i1_1 < 227)) and (i2_1 >= 3)) and (i2_1 < 227)),
                 Input[i0_1, (i1_1 - 3), (i2_1 - 3), i3_1],
                 T.float32(0),
-                dtype="float32",
             )
     for i0, i1, i2, i3, i4, i5 in T.grid(1, 112, 112, 7, 7, 3):
         with Ts.sblock("ReindexInput"):
@@ -130,7 +128,6 @@ def conv2d_nhwc_reindex_weight(
                 i1_1 >= 3 and i1_1 < 227 and i2_1 >= 3 and i2_1 < 227,
                 inputs[i0_1, i1_1 - 3, i2_1 - 3, i3_1],
                 T.float32(0),
-                dtype="float32",
             )
     for ax3, ax4, ax5, ax6 in T.grid(64, 7, 7, 3):
         with Ts.sblock("weight_reindex"):

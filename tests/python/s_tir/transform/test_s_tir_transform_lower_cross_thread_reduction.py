@@ -93,7 +93,6 @@ def lowered_loop_split(
                         True,
                         reduce_temp0[0],
                         ki,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("B_write_back"):
@@ -136,11 +135,7 @@ def lowered_no_normal_reduction(
                     "reduce_scope",
                     T.int32(0),
                 )
-                T.evaluate(
-                    T.tvm_thread_allreduce(
-                        T.uint32(1), A[vi, vk], True, reduce_temp0[0], k, dtype="handle"
-                    )
-                )
+                T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[vi, vk], True, reduce_temp0[0], k))
             with Ts.sblock("B_write_back"):
                 vi = Ts.axis.spatial(128, i)
                 Ts.where(k == 0)
@@ -187,7 +182,7 @@ def lowered_two_bound_loops(
                     )
                     T.evaluate(
                         T.tvm_thread_allreduce(
-                            T.uint32(1), A[vi, vk], True, reduce_temp0[0], ko, ki, dtype="handle"
+                            T.uint32(1), A[vi, vk], True, reduce_temp0[0], ko, ki
                         )
                     )
                 with Ts.sblock("B_write_back"):
@@ -269,7 +264,6 @@ def lowered_multiple_blocks_under_reduction_loop(
                         True,
                         reduce_temp0[0],
                         k0o,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("B_write_back"):
@@ -332,7 +326,6 @@ def lowered_with_block_predicate(
                         True,
                         reduce_temp0[0],
                         ki,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("B_write_back"):
@@ -374,7 +367,7 @@ def single_reduction_loop_with_block_predicate(
                     with Ts.init():
                         T_softmax_expsum_shared[i0_2] = T.float32(0)
                     T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
-                        A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32"
+                        A[i0_2, k] - T_softmax_maxelem_shared[i0_2]
                     )
         for i1_0 in T.serial(1):
             for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
@@ -388,7 +381,7 @@ def single_reduction_loop_with_block_predicate(
                     Ts.writes(T_softmax_norm[i0_3, i1])
                     Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[i0_3, i1] = (
-                        T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3], dtype="float32")
+                        T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3])
                         / T_softmax_expsum_shared[i0_3]
                     )
 
@@ -435,7 +428,6 @@ def lowered_single_reduction_loop_with_block_predicate(
                             True,
                             cross_thread_0[0],
                             ax1_1,
-                            dtype="handle",
                         )
                     )
                 with Ts.sblock("T_softmax_maxelem_write_back"):
@@ -458,7 +450,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                         Ts.reads(A[i0_3, k], T_softmax_maxelem_shared[i0_3])
                         Ts.writes(in_thread_1[0])
                         in_thread_1[0] = in_thread_1[0] + T.exp(
-                            A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
+                            A[i0_3, k] - T_softmax_maxelem_shared[i0_3]
                         )
                 with Ts.sblock("T_softmax_expsum_cross_thread"):
                     Ts.reads(in_thread_1[0])
@@ -475,7 +467,6 @@ def lowered_single_reduction_loop_with_block_predicate(
                             True,
                             cross_thread_1[0],
                             ax1_1,
-                            dtype="handle",
                         )
                     )
                 with Ts.sblock("T_softmax_expsum_write_back"):
@@ -496,7 +487,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                     Ts.writes(T_softmax_norm[i0_5, i1])
                     Ts.sblock_attr({"axis": 1})
                     T_softmax_norm[i0_5, i1] = (
-                        T.exp(A[i0_5, i1] - T_softmax_maxelem_shared[i0_5], dtype="float32")
+                        T.exp(A[i0_5, i1] - T_softmax_maxelem_shared[i0_5])
                         / T_softmax_expsum_shared[i0_5]
                     )
 
@@ -927,11 +918,7 @@ def lowered_reducer_max(
                     "reduce_scope",
                     T.int32(0),
                 )
-                T.evaluate(
-                    T.tvm_thread_allreduce(
-                        T.uint32(1), A[vi, vk], True, reduce_temp0[0], k, dtype="handle"
-                    )
-                )
+                T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[vi, vk], True, reduce_temp0[0], k))
             with Ts.sblock("B_write_back"):
                 vi = Ts.axis.spatial(128, i)
                 Ts.where(k == 0)
@@ -968,9 +955,7 @@ def lowered_zero_rank_buffer(
                 "reduce_scope",
                 T.int32(0),
             )
-            T.evaluate(
-                T.tvm_thread_allreduce(T.uint32(1), A[vk], True, reduce_temp0[0], k, dtype="handle")
-            )
+            T.evaluate(T.tvm_thread_allreduce(T.uint32(1), A[vk], True, reduce_temp0[0], k))
         with Ts.sblock("B_write_back"):
             Ts.reads([reduce_temp0[0]])
             Ts.writes([B[()]])
@@ -1096,7 +1081,7 @@ def softmax(
                     with Ts.init():
                         T_softmax_expsum_shared[i0_2] = T.float32(0)
                     T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
-                        A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32"
+                        A[i0_2, k] - T_softmax_maxelem_shared[i0_2]
                     )
         for i1_0 in T.serial(0, 8):
             for i1_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
@@ -1115,7 +1100,6 @@ def softmax(
                     T_softmax_norm[i0_3, i1] = (
                         T.exp(
                             A[i0_3, i1] - T_softmax_maxelem_shared[i0_3],
-                            dtype="float32",
                         )
                         / T_softmax_expsum_shared[i0_3]
                     )
@@ -1159,7 +1143,6 @@ def lowered_softmax(
                         True,
                         reduce_temp0[0],
                         ax0_1,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("T_softmax_maxelem_write_back"):
@@ -1185,7 +1168,7 @@ def lowered_softmax(
                     )
                     Ts.writes([normal_reduce_temp1[0]])
                     normal_reduce_temp1[0] = normal_reduce_temp1[0] + T.exp(
-                        A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
+                        A[i0_3, k] - T_softmax_maxelem_shared[i0_3]
                     )
             with Ts.sblock("T_softmax_expsum_cross_thread_reduction"):
                 Ts.reads([normal_reduce_temp1[0]])
@@ -1202,7 +1185,6 @@ def lowered_softmax(
                         True,
                         reduce_temp1[0],
                         ax0_1,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("T_softmax_expsum_write_back"):
@@ -1228,7 +1210,6 @@ def lowered_softmax(
                     T_softmax_norm[i0_5, i1] = (
                         T.exp(
                             A[i0_5, i1] - T_softmax_maxelem_shared[i0_5],
-                            dtype="float32",
                         )
                         / T_softmax_expsum_shared[i0_5]
                     )
@@ -1318,7 +1299,6 @@ def lowered_argmax_split(
                         cross_thread_argmax_v0[0],
                         cross_thread_argmax_v1[0],
                         i1_1,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("argmax_write_back"):
@@ -1414,7 +1394,6 @@ def lowered_argmin_split_init_update_reordered(
                         cross_thread_argmin_v0[0],
                         cross_thread_argmin_v1[0],
                         i1_1,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("argmin_write_back"):
@@ -1473,7 +1452,6 @@ def layer_norm_tuple_sum(
                     * T.float32(0.0013020833333333333)
                     * (data_red_temp_v0[ax0] * T.float32(0.0013020833333333333))
                     + T.float32(1.0000000000000001e-05),
-                    dtype="float32",
                 ) * gamma[ax1] + bias[ax1]
 
 
@@ -1539,7 +1517,6 @@ def lowered_layer_norm_tuple_sum(
                         cross_thread_data_red_temp_v0[0],
                         cross_thread_data_red_temp_v1[0],
                         i1_1,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("data_red_temp_write_back"):
@@ -1570,7 +1547,6 @@ def lowered_layer_norm_tuple_sum(
                     * T.float32(0.0013020833333333333)
                     * (data_red_temp_v0[ax0] * T.float32(0.0013020833333333333))
                     + T.float32(1.0000000000000001e-05),
-                    dtype="float32",
                 ) * gamma[ax1] + bias[ax1]
 
 

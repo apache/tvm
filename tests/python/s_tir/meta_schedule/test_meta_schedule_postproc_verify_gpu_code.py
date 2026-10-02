@@ -77,7 +77,7 @@ class Conv2dCuda0:
                     1 <= blockIdx_z // 14 + ry and blockIdx_z // 14 + ry < 15 and 1 <= rx + blockIdx_z % 14 and rx + blockIdx_z % 14 < 15,
                     A[T.ramp(ry * 917504 + blockIdx_z * 65536 + rx * 65536 + rc_outer * 2048 + threadIdx_y * 256 + blockIdx_x * 64 + threadIdx_x * 8 + ax3_inner_outer * 4 - 983040, 1, 4)],
                     T.broadcast(T.float32(0), 4),
-                    dtype="float32x4",
+
                 )
             for rc_inner in T.serial(0, 8):
                 for ax3 in T.serial(0, 8):
@@ -121,7 +121,7 @@ class Conv2dCuda1:
                     1 <= blockIdx_z // 14 + ry and blockIdx_z // 14 + ry < 15 and 1 <= rx + blockIdx_z % 14 and rx + blockIdx_z % 14 < 15,
                     A[T.ramp(ry * 917504 + blockIdx_z * 65536 + rx * 65536 + rc_outer * 2048 + threadIdx_y * 256 + blockIdx_x * 64 + threadIdx_x * 8 + ax3_inner_outer * 4 - 983040, 1, 4)],
                     T.broadcast(T.float32(0), 4),
-                    dtype="float32x4",
+
                 )
             for rc_inner in T.serial(0, 8):
                 for ax3 in T.serial(0, 8):
@@ -161,7 +161,7 @@ class Conv2dCuda2:
                     1 <= blockIdx_z // 14 + ry and blockIdx_z // 14 + ry < 15 and 1 <= rx + blockIdx_z % 14 and rx + blockIdx_z % 14 < 15,
                     A[T.ramp(ry * 917504 + blockIdx_z * 65536 + rx * 65536 + rc_outer * 2048 + threadIdx_y * 256 + blockIdx_x * 64 + threadIdx_x * 8 + ax3_inner_outer * 4 - 983040, 1, 4)],
                     T.broadcast(T.float32(0), 4),
-                    dtype="float32x4",
+
                 )
                 # Access of the last element of Apad_shared prevents
                 # buffer compacting from reducing the amount of shared
@@ -205,7 +205,7 @@ class Conv2dCuda3:
                     1 <= blockIdx_z // 14 + ry and blockIdx_z // 14 + ry < 15 and 1 <= rx + blockIdx_z % 14 and rx + blockIdx_z % 14 < 15,
                     A[T.ramp(ry * 917504 + blockIdx_z * 65536 + rx * 65536 + rc_outer * 2048 + threadIdx_y * 256 + blockIdx_x * 64 + threadIdx_x * 8 + ax3_inner_outer * 4 - 983040, 1, 4)],
                     T.broadcast(T.float32(0), 4),
-                    dtype="float32x4",
+
                 )
             for rc_inner in T.serial(0, 8):
                 for ax3 in T.serial(0, 8):
@@ -456,7 +456,7 @@ def GMMCUDATensorCore(
                                 16,
                                 C.elem_offset // 256 + C.elem_offset % 256 // 16,
                                 T.float32(0),
-                                dtype="handle",
+
                             )
                         )
                 for ax3_0_0 in T.serial(32):
@@ -574,11 +574,11 @@ def GMMCUDATensorCore(
                                             A.elem_offset,
                                             s1 * 16,
                                             1,
-                                            dtype="handle",
+
                                         ),
                                         s1,
                                         "row_major",
-                                        dtype="handle",
+
                                     )
                                 )
                         for ax0_0, ax1_0 in T.grid(1, 4):
@@ -627,11 +627,11 @@ def GMMCUDATensorCore(
                                             A_1.elem_offset,
                                             s1_1 * 16,
                                             1,
-                                            dtype="handle",
+
                                         ),
                                         s1_1,
                                         "row_major",
-                                        dtype="handle",
+
                                     )
                                 )
                         for ax0_3, ax1_0_3, ax2_0_3, ax3_0_2, ax0_4, ax1_0_4, ax2_0_4 in T.grid(
@@ -713,7 +713,7 @@ def GMMCUDATensorCore(
                                         B.elem_offset // 256,
                                         C_3.data,
                                         C_3.elem_offset // 256 + C_3.elem_offset % 256 // 16,
-                                        dtype="handle",
+
                                     )
                                 )
                 for ax0_0, ax1_0 in T.grid(4, 4):
@@ -761,11 +761,11 @@ def GMMCUDATensorCore(
                                     C_4.elem_offset,
                                     s1_2 * 16,
                                     2,
-                                    dtype="handle",
+
                                 ),
                                 s1_2,
                                 "row_major",
-                                dtype="handle",
+
                             )
                         )
 

@@ -86,7 +86,7 @@ class Before_norm_bmn:
         for i0 in T.serial(1):
             with Ts.sblock("D"):
                 b = Ts.axis.S(1, i0)
-                D[b] = T.sqrt(C[b], dtype="float32")
+                D[b] = T.sqrt(C[b])
 
 
 @tvm.script.ir_module
@@ -107,7 +107,7 @@ class After_norm_bmn:
             for i0_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
                 with Ts.sblock("D"):
                     b = Ts.axis.S(1, 0)
-                    D[b] = T.sqrt(C[b], dtype="float32")
+                    D[b] = T.sqrt(C[b])
 
 
 @tvm.script.ir_module

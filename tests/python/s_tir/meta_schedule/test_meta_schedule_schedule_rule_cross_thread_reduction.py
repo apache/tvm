@@ -49,15 +49,14 @@ class Softmax_mn_after_inline:
                 with Ts.init():
                     T_softmax_expsum[i0_2] = T.float32(0)
                 T_softmax_expsum[i0_2] = T_softmax_expsum[i0_2] + T.exp(
-                    A[i0_2, k] - T_softmax_maxelem[i0_2], dtype="float32"
+                    A[i0_2, k] - T_softmax_maxelem[i0_2]
                 )
         for i0_3, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_norm"):
                 i0_4, i1_1 = Ts.axis.remap("SS", [i0_3, i1])
                 Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_4, i1_1] = (
-                    T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32")
-                    / T_softmax_expsum[i0_4]
+                    T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4]) / T_softmax_expsum[i0_4]
                 )
 
 
@@ -87,9 +86,7 @@ def test_gpu_softmax_mn():
                 i0_2, i1_1 = Ts.axis.remap("SS", [i0, i1])
                 Ts.reads(A[i0_2, i1_1], T_softmax_maxelem[i0_2])
                 Ts.writes(T_softmax_exp[i0_2, i1_1])
-                T_softmax_exp[i0_2, i1_1] = T.exp(
-                    A[i0_2, i1_1] - T_softmax_maxelem[i0_2], dtype="float32"
-                )
+                T_softmax_exp[i0_2, i1_1] = T.exp(A[i0_2, i1_1] - T_softmax_maxelem[i0_2])
         for i0_3, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_expsum"):
                 i0_4, k = Ts.axis.remap("SR", [i0_3, i1])
@@ -140,7 +137,7 @@ def test_gpu_softmax_mn():
                         Ts.reads(A[i0_2, i1], T_softmax_maxelem_shared[i0_2])
                         Ts.writes(T_softmax_exp[i0_2, i1])
                         T_softmax_exp[i0_2, i1] = T.exp(
-                            A[i0_2, i1] - T_softmax_maxelem_shared[i0_2], dtype="float32"
+                            A[i0_2, i1] - T_softmax_maxelem_shared[i0_2]
                         )
         for i0_3, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_expsum"):
@@ -182,9 +179,7 @@ def test_gpu_softmax_mn():
                 i0_2, i1_1 = Ts.axis.remap("SS", [i0, i1])
                 Ts.reads(A[i0_2, i1_1], T_softmax_maxelem[i0_2])
                 Ts.writes(T_softmax_exp[i0_2, i1_1])
-                T_softmax_exp[i0_2, i1_1] = T.exp(
-                    A[i0_2, i1_1] - T_softmax_maxelem[i0_2], dtype="float32"
-                )
+                T_softmax_exp[i0_2, i1_1] = T.exp(A[i0_2, i1_1] - T_softmax_maxelem[i0_2])
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 32):
                 for ax1_1 in T.thread_binding(8, thread="threadIdx.x"):
@@ -244,7 +239,7 @@ def test_gpu_softmax_mn():
                         Ts.reads(A[i0_2, i1], T_softmax_maxelem_shared[i0_2])
                         Ts.writes(T_softmax_exp[i0_2, i1])
                         T_softmax_exp[i0_2, i1] = T.exp(
-                            A[i0_2, i1] - T_softmax_maxelem_shared[i0_2], dtype="float32"
+                            A[i0_2, i1] - T_softmax_maxelem_shared[i0_2]
                         )
         for i0_3 in T.serial(256):
             for ax0, ax1_0 in T.grid(1, 32):
@@ -320,7 +315,7 @@ def test_gpu_softmax_mn_after_inline():
                 with Ts.init():
                     T_softmax_expsum[i0_2] = T.float32(0)
                 T_softmax_expsum[i0_2] = T_softmax_expsum[i0_2] + T.exp(
-                    A[i0_2, k] - T_softmax_maxelem[i0_2], dtype="float32"
+                    A[i0_2, k] - T_softmax_maxelem[i0_2]
                 )
         for i0_3, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_norm"):
@@ -329,8 +324,7 @@ def test_gpu_softmax_mn_after_inline():
                 Ts.writes(T_softmax_norm[i0_4, i1_1])
                 Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_4, i1_1] = (
-                    T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32")
-                    / T_softmax_expsum[i0_4]
+                    T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4]) / T_softmax_expsum[i0_4]
                 )
 
     @Ts.prim_func
@@ -357,7 +351,7 @@ def test_gpu_softmax_mn_after_inline():
                 with Ts.init():
                     T_softmax_expsum[i0_2] = T.float32(0)
                 T_softmax_expsum[i0_2] = T_softmax_expsum[i0_2] + T.exp(
-                    A[i0_2, k] - T_softmax_maxelem[i0_2], dtype="float32"
+                    A[i0_2, k] - T_softmax_maxelem[i0_2]
                 )
         for i0_3, i1 in T.grid(256, 256):
             with Ts.sblock("T_softmax_norm"):
@@ -366,8 +360,7 @@ def test_gpu_softmax_mn_after_inline():
                 Ts.writes(T_softmax_norm[i0_4, i1_1])
                 Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_4, i1_1] = (
-                    T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4], dtype="float32")
-                    / T_softmax_expsum[i0_4]
+                    T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4]) / T_softmax_expsum[i0_4]
                 )
 
     @Ts.prim_func
@@ -396,7 +389,7 @@ def test_gpu_softmax_mn_after_inline():
                         with Ts.init():
                             T_softmax_expsum_shared[i0_2] = T.float32(0)
                         T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
-                            A[i0_2, k] - T_softmax_maxelem[i0_2], dtype="float32"
+                            A[i0_2, k] - T_softmax_maxelem[i0_2]
                         )
             for i1_0 in T.serial(1):
                 for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
@@ -410,7 +403,7 @@ def test_gpu_softmax_mn_after_inline():
                         Ts.writes(T_softmax_norm[i0_4, i1_1_1])
                         Ts.sblock_attr({"axis": 1})
                         T_softmax_norm[i0_4, i1_1_1] = (
-                            T.exp(A[i0_4, i1_1_1] - T_softmax_maxelem[i0_4], dtype="float32")
+                            T.exp(A[i0_4, i1_1_1] - T_softmax_maxelem[i0_4])
                             / T_softmax_expsum_shared[i0_4]
                         )
 
@@ -445,7 +438,7 @@ def test_gpu_softmax_mn_after_inline():
                         with Ts.init():
                             T_softmax_expsum_shared[i0_2] = T.float32(0)
                         T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
-                            A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32"
+                            A[i0_2, k] - T_softmax_maxelem_shared[i0_2]
                         )
             for i1_0 in T.serial(1):
                 for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
@@ -461,7 +454,7 @@ def test_gpu_softmax_mn_after_inline():
                         Ts.writes(T_softmax_norm[i0_4, i1_1_1])
                         Ts.sblock_attr({"axis": 1})
                         T_softmax_norm[i0_4, i1_1_1] = (
-                            T.exp(A[i0_4, i1_1_1] - T_softmax_maxelem_shared[i0_4], dtype="float32")
+                            T.exp(A[i0_4, i1_1_1] - T_softmax_maxelem_shared[i0_4])
                             / T_softmax_expsum_shared[i0_4]
                         )
 
@@ -518,7 +511,7 @@ def test_gpu_batch_norm_bmn():
                 b = Ts.axis.spatial(1, i0)
                 Ts.reads(C[b])
                 Ts.writes(D[b])
-                D[b] = T.sqrt(C[b], dtype="float32")
+                D[b] = T.sqrt(C[b])
 
     @Ts.prim_func
     def batch_norm_bmn_1(A: T.Buffer((1, 512, 512), "float32"), D: T.Buffer(1, "float32")) -> None:
@@ -545,7 +538,7 @@ def test_gpu_batch_norm_bmn():
                     b = Ts.axis.spatial(1, i0_0 * 256 + i0_1)
                     Ts.reads(C_shared[b])
                     Ts.writes(D[b])
-                    D[b] = T.sqrt(C_shared[b], dtype="float32")
+                    D[b] = T.sqrt(C_shared[b])
 
     decision_0 = []  # type: ignore
     decision_1 = [

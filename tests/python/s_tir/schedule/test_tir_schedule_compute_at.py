@@ -739,7 +739,7 @@ def read_out_of_bound(A: T.Buffer([16], 'float32'), C: T.Buffer([16], 'float32')
         with Ts.sblock("C"):
             v = Ts.axis.S(16, j)
             Ts.reads(B[v : v + 2])
-            C[v] = T.if_then_else(v < 15, T.max(B[v], B[v + 1]), B[v], dtype="float32")
+            C[v] = T.if_then_else(v < 15, T.max(B[v], B[v + 1]), B[v])
 
 @Ts.prim_func
 def read_out_of_bound_after_compute_at(A: T.Buffer([16], 'float32'), C: T.Buffer([16], 'float32')) -> None:
@@ -755,7 +755,7 @@ def read_out_of_bound_after_compute_at(A: T.Buffer([16], 'float32'), C: T.Buffer
         with Ts.sblock("C"):
             v = Ts.axis.S(16, j)
             Ts.reads([B[v : v + 2]])
-            C[v] = T.if_then_else(v < 15, T.max(B[v], B[v + 1]), B[v], dtype="float32")
+            C[v] = T.if_then_else(v < 15, T.max(B[v], B[v + 1]), B[v])
 
 @Ts.prim_func
 def multi_reduction(A: T.Buffer((16, 16), "float32"), C: T.Buffer((), "float32")):
@@ -808,11 +808,11 @@ def tiled_pooling_read_cache(X: T.Buffer([224, 224], dtype='float32'), Y: T.Buff
             with Ts.init():
                 Y[h, w] = 0.0
             Y[h, w] = T.max(Y[h, w], T.if_then_else(
-                T.likely(1 <= h + kh, dtype="bool") and \
-                T.likely(h + kh < 225, dtype="bool") and \
-                T.likely(1 <= w + kw, dtype="bool") and \
-                T.likely(w + kw < 225, dtype="bool"),
-                cache[h + kh - 1, w + kw - 1], 0.0, dtype="float32"))
+                T.likely(1 <= h + kh) and \
+                T.likely(h + kh < 225) and \
+                T.likely(1 <= w + kw) and \
+                T.likely(w + kw < 225),
+                cache[h + kh - 1, w + kw - 1], 0.0))
 
 @Ts.prim_func
 def tiled_pooling_read_cache_after_compute_at(X: T.Buffer([224, 224], dtype='float32'), Y: T.Buffer([224, 224], dtype='float32')) -> None:
@@ -833,11 +833,11 @@ def tiled_pooling_read_cache_after_compute_at(X: T.Buffer([224, 224], dtype='flo
                 with Ts.init():
                     Y[h, w] = 0.0
                 Y[h, w] = T.max(Y[h, w], T.if_then_else(
-                    T.likely(1 <= h + kh, dtype="bool") and \
-                    T.likely(h + kh < 225, dtype="bool") and \
-                    T.likely(1 <= w + kw, dtype="bool") and \
-                    T.likely(w + kw < 225, dtype="bool"),
-                    cache[h + kh - 1, w + kw - 1], 0.0, dtype="float32"))
+                    T.likely(1 <= h + kh) and \
+                    T.likely(h + kh < 225) and \
+                    T.likely(1 <= w + kw) and \
+                    T.likely(w + kw < 225),
+                    cache[h + kh - 1, w + kw - 1], 0.0))
 
 @Ts.prim_func
 def non_uniform_tiled_conv(x: T.Buffer((1, 3, 100, 100), "float32"),
@@ -905,7 +905,7 @@ def concat_two_elemwise(x: T.Buffer((16,), "float32"),
     for i in T.serial(24):
         with Ts.sblock("T_concat"):
             ax = Ts.axis.spatial(24, i)
-            T_concat[ax] = T.if_then_else(16 <= ax, T_add_2[ax - 16], T_add_1[ax], dtype="float32")
+            T_concat[ax] = T.if_then_else(16 <= ax, T_add_2[ax - 16], T_add_1[ax])
 
 @Ts.prim_func
 def concat_two_elemwise_after_compute_at(x: T.Buffer((16,), "float32"),
@@ -924,7 +924,7 @@ def concat_two_elemwise_after_compute_at(x: T.Buffer((16,), "float32"),
             T_add_2[ax] = y[ax] + T.float32(2)
         with Ts.sblock("T_concat"):
             ax = Ts.axis.spatial(24, i)
-            T_concat[ax] = T.if_then_else(16 <= ax, T_add_2[ax - 16], T_add_1[ax], dtype="float32")
+            T_concat[ax] = T.if_then_else(16 <= ax, T_add_2[ax - 16], T_add_1[ax])
 
 @Ts.prim_func
 def floordiv_and_floormod_indices(X: T.Buffer([16, 16]), Y: T.Buffer([256])) -> None:
@@ -1476,7 +1476,6 @@ def test_compute_at_to_index():
                     3 <= i2_1 and i2_1 < 227 and 3 <= i3_1 and i3_1 < 227,
                     data[i0_1, i1_1, i2_1 - 3, i3_1 - 3],
                     T.int8(0),
-                    dtype="int8",
                 )
         for i0 in T.serial(1):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 7, 7):
@@ -1519,7 +1518,6 @@ def test_compute_at_to_index():
                         3 <= i2_1 and i2_1 < 227 and 3 <= i3_1 and i3_1 < 227,
                         data[i0_1, i1_1, i2_1 - 3, i3_1 - 3],
                         T.int8(0),
-                        dtype="int8",
                     )
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 7, 7):
                 with Ts.sblock("wbuf"):

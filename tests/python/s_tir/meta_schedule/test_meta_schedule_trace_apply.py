@@ -439,7 +439,7 @@ class Conv2dInt8:
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3])
                 Ts.writes(T_right_shift[ax0, ax1, ax2, ax3])
-                T_right_shift[ax0, ax1, ax2, ax3] = T.shift_right(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3], dtype="int64")
+                T_right_shift[ax0, ax1, ax2, ax3] = T.shift_right(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3])
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_cast_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -481,7 +481,7 @@ class Conv2dInt8:
                 i0_7, i1_7, i2_7, i3_7 = Ts.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 Ts.reads(T_subtract_1[i0_7, i1_7, i2_7, i3_7])
                 Ts.writes(compute[i0_7, i1_7, i2_7, i3_7])
-                compute[i0_7, i1_7, i2_7, i3_7] = T.q_multiply_shift(T_subtract_1[i0_7, i1_7, i2_7, i3_7], 1963325822, 31, 1, dtype="int32")
+                compute[i0_7, i1_7, i2_7, i3_7] = T.q_multiply_shift(T_subtract_1[i0_7, i1_7, i2_7, i3_7], 1963325822, 31, 1)
 
 @tvm.script.ir_module
 class Conv2dInt8_target:
@@ -558,7 +558,7 @@ class Conv2dInt8_target:
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3])
                 Ts.writes(T_right_shift[ax0, ax1, ax2, ax3])
-                T_right_shift[ax0, ax1, ax2, ax3] = T.shift_right(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3], dtype="int64")
+                T_right_shift[ax0, ax1, ax2, ax3] = T.shift_right(T_add_1[ax0, ax1, ax2, ax3], p6[0, 0, 0, ax3])
         for i0, i1, i2, i3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_cast_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -600,7 +600,7 @@ class Conv2dInt8_target:
                 i0_7, i1_7, i2_7, i3_7 = Ts.axis.remap("SSSS", [i0_6, i1_6, i2_6, i3_6])
                 Ts.reads(T_subtract_1[i0_7, i1_7, i2_7, i3_7])
                 Ts.writes(compute_2[i0_7, i1_7, i2_7, i3_7])
-                compute_2[i0_7, i1_7, i2_7, i3_7] = T.q_multiply_shift(T_subtract_1[i0_7, i1_7, i2_7, i3_7], 1098990753, 31, 1, dtype="int32")
+                compute_2[i0_7, i1_7, i2_7, i3_7] = T.q_multiply_shift(T_subtract_1[i0_7, i1_7, i2_7, i3_7], 1098990753, 31, 1)
         for i0_8, i1_8, i2_8, i3_8 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_3"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_8, i1_8, i2_8, i3_8])
@@ -825,7 +825,7 @@ class Conv2dInt8_NCHWc:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_add_1[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_floor[ax0, ax1, ax2, ax3, ax4])
-                T_floor[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_1[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_floor[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_1[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_cast_1"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -878,7 +878,7 @@ class Conv2dInt8_NCHWc:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_add_2[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_floor_1[ax0, ax1, ax2, ax3, ax4])
-                T_floor_1[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_2[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_floor_1[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_2[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_cast_4"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -995,7 +995,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_add_1[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_floor[ax0, ax1, ax2, ax3, ax4])
-                T_floor[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_1[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_floor[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_1[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_cast_1"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -1048,7 +1048,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_add_2[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_floor_1[ax0, ax1, ax2, ax3, ax4])
-                T_floor_1[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_2[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_floor_1[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_2[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_cast_4"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -1088,7 +1088,7 @@ class Conv2dInt8_NCHWc_target:
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
                 Ts.reads(T_add_3[ax0, ax1, ax2, ax3, ax4])
                 Ts.writes(T_floor_2[ax0, ax1, ax2, ax3, ax4])
-                T_floor_2[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_3[ax0, ax1, ax2, ax3, ax4], dtype="float32")
+                T_floor_2[ax0, ax1, ax2, ax3, ax4] = T.floor(T_add_3[ax0, ax1, ax2, ax3, ax4])
         for i0, i1, i2, i3, i4 in T.grid(1, 128, 7, 7, 16):
             with Ts.sblock("T_cast_6"):
                 ax0, ax1, ax2, ax3, ax4 = Ts.axis.remap("SSSSS", [i0, i1, i2, i3, i4])
@@ -1185,7 +1185,7 @@ def get_conv2d_vnni_mod(intrin_id):
                                 ax3_1, ax4 = Ts.axis.remap("SS", [ax3, ax4_fused])
                                 Ts.reads(conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4], p2[ax0_1, ax1_1, 0, 0, ax4], p3[ax0_1, ax1_1, 0, 0, ax4], p4[0], p5[ax0_1, ax1_1, ax2_1, ax3_1, ax4])
                                 Ts.writes(T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4])
-                                T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4] = T.cast(T.max(T.min(T.cast(T.max(T.min(T.cast(T.floor(T.float32(0.95489668846130371) * (T.cast(T.cast(T.max(T.min(T.cast(T.floor(T.cast(conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4] + p2[ax0_1, ax1_1, 0, 0, ax4], "float32") * p3[ax0_1, ax1_1, 0, 0, ax4] + T.float32(65.5), dtype="float32"), "int32"), 255), 0), "uint8"), "float32") - p4[0]) + T.float32(0.5), dtype="float32"), "int32") + T.cast(T.floor(T.float32(0.71245479583740234) * T.cast(p5[ax0_1, ax1_1, ax2_1, ax3_1, ax4], "float32") + T.float32(0.5), dtype="float32"), "int32"), 255), 0), "uint8"), T.uint8(255)), T.uint8(0)), "int32")
+                                T_cast[ax0_1, ax1_1, ax2_1, ax3_1, ax4] = T.cast(T.max(T.min(T.cast(T.max(T.min(T.cast(T.floor(T.float32(0.95489668846130371) * (T.cast(T.cast(T.max(T.min(T.cast(T.floor(T.cast(conv2d_NCHWc_int8[ax0_1, ax1_1, ax2_1, ax3_1, ax4] + p2[ax0_1, ax1_1, 0, 0, ax4], "float32") * p3[ax0_1, ax1_1, 0, 0, ax4] + T.float32(65.5)), "int32"), 255), 0), "uint8"), "float32") - p4[0]) + T.float32(0.5)), "int32") + T.cast(T.floor(T.float32(0.71245479583740234) * T.cast(p5[ax0_1, ax1_1, ax2_1, ax3_1, ax4], "float32") + T.float32(0.5)), "int32"), 255), 0), "uint8"), T.uint8(255)), T.uint8(0)), "int32")
 
     return Conv2dInt8_NCHWc_scheduled
 
@@ -1212,7 +1212,7 @@ class Conv2dWinogradAddRelu:
                 Ts.reads(p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
                 Ts.writes(data_pad[i0_1, i1_1, i2_1, i3_1])
                 Ts.sblock_attr({"schedule_rule":"None"})
-                data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 57 and 1 <= i2_1 and i2_1 < 57, p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.float32(0), dtype="float32")
+                data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 57 and 1 <= i2_1 and i2_1 < 57, p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.float32(0))
         for i0, i1, i2, i3 in T.grid(6, 6, 196, 64):
             with Ts.sblock("input_tile"):
                 eps, nu, p, ci = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1304,7 +1304,7 @@ class Conv2dWinogradAddResidualRelu:
                 Ts.reads(p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1])
                 Ts.writes(data_pad[i0_1, i1_1, i2_1, i3_1])
                 Ts.sblock_attr({"schedule_rule":"None"})
-                data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 57 and 1 <= i2_1 and i2_1 < 57, p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.float32(0), dtype="float32")
+                data_pad[i0_1, i1_1, i2_1, i3_1] = T.if_then_else(1 <= i1_1 and i1_1 < 57 and 1 <= i2_1 and i2_1 < 57, p0[i0_1, i1_1 - 1, i2_1 - 1, i3_1], T.float32(0))
         for i0, i1, i2, i3 in T.grid(6, 6, 196, 64):
             with Ts.sblock("input_tile"):
                 eps, nu, p, ci = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -1403,7 +1403,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
                         Ts.reads(p0[p // 196, p % 196 // 14 * 4 + eps - 1, p % 14 * 4 + nu - 1, ci])
                         Ts.writes(input_tile_local[eps, nu, p, ci])
                         Ts.sblock_attr({"schedule_rule":"None"})
-                        input_tile_local[eps, nu, p, ci] = T.if_then_else(1 <= p % 196 // 14 * 4 + eps and p % 196 // 14 * 4 + eps < 57 and 1 <= p % 14 * 4 + nu and p % 14 * 4 + nu < 57, p0[p // 196, p % 196 // 14 * 4 + eps - 1, p % 14 * 4 + nu - 1, ci], T.float32(0), dtype="float32")
+                        input_tile_local[eps, nu, p, ci] = T.if_then_else(1 <= p % 196 // 14 * 4 + eps and p % 196 // 14 * 4 + eps < 57 and 1 <= p % 14 * 4 + nu and p % 14 * 4 + nu < 57, p0[p // 196, p % 196 // 14 * 4 + eps - 1, p % 14 * 4 + nu - 1, ci], T.float32(0))
                 for i0 in T.unroll(6):
                     for i1 in T.unroll(6):
                         with Ts.sblock("data_pack_init"):
@@ -1564,7 +1564,7 @@ class Conv2dInt8_with_predicate:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 Ts.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
-                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True, dtype="int32")
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True)
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
@@ -1588,7 +1588,7 @@ class Conv2dInt8_with_predicate:
                 i0_8, i1_8, i2_8, i3_8 = Ts.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 Ts.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 Ts.writes(compute[i0_8, i1_8, i2_8, i3_8])
-                compute[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1963325822, 31, 1, dtype="int32")
+                compute[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1963325822, 31, 1)
 
 @tvm.script.ir_module
 class Conv2dInt8_with_predicate_target:
@@ -1640,7 +1640,7 @@ class Conv2dInt8_with_predicate_target:
                 i0_2, i1_2, i2_2, i3_2 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                 Ts.reads(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2])
                 Ts.writes(compute_1[i0_2, i1_2, i2_2, i3_2])
-                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True, dtype="int32")
+                compute_1[i0_2, i1_2, i2_2, i3_2] = T.q_multiply_shift_per_axis(T_add[i0_2, i1_2, i2_2, i3_2], p4[i3_2], p5[i3_2], p6[i3_2], 31, False, True)
         for i0_3, i1_3, i2_3, i3_3 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_1"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_3, i1_3, i2_3, i3_3])
@@ -1664,13 +1664,13 @@ class Conv2dInt8_with_predicate_target:
                 i0_8, i1_8, i2_8, i3_8 = Ts.axis.remap("SSSS", [i0_7, i1_7, i2_7, i3_7])
                 Ts.reads(T_subtract_1[i0_8, i1_8, i2_8, i3_8])
                 Ts.writes(compute_3[i0_8, i1_8, i2_8, i3_8])
-                compute_3[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1457846997, 31, 0, dtype="int32")
+                compute_3[i0_8, i1_8, i2_8, i3_8] = T.q_multiply_shift(T_subtract_1[i0_8, i1_8, i2_8, i3_8], 1457846997, 31, 0)
         for i0_9, i1_9, i2_9, i3_9 in T.grid(16, 56, 56, 256):
             with Ts.sblock("compute_3"):
                 i0_10, i1_10, i2_10, i3_10 = Ts.axis.remap("SSSS", [i0_9, i1_9, i2_9, i3_9])
                 Ts.reads(p9[i0_10, i1_10, i2_10, i3_10])
                 Ts.writes(compute_4[i0_10, i1_10, i2_10, i3_10])
-                compute_4[i0_10, i1_10, i2_10, i3_10] = T.q_multiply_shift(p9[i0_10, i1_10, i2_10, i3_10], 2101000910, 31, 0, dtype="int32")
+                compute_4[i0_10, i1_10, i2_10, i3_10] = T.q_multiply_shift(p9[i0_10, i1_10, i2_10, i3_10], 2101000910, 31, 0)
         for i0_11, i1_11, i2_11, i3_11 in T.grid(16, 56, 56, 256):
             with Ts.sblock("T_add_2"):
                 ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0_11, i1_11, i2_11, i3_11])

@@ -548,7 +548,7 @@ def exp_exp_opaque_access_with_tvm_access_ptr(
             i0_1 = Ts.axis.spatial(16, i0)
             Ts.reads(x[i0_1])
             Ts.writes(compute_1[i0_1])
-            compute_1[i0_1] = T.exp(x[i0_1], dtype="float16")
+            compute_1[i0_1] = T.exp(x[i0_1])
     for i0 in T.serial(16):
         with Ts.sblock("compute_1"):
             i0_2 = Ts.axis.spatial(16, i0)
@@ -557,7 +557,6 @@ def exp_exp_opaque_access_with_tvm_access_ptr(
             T.evaluate(lookup_table.access_ptr("r"))
             compute[i0_2] = T.exp(
                 compute_1[i0_2],
-                dtype="float16",
             )
 
 
@@ -576,8 +575,7 @@ def exp_exp_opaque_access_with_tvm_access_ptr_inlined(
             Ts.writes(compute[i0_1])
             T.evaluate(lookup_table.access_ptr("r"))
             compute[i0_1] = T.exp(
-                T.exp(x[i0_1], dtype="float16"),
-                dtype="float16",
+                T.exp(x[i0_1]),
             )
 
 
@@ -673,7 +671,7 @@ def elementwise_producer_not_cover_consumer(
     for i, j in T.grid(256, 128):
         with Ts.sblock("C"):
             vi, vj = Ts.axis.remap("SS", [i, j])
-            D[vi, vj] = T.if_then_else(vi >= 128, B[vi - 128, vj], T.float32(0), dtype="float32")
+            D[vi, vj] = T.if_then_else(vi >= 128, B[vi - 128, vj], T.float32(0))
 
 
 @Ts.prim_func
@@ -835,13 +833,13 @@ class Conv2dInt8_TensorCore_with_predicate_before:
                             v1 = Ts.axis.spatial(256, ax2_0_0_ax3_0_0_fused % 4 * 64 + (ax1_0 * 256 + ax1_1 * 64 + ax1_2 * 2 + ax1_3))
                             Ts.reads(p7[()], conv2d_nhwc_reindex_shared[v0, v1], p2[0, 0, 0, v1], p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], p8[0])
                             Ts.writes(compute_3[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
-                            compute_3[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.q_multiply_shift(T.max(T.min(p7[()] + T.q_multiply_shift_per_axis(conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], 31, False, True, dtype="int32"), 255), 0) - p8[0], 1457846997, 31, 0, dtype="int32")
+                            compute_3[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.q_multiply_shift(T.max(T.min(p7[()] + T.q_multiply_shift_per_axis(conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], 31, False, True), 255), 0) - p8[0], 1457846997, 31, 0)
             for i0_12, i1_12, i2_12, i3_12 in T.grid(16, 56, 56, 256):
                 with Ts.sblock("compute_4"):
                     i0_13, i1_13, i2_13, i3_13 = Ts.axis.remap("SSSS", [i0_12, i1_12, i2_12, i3_12])
                     Ts.reads(compute_3[i0_13, i1_13, i2_13, i3_13], p9[i0_13, i1_13, i2_13, i3_13])
                     Ts.writes(compute[i0_13, i1_13, i2_13, i3_13])
-                    compute[i0_13, i1_13, i2_13, i3_13] = T.max(T.min(compute_3[i0_13, i1_13, i2_13, i3_13] + T.q_multiply_shift(p9[i0_13, i1_13, i2_13, i3_13], 2101000910, 31, 0, dtype="int32"), 255), 0)
+                    compute[i0_13, i1_13, i2_13, i3_13] = T.max(T.min(compute_3[i0_13, i1_13, i2_13, i3_13] + T.q_multiply_shift(p9[i0_13, i1_13, i2_13, i3_13], 2101000910, 31, 0), 255), 0)
 
 @tvm.script.ir_module
 class Conv2dInt8_TensorCore_with_predicate_after:

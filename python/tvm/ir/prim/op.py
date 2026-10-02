@@ -80,4 +80,4 @@ def clz(x):
     y : Expr
         The result.
     """
-    return Call("prim.clz", [x], ret_ty="int32")
+    return Call("prim.clz", [x], ty="int32")

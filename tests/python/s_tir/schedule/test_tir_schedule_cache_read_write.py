@@ -280,11 +280,9 @@ def opaque_access(
                         vi * 2048 + vj * 16,
                         128,
                         1,
-                        dtype="handle",
                     ),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
     for i, j in T.grid(8, 8):
@@ -325,11 +323,9 @@ def opaque_access(
                         A0.elem_offset,
                         A0.strides[0],
                         1,
-                        dtype="handle",
                     ),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
 
@@ -601,11 +597,9 @@ def cache_read_opaque_access(
                         vi * 2048 + vj * 16,
                         128,
                         1,
-                        dtype="handle",
                     ),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
     for i, j in T.grid(8, 8):
@@ -646,11 +640,9 @@ def cache_read_opaque_access(
                         A0.elem_offset,
                         A0.strides[0],
                         1,
-                        dtype="handle",
                     ),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
 
@@ -966,11 +958,9 @@ def cache_write_opaque_access(
                         vi * 2048 + vj * 16,
                         128,
                         1,
-                        dtype="handle",
                     ),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
     for i, j in T.grid(8, 8):
@@ -1011,11 +1001,9 @@ def cache_write_opaque_access(
                         A0.elem_offset,
                         A0.strides[0],
                         1,
-                        dtype="handle",
                     ),
                     128,
                     "row_major",
-                    dtype="handle",
                 )
             )
 

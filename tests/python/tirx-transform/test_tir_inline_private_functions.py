@@ -224,12 +224,11 @@ class TestInlineFunctionWithBufferArguments(BaseTestCase):
             Before.subroutine(
                 T.tvm_stack_make_array(
                     A.data,
-                    T.tvm_stack_make_shape(*A.ty.shape, dtype="handle"),
+                    T.tvm_stack_make_shape(*A.ty.shape),
                     0,
                     len(A.ty.shape),
                     0.0,
                     A.ty.elem_offset,
-                    dtype="handle",
                 )
             )
 

@@ -48,7 +48,7 @@ def test_rewrite_cuda_graph():
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
-                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
+                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1])
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):
@@ -92,7 +92,7 @@ def test_rewrite_cuda_graph():
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         Ts.reads(rxplaceholder[i0, i1])
                         Ts.writes(compute[i0, i1])
-                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
+                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1])
 
         @R.function(private=True)
         def cuda_graph_alloc() -> R.Tuple(R.Any, R.Any, R.Any):
@@ -162,7 +162,7 @@ def test_tuple():
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         Ts.reads(rxplaceholder[i0, i1])
                         Ts.writes(compute[i0, i1])
-                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
+                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1])
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
@@ -265,7 +265,7 @@ def test_vm_builtin():
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
-                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
+                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1])
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):

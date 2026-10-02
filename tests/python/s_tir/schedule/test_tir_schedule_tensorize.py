@@ -70,7 +70,7 @@ def mma_intrin(A: T.Buffer((16, 16), align=64, offset_factor=1), B: T.Buffer((16
                 B.elem_offset // 256,
                 C.data,
                 C.elem_offset // 256,
-                dtype="handle",
+
             )
         )
 
@@ -224,7 +224,7 @@ def tensorized_matmul(A: T.Buffer([128, 128], elem_offset=0, align=64, offset_fa
                         T.floordiv(B_sub.elem_offset, 256),
                         C_sub.data,
                         T.floordiv(C_sub.elem_offset, 256),
-                        dtype="handle",
+
                     )
                 )
 
@@ -295,7 +295,7 @@ def tensorized_batch_matmul_mma(
                         T.floordiv(B_sub.elem_offset, 256),
                         C_sub.data,
                         T.floordiv(C_sub.elem_offset, 256),
-                        dtype="handle",
+
                     )
                 )
 
@@ -447,7 +447,7 @@ def annotated_tensorized_matmul(A: T.Buffer([128, 128], elem_offset=0, align=64,
                         T.floordiv(B_sub.elem_offset, 256),
                         C_sub.data,
                         T.floordiv(C_sub.elem_offset, 256),
-                        dtype="handle",
+
                     )
                 )
 
@@ -769,7 +769,7 @@ def test_tensorize_matmul_mixed_dtype():
                             T.floordiv(B_sub.elem_offset, T.int64(256)),
                             C_sub.data,
                             T.floordiv(C_sub.elem_offset, T.int64(256)),
-                            dtype="handle",
+
                         )
                     )
     # fmt: on
