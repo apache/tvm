@@ -1698,7 +1698,7 @@ ffi::String RenderPythonScript(Doc doc, const PrinterConfig& cfg,
   std::string script = printer.GetString();
 
   // GetString terminates non-empty output with one newline.  Preserve the
-  // established DocToPythonScript result without normalizing any other
+  // established rendering result without normalizing any other
   // trailing whitespace.
   if (!script.empty()) {
     TVM_FFI_ICHECK_EQ(script.back(), '\n');
@@ -1711,18 +1711,12 @@ ffi::String RenderPythonScript(Doc doc, const PrinterConfig& cfg,
 
 }  // namespace details
 
-ffi::String DocToPythonScriptWithHeader(Doc doc, const PrinterConfig& cfg,
-                                        const ffi::Array<ffi::Any>& header) {
-  return details::RenderPythonScript(std::move(doc), cfg, header, cfg->path_to_underline, {});
-}
-
-ffi::String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
-  return DocToPythonScriptWithHeader(std::move(doc), cfg, {});
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.printer.DocToPythonScript", DocToPythonScript);
+  refl::GlobalDef().def("script.printer.DocToPythonScript", [](Doc doc,
+                                                               const PrinterConfig& config) {
+    return details::RenderPythonScript(std::move(doc), config, {}, config->path_to_underline, {});
+  });
 }
 
 }  // namespace printer
