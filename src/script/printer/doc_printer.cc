@@ -1159,8 +1159,8 @@ void PythonDocPrinter::PrintTypedDoc(const NamespaceDoc& doc) {
   const ffi::String& name = doc->canonical_name;
   ffi::String key = std::string(name) + ".prefix";
   ffi::String fallback = GetNamespaceAliases().Get(key).value_or(name);
-  output_ << (name == "ir" ? config()->ir_prefix
-                           : config()->GetExtraConfig<ffi::String>(key, fallback));
+  output_ << config()->GetExtraConfig<ffi::String>(key,
+                                                   name == "ir" ? config()->ir_prefix : fallback);
 }
 
 void PythonDocPrinter::PrintTypedDoc(const AttrAccessDoc& doc) {

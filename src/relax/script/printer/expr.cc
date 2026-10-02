@@ -71,14 +71,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&ShapeExprDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> DataflowVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                               const ffi::Object* destination) {
-  return VarDocTranslate(d, input, destination);
-}
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<relax::DataflowVarNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&DataflowVarDocTranslate>());
+      kDocTranslate, FDocTranslate::FromNative<&VarDocTranslate>());
 }
 
 }  // namespace

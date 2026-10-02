@@ -44,8 +44,7 @@ ffi::Optional<ffi::String> GlobalInfoSelector(DocTranslatorObj* d, const GlobalI
         if (auto device = entry.as<relax::VDevice>();
             device && device.value()->target->kind->name == kind) {
           if (entry.same_as(info)) {
-            return ffi::String(std::string(kind) + ":" + std::to_string(index) + ":" +
-                               std::string(device.value()->memory_scope));
+            return ffi::String(std::string(kind) + ":" + std::to_string(index));
           }
           ++index;
         }

@@ -58,10 +58,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&ShapeTypeDocTranslate>());
 }
 
-}  // namespace
-
-ExprDoc RelaxTensorTypeDoc(DocTranslatorObj* d, const relax::TensorTypeNode* ty,
-                           bool include_vdevice) {
+ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* ty =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::TensorTypeNode>(
+          input);
   ffi::Array<ExprDoc> args;
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
@@ -82,7 +83,7 @@ ExprDoc RelaxTensorTypeDoc(DocTranslatorObj* d, const relax::TensorTypeNode* ty,
     keys.push_back("ndim");
     values.push_back(LiteralDoc::Int(ty->ndim, std::nullopt));
   }
-  if (include_vdevice && ty->vdevice.has_value()) {
+  if (ty->vdevice.has_value()) {
     keys.push_back("vdevice");
     if (auto selector = GlobalInfoSelector(d, ty->vdevice.value())) {
       values.push_back(LiteralDoc::Str(selector.value(), std::nullopt));
@@ -92,16 +93,6 @@ ExprDoc RelaxTensorTypeDoc(DocTranslatorObj* d, const relax::TensorTypeNode* ty,
   }
   if (args.empty() && keys.empty()) return NamespaceDoc("relax")->Attr("Tensor");
   return NamespaceDoc("relax")->Attr("Tensor")->Call(args, keys, values);
-}
-
-namespace {
-
-ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
-  const auto* ty =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const relax::TensorTypeNode>(
-          input);
-  return RelaxTensorTypeDoc(d, ty, true);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -63,11 +63,7 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   auto signature_candidates = CopyImplicitDefs(d);
   ffi::Optional<ExprDoc> ret_type = std::nullopt;
   if (!func->ret_ty.IsMissing()) {
-    if (auto tensor = func->ret_ty.as<relax::TensorTypeNode>()) {
-      ret_type = RelaxTensorTypeDoc(d, tensor, true);
-    } else {
-      ret_type = d->Translate(func->ret_ty).value();
-    }
+    ret_type = d->Translate(func->ret_ty).value();
   }
   ffi::Array<ffi::String> decorator_keys;
   ffi::Array<ExprDoc> decorator_values;

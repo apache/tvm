@@ -49,7 +49,7 @@ def test_constant():
     )
     assert (
         constant.__str__()
-        == """R.dist.const(1.0, R.DTensor((), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "R, R"))"""
+        == """R.dist.const(1.0, R.DTensor((), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "R, R"))"""
     )
 
 
@@ -59,13 +59,13 @@ def test_dtensor_type():
     obj0 = DTensorType(tensor_ty1, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R"))
     assert (
         obj0.__str__()
-        == """R.DTensor((32, 32), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[1], R")"""
+        == """R.DTensor((32, 32), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[1], R")"""
     )
 
     obj1 = DTensorType(tensor_ty2, DeviceMesh((2, 2), Range(0, 4)), Placement.from_text("S[1], R"))
     assert (
         obj1.__str__()
-        == """R.DTensor((32, 32), device_mesh=R.device_mesh((2, 2), R.Range(0, 4)), placement="S[1], R")"""
+        == """R.DTensor((32, 32), device_mesh=R.device_mesh((2, 2), I.Range(0, 4)), placement="S[1], R")"""
     )
 
     obj2 = DTensorType(tensor_ty2, DeviceMesh((2, 2), [0, 1, 2, 3]), Placement.from_text("S[1], R"))
@@ -73,6 +73,45 @@ def test_dtensor_type():
         obj2.__str__()
         == """R.DTensor((32, 32), device_mesh=R.device_mesh((2, 2), [0, 1, 2, 3]), placement="S[1], R")"""
     )
+
+
+@pytest.mark.parametrize("memory_scope", ["", "global", "global:workspace"])
+def test_vdevice_selector_preserves_registry_identity(memory_scope):
+    @I.ir_module
+    class Module:
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    R.vdevice("llvm"),
+                    R.vdevice("cuda", 0, "global"),
+                    R.vdevice("cuda", 0, memory_scope),
+                ]
+            }
+        )
+
+        @R.function
+        def main(x: R.Tensor((4,), "float32", "cuda:1")) -> R.Tensor((4,), "float32", "cuda:1"):
+            return x
+
+    script = Module.script()
+    assert script.count('vdevice="cuda:1"') == 2
+    restored = tvm.script.from_source(script, extra_vars={"I": I, "R": R, "T": T})
+    tvm.ir.assert_structural_equal(Module, restored)
+    selected = restored.global_infos["vdevice"][2]
+    assert selected.memory_scope == memory_scope
+    assert restored["main"].params[0].ty.vdevice.is_(selected)
+    assert restored["main"].ret_ty.vdevice.is_(selected)
+    assert not selected.is_(restored.global_infos["vdevice"][1])
+
+
+def test_device_mesh_range_namespace_roundtrip():
+    mesh = DeviceMesh((2, 2), Range(0, 4))
+    assert str(mesh) == "R.device_mesh((2, 2), I.Range(0, 4))"
+    mod = IRModule({})
+    mod.update_global_info("mesh", [mesh])
+    script = mod.script()
+    assert "R.device_mesh((2, 2), I.Range(0, 4))" in script
+    tvm.ir.assert_structural_equal(mod, tvm.script.from_source(script, extra_vars={"I": I, "R": R}))
 
 
 @I.ir_module
@@ -118,11 +157,12 @@ def test_func():
         """
 from __future__ import annotations
 
+# from tvm.script import ir as I
 # from tvm.script import relax as R
 
 @R.function
-def foo(x: R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R")) -> R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R"):
-    gv0 = R.dist.call_tir(Module.tir_func, (x,), out_ty=R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R"))
+def foo(x: R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R")) -> R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R"):
+    gv0 = R.dist.call_tir(Module.tir_func, (x,), out_ty=R.DTensor((128, 128), "float32", R.device_mesh((2, 2), I.Range(0, 4)), "S[0], R"))
     return gv0
             """,
     )
@@ -193,6 +233,18 @@ def func(a: R.Tensor((10, 10))) -> R.Tensor((10, 10)):
     R.func_attr({"some_attr": 1})
     return a""",
     )
+
+
+def test_function_return_tensor_source_span():
+    x = relax.Var("x", relax.TensorType((4,), "float32"))
+    func = relax.Function([x], x, ret_ty=x.ty).with_attr("global_symbol", "main")
+    script = func.script(path_to_underline=[AccessPath.root().attr("ret_ty")])
+    lines = script.splitlines()
+    index = next(i for i, line in enumerate(lines) if "def main" in line)
+    definition, underline = lines[index : index + 2]
+    start = definition.index(" -> ") + len(" -> ")
+    end = definition.rindex(":")
+    assert underline == " " * start + "^" * (end - start)
 
 
 def test_function_dependent_shape_source_spans():
@@ -336,7 +388,9 @@ def test_extern_func_with_ty_roundtrip():
     tvm.ir.assert_structural_equal(mod, roundtrip)
 
 
-def test_nested_function():
+@pytest.mark.parametrize("relax_prefix", ["R", "CustomR"])
+@pytest.mark.parametrize("comment_imports", [False, True])
+def test_nested_function(relax_prefix, comment_imports):
     @I.ir_module
     class NestedFunction:
         @R.function
@@ -348,8 +402,12 @@ def test_nested_function():
             z = nested(x)
             return z
 
-    _assert_print_lines(
-        NestedFunction,
+    script = NestedFunction.script(
+        verbose_expr=True,
+        extra_config={"relax.prefix": relax_prefix, "ir.comment_imports": comment_imports},
+    )
+    _assert_print(
+        script,
         """
 from __future__ import annotations
 
@@ -360,15 +418,18 @@ from __future__ import annotations
 class Module:
     @R.function
     def main(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        # from tvm.script import relax as R
-
         @R.function
         def nested(y: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
             return y
 
         z: R.Tensor((), dtype="int32") = nested(x)
         return z
-""",
+""".replace("R.", f"{relax_prefix}.")
+        .replace("relax as R", f"relax as {relax_prefix}")
+        .replace("# from", "# from" if comment_imports else "from"),
+    )
+    tvm.ir.assert_structural_equal(
+        NestedFunction, tvm.script.from_source(script, extra_vars={"I": I, relax_prefix: R})
     )
 
 
