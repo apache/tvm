@@ -935,6 +935,18 @@ class StorageAllocationRewriter : public ExprMutator {
  private:
   using ExprMutator::VisitExpr_;
 
+  Expr VisitExpr_(const SeqExprNode* seq) final {
+    // A storage var is only visible in the scope it is emitted in, such as an if branch.
+    // Forget the vars emitted in this scope on exit, so that a token first used inside a
+    // branch gets a new `alloc_storage` where it is reused in another branch or after the if.
+    // A token shared by several scopes is allocated in each at its final size, which
+    // `RequestReuse` may have enlarged.
+    auto saved_token2storage_var = token2storage_var_;
+    Expr ret = ExprMutator::VisitExpr_(seq);
+    token2storage_var_ = std::move(saved_token2storage_var);
+    return ret;
+  }
+
   Expr VisitExpr_(const CallNode* call) final {
     static const Op alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     static const Op mem_alloc_storage = Op::Get("relax.memory.alloc_storage");
@@ -1030,7 +1042,7 @@ class StorageAllocationRewriter : public ExprMutator {
   std::unordered_map<const ExprNode*, StorageToken> alloc_tensor2token_;
   /*! \brief The mapping from each binding block to the storage tokens that are create inside. */
   std::unordered_map<const BindingBlockNode*, std::vector<const StorageTokenNode*>> block2tokens_;
-  /*! \brief The mapping from each token to its corresponding storage var in each function. */
+  /*! \brief The mapping from each token to its storage var visible in the current scope. */
   std::unordered_map<const StorageTokenNode*, Var> token2storage_var_;
 };
 

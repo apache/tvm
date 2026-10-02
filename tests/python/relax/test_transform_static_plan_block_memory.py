@@ -1877,5 +1877,114 @@ def test_with_dataflow():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def _count_alloc_storage(func):
+    alloc_storage_op = tvm.ir.Op.get("relax.memory.alloc_storage")
+    count = 0
+
+    def visit(expr):
+        nonlocal count
+        if isinstance(expr, relax.Call) and expr.op.same_as(alloc_storage_op):
+            count += 1
+
+    relax.analysis.post_order_visit(func, visit)
+    return count
+
+
+def test_if_branches_do_not_share_storage_var():
+    @I.ir_module
+    class Before:
+        @Ts.prim_func
+        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            if cond:
+                alloc = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(x, alloc)
+                out = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(alloc, out)
+                z = out
+            else:
+                alloc1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(x, alloc1)
+                out1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(alloc1, out1)
+                z = out1
+            return z
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert _count_alloc_storage(after["main"]) == 2
+
+
+def test_if_branch_storage_not_reused_after_if():
+    @I.ir_module
+    class Before:
+        @Ts.prim_func
+        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            if cond:
+                z = x
+            else:
+                alloc = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(x, alloc)
+                out = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(alloc, out)
+                z = out
+            alloc1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            cls.exp(z, alloc1)
+            out1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            cls.exp(alloc1, out1)
+            return out1
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert _count_alloc_storage(after["main"]) == 2
+
+
+def test_if_branches_share_storage_allocated_before_if():
+    @I.ir_module
+    class Before:
+        @Ts.prim_func
+        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            alloc = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            cls.exp(x, alloc)
+            out = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            cls.exp(alloc, out)
+            if cond:
+                alloc1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(out, alloc1)
+                z = out
+            else:
+                alloc2 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(out, alloc2)
+                z = out
+            return z
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert _count_alloc_storage(after["main"]) == 1
+
+
 if __name__ == "__main__":
     tvm.testing.main()
