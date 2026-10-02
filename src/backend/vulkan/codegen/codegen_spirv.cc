@@ -898,7 +898,10 @@ void CodeGenSPIRV::DispatchAllocBuffer(const BindNode* op, const CallNode* buffe
     case runtime::StorageRank::kWMMAMatrixA:
     case runtime::StorageRank::kWMMAMatrixB:
     case runtime::StorageRank::kWMMAAccumulator: {
-      TVM_FFI_ICHECK(fragment_info_.count(var_node));
+      auto shape = annotations->dict.Get(s_tir::attr::fragment_shape);
+      TVM_FFI_ICHECK(shape.has_value())
+          << "Cannot find shape of the wmma fragment " << buffer.name();
+      fragment_info_[var_node] = {shape.value().as_or_throw<ffi::String>()};
       fragment_info_[var_node].scope = scope;
       etype = GetFragmentSType(var_node, PrimType(dtype));
       storage_class = spv::StorageClassFunction;
@@ -989,10 +992,6 @@ void CodeGenSPIRV::Dispatch_(const AttrStmtNode* op) {
         var_map_[iv->var.get()] = GetThreadIndex(iv, op->value.as_or_throw<PrimExpr>());
       }
     }
-  } else if (op->attr_key == s_tir::attr::fragment_shape) {
-    const VarNode* buffer = op->node.as<VarNode>();
-    const StringImmNode* shape_str = op->value.as<StringImmNode>();
-    fragment_info_[buffer] = {shape_str->value};
   }
   this->Dispatch(op->body);
 }

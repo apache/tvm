@@ -1544,15 +1544,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
-  if (op->attr_key == s_tir::attr::fragment_shape) {
-    const VarNode* buffer = op->node.as<VarNode>();
-    const StringImmNode* shape_str = op->value.as<StringImmNode>();
-    fragment_shapes[buffer] = shape_str->value;
-  } else if (op->attr_key == s_tir::attr::fragment_layout) {
-    const VarNode* buffer = op->node.as<VarNode>();
-    const StringImmNode* layout_str = op->value.as<StringImmNode>();
-    fragment_layouts[buffer] = layout_str->value;
-  } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
+  if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
@@ -1607,6 +1599,16 @@ void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
 
+  std::string fragment_shape;
+  std::string fragment_layout;
+  if (std::string(scope).find("wmma.") == 0) {
+    auto shape = annotations->dict.Get(s_tir::attr::fragment_shape);
+    TVM_FFI_ICHECK(shape.has_value()) << "Cannot find shape of the wmma fragment " << buffer.name();
+    fragment_shape = shape.value().as_or_throw<ffi::String>();
+    if (auto layout = annotations->dict.Get(s_tir::attr::fragment_layout)) {
+      fragment_layout = layout.value().as_or_throw<ffi::String>();
+    }
+  }
   this->PrintIndent();
   if (std::string(scope).find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
@@ -1625,7 +1627,7 @@ void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer
       TVM_FFI_ICHECK(supported_wmma_accumulator_dtype)
           << "Accumulator only support half, float and int type for now";
     }
-    PrintWmmaScope(scope, PrimType(dtype), buffer.get(), stream);
+    PrintWmmaScope(scope, PrimType(dtype), fragment_shape, fragment_layout, stream);
   } else {
     PrintStorageScope(scope, stream);
     int align = buffer->data_alignment;
@@ -1656,7 +1658,7 @@ void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer
     TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
     if (std::string(scope).find("wmma.") == 0) {
-      constant_size = GetWmmaFragmentSize(scope, buffer.get(), constant_size);
+      constant_size = GetWmmaFragmentSize(scope, fragment_shape, constant_size);
     }
     bool is_packed_integer_dtype = PrimType(dtype) == PrimType::Int(4) ||
                                    PrimType(dtype) == PrimType::UInt(4) ||
@@ -1952,12 +1954,10 @@ void CodeGenCUDA::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLI
 }
 
 void CodeGenCUDA::PrintWmmaScope(const std::string& scope, const PrimType& t,
-                                 const VarNode* variable, std::ostream& os) {
+                                 const std::string& shape_str, const std::string& layout_str,
+                                 std::ostream& os) {
   std::stringstream type;
   PrintType(t, type);
-  TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name;
-  std::string shape_str = fragment_shapes.at(variable);
   if ((t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && t.bits() < 8 &&
       t.lanes() == 1) {
     type.str(std::string());
@@ -1979,13 +1979,11 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, const PrimType& t,
   }
   if (scope == "wmma.matrix_a") {
     codegen_tags_.insert("mma");
-    std::string layout_str = fragment_layouts[variable];
     TVM_FFI_ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_a";
     os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, " << shape_str << ", " << type.str()
        << ", nvcuda::wmma::" << layout_str << ">";
   } else if (scope == "wmma.matrix_b") {
     codegen_tags_.insert("mma");
-    std::string layout_str = fragment_layouts[variable];
     TVM_FFI_ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_b";
     os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, " << shape_str << ", " << type.str()
        << ", nvcuda::wmma::" << layout_str << ">";
@@ -2005,11 +2003,8 @@ int stoi(const std::string& str) {
   }
 }
 
-int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
+int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const std::string& shape_str,
                                          int32_t size) {
-  TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name;
-  std::string shape_str = fragment_shapes.at(variable);
   std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
   if (dim.first * dim.second != 0)
     return size / dim.first / dim.second;

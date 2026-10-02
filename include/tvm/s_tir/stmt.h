@@ -226,12 +226,12 @@ constexpr const char* double_buffer_scope = "double_buffer_scope";
 constexpr const char* double_buffer_write = "double_buffer_write";
 
 /*!
- * \brief Mark that the shape of TensorCore fragment
+ * \brief String-valued allocation Call attribute containing the TensorCore fragment shape
  */
 constexpr const char* fragment_shape = "fragment_shape";
 
 /*!
- * \brief Mark that the layout of TensorCore fragment
+ * \brief String-valued allocation Call attribute containing the TensorCore fragment layout
  */
 constexpr const char* fragment_layout = "fragment_layout";
 
