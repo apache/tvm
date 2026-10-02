@@ -209,31 +209,30 @@ class InferFragmenter : public s_tir::StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, inplace_mode);
+      auto it = fragment_getter.fragments.find(op->var.get());
+      if (it == fragment_getter.fragments.end()) return ffi::Unchanged();
+      const FragmentInfo& info = it->second;
+      DictAttrs attrs = call->attrs.as_or_throw<DictAttrs>();
+      auto annotations = attrs->dict;
+      auto set_annotation = [&](const char* key, const std::string& value) {
+        if (auto existing = annotations.Get(key)) {
+          auto str = existing.value().as<ffi::String>();
+          TVM_FFI_CHECK(str && str.value() == value, ValueError)
+              << "Conflicting " << key << " on fragment " << op->var->name;
+        } else {
+          annotations.Set(key, ffi::String(value));
+        }
+      };
+      set_annotation(
+          s_tir::attr::fragment_shape,
+          std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k));
+      if (!info.layout.empty()) set_annotation(s_tir::attr::fragment_layout, info.layout);
+      if (annotations.same_as(attrs->dict)) return ffi::Unchanged();
+      auto value = ffi::GetRef<Call>(call);
+      value.CopyOnWrite()->attrs = DictAttrs(std::move(annotations));
+      return Bind(op->var, std::move(value), op->span);
     }
     return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
-  }
-
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    Stmt stmt =
-        s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    const VarNode* buffer = op->var.get();
-    if (fragment_getter.fragments.count(buffer)) {
-      FragmentInfo info = fragment_getter.fragments.at(buffer);
-
-      std::string shape =
-          std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
-      Expr shape_expr = StringImm(shape);
-      Stmt shape_attr = AttrStmt(op->var, s_tir::attr::fragment_shape, shape_expr, stmt);
-      if (info.layout != "") {
-        Stmt layout_attr =
-            AttrStmt(op->var, s_tir::attr::fragment_layout, StringImm(info.layout), shape_attr);
-        return layout_attr;
-      } else {
-        return shape_attr;
-      }
-    }
-    return stmt;
   }
 
  private:
