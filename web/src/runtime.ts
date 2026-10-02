@@ -921,6 +921,7 @@ export class Instance implements Disposable {
   private initProgressCallback: Array<InitProgressCallback> = [];
   private rng: LinearCongruentialGenerator;
   private deviceLostIsError = true;  // whether device.lost is due to actual error or dispose()
+  private autoDisposeOnDeviceLost = true;
   private cacheState: CacheState = new CacheState();
 
   /**
@@ -1868,13 +1869,27 @@ export class Instance implements Disposable {
    */
   makeShapeTuple(shape: Array<number>): TVMObject {
     const key = CacheState.computeShapeKey(shape);
-    return this.cacheState.shapeCache.get(key, () => {
+    const cachedTuple = this.cacheState.shapeCache.get(key, () => {
       const shapeArray = shape.map((value) => new Scalar(value, "int"));
       const tuple = this.ctx.makeShapeTuple(...shapeArray);
       // Detach from scope so the cached object survives across scopes.
       this.detachFromCurrentScope(tuple);
       return tuple;
     }) as TVMObject;
+
+    // The cache owns its wrapper and may release it on eviction. Give the
+    // caller an independent strong reference with the usual scope lifetime.
+    const handle = cachedTuple.getHandle();
+    this.lib.checkCall(
+      (this.lib.exports.TVMFFIObjectIncRef as ctypes.FTVMFFIObjectIncRef)(handle)
+    );
+    const callerTuple = new TVMObject(handle, this.lib, this.ctx);
+    try {
+      return this.attachToCurrentScope(callerTuple);
+    } catch (err) {
+      callerTuple.dispose();
+      throw err;
+    }
   }
   /**
    * Get type index from type key.
@@ -2066,7 +2081,7 @@ export class Instance implements Disposable {
     });
 
     device.lost.then((info: any) => {
-      if (this.deviceLostIsError) {
+      if (this.deviceLostIsError && this.autoDisposeOnDeviceLost) {
         console.error("Device lost, calling Instance.dispose(). Please initialize again. ", info);
         this.dispose();
       }
@@ -2092,6 +2107,17 @@ export class Instance implements Disposable {
       });
     }
     this.lib.webGPUContext = webGPUContext;
+  }
+
+  /**
+   * Configure automatic disposal after WebGPU device loss.
+   *
+   * External owners should disable automatic disposal after initialization if
+   * they serialize disposal with active runtime calls.
+   * @param enabled Whether device loss should immediately dispose this instance.
+   */
+  setDeviceLostAutoDispose(enabled: boolean): void {
+    this.autoDisposeOnDeviceLost = enabled;
   }
 
   /** Register all object factory */
