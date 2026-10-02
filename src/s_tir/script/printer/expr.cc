@@ -16,11 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/op.h>
-#include <tvm/tirx/type.h>
-
-#include <algorithm>
 
 #include "../../../tirx/script/printer/utils.h"
 
@@ -50,40 +46,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.s_tir.cp_async_raw")
       .set_attr<FDocTranslate>(kOpCallDocTranslate,
                                FDocTranslate::FromNative<&CpAsyncRawDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> Ldg32DocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                         const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  ffi::Optional<Type> inferred = std::nullopt;
-  if (std::all_of(call->args.begin(), call->args.end(),
-                  [](const Expr& arg) { return !arg->ty.IsMissing(); })) {
-    try {
-      inferred = Call::ReinferType(call);
-    } catch (const ffi::Error&) {
-      // Preserve calls whose result type cannot be reconstructed.
-    }
-  }
-  if (!inferred || !ffi::StructuralEqual()(inferred.value(), call->ty)) {
-    return RawCall(d, call, false);
-  }
-  ffi::Array<ExprDoc> args;
-  for (const Expr& arg : call->args) args.push_back(d->Translate(arg).value());
-  // The constructor uses the destination type and converts BufferVar sources to loads.
-  bool compatible = call->args.size() == 4 && call->args[0].as<TensorLoadNode>() &&
-                    ffi::StructuralEqual()(call->args[0]->ty, inferred.value()) &&
-                    !(call->args[2].as<VarNode>() && call->args[2]->ty.as<tirx::BufferTypeNode>());
-  if (compatible) {
-    if (auto doc = TIRCallDocTranslate(d, call, inferred.value(), args)) return doc;
-  }
-  return RawCall(d, call, true, args);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.s_tir.ldg32")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&Ldg32DocTranslate>());
 }
 
 }  // namespace

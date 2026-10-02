@@ -331,17 +331,6 @@ def InstrumentBoundCheckers():
     return _ffi_api.InstrumentBoundCheckers()  # type: ignore
 
 
-def InjectPTXLDG32(enable_inject_ptx_intrin=True):
-    """Inject ptx.ldg.32 intrinsics.
-
-    Parameters
-    ----------
-    enable_inject_ptx_intrin : bool
-        If True, inject ptx.ldg.32 intrinsics.
-    """
-    return _ffi_api.InjectPTXLDG32(enable_inject_ptx_intrin)  # type: ignore
-
-
 def VerifyVTCMLimit(default_target=None):
     """Verify if the size of the allocated vtcm memory satisfies the limit.
 

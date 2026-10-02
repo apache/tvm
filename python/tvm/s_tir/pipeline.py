@@ -74,8 +74,6 @@ def default_s_tir_pipeline(*, prepare_only=False):
         # Additional passes based on configuration.
         if bool(config.get("tirx.instrument_bound_checkers", False)):
             passes.append(s_tir.transform.InstrumentBoundCheckers())
-        if bool(config.get("tirx.s_tir.ldg32", False)):
-            passes.append(s_tir.transform.InjectPTXLDG32(True))
         if not bool(config.get("tirx.disable_cse_tir", False)):
             passes.append(tirx.transform.CommonSubexprElim())
         passes.extend(
@@ -99,8 +97,6 @@ def default_s_tir_pipeline(*, prepare_only=False):
         )
         if bool(config.get("tirx.use_async_copy", False)):
             passes.append(s_tir.transform.InjectPTXAsyncCopy())
-        if bool(config.get("tirx.s_tir.ldg32", False)):
-            passes.append(s_tir.transform.InjectPTXLDG32())
         passes.append(s_tir.transform.MergeSharedMemoryAllocations())
         if not prepare_only:
             passes.extend(
