@@ -16,8 +16,8 @@
 # under the License.
 """Shared TVMScript construction APIs and lazy language variant builders."""
 
-from tvm.ir import Call as _IRCall
 from tvm.ir import (
+    Call,
     DataTypeImm,
     FuncType,
     GenericConst,
@@ -27,7 +27,6 @@ from tvm.ir import (
     StringType,
     Type,
     make_node,
-    reinfer_type,
 )
 
 from .base import (
@@ -57,23 +56,6 @@ from .parser_protocol import (
     module_member_,
     resolve_global_info_,
 )
-
-
-def Call(op, args, attrs=None, ty_args=None, ty=None):  # pylint: disable=invalid-name
-    """Construct a shared IR Call, inferring its result type when ``ty`` is omitted.
-
-    ``ty_args`` are independent explicit inputs to the inference hook.
-    An explicit ``ty`` preserves the supplied Call fields without invoking its
-    operator validator, including provisional calls with missing input types.
-    Omitting ``ty`` requests inference followed by ordinary Call validation.
-    """
-
-    if ty is None:
-        provisional = _IRCall.unchecked(op, args, attrs=attrs, ty_args=ty_args)
-        ty = reinfer_type(provisional)
-        return _IRCall(op, args, attrs=attrs, ty_args=ty_args, ret_ty=ty)
-    return _IRCall.unchecked(op, args, attrs=attrs, ty_args=ty_args, ret_ty=ty)
-
 
 # Keep source namespaces independent of imported helper modules and lazy builders.
 __all__ = [

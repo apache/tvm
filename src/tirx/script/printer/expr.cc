@@ -188,7 +188,7 @@ ffi::Optional<ExprDoc> StorageSyncDocTranslate(DocTranslatorObj* d, ffi::AnyView
   const auto* call =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (!CanTranslateExplicitResultCall(call) || call->args.empty() || call->args.size() > 3) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   ffi::Array<ExprDoc> args;
   for (const Expr& arg : call->args) {
@@ -218,10 +218,10 @@ ffi::Optional<ExprDoc> CallExternDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (!call->op.same_as(tirx::builtin::call_extern()) || !CanTranslateExplicitResultCall(call) ||
       call->args.empty()) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   const auto* name = call->args[0].as<StringImmNode>();
-  if (!name) return RawCall(d, call, false);
+  if (!name) return RawCall(d, call);
   ExprDoc name_doc = LiteralDoc::Str(name->value, std::nullopt);
   d->RecordOrigin(name_doc, call->args[0]);
   ffi::Array<ExprDoc> args = {TypeValue(d, call->ty), name_doc};
@@ -244,11 +244,11 @@ ffi::Optional<ExprDoc> CUDAFuncCallDocTranslate(DocTranslatorObj* d, ffi::AnyVie
   static const Op cuda_func_call = Op::Get("tirx.cuda.func_call");
   if (!call->op.same_as(cuda_func_call) || !CanTranslateExplicitResultCall(call) ||
       call->args.size() < 2) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   const auto* name = call->args[0].as<StringImmNode>();
   const auto* source = call->args.back().as<StringImmNode>();
-  if (!name || !source) return RawCall(d, call, false);
+  if (!name || !source) return RawCall(d, call);
   ExprDoc name_doc = LiteralDoc::Str(name->value, std::nullopt);
   ExprDoc source_doc = LiteralDoc::Str(source->value, std::nullopt);
   d->RecordOrigin(name_doc, call->args[0]);
@@ -280,10 +280,10 @@ ffi::Optional<ExprDoc> CUDAInstructionDescriptorDocTranslate(DocTranslatorObj* d
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (!CanTranslateExplicitResultCall(call) || call->args.size() != (block_scaled ? 17 : 14) ||
       !ffi::StructuralEqual()(call->ty, PrimType::Void())) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   Op op = call->op.as_or_throw<Op>();
-  if (op->args_info.size() != call->args.size()) return RawCall(d, call, false);
+  if (op->args_info.size() != call->args.size()) return RawCall(d, call);
   constexpr size_t optional_begin = block_scaled ? 13 : 9;
   ffi::Array<ffi::String> keys;
   ffi::Array<ExprDoc> values;
@@ -330,23 +330,23 @@ ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyVi
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (call->attrs.defined() || !call->ty_args.empty() || call->args.empty() ||
       !call->ty.as<PrimType>()) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   const auto* id = call->args[0].as<IntImmNode>();
   // The named constructor uses an int32 intrinsic identifier. Other stored
   // representations retain their exact operand type through the full Call.
-  if (!id || !ffi::StructuralEqual()(id->ty, PrimType::Int(32))) return RawCall(d, call, false);
+  if (!id || !ffi::StructuralEqual()(id->ty, PrimType::Int(32))) return RawCall(d, call);
   auto lookup = ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
   auto reverse = ffi::Function::GetGlobal("target.llvm_lookup_intrinsic_id");
-  if (!lookup || !reverse) return RawCall(d, call, false);
+  if (!lookup || !reverse) return RawCall(d, call);
   ffi::String name;
   try {
     name = (*lookup)(static_cast<int64_t>(id->value)).cast<ffi::String>();
     if (name.empty() || (*reverse)(name).cast<int64_t>() != static_cast<int64_t>(id->value)) {
-      return RawCall(d, call, false);
+      return RawCall(d, call);
     }
   } catch (const ffi::Error&) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   ExprDoc name_doc = LiteralDoc::Str(name, std::nullopt);
   d->RecordOrigin(name_doc, call->args[0]);
@@ -373,21 +373,21 @@ ffi::Optional<ExprDoc> GetActiveLaneMaskDocTranslate(DocTranslatorObj* d, ffi::A
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (!call->op.same_as(tirx::builtin::get_active_lane_mask()) || call->attrs.defined() ||
       !call->ty_args.empty() || call->args.size() != 2) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   auto result = call->ty.as<PrimType>();
   if (!result ||
       !(result.value().MatchesCode(DLDataTypeCode::kDLBool) ||
         result.value().MatchesElementType(DLDataTypeCode::kDLUInt, 1)) ||
       !(result.value().IsScalableVector() || result.value().IsFixedLengthVector())) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   ffi::Array<ExprDoc> args = {TypeValue(d, call->ty)};
   for (const Expr& arg : call->args) {
     auto type = arg->ty.as<PrimType>();
     if (!type || !type.value().IsScalar() ||
         !type.value().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-      return RawCall(d, call, false);
+      return RawCall(d, call);
     }
     args.push_back(MaterializeCallArgument(d, arg, d->Translate(arg).value()));
   }
@@ -452,7 +452,7 @@ ffi::Optional<ExprDoc> TIRCallPrefixDocTranslate(DocTranslatorObj* d, const Call
     // A standalone address Call must remain an expression after reparsing.
     if (IsPTXAddressCall(call) ||
         ((is_ptx || descriptor) && !ffi::StructuralEqual()(call->ty, PrimType::Void()))) {
-      return RawCall(d, call, false);
+      return RawCall(d, call);
     }
   }
   if (auto op = call->op.as<Op>(); op && op.value()->name == "tirx.isnan") {
@@ -463,7 +463,7 @@ ffi::Optional<ExprDoc> TIRCallPrefixDocTranslate(DocTranslatorObj* d, const Call
         !input_type.value().MatchesCode(DLDataTypeCode::kDLFloat) ||
         (input_type.value().bits() != 32 && input_type.value().bits() != 64) ||
         call->args[0].as<FloatImmNode>()) {
-      return RawCall(d, call, false);
+      return RawCall(d, call);
     }
   }
   if (call->op.same_as(tirx::builtin::buffer_data()) && !call->attrs.defined() &&
@@ -479,7 +479,7 @@ ffi::Optional<ExprDoc> FFIKernelDocTranslate(DocTranslatorObj* d, const CallNode
                                              const ffi::Array<ExprDoc>& args) {
   if (call->op.same_as(tirx::builtin::call_ffi_kernel())) {
     const auto* attrs = call->attrs.as<tirx::CallFFIKernelAttr>();
-    if (!attrs || !call->ty_args.empty()) return RawCall(d, call, true, args);
+    if (!attrs || !call->ty_args.empty()) return RawCall(d, call, args);
     ffi::Array<ExprDoc> launch_params;
     for (const ffi::String& param : attrs->launch_params) {
       launch_params.push_back(LiteralDoc::Str(param, std::nullopt));
@@ -536,7 +536,7 @@ ffi::Optional<ExprDoc> TIRCallDocTranslate(DocTranslatorObj* d, const CallNode* 
                 is_ptx && address && IsPTXAddressCall(address)) {
               // Use the address constructor only when it preserves its operands.
               auto translated = ConsumedPTXAddressDocTranslate(d, address);
-              if (!translated) return RawCall(d, call, false);
+              if (!translated) return RawCall(d, call);
               argument = translated.value();
             }
             bool reads_operand_type =
