@@ -88,6 +88,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                                FDocTranslate::FromNative<&VarDocTranslate>());
 }
 
+bool CanTranslateExplicitResultCall(const CallNode* call) {
+  return !call->attrs.defined() && call->ty_args.empty() && call->ty.as<PrimType>() &&
+         std::all_of(call->args.begin(), call->args.end(), [](const Expr& arg) {
+           return !arg->ty.IsMissing() && !arg.as<TensorRegionNode>();
+         });
+}
+
 namespace {
 
 ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -176,13 +183,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&LambdaExprDocTranslate>());
 }
 
-bool CanTranslateExplicitResultCall(const CallNode* call) {
-  return !call->attrs.defined() && call->ty_args.empty() && call->ty.as<PrimType>() &&
-         std::all_of(call->args.begin(), call->args.end(), [](const Expr& arg) {
-           return !arg->ty.IsMissing() && !arg.as<TensorRegionNode>();
-         });
-}
-
 ffi::Optional<ExprDoc> StorageSyncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                const ffi::Object*) {
   const auto* call =
@@ -235,28 +235,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.call_extern")
       .set_attr<FDocTranslate>(kOpCallDocTranslate,
                                FDocTranslate::FromNative<&CallExternDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> CpAsyncRawDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  // This constructor takes an element dtype followed by the five stored operands.
-  // The dtype is carried by the Call itself, not derived from a pointer argument.
-  if (!CanTranslateExplicitResultCall(call) || call->args.size() != 5) {
-    return RawCall(d, call, false);
-  }
-  ffi::Array<ExprDoc> args = {TypeValue(d, call->ty)};
-  for (const Expr& arg : call->args) {
-    args.push_back(MaterializeCallArgument(d, arg, d->Translate(arg).value()));
-  }
-  return NamespaceDoc("tirx")->Attr("s_tir")->Attr("cp_async_raw")->Call(args);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.s_tir.cp_async_raw")
-      .set_attr<FDocTranslate>(kOpCallDocTranslate,
-                               FDocTranslate::FromNative<&CpAsyncRawDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> CUDAFuncCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -533,14 +511,6 @@ ffi::Optional<ExprDoc> TIRCallDocTranslate(DocTranslatorObj* d, const CallNode* 
     // dedicated translation covers each signature.
     bool incompatible_signature = (op.value()->name == "tirx.cuda.ldg" && call->args.size() != 2) ||
                                   op.value()->name == "tirx.cuda.wait_until";
-    // The named ldg32 constructor uses the destination expression's type and
-    // converts a source BufferVar to its first load. Preserve other native forms.
-    if (op.value()->name == "tirx.s_tir.ldg32") {
-      incompatible_signature =
-          call->args.size() != 4 || !call->args[0].as<TensorLoadNode>() ||
-          !ffi::StructuralEqual()(call->args[0]->ty, result_type) ||
-          (call->args[2].as<VarNode>() && call->args[2]->ty.as<tirx::BufferTypeNode>());
-    }
     // IKET lowering accepts a variadic IR signature, but its named constructors
     // expose just the event/token and an optional payload.
     if (op.value()->name == "tirx.cuda.iket_mark" ||
