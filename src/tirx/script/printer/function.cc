@@ -20,7 +20,6 @@
 #include <tvm/ir/function.h>
 #include <tvm/ir/global_info.h>
 #include <tvm/ir/prim/op.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/printer.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -32,6 +31,7 @@
 #include <utility>
 #include <vector>
 
+#include "../../../s_tir/script/printer/utils.h"
 #include "../../../script/printer/ir/utils.h"
 #include "utils.h"
 
@@ -40,18 +40,9 @@ namespace script {
 namespace printer {
 namespace details {
 
-namespace {
-
-ffi::Optional<ExprDoc> PrimFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object* destination) {
-  const auto* func =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::PrimFuncNode>(input);
-  TVM_FFI_CHECK(destination == nullptr, TypeError)
-      << "printer statement-only node cannot fulfill a destination";
+void PrintPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func, ExprDoc decorator,
+                   const ffi::String& dialect_attr) {
   VarScope vars(d);
-
-  bool legacy_s_tir = func->attrs->dict.count(tvm::attr::kSTir);
-  if (legacy_s_tir) d->SetExtraState("s_tir.function_scope", true);
 
   ffi::String name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or("main");
   FunctionDoc doc(ffi::UnsafeInit{});
@@ -109,8 +100,6 @@ ffi::Optional<ExprDoc> PrimFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView in
                       std::nullopt));
       }
     }
-    ExprDoc decorator = legacy_s_tir ? NamespaceDoc("s_tir")->Attr("prim_func")
-                                     : NamespaceDoc("tirx")->Attr("prim_func");
     ffi::Array<ffi::String> decorator_keys;
     ffi::Array<ExprDoc> decorator_values;
     if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
@@ -127,7 +116,7 @@ ffi::Optional<ExprDoc> PrimFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView in
     body.insert(body.begin(), thread_declarations.begin(), thread_declarations.end());
     std::vector<std::pair<ffi::String, ffi::Any>> attrs;
     for (const auto& [key, value] : func->attrs->dict) {
-      if (key != tvm::attr::kGlobalSymbol && key != tvm::attr::kSTir &&
+      if (key != tvm::attr::kGlobalSymbol && (dialect_attr.empty() || key != dialect_attr) &&
           key != tirx::attr::kPersistentKernel)
         attrs.emplace_back(key, value);
     }
@@ -151,9 +140,23 @@ ffi::Optional<ExprDoc> PrimFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView in
     doc = FunctionDoc(IdDoc(name), args, {decorator}, ret_type, body);
     FinalizeFunctionDefinitions(d, signature_candidates, doc);
   }
-  if (legacy_s_tir) d->SetExtraState("s_tir.function_scope", std::nullopt);
   vars.Close();
   d->Emit(doc, ffi::GetRef<ffi::ObjectRef>(func));
+}
+
+namespace {
+
+ffi::Optional<ExprDoc> PrimFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
+  const auto* func =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::PrimFuncNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  if (func->attrs->dict.count(tvm::attr::kSTir)) {
+    PrintSTirPrimFunc(d, func);
+  } else {
+    PrintPrimFunc(d, func, NamespaceDoc("tirx")->Attr("prim_func"), "");
+  }
   return std::nullopt;
 }
 

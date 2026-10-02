@@ -290,25 +290,20 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
 def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     @T.prim_func
     def device_namespaces(dst: T.handle, A: T.Buffer((1,), "float32")):
-        Result = T.alloc_buffer((1,), "float32", scope="local")
         T.cuda.cta_sync()
-        T.s_tir.ldg32(Result[0], 1, A[0], 0)
         T.metal.simd_shuffle(A[0], 0)
         T.metal.simd_shuffle_up(A[0], 1)
         T.metal.simd_shuffle_down(A[0], 1)
 
     calls = _expr_calls(device_namespaces)
     assert [call.op.name for call in calls] == [
-        "tirx.alloc_buffer",
         "tirx.cuda.cta_sync",
-        "tirx.s_tir.ldg32",
         "tirx.metal.simd_shuffle",
         "tirx.metal.simd_shuffle_up",
         "tirx.metal.simd_shuffle_down",
     ]
     for op_name, namespace in [
         ("tirx.cuda.cta_sync", "cuda"),
-        ("tirx.s_tir.ldg32", "s_tir"),
         ("tirx.metal.simd_shuffle", "metal"),
         ("tirx.metal.simd_shuffle_up", "metal"),
         ("tirx.metal.simd_shuffle_down", "metal"),
@@ -319,7 +314,6 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
     code = device_namespaces.script()
     assert "T.cuda.cta_sync(" in code
-    assert "T.s_tir.ldg32(" in code
     assert "T.metal.simd_shuffle(" in code
     assert "T.metal.simd_shuffle_up(" in code
     assert "T.metal.simd_shuffle_down(" in code

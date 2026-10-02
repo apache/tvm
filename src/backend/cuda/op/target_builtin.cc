@@ -129,14 +129,6 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.s_tir.ldg32")
-      .signature(sig::arg("reg", "The register."), sig::arg("guard", "The guard predicate."),
-                 sig::arg("addr", "The address."), sig::arg("local_addr", "The local address."))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.s_tir.ldg32"))
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
-      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"));
-
   // Raw legacy cp.async form emitted by InjectPTXAsyncCopy (and round-tripped by
   // the T.s_tir.cp_async_raw.legacy 6-arg surface). It carries the element dtype in Call.dtype
   // and prints it dtype-first; user-issued copies go through T.ptx instead.
@@ -463,7 +455,6 @@ void RegisterDeviceIntrinsicAliases() {
   OpDef("tirx.cuda.elect_sync").set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(32));
   OpDef("tirx.cuda.ldg")
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaLdg>());
-  OpDef("tirx.s_tir.ldg32").set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Float(32));
   OpDef("tirx.cuda.atomic_add")
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>());
   OpDef("tirx.cuda.atomic_cas")

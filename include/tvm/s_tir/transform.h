@@ -289,13 +289,6 @@ TVM_DLL Pass RewriteUnsafeSelect();
 TVM_DLL Pass InstrumentBoundCheckers();
 
 /*!
- * \brief Rewrite global to local memory copy on CUDA with ldg32 instruction.
- * \param enable_inject Whether to enable injection.
- * \return The pass.
- */
-TVM_DLL Pass InjectPTXLDG32(bool enable_inject = true);
-
-/*!
  * \brief Lower VTCM allocations.
  * \return The pass.
  */
