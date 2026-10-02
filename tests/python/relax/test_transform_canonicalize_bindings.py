@@ -1403,17 +1403,23 @@ def test_call_tir_out_ty_follows_arguments_when_match_cast_is_kept():
     The match_cast defining `n` stays because `n` is passed to a kernel at
     runtime, so the argument of the later call_tir keeps `n` in its shape.
     Canonicalizing the call's out_ty on its own would replace `n` with 12
-    and leave the two disagreeing.
+    and leave the two disagreeing. Only that output is rewritten: the second
+    output's shape cannot be derived from the arguments, and neither output's
+    vdevice is in the PrimFunc signature, so both are kept.
     """
     n = T.dynamic("n", "int64")
     m = T.dynamic("m", "int64")
+    k = T.dynamic("k", "int64")
 
     @I.ir_module
     class Before:
+        I.module_global_infos({"vdevice": [R.vdevice("llvm", 0), R.vdevice("llvm", 1)]})
+
         @Ts.prim_func(private=True)
         def transpose(
             x: T.Buffer((1, n, 2, m, 2, 8), "float16"),
             y: T.Buffer((1, n, m, 2, 2, 8), "float16"),
+            z: T.Buffer((k,), "float16"),
         ):
             for i0, i1, i2, i3, i4, i5 in T.grid(1, n, m, 2, 2, 8):
                 with Ts.sblock("b"):
@@ -1432,7 +1438,14 @@ def test_call_tir_out_ty_follows_arguments_when_match_cast_is_kept():
             cls = Before
             with R.dataflow():
                 lv = R.match_cast(x, R.Tensor((1, n, 2, m, 2, 8), "float16"))
-                p = R.call_tir(cls.transpose, (lv,), out_ty=R.Tensor((1, n, m, 2, 2, 8), "float16"))
+                p = R.call_tir(
+                    cls.transpose,
+                    (lv,),
+                    out_ty=[
+                        R.Tensor((1, n, m, 2, 2, 8), "float16", "llvm:1"),
+                        R.Tensor((16,), "float16", "llvm:1"),
+                    ],
+                )
                 y = R.call_tir(cls.add_scalar, (w, n), out_ty=R.Tensor((1, 8), "float16"))
                 gv = (p, y)
                 R.output(gv)
@@ -1442,9 +1455,14 @@ def test_call_tir_out_ty_follows_arguments_when_match_cast_is_kept():
     lv_binding, p_binding = after["main"].body.blocks[0].bindings[:2]
     assert isinstance(lv_binding, relax.MatchCast)
     assert p_binding.value.args[1].fields[0].same_as(lv_binding.var)
+    transposed, extra = p_binding.value.ty_args[0].fields
     # The out_ty still names the variables the argument carries.
-    assert p_binding.value.ty_args[0].shape[1].same_as(n)
-    assert p_binding.value.ty_args[0].shape[2].same_as(m)
+    assert transposed.shape[1].same_as(n)
+    assert transposed.shape[2].same_as(m)
+    assert [int(dim) for dim in extra.shape] == [16]
+    expected_vdevice = Before["main"].body.blocks[0].bindings[1].value.ty_args[0].fields[0].vdevice
+    for output in (transposed, extra):
+        tvm.ir.assert_structural_equal(output.vdevice, expected_vdevice)
     relax.analysis.well_formed(after)
 
 
