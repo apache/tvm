@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def resize(A: T.Buffer((1, 3, 40, 40)), B: T.Buffer((1, 3, 80, 80))) -> None:
+def resize(A: T.Tensor((1, 3, 40, 40)), B: T.Tensor((1, 3, 80, 80))) -> None:
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
         with Ts.sblock("A"):
             n, c, vi, vj = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -42,7 +42,7 @@ def resize(A: T.Buffer((1, 3, 40, 40)), B: T.Buffer((1, 3, 80, 80))) -> None:
 
 @Ts.prim_func
 def resize_cache_index(
-    A: T.Buffer((1, 3, 40, 40), "float32"), B: T.Buffer((1, 3, 80, 80), "float32")
+    A: T.Tensor((1, 3, 40, 40), "float32"), B: T.Tensor((1, 3, 80, 80), "float32")
 ) -> None:
     index_var_0 = Ts.sblock_alloc_buffer([80, 80], dtype="int32", strides=[1])
     index_var_1 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])
@@ -68,7 +68,7 @@ def resize_cache_index(
 
 @Ts.prim_func
 def bilinear_resize(
-    x: T.Buffer((1, 3, 40, 40), "float16"), resize: T.Buffer((1, 3, 80, 80), "float16")
+    x: T.Tensor((1, 3, 40, 40), "float16"), resize: T.Tensor((1, 3, 80, 80), "float16")
 ):
     for i0, i1, i2, i3 in T.grid(1, 3, 80, 80):
         with Ts.sblock("resize"):
@@ -323,7 +323,7 @@ def bilinear_resize(
 
 @Ts.prim_func
 def cached_bilinear_resize(
-    x: T.Buffer((1, 3, 40, 40), "float16"), resize: T.Buffer((1, 3, 80, 80), "float16")
+    x: T.Tensor((1, 3, 40, 40), "float16"), resize: T.Tensor((1, 3, 80, 80), "float16")
 ):
     index_var_0 = Ts.sblock_alloc_buffer([80], dtype="float32", strides=[1])
     index_var_1 = Ts.sblock_alloc_buffer([80], dtype="int32", strides=[1])

@@ -51,9 +51,9 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
     const std::unordered_map<Var, ffi::String, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>&
         new_storage_scopes) {
   for (auto& kv : new_storage_scopes) {
-    if (kv.first->ty.as<BufferTypeNode>()) {
+    if (kv.first->ty.as<TensorTypeNode>()) {
       BufferVar buffer = GetBufferVar(kv.first.get());
-      auto type = CopyBufferType(buffer);
+      auto type = CopyTensorType(buffer);
       type->storage_scope = kv.second;
       BufferVar replacement = RebuildBufferVar(buffer, std::move(type));
       VarRemapSet(kv.first, replacement);
@@ -66,7 +66,7 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
 UnchangedOr<Stmt> UpdatePointerStorageScope::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
   const auto* call = op->value.as<CallNode>();
   if (call &&
-      (call->op.same_as(builtin::alloc_buffer()) || call->op.same_as(builtin::decl_buffer()))) {
+      (call->op.same_as(builtin::alloc_tensor()) || call->op.same_as(builtin::decl_tensor()))) {
     if (auto mapped = VarRemapGet(op->var); mapped != nullptr) {
       buffer_scopes_.emplace(call, mapped.as_or_throw<BufferVar>().scope());
       auto result = StmtExprMutator::Mutate_(op, inplace_mode);
@@ -82,7 +82,7 @@ UnchangedOr<Expr> UpdatePointerStorageScope::Mutate_(const CallNode* op, Inplace
   if (auto it = buffer_scopes_.find(op); it != buffer_scopes_.end()) {
     Expr value = std::move(result).ValueOrUnchanged(ffi::GetRef<Expr>(op));
     auto call = value.as_or_throw<Call>();
-    size_t scope_index = call->op.same_as(builtin::alloc_buffer()) ? 2 : 3;
+    size_t scope_index = call->op.same_as(builtin::alloc_tensor()) ? 2 : 3;
     if (call->args[scope_index].as_or_throw<StringImm>()->value != it->second) {
       auto copy = ffi::make_object<CallNode>(*call.get());
       copy->args.Set(scope_index, StringImm(it->second, call->args[scope_index]->span));

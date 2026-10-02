@@ -28,20 +28,20 @@ from tvm.script import tirx as T
 @tvm.script.ir_module
 class Before:
     @Ts.prim_func
-    def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
+    def main(inputs: T.Tensor((1, 4, 4, 512), "float32"), weight: T.Tensor((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Tensor((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        inputs_flat = T.decl_buffer([8192], dtype="float32", data=inputs.data)
-        weight_flat = T.decl_buffer([2097152], dtype="float32", data=weight.data)
-        conv2d_transpose_nhwc_flat = T.decl_buffer([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
+        inputs_flat = T.decl_tensor([8192], dtype="float32", data=inputs.data)
+        weight_flat = T.decl_tensor([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc_flat = T.decl_tensor([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
         # body
         T.launch_thread(blockIdx_x, 64)
-        conv2d_transpose_nhwc_local = T.decl_buffer([8], "float32", scope="local")
-        PadInput_shared = T.decl_buffer([768], "float32", scope="shared")
-        weight_shared = T.decl_buffer([4096], "float32", scope="shared")
+        conv2d_transpose_nhwc_local = T.decl_tensor([8], "float32", scope="local")
+        PadInput_shared = T.decl_tensor([768], "float32", scope="shared")
+        weight_shared = T.decl_tensor([4096], "float32", scope="shared")
         T.launch_thread(threadIdx_x, 32)
         for i2_3_init, i1_4_init, i2_4_init in T.grid(2, 2, 2):
             conv2d_transpose_nhwc_local[i1_4_init * 4 + i2_3_init * 2 + i2_4_init] = T.float32(0)
@@ -59,20 +59,20 @@ class Before:
 @tvm.script.ir_module
 class After:
     @Ts.prim_func
-    def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
+    def main(inputs: T.Tensor((1, 4, 4, 512), "float32"), weight: T.Tensor((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Tensor((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        inputs_flat = T.decl_buffer([8192], dtype="float32", data=inputs.data)
-        weight_flat = T.decl_buffer([2097152], dtype="float32", data=weight.data)
-        conv2d_transpose_nhwc_flat = T.decl_buffer([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
+        inputs_flat = T.decl_tensor([8192], dtype="float32", data=inputs.data)
+        weight_flat = T.decl_tensor([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc_flat = T.decl_tensor([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
         # body
         T.launch_thread(blockIdx_x, 64)
-        conv2d_transpose_nhwc_local = T.decl_buffer([8], "float32", scope="local")
-        PadInput_shared = T.decl_buffer([768], "float32", scope="shared")
-        weight_shared = T.decl_buffer([4096], "float32", scope="shared")
+        conv2d_transpose_nhwc_local = T.decl_tensor([8], "float32", scope="local")
+        PadInput_shared = T.decl_tensor([768], "float32", scope="shared")
+        weight_shared = T.decl_tensor([4096], "float32", scope="shared")
         T.launch_thread(threadIdx_x, 32)
         for i2_3_init, i1_4_init, i2_4_init in T.grid(2, 2, 2):
             conv2d_transpose_nhwc_local[i1_4_init * 4 + i2_3_init * 2 + i2_4_init] = T.float32(0)
@@ -90,20 +90,20 @@ class After:
 @tvm.script.ir_module
 class After_simplified:
     @Ts.prim_func
-    def main(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
+    def main(inputs: T.Tensor((1, 4, 4, 512), "float32"), weight: T.Tensor((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Tensor((1, 8, 8, 256), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # var definition
         threadIdx_x = T.env_thread("threadIdx.x")
         blockIdx_x = T.env_thread("blockIdx.x")
-        inputs_flat = T.decl_buffer([8192], dtype="float32", data=inputs.data)
-        weight_flat = T.decl_buffer([2097152], dtype="float32", data=weight.data)
-        conv2d_transpose_nhwc_flat = T.decl_buffer([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
+        inputs_flat = T.decl_tensor([8192], dtype="float32", data=inputs.data)
+        weight_flat = T.decl_tensor([2097152], dtype="float32", data=weight.data)
+        conv2d_transpose_nhwc_flat = T.decl_tensor([16384], dtype="float32", data=conv2d_transpose_nhwc.data)
         # body
         T.launch_thread(blockIdx_x, 64)
-        conv2d_transpose_nhwc_local = T.decl_buffer([8], "float32", scope="local")
-        PadInput_shared = T.decl_buffer([768], "float32", scope="shared")
-        weight_shared = T.decl_buffer([4096], "float32", scope="shared")
+        conv2d_transpose_nhwc_local = T.decl_tensor([8], "float32", scope="local")
+        PadInput_shared = T.decl_tensor([768], "float32", scope="shared")
+        weight_shared = T.decl_tensor([4096], "float32", scope="shared")
         T.launch_thread(threadIdx_x, 32)
         for i2_3_init, i1_4_init, i2_4_init in T.grid(2, 2, 2):
             conv2d_transpose_nhwc_local[i1_4_init * 4 + i2_3_init * 2 + i2_4_init] = T.float32(0)

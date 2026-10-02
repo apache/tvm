@@ -676,7 +676,7 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
     if cached is not None:
         return cached
 
-    desc_buf = tvm.tirx.decl_buffer((1,), "uint64", name="cp_desc", scope="local")
+    desc_buf = tvm.tirx.decl_tensor((1,), "uint64", name="cp_desc", scope="local")
     encode_call = T.cuda.tcgen05.encode_matrix_descriptor(
         desc_buf.data, T.reinterpret("handle", T.uint64(0)), ldo, sdo, swizzle
     )
@@ -685,7 +685,7 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
             Bind(
                 desc_buf,
                 Call(
-                    "tirx.alloc_buffer",
+                    "tirx.alloc_tensor",
                     [
                         Tuple(desc_buf.ty.shape),
                         DataTypeImm(desc_buf.ty.dtype.dtype),

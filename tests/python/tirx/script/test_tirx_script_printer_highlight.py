@@ -27,9 +27,9 @@ def test_highlight_script():
     class Module:
         @T.prim_func
         def main(  # type: ignore
-            A: T.Buffer([16, 128, 128]),
-            B: T.Buffer([16, 128, 128]),
-            C: T.Buffer([16, 128, 128]),
+            A: T.Tensor([16, 128, 128]),
+            B: T.Tensor([16, 128, 128]),
+            C: T.Tensor([16, 128, 128]),
         ) -> None:  # pylint: disable=no-self-argument
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for n, i, j in T.grid(16, 128, 128):

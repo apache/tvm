@@ -235,8 +235,8 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfThenElseNod
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::decl_buffer())) {
-    // A DeclBuffer data expression defines the alias source.  It is not an
+      call && call->op.same_as(tirx::builtin::decl_tensor())) {
+    // A DeclTensor data expression defines the alias source.  It is not an
     // opaque buffer access by the containing block.
     return WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var); });
   }

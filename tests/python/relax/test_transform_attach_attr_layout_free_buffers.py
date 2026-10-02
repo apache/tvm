@@ -33,9 +33,9 @@ def test_param():
     class Before:
         @Ts.prim_func(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
@@ -56,9 +56,9 @@ def test_param():
     class Expected:
         @Ts.prim_func(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
@@ -87,9 +87,9 @@ def test_const():
     class Before:
         @Ts.prim_func(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
@@ -114,9 +114,9 @@ def test_const():
     class Expected:
         @Ts.prim_func(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
@@ -147,9 +147,9 @@ def test_multiple_same_func():
     class Before:
         @Ts.prim_func(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
@@ -183,9 +183,9 @@ def test_multiple_same_func():
     class Expected:
         @Ts.prim_func(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
@@ -225,9 +225,9 @@ def test_multiple_same_func_with_different_free_buffers():
     class Before:
         @Ts.prim_func(private=True)
         def matmul(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
                 with Ts.sblock("C"):
@@ -261,9 +261,9 @@ def test_multiple_same_func_with_different_free_buffers():
     class Expected:
         @Ts.prim_func(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):
@@ -274,9 +274,9 @@ def test_multiple_same_func_with_different_free_buffers():
 
         @Ts.prim_func(private=True)
         def matmul2(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [0]})
             for i, j, k in T.grid(T.int64(32), T.int64(32), T.int64(32)):

@@ -40,9 +40,9 @@ def test_basic():
     class Before:
         @Ts.prim_func
         def tir_matmul(
-            A: T.Buffer((m_tir_matmul, n_tir_matmul)),
-            B: T.Buffer((n_tir_matmul, k_tir_matmul)),
-            C: T.Buffer((m_tir_matmul, k_tir_matmul)),
+            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
         ) -> None:
             for i, j, k_tir_matmul_index in T.grid(m_tir_matmul, k_tir_matmul, n_tir_matmul):
                 with Ts.sblock("matmul"):
@@ -69,9 +69,9 @@ def test_basic():
     class Expected:
         @Ts.prim_func
         def tir_matmul(
-            A: T.Buffer((m_tir_matmul, n_tir_matmul)),
-            B: T.Buffer((n_tir_matmul, k_tir_matmul)),
-            C: T.Buffer((m_tir_matmul, k_tir_matmul)),
+            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
         ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
@@ -103,7 +103,7 @@ def test_system_lib_prefix():
         I.module_attrs({"system_lib_prefix": "hello_"})
 
         @Ts.prim_func(private=True)
-        def tir_zeros(x: T.Buffer((2), "float32")) -> None:
+        def tir_zeros(x: T.Tensor((2), "float32")) -> None:
             x[0] = T.float32(0)
 
         @R.function(private=True)
@@ -116,7 +116,7 @@ def test_system_lib_prefix():
         I.module_attrs({"system_lib_prefix": "hello_"})
 
         @Ts.prim_func
-        def hello_tir_zeros(x: T.Buffer((2), "float32")) -> None:
+        def hello_tir_zeros(x: T.Tensor((2), "float32")) -> None:
             T.func_attr({"global_symbol": "hello_tir_zeros"})
             x[0] = T.float32(0)
 

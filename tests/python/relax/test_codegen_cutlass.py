@@ -1269,9 +1269,9 @@ def test_fp16A_int4B_gemm():
     class Module:
         @Ts.prim_func
         def decode(
-            A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
-            B: T.Buffer((T.int64(128),), "float16"),
-            decode_1: T.Buffer((T.int64(64), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(64), T.int64(64)), "int8"),
+            B: T.Tensor((T.int64(128),), "float16"),
+            decode_1: T.Tensor((T.int64(64), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1302,9 +1302,9 @@ def test_fp16A_int4B_gemm():
 
         @Ts.prim_func
         def encode(
-            A: T.Buffer((T.int64(128), T.int64(64)), "float16"),
-            w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
-            compute: T.Buffer((T.int64(128),), "float16"),
+            A: T.Tensor((T.int64(128), T.int64(64)), "float16"),
+            w_gathered: T.Tensor((T.int64(64), T.int64(64)), "int8"),
+            compute: T.Tensor((T.int64(128),), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1526,9 +1526,9 @@ def test_fp16A_int8B_gemm():
     class Module:
         @Ts.prim_func
         def decode(
-            A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
-            B: T.Buffer((T.int64(64),), "float16"),
-            decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
+            A: T.Tensor((T.int64(64), T.int64(64)), "int8"),
+            B: T.Tensor((T.int64(64),), "float16"),
+            decode_1: T.Tensor((T.int64(64), T.int64(64)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1541,9 +1541,9 @@ def test_fp16A_int8B_gemm():
 
         @Ts.prim_func
         def encode(
-            A: T.Buffer((T.int64(64), T.int64(64)), "float16"),
-            w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
-            compute: T.Buffer((T.int64(64),), "float16"),
+            A: T.Tensor((T.int64(64), T.int64(64)), "float16"),
+            w_gathered: T.Tensor((T.int64(64), T.int64(64)), "int8"),
+            compute: T.Tensor((T.int64(64),), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1672,9 +1672,9 @@ def test_rms_norm():
     class Module:
         @Ts.prim_func
         def rms_norm(
-            A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096),), "float16"),
-            rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096),), "float16"),
+            rms_norm: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1807,9 +1807,9 @@ def test_fp16A_int8B_gemm_batched():
     class Module:
         @Ts.prim_func
         def decode(
-            A: T.Buffer((T.int64(64), T.int64(64)), "int8"),
-            B: T.Buffer((T.int64(64),), "float16"),
-            decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
+            A: T.Tensor((T.int64(64), T.int64(64)), "int8"),
+            B: T.Tensor((T.int64(64),), "float16"),
+            decode_1: T.Tensor((T.int64(64), T.int64(64)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1822,9 +1822,9 @@ def test_fp16A_int8B_gemm_batched():
 
         @Ts.prim_func
         def encode(
-            A: T.Buffer((T.int64(64), T.int64(64)), "float16"),
-            w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
-            compute: T.Buffer((T.int64(64),), "float16"),
+            A: T.Tensor((T.int64(64), T.int64(64)), "float16"),
+            w_gathered: T.Tensor((T.int64(64), T.int64(64)), "int8"),
+            compute: T.Tensor((T.int64(64),), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1942,9 +1942,9 @@ def test_fp16A_int8B_gemm_batched_finegrained():
     class Module:
         @Ts.prim_func
         def decode(
-            A: T.Buffer((T.int64(128), T.int64(128)), "int8"),
-            B: T.Buffer((T.int64(2), T.int64(128)), "float16"),
-            decode_1: T.Buffer((T.int64(128), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(128), T.int64(128)), "int8"),
+            B: T.Tensor((T.int64(2), T.int64(128)), "float16"),
+            decode_1: T.Tensor((T.int64(128), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -1956,9 +1956,9 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
         @Ts.prim_func
         def encode(
-            A: T.Buffer((T.int64(128), T.int64(128)), "float16"),
-            w_gathered: T.Buffer((T.int64(128), T.int64(128)), "int8"),
-            compute: T.Buffer(
+            A: T.Tensor((T.int64(128), T.int64(128)), "float16"),
+            w_gathered: T.Tensor((T.int64(128), T.int64(128)), "int8"),
+            compute: T.Tensor(
                 (
                     T.int64(2),
                     T.int64(128),

@@ -52,7 +52,7 @@ using tvm::tirx::Layout;
 
 namespace {
 
-tvm::tirx::BufferType BufferTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
+tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
                                      ffi::Optional<Expr> data,
                                      ffi::Optional<ffi::Array<PrimExpr>> strides,
                                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
@@ -70,7 +70,7 @@ tvm::tirx::BufferType BufferTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  return tvm::tirx::BufferType(
+  return tvm::tirx::TensorType(
       storage_scope, dtype, shape, strides.value_or(ffi::Array<PrimExpr>()),
       elem_offset.value_or(PrimExpr()), align, offset_factor, layout, allocated_addr);
 }
@@ -83,7 +83,7 @@ BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
                      int offset_factor, ffi::Optional<Layout> layout,
                      ffi::Array<PrimExpr> allocated_addr) {
   return BufferVar(buffer_name,
-                   BufferTypeDecl(shape, dtype, data, strides, elem_offset, storage_scope, align,
+                   TensorTypeDecl(shape, dtype, data, strides, elem_offset, storage_scope, align,
                                   offset_factor, layout, allocated_addr));
 }
 
@@ -609,7 +609,7 @@ tvm::tirx::Stmt BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExp
   return store;
 }
 
-DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                            ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
                            int align, int offset_factor, ffi::Optional<Layout> layout,
@@ -619,18 +619,18 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
     scope = "global";
   }
 
-  // Enforce rules for T.decl_buffer based on storage scope
+  // Enforce rules for T.decl_tensor based on storage scope
   ffi::Array<PrimExpr> allocated_addr_arr;
   if (scope == "tmem") {
     TVM_FFI_ICHECK(!data.has_value())
-        << "ValueError: For `tmem` scope, T.decl_buffer accepts only `allocated_addr`";
+        << "ValueError: For `tmem` scope, T.decl_tensor accepts only `allocated_addr`";
     TVM_FFI_ICHECK(allocated_addr.has_value())
-        << "ValueError: For `tmem` scope, T.decl_buffer requires `allocated_addr` (PrimExpr)";
+        << "ValueError: For `tmem` scope, T.decl_tensor requires `allocated_addr` (PrimExpr)";
     allocated_addr_arr = ffi::Array<PrimExpr>({allocated_addr.value()});
   } else if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
     TVM_FFI_ICHECK(!allocated_addr.has_value())
         << "ValueError: For `" << scope
-        << "` scope, T.decl_buffer does not accept `allocated_addr`";
+        << "` scope, T.decl_tensor does not accept `allocated_addr`";
     allocated_addr_arr = ffi::Array<PrimExpr>();
   } else {
     // Other scopes: fall back to provided value if any
@@ -641,29 +641,29 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
     }
   }
 
-  ffi::ObjectPtr<DeclBufferFrameNode> n = ffi::make_object<DeclBufferFrameNode>();
+  ffi::ObjectPtr<DeclTensorFrameNode> n = ffi::make_object<DeclTensorFrameNode>();
   n->buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
                          align, offset_factor, layout, allocated_addr_arr);
   if (data.has_value()) {
     n->data = data.value();
   } else if (scope == "tmem") {
     // Tensor memory is an externally allocated address space.  Make that
-    // address-to-pointer relationship explicit so every DeclBuffer has a
+    // address-to-pointer relationship explicit so every DeclTensor has a
     // physical data binding.
     n->data = Call(n->buffer.DataPointerType(), tvm::tirx::builtin::reinterpret(),
                    {allocated_addr.value()});
   }
   // For tmem, even without `data`, we should not emit an Allocate node.
   n->allocated = (scope == "tmem") || data.has_value();
-  return DeclBufferFrame(n);
+  return DeclTensorFrame(n);
 }
 
-BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
+BufferVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
   BufferVar buffer = BufferDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
                                 storage_scope, 0, 0, std::nullopt, {});
   AddToParent(tvm::tirx::Bind(
-      buffer.var(), Call(buffer.type(), tvm::tirx::builtin::alloc_buffer(),
+      buffer.var(), Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
                          {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                           StringImm(buffer.scope())},
                          DictAttrs(annotations.value_or(ffi::Map<ffi::String, ffi::Any>())))));
@@ -716,7 +716,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                      ffi::Optional<Expr>, ffi::Optional<ffi::Array<PrimExpr>>,
                                      ffi::Optional<PrimExpr>, ffi::String, int, int,
                                      ffi::Optional<Layout>, ffi::Array<PrimExpr>)>(BufferDecl))
-      .def("script.ir_builder.tirx.BufferType", BufferTypeDecl)
+      .def("script.ir_builder.tirx.TensorType", TensorTypeDecl)
       .def("script.ir_builder.tirx.PrimFunc", PrimFunc)
       .def("script.ir_builder.tirx.DeclFunction", DeclFunction)
       .def("script.ir_builder.tirx.Arg",
@@ -761,7 +761,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](ffi::Optional<ffi::Array<PrimExpr>> extents, ffi::String parent, ffi::String name,
               ffi::String cur,
               PrimType dtype) { return ScopeId(extents, parent, name, cur, dtype); })
-      .def("script.ir_builder.tirx.AllocBuffer", AllocBuffer)
+      .def("script.ir_builder.tirx.AllocTensor", AllocTensor)
       .def("script.ir_builder.tirx.Serial", Serial)
       .def("script.ir_builder.tirx.Parallel", Parallel)
       .def("script.ir_builder.tirx.Vectorized", Vectorized)
@@ -779,7 +779,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.If", If)
       .def("script.ir_builder.tirx.Then", Then)
       .def("script.ir_builder.tirx.Else", Else)
-      .def("script.ir_builder.tirx.DeclBuffer", DeclBuffer)
+      .def("script.ir_builder.tirx.DeclTensor", DeclTensor)
       .def("script.ir_builder.tirx.LaunchThread",
            [](ffi::Variant<tvm::tirx::Var, ffi::String> thread_tag_or_var, PrimExpr extent) {
              if (auto var = thread_tag_or_var.as<tvm::tirx::Var>()) {

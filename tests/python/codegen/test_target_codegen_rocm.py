@@ -32,7 +32,7 @@ def test_rocm_inf_nan():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((1,), dtype), C: T.Buffer((1,), dtype)):
+            def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(128, thread="threadIdx.x"):
@@ -88,7 +88,7 @@ def test_rocm_vectorize_add():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+            def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(4, thread="threadIdx.x"):
@@ -114,13 +114,13 @@ def test_rocm_vectorize_add():
 def test_rocm_warp_shuffle():
     @T.prim_func
     def func(
-        A: T.Buffer((32,), dtype="float32"),
+        A: T.Tensor((32,), dtype="float32"),
     ):
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             for tx in T.thread_binding(32, thread="threadIdx.x"):
-                A_local = T.alloc_buffer((1,), "float32", scope="local")
-                mask = T.alloc_buffer((1,), "uint32", scope="local")
-                t0 = T.alloc_buffer((1,), "float32", scope="local")
+                A_local = T.alloc_tensor((1,), "float32", scope="local")
+                mask = T.alloc_tensor((1,), "uint32", scope="local")
+                t0 = T.alloc_tensor((1,), "float32", scope="local")
                 A_local[0] = A[tx]
                 A_local[0] = T.tvm_warp_shuffle(mask[0], A_local[0], 0, 32, 32)
                 A[tx] = A_local[0]
@@ -141,8 +141,8 @@ def test_rocm_warp_shuffle():
 def test_rocm_vectorized_exp():
     @T.prim_func
     def func(
-        A: T.Buffer((4,), dtype="float32"),
-        B: T.Buffer((4,), dtype="float32"),
+        A: T.Tensor((4,), dtype="float32"),
+        B: T.Tensor((4,), dtype="float32"),
     ):
         for bx in T.thread_binding(1, thread="blockIdx.x"):
             for tx in T.thread_binding(1, thread="threadIdx.x"):
@@ -170,7 +170,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
+        def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):

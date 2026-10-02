@@ -35,9 +35,9 @@ from tvm.tirx import floordiv, floormod
 class Dense:
     @Ts.prim_func
     def main(
-        p0: T.Buffer((128, 128), "float32"),
-        p1: T.Buffer((128, 128), "float32"),
-        T_matmul_NT: T.Buffer((128, 128), "float32"),
+        p0: T.Tensor((128, 128), "float32"),
+        p1: T.Tensor((128, 128), "float32"),
+        T_matmul_NT: T.Tensor((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
@@ -57,9 +57,9 @@ class Dense:
 class DenseAdd:
     @Ts.prim_func
     def main(
-        p0: T.Buffer((128, 128), "float32"),
-        p1: T.Buffer((128, 128), "float32"),
-        T_add: T.Buffer((128, 128), "float32"),
+        p0: T.Tensor((128, 128), "float32"),
+        p1: T.Tensor((128, 128), "float32"),
+        T_add: T.Tensor((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
@@ -92,9 +92,9 @@ class DenseAdd:
 class DenseAdd_scheduled_cpu:
     @Ts.prim_func
     def main(
-        p0: T.Buffer((128, 128), "float32"),
-        p1: T.Buffer((128, 128), "float32"),
-        T_add: T.Buffer((128, 128), "float32"),
+        p0: T.Tensor((128, 128), "float32"),
+        p1: T.Tensor((128, 128), "float32"),
+        T_add: T.Tensor((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
@@ -173,7 +173,7 @@ class DenseAdd_scheduled_cpu:
 @tvm.script.ir_module
 class DenseAdd_cpu_no_write_cache:
     @Ts.prim_func
-    def main(p0: T.Buffer((128, 128), "float32"), p1: T.Buffer((128, 128), "float32"), T_add: T.Buffer((128, 128), "float32")) -> None:
+    def main(p0: T.Tensor((128, 128), "float32"), p1: T.Tensor((128, 128), "float32"), T_add: T.Tensor((128, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         # body
@@ -219,9 +219,9 @@ class DenseAdd_cpu_no_write_cache:
 class DenseAdd_scheduled_gpu:
     @Ts.prim_func
     def main(
-        p0: T.Buffer((128, 128), "float32"),
-        p1: T.Buffer((128, 128), "float32"),
-        T_add: T.Buffer((128, 128), "float32"),
+        p0: T.Tensor((128, 128), "float32"),
+        p1: T.Tensor((128, 128), "float32"),
+        T_add: T.Tensor((128, 128), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
@@ -371,7 +371,7 @@ class DenseAdd_scheduled_gpu:
 @tvm.script.ir_module
 class Conv2dInt8:
     @Ts.prim_func
-    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
+    def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor((1, 1, 1, 256), "int64"), p5: T.Tensor((1, 1, 1, 256), "int64"), p6: T.Tensor((1, 1, 1, 256), "int64"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
@@ -486,7 +486,7 @@ class Conv2dInt8:
 @tvm.script.ir_module
 class Conv2dInt8_target:
     @Ts.prim_func
-    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "uint8")) -> None:
+    def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor((1, 1, 1, 256), "int64"), p5: T.Tensor((1, 1, 1, 256), "int64"), p6: T.Tensor((1, 1, 1, 256), "int64"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "uint8")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
@@ -650,7 +650,7 @@ C_3_s1 = T.dynamic("C_3_s1", "int32")
 @tvm.script.ir_module
 class Conv2dInt8_tensorcore_scheduled:
     @Ts.prim_func
-    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((1, 1, 1, 256), "int64"), p5: T.Buffer((1, 1, 1, 256), "int64"), p6: T.Buffer((1, 1, 1, 256), "int64"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "uint8")):
+    def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor((1, 1, 1, 256), "int64"), p5: T.Tensor((1, 1, 1, 256), "int64"), p6: T.Tensor((1, 1, 1, 256), "int64"), p7: T.Tensor((), "int32"), p8: T.Tensor((1,), "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "uint8")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         conv2d_nhwc_reindex_shared = Ts.sblock_alloc_buffer((50176, 256), "int32", scope="shared")
@@ -751,7 +751,7 @@ class Conv2dInt8_tensorcore_scheduled:
 @tvm.script.ir_module
 class Conv2dInt8_NCHWc:
     @Ts.prim_func
-    def main(p0: T.Buffer((1, 32, 7, 7, 16), "uint8"), p1: T.Buffer((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Buffer((1, 128, 1, 1, 16), "int32"), p3: T.Buffer((1, 128, 1, 1, 16), "float32"), p4: T.Buffer(1, "float32"), p5: T.Buffer((1, 128, 7, 7, 16), "int32"), compute: T.Buffer((1, 128, 7, 7, 16), "uint8")) -> None:
+    def main(p0: T.Tensor((1, 32, 7, 7, 16), "uint8"), p1: T.Tensor((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Tensor((1, 128, 1, 1, 16), "int32"), p3: T.Tensor((1, 128, 1, 1, 16), "float32"), p4: T.Tensor(1, "float32"), p5: T.Tensor((1, 128, 7, 7, 16), "int32"), compute: T.Tensor((1, 128, 7, 7, 16), "uint8")) -> None:
         # function attr dict
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
@@ -913,7 +913,7 @@ class Conv2dInt8_NCHWc:
 @tvm.script.ir_module
 class Conv2dInt8_NCHWc_target:
     @Ts.prim_func
-    def main(p0: T.Buffer((1, 32, 7, 7, 16), "uint8"), p1: T.Buffer((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Buffer((1, 128, 1, 1, 16), "int32"), p3: T.Buffer((1, 128, 1, 1, 16), "float32"), p4: T.Buffer(1, "float32"), p5: T.Buffer((1, 128, 7, 7, 16), "uint8"), T_cast: T.Buffer((1, 128, 7, 7, 16), "int32")) -> None:
+    def main(p0: T.Tensor((1, 32, 7, 7, 16), "uint8"), p1: T.Tensor((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Tensor((1, 128, 1, 1, 16), "int32"), p3: T.Tensor((1, 128, 1, 1, 16), "float32"), p4: T.Tensor(1, "float32"), p5: T.Tensor((1, 128, 7, 7, 16), "uint8"), T_cast: T.Tensor((1, 128, 7, 7, 16), "int32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
@@ -1130,7 +1130,7 @@ def get_conv2d_vnni_mod(intrin_id):
     @tvm.script.ir_module
     class Conv2dInt8_NCHWc_scheduled:
         @Ts.prim_func
-        def main(p0: T.Buffer((1, 32, 7, 7, 16), "uint8"), p1: T.Buffer((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Buffer((1, 128, 1, 1, 16), "int32"), p3: T.Buffer((1, 128, 1, 1, 16), "float32"), p4: T.Buffer(1, "float32"), p5: T.Buffer((1, 128, 7, 7, 16), "uint8"), T_cast: T.Buffer((1, 128, 7, 7, 16), "int32")) -> None:
+        def main(p0: T.Tensor((1, 32, 7, 7, 16), "uint8"), p1: T.Tensor((128, 32, 1, 1, 4, 16, 4), "int8"), p2: T.Tensor((1, 128, 1, 1, 16), "int32"), p3: T.Tensor((1, 128, 1, 1, 16), "float32"), p4: T.Tensor(1, "float32"), p5: T.Tensor((1, 128, 7, 7, 16), "uint8"), T_cast: T.Tensor((1, 128, 7, 7, 16), "int32")) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # body
@@ -1192,7 +1192,7 @@ def get_conv2d_vnni_mod(intrin_id):
 @tvm.script.ir_module
 class Conv2dWinogradAddRelu:
     @Ts.prim_func
-    def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((6, 6, 64, 64), "float32"), p2: T.Buffer((1, 1, 1, 64), "float32"), T_relu: T.Buffer((1, 56, 56, 64), "float32")) -> None:
+    def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((6, 6, 64, 64), "float32"), p2: T.Tensor((1, 1, 1, 64), "float32"), T_relu: T.Tensor((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
         T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True, "global_symbol": "main"})
         # body
@@ -1283,7 +1283,7 @@ class Conv2dWinogradAddRelu:
 @tvm.script.ir_module
 class Conv2dWinogradAddResidualRelu:
     @Ts.prim_func
-    def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((6, 6, 64, 64), "float32"), p2: T.Buffer((1, 1, 1, 64), "float32"), p3: T.Buffer((1, 56, 56, 64), "float32"), T_relu: T.Buffer((1, 56, 56, 64), "float32")) -> None:
+    def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((6, 6, 64, 64), "float32"), p2: T.Tensor((1, 1, 1, 64), "float32"), p3: T.Tensor((1, 56, 56, 64), "float32"), T_relu: T.Tensor((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         # body
@@ -1381,7 +1381,7 @@ class Conv2dWinogradAddResidualRelu:
 @tvm.script.ir_module
 class Conv2dWinogradAddResidualRelu_scheduled:
     @Ts.prim_func
-    def main(p0: T.Buffer((1, 56, 56, 64), "float32"), p1: T.Buffer((6, 6, 64, 64), "float32"), p2: T.Buffer((1, 1, 1, 64), "float32"), p3: T.Buffer((1, 56, 56, 64), "float32"), T_relu: T.Buffer((1, 56, 56, 64), "float32")) -> None:
+    def main(p0: T.Tensor((1, 56, 56, 64), "float32"), p1: T.Tensor((6, 6, 64, 64), "float32"), p2: T.Tensor((1, 1, 1, 64), "float32"), p3: T.Tensor((1, 56, 56, 64), "float32"), T_relu: T.Tensor((1, 56, 56, 64), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         # body
@@ -1520,7 +1520,7 @@ class Conv2dWinogradAddResidualRelu_scheduled:
 @tvm.script.ir_module
 class Conv2dInt8_with_predicate:
     @Ts.prim_func
-    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer(256, "int32"), p5: T.Buffer(256, "int32"), p6: T.Buffer(256, "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
+    def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor(256, "int32"), p5: T.Tensor(256, "int32"), p6: T.Tensor(256, "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
@@ -1593,7 +1593,7 @@ class Conv2dInt8_with_predicate:
 @tvm.script.ir_module
 class Conv2dInt8_with_predicate_target:
     @Ts.prim_func
-    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer(256, "int32"), p5: T.Buffer(256, "int32"), p6: T.Buffer(256, "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer(1, "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")) -> None:
+    def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor(256, "int32"), p5: T.Tensor(256, "int32"), p6: T.Tensor(256, "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor(1, "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
@@ -1687,7 +1687,7 @@ class Conv2dInt8_with_predicate_target:
 @tvm.script.ir_module
 class Conv2dInt8_with_predicate_scheduled:
     @Ts.prim_func
-    def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((256,), "int32"), p5: T.Buffer((256,), "int32"), p6: T.Buffer((256,), "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")):
+    def main(p0: T.Tensor((16, 56, 56, 64), "int8"), p1: T.Tensor((256, 1, 1, 64), "int8"), p2: T.Tensor((1, 1, 1, 256), "int32"), p3: T.Tensor((1, 1, 1, 256), "int32"), p4: T.Tensor((256,), "int32"), p5: T.Tensor((256,), "int32"), p6: T.Tensor((256,), "int32"), p7: T.Tensor((), "int32"), p8: T.Tensor((1,), "int32"), p9: T.Tensor((16, 56, 56, 256), "int32"), compute: T.Tensor((16, 56, 56, 256), "int32")):
         T.func_attr({"tirx.noalias": True})
         with Ts.sblock("root"):
             Ts.reads()

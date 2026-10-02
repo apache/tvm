@@ -67,7 +67,7 @@ def test_normalize_tir_function():
     @I.ir_module(check_well_formed=False)
     class Before:
         @Ts.prim_func(private=True)
-        def f(x: T.Buffer((1,), "int32")):
+        def f(x: T.Tensor((1,), "int32")):
             x[0] = T.int32(0)
 
         @R.function
@@ -80,7 +80,7 @@ def test_normalize_tir_function():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def f1(x: T.Buffer((1,), "int32")):
+        def f1(x: T.Tensor((1,), "int32")):
             x[0] = 0
 
         @R.function

@@ -117,7 +117,7 @@ def test_unexpected_tir_args():
         @tvm.script.ir_module
         class TestWellCallTIR:
             @Ts.prim_func
-            def tir_addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
+            def tir_addone(A: T.Tensor((16, 16), "int32"), B: T.Tensor((16, 16), "int32")) -> None:
                 T.func_attr({"global_symbol": "tir_addone"})
                 for i, j in T.grid(16, 16):
                     with Ts.sblock("tir_addone"):
@@ -332,9 +332,9 @@ def test_call_tir_inplace_with_tuple_var_raises_error():
 
             @Ts.prim_func
             def copy(
-                A: T.Buffer((2, 3), "int32"),
-                B: T.Buffer((2, 3), "int32"),
-                out1: T.Buffer((2, 3), "int32"),
+                A: T.Tensor((2, 3), "int32"),
+                B: T.Tensor((2, 3), "int32"),
+                out1: T.Tensor((2, 3), "int32"),
             ):
                 # copies the contents of B into A and out1
                 T.func_attr({"tirx.noalias": True})

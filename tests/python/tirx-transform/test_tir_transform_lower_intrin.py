@@ -60,9 +60,9 @@ def check_value(expr, variables, data, fref):
 
     # Build input and output buffers
     input_bufs = [
-        tvm.tirx.decl_buffer((n,), dtype=variables[i].ty, name=f"v{i}") for i in range(num_vars)
+        tvm.tirx.decl_tensor((n,), dtype=variables[i].ty, name=f"v{i}") for i in range(num_vars)
     ]
-    out_buf = tvm.tirx.decl_buffer((n,), dtype=expr.ty, name="C")
+    out_buf = tvm.tirx.decl_tensor((n,), dtype=expr.ty, name="C")
 
     # Build loop body: for each i, bind variables[j] = input_bufs[j][i], then store expr to out
     loop_var = tvm.tirx.Var("i", "int32")
@@ -138,7 +138,7 @@ def test_lower_nested_access_ptr():
 
 
 def test_lower_vector_access_ptr():
-    buffer = tvm.tirx.decl_buffer((8,), "float32x2", name="A")
+    buffer = tvm.tirx.decl_tensor((8,), "float32x2", name="A")
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
 
     assert access_ptr.op.name == "tirx.tvm_access_ptr"
@@ -154,7 +154,7 @@ def test_lower_vector_access_ptr():
     lowered_body = tvm.tirx.transform.LowerIntrin()(mod)["main"].body
     assert isinstance(lowered_body, tvm.tirx.SeqStmt)
     alias = lowered_body.seq[0]
-    assert _is_buffer_binding(alias, "tirx.decl_buffer")
+    assert _is_buffer_binding(alias, "tirx.decl_tensor")
     assert alias.value.args[0].op.name == "tirx.buffer_data"
     assert alias.value.args[0].args[0].same_as(buffer)
     lowered = lowered_body.seq[1].value
@@ -176,7 +176,7 @@ def test_lower_vector_access_ptr():
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_lower_vector_access_ptr_with_padded_vector_dtype():
-    buffer = tvm.tirx.decl_buffer((8,), "float32x3", name="A")
+    buffer = tvm.tirx.decl_tensor((8,), "float32x3", name="A")
     access_ptr = buffer.access_ptr(access_mask=1, offset=2, extent=4)
     body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
     func = tvm.tirx.PrimFunc([buffer], body).with_attr("global_symbol", "main")
@@ -185,7 +185,7 @@ def test_lower_vector_access_ptr_with_padded_vector_dtype():
 
 
 def test_lower_buffer_data_access_ptr_preserves_buffer_identity():
-    buffer = tvm.tirx.decl_buffer((16,), "float32", "buffer")
+    buffer = tvm.tirx.decl_tensor((16,), "float32", "buffer")
     access = tvm.tirx.tvm_access_ptr("float32", buffer.data, 3, 8, 1)
 
     func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(access)).with_attr(
@@ -202,7 +202,7 @@ def test_lower_buffer_data_access_ptr_preserves_buffer_identity():
 
 @pytest.mark.parametrize("shape", [(), (2, 4)])
 def test_lower_access_ptr_uses_flat_alias_for_non_1d_buffer(shape):
-    buffer = tvm.tirx.decl_buffer(shape, "float32", "buffer")
+    buffer = tvm.tirx.decl_tensor(shape, "float32", "buffer")
     access = buffer.access_ptr(access_mask=1)
     func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(access)).with_attr(
         "target", tvm.target.Target("llvm")
@@ -211,7 +211,7 @@ def test_lower_access_ptr_uses_flat_alias_for_non_1d_buffer(shape):
     lowered = tvm.tirx.transform.LowerIntrin()(tvm.IRModule.from_expr(func))["main"].body
     assert isinstance(lowered, tvm.tirx.SeqStmt)
     alias = lowered.seq[0]
-    assert _is_buffer_binding(alias, "tirx.decl_buffer")
+    assert _is_buffer_binding(alias, "tirx.decl_tensor")
     assert len(alias.var.ty.shape) == 1
     load = lowered.seq[1].value.args[0]
     assert isinstance(load, tvm.ir.TensorLoad)

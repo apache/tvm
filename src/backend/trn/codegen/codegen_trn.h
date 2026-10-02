@@ -59,7 +59,7 @@ class CodeGenTrainium final : public CodeGenC {
   void Dispatch_(const VarNode* op, std::ostream& os) final;  // NOLINT(*)
   void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const BindNode* op) final;
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AttrStmtNode* op) final;                          // NOLINT(*)
   void Dispatch_(const ForNode* op) final;                               // NOLINT(*)
   void Dispatch_(const BufferStoreNode* op) final;                       // NOLINT(*)=
@@ -71,7 +71,7 @@ class CodeGenTrainium final : public CodeGenC {
   void Dispatch_(const prim::CastNode* op, std::ostream& os) final;      // NOLINT(*)
   void Dispatch_(const prim::FloorDivNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::FloorModNode* op, std::ostream& os) final;  // NOLINT(*)
-  void DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call);
+  void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const IfThenElseNode* op) final;                   // NOLINT(*)
   void Dispatch_(const prim::AndNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const prim::OrNode* op, std::ostream& os) final;   // NOLINT(*)

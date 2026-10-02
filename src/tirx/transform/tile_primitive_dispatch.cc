@@ -310,7 +310,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       seq.reserve(alloc_buffers_.size() + 1);
       for (const auto& buffer : alloc_buffers_) {
         seq.push_back(
-            Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_buffer(),
+            Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_tensor(),
                                     {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                                      StringImm(buffer.scope())},
                                     DictAttrs())));
@@ -389,8 +389,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       rebuilt.push_back(s);
       if (const auto* bind = s.as<BindNode>()) {
         if (const auto* call = bind->value.as<CallNode>();
-            call && (call->op.same_as(builtin::alloc_buffer()) ||
-                     call->op.same_as(builtin::decl_buffer()))) {
+            call && (call->op.same_as(builtin::alloc_tensor()) ||
+                     call->op.same_as(builtin::decl_tensor()))) {
           changed |= AppendPostBufferDefStmts(&rebuilt, bind->var.as_or_throw<BufferVar>(),
                                               bind->var.as_or_throw<BufferVar>());
         }
@@ -404,8 +404,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
-      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::alloc_tensor())) return MutateAllocTensor(op, inplace_mode);
+      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, inplace_mode);
     }
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const auto* bind = stmt.as<BindNode>();
@@ -431,7 +431,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   /*!
    * \brief Track the storage root of a buffer variable.
    *
-   * A ``DeclBuffer`` whose data is ``buffer_data(src)`` is a view over
+   * A ``DeclTensor`` whose data is ``buffer_data(src)`` is a view over
    * ``src``'s storage, so it inherits ``src``'s root; anything else owns its
    * storage.  Buffers with no definition in the body (PrimFunc parameters)
    * are absent from the map and are their own root.
@@ -443,7 +443,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       if (const auto* call = data.value().as<CallNode>();
           call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
         if (auto src = call->args[0].as<Var>();
-            src.has_value() && src.value()->ty.as<BufferTypeNode>()) {
+            src.has_value() && src.value()->ty.as<TensorTypeNode>()) {
           root = StorageRootOf(src.value());
         }
       }
@@ -477,7 +477,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
       if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
         if (auto var = op->args[0].as<Var>();
-            var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
+            var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
           auto it = buffer_root_.find(var.value());
           if (it != buffer_root_.end() && !it->second.same_as(var.value())) {
             return it->second.as_or_throw<BufferVar>().data();
@@ -490,7 +490,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root_;
   };
 
-  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
     BufferVar old_buffer = op->var.as_or_throw<BufferVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
@@ -502,7 +502,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return SeqStmt::Flatten(seq);
   }
 
-  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, InplaceMode inplace_mode) {
     BufferVar old_buffer = op->var.as_or_throw<BufferVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();

@@ -34,7 +34,7 @@ from tvm.target import Target
 @tvm.script.ir_module
 class Conv2DBiasBnReLU:
     @Ts.prim_func
-    def main(X: T.Buffer([1, 512, 56, 56], dtype='float32'), W: T.Buffer([512, 512, 3, 3], dtype='float32'), B: T.Buffer([512, 1, 1], dtype='float32'), bn_scale: T.Buffer([512, 1, 1], dtype='float32'), bn_offset: T.Buffer([512, 1, 1], dtype='float32'), compute: T.Buffer([1, 512, 56, 56], dtype='float32')) -> None:
+    def main(X: T.Tensor([1, 512, 56, 56], dtype='float32'), W: T.Tensor([512, 512, 3, 3], dtype='float32'), B: T.Tensor([512, 1, 1], dtype='float32'), bn_scale: T.Tensor([512, 1, 1], dtype='float32'), bn_offset: T.Tensor([512, 1, 1], dtype='float32'), compute: T.Tensor([1, 512, 56, 56], dtype='float32')) -> None:
 
         pad_temp = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
         compute_1 = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
@@ -71,7 +71,7 @@ class Conv2DBiasBnReLU:
 @tvm.script.ir_module
 class Conv2DBiasBnReLUInlined:
     @Ts.prim_func
-    def main(X: T.Buffer([1, 512, 56, 56], dtype='float32'), W: T.Buffer([512, 512, 3, 3], dtype='float32'), B: T.Buffer([512, 1, 1], dtype='float32'), bn_scale: T.Buffer([512, 1, 1], dtype='float32'), bn_offset: T.Buffer([512, 1, 1], dtype='float32'), compute: T.Buffer([1, 512, 56, 56], dtype='float32')) -> None:
+    def main(X: T.Tensor([1, 512, 56, 56], dtype='float32'), W: T.Tensor([512, 512, 3, 3], dtype='float32'), B: T.Tensor([512, 1, 1], dtype='float32'), bn_scale: T.Tensor([512, 1, 1], dtype='float32'), bn_offset: T.Tensor([512, 1, 1], dtype='float32'), compute: T.Tensor([1, 512, 56, 56], dtype='float32')) -> None:
 
         pad_temp = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
         compute_1 = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
@@ -93,7 +93,7 @@ class Conv2DBiasBnReLUInlined:
 @tvm.script.ir_module
 class MultiLevelTiledConv2D:
     @Ts.prim_func
-    def main(X: T.Buffer([1, 512, 56, 56], dtype='float32'), W: T.Buffer([512, 512, 3, 3], dtype='float32'), B: T.Buffer([512, 1, 1], dtype='float32'), bn_scale: T.Buffer([512, 1, 1], dtype='float32'), bn_offset: T.Buffer([512, 1, 1], dtype='float32'), compute: T.Buffer([1, 512, 56, 56], dtype='float32')) -> None:
+    def main(X: T.Tensor([1, 512, 56, 56], dtype='float32'), W: T.Tensor([512, 512, 3, 3], dtype='float32'), B: T.Tensor([512, 1, 1], dtype='float32'), bn_scale: T.Tensor([512, 1, 1], dtype='float32'), bn_offset: T.Tensor([512, 1, 1], dtype='float32'), compute: T.Tensor([1, 512, 56, 56], dtype='float32')) -> None:
 
         pad_temp = Ts.sblock_alloc_buffer([1, 512, 58, 58], dtype="float32")
         compute_1 = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32")
@@ -150,7 +150,7 @@ class MultiLevelTiledConv2D:
 @tvm.script.ir_module
 class MultiLevelTiledConv2DAfterInline:
     @Ts.prim_func
-    def main(X: T.Buffer((1, 512, 56, 56), "float32"), W: T.Buffer((512, 512, 3, 3), "float32"), B: T.Buffer((512, 1, 1), "float32"), bn_scale: T.Buffer((512, 1, 1), "float32"), bn_offset: T.Buffer((512, 1, 1), "float32"), compute: T.Buffer((1, 512, 56, 56), "float32")) -> None:
+    def main(X: T.Tensor((1, 512, 56, 56), "float32"), W: T.Tensor((512, 512, 3, 3), "float32"), B: T.Tensor((512, 1, 1), "float32"), bn_scale: T.Tensor((512, 1, 1), "float32"), bn_offset: T.Tensor((512, 1, 1), "float32"), compute: T.Tensor((1, 512, 56, 56), "float32")) -> None:
         compute_local = Ts.sblock_alloc_buffer([1, 512, 56, 56], dtype="float32", scope="local")
         for i0_0_i1_0_i2_0_i3_0_fused in T.thread_binding(224, thread="blockIdx.x"):
             for i0_1_i1_1_i2_1_i3_1_fused in T.thread_binding(2, thread="vthread.x"):
@@ -177,7 +177,7 @@ class MultiLevelTiledConv2DAfterInline:
 @tvm.script.ir_module
 class SoftmaxBeforeInline:
     @Ts.prim_func
-    def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
+    def main(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
         T_softmax_exp = Ts.sblock_alloc_buffer([256, 256], dtype="float32")
         T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
@@ -205,7 +205,7 @@ class SoftmaxBeforeInline:
 @tvm.script.ir_module
 class SoftmaxAfterInline:
     @Ts.prim_func
-    def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
+    def main(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T_softmax_maxelem = Ts.sblock_alloc_buffer([256], dtype="float32")
         T_softmax_expsum = Ts.sblock_alloc_buffer([256], dtype="float32")
         for i0, i1 in T.grid(256, 256):
@@ -229,10 +229,10 @@ class SoftmaxAfterInline:
 class BeforePureSpatial:
     @Ts.prim_func
     def main(
-        placeholder: T.Buffer((1, 384), "int64"),
-        placeholder_1: T.Buffer((30522, 768), "float32"),
-        placeholder_2: T.Buffer((1, 384, 768), "float32"),
-        T_add: T.Buffer((1, 384, 768), "float32"),
+        placeholder: T.Tensor((1, 384), "int64"),
+        placeholder_1: T.Tensor((30522, 768), "float32"),
+        placeholder_2: T.Tensor((1, 384, 768), "float32"),
+        T_add: T.Tensor((1, 384, 768), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         compile_engine_const = Ts.sblock_alloc_buffer([], dtype="int64")
@@ -292,7 +292,7 @@ class BeforePureSpatial:
 @tvm.script.ir_module
 class AfterPureSpatial:
     @Ts.prim_func
-    def main(placeholder: T.Buffer((1, 384), "int64"), placeholder_1: T.Buffer((30522, 768), "float32"), placeholder_2: T.Buffer((1, 384, 768), "float32"), T_add: T.Buffer((1, 384, 768), "float32")) -> None:
+    def main(placeholder: T.Tensor((1, 384), "int64"), placeholder_1: T.Tensor((30522, 768), "float32"), placeholder_2: T.Tensor((1, 384, 768), "float32"), T_add: T.Tensor((1, 384, 768), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
@@ -307,7 +307,7 @@ class AfterPureSpatial:
 @tvm.script.ir_module
 class ConstConsumer:
     @Ts.prim_func
-    def main(T_full: T.Buffer((1, 12, 4096), "int64")) -> None:
+    def main(T_full: T.Tensor((1, 12, 4096), "int64")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
@@ -322,7 +322,7 @@ class ConstConsumer:
 @tvm.script.ir_module
 class Conv2dInt8:
     @Ts.prim_func
-    def main(p0: T.Buffer((16, 14, 14, 256), "int8"), p1: T.Buffer((1024, 1, 1, 256), "int8"), p2: T.Buffer((1, 1, 1, 1024), "int32"), p3: T.Buffer((1, 1, 1, 1024), "int32"), p4: T.Buffer(1024, "int32"), p5: T.Buffer(1024, "int32"), p6: T.Buffer(1024, "int32"), p7: T.Buffer(1, "int32"), p8: T.Buffer((16, 14, 14, 1024), "int32"), compute: T.Buffer((16, 14, 14, 1024), "int32")) -> None:
+    def main(p0: T.Tensor((16, 14, 14, 256), "int8"), p1: T.Tensor((1024, 1, 1, 256), "int8"), p2: T.Tensor((1, 1, 1, 1024), "int32"), p3: T.Tensor((1, 1, 1, 1024), "int32"), p4: T.Tensor(1024, "int32"), p5: T.Tensor(1024, "int32"), p6: T.Tensor(1024, "int32"), p7: T.Tensor(1, "int32"), p8: T.Tensor((16, 14, 14, 1024), "int32"), compute: T.Tensor((16, 14, 14, 1024), "int32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
@@ -498,7 +498,7 @@ def test_inline_constant_scalars_skip_output_block():
     @tvm.script.ir_module
     class Full:
         @Ts.prim_func
-        def main(T_full: T.Buffer((), "float32")):
+        def main(T_full: T.Tensor((), "float32")):
             with Ts.sblock("T_full"):
                 vi = Ts.axis.spatial(1, 0)
                 Ts.reads()
@@ -515,8 +515,8 @@ def test_no_inline_root_block():
     class MaxReduction:
         @Ts.prim_func
         def main(
-            data: T.Buffer((8, 8), "float32"),
-            data_red: T.Buffer((), "float32"),
+            data: T.Tensor((8, 8), "float32"),
+            data_red: T.Tensor((), "float32"),
         ):
             T.func_attr({"tir.noalias": T.bool(True)})
             with Ts.sblock("data_red"):

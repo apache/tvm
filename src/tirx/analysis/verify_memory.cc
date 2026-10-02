@@ -111,7 +111,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   bool IsFromFunctionArgs(const VarNode* var) const {
     const VarNode* V = var;
     for (const Var& param : func_->params) {
-      if (param->ty.as<BufferTypeNode>() && V == param.get()) return true;
+      if (param->ty.as<TensorTypeNode>() && V == param.get()) return true;
     }
 
     while (true) {

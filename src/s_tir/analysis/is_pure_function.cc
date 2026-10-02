@@ -49,13 +49,13 @@ class PurityChecker : TIRVisitorWithPath {
 
   void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op, call, path);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return DispatchAllocTensor(op, call, path);
     }
     return TIRVisitorWithPath::Dispatch_(op, path);
   }
 
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* call,
+  void DispatchAllocTensor(const BindNode* op, const CallNode* call,
                            ffi::reflection::AccessPath path) {
     internal_allocations_.insert(op->var);
     allocation_calls_.insert(call);

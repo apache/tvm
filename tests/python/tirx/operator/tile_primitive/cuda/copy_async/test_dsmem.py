@@ -46,8 +46,8 @@ def _make_dsmem_dispatch_call(shape, dtype, src_layout, dst_layout):
     from tvm.ir import Range
     from tvm.tirx.stmt import BufferRegion
 
-    src_buf = tvm.tirx.decl_buffer(shape, dtype, "A", scope="shared.dyn", layout=src_layout)
-    dst_buf = tvm.tirx.decl_buffer(shape, dtype, "B", scope="shared.dyn", layout=dst_layout)
+    src_buf = tvm.tirx.decl_tensor(shape, dtype, "A", scope="shared.dyn", layout=src_layout)
+    dst_buf = tvm.tirx.decl_tensor(shape, dtype, "B", scope="shared.dyn", layout=dst_layout)
     ranges = [Range.from_min_extent(0, s) for s in shape]
     config = {"mbar": Var("mbar", "handle"), "remote_cta_id": IntImm("int32", 1)}
     op_call = CopyAsync(BufferRegion(dst_buf, ranges), BufferRegion(src_buf, ranges), config=config)
@@ -160,7 +160,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
 
     # fmt: off
     @T.prim_func
-    def dsmem_copy(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
+    def dsmem_copy(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
 
         T.device_entry()
         cbx = T.cta_id_in_cluster([CLUSTER_N])
@@ -169,13 +169,13 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
         pool = T.SMEMPool()
                 # src_smem: CTA 0 writes here, dispatch reads from here
         src_raw = pool.alloc([src_phys], dtype, align=128)
-        src_smem = T.decl_buffer(
+        src_smem = T.decl_tensor(
             list(shape), dtype, src_raw.data,
             elem_offset=0, scope="shared.dyn", layout=src_layout,
         )
                 # dst_smem: dispatch writes here (on remote CTA), CTA 1 reads
         dst_raw = pool.alloc([dst_phys], dtype, align=128)
-        dst_smem = T.decl_buffer(
+        dst_smem = T.decl_tensor(
             list(shape), dtype, dst_raw.data,
             elem_offset=0, scope="shared.dyn", layout=dst_layout,
         )
@@ -233,7 +233,7 @@ def test_dsmem_dispatch_missing_config():
     from tvm.tirx.stmt import BufferRegion
 
     layout = TileLayout(S[64])
-    buf = tvm.tirx.decl_buffer((64,), "float16", "A", scope="shared.dyn", layout=layout)
+    buf = tvm.tirx.decl_tensor((64,), "float16", "A", scope="shared.dyn", layout=layout)
     br = BufferRegion(buf, [Range.from_min_extent(0, 64)])
     target = tvm.target.Target({"kind": "cuda", "arch": "sm_90a"})
     sctx = DispatchContext(target, ExecScope("thread"), {}, {})

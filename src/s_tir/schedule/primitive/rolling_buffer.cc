@@ -260,7 +260,7 @@ class RollingBufferInfoCollector {
     }
     ffi::Array<PrimExpr> new_shape = buffer->shape;
     new_shape.Set(roll_axis, region[roll_axis]->extent);
-    auto new_buffer_type = CopyBufferType(buffer);
+    auto new_buffer_type = CopyTensorType(buffer);
     new_buffer_type->shape = new_shape;
     BufferVar new_buffer = RebuildBufferVar(buffer, std::move(new_buffer_type));
 

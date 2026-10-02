@@ -108,7 +108,7 @@ TVM_DLL Pass LiftThreadBinding();
  *
  *  for i in range(0, 16):
  *      with T.sblock():
- *          B = T.alloc_buffer(16, 16)
+ *          B = T.alloc_tensor(16, 16)
  *          for j in range(0, 16):
  *              B[i, j] = A[i, j] + 1
  *          for j in range(0, 16):
@@ -124,7 +124,7 @@ TVM_DLL Pass LiftThreadBinding();
  *
  *  for i in range(0, 16):
  *      with T.sblock():
- *          B = T.alloc_buffer(1, 16)
+ *          B = T.alloc_tensor(1, 16)
  *          for j in range(0, 16):
  *              B[0, j] = A[i, j] + 1
  *          for j in range(0, 16):

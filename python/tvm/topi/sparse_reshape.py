@@ -19,7 +19,7 @@
 
 from tvm.script.ir_builder import IRBuilder
 from tvm.te import div, extern, floordiv, floormod
-from tvm.tirx import Cast, decl_buffer
+from tvm.tirx import Cast, decl_tensor
 from tvm.tirx.script import ir_builder as T
 
 
@@ -90,21 +90,21 @@ def sparse_reshape(
                 prev_shape_size = prev_shape_ptr.shape[0]
                 new_shape_size = new_shape_ptr.shape[0]
 
-                multipliers_buf = T.alloc_buffer(
+                multipliers_buf = T.alloc_tensor(
                     [prev_shape_size], new_shape_ptr.dtype, scope="local"
                 )
                 multipliers = multipliers_buf
-                dividers_buf = T.alloc_buffer([new_shape_size], new_shape_ptr.dtype, scope="local")
+                dividers_buf = T.alloc_tensor([new_shape_size], new_shape_ptr.dtype, scope="local")
                 dividers = dividers_buf
-                flattened_indices_buf = T.alloc_buffer(
+                flattened_indices_buf = T.alloc_tensor(
                     [sparse_indices_ptr.shape[0]], new_shape_ptr.dtype, scope="local"
                 )
                 flattened_indices = flattened_indices_buf
-                total_ele_buf = T.alloc_buffer([1], new_shape_ptr.dtype, scope="local")
+                total_ele_buf = T.alloc_tensor([1], new_shape_ptr.dtype, scope="local")
                 total_ele = total_ele_buf
-                division_total_ele_buf = T.alloc_buffer([1], new_shape_ptr.dtype, scope="local")
+                division_total_ele_buf = T.alloc_tensor([1], new_shape_ptr.dtype, scope="local")
                 division_total_ele = division_total_ele_buf
-                equal_shape_buf = T.alloc_buffer([1], "bool", scope="local")
+                equal_shape_buf = T.alloc_tensor([1], "bool", scope="local")
                 equal_shape = equal_shape_buf
 
                 T.buffer_store(
@@ -234,7 +234,7 @@ def sparse_reshape(
                                 )
 
                         with T.parallel(0, new_sparse_indices_ptr.shape[0]) as i:
-                            current_element_buf = T.alloc_buffer(
+                            current_element_buf = T.alloc_tensor(
                                 [1], new_shape_ptr.dtype, scope="local"
                             )
                             current_element = current_element_buf
@@ -267,10 +267,10 @@ def sparse_reshape(
 
             return ib.get()
 
-    new_sparse_indices_buf = decl_buffer(
+    new_sparse_indices_buf = decl_tensor(
         new_sparse_indices_shape, sparse_indices.dtype, "new_sparse_indices_buf"
     )
-    new_shape_buf = decl_buffer(new_shape_shape, prev_shape.dtype, "new_shape_buf")
+    new_shape_buf = decl_tensor(new_shape_shape, prev_shape.dtype, "new_shape_buf")
 
     return extern(
         [new_sparse_indices_shape, new_shape_shape],

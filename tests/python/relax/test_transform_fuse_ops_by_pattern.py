@@ -703,8 +703,8 @@ def test_ignore_call_tir():
     class Conv2dReLUCallTIR:
         @Ts.prim_func
         def relu(
-            data: T.Buffer((1, 64, 56, 56), "float32"),
-            out: T.Buffer((1, 64, 56, 56), "float32"),
+            data: T.Tensor((1, 64, 56, 56), "float32"),
+            out: T.Tensor((1, 64, 56, 56), "float32"),
         ):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
                 with Ts.sblock("root"):
@@ -731,8 +731,8 @@ def test_ignore_call_tir():
     class Conv2dReLUCallTIR_partitioned:
         @Ts.prim_func
         def relu(
-            data: T.Buffer((1, 64, 56, 56), "float32"),
-            out: T.Buffer((1, 64, 56, 56), "float32"),
+            data: T.Tensor((1, 64, 56, 56), "float32"),
+            out: T.Tensor((1, 64, 56, 56), "float32"),
         ):
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):

@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def transpose_elementwise(
-    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -42,7 +42,7 @@ def transpose_elementwise(
 
 @Ts.prim_func
 def transpose_elementwise_reindex_read(
-    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
     A_reindex = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
@@ -57,9 +57,9 @@ def transpose_elementwise_reindex_read(
 
 @Ts.prim_func
 def conv2d_nhwc(
-    Input: T.Buffer((1, 224, 224, 3), "float32"),
-    Weight: T.Buffer((7, 7, 3, 64), "float32"),
-    Conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
+    Input: T.Tensor((1, 224, 224, 3), "float32"),
+    Weight: T.Tensor((7, 7, 3, 64), "float32"),
+    Conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32"),
 ) -> None:
     PadInput = Ts.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
@@ -83,9 +83,9 @@ def conv2d_nhwc(
 
 @Ts.prim_func
 def conv2d_nhwc_reindex_data(
-    Input: T.Buffer((1, 224, 224, 3), "float32"),
-    Weight: T.Buffer((7, 7, 3, 64), "float32"),
-    Conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
+    Input: T.Tensor((1, 224, 224, 3), "float32"),
+    Weight: T.Tensor((7, 7, 3, 64), "float32"),
+    Conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32"),
 ) -> None:
     PadInput = Ts.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     ReindexInput = Ts.sblock_alloc_buffer([1, 112, 112, 7, 7, 3], dtype="float32")
@@ -113,9 +113,9 @@ def conv2d_nhwc_reindex_data(
 
 @Ts.prim_func
 def conv2d_nhwc_reindex_weight(
-    inputs: T.Buffer([1, 224, 224, 3], dtype="float32"),
-    weight: T.Buffer([7, 7, 3, 64], dtype="float32"),
-    conv2d_nhwc: T.Buffer([1, 112, 112, 64], dtype="float32"),
+    inputs: T.Tensor([1, 224, 224, 3], dtype="float32"),
+    weight: T.Tensor([7, 7, 3, 64], dtype="float32"),
+    conv2d_nhwc: T.Tensor([1, 112, 112, 64], dtype="float32"),
 ) -> None:
     PadInput = Ts.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     weight_reindex = Ts.sblock_alloc_buffer([64, 7, 7, 3], dtype="float32")
@@ -154,9 +154,9 @@ def conv2d_nhwc_reindex_weight(
 
 @Ts.prim_func
 def matmul(
-    A: T.Buffer((512, 512), "float32"),
-    B: T.Buffer((512, 512), "float32"),
-    C: T.Buffer((512, 512), "float32"),
+    A: T.Tensor((512, 512), "float32"),
+    B: T.Tensor((512, 512), "float32"),
+    C: T.Tensor((512, 512), "float32"),
 ) -> None:
     for i0, i1, i2 in T.grid(512, 512, 512):
         with Ts.sblock("matmul"):
@@ -170,9 +170,9 @@ def matmul(
 
 @Ts.prim_func
 def matmul_reindex_write(
-    A: T.Buffer((512, 512), "float32"),
-    B: T.Buffer((512, 512), "float32"),
-    C: T.Buffer((512, 512), "float32"),
+    A: T.Tensor((512, 512), "float32"),
+    B: T.Tensor((512, 512), "float32"),
+    C: T.Tensor((512, 512), "float32"),
 ) -> None:
     C_reindex = Ts.sblock_alloc_buffer([512, 512], dtype="float32")
     for i0, i1, i2 in T.grid(512, 512, 512):
@@ -192,7 +192,7 @@ def matmul_reindex_write(
 
 
 @Ts.prim_func
-def multiple_read(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")) -> None:
+def multiple_read(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -201,9 +201,9 @@ def multiple_read(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "f
 
 @Ts.prim_func
 def mixed_dtype(
-    p0: T.Buffer((T.int64(2), 1280), "float16"),
-    p1: T.Buffer((1280, 1280), "float16"),
-    T_matmul_NT: T.Buffer((T.int64(2), 1280), "float16"),
+    p0: T.Tensor((T.int64(2), 1280), "float16"),
+    p1: T.Tensor((1280, 1280), "float16"),
+    T_matmul_NT: T.Tensor((T.int64(2), 1280), "float16"),
 ) -> None:
     for i0, i1, i2 in T.grid(T.int64(2), 1280, 1280):
         with Ts.sblock("T_matmul_NT"):
@@ -218,9 +218,9 @@ def mixed_dtype(
 
 @Ts.prim_func
 def mixed_dtype_reindex_write(
-    p0: T.Buffer((T.int64(2), 1280), "float16"),
-    p1: T.Buffer((1280, 1280), "float16"),
-    T_matmul_NT: T.Buffer((T.int64(2), 1280), "float16"),
+    p0: T.Tensor((T.int64(2), 1280), "float16"),
+    p1: T.Tensor((1280, 1280), "float16"),
+    T_matmul_NT: T.Tensor((T.int64(2), 1280), "float16"),
 ) -> None:
     T_matmul_NT_reindex = Ts.sblock_alloc_buffer([T.int64(2), 1280], dtype="float16")
     for i0, i1, i2 in T.grid(T.int64(2), 1280, 1280):
@@ -243,9 +243,9 @@ def mixed_dtype_reindex_write(
 
 @Ts.prim_func
 def matmul_unit_dim(
-    A: T.Buffer((1, 512), "float32"),
-    B: T.Buffer((512, 1), "float32"),
-    C: T.Buffer((1, 1), "float32"),
+    A: T.Tensor((1, 512), "float32"),
+    B: T.Tensor((512, 1), "float32"),
+    C: T.Tensor((1, 1), "float32"),
 ) -> None:
     for i0, i1, i2 in T.grid(1, 1, 512):
         with Ts.sblock("matmul"):
@@ -259,9 +259,9 @@ def matmul_unit_dim(
 
 @Ts.prim_func
 def matmul_unit_dim_reindex_write(
-    A: T.Buffer((1, 512), "float32"),
-    B: T.Buffer((512, 1), "float32"),
-    C: T.Buffer((1, 1), "float32"),
+    A: T.Tensor((1, 512), "float32"),
+    B: T.Tensor((512, 1), "float32"),
+    C: T.Tensor((1, 1), "float32"),
 ) -> None:
     C_reindex = Ts.sblock_alloc_buffer([1, 1], dtype="float32")
     for i0, i1, i2 in T.grid(1, 1, 512):

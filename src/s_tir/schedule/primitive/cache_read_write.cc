@@ -1080,7 +1080,7 @@ class CacheReadRewriter : public StmtExprMutator {
     if (block == scope_sref_->stmt) {
       // If so, put buffer allocation on the parent scope
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
-      // In cache_inplace case, alloc_buffer may be already exits.
+      // In cache_inplace case, alloc_tensor may be already exits.
       if (info_->alloc.has_value()) {
         n->alloc_buffers.push_back(info_->alloc.value());
         stmt = SBlock(n);
@@ -1403,7 +1403,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     // Put buffer allocation on the parent scope
     if (block == scope_sref_->stmt) {
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
-      // In cache_inplace case, alloc_buffer may be already exits.
+      // In cache_inplace case, alloc_tensor may be already exits.
       if (info_->alloc.has_value()) {
         n->alloc_buffers.push_back(info_->alloc.value());
         stmt = SBlock(n);
@@ -1638,7 +1638,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
  */
 BufferVar CreateReindexBuffer(const BufferVar& buffer, const ffi::Array<IterVar>& block_iters,
                               const std::unordered_set<Var>& covered) {
-  ffi::ObjectPtr<BufferTypeNode> new_buffer = CopyBufferType(buffer);
+  ffi::ObjectPtr<TensorTypeNode> new_buffer = CopyTensorType(buffer);
   std::vector<PrimExpr> new_shape;
   std::vector<PrimExpr> new_strides;
   for (const auto& iter : block_iters) {
@@ -2031,7 +2031,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   info.cache_region = cache_region;
   info.write_buffer = WithScope(read_buffer, storage_scope);
   if (!cache_full_region) {
-    auto write_buffer = CopyBufferType(info.write_buffer);
+    auto write_buffer = CopyTensorType(info.write_buffer);
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
       shape.push_back(cache_range->extent);
@@ -2121,7 +2121,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   info.cache_region = cache_region;
   info.read_buffer = WithScope(write_buffer, storage_scope);
   if (!cache_full_region) {
-    auto read_buffer_type = CopyBufferType(info.read_buffer);
+    auto read_buffer_type = CopyTensorType(info.read_buffer);
     std::vector<PrimExpr> shape;
     for (auto cache_range : info.cache_region->region) {
       shape.push_back(cache_range->extent);
@@ -2268,7 +2268,7 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   }
 
   // Create new buffer
-  ffi::ObjectPtr<BufferTypeNode> new_buffer = CopyBufferType(old_buffer);
+  ffi::ObjectPtr<TensorTypeNode> new_buffer = CopyTensorType(old_buffer);
   new_buffer->storage_scope = storage_scope;
   new_buffer->shape = new_shape;
   BufferVar rebuilt =

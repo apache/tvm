@@ -65,8 +65,8 @@ def test_call_tir_dtensor():
 
         @Ts.prim_func
         def tir_func(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -128,8 +128,8 @@ def test_explicit_device_id():
 
         @Ts.prim_func
         def tir_func(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -168,8 +168,8 @@ def test_constant():
 
         @Ts.prim_func
         def tir_func(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):

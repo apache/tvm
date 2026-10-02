@@ -50,7 +50,7 @@ std::string GetStorageScope(const Var& var) {
 /*!
  * \brief Allocation calculator for buffer allocation bindings.
  */
-class AllocBufferCalculator : public StmtExprVisitor {
+class AllocTensorCalculator : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
 
@@ -66,13 +66,13 @@ class AllocBufferCalculator : public StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op, call);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return DispatchAllocTensor(op, call);
     }
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
     ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
@@ -120,7 +120,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
     const PrimFunc& func) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
-  auto alloc_buffer_result = ffi::make_object<AllocBufferCalculator>()->operator()(func);
+  auto alloc_buffer_result = ffi::make_object<AllocTensorCalculator>()->operator()(func);
   results.Set("main", alloc_buffer_result);
   return results;
 }
@@ -132,7 +132,7 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAlloca
     if (auto prim_func = kv.second.as<tirx::PrimFunc>()) {
       ffi::String func_name = kv.first->name_hint;
       auto alloc_buffer_result =
-          ffi::make_object<AllocBufferCalculator>()->operator()(prim_func.value());
+          ffi::make_object<AllocTensorCalculator>()->operator()(prim_func.value());
       results.Set(func_name, alloc_buffer_result);
     }
   }

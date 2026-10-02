@@ -30,7 +30,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
             vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -41,7 +41,7 @@ def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 1
 
 @Ts.prim_func
 def matmul_original(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     for i, j in T.grid(32, 32):
         with Ts.sblock("init"):
@@ -61,7 +61,7 @@ def matmul_original(
 
 @Ts.prim_func
 def elementwise_with_root(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     with Ts.sblock():
         for i, j in T.grid(128, 128):
@@ -76,7 +76,7 @@ def elementwise_with_root(
 
 @Ts.prim_func
 def func_with_part_access_region(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     with Ts.sblock():
         for i, j in T.grid(128, 128):
@@ -184,7 +184,7 @@ def test_complete_part_region():
 
 @Ts.prim_func
 def func_with_bufferslice_indices(
-    data_buf: T.Buffer((16, 16), "float32"), index_buf: T.Buffer((1,), "int32")
+    data_buf: T.Tensor((16, 16), "float32"), index_buf: T.Tensor((1,), "int32")
 ) -> None:
     out_buf = Ts.sblock_alloc_buffer((16, 16), "float32")
 
@@ -196,8 +196,8 @@ def func_with_bufferslice_indices(
 
 @Ts.prim_func
 def expected_bufferslice_indices(
-    data_buf: T.Buffer([16, 16], elem_offset=0, align=64, offset_factor=1),
-    index_buf: T.Buffer([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
+    data_buf: T.Tensor([16, 16], elem_offset=0, align=64, offset_factor=1),
+    index_buf: T.Tensor([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
@@ -213,7 +213,7 @@ def expected_bufferslice_indices(
 
 @Ts.prim_func
 def func_with_recursive_bufferslice_indices(
-    data_buf: T.Buffer((16, 16), "float32"), index_buf: T.Buffer((1,), "int32")
+    data_buf: T.Tensor((16, 16), "float32"), index_buf: T.Tensor((1,), "int32")
 ) -> None:
     out_buf = Ts.sblock_alloc_buffer((16, 16), "float32")
 
@@ -225,8 +225,8 @@ def func_with_recursive_bufferslice_indices(
 
 @Ts.prim_func
 def expected_recursive_bufferslice_indices(
-    data_buf: T.Buffer([16, 16], elem_offset=0, align=64, offset_factor=1),
-    index_buf: T.Buffer([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
+    data_buf: T.Tensor([16, 16], elem_offset=0, align=64, offset_factor=1),
+    index_buf: T.Tensor([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
@@ -263,7 +263,7 @@ def test_complete_buffer_indices():
 
 
 @Ts.prim_func
-def match_buffer_func(A: T.Buffer((16, 16))) -> None:
+def match_buffer_func(A: T.Tensor((16, 16))) -> None:
     for i in range(0, 16):
         with Ts.sblock():
             A0 = Ts.match_buffer(A[i, 0:16], (16))
@@ -275,7 +275,7 @@ def match_buffer_func(A: T.Buffer((16, 16))) -> None:
 
 
 @Ts.prim_func
-def expected_match_buffer_func(A: T.Buffer((16, 16))) -> None:
+def expected_match_buffer_func(A: T.Tensor((16, 16))) -> None:
     for i in range(0, 16):
         with Ts.sblock():
             Ts.reads([])
@@ -301,7 +301,7 @@ def test_complete_match_buffer():
 
 @Ts.prim_func
 def alloc_buffer_func(
-    A: T.Buffer([2, 2], dtype="float32"), B: T.Buffer([2, 2], dtype="float32")
+    A: T.Tensor([2, 2], dtype="float32"), B: T.Tensor([2, 2], dtype="float32")
 ) -> None:
     C = Ts.sblock_alloc_buffer([2, 2], dtype="float32")
     A[(0, 0)] = T.float32(2)
@@ -311,8 +311,8 @@ def alloc_buffer_func(
 
 @Ts.prim_func
 def expect_alloc_buffer_func(
-    A: T.Buffer([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
-    B: T.Buffer([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
+    B: T.Tensor([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
 ) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
@@ -337,7 +337,7 @@ def test_complete_alloc_buffer():
 
 @Ts.prim_func
 def alloc_zero_dim_buffer(
-    A: T.Buffer([], dtype="float32"), B: T.Buffer([], dtype="float32")
+    A: T.Tensor([], dtype="float32"), B: T.Tensor([], dtype="float32")
 ) -> None:
     # body
     # tirx.with block("root")
@@ -348,7 +348,7 @@ def alloc_zero_dim_buffer(
 
 
 @Ts.prim_func
-def alloc_zero_dim_buffer_block(A: T.Buffer((), "float32"), B: T.Buffer((), "float32")) -> None:
+def alloc_zero_dim_buffer_block(A: T.Tensor((), "float32"), B: T.Tensor((), "float32")) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
         Ts.writes([])
@@ -405,7 +405,7 @@ try:
 
     @Ts.prim_func
     def slice_op_test(
-        A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
+        A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32"), C: T.Tensor((10,), "uint32")
     ):
         B[0:5] = A[0:5] + B[0:5]
         B[0:5] = A[0:5] - B[0:5]
@@ -436,7 +436,7 @@ try:
 
     @Ts.prim_func
     def slice_op_test_ref(
-        A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "uint32")
+        A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32"), C: T.Tensor((10,), "uint32")
     ):
         B[0:5] = A[0:5] + B[0:5]
         B[0:5] = A[0:5] - B[0:5]
@@ -496,7 +496,7 @@ def test_different_dtype_assignment_to_var():
 def roundtrip_matmul():
     @Ts.prim_func
     def roundtrip_matmul(
-        A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+        A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
     ) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
@@ -511,7 +511,7 @@ def roundtrip_matmul():
 def roundtrip_matmul_original():
     @Ts.prim_func
     def roundtrip_matmul_original(
-        A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+        A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
     ) -> None:
         for i, j in T.grid(128, 128):
             with Ts.sblock("init"):
@@ -529,7 +529,7 @@ def roundtrip_matmul_original():
 def element_wise():
     @Ts.prim_func
     def element_wise(
-        A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+        A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
     ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128), "float32")
 
@@ -547,7 +547,7 @@ def element_wise():
 
 def predicate():
     @Ts.prim_func
-    def predicate(B: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def predicate(B: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i, jo, ji in T.grid(16, 4, 5):
             with Ts.sblock("update"):
                 vi = Ts.axis.S(16, i)
@@ -638,7 +638,7 @@ def test_predicate():
 def match_buffer_region():
     @Ts.prim_func
     def match_buffer_region(
-        A: T.Buffer((16, 16, 16), "float32"), B: T.Buffer(1, "float32")
+        A: T.Tensor((16, 16, 16), "float32"), B: T.Tensor(1, "float32")
     ) -> None:
         for i, j in T.grid(16, 4):
             with Ts.sblock():
@@ -688,7 +688,7 @@ def test_match_buffer_region():
 
 def block_elements():
     @Ts.prim_func
-    def block_elements(A: T.Buffer((16, 16), "float32"), B: T.Buffer((1, 1), "float32")) -> None:
+    def block_elements(A: T.Tensor((16, 16), "float32"), B: T.Tensor((1, 1), "float32")) -> None:
         with Ts.sblock("update"):
             vi = Ts.axis.S(1, 0)
             Ts.where(True)
@@ -729,7 +729,7 @@ def test_block_elements():
 
 def opaque_block():
     @Ts.prim_func
-    def opaque_block(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")) -> None:
+    def opaque_block(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")) -> None:
         for i in range(16):
             for j in range(16):
                 with Ts.sblock():
@@ -772,7 +772,7 @@ def test_opaque_block():
 
 def rank0():
     @Ts.prim_func
-    def rank0(A: T.Buffer((), "float32")) -> None:
+    def rank0(A: T.Tensor((), "float32")) -> None:
         B = Ts.sblock_alloc_buffer((), "float32")
         A[()] = 2
         B[()] = A[()]
@@ -782,7 +782,7 @@ def rank0():
 
 def rank0_block():
     @Ts.prim_func
-    def rank0_block(A: T.Buffer((), "float32")) -> None:
+    def rank0_block(A: T.Tensor((), "float32")) -> None:
         B = Ts.sblock_alloc_buffer((), "float32")
         B[()] = A[()]
 
@@ -797,7 +797,7 @@ def rank0_block():
 
 def nontrivial_range_axis():
     @Ts.prim_func
-    def nontrivial_range_axis(A: T.Buffer(10, "float32")) -> None:
+    def nontrivial_range_axis(A: T.Tensor(10, "float32")) -> None:
         for i in range(10):
             with Ts.sblock("block"):
                 vi = Ts.axis.spatial((1, 11), i + 1)
@@ -818,7 +818,7 @@ def func_root_attr():
 
 def func_trivial_root_block():
     @Ts.prim_func
-    def func(A: T.Buffer(1, "int32")):
+    def func(A: T.Tensor(1, "int32")):
         with Ts.sblock("root"):
             A[0] = 0
 
@@ -827,7 +827,7 @@ def func_trivial_root_block():
 
 def func_nested_root_block():
     @Ts.prim_func
-    def func(A: T.Buffer(1, "int32")):
+    def func(A: T.Tensor(1, "int32")):
         with Ts.sblock("root"):
             with Ts.sblock("block"):
                 A[0] = 0
@@ -838,8 +838,8 @@ def func_nested_root_block():
 def int64_support():
     @Ts.prim_func
     def elementwise_shape_int64(
-        A: T.Buffer((T.int64(128), T.int64(128)), dtype="float32"),
-        C: T.Buffer((T.int64(128), T.int64(128)), dtype="float32"),
+        A: T.Tensor((T.int64(128), T.int64(128)), dtype="float32"),
+        C: T.Tensor((T.int64(128), T.int64(128)), dtype="float32"),
     ) -> None:
         B = Ts.sblock_alloc_buffer((T.int64(128), T.int64(128)), dtype="float32")
 
@@ -858,9 +858,9 @@ def int64_support():
 def func_attr_with_list():
     @Ts.prim_func
     def func(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        D: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
+        D: T.Tensor((128, 128), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
         C = Ts.sblock_alloc_buffer([128, 128], dtype="float32")
@@ -881,7 +881,7 @@ def func_attr_with_list():
 
 @Ts.prim_func
 def transformed_matmul_no_syntax_sugar(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with Ts.sblock("update"):
@@ -897,7 +897,7 @@ def transformed_matmul_no_syntax_sugar(
 
 @Ts.prim_func
 def transformed_matmul_syntax_sugar(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     for i0, i1, i2_outer, i2_inner_outer, i2_inner_inner in T.grid(128, 128, 4, 8, 4):
         with Ts.sblock("update"):
@@ -919,13 +919,13 @@ def test_reads_writes_syntax_sugar():
 
 def test_match_buffer_region_has_implicit_shape_dtype():
     @Ts.prim_func
-    def explicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
+    def explicit_shape_dtype(A: T.Tensor((16, 64), "int32")):
         with Ts.sblock():
             B = Ts.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
             T.evaluate(0)
 
     @Ts.prim_func
-    def implicit_shape_dtype(A: T.Buffer((16, 64), "int32")):
+    def implicit_shape_dtype(A: T.Tensor((16, 64), "int32")):
         with Ts.sblock():
             B = Ts.match_buffer(A[8:16, 32:64])
             T.evaluate(0)
@@ -966,8 +966,8 @@ def test_roundtrip_blocks(ir_generator):
 # Import-time construction also checks the annotated S-TIR API.
 @Ts.prim_func
 def element_wise_storage_align(
-    A: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
-    C: T.Buffer([128, 128], elem_offset=0, align=64, offset_factor=1),
+    A: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
+    C: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
 ) -> None:
     # body
     with Ts.sblock("root"):
@@ -994,7 +994,7 @@ def element_wise_storage_align(
 # Import-time construction also checks the annotated S-TIR API.
 @Ts.prim_func
 def loop_split(
-    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+    A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
     for i, ko in T.grid(128, 4):
         for ki in T.thread_binding(0, 32, thread="threadIdx.x"):
@@ -1011,7 +1011,7 @@ def loop_split(
 # Import-time construction also checks the annotated S-TIR API.
 @Ts.prim_func
 def different_access_indices(
-    A: T.Buffer([128, 128, 128], dtype="float32"), B: T.Buffer([128, 128], dtype="float32")
+    A: T.Tensor([128, 128, 128], dtype="float32"), B: T.Tensor([128, 128], dtype="float32")
 ) -> None:
     for i, j in T.grid(128, 128):
         for k in T.thread_binding(0, 128, thread="threadIdx.x"):

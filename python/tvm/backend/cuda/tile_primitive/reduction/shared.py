@@ -192,7 +192,7 @@ def _emit_reduction_shared_cta(
     @T.prim_func
     def impl():
         tid_in_scope = get_tid_in_scope()
-        thread_data = T.alloc_buffer([1], dtype=dtype, scope="local")
+        thread_data = T.alloc_tensor([1], dtype=dtype, scope="local")
         group_id = T.meta_var(T.floordiv(tid_in_scope, group_size))
         lane_in_grp = T.meta_var(tid_in_scope % group_size)
         for step in T.serial(T.ceildiv(spatial_len, spatial_par)):

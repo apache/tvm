@@ -67,7 +67,7 @@ def test_cuda_host_bundle(tmp_path):
         pytest.skip("CUDA-host compilation requires NVCC")
 
     @T.prim_func
-    def add_one(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")):
+    def add_one(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
         for tx in T.thread_binding(32, "threadIdx.x"):
             B[tx] = A[tx] + T.float32(1)
 
@@ -113,9 +113,9 @@ def test_cuda_host_bundle_bf16_cluster(tmp_path):
 
     @T.prim_func
     def main(
-        A: T.Buffer((128,), "bfloat16"),
-        B: T.Buffer((128,), "bfloat16"),
-        R: T.Buffer((4,), "int32"),
+        A: T.Tensor((128,), "bfloat16"),
+        B: T.Tensor((128,), "bfloat16"),
+        R: T.Tensor((4,), "int32"),
     ):
         T.device_entry()
         for cx in T.thread_binding(2, thread="clusterCtaIdx.x"):
@@ -170,7 +170,7 @@ def test_cuda_host_bundle_programmatic_dependent_launch(tmp_path):
         pytest.skip("programmatic dependent launch requires SM90 or newer")
 
     @T.prim_func
-    def add_one(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")):
+    def add_one(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
         T.func_attr({"tirx.kernel_launch_params": ["tirx.use_programtic_dependent_launch"]})
         for tx in T.thread_binding(32, "threadIdx.x"):
             B[tx] = A[tx] + T.float32(1)
@@ -251,7 +251,7 @@ def test_cuda_vectorize_add():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+            def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
@@ -313,7 +313,7 @@ def test_cuda_bf16_vectorize_add():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+            def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
@@ -358,10 +358,10 @@ def test_cuda_multiply_add():
         class Module:
             @T.prim_func
             def main(
-                A: T.Buffer((n,), vec_dtype),
-                B: T.Buffer((n,), vec_dtype),
-                C: T.Buffer((n,), "int32"),
-                D: T.Buffer((n,), "int32"),
+                A: T.Tensor((n,), vec_dtype),
+                B: T.Tensor((n,), vec_dtype),
+                C: T.Tensor((n,), "int32"),
+                D: T.Tensor((n,), "int32"),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
@@ -407,7 +407,7 @@ def test_cuda_vectorize_load():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((n,), vec_dtype), B: T.Buffer((n,), vec_dtype)):
+            def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(num_thread, thread="threadIdx.x"):
@@ -442,7 +442,7 @@ def test_cuda_make_int8():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((n, lanes), dtype)):
+            def main(A: T.Tensor((n, lanes), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for j in T.vectorized(lanes):
@@ -479,7 +479,7 @@ def test_cuda_inf_nan():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((n,), dtype), C: T.Buffer((n,), dtype)):
+            def main(A: T.Tensor((n,), dtype), C: T.Tensor((n,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(8, thread="threadIdx.x"):
@@ -522,13 +522,13 @@ def test_crossthread_reduction1(target):
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((n, m)), B: T.Buffer((n,))):
+            def main(A: T.Tensor((n, m)), B: T.Tensor((n,))):
                 T.func_attr({"tirx.noalias": True})
 
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for m_0 in T.thread_binding(nthd, thread="threadIdx.x"):
-                        partial = T.alloc_buffer((1,), "float32", scope="local")
-                        reduced = T.alloc_buffer((1,), "float32", scope="local")
+                        partial = T.alloc_tensor((1,), "float32", scope="local")
+                        reduced = T.alloc_tensor((1,), "float32", scope="local")
                         partial[0] = T.float32(0)
                         for m_1 in range((m + nthd - 1) // nthd):
                             if m_0 * ((m + nthd - 1) // nthd) + m_1 < m:
@@ -584,14 +584,14 @@ def test_crossthread_reduction2(target):
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((n, k0, k1)), B: T.Buffer((n,))):
+            def main(A: T.Tensor((n, k0, k1)), B: T.Tensor((n,))):
                 T.func_attr({"tirx.noalias": True})
 
                 for i in T.thread_binding(n, thread="blockIdx.x"):
                     for k0_0 in T.thread_binding(nthdx, thread="threadIdx.x"):
                         for k1_0 in T.thread_binding(nthdy, thread="threadIdx.y"):
-                            partial = T.alloc_buffer((1,), "float32", scope="local")
-                            reduced = T.alloc_buffer((1,), "float32", scope="local")
+                            partial = T.alloc_tensor((1,), "float32", scope="local")
+                            reduced = T.alloc_tensor((1,), "float32", scope="local")
                             partial[0] = T.float32(0)
                             for k0_1, k1_1 in T.grid(
                                 (k0 + nthdx - 1) // nthdx, (k1 + nthdy - 1) // nthdy
@@ -652,7 +652,7 @@ def test_cuda_reduction_binding():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((96, 32), "float32"), B: T.Buffer((96,), "float32")):
+        def main(A: T.Tensor((96, 32), "float32"), B: T.Tensor((96,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for k in range(32):
                 for m_0 in T.thread_binding(3, thread="blockIdx.x"):
@@ -675,7 +675,7 @@ def test_cuda_const_float_to_half():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(a: T.Buffer((2, 3, 4), "float16"), C: T.Buffer((2, 3, 4), "bool")):
+        def main(a: T.Tensor((2, 3, 4), "float16"), C: T.Tensor((2, 3, 4), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i_j_k_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_k_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
@@ -720,7 +720,7 @@ def test_cuda_floordiv_with_vectorization():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((256,), "float32"), B: T.Buffer((256,), "float32")):
+            def main(A: T.Tensor((256,), "float32"), B: T.Tensor((256,), "float32")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1_0 in T.thread_binding(64, thread="threadIdx.x"):
@@ -754,7 +754,7 @@ def test_cuda_floormod_with_vectorization():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((256,), "float32"), B: T.Buffer((256,), "float32")):
+            def main(A: T.Tensor((256,), "float32"), B: T.Tensor((256,), "float32")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
                     for i_1_0 in T.thread_binding(64, thread="threadIdx.x"):
@@ -838,7 +838,7 @@ def test_vectorized_casts(t0, t1, factor):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((n,), t0), B: T.Buffer((n,), t1), C: T.Buffer((n,), t0)):
+        def main(A: T.Tensor((n,), t0), B: T.Tensor((n,), t1), C: T.Tensor((n,), t0)):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(num_thread, thread="threadIdx.x"):
                 for i_1 in T.vectorized(factor):
@@ -875,7 +875,7 @@ def sched(compute_fn, dtype, n=128):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((n,), dtype), B: T.Buffer((n,), dtype)):
+        def main(A: T.Tensor((n,), dtype), B: T.Tensor((n,), dtype)):
             T.func_attr({"tirx.noalias": True})
             for i0_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i0_1_0 in T.thread_binding(32, thread="threadIdx.x"):
@@ -1045,7 +1045,7 @@ def test_cuda_vectorize_load_permute_pad():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((n, l), dtype), B: T.Buffer((dim0, dim1, lanes), dtype)):
+            def main(A: T.Tensor((n, l), dtype), B: T.Tensor((dim0, dim1, lanes), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(dim0, thread="blockIdx.x"):
                     for j in T.thread_binding(dim1, thread="threadIdx.x"):
@@ -1087,7 +1087,7 @@ def test_try_unaligned_vector_load():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((N,), "float16"), C: T.Buffer((C_N,), "float16")):
+            def main(A: T.Tensor((N,), "float16"), C: T.Tensor((C_N,), "float16")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(C_N // 2, thread="threadIdx.x"):
                     for i_1 in T.vectorized(2):
@@ -1129,8 +1129,8 @@ def test_try_unaligned_vector_load():
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_thread_sync_inside_condition():
     @T.prim_func
-    def func2(A: T.Buffer((4, 4), "float32")) -> None:
-        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+    def func2(A: T.Tensor((4, 4), "float32")) -> None:
+        A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
                 if T.tvm_thread_invariant(A[0, 0] > 1.0):
@@ -1141,8 +1141,8 @@ def test_cuda_thread_sync_inside_condition():
                         A[i, j] = A_shared[i, j] + 1.0
 
     @T.prim_func
-    def func3(A: T.Buffer((4, 4), "float32")) -> None:
-        A_shared = T.alloc_buffer((4, 4), "float32", scope="shared")
+    def func3(A: T.Tensor((4, 4), "float32")) -> None:
+        A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
             for tx in T.thread_binding(32, "threadIdx.x"):
                 while T.tvm_thread_invariant(A[0, 0] > 1.0):
@@ -1162,7 +1162,7 @@ def test_cuda_thread_sync_inside_condition():
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_invalid_reinterpret():
     @T.prim_func
-    def func(A: T.Buffer((4,), "uint32"), B: T.Buffer((4,), "uint8")) -> None:
+    def func(A: T.Tensor((4,), "uint32"), B: T.Tensor((4,), "uint8")) -> None:
         for tx in T.thread_binding(4, "threadIdx.x"):
             B[tx] = T.call_intrin("uint8", "tirx.reinterpret", A[tx])
 
@@ -1175,7 +1175,7 @@ def test_invalid_reinterpret():
 def test_cuda_tensormap():
     # fmt: off
     @T.prim_func
-    def main(A: T.Buffer((16, 16), dtype='float32', align=16)):
+    def main(A: T.Tensor((16, 16), dtype='float32', align=16)):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         T.call_packed("runtime.cuTensorMapInit", A_map, "float32", 2, A.data,
@@ -1211,9 +1211,9 @@ def test_cuda_device_func_call():
 
         @T.prim_func
         def main(
-            A: T.Buffer((1024, 1024), "float32"),
-            B: T.Buffer((1024, 1024), "float32"),
-            C: T.Buffer((1024, 1024), "float32"),
+            A: T.Tensor((1024, 1024), "float32"),
+            B: T.Tensor((1024, 1024), "float32"),
+            C: T.Tensor((1024, 1024), "float32"),
         ):
             for bx in T.thread_binding(1024, "blockIdx.x"):
                 for tx in T.thread_binding(1024, "threadIdx.x"):
@@ -1233,7 +1233,7 @@ def test_cuda_float_const_hex_format():
     class Module:
         @T.prim_func
         def main(
-            A: T.Buffer((1024, 1024), "float32"),
+            A: T.Tensor((1024, 1024), "float32"),
         ):
             for bx in T.thread_binding(1024, "blockIdx.x"):
                 for tx in T.thread_binding(1024, "threadIdx.x"):
@@ -1255,9 +1255,9 @@ def test_device_host_call_same_func():
 
         @T.prim_func
         def main(
-            A: T.Buffer((128, 128), "int32"),
-            B: T.Buffer((128, 128), "int32"),
-            C: T.Buffer((128, 128), "int32"),
+            A: T.Tensor((128, 128), "int32"),
+            B: T.Tensor((128, 128), "int32"),
+            C: T.Tensor((128, 128), "int32"),
         ):
             length: T.let[T.int32] = Module.add(64, 64)  # Call from host
             for bx in T.thread_binding(length, "blockIdx.x"):
@@ -1293,7 +1293,7 @@ def test_thread_return():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
+        def main(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")):
             for bx in T.thread_binding(32, "blockIdx.x"):
                 for tx in T.thread_binding(32, "threadIdx.x"):
                     if bx >= 16 or tx >= 16:
@@ -1311,9 +1311,9 @@ def test_thread_return():
 def test_cuda_loop_step():
     @T.prim_func
     def cuda_loop_step(
-        A: T.Buffer((1024,), "float32"),
-        B: T.Buffer((1024,), "float32"),
-        C: T.Buffer((1024,), "float32"),
+        A: T.Tensor((1024,), "float32"),
+        B: T.Tensor((1024,), "float32"),
+        C: T.Tensor((1024,), "float32"),
     ):
         # Each thread computes a strided subset of the i loop: start = tx*3, step = 96 (3 * 32 threads)
         for bx in T.thread_binding(1, "blockIdx.x"):
@@ -1350,7 +1350,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
+        def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):

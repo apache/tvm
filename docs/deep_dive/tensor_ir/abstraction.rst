@@ -34,9 +34,9 @@ the compute statements themselves.
 
     @Ts.prim_func
     def main(
-        A: T.Buffer((128,), "float32"),
-        B: T.Buffer((128,), "float32"),
-        C: T.Buffer((128,), "float32"),
+        A: T.Tensor((128,), "float32"),
+        B: T.Tensor((128,), "float32"),
+        C: T.Tensor((128,), "float32"),
     ) -> None:
         for i in range(128):
             with Ts.sblock("C"):

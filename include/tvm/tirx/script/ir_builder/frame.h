@@ -500,7 +500,7 @@ class ElseFrame : public TIRFrame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
 };
 
-class DeclBufferFrameNode : public TIRFrameNode {
+class DeclTensorFrameNode : public TIRFrameNode {
  public:
   /*! \brief The declared buffer. */
   tvm::tirx::BufferVar buffer;
@@ -511,24 +511,24 @@ class DeclBufferFrameNode : public TIRFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferFrameNode>()
-        .def_ro("buffer", &DeclBufferFrameNode::buffer)
-        .def_ro("data", &DeclBufferFrameNode::data)
-        .def_ro("allocated", &DeclBufferFrameNode::allocated);
+    refl::ObjectDef<DeclTensorFrameNode>()
+        .def_ro("buffer", &DeclTensorFrameNode::buffer)
+        .def_ro("data", &DeclTensorFrameNode::data)
+        .def_ro("allocated", &DeclTensorFrameNode::allocated);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclBufferFrame", DeclBufferFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclTensorFrame", DeclTensorFrameNode,
                                     TIRFrameNode);
 
  public:
   void ExitWithScope() final;
 };
 
-class DeclBufferFrame : public TIRFrame {
+class DeclTensorFrame : public TIRFrame {
  public:
-  explicit DeclBufferFrame(ffi::ObjectPtr<DeclBufferFrameNode> data) : TIRFrame(data) {
+  explicit DeclTensorFrame(ffi::ObjectPtr<DeclTensorFrameNode> data) : TIRFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclTensorFrame, TIRFrame, DeclTensorFrameNode);
 };
 
 }  // namespace tirx

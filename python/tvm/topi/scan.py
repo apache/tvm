@@ -25,7 +25,7 @@ from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
 
 from ..te import extern
-from ..tirx import decl_buffer
+from ..tirx import decl_tensor
 from . import utils
 from .math import cast
 
@@ -156,7 +156,7 @@ def scanop(
 
             return ib.get()
 
-    out_buf = decl_buffer(shape, dtype, "out_buf")
+    out_buf = decl_tensor(shape, dtype, "out_buf")
 
     return extern(
         [shape],

@@ -81,7 +81,7 @@ class OpaqueBlockLower : public StmtExprMutator {
                                IntImm::Int32(buffer->data_alignment));
       allocate_annotations.Set(tirx::attr::buffer_allocated_addr, buffer->allocated_addr);
       body = SeqStmt::Flatten(
-          Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_buffer(),
+          Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_tensor(),
                                   {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                                    StringImm(buffer.scope())},
                                   DictAttrs(allocate_annotations))),

@@ -44,13 +44,13 @@ except ImportError:
 def fp8_unary(dtype: str):
     @Ts.prim_func
     def func(
-        A: T.Buffer([128], dtype=dtype),
-        B: T.Buffer([128], dtype=dtype),
-        A_add_B: T.Buffer([128], dtype=dtype),
-        A_sub_B: T.Buffer([128], dtype=dtype),
-        A_mul_B: T.Buffer([128], dtype=dtype),
-        A_fp32: T.Buffer([128], dtype="float32"),
-        A_roundtrip: T.Buffer([128], dtype=dtype),
+        A: T.Tensor([128], dtype=dtype),
+        B: T.Tensor([128], dtype=dtype),
+        A_add_B: T.Tensor([128], dtype=dtype),
+        A_sub_B: T.Tensor([128], dtype=dtype),
+        A_mul_B: T.Tensor([128], dtype=dtype),
+        A_fp32: T.Tensor([128], dtype="float32"),
+        A_roundtrip: T.Tensor([128], dtype=dtype),
     ) -> None:
         for i in range(128):
             with Ts.sblock("fp8_unary"):
@@ -120,7 +120,7 @@ def test_fp8_unary_op(np_dtype, dtype_str):
 def test_nv_fp8_buffer(np_dtype, dtype_str):
     m = te.var("m")
     n = te.var("n")
-    A = tvm.tirx.decl_buffer((m, n), dtype_str)
+    A = tvm.tirx.decl_tensor((m, n), dtype_str)
     assert A.dtype == dtype_str
 
 

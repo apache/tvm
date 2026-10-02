@@ -100,10 +100,10 @@ def test_config_reserves_dialect_prefixes_before_variable_definition(prefixes):
 
 
 def test_buffer():
-    a = tirx.decl_buffer((128, 128), "float16", name="A")
+    a = tirx.decl_tensor((128, 128), "float16", name="A")
     _assert_print(
         a,
-        """A = T.Var("A", T.Buffer((128, 128), "float16", layout="default"))
+        """A = T.Var("A", T.Tensor((128, 128), "float16", layout="default"))
 A""",
     )
 
@@ -113,7 +113,7 @@ def _assert_print(obj, expected):
 
 
 def test_buffer_region():
-    src = tirx.decl_buffer((128, 128), "float32", name="src")
+    src = tirx.decl_tensor((128, 128), "float32", name="src")
     obj = tirx.BufferRegion(
         src,
         [
@@ -124,33 +124,33 @@ def test_buffer_region():
     _assert_print(
         obj,
         """
-src = T.Var("src", T.Buffer((128, 128), "float32", layout="default"))
+src = T.Var("src", T.Tensor((128, 128), "float32", layout="default"))
 src[64:128, 64:128]
 """,
     )
 
 
 def test_buffer_load():
-    a = tirx.decl_buffer((128, 128), "float16", name="A")
+    a = tirx.decl_tensor((128, 128), "float16", name="A")
     obj = tirx.BufferLoad(a, [128, 128])
     _assert_print(
         obj,
         """
-A = T.Var("A", T.Buffer((128, 128), "float16", layout="default"))
+A = T.Var("A", T.Tensor((128, 128), "float16", layout="default"))
 A[128, 128]
 """,
     )
 
 
 def test_buffer_store():
-    a = tirx.decl_buffer((128, 128), "float16", name="A")
+    a = tirx.decl_tensor((128, 128), "float16", name="A")
     with IRBuilder() as ib:
         TB.buffer_store(a, a[128, 128] + 1, [128, 128])
     obj = ib.get()
     _assert_print(
         obj,
         """
-A = T.Var("A", T.Buffer((128, 128), "float16", layout="default"))
+A = T.Var("A", T.Tensor((128, 128), "float16", layout="default"))
 A[128, 128] = A[128, 128] + T.float16(1.0)
 """,
     )
@@ -218,55 +218,56 @@ while v < 10:
     )
 
 
-def test_allocate():
+@pytest.mark.parametrize("declare", [TB.alloc_tensor, TB.decl_tensor])
+def test_allocate(declare):
     with IRBuilder() as ib:
         with TB.prim_func():
             TB.func_name_("test")
-            buf = TB.alloc_buffer([128, 128], "float32")
+            buf = declare([128, 128], "float32")
             TB.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-v = T.alloc_buffer((128, 128), "float32", layout="default")
+v = T.alloc_tensor((128, 128), "float32", layout="default")
 T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar():
-    # AllocBuffer and DeclBuffer are flat siblings
+    # AllocTensor and DeclTensor are flat siblings
     with IRBuilder() as ib:
         with TB.prim_func():
             TB.func_name_("test")
-            buf = TB.alloc_buffer([128, 128], "float32")
-            buf2 = TB.decl_buffer([128, 128], "float32", data=buf.data)
+            buf = TB.alloc_tensor([128, 128], "float32")
+            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
             TB.evaluate(1)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-v = T.alloc_buffer((128, 128), "float32", layout="default")
-v_1 = T.decl_buffer((128, 128), "float32", data=v.data, layout="default")
+v = T.alloc_tensor((128, 128), "float32", layout="default")
+v_1 = T.decl_tensor((128, 128), "float32", data=v.data, layout="default")
 T.evaluate(1)
 """,
     )
 
 
 def test_allocate_with_decl_buffer_sugar_multi_usage():
-    # AllocBuffer and DeclBuffer are flat siblings
+    # AllocTensor and DeclTensor are flat siblings
     with IRBuilder() as ib:
         with TB.prim_func():
             TB.func_name_("test")
-            buf = TB.alloc_buffer([128, 128], "float32")
-            buf2 = TB.decl_buffer([128, 128], "float32", data=buf.data)
+            buf = TB.alloc_tensor([128, 128], "float32")
+            buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
             TB.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-v = T.alloc_buffer((128, 128), "float32", layout="default")
-v_1 = T.decl_buffer((128, 128), "float32", data=v.data, layout="default")
+v = T.alloc_tensor((128, 128), "float32", layout="default")
+v_1 = T.decl_tensor((128, 128), "float32", data=v.data, layout="default")
 T.evaluate(v.data)
 """,
     )
@@ -276,26 +277,26 @@ def test_allocate_with_decl_buffer_no_sugar_mismatch():
     with IRBuilder() as ib:
         with TB.prim_func():
             TB.func_name_("test")
-            buf = TB.alloc_buffer([128, 128], "float32")
-            buf2 = TB.decl_buffer([256, 256], "float32", data=buf.data)
+            buf = TB.alloc_tensor([128, 128], "float32")
+            buf2 = TB.decl_tensor([256, 256], "float32", data=buf.data)
             TB.evaluate(buf.data)
     obj = ib.get()
     _assert_print(
         obj.body,
         """
-v = T.alloc_buffer((128, 128), "float32", layout="default")
-v_1 = T.decl_buffer((256, 256), "float32", data=v.data, layout="default")
+v = T.alloc_tensor((128, 128), "float32", layout="default")
+v_1 = T.decl_tensor((256, 256), "float32", data=v.data, layout="default")
 T.evaluate(v.data)
 """,
     )
 
 
 def test_decl_buffer():
-    # DeclBuffer is flat: we need a frame to hold multiple stmts
+    # DeclTensor is flat: we need a frame to hold multiple stmts
     with IRBuilder() as ib:
         with TB.prim_func():
             TB.func_name_("test")
-            buf = TB.decl_buffer((10, 10), data=TB.ptr("float32"))
+            buf = TB.decl_tensor((10, 10), data=TB.ptr("float32"))
             TB.evaluate(1)
     obj = ib.get()
     # Print only the body (skip PrimFunc wrapper)
@@ -303,7 +304,7 @@ def test_decl_buffer():
         obj.body,
         """
 v_1: T.handle("float32", "global") = T.handle("float32", "global")
-v = T.decl_buffer((10, 10), "float32", data=v_1, layout="default")
+v = T.decl_tensor((10, 10), "float32", data=v_1, layout="default")
 T.evaluate(1)
 """,
     )
@@ -668,7 +669,7 @@ def test_print_kwargs_schedule_op_full_code():
     # fmt: off
     @T.prim_func
     def test():
-        A = T.alloc_buffer((16,), "float32")
+        A = T.alloc_tensor((16,), "float32")
         Tx.memset(A[0:16], T.float32(1.25), dispatch="v10", bar=7, foo=42)
     # fmt: on
 
@@ -677,7 +678,7 @@ def test_print_kwargs_schedule_op_full_code():
         "\n"
         "@T.prim_func\n"
         "def test():\n"
-        '    A = T.alloc_buffer((16,), "float32", layout="default")\n'
+        '    A = T.alloc_tensor((16,), "float32", layout="default")\n'
         '    T.tile.memset(A[0:16], T.float32(1.25), dispatch="v10", bar=7, foo=42)'
     )
     code = test.script()
@@ -707,7 +708,7 @@ def _make_minimal_tirx_prim_func():
     source = (
         "# from tvm.script import tirx as T\n\n"
         "@T.prim_func()\n"
-        'def f(A: T.Buffer((1,), "float32")):\n'
+        'def f(A: T.Tensor((1,), "float32")):\n'
         "    A[0] = T.float32(1)"
     )
     return from_source(source)
@@ -919,100 +920,100 @@ def test_printer_nvshmem_more():
 
 
 def test_printer_nki_namespace():
-    A = tir.decl_buffer([1], dtype="float16", name="A")
-    B = tir.decl_buffer([1], dtype="float16", name="B")
+    A = tir.decl_tensor([1], dtype="float16", name="A")
+    B = tir.decl_tensor([1], dtype="float16", name="B")
     a0 = A[0]
     b0 = B[0]
     _assert_namespace_print(
         trn_op.nki_load(a0, b0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
         "T.nki.load(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_store(a0, b0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
         "T.nki.store(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_tensor_copy(a0, b0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
         "T.nki.tensor_copy(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_matmul(a0, a0, b0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
         "T.nki.matmul(A[0], A[0], B[0], T.bool(True))",
     )
     _assert_namespace_print(
         trn_op.nki_activation(a0, b0, "relu", 0.0, 1.0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
         'T.nki.activation(A[0], B[0], "relu", '
         "T.float32(0.0), T.float32(1.0))",
     )
     _assert_namespace_print(
         trn_op.nki_memset(a0, 0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\nT.nki.memset(A[0], 0)',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\nT.nki.memset(A[0], 0)',
     )
     _assert_namespace_print(
         trn_op.nki_identity(a0, 1),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\nT.nki.identity(A[0], 1)',
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\nT.nki.identity(A[0], 1)',
     )
     _assert_namespace_print(
         trn_op.nki_reciprocal(a0, b0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
         "T.nki.reciprocal(A[0], B[0])",
     )
     _assert_namespace_print(
         trn_op.nki_tensorreduce(a0, b0, "sum", False, 0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
         'T.nki.tensorreduce(A[0], B[0], "sum", '
         "T.bool(False), 0)",
     )
     _assert_namespace_print(
         trn_op.nki_tensortensor(a0, a0, b0, "add"),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
         'T.nki.tensortensor(A[0], A[0], B[0], "add")',
     )
     _assert_namespace_print(
         trn_op.nki_tensorscalar(a0, a0, 1.0, "mul", False),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
         "T.nki.tensorscalar(A[0], A[0], T.float32(1.0), "
         '"mul", T.bool(False))',
     )
     _assert_namespace_print(
         trn_op.nki_tensorscalar_reduce(a0, a0, 1.0, "mul", "sum", False),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
         'T.nki.tensorscalar_reduce(A[0], A[0], T.float32(1.0), "mul", "sum", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_scalar_tensor_tensor(a0, a0, 1.0, a0, "add", "add"),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
         'T.nki.scalar_tensor_tensor(A[0], A[0], T.float32(1.0), A[0], "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_scalar_tensor_scalar(a0, a0, 1.0, 1.0, "add", "add"),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
         'T.nki.scalar_tensor_scalar(A[0], A[0], T.float32(1.0), T.float32(1.0), "add", "add", T.bool(False), T.bool(False))',  # noqa: E501
     )
     _assert_namespace_print(
         trn_op.nki_activation_reduce(a0, a0, b0, "relu", "sum", 0.0, 1.0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
-        'B = T.Var("B", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
+        'B = T.Var("B", T.Tensor((1,), "float16", layout="default"))\n'
         "T.nki.activation_reduce(A[0], A[0], B[0], "
         '"relu", "sum", T.float32(0.0), '
         "T.float32(1.0))",
     )
     _assert_namespace_print(
         trn_op.nki_affine_select(a0, a0, a0, 1.0),
-        'A = T.Var("A", T.Buffer((1,), "float16", layout="default"))\n'
+        'A = T.Var("A", T.Tensor((1,), "float16", layout="default"))\n'
         "T.nki.affine_select(A[0], A[0], A[0], T.float32(1.0))",
     )
 

@@ -34,7 +34,7 @@ def _check(original, transformed):
 
 
 @Ts.prim_func
-def elementwise_func(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+def elementwise_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
     for i in range(0, 16):
         with Ts.sblock():
             Ts.reads(A[i, 0:16])
@@ -54,7 +54,7 @@ def elementwise_func(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "fl
 
 @Ts.prim_func
 def substituted_elementwise_func(
-    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
     for i in range(0, 16):
         with Ts.sblock():
@@ -81,7 +81,7 @@ def test_error_if_predicate_uses_block_variables():
     @I.ir_module(check_well_formed=False)
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer(8, "int32")):
+        def main(A: T.Tensor(8, "int32")):
             for i in T.serial(8):
                 with Ts.sblock():
                     vi = Ts.axis.remap("S", [i])

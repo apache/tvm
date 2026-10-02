@@ -37,7 +37,7 @@ def test_nll_loss_backward():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def nll_loss_backward(rxplaceholder: T.Buffer((), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), rxplaceholder_3: T.Buffer((T.int64(4),), "float32"), pred_grad: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        def nll_loss_backward(rxplaceholder: T.Tensor((), "float32"), rxplaceholder_1: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Tensor((T.int64(2), T.int64(4), T.int64(5)), "int64"), rxplaceholder_3: T.Tensor((T.int64(4),), "float32"), pred_grad: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             all_weights = Ts.sblock_alloc_buffer((T.int64(2), T.int64(4), T.int64(5)))
@@ -100,7 +100,7 @@ def test_nll_loss_backward_no_weight():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def te_nll_loss_backward_no_weight(rxplaceholder: T.Buffer((), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), pred_grad: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        def te_nll_loss_backward_no_weight(rxplaceholder: T.Tensor((), "float32"), rxplaceholder_1: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_2: T.Tensor((T.int64(2), T.int64(4), T.int64(5)), "int64"), pred_grad: T.Tensor((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             T_full = Ts.sblock_alloc_buffer((T.int64(3),))
@@ -176,7 +176,7 @@ def test_nll_loss_backward_no_batch():
             return gv
 
         @Ts.prim_func(private=True)
-        def nll_loss_backward(rxplaceholder: T.Buffer((), "float32"), rxplaceholder_1: T.Buffer((T.int64(4),), "float32"), rxplaceholder_2: T.Buffer((), "int64"), rxplaceholder_3: T.Buffer((T.int64(4),), "float32"), pred_grad: T.Buffer((T.int64(4),), "float32")):
+        def nll_loss_backward(rxplaceholder: T.Tensor((), "float32"), rxplaceholder_1: T.Tensor((T.int64(4),), "float32"), rxplaceholder_2: T.Tensor((), "int64"), rxplaceholder_3: T.Tensor((T.int64(4),), "float32"), pred_grad: T.Tensor((T.int64(4),), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             all_weights = Ts.sblock_alloc_buffer(())
@@ -221,7 +221,7 @@ def test_max_pool2d_backward():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def max_pool2d_backward(A: T.Buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), B: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
+        def max_pool2d_backward(A: T.Tensor((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), B: T.Tensor((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Tensor((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             pad_temp = Ts.sblock_alloc_buffer((T.int64(3), T.int64(2), T.int64(15), T.int64(13)))
@@ -277,7 +277,7 @@ def test_avg_pool2d_backward():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def avg_pool2d_backward(output_grad: T.Buffer((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), data: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Buffer((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
+        def avg_pool2d_backward(output_grad: T.Tensor((T.int64(3), T.int64(2), T.int64(6), T.int64(5)), "float32"), data: T.Tensor((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32"), T_pool_grad: T.Tensor((T.int64(3), T.int64(2), T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3, wh, ww in T.grid(T.int64(3), T.int64(2), T.int64(10), T.int64(10), T.int64(3), T.int64(3)):
@@ -312,7 +312,7 @@ def test_take_backward():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def take_backward(rxplaceholder: T.Buffer((T.int64(3), T.int64(2), T.int64(5)), offset_factor=1), rxplaceholder_1: T.Buffer((T.int64(3), T.int64(4), T.int64(5)), offset_factor=1), rxplaceholder_2: T.Buffer((T.int64(2),), 'int32', offset_factor=1), out_buf: T.Buffer((T.int64(3), T.int64(4), T.int64(5)), "float32")):
+        def take_backward(rxplaceholder: T.Tensor((T.int64(3), T.int64(2), T.int64(5)), offset_factor=1), rxplaceholder_1: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), offset_factor=1), rxplaceholder_2: T.Tensor((T.int64(2),), 'int32', offset_factor=1), out_buf: T.Tensor((T.int64(3), T.int64(4), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
@@ -356,7 +356,7 @@ def test_take_backward_symbolic():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def take_backward(rxplaceholder: T.Buffer((m_take_backward, i_take_backward), offset_factor=1), rxplaceholder_1: T.Buffer((m_take_backward, n_take_backward), offset_factor=1), rxplaceholder_2: T.Buffer((i_take_backward,), 'int32', offset_factor=1), out_buf: T.Buffer((m_take_backward, n_take_backward))):
+        def take_backward(rxplaceholder: T.Tensor((m_take_backward, i_take_backward), offset_factor=1), rxplaceholder_1: T.Tensor((m_take_backward, n_take_backward), offset_factor=1), rxplaceholder_2: T.Tensor((i_take_backward,), 'int32', offset_factor=1), out_buf: T.Tensor((m_take_backward, n_take_backward))):
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):

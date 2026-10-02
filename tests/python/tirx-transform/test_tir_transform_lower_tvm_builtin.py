@@ -35,9 +35,9 @@ def test_lower_call_packed():
     class Before:
         @T.prim_func
         def main(
-            A: T.Buffer((64, 64), "float32"),
-            B: T.Buffer((64, 64), "float32"),
-            C: T.Buffer((64, 64), "float32"),
+            A: T.Tensor((64, 64), "float32"),
+            B: T.Tensor((64, 64), "float32"),
+            C: T.Tensor((64, 64), "float32"),
         ):
             T.func_attr({"target": tvm.target.Target("llvm")})
             T.attr("", "device_id", T.int32(0))
@@ -47,14 +47,14 @@ def test_lower_call_packed():
     class Expected:
         @T.prim_func
         def main(
-            A: T.Buffer((64, 64), "float32"),
-            B: T.Buffer((64, 64), "float32"),
-            C: T.Buffer((64, 64), "float32"),
+            A: T.Tensor((64, 64), "float32"),
+            B: T.Tensor((64, 64), "float32"),
+            C: T.Tensor((64, 64), "float32"),
         ):
             T.func_attr({"target": tvm.target.Target("llvm")})
             stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 4)
             stack_array: T.let[T.handle] = T.tvm_stack_alloca("array", 3)
-            stack_shape = T.decl_buffer(
+            stack_shape = T.decl_tensor(
                 (T.int64(6),), "int64", data=T.tvm_stack_alloca("shape", 6), layout=None
             )
             stack_shape[0] = T.int64(64)
@@ -158,7 +158,7 @@ def test_call_packed_return_non_i32():
         )
 
     def build_tir():
-        Ab = tvm.tirx.decl_buffer((2,), "float32")
+        Ab = tvm.tirx.decl_tensor((2,), "float32")
 
         # Build statements using direct TIR construction (no ir_builder)
         # 1. Store packed_echo(const) result into Ab[0]
@@ -187,13 +187,13 @@ def test_call_packed_return_non_i32():
 
 def test_lower_overflow_int32():
     @T.prim_func(check_well_formed=False)
-    def variance4(rxplaceholder: T.Buffer((T.int64(1), T.int64(32), T.int64(25690112)), "float32")):
+    def variance4(rxplaceholder: T.Tensor((T.int64(1), T.int64(32), T.int64(25690112)), "float32")):
         T.func_attr({"global_symbol": "variance4", "tirx.noalias": True})
-        rxplaceholder_red = T.alloc_buffer((32,), "float32")
-        T_subtract = T.alloc_buffer((822083584,), "float32")
-        rxplaceholder_red_1 = T.decl_buffer((T.int64(32),), data=rxplaceholder_red.data)
-        rxplaceholder_1 = T.decl_buffer((T.int64(822083584),), data=rxplaceholder.data)
-        T_subtract_1 = T.decl_buffer((T.int64(822083584),), data=T_subtract.data)
+        rxplaceholder_red = T.alloc_tensor((32,), "float32")
+        T_subtract = T.alloc_tensor((822083584,), "float32")
+        rxplaceholder_red_1 = T.decl_tensor((T.int64(32),), data=rxplaceholder_red.data)
+        rxplaceholder_1 = T.decl_tensor((T.int64(822083584),), data=rxplaceholder.data)
+        T_subtract_1 = T.decl_tensor((T.int64(822083584),), data=T_subtract.data)
         for ax1, ax2 in T.grid(32, 25690112):
             cse_v1: T.let[T.int32] = ax1 * 25690112 + ax2
             T_subtract_1[cse_v1] = rxplaceholder_1[cse_v1] - rxplaceholder_red_1[ax1]
@@ -220,8 +220,8 @@ def test_lower_device_allocate():
             T.func_attr({"target": T.target("llvm")})
             T.attr("dummy", "device_type", 2)  # kDLCuda
             T.attr("dummy", "device_id", 0)
-            ptr = T.alloc_buffer((16,), "float32")
-            buf = T.decl_buffer(16, "float32", data=ptr.data)
+            ptr = T.alloc_tensor((16,), "float32")
+            buf = T.decl_tensor(16, "float32", data=ptr.data)
             buf[0] = 0.0
 
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
@@ -230,8 +230,8 @@ def test_lower_device_allocate():
     # Should contain TVMBackendAllocWorkspace and TVMBackendFreeWorkspace
     assert "TVMBackendAllocWorkspace" in script_output
     assert "TVMBackendFreeWorkspace" in script_output
-    # DeclBuffer should appear as a flat statement
-    assert "T.decl_buffer" in script_output
+    # DeclTensor should appear as a flat statement
+    assert "T.decl_tensor" in script_output
 
 
 def test_lower_cpu_allocation():
@@ -244,8 +244,8 @@ def test_lower_cpu_allocation():
             T.func_attr({"target": T.target("llvm")})
             T.attr("dummy", "device_type", 1)  # kDLCPU
             T.attr("dummy", "device_id", 0)
-            ptr = T.alloc_buffer((16,), "float32")
-            buf = T.decl_buffer(16, "float32", data=ptr.data)
+            ptr = T.alloc_tensor((16,), "float32")
+            buf = T.decl_tensor(16, "float32", data=ptr.data)
             buf[0] = 0.0
 
     @I.ir_module
@@ -253,8 +253,8 @@ def test_lower_cpu_allocation():
         @T.prim_func
         def main():
             T.func_attr({"target": T.target("llvm")})
-            ptr = T.alloc_buffer((16,), "float32")
-            buf = T.decl_buffer(16, "float32", data=ptr.data)
+            ptr = T.alloc_tensor((16,), "float32")
+            buf = T.decl_tensor(16, "float32", data=ptr.data)
             buf[0] = 0.0
 
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
@@ -270,8 +270,8 @@ def test_lower_allocate_requires_device_id():
         def main():
             T.func_attr({"target": T.target("llvm")})
             T.attr("dummy", "device_type", 2)  # kDLCuda
-            ptr = T.alloc_buffer((16,), "float32")
-            buf = T.decl_buffer(16, "float32", data=ptr.data)
+            ptr = T.alloc_tensor((16,), "float32")
+            buf = T.decl_tensor(16, "float32", data=ptr.data)
             buf[0] = 0.0
 
     with pytest.raises(RuntimeError):
@@ -294,8 +294,8 @@ def test_lower_allocate_requires_device_type():
         def main():
             T.func_attr({"tirx.is_host_func": True})
             T.attr("dummy", "device_id", 0)
-            ptr = T.alloc_buffer((1024 * 1024,), "float32")
-            buf = T.decl_buffer(1024 * 1024, "float32", data=ptr.data)
+            ptr = T.alloc_tensor((1024 * 1024,), "float32")
+            buf = T.decl_tensor(1024 * 1024, "float32", data=ptr.data)
             buf[0] = 0.0
 
     with pytest.raises(RuntimeError):
@@ -316,8 +316,8 @@ def test_lower_cpu_alloc_with_function_attr():
         @T.prim_func
         def main():
             T.func_attr({"target": T.target("llvm")})
-            ptr = T.alloc_buffer((16,), "float32")
-            buf = T.decl_buffer(16, "float32", data=ptr.data)
+            ptr = T.alloc_tensor((16,), "float32")
+            buf = T.decl_tensor(16, "float32", data=ptr.data)
             buf[0] = 0.0
 
     # Expected is same as before for this transform

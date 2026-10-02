@@ -31,13 +31,13 @@ from tvm.script.tirx import tile as Tx
 def test_roundtrip_scopeid1():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((64,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
-        A_local = T.alloc_buffer([1], dtype="float16", scope="local")
+        A_local = T.alloc_tensor([1], dtype="float16", scope="local")
         for i in T.serial(2):
             A_local[0] = A[lane_id * 2 + i]
         # fmt: on
@@ -54,7 +54,7 @@ def from_source(code):
 def test_roundtrip_scopeid2():
     # fmt: off
     @T.prim_func
-    def test(_: T.Buffer((64,), 'float32', scope='global')) -> None:
+    def test(_: T.Tensor((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([8, 10, 12])
@@ -79,7 +79,7 @@ def test_roundtrip_scopeid_deferred():
 
     # fmt: off
     @T.prim_func(private=True)
-    def test(_: T.Buffer((64,), 'float32', scope='global')) -> None:
+    def test(_: T.Tensor((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx = T.cta_id()                       # deferred kernel→cta
@@ -100,7 +100,7 @@ def test_roundtrip_scopeid_deferred():
 
 def test_exec_scope_filter_guard_roundtrip():
     @T.prim_func(private=True)
-    def test(A: T.Buffer((1,), "float32", scope="global")) -> None:
+    def test(A: T.Tensor((1,), "float32", scope="global")) -> None:
         T.device_entry()
         T.cta_id([1])
         tx = T.thread_id([128])
@@ -115,13 +115,13 @@ def test_exec_scope_filter_guard_roundtrip():
 def test_roundtrip_op1():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((64,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
-        A_smem = T.alloc_buffer([64], dtype="float32", scope="shared")
+        A_smem = T.alloc_tensor([64], dtype="float32", scope="shared")
 
         Tx.cta.copy(A_smem, A)
         for i in range(10):
@@ -139,19 +139,19 @@ def test_roundtrip_op2():
     # fmt: off
     @T.prim_func
     def test(
-        A: T.Buffer((128, 128), "float16", scope="global"),
-        B: T.Buffer((128, 64), "float16", scope="global"),
-        C: T.Buffer((128, 64), "float32", scope="global"),
+        A: T.Tensor((128, 128), "float16", scope="global"),
+        B: T.Tensor((128, 64), "float16", scope="global"),
+        C: T.Tensor((128, 64), "float32", scope="global"),
     ) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
-        A_smem = T.alloc_buffer([128, 32], dtype="float16", scope="shared")
-        B_smem = T.alloc_buffer([32, 64], dtype="float16", scope="shared")
+        A_smem = T.alloc_tensor([128, 32], dtype="float16", scope="shared")
+        B_smem = T.alloc_tensor([32, 64], dtype="float16", scope="shared")
 
-        C_local = T.alloc_buffer([128, 64], dtype="float32", scope="local")
+        C_local = T.alloc_tensor([128, 64], dtype="float32", scope="local")
         for k in range(4):
             Tx.cta.copy(A_smem, A[:, k * 32 : k * 32 + 32])
             Tx.cta.copy(B_smem, B[k * 32 : k * 32 + 32, 0:64])
@@ -171,19 +171,19 @@ def test_roundtrip_op3():
 
     @T.prim_func
     def test(
-        A: T.Buffer((128, K), "float16", scope="global"),
-        B: T.Buffer((K, 64), "float16", scope="global"),
-        C: T.Buffer((128, 64), "float32", scope="global"),
+        A: T.Tensor((128, K), "float16", scope="global"),
+        B: T.Tensor((K, 64), "float16", scope="global"),
+        C: T.Tensor((128, 64), "float32", scope="global"),
     ) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
-        A_smem = T.alloc_buffer([NUM_STAGES, 128, 32], dtype="float16", scope="shared")
-        B_smem = T.alloc_buffer([NUM_STAGES, 32, 64], dtype="float16", scope="shared")
+        A_smem = T.alloc_tensor([NUM_STAGES, 128, 32], dtype="float16", scope="shared")
+        B_smem = T.alloc_tensor([NUM_STAGES, 32, 64], dtype="float16", scope="shared")
 
-        C_local = T.alloc_buffer([128, 64], dtype="float32", scope="local")
+        C_local = T.alloc_tensor([128, 64], dtype="float32", scope="local")
         for i in range(NUM_STAGES - 1):
             Tx.cta.copy(A_smem[i, :, :], A[:, i * 32 : i * 32 + 32])
             Tx.cta.copy(B_smem[i, :, :], B[i * 32 : i * 32 + 32, :])
@@ -207,7 +207,7 @@ def test_roundtrip_op3():
 def test_roundtrip_tensormap():
     # fmt: off
     @T.prim_func
-    def func1(A: T.Buffer([128], "float32")):
+    def func1(A: T.Tensor([128], "float32")):
         T.func_attr({"global_symbol": "func"})
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
@@ -237,11 +237,11 @@ def test_roundtrip_op_call_workspace():
     # fmt: off
     @T.prim_func
     def test(
-        A: T.Buffer([10], "float32", scope="global"), B: T.Buffer([10], "float32", scope="global")
+        A: T.Tensor([10], "float32", scope="global"), B: T.Tensor([10], "float32", scope="global")
     ):
 
         T.device_entry()
-        smem = T.alloc_buffer([10], "float32", scope="shared")
+        smem = T.alloc_tensor([10], "float32", scope="shared")
         Tx.add(B, A, T.float32(1), workspace={"smem": smem})
         # fmt: on
     code = test.script()
@@ -253,7 +253,7 @@ def test_roundtrip_op_call_config():
     # fmt: off
     @T.prim_func
     def test(
-        A: T.Buffer([10], "float32", scope="global"), B: T.Buffer([10], "float32", scope="global")
+        A: T.Tensor([10], "float32", scope="global"), B: T.Tensor([10], "float32", scope="global")
     ):
 
         T.device_entry()
@@ -269,8 +269,8 @@ def test_predicate():
     @T.prim_func
     def test():
         T.device_entry()
-        A = T.alloc_buffer([10, 10], "float32")
-        B = T.alloc_buffer([10, 10], "float32")
+        A = T.alloc_tensor([10, 10], "float32")
+        B = T.alloc_tensor([10, 10], "float32")
         Tx.select(B, A, 1.0, lambda i, j: i < j)
         # fmt: on
     code = test.script()
@@ -281,7 +281,7 @@ def test_predicate():
 def test_kwargs_op_call():
     # fmt: off
     @T.prim_func(private=True)
-    def test(A: T.Buffer((10, 10), "float32"), B: T.Buffer((10, 10), "float32")):
+    def test(A: T.Tensor((10, 10), "float32"), B: T.Tensor((10, 10), "float32")):
         T.device_entry()
         kwargs = T.meta_var({"dispatch": "tma_auto", "cta_group": 2})
         Tx.copy_async(A[:, :], B[:, :], **kwargs)
@@ -299,9 +299,9 @@ def test_workspace_default_none():
     ``if workspace is None: workspace = {}`` guard."""
     from tvm.tirx import BufferRegion
 
-    A_buf = tvm.tirx.decl_buffer((128, 128), "float16", name="A")
-    B_buf = tvm.tirx.decl_buffer((128, 128), "float16", name="B")
-    C_buf = tvm.tirx.decl_buffer((128,), "float16", name="C")
+    A_buf = tvm.tirx.decl_tensor((128, 128), "float16", name="A")
+    B_buf = tvm.tirx.decl_tensor((128, 128), "float16", name="B")
+    C_buf = tvm.tirx.decl_tensor((128,), "float16", name="C")
     A = BufferRegion(A_buf, [tvm.ir.Range(0, 128), tvm.ir.Range(0, 128)])
     B = BufferRegion(B_buf, [tvm.ir.Range(0, 128), tvm.ir.Range(0, 128)])
     C = BufferRegion(C_buf, [tvm.ir.Range(0, 128)])
@@ -333,7 +333,7 @@ def test_roundtrip_persistent_decorator():
 
     # fmt: off
     @T.prim_func(persistent=True)
-    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -354,7 +354,7 @@ def test_roundtrip_persistent_not_present():
 
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -373,7 +373,7 @@ def test_warp_role():
 
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -408,7 +408,7 @@ def test_warpgroup_role():
 
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -453,12 +453,12 @@ def test_roundtrip_cp_async_bulk_tensor_g2s_cluster():
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def func(_: T.Buffer((16, 16), 'float32')):
+    def func(_: T.Tensor((16, 16), 'float32')):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
-            A_smem = T.alloc_buffer((16, 16), "float32", scope="shared")
+            A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
             T.ptx["cp.async.bulk.tensor.2d.shared::cluster.global.mbarrier::complete_tx::bytes"](
                 A_smem.data, T.address_of(A_map), 0, 0, T.uint32(0)
             )
@@ -474,12 +474,12 @@ def test_roundtrip_cp_async_bulk_tensor_s2g():
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def func(_: T.Buffer((16, 16), 'float32')):
+    def func(_: T.Tensor((16, 16), 'float32')):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
-            A_smem = T.alloc_buffer((16, 16), "float32", scope="shared")
+            A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
             T.ptx["cp.async.bulk.tensor.2d.global.shared::cta.tile.bulk_group"](
                 T.address_of(A_map), 0, 0, A_smem.data
             )
@@ -495,7 +495,7 @@ def test_roundtrip_cp_async_bulk_tensor_prefetch():
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def func(_: T.Buffer((16, 16), 'float32')):
+    def func(_: T.Tensor((16, 16), 'float32')):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
@@ -515,12 +515,12 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
 
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def func(_: T.Buffer((16, 16), 'float32')):
+    def func(_: T.Tensor((16, 16), 'float32')):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
-            A_smem = T.alloc_buffer((16, 16), "float32", scope="shared")
+            A_smem = T.alloc_tensor((16, 16), "float32", scope="shared")
             T.ptx["cp.reduce.async.bulk.tensor.2d.global.shared::cta.add.tile.bulk_group"](
                 T.address_of(A_map), 0, 0, A_smem.data
             )
@@ -534,7 +534,7 @@ def test_roundtrip_cp_async_bulk_tensor_s2g_reduce():
 def test_scope_id_dtype_uint32():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((128,), 'float32')):
+    def func(A: T.Tensor((128,), 'float32')):
 
         T.device_entry()
         bx = T.cta_id([1])
@@ -570,7 +570,7 @@ def _assert_roundtrip(func):
 def test_scope_id_dtype_uint32_lane_and_warp():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((32,), 'float32')):
+    def func(A: T.Tensor((32,), 'float32')):
 
         T.device_entry()
         _ = T.cta_id([1])
@@ -588,7 +588,7 @@ def test_scope_id_dtype_uint32_lane_and_warp():
 def test_scope_id_dtype_uint32_with_preferred():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((4,), 'float32')):
+    def func(A: T.Tensor((4,), 'float32')):
 
         T.device_entry()
         _ = T.cluster_id([2])
@@ -608,7 +608,7 @@ def test_scope_id_dtype_uint32_deferred_extent():
 
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((32,), 'float32')):
+    def func(A: T.Tensor((32,), 'float32')):
 
         T.device_entry()
         _ = T.cta_id([1])
@@ -636,7 +636,7 @@ def test_scope_id_dtype_rejects_unsupported(dtype):
     with pytest.raises(Exception, match='must be "int32" or "uint32"'):
 
         @T.prim_func
-        def func(A: T.Buffer((128,), 'float32')):
+        def func(A: T.Tensor((128,), 'float32')):
 
             T.device_entry()
             _ = T.cta_id([1])

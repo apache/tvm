@@ -27,7 +27,7 @@ from tvm.testing import env
 
 
 @Ts.prim_func
-def main(p0: T.Buffer((), "int32"), T_stack: T.Buffer((T.int64(3),), "int32")):
+def main(p0: T.Tensor((), "int32"), T_stack: T.Tensor((T.int64(3),), "int32")):
     T.func_attr({"tirx.noalias": True})
     # with Ts.sblock("root"):
     compile_engine_const = Ts.sblock_alloc_buffer((), "int32")

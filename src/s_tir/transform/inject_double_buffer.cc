@@ -176,13 +176,13 @@ class DoubleBufferInjector : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, call, inplace_mode);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     const VarNode* buf = op->var.as_or_throw<BufferVar>().get();
     auto it = dbuffer_info_.find(buf);
@@ -195,11 +195,11 @@ class DoubleBufferInjector : public StmtExprMutator {
                                                  << "Has FlattenBuffer been run?";
       entry.stride = shape->fields[0].as_or_throw<PrimExpr>();
 
-      // In flat IR, AllocBuffer appears before its usage in the SeqStmt,
+      // In flat IR, AllocTensor appears before its usage in the SeqStmt,
       // so entry.loop may not be set yet. Defer double-buffer allocation
       // processing to be handled in VisitStmt_(ForNode*).
       pending_dbuffer_allocs_[buf] = ffi::GetRef<Bind>(op);
-      // Remove the original AllocBuffer (will be re-emitted in ForNode visitor)
+      // Remove the original AllocTensor (will be re-emitted in ForNode visitor)
       return Evaluate(0);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -221,7 +221,7 @@ class DoubleBufferInjector : public StmtExprMutator {
         auto& alloc_nest = loop_allocs_[entry.loop];
         const auto* call = alloc->value.as<CallNode>();
         alloc_nest.emplace_back(Bind(new_buf.var(),
-                                     Call(new_buf.type(), tirx::builtin::alloc_buffer(),
+                                     Call(new_buf.type(), tirx::builtin::alloc_tensor(),
                                           {tvm::Tuple(new_buf->shape, call->args[0]->span),
                                            DataTypeImm(new_buf->dtype->dtype, call->args[1]->span),
                                            StringImm(new_buf.scope(), call->args[2]->span)},
@@ -352,7 +352,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
     // Stride gives the distance between the two halves of the
     // double-buffer, not the stride of the buffer's index.
-    auto type = CopyBufferType(buf);
+    auto type = CopyTensorType(buf);
     type->shape = {buf->shape[0] + stride};
     buf = RebuildBufferVar(buf, std::move(type));
 
@@ -441,7 +441,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   // The allocation size of the buffer
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
   // The updated BufferVar objects
-  // Pending double-buffer AllocBuffer nodes (deferred from flat AllocBuffer visit)
+  // Pending double-buffer AllocTensor nodes (deferred from flat AllocTensor visit)
   std::unordered_map<const VarNode*, Bind> pending_dbuffer_allocs_;
 };
 

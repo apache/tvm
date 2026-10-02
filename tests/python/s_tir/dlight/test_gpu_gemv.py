@@ -30,9 +30,9 @@ from tvm.target import Target
 def test_gemv_rejects_composite_normalized_axis():
     @Ts.prim_func(private=True)
     def before(
-        data: T.Buffer((1, 64, n), "float32"),  # noqa: F821
-        weight: T.Buffer((64, 1, 512), "float32"),
-        output: T.Buffer((1, 1, n * 256), "float32"),  # noqa: F821
+        data: T.Tensor((1, 64, n), "float32"),  # noqa: F821
+        weight: T.Tensor((64, 1, 512), "float32"),
+        output: T.Tensor((1, 1, n * 256), "float32"),  # noqa: F821
         n: T.int64,
     ):
         for w, rc, rw in T.grid(n * 256, 64, 512):
@@ -57,7 +57,7 @@ def test_gemv_basic():
     n = T.dynamic("n", "int32")
 
     @Ts.prim_func(private=True)
-    def before(lv1637: T.Buffer((1, 32, 1, 128), "float16"), lv1638: T.Buffer((1, 32, n, 128), 'float16'), lv1614: T.Buffer((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Buffer((1, 32, 1, n))):
+    def before(lv1637: T.Tensor((1, 32, 1, 128), "float16"), lv1638: T.Tensor((1, 32, n, 128), 'float16'), lv1614: T.Tensor((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Tensor((1, 32, 1, n))):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -101,7 +101,7 @@ def test_gemv_basic():
     n = T.dynamic("n", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(lv1637: T.Buffer((1, 32, 1, 128), "float16"), lv1638: T.Buffer((1, 32, n, 128), 'float16'), lv1614: T.Buffer((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Buffer((1, 32, 1, n))):
+    def expected(lv1637: T.Tensor((1, 32, 1, 128), "float16"), lv1638: T.Tensor((1, 32, n, 128), 'float16'), lv1614: T.Tensor((1, 1, 1, n), 'float16'), var_compute_intermediate: T.Tensor((1, 32, 1, n))):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -207,7 +207,7 @@ def test_gemv_basic():
 def test_decode_gemv_256_threads():
     # fmt: off
     @Ts.prim_func(private=True)
-    def before(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
+    def before(lv571: T.Tensor((22016, 512), "uint32"), lv572: T.Tensor((22016, 128), "float16"), lv1654: T.Tensor((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Tensor((1, 1, 22016), "float16")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         p_output0_intermediate = Ts.sblock_alloc_buffer((22016, 4096), "float16")
@@ -227,7 +227,7 @@ def test_decode_gemv_256_threads():
                 var_NT_matmul_intermediate[v_i0, v_i1, v_i2] = var_NT_matmul_intermediate[v_i0, v_i1, v_i2] + lv1654[v_i0, v_i1, v_k] * p_output0_intermediate[v_i2, v_k]
 
     @Ts.prim_func(private=True)
-    def expected(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
+    def expected(lv571: T.Tensor((22016, 512), "uint32"), lv572: T.Tensor((22016, 128), "float16"), lv1654: T.Tensor((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Tensor((1, 1, 22016), "float16")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with Ts.sblock("root"):
         var_NT_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((16, 1, 1, 22016), "float16", scope="local")
@@ -303,7 +303,7 @@ def test_decode_gemv1():
     # fmt: off
 
     @Ts.prim_func(private=True)
-    def before(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
+    def before(lv571: T.Tensor((22016, 512), "uint32"), lv572: T.Tensor((22016, 128), "float16"), lv1654: T.Tensor((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Tensor((1, 1, 22016), "float16")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         p_output0_intermediate = Ts.sblock_alloc_buffer((22016, 4096), "float16")
@@ -323,7 +323,7 @@ def test_decode_gemv1():
                 var_NT_matmul_intermediate[v_i0, v_i1, v_i2] = var_NT_matmul_intermediate[v_i0, v_i1, v_i2] + lv1654[v_i0, v_i1, v_k] * p_output0_intermediate[v_i2, v_k]
 
     @Ts.prim_func(private=True)
-    def expected(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
+    def expected(lv571: T.Tensor((22016, 512), "uint32"), lv572: T.Tensor((22016, 128), "float16"), lv1654: T.Tensor((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Tensor((1, 1, 22016), "float16")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with Ts.sblock("root"):
         var_NT_matmul_intermediate_rf_local = Ts.sblock_alloc_buffer((128, 1, 1, 22016), "float16", scope="local")
@@ -411,7 +411,7 @@ def test_decode_gemv2():
     # fmt: off
 
     @Ts.prim_func(private=True)
-    def before(lv771: T.Buffer((32000, 512), "uint32"), lv772: T.Buffer((32000, 128), "float16"), lv3216: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 32000), "float32")):
+    def before(lv771: T.Tensor((32000, 512), "uint32"), lv772: T.Tensor((32000, 128), "float16"), lv3216: T.Tensor((1, 1, 4096), "float16"), p_output0_intermediate: T.Tensor((1, 1, 32000), "float32")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         p_output0_intermediate_1 = Ts.sblock_alloc_buffer((32000, 4096), "float16")
@@ -438,7 +438,7 @@ def test_decode_gemv2():
                 p_output0_intermediate[v_i0, v_i1, v_i2] = T.Cast("float32", var_NT_matmul_intermediate[v_i0, v_i1, v_i2])
 
     @Ts.prim_func(private=True)
-    def expected(lv771: T.Buffer((32000, 512), "uint32"), lv772: T.Buffer((32000, 128), "float16"), lv3216: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 32000), "float32")):
+    def expected(lv771: T.Tensor((32000, 512), "uint32"), lv772: T.Tensor((32000, 128), "float16"), lv3216: T.Tensor((1, 1, 4096), "float16"), p_output0_intermediate: T.Tensor((1, 1, 32000), "float32")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with Ts.sblock("root"):
         var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((1, 1, 32000), "float16", scope="local")
@@ -534,7 +534,7 @@ def test_decode_gemv3():
     # fmt: off
 
     @Ts.prim_func(private=True)
-    def before(lv575: T.Buffer((T.int64(4096), T.int64(1376)), "uint32"), lv576: T.Buffer((T.int64(4096), T.int64(344)), "float16"), lv574: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16"), lv570: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
+    def before(lv575: T.Tensor((T.int64(4096), T.int64(1376)), "uint32"), lv576: T.Tensor((T.int64(4096), T.int64(344)), "float16"), lv574: T.Tensor((T.int64(1), T.int64(1), T.int64(11008)), "float16"), lv570: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         p_output0_intermediate_1 = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(11008)), "float16")
@@ -561,7 +561,7 @@ def test_decode_gemv3():
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = lv570[v_ax0, v_ax1, v_ax2] + var_NT_matmul_intermediate[v_ax0, v_ax1, v_ax2]
 
     @Ts.prim_func(private=True)
-    def expected(lv575: T.Buffer((T.int64(4096), T.int64(1376)), "uint32"), lv576: T.Buffer((T.int64(4096), T.int64(344)), "float16"), lv574: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16"), lv570: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
+    def expected(lv575: T.Tensor((T.int64(4096), T.int64(1376)), "uint32"), lv576: T.Tensor((T.int64(4096), T.int64(344)), "float16"), lv574: T.Tensor((T.int64(1), T.int64(1), T.int64(11008)), "float16"), lv570: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with Ts.sblock("root"):
         var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16", scope="local")
@@ -657,7 +657,7 @@ def test_decode_gemv3():
 def test_autogptq_decode_gemv():
     # fmt: off
     @Ts.prim_func(private=True)
-    def func(lv9: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), lv10: T.Buffer((T.int64(32), T.int64(512)), "uint32"), lv11: T.Buffer((T.int64(32), T.int64(4096)), "float16"), lv12: T.Buffer((T.int64(4096),), "uint32"), lv8: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), lv1613: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
+    def func(lv9: T.Tensor((T.int64(512), T.int64(4096)), "uint32"), lv10: T.Tensor((T.int64(32), T.int64(512)), "uint32"), lv11: T.Tensor((T.int64(32), T.int64(4096)), "float16"), lv12: T.Tensor((T.int64(4096),), "uint32"), lv8: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), lv1613: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         decode_intermediate = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
@@ -696,11 +696,11 @@ def test_outer_reduction_adreno():
     # fmt: off
     @Ts.prim_func(private=True)
     def before(
-        lv575: T.Buffer((1376, 4096), "uint32"),
-        lv576: T.Buffer((344, 4096), "float16"),
-        lv574: T.Buffer((1, 1, 11008), "float16"),
-        lv570: T.Buffer((1, 1, 4096), "float16"),
-        p_output0_intermediate: T.Buffer((1, 1, 4096), "float16"),
+        lv575: T.Tensor((1376, 4096), "uint32"),
+        lv576: T.Tensor((344, 4096), "float16"),
+        lv574: T.Tensor((1, 1, 11008), "float16"),
+        lv570: T.Tensor((1, 1, 4096), "float16"),
+        p_output0_intermediate: T.Tensor((1, 1, 4096), "float16"),
     ):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -722,7 +722,7 @@ def test_outer_reduction_adreno():
                 p_output0_intermediate[v_ax0, v_ax1, v_ax2] = lv570[v_ax0, v_ax1, v_ax2] + var_matmul_intermediate[v_ax0, v_ax1, v_ax2]
 
     @Ts.prim_func(private=True)
-    def expected(lv575: T.Buffer((1376, 4096), "uint32"), lv576: T.Buffer((344, 4096), "float16"), lv574: T.Buffer((1, 1, 11008), "float16"), lv570: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 4096), "float16")):
+    def expected(lv575: T.Tensor((1376, 4096), "uint32"), lv576: T.Tensor((344, 4096), "float16"), lv574: T.Tensor((1, 1, 11008), "float16"), lv570: T.Tensor((1, 1, 4096), "float16"), p_output0_intermediate: T.Tensor((1, 1, 4096), "float16")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with Ts.sblock("root"):
         var_matmul_intermediate_local = Ts.sblock_alloc_buffer((1, 1, 4096), "float16", scope="local")
@@ -809,7 +809,7 @@ def test_outer_reduction_adreno_dynamic():
     v = T.dynamic("v")
 
     @Ts.prim_func(private=True)
-    def before(lv612: T.Buffer((T.int64(512), v), 'uint32'), lv613: T.Buffer((T.int64(128), v), 'float16'), lv1607: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), v))):
+    def before(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v))):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -839,7 +839,7 @@ def test_outer_reduction_adreno_dynamic():
     v = T.dynamic("v")
 
     @Ts.prim_func(private=True)
-    def expected(lv612: T.Buffer((T.int64(512), v), 'uint32'), lv613: T.Buffer((T.int64(128), v), 'float16'), lv1607: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), v))):
+    def expected(lv612: T.Tensor((T.int64(512), v), 'uint32'), lv613: T.Tensor((T.int64(128), v), 'float16'), lv1607: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Tensor((T.int64(1), T.int64(1), v))):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -947,7 +947,7 @@ def test_outer_reduction_adreno_dynamic():
 def test_blockized_gemv():
     # fmt: off
     @Ts.prim_func(private=True)
-    def before(x: T.Buffer((1, 4096), "float16"), w: T.Buffer((8, 16384, 4096), "float16"), indptr: T.Buffer((2,), "int32"), o: T.Buffer((2, 16384), "float16")):
+    def before(x: T.Tensor((1, 4096), "float16"), w: T.Tensor((8, 16384, 4096), "float16"), indptr: T.Tensor((2,), "int32"), o: T.Tensor((2, 16384), "float16")):
         # with Ts.sblock("root"):
         for expert_id in T.thread_binding(2, thread="blockIdx.y"):
             with Ts.sblock("gemv_o"):
@@ -966,7 +966,7 @@ def test_blockized_gemv():
                         o[v_expert_id_o, vi_i] = o[v_expert_id_o, vi_i] + x[0, vj_i] * w[indptr[v_expert_id_o], vi_i, vj_i]
 
     @Ts.prim_func(private=True)
-    def expected(x: T.Buffer((1, 4096), "float16"), w: T.Buffer((8, 16384, 4096), "float16"), indptr: T.Buffer((2,), "int32"), o: T.Buffer((2, 16384), "float16")):
+    def expected(x: T.Tensor((1, 4096), "float16"), w: T.Tensor((8, 16384, 4096), "float16"), indptr: T.Tensor((2,), "int32"), o: T.Tensor((2, 16384), "float16")):
         T.func_attr({"tirx.is_scheduled": True})
         # with Ts.sblock("root"):
         for expert_id in T.thread_binding(2, thread="blockIdx.y"):
@@ -1049,8 +1049,8 @@ def test_blockized_gemv():
 def test_func_to_skip():
     @Ts.prim_func
     def before(
-        data_buf: T.Buffer((seq_len * T.int64(8),), "int32", align=8),  # noqa: F821
-        output_buf: T.Buffer((seq_len * T.int64(8),), "int32", align=8),  # noqa: F821
+        data_buf: T.Tensor((seq_len * T.int64(8),), "int32", align=8),  # noqa: F821
+        output_buf: T.Tensor((seq_len * T.int64(8),), "int32", align=8),  # noqa: F821
         seq_len: T.int64,
     ):
         with Ts.sblock("exclusive_scan_thrust"):
@@ -1083,9 +1083,9 @@ def test_gemv_cuda_target_without_max_shared_memory_per_block():
     # fmt: off
     @Ts.prim_func(private=True)
     def before(
-        A: T.Buffer((1, 1, 1, 128), "float16"),
-        B: T.Buffer((1, 1, 64, 128), "float16"),
-        C: T.Buffer((1, 1, 1, 64), "float16"),
+        A: T.Tensor((1, 1, 1, 128), "float16"),
+        B: T.Tensor((1, 1, 64, 128), "float16"),
+        C: T.Tensor((1, 1, 1, 64), "float16"),
     ):
         T.func_attr({"tirx.noalias": True})
         for i0, i1, i2, i3, k in T.grid(1, 1, 1, 64, 128):
@@ -1114,9 +1114,9 @@ def test_gemv_cuda_target_without_max_shared_memory_per_block():
 def test_gemv_rank_one_vector_input():
     @Ts.prim_func(private=True)
     def before(
-        matrix: T.Buffer((2, 2), "float32"),
-        vector: T.Buffer((2,), "float32"),
-        output: T.Buffer((2,), "float32"),
+        matrix: T.Tensor((2, 2), "float32"),
+        vector: T.Tensor((2,), "float32"),
+        output: T.Tensor((2,), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         for i, k in T.grid(2, 2):
@@ -1145,9 +1145,9 @@ def test_gemv_broadcast_epilogue():
 
     @Ts.prim_func(private=True)
     def before(
-        A: T.Buffer((1, 32, 1, 128), "float16"),
-        B: T.Buffer((1, 32, n, 128), 'float16'),
-        C: T.Buffer((1, 32, 2, 3, n), 'float32'),
+        A: T.Tensor((1, 32, 1, 128), "float16"),
+        B: T.Tensor((1, 32, n, 128), 'float16'),
+        C: T.Tensor((1, 32, 2, 3, n), 'float32'),
     ):
         T.func_attr({"tirx.noalias": True})
 

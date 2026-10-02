@@ -64,8 +64,8 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
     // Buffers allocated in the block can be accessed by its body.
-    for (const auto& alloc_buffer : op->alloc_buffers) {
-      buffer_var_map_->Set(alloc_buffer.var(), alloc_buffer);
+    for (const auto& alloc_tensor : op->alloc_buffers) {
+      buffer_var_map_->Set(alloc_tensor.var(), alloc_tensor);
     }
     for (const auto& match_buffer : op->match_buffers) {
       const BufferVar& target_buffer = match_buffer->buffer;
@@ -80,8 +80,8 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     this->is_root_block_ = is_root_block;
 
     // Remove buffers allocated inside block to detect its access region
-    for (const auto& alloc_buffer : op->alloc_buffers) {
-      buffer_var_map_->erase(alloc_buffer.var());
+    for (const auto& alloc_tensor : op->alloc_buffers) {
+      buffer_var_map_->erase(alloc_tensor.var());
     }
     for (const auto& match_buffer : op->match_buffers) {
       const BufferVar& target_buffer = match_buffer->buffer;

@@ -41,7 +41,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
   ffi::Array<tvm::Type> params;
   for (const auto& param : prim_func->params) {
     tvm::Type param_ty = [&]() -> tvm::Type {
-      if (param->ty.as<BufferTypeNode>()) {
+      if (param->ty.as<TensorTypeNode>()) {
         BufferVar buf = param.as_or_throw<BufferVar>();
         relax::ShapeExpr shape(
             buf->shape.Map([](PrimExpr dim) { return cast(PrimType::Int(64), dim); }));

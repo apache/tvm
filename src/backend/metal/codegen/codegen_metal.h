@@ -54,7 +54,7 @@ class CodeGenMetal final : public CodeGenC {
                          const std::string& value) final;
   // overload visitor
   void Dispatch_(const BindNode* op) final;  // NOLINT(*)
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const prim::SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void Dispatch_(const prim::BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const CallNode* op, std::ostream& os) final;             // NOLINT(*)

@@ -47,9 +47,9 @@ def test_optimize_transform_layout_pass_one_arg():
     class Before:
         @Ts.prim_func(private=True)
         def relax_add_replacement(
-            arg0: T.Buffer((4, 4), "float32"),
-            arg1: T.Buffer((4, 4), "float32"),
-            output: T.Buffer((4, 4), "float32"),
+            arg0: T.Tensor((4, 4), "float32"),
+            arg1: T.Tensor((4, 4), "float32"),
+            output: T.Tensor((4, 4), "float32"),
         ):
             T.func_attr({"operator_name": "relax.add"})
             # with Ts.sblock("root"):
@@ -101,9 +101,9 @@ def test_optimize_transform_layout_pass_one_arg():
     class Expected:
         @Ts.prim_func(private=True)
         def relax_add_replacement(
-            arg0: T.Buffer((4, 4), "float32"),
-            arg1: T.Buffer((4, 4), "float32"),
-            output: T.Buffer((4, 4), "float32"),
+            arg0: T.Tensor((4, 4), "float32"),
+            arg1: T.Tensor((4, 4), "float32"),
+            output: T.Tensor((4, 4), "float32"),
         ):
             T.func_attr({"operator_name": "relax.add"})
             # with Ts.sblock("root"):
@@ -149,9 +149,9 @@ def test_optimize_transform_layout_pass_two_args():
     class Before:
         @Ts.prim_func(private=True)
         def relax_add_replacement(
-            arg0: T.Buffer((4, 4), "float32"),
-            arg1: T.Buffer((4, 4), "float32"),
-            output: T.Buffer((4, 4), "float32"),
+            arg0: T.Tensor((4, 4), "float32"),
+            arg1: T.Tensor((4, 4), "float32"),
+            output: T.Tensor((4, 4), "float32"),
         ):
             T.func_attr({"operator_name": "relax.add"})
             # with Ts.sblock("root"):
@@ -216,9 +216,9 @@ def test_optimize_transform_layout_pass_two_args():
     class Expected:
         @Ts.prim_func(private=True)
         def relax_add_replacement(
-            arg0: T.Buffer((4, 4), "float32"),
-            arg1: T.Buffer((4, 4), "float32"),
-            output: T.Buffer((4, 4), "float32"),
+            arg0: T.Tensor((4, 4), "float32"),
+            arg1: T.Tensor((4, 4), "float32"),
+            output: T.Tensor((4, 4), "float32"),
         ):
             T.func_attr({"operator_name": "relax.add"})
             # with Ts.sblock("root"):
@@ -277,7 +277,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
     class Before:
         @Ts.prim_func(private=True)
         def relax_relu_replacement(
-            arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")
+            arg0: T.Tensor((16,), "float32"), output: T.Tensor((16,), "float32")
         ):
             T.func_attr({"operator_name": "relax.relu"})
             # with Ts.sblock("root"):
@@ -289,7 +289,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
         @Ts.prim_func(private=True)
-        def remove_pad(input: T.Buffer((p0,)), output: T.Buffer((i0,))):
+        def remove_pad(input: T.Tensor((p0,)), output: T.Tensor((i0,))):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -350,7 +350,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
     class Expected:
         @Ts.prim_func(private=True)
         def relax_relu_replacement(
-            arg0: T.Buffer((16,), "float32"), output: T.Buffer((16,), "float32")
+            arg0: T.Tensor((16,), "float32"), output: T.Tensor((16,), "float32")
         ):
             T.func_attr({"operator_name": "relax.relu"})
             # with Ts.sblock("root"):
@@ -362,7 +362,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
         @Ts.prim_func(private=True)
-        def remove_pad(input: T.Buffer((p0,)), output: T.Buffer((i0,))):
+        def remove_pad(input: T.Tensor((p0,)), output: T.Tensor((i0,))):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
 
             # with Ts.sblock("root"):

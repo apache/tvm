@@ -76,7 +76,7 @@ struct ConstraintSet {
 /*! \brief The set containing all possible outputs of a rewrite rule */
 struct OutputSet {
   /*! \brief New buffers allocated after rewrite */
-  ffi::Array<BufferVar> alloc_buffer;
+  ffi::Array<BufferVar> alloc_tensor;
   /*! \brief The minimal padding size of a buffer in base 2 logarithm */
   ffi::Map<BufferVar, int64_t> padding_min;
 };
@@ -246,14 +246,14 @@ class WmmaToShared : public RewriteRule {
  * \param storage_scope the storage scope of the new cache
  * \param compute_location the compute location.
  * \param outer_loops the outer loops of this stmt
- * \param alloc_buffer the new cache block
+ * \param alloc_tensor the new cache block
  * \return a pair. The first is the stmt after transformation.
  *         The second is the SeqStmt that contains 2 stages (one original and another inserted).
  */
 std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::String storage_scope,
                                           ffi::Optional<For> compute_location,
                                           const ffi::Array<For>& outer_loops,
-                                          BufferVar* alloc_buffer);
+                                          BufferVar* alloc_tensor);
 
 }  // namespace s_tir
 }  // namespace tvm

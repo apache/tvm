@@ -27,7 +27,7 @@ def test_rewrite_Select():
     class ModuleY:
         @Ts.prim_func
         def main(i: T.int32):
-            A = T.alloc_buffer((100,))
+            A = T.alloc_tensor((100,))
             T.evaluate(T.Select(i > 1, A[i - 1], T.float32(1.0)))
 
     yy = tvm.s_tir.transform.RewriteUnsafeSelect()(ModuleY)["main"].body.seq[-1].value
@@ -36,7 +36,7 @@ def test_rewrite_Select():
     class ModuleZ:
         @Ts.prim_func
         def main(i: T.int32):
-            A = T.alloc_buffer((100,))
+            A = T.alloc_tensor((100,))
             T.evaluate(
                 T.Select(
                     T.Select(i > 1, A[i - 1], T.float32(1.0)) > T.float32(0.0), A[i], T.float32(0.1)
@@ -49,7 +49,7 @@ def test_rewrite_Select():
     class ModuleA:
         @Ts.prim_func
         def main(i: T.int32):
-            A = T.alloc_buffer((100,))
+            A = T.alloc_tensor((100,))
             # Inline y and z to avoid Let bindings - outer Select condition is safe (no buffer access)
             T.evaluate(
                 T.Select(

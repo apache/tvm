@@ -29,11 +29,11 @@ def from_source(code):
 
 def test_hint_keyword_arg_on_tx_op():
     """Tx.op(..., hint="msg") stores hint in TilePrimitiveCall.config."""
-    from tvm.tirx.buffer import decl_buffer
+    from tvm.tirx.buffer import decl_tensor
     from tvm.tirx.tile_primitive import TilePrimitiveCall
 
-    A = decl_buffer((64, 64), "float32", scope="global")
-    A_sm = decl_buffer((64, 64), "float32", scope="shared")
+    A = decl_tensor((64, 64), "float32", scope="global")
+    A_sm = decl_tensor((64, 64), "float32", scope="shared")
 
     op_call = TilePrimitiveCall(
         A[0:64, 0:64],
@@ -52,7 +52,7 @@ def test_hint_keyword_arg_on_tx_op_roundtrip():
 
     @T.prim_func
     def func(
-        A: T.Buffer([10], "float32", scope="global"), B: T.Buffer([10], "float32", scope="global")
+        A: T.Tensor([10], "float32", scope="global"), B: T.Tensor([10], "float32", scope="global")
     ):
         Tx.add(B, A, T.float32(1), hint="use_fast_math")
 

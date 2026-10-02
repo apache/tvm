@@ -49,9 +49,9 @@ def test_tir_call_source_kernel():
     class Module:
         @Ts.prim_func
         def add(
-            x: T.Buffer((m_add,), "float32"),
-            y: T.Buffer((m_add,), "float32"),
-            output: T.Buffer((m_add,), "float32"),
+            x: T.Tensor((m_add,), "float32"),
+            y: T.Tensor((m_add,), "float32"),
+            output: T.Tensor((m_add,), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "add"})
 
@@ -80,7 +80,7 @@ def test_tir_call_source_kernel():
     @I.ir_module
     class Parsed:
         @Ts.prim_func
-        def add(x: T.Buffer((m,)), y: T.Buffer((m,)), output: T.Buffer((m,))):
+        def add(x: T.Tensor((m,)), y: T.Tensor((m,)), output: T.Tensor((m,))):
             with Ts.sblock("root"):
                 Ts.reads(x[0:m], y[0:m])
                 Ts.writes(output[0:m])

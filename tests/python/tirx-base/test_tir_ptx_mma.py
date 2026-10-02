@@ -26,9 +26,9 @@ from tvm.testing import env
 
 @T.prim_func
 def gemm_mma_m8n8k4_row_col_fp64pf64fp64(
-    A: T.Buffer([8, 4], dtype="float64"),
-    B: T.Buffer([8, 4], dtype="float64"),
-    C: T.Buffer([8, 8], dtype="float64"),
+    A: T.Tensor([8, 4], dtype="float64"),
+    B: T.Tensor([8, 4], dtype="float64"),
+    C: T.Tensor([8, 8], dtype="float64"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -38,9 +38,9 @@ def gemm_mma_m8n8k4_row_col_fp64pf64fp64(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([1], "float64", scope="local")
-    MultiB = T.decl_buffer([1], "float64", scope="local")
-    Accum = T.decl_buffer([2], "float64", scope="local")
+    MultiA = T.decl_tensor([1], "float64", scope="local")
+    MultiB = T.decl_tensor([1], "float64", scope="local")
+    Accum = T.decl_tensor([2], "float64", scope="local")
     for i in range(2):
         Accum[i] = T.float64(0)
 
@@ -94,9 +94,9 @@ def test_gemm_mma_m8n8k4_row_col_fp64pf64fp64():
 
 @T.prim_func
 def gemm_mma_m8n8k4_row_row_fp16fp16fp16(
-    A: T.Buffer([16, 4], dtype="float16"),
-    B: T.Buffer([4, 16], dtype="float16"),
-    C: T.Buffer([16, 16], dtype="float16"),
+    A: T.Tensor([16, 4], dtype="float16"),
+    B: T.Tensor([4, 16], dtype="float16"),
+    C: T.Tensor([16, 16], dtype="float16"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -106,9 +106,9 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp16(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([4], "float16", scope="local")
-    MultiB = T.decl_buffer([4], "float16", scope="local")
-    Accum = T.decl_buffer([8], "float16", scope="local")
+    MultiA = T.decl_tensor([4], "float16", scope="local")
+    MultiB = T.decl_tensor([4], "float16", scope="local")
+    Accum = T.decl_tensor([8], "float16", scope="local")
     for i in range(8):
         Accum[i] = T.float32(0)
 
@@ -173,9 +173,9 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp16():
 
 @T.prim_func
 def gemm_mma_m8n8k4_row_row_fp16fp16fp32(
-    A: T.Buffer([16, 4], dtype="float16"),
-    B: T.Buffer([4, 16], dtype="float16"),
-    C: T.Buffer([16, 16], dtype="float32"),
+    A: T.Tensor([16, 4], dtype="float16"),
+    B: T.Tensor([4, 16], dtype="float16"),
+    C: T.Tensor([16, 16], dtype="float32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -185,9 +185,9 @@ def gemm_mma_m8n8k4_row_row_fp16fp16fp32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([4], "float16", scope="local")
-    MultiB = T.decl_buffer([4], "float16", scope="local")
-    Accum = T.decl_buffer([8], "float32", scope="local")
+    MultiA = T.decl_tensor([4], "float16", scope="local")
+    MultiB = T.decl_tensor([4], "float16", scope="local")
+    Accum = T.decl_tensor([8], "float32", scope="local")
 
     for i in range(8):
         Accum[i] = T.float32(0)
@@ -259,9 +259,9 @@ def test_gemm_mma_m8n8k4_row_row_fp16fp16fp32():
 
 @T.prim_func
 def gemm_mma_m8n8k16_row_col_s8s8s32(
-    A: T.Buffer([8, 16], dtype="int8"),
-    B: T.Buffer([8, 16], dtype="int8"),
-    C: T.Buffer([8, 8], dtype="int32"),
+    A: T.Tensor([8, 16], dtype="int8"),
+    B: T.Tensor([8, 16], dtype="int8"),
+    C: T.Tensor([8, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -271,9 +271,9 @@ def gemm_mma_m8n8k16_row_col_s8s8s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([4], "int8", scope="local")
-    MultiB = T.decl_buffer([4], "int8", scope="local")
-    Accum = T.decl_buffer([2], "int32", scope="local")
+    MultiA = T.decl_tensor([4], "int8", scope="local")
+    MultiB = T.decl_tensor([4], "int8", scope="local")
+    Accum = T.decl_tensor([2], "int32", scope="local")
     for i in range(2):
         Accum[i] = T.int32(0)
 
@@ -333,9 +333,9 @@ def test_gemm_mma_m8n8k16_row_col_s8s8s32():
 
 @T.prim_func
 def gemm_mma_m8n8k16_row_col_s8u8s32(
-    A: T.Buffer([8, 16], dtype="int8"),
-    B: T.Buffer([8, 16], dtype="uint8"),
-    C: T.Buffer([8, 8], dtype="int32"),
+    A: T.Tensor([8, 16], dtype="int8"),
+    B: T.Tensor([8, 16], dtype="uint8"),
+    C: T.Tensor([8, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -345,9 +345,9 @@ def gemm_mma_m8n8k16_row_col_s8u8s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([4], "int8", scope="local")
-    MultiB = T.decl_buffer([4], "uint8", scope="local")
-    Accum = T.decl_buffer([2], "int32", scope="local")
+    MultiA = T.decl_tensor([4], "int8", scope="local")
+    MultiB = T.decl_tensor([4], "uint8", scope="local")
+    Accum = T.decl_tensor([2], "int32", scope="local")
     for i in range(2):
         Accum[i] = T.int32(0)
 
@@ -407,9 +407,9 @@ def test_gemm_mma_m8n8k16_row_col_s8u8s32():
 
 @T.prim_func
 def gemm_mma_m8n8k32_row_col_s4s4s32(
-    A: T.Buffer([8, 32], dtype="int4"),
-    B: T.Buffer([8, 32], dtype="int4"),
-    C: T.Buffer([8, 8], dtype="int32"),
+    A: T.Tensor([8, 32], dtype="int4"),
+    B: T.Tensor([8, 32], dtype="int4"),
+    C: T.Tensor([8, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -419,9 +419,9 @@ def gemm_mma_m8n8k32_row_col_s4s4s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([8], "int4", scope="local")
-    MultiB = T.decl_buffer([8], "int4", scope="local")
-    Accum = T.decl_buffer([2], "int32", scope="local")
+    MultiA = T.decl_tensor([8], "int4", scope="local")
+    MultiB = T.decl_tensor([8], "int4", scope="local")
+    Accum = T.decl_tensor([2], "int32", scope="local")
     for i in range(2):
         Accum[i] = T.int32(0)
 
@@ -475,9 +475,9 @@ def test_gemm_mma_m8n8k32_row_col_s4s4s32():
 
 @T.prim_func
 def gemm_mma_m8n8k32_row_col_s4u4s32(
-    A: T.Buffer([8, 32], dtype="int4"),
-    B: T.Buffer([8, 32], dtype="uint4"),
-    C: T.Buffer([8, 8], dtype="int32"),
+    A: T.Tensor([8, 32], dtype="int4"),
+    B: T.Tensor([8, 32], dtype="uint4"),
+    C: T.Tensor([8, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -487,9 +487,9 @@ def gemm_mma_m8n8k32_row_col_s4u4s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([8], "int4", scope="local")
-    MultiB = T.decl_buffer([8], "uint4", scope="local")
-    Accum = T.decl_buffer([2], "int32", scope="local")
+    MultiA = T.decl_tensor([8], "int4", scope="local")
+    MultiB = T.decl_tensor([8], "uint4", scope="local")
+    Accum = T.decl_tensor([2], "int32", scope="local")
     for i in range(2):
         Accum[i] = T.int32(0)
 
@@ -543,9 +543,9 @@ def test_gemm_mma_m8n8k32_row_col_s4u4s32():
 
 @T.prim_func
 def gemm_mma_m16n8k8_row_col_fp16fp16fp32(
-    A: T.Buffer([16, 8], dtype="float16"),
-    B: T.Buffer([8, 8], dtype="float16"),
-    C: T.Buffer([16, 8], dtype="float32"),
+    A: T.Tensor([16, 8], dtype="float16"),
+    B: T.Tensor([8, 8], dtype="float16"),
+    C: T.Tensor([16, 8], dtype="float32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -555,9 +555,9 @@ def gemm_mma_m16n8k8_row_col_fp16fp16fp32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([4], "float16", scope="local")
-    MultiB = T.decl_buffer([2], "float16", scope="local")
-    Accum = T.decl_buffer([4], "float32", scope="local")
+    MultiA = T.decl_tensor([4], "float16", scope="local")
+    MultiB = T.decl_tensor([2], "float16", scope="local")
+    Accum = T.decl_tensor([4], "float32", scope="local")
     for i in range(4):
         Accum[i] = T.float32(0)
 
@@ -619,9 +619,9 @@ def test_gemm_mma_m16n8k8_row_col_fp16fp16fp32():
 
 @T.prim_func
 def gemm_mma_m16n8k16_row_col_fp16fp16fp16(
-    A: T.Buffer([16, 16], dtype="float16"),
-    B: T.Buffer([8, 16], dtype="float16"),
-    C: T.Buffer([16, 8], dtype="float16"),
+    A: T.Tensor([16, 16], dtype="float16"),
+    B: T.Tensor([8, 16], dtype="float16"),
+    C: T.Tensor([16, 8], dtype="float16"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -631,9 +631,9 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp16(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([8], "float16", scope="local")
-    MultiB = T.decl_buffer([4], "float16", scope="local")
-    Accum = T.decl_buffer([4], "float16", scope="local")
+    MultiA = T.decl_tensor([8], "float16", scope="local")
+    MultiB = T.decl_tensor([4], "float16", scope="local")
+    Accum = T.decl_tensor([4], "float16", scope="local")
     for i in range(4):
         Accum[i] = T.float32(0)
 
@@ -698,9 +698,9 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp16():
 
 @T.prim_func
 def gemm_mma_m16n8k16_row_col_fp16fp16fp32(
-    A: T.Buffer([16, 16], dtype="float16"),
-    B: T.Buffer([8, 16], dtype="float16"),
-    C: T.Buffer([16, 8], dtype="float32"),
+    A: T.Tensor([16, 16], dtype="float16"),
+    B: T.Tensor([8, 16], dtype="float16"),
+    C: T.Tensor([16, 8], dtype="float32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -710,9 +710,9 @@ def gemm_mma_m16n8k16_row_col_fp16fp16fp32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([8], "float16", scope="local")
-    MultiB = T.decl_buffer([4], "float16", scope="local")
-    Accum = T.decl_buffer([4], "float32", scope="local")
+    MultiA = T.decl_tensor([8], "float16", scope="local")
+    MultiB = T.decl_tensor([4], "float16", scope="local")
+    Accum = T.decl_tensor([4], "float32", scope="local")
     for i in range(4):
         Accum[i] = T.float32(0)
 
@@ -777,9 +777,9 @@ def test_gemm_mma_m16n8k16_row_col_fp16fp16fp32():
 
 @T.prim_func
 def gemm_mma_m16n8k16_row_col_s8s8s32(
-    A: T.Buffer([16, 16], dtype="int8"),
-    B: T.Buffer([8, 16], dtype="int8"),
-    C: T.Buffer([16, 8], dtype="int32"),
+    A: T.Tensor([16, 16], dtype="int8"),
+    B: T.Tensor([8, 16], dtype="int8"),
+    C: T.Tensor([16, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -789,9 +789,9 @@ def gemm_mma_m16n8k16_row_col_s8s8s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([8], "int8", scope="local")
-    MultiB = T.decl_buffer([4], "int8", scope="local")
-    Accum = T.decl_buffer([4], "int32", scope="local")
+    MultiA = T.decl_tensor([8], "int8", scope="local")
+    MultiB = T.decl_tensor([4], "int8", scope="local")
+    Accum = T.decl_tensor([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -856,9 +856,9 @@ def test_gemm_mma_m16n8k16_row_col_s8s8s32():
 
 @T.prim_func
 def gemm_mma_m16n8k16_row_col_s8u8s32(
-    A: T.Buffer([16, 16], dtype="int8"),
-    B: T.Buffer([8, 16], dtype="uint8"),
-    C: T.Buffer([16, 8], dtype="int32"),
+    A: T.Tensor([16, 16], dtype="int8"),
+    B: T.Tensor([8, 16], dtype="uint8"),
+    C: T.Tensor([16, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -868,9 +868,9 @@ def gemm_mma_m16n8k16_row_col_s8u8s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([8], "int8", scope="local")
-    MultiB = T.decl_buffer([4], "uint8", scope="local")
-    Accum = T.decl_buffer([4], "int32", scope="local")
+    MultiA = T.decl_tensor([8], "int8", scope="local")
+    MultiB = T.decl_tensor([4], "uint8", scope="local")
+    Accum = T.decl_tensor([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -935,9 +935,9 @@ def test_gemm_mma_m16n8k16_row_col_s8u8s32():
 
 @T.prim_func
 def gemm_mma_m16n8k32_row_col_s8s8s32(
-    A: T.Buffer([16, 32], dtype="int8"),
-    B: T.Buffer([8, 32], dtype="int8"),
-    C: T.Buffer([16, 8], dtype="int32"),
+    A: T.Tensor([16, 32], dtype="int8"),
+    B: T.Tensor([8, 32], dtype="int8"),
+    C: T.Tensor([16, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -947,9 +947,9 @@ def gemm_mma_m16n8k32_row_col_s8s8s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([16], "int8", scope="local")
-    MultiB = T.decl_buffer([8], "int8", scope="local")
-    Accum = T.decl_buffer([4], "int32", scope="local")
+    MultiA = T.decl_tensor([16], "int8", scope="local")
+    MultiB = T.decl_tensor([8], "int8", scope="local")
+    Accum = T.decl_tensor([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -1014,9 +1014,9 @@ def test_gemm_mma_m16n8k32_row_col_s8s8s32():
 
 @T.prim_func
 def gemm_mma_m16n8k32_row_col_s8u8s32(
-    A: T.Buffer([16, 32], dtype="int8"),
-    B: T.Buffer([8, 32], dtype="uint8"),
-    C: T.Buffer([16, 8], dtype="int32"),
+    A: T.Tensor([16, 32], dtype="int8"),
+    B: T.Tensor([8, 32], dtype="uint8"),
+    C: T.Tensor([16, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -1026,9 +1026,9 @@ def gemm_mma_m16n8k32_row_col_s8u8s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([16], "int8", scope="local")
-    MultiB = T.decl_buffer([8], "uint8", scope="local")
-    Accum = T.decl_buffer([4], "int32", scope="local")
+    MultiA = T.decl_tensor([16], "int8", scope="local")
+    MultiB = T.decl_tensor([8], "uint8", scope="local")
+    Accum = T.decl_tensor([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -1093,9 +1093,9 @@ def test_gemm_mma_m16n8k32_row_col_s8u8s32():
 
 @T.prim_func
 def gemm_mma_m16n8k64_row_col_s4s4s32(
-    A: T.Buffer([16, 64], dtype="int4"),
-    B: T.Buffer([8, 64], dtype="int4"),
-    C: T.Buffer([16, 8], dtype="int32"),
+    A: T.Tensor([16, 64], dtype="int4"),
+    B: T.Tensor([8, 64], dtype="int4"),
+    C: T.Tensor([16, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -1105,9 +1105,9 @@ def gemm_mma_m16n8k64_row_col_s4s4s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([32], "int4", scope="local")
-    MultiB = T.decl_buffer([16], "int4", scope="local")
-    Accum = T.decl_buffer([4], "int32", scope="local")
+    MultiA = T.decl_tensor([32], "int4", scope="local")
+    MultiB = T.decl_tensor([16], "int4", scope="local")
+    Accum = T.decl_tensor([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -1166,9 +1166,9 @@ def test_gemm_mma_m16n8k64_row_col_s4s4s32():
 
 @T.prim_func
 def gemm_mma_m16n8k64_row_col_s4u4s32(
-    A: T.Buffer([16, 64], dtype="int4"),
-    B: T.Buffer([8, 64], dtype="uint4"),
-    C: T.Buffer([16, 8], dtype="int32"),
+    A: T.Tensor([16, 64], dtype="int4"),
+    B: T.Tensor([8, 64], dtype="uint4"),
+    C: T.Tensor([16, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -1178,9 +1178,9 @@ def gemm_mma_m16n8k64_row_col_s4u4s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([32], "int4", scope="local")
-    MultiB = T.decl_buffer([16], "uint4", scope="local")
-    Accum = T.decl_buffer([4], "int32", scope="local")
+    MultiA = T.decl_tensor([32], "int4", scope="local")
+    MultiB = T.decl_tensor([16], "uint4", scope="local")
+    Accum = T.decl_tensor([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 
@@ -1239,9 +1239,9 @@ def test_gemm_mma_m16n8k64_row_col_s4u4s32():
 
 @T.prim_func
 def gemm_mma_m16n8k256_row_col_b1b1s32(
-    A: T.Buffer([16, 256], dtype="int1"),
-    B: T.Buffer([8, 256], dtype="int1"),
-    C: T.Buffer([16, 8], dtype="int32"),
+    A: T.Tensor([16, 256], dtype="int1"),
+    B: T.Tensor([8, 256], dtype="int1"),
+    C: T.Tensor([16, 8], dtype="int32"),
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
@@ -1251,9 +1251,9 @@ def gemm_mma_m16n8k256_row_col_b1b1s32(
     T.launch_thread(brow, 1)
     T.launch_thread(bcol, 1)
     T.launch_thread(tx, 32)
-    MultiA = T.decl_buffer([128], "int1", scope="local")
-    MultiB = T.decl_buffer([64], "int1", scope="local")
-    Accum = T.decl_buffer([4], "int32", scope="local")
+    MultiA = T.decl_tensor([128], "int1", scope="local")
+    MultiB = T.decl_tensor([64], "int1", scope="local")
+    Accum = T.decl_tensor([4], "int32", scope="local")
     for i in range(4):
         Accum[i] = T.int32(0)
 

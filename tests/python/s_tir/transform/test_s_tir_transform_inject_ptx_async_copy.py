@@ -35,7 +35,7 @@ def test_cp_async_raw_dtype_round_trips():
     # (it prints dtype-first via tirx.ptx.cp_async_raw). Guards the regression
     # where the element dtype was dropped after the flat op was phased out.
     @T.prim_func
-    def f(A: T.Buffer((128,), "float16"), B: T.Buffer((128,), "float16")):
+    def f(A: T.Tensor((128,), "float16"), B: T.Tensor((128,), "float16")):
         T.func_attr({"global_symbol": "f"})
         for i in T.serial(8):
             T.s_tir.cp_async_raw("float16", B.data, i * 16, A.data, i * 16, 16)
@@ -63,7 +63,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
 
     @Ts.prim_func
     def ptx_global_to_shared_copy(
-        A: T.Buffer((32, 128), dtype), B: T.Buffer((32, 128), dtype)
+        A: T.Tensor((32, 128), dtype), B: T.Tensor((32, 128), dtype)
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         bx = T.env_thread("blockIdx.x")
@@ -91,7 +91,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
 
 @Ts.prim_func
 def ptx_global_to_shared_copy_fp32x1(
-    A: T.Buffer((32, 128), "float32"), B: T.Buffer((32, 128), "float32")
+    A: T.Tensor((32, 128), "float32"), B: T.Tensor((32, 128), "float32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
@@ -116,9 +116,9 @@ def ptx_global_to_shared_copy_fp32x1(
 
 @Ts.prim_func
 def ptx_global_to_shared_dyn_copy_fp16x8(
-    A: T.Buffer((32, 128), "float16"),
-    B: T.Buffer((32, 128), "float16"),
-    C: T.Buffer((32, 128), "float16"),
+    A: T.Tensor((32, 128), "float16"),
+    B: T.Tensor((32, 128), "float16"),
+    C: T.Tensor((32, 128), "float16"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
@@ -378,9 +378,9 @@ def postproc_if_missing_async_support():
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     @Ts.prim_func
     def simple_compute(
-        A: T.Buffer((16, 14), "float32"),
-        B: T.Buffer((16, 14), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 14), "float32"),
+        B: T.Tensor((16, 14), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
@@ -461,9 +461,9 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
 
     @Ts.prim_func
     def complex_compute(
-        A: T.Buffer((2, 16, 16, 1280), "float16"),
-        W: T.Buffer((1280, 3, 3, 1280), "float16"),
-        Conv: T.Buffer((512, 1280), "float16"),
+        A: T.Tensor((2, 16, 16, 1280), "float16"),
+        W: T.Tensor((1280, 3, 3, 1280), "float16"),
+        Conv: T.Tensor((512, 1280), "float16"),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
@@ -903,10 +903,10 @@ def test_multiplication_nodes_are_inlined():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((32, 128), "float16")):
+        def main(A: T.Tensor((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
-            A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
-            A_shared = T.decl_buffer([4096], "float16", scope="shared")
+            A_flattened = T.decl_tensor((4096,), "float16", data=A.data)
+            A_shared = T.decl_tensor([4096], "float16", scope="shared")
 
             T.attr("default", "async_scope", 1)
             for i in range(16):
@@ -920,10 +920,10 @@ def test_multiplication_nodes_are_inlined():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def main(A: T.Buffer((32, 128), "float16")):
+        def main(A: T.Tensor((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
-            A_flattened = T.decl_buffer((4096,), "float16", data=A.data)
-            A_shared = T.decl_buffer((4096,), "float16", scope="shared")
+            A_flattened = T.decl_tensor((4096,), "float16", data=A.data)
+            A_shared = T.decl_tensor((4096,), "float16", scope="shared")
             for i in range(16):
                 cse_v1: T.int64 = T.Cast("int64", i)
                 T.s_tir.cp_async_raw(

@@ -269,13 +269,13 @@ def test_ir_builder_tir_inline():
     ],
 )
 def test_concrete_buffer_indices(shape, index, expected):
-    buffer = tirx.decl_buffer(shape, "float32")
+    buffer = tirx.decl_tensor(shape, "float32")
     assert T.buffer_indices(buffer, index) == expected
 
 
 def test_symbolic_buffer_indices():
     m, n, k = [tirx.Var(name, "int32") for name in ("m", "n", "k")]
-    buffer = tirx.decl_buffer((m, n), "float32")
+    buffer = tirx.decl_tensor((m, n), "float32")
     actual = T.buffer_indices(buffer, k)
     for index, expected in zip(actual, [k // n, k % n]):
         tvm.ir.assert_structural_equal(index, expected)
@@ -283,7 +283,7 @@ def test_symbolic_buffer_indices():
 
 @pytest.mark.parametrize("layout", [None, TileLayout(S[(2, 3) : (1, 2)])])
 def test_flat_buffer_store_preserves_identity_and_emits_once(layout):
-    buffer = tirx.decl_buffer((2, 3), "float32", strides=(5, 1), elem_offset=2, layout=layout)
+    buffer = tirx.decl_tensor((2, 3), "float32", strides=(5, 1), elem_offset=2, layout=layout)
     indices = T.buffer_indices(buffer, 4)
     load = buffer[indices]
     assert load.source.same_as(buffer)
@@ -412,7 +412,7 @@ def test_gpu_imperative_buffers(kind):
         elif kind == "scan":
             from tvm.topi.gpu.scan import exclusive_scan_ir
 
-            body = exclusive_scan_ir(tirx.decl_buffer((2, 4)), tirx.decl_buffer((2, 4)))
+            body = exclusive_scan_ir(tirx.decl_tensor((2, 4)), tirx.decl_tensor((2, 4)))
             assert isinstance(body, tirx.Stmt)
             return
         elif kind == "scatter_nd":
@@ -452,7 +452,7 @@ def test_concrete_mutable_scalar(declare):
     with IRBuilder() as ib:
         with T.prim_func():
             if declare:
-                owner = T.alloc_buffer((4,), "int32", scope="local")
+                owner = T.alloc_tensor((4,), "int32", scope="local")
                 scalar = T.decl_scalar("int32", owner.data, "local", elem_offset=2)
             else:
                 scalar = T.alloc_scalar("int32", "local")
@@ -471,7 +471,7 @@ def test_concrete_mutable_scalar(declare):
     assert all(store.buffer.same_as(scalar.source) for store in stores)
     if declare:
         declaration = next(
-            stmt for stmt in ib.get().body.seq if _is_buffer_binding(stmt, "tirx.decl_buffer")
+            stmt for stmt in ib.get().body.seq if _is_buffer_binding(stmt, "tirx.decl_tensor")
         )
         assert declaration.var.same_as(scalar.source)
         tvm.ir.assert_structural_equal(declaration.value.args[0], owner.data)

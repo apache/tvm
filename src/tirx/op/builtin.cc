@@ -94,34 +94,34 @@ ffi::Expected<Type> InferTypeBuffer(const CallNode* call) noexcept try {
   tvm::Tuple shape = call->args[shape_index].as_or_throw<tvm::Tuple>();
   DLDataType dtype = call->args[shape_index + 1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = call->args[shape_index + 2].as_or_throw<StringImm>()->value;
-  auto original = call->ty.as_or_throw<BufferType>();
+  auto original = call->ty.as_or_throw<TensorType>();
   if (ffi::StructuralEqual()(shape->fields, original->shape) && dtype == original->dtype->dtype &&
       scope == original->storage_scope) {
     return original;
   }
-  auto inferred = ffi::make_object<BufferTypeNode>(*original.get());
+  auto inferred = ffi::make_object<TensorTypeNode>(*original.get());
   inferred->shape =
       shape->fields.Map([](const Expr& extent) { return extent.as_or_throw<PrimExpr>(); });
   inferred->dtype = PrimType(dtype);
   inferred->storage_scope = scope;
-  return BufferType(std::move(inferred));
+  return TensorType(std::move(inferred));
 } catch (const ffi::Error& error) {
   return ffi::Unexpected(error);
 } catch (const std::exception& error) {
   return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
-ffi::Expected<void> ValidateDeclBuffer(const CallNode* call) noexcept try {
+ffi::Expected<void> ValidateDeclTensor(const CallNode* call) noexcept try {
   TVM_FFI_CHECK_EQ(call->args.size(), 4U, ValueError);
-  auto buffer = call->ty.as_or_throw<BufferType>();
+  auto buffer = call->ty.as_or_throw<TensorType>();
   ffi::String scope = call->args[3].as_or_throw<StringImm>()->value;
   if (scope == "tmem") {
     TVM_FFI_CHECK_EQ(buffer->allocated_addr.size(), 1U, ValueError)
-        << "For `tmem` scope, decl_buffer requires exactly one `allocated_addr` PrimExpr";
+        << "For `tmem` scope, decl_tensor requires exactly one `allocated_addr` PrimExpr";
   } else if (scope.empty() || scope == "global" || scope == "shared" || scope == "shared.dyn" ||
              scope == "local") {
     TVM_FFI_CHECK(buffer->allocated_addr.empty(), ValueError)
-        << "For `" << scope << "` scope, decl_buffer does not accept `allocated_addr`";
+        << "For `" << scope << "` scope, decl_tensor does not accept `allocated_addr`";
   }
   return {};
 } catch (const ffi::Error& error) {
@@ -248,8 +248,8 @@ TVM_DEFINE_CACHED_OP_GETTER(get_active_lane_mask, "tirx.get_active_lane_mask")
 TVM_DEFINE_CACHED_OP_GETTER(masked_load, "tirx.masked_load")
 TVM_DEFINE_CACHED_OP_GETTER(masked_store, "tirx.masked_store")
 TVM_DEFINE_CACHED_OP_GETTER(ignore_loop_partition, "tirx.ignore_loop_partition")
-TVM_DEFINE_CACHED_OP_GETTER(alloc_buffer, "tirx.alloc_buffer")
-TVM_DEFINE_CACHED_OP_GETTER(decl_buffer, "tirx.decl_buffer")
+TVM_DEFINE_CACHED_OP_GETTER(alloc_tensor, "tirx.alloc_tensor")
+TVM_DEFINE_CACHED_OP_GETTER(decl_tensor, "tirx.decl_tensor")
 TVM_DEFINE_CACHED_OP_GETTER(buffer_offset, "tirx.buffer_offset")
 TVM_DEFINE_CACHED_OP_GETTER(buffer_data, "tirx.buffer_data")
 TVM_DEFINE_CACHED_OP_GETTER(print_buffer, "tirx.print_buffer")
@@ -759,7 +759,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                            static_cast<int64_t>(ScriptDtypePrintLocation::kNone));
 
-  OpDef("tirx.alloc_buffer")
+  OpDef("tirx.alloc_tensor")
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBuffer<0>>())
       .add_arg("shape", "The tuple of buffer extents.")
@@ -767,11 +767,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .add_arg("scope", "The storage scope.")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-  OpDef("tirx.decl_buffer")
+  OpDef("tirx.decl_tensor")
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeBuffer<1>>())
       .set_validator(ffi::reflection::NativeFunctionView<void(
-                         const CallNode*)>::FromNative<&ValidateDeclBuffer>())
+                         const CallNode*)>::FromNative<&ValidateDeclTensor>())
       .add_arg("data", "The existing data pointer.")
       .add_arg("shape", "The tuple of buffer extents.")
       .add_arg("dtype", "The buffer data type.")

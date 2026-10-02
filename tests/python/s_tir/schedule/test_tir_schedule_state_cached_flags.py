@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 # fmt: off
 
 @Ts.prim_func
-def elementwise(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 128), 'float32')) -> None:
+def elementwise(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 128), 'float32')) -> None:
 
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
@@ -45,7 +45,7 @@ def elementwise(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 128), 'flo
             C[vi, vj] = B[vi, vj] + 1.0
 
 @Ts.prim_func
-def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
@@ -57,7 +57,7 @@ def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 1
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 @Ts.prim_func
-def block_in_opaque_block(A: T.Buffer((128, 128), 'float32'), B: T.Buffer((128, 128), 'float32')) -> None:
+def block_in_opaque_block(A: T.Tensor((128, 128), 'float32'), B: T.Tensor((128, 128), 'float32')) -> None:
 
     for i in range(128):
         with Ts.sblock("B"):
@@ -83,7 +83,7 @@ def block_in_opaque_block(A: T.Buffer((128, 128), 'float32'), B: T.Buffer((128, 
                             B[vi, vj] = A[vi, vj] * 2.0
 
 @Ts.prim_func
-def write_after_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+def write_after_read(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
 
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
@@ -95,7 +95,7 @@ def write_after_read(A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buff
             B[vi, vj] = A[vi, vj] * 2.0
 
 @Ts.prim_func
-def loop_carried_dependency(A: T.Buffer((128,)), B: T.Buffer((128,)), C: T.Buffer((128,))) -> None:
+def loop_carried_dependency(A: T.Tensor((128,)), B: T.Tensor((128,)), C: T.Tensor((128,))) -> None:
 
     for i in range(0, 128):
         with Ts.sblock("B"):
@@ -106,7 +106,7 @@ def loop_carried_dependency(A: T.Buffer((128,)), B: T.Buffer((128,)), C: T.Buffe
             C[vi] = T.if_then_else(vi >= 1, B[vi - 1] + 1.0, 0.0)
 
 @Ts.prim_func
-def concatenate_multi_producer(A: T.Buffer((128,)), B: T.Buffer((128,))) -> None:
+def concatenate_multi_producer(A: T.Tensor((128,)), B: T.Tensor((128,))) -> None:
 
     for i in range(0, 64):
         with Ts.sblock("A_0"):
@@ -122,7 +122,7 @@ def concatenate_multi_producer(A: T.Buffer((128,)), B: T.Buffer((128,))) -> None
             B[vi] = A[vi] * 2.0
 
 @Ts.prim_func
-def concatenate_multi_producer_uncovered(A: T.Buffer((128,)), B: T.Buffer((128,))) -> None:
+def concatenate_multi_producer_uncovered(A: T.Tensor((128,)), B: T.Tensor((128,))) -> None:
 
     for i in range(0, 63):
         with Ts.sblock("A_0"):
@@ -138,7 +138,7 @@ def concatenate_multi_producer_uncovered(A: T.Buffer((128,)), B: T.Buffer((128,)
             B[vi] = A[vi] * 2.0
 
 @Ts.prim_func
-def lca_at_loop(A: T.Buffer((128,)), B: T.Buffer((128,)), C: T.Buffer((128,))) -> None:
+def lca_at_loop(A: T.Tensor((128,)), B: T.Tensor((128,)), C: T.Tensor((128,))) -> None:
 
     for i in range(0, 128):
         with Ts.sblock("B"):
@@ -149,7 +149,7 @@ def lca_at_loop(A: T.Buffer((128,)), B: T.Buffer((128,)), C: T.Buffer((128,))) -
             C[vi] = B[vi] + 1.0
 
 @Ts.prim_func
-def multi_producer_consumer(A: T.Buffer((128,)), B: T.Buffer((128,))) -> None:
+def multi_producer_consumer(A: T.Tensor((128,)), B: T.Tensor((128,))) -> None:
 
     for i in range(0, 64):
         with Ts.sblock("A_0"):
@@ -169,7 +169,7 @@ def multi_producer_consumer(A: T.Buffer((128,)), B: T.Buffer((128,))) -> None:
             B[vi] = A[vi] + 3.0
 
 @Ts.prim_func
-def elementwise_affine_producer(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 128), 'float32')) -> None:
+def elementwise_affine_producer(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 128), 'float32')) -> None:
 
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j, k, l in T.grid(16, 2, 32, 16):
@@ -183,7 +183,7 @@ def elementwise_affine_producer(A: T.Buffer((128, 128), 'float32'), C: T.Buffer(
             C[vi, vj] = B[vi, vj] + 1.0
 
 @Ts.prim_func
-def elementwise_subblock(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 128), 'float32')) -> None:
+def elementwise_subblock(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 128), 'float32')) -> None:
 
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
@@ -201,7 +201,7 @@ def elementwise_subblock(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 1
             C[vi, vj] = B[vi, vj] + 1.0
 
 @Ts.prim_func
-def elementwise_subblock_uncovered(A: T.Buffer((128, 128), 'float32'), C: T.Buffer((128, 128), 'float32')) -> None:
+def elementwise_subblock_uncovered(A: T.Tensor((128, 128), 'float32'), C: T.Tensor((128, 128), 'float32')) -> None:
 
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(32, 32):
@@ -219,7 +219,7 @@ def elementwise_subblock_uncovered(A: T.Buffer((128, 128), 'float32'), C: T.Buff
             C[vi, vj] = B[vi, vj] + 1.0
 
 @Ts.prim_func
-def bound_to_thread(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+def bound_to_thread(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
     B = Ts.sblock_alloc_buffer([128, 128], scope="shared")
     for i in T.thread_binding(0, 128, thread="threadIdx.x"):
@@ -233,7 +233,7 @@ def bound_to_thread(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
                 C[vj, vi] = B[vj, vi] + 1.0
 
 @Ts.prim_func
-def equal_ranked_threads(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+def equal_ranked_threads(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
     B = Ts.sblock_alloc_buffer([128, 128], scope="shared")
     for i_o in T.thread_binding(0, 16, thread="threadIdx.x"):
@@ -250,7 +250,7 @@ def equal_ranked_threads(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> No
                     C[vj, vi] = B[vj, vi] + 1.0
 
 @Ts.prim_func
-def warp_memory(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+def warp_memory(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
     B = Ts.sblock_alloc_buffer([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
@@ -265,7 +265,7 @@ def warp_memory(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
                     C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
 @Ts.prim_func
-def warp_memory_negative(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+def warp_memory_negative(A: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
 
     B = Ts.sblock_alloc_buffer([128, 4, 32], scope="warp")
     for i_o in T.thread_binding(0, 4, thread="threadIdx.y"):
@@ -283,7 +283,7 @@ def warp_memory_negative(A: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> No
                         C[warp_id * 32 + lane_id, vj] = B[vj, warp_id, lane_id] + 1.0
 
 @Ts.prim_func
-def non_perfect_tiling_cache(X: T.Buffer([224, 224], dtype='float32'), Y: T.Buffer([224, 224], dtype='float32')) -> None:
+def non_perfect_tiling_cache(X: T.Tensor([224, 224], dtype='float32'), Y: T.Tensor([224, 224], dtype='float32')) -> None:
 
     cache = Ts.sblock_alloc_buffer([224, 224], dtype="float32")
     for hh_0, ww_0 in T.grid(28, 28):
@@ -320,7 +320,7 @@ def non_perfect_tiling_cache(X: T.Buffer([224, 224], dtype='float32'), Y: T.Buff
                 )
 
 @Ts.prim_func
-def uncovered_producer_region(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+def uncovered_producer_region(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
     for i in range(120):
         with Ts.sblock("producer"):
             vi = Ts.axis.S((0, 120), i)
@@ -331,7 +331,7 @@ def uncovered_producer_region(A: T.Buffer((128,), "float32"), B: T.Buffer((128,)
             B[vi] = A[vi]
 
 @Ts.prim_func
-def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 127), "float16"), compute: T.Buffer((127, 127), "float32")) -> None:
+def matmul_relu_padding(A: T.Tensor((127, 127), "float16"), B: T.Tensor((127, 127), "float16"), compute: T.Tensor((127, 127), "float32")) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
@@ -403,7 +403,7 @@ def matmul_relu_padding(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 12
 
 @Ts.prim_func
 def splitted_square_sum_with_predicate(
-    A: T.Buffer((1, 7, 7, 512), "float32"), B: T.Buffer((1, 1, 1, 512), "float32")
+    A: T.Tensor((1, 7, 7, 512), "float32"), B: T.Tensor((1, 1, 1, 512), "float32")
 ) -> None:
     for i0_i1_i2_i3_0_fused, ax0, ax1, ax2, ax3 in T.grid(2, 1, 1, 1, 256):
         for ax4_ax5_fused_0, ax4_ax5_fused_1 in T.grid(1, 256):

@@ -118,7 +118,7 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
   // We do not currently support inlining of functions that accept
   // buffer arguments.
   for (const Var& param : prim_func->params) {
-    if (param->ty.as<BufferTypeNode>()) return false;
+    if (param->ty.as<TensorTypeNode>()) return false;
   }
 
   // Generalize the old SBlockRealize exclusion to all non-native statement roots:
@@ -243,9 +243,9 @@ class PrimFuncInliner : public StmtExprMutator {
         << ")";
 
     for (const Var& param : callee->params) {
-      TVM_FFI_ICHECK(!param->ty.as<BufferTypeNode>())
+      TVM_FFI_ICHECK(!param->ty.as<TensorTypeNode>())
           << "Inlining of PrimFuncs with buffer arguments is not yet supported, "
-          << "but callee " << gvar << " has BufferType-annotated parameter " << param;
+          << "but callee " << gvar << " has TensorType-annotated parameter " << param;
     }
 
     ffi::Map<Var, ffi::Variant<tirx::BufferVar, tvm::Expr>> param_map;

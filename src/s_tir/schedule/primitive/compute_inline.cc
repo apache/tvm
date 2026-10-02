@@ -411,7 +411,7 @@ class BaseInliner : public StmtExprMutator {
 
   /*!
    * \brief Update the following block signature:
-   * 1) T.alloc_buffer, if the block is scope root
+   * 1) T.alloc_tensor, if the block is scope root
    * 2) T.reads, if the block is not scope root
    * 3) T.writes, if the block is not scope root
    * \param block The block to be updated
@@ -423,9 +423,9 @@ class BaseInliner : public StmtExprMutator {
     ffi::Array<BufferVar> alloc_buffers;
     if (is_scope_root) {
       alloc_buffers.reserve(block->alloc_buffers.size());
-      for (const BufferVar& alloc_buffer : block->alloc_buffers) {
-        if (!alloc_buffer.same_as(inlined_buffer_)) {
-          alloc_buffers.push_back(alloc_buffer);
+      for (const BufferVar& alloc_tensor : block->alloc_buffers) {
+        if (!alloc_tensor.same_as(inlined_buffer_)) {
+          alloc_buffers.push_back(alloc_tensor);
         }
       }
     } else {
