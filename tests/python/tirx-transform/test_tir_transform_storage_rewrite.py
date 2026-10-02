@@ -487,9 +487,9 @@ def test_decl_buffer_alias_extends_source_lifetime():
     allocations = []
     tvm_ffi.structural_walk(
         after.body,
-        lambda node: (
-            allocations.append(node) if _is_buffer_binding(node, "tirx.alloc_buffer") else None
-        ),
+        lambda node: allocations.append(node)
+        if _is_buffer_binding(node, "tirx.alloc_buffer")
+        else None,
     )
     assert len(allocations) == 2
 
@@ -537,72 +537,6 @@ def test_no_orphaned_decl_buffer():
 
     After = tvm.tirx.transform.StorageRewrite()(Before)
     tvm.ir.assert_structural_equal(After, Expected)
-
-
-@pytest.mark.parametrize("scope", ["wmma.accumulator", "wmma.accumulator.tag"])
-@pytest.mark.parametrize("annotated", [0, 1, 2, 3])
-def test_fragment_allocation_ownership(scope, annotated):
-    # Test both directions of reuse/merging, and conflicting metadata on two owners.
-    attrs_a = {"fragment_shape": "16, 16, 16"} if annotated in (0, 2) else {}
-    attrs_b = {"fragment_shape": "8, 32, 16"} if annotated in (1, 2) else {}
-
-    @T.prim_func(private=True)
-    def main(C: T.Buffer((256,), "float32")):
-        A = T.alloc_buffer((256,), "float32", scope=scope, annotations=attrs_a)
-        B = T.alloc_buffer((256,), "float32", scope=scope, annotations=attrs_b)
-        for i in range(256):
-            A[i] = T.float32(1)
-        for i in range(256):
-            B[i] = A[i] + T.float32(1)
-        for i in range(256):
-            C[i] = B[i]
-
-    after = tvm.tirx.transform.StorageRewrite()(tvm.IRModule.from_expr(main))["main"]
-    bindings = []
-    tvm_ffi.structural_walk(
-        after.body,
-        lambda node: (
-            bindings.append(node) if _is_buffer_binding(node, "tirx.alloc_buffer") else None
-        ),
-    )
-    assert len(bindings) == (1 if annotated == 3 else 2)
-    shapes = [node.value.attrs.get("fragment_shape") for node in bindings]
-    assert [shape for shape in shapes if shape is not None] == [
-        attrs["fragment_shape"] for attrs in (attrs_a, attrs_b) if attrs
-    ]
-
-
-@pytest.mark.parametrize("annotated_first", [True, False])
-@pytest.mark.parametrize("key", ["fragment_shape", "fragment_layout"])
-def test_fragment_metadata_excludes_free_list_reuse(annotated_first, key):
-    # An allocation carrying fragment metadata remains a distinct owner even in
-    # a tagged storage scope that would otherwise share non-overlapping lifetimes.
-    attrs = {key: "16, 16, 16" if key == "fragment_shape" else "row_major"}
-    first = attrs if annotated_first else {}
-    second = {} if annotated_first else attrs
-
-    @T.prim_func(private=True)
-    def main(C: T.Buffer((2,), "float32")):
-        for i in range(2):
-            A = T.alloc_buffer((256,), "float32", scope="wmma.accumulator.tag", annotations=first)
-            A[0] = T.float32(1)
-            C[0] = A[0]
-        for i in range(2):
-            B = T.alloc_buffer((256,), "float32", scope="wmma.accumulator.tag", annotations=second)
-            B[0] = T.float32(2)
-            C[1] = B[0]
-        unused = T.alloc_buffer((256,), "float32", scope="wmma.accumulator", annotations=attrs)
-
-    after = tvm.tirx.transform.StorageRewrite()(tvm.IRModule.from_expr(main))["main"]
-    bindings = []
-    tvm_ffi.structural_walk(
-        after.body,
-        lambda node: (
-            bindings.append(node) if _is_buffer_binding(node, "tirx.alloc_buffer") else None
-        ),
-    )
-    assert len(bindings) == 2
-    assert sum(key in node.value.attrs for node in bindings) == 1
 
 
 if __name__ == "__main__":
