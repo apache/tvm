@@ -111,6 +111,23 @@ TEST(Expr, IntegerView) {
   EXPECT_EQ(ffi::Any(int64_t{1} << 40).cast<IntExpr>().ty().bits(), 64);
 }
 
+TEST(Expr, TypedMismatchDiagnostics) {
+  using namespace tvm;
+  auto check = [](ffi::AnyView value, const std::string& expected) {
+    TVMFFIAny raw = value.CopyToTVMFFIAny();
+    EXPECT_EQ(ffi::TypeTraits<TypedExpr<PrimType>>::GetMismatchTypeInfo(&raw), expected);
+    EXPECT_EQ(ffi::TypeTraits<PrimExpr>::GetMismatchTypeInfo(&raw), expected);
+    EXPECT_EQ(ffi::TypeTraits<IntExpr>::GetMismatchTypeInfo(&raw), expected);
+  };
+  check(Var("x", PrimType::Float(32)), "ir.Var[ty=float32]");
+  check(Var("x", AnyType()), "ir.Var[ty=ir.AnyType]");
+  check(Var("x", Type::Missing()), "ir.Var[ty=ir.Type]");
+  check(ffi::String("text"), "ffi.SmallStr");
+  check(ffi::String("a string stored as an object"), "ffi.String");
+  check(1.0, "float");
+  check(nullptr, "None");
+}
+
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
