@@ -22,8 +22,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
-
-#include "../../tirx/analysis/check_contains.h"
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 
@@ -38,7 +37,15 @@ bool IsVScaleCall(const PrimExpr& expr) {
 
 // File-local helper: true if `expr` contains a call to prim::builtin::vscale().
 bool ContainsVscaleCall(const PrimExpr& expr) {
-  return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
+  struct VScaleFinder : tirx::StmtExprVisitor {
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+      if (auto expr = value.as<PrimExpr>(); expr && IsVScaleCall(*expr)) {
+        return VisitInterrupt();
+      }
+      return StmtExprVisitor::Visit(value);
+    }
+  };
+  return ffi::make_object<VScaleFinder>()->Visit(expr).has_value();
 }
 }  // namespace
 

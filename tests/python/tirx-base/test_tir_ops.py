@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # ruff: noqa: F841
+import re
+
 import pytest
 
 import tvm
@@ -97,6 +99,51 @@ def test_const_fold3():
     assert tvm.tirx.all(false, x).same_as(false)
     assert tvm.tirx.any(x, true).same_as(true)
     assert tvm.tirx.any(true, x).same_as(true)
+
+
+@pytest.mark.parametrize(
+    "op_name, valid_dtype, argument_kind, description",
+    [
+        ("all", "bool", "boolean", "&& operator (logical AND)"),
+        ("any", "bool", "boolean", "|| operator (logical OR)"),
+        ("shift_right", "int32", "integer", ">> operator (right shift)"),
+        ("shift_left", "int32", "integer", "<< operator (left shift)"),
+        ("bitwise_and", "bool", "integer", "& operator (bitwise AND)"),
+        ("bitwise_or", "bool", "integer", "| operator (bitwise OR)"),
+        ("bitwise_xor", "bool", "integer", "^ operator (bitwise XOR)"),
+    ],
+)
+def test_operator_argument_errors(op_name, valid_dtype, argument_kind, description):
+    op = getattr(tvm.tirx, op_name)
+    valid = tvm.tirx.Var("valid", valid_dtype)
+    invalid = tvm.tirx.Var("invalid", "float32")
+    for lhs, rhs, side in [
+        (invalid, valid, "LHS"),
+        (valid, invalid, "RHS"),
+        (invalid, invalid, "LHS"),
+    ]:
+        message = f"Expected {argument_kind} argument as {side} of {description}, but received"
+        with pytest.raises(tvm.error.InternalError, match=re.escape(message)):
+            op(lhs, rhs)
+
+
+def test_bitwise_not_argument_error():
+    invalid = tvm.tirx.Var("invalid", "float32")
+    message = "Expected integer or boolean argument for ~ operator (bitwise NOT), but received"
+    with pytest.raises(tvm.error.InternalError, match=re.escape(message)):
+        tvm.tirx.bitwise_not(invalid)
+
+
+@pytest.mark.parametrize(
+    "dtype", ["float16", "bfloat16", "float8_e4m3fn", "float6_e2m3fn", "float4_e2m1fn"]
+)
+def test_float_family_promotion(dtype):
+    value = tvm.tirx.Var("value", dtype)
+    integer = tvm.tirx.Var("integer", "int32")
+    assert (value + integer).ty.dtype == dtype
+    assert (integer + value).ty.dtype == dtype
+    assert tvm.tirx.min_value(dtype).ty.dtype == dtype
+    assert tvm.tirx.max_value(dtype).ty.dtype == dtype
 
 
 def test_const_fold4():
