@@ -393,8 +393,8 @@ def test_registered_tirx_ops_have_exactly_one_category():
             assert device_namespace in device_namespaces, op_name
             printer_name = _op_attr(op_name, "TScriptPrinterName")
             assert printer_name is not None, op_name
-            assert printer_name.startswith(device_namespace + "."), op_name
-            assert _has_path(T, printer_name), op_name
+            assert printer_name.startswith("tirx." + device_namespace + "."), op_name
+            assert _has_path(T, printer_name.removeprefix("tirx.")), op_name
         else:
             assert category == "builtin"
             assert device_namespace is None, op_name

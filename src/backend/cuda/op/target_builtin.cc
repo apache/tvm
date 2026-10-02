@@ -39,7 +39,21 @@ namespace builtin {
 
 namespace {
 void RegisterDeviceIntrinsicAliases();
+
+Type InferTypeCudaLdg(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
+      << "CUDA load type inference requires a dtype operand";
+  return PrimType(ffi::StringToDLDataType(call->args[1].as_or_throw<StringImm>()->value));
 }
+
+template <size_t N>
+static Type InferTypeReturnArgType(const CallNode* call) {
+  TVM_FFI_CHECK_GT(call->args.size(), N, ValueError)
+      << "Return type inference requires argument " << N;
+  return call->args[N]->ty;
+}
+
+}  // namespace
 
 void RegisterCudaTargetBuiltins() {
   static bool registered = false;
@@ -51,7 +65,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("n", "The N dimension."), sig::arg("k", "The K dimension."),
                  sig::arg("index", "The index."), sig::arg("buffer_ptr", "The buffer pointer."),
                  sig::arg("stride", "The stride."), sig::arg("layout", "The layout."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_load_matrix_sync"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_load_matrix_sync"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kReadState));
@@ -62,7 +76,7 @@ void RegisterCudaTargetBuiltins() {
           sig::arg("fragment_a", "The A fragment."), sig::arg("index_a", "The A fragment index."),
           sig::arg("fragment_b", "The B fragment."), sig::arg("index_b", "The B fragment index."),
           sig::arg("fragment_c", "The C fragment."), sig::arg("index_c", "The C fragment index."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_mma_sync"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_mma_sync"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -72,7 +86,7 @@ void RegisterCudaTargetBuiltins() {
           sig::arg("fragment_a", "The A fragment."), sig::arg("index_a", "The A fragment index."),
           sig::arg("fragment_b", "The B fragment."), sig::arg("index_b", "The B fragment index."),
           sig::arg("fragment_c", "The C fragment."), sig::arg("index_c", "The C fragment index."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_bmma_sync"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_bmma_sync"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -80,7 +94,7 @@ void RegisterCudaTargetBuiltins() {
       .signature(sig::arg("fragment", "The matrix fragment."), sig::arg("m", "The M dimension."),
                  sig::arg("n", "The N dimension."), sig::arg("k", "The K dimension."),
                  sig::arg("index", "The index."), sig::arg("value", "The value to use."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_fill_fragment"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_fill_fragment"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -89,7 +103,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("n", "The N dimension."), sig::arg("k", "The K dimension."),
                  sig::arg("index", "The index."), sig::arg("buffer_ptr", "The buffer pointer."),
                  sig::arg("stride", "The stride."), sig::arg("layout", "The layout."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tvm_store_matrix_sync"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_store_matrix_sync"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -104,14 +118,14 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("src_ptr", "The source pointer."),
                  sig::arg("src_offset", "The source offset."),
                  sig::arg("dst_stride", "The destination stride."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.mma_store_legacy"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_store_legacy"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.mma_fill_legacy")
       .signature(sig::arg("local_size", "The local allocation size."),
                  sig::arg("local_ptr", "The local pointer."), sig::arg("offset", "The offset."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.mma_fill_legacy"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_fill_legacy"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -119,7 +133,7 @@ void RegisterCudaTargetBuiltins() {
       .signature(sig::arg("reg", "The register."), sig::arg("guard", "The guard predicate."),
                  sig::arg("addr", "The address."), sig::arg("local_addr", "The local address."))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.ldg32"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.s_tir.ldg32"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"));
 
@@ -135,7 +149,7 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.cp_async_raw"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.s_tir.cp_async_raw"))
       .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                            static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
@@ -145,7 +159,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("src_ptr", "The source pointer."),
                  sig::arg("src_offset", "The source offset."),
                  sig::arg("dst_stride", "The destination stride."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.mma_store"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_store"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
@@ -154,7 +168,7 @@ void RegisterCudaTargetBuiltins() {
   OpDef("tirx.mma_fill")
       .signature(sig::arg("local_size", "The local allocation size."),
                  sig::arg("local_ptr", "The local pointer."), sig::arg("offset", "The offset."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.mma_fill"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_fill"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
@@ -166,7 +180,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("profiler_write_offset", "The profiler write offset."),
                  sig::arg("num_groups", "The number of groups."),
                  sig::arg("group_id", "The group identifier."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.timer_init"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.timer_init"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -177,7 +191,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("profiler_write_offset", "The profiler write offset."),
                  sig::arg("profiler_write_stride", "The profiler write stride."),
                  sig::arg("leader_cond", "The leader condition."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.timer_start"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.timer_start"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -188,7 +202,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("profiler_write_offset", "The profiler write offset."),
                  sig::arg("profiler_write_stride", "The profiler write stride."),
                  sig::arg("leader_cond", "The leader condition."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.timer_end"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.timer_end"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -198,7 +212,7 @@ void RegisterCudaTargetBuiltins() {
                  sig::arg("profiler_write_offset", "The profiler write offset."),
                  sig::arg("profiler_write_stride", "The profiler write stride."),
                  sig::arg("leader_cond", "The leader condition."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("cuda.timer_finalize"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.timer_finalize"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -225,14 +239,15 @@ TVM_FFI_NO_INLINE DeviceIntrinsicNames MakeDeviceIntrinsicNames(const char* op_n
   std::string canonical = "tirx." + namespace_name + "." + suffix;
   // Match the nested construction namespaces at the canonical registration site.
   if (namespace_name == "cuda" &&
-      (suffix.rfind("tcgen05_", 0) == 0 || suffix.rfind("wgmma_", 0) == 0)) {
+      (suffix.rfind("tcgen05_", 0) == 0 || suffix.rfind("wgmma_", 0) == 0 ||
+       suffix.rfind("iket_", 0) == 0)) {
     suffix[suffix.find('_')] = '.';
   } else if (namespace_name == "nvshmem" &&
              ((suffix.size() >= 6 && suffix.compare(suffix.size() - 6, 6, "_block") == 0) ||
               (suffix.size() >= 5 && suffix.compare(suffix.size() - 5, 5, "_warp") == 0))) {
     suffix[suffix.rfind('_')] = '.';
   }
-  return {std::move(canonical), namespace_name + "." + suffix};
+  return {std::move(canonical), "tirx." + namespace_name + "." + suffix};
 }
 
 TVM_FFI_NO_INLINE void RegisterDeviceIntrinsicAttrs(OpDef& def, const char* op_namespace,
@@ -408,6 +423,51 @@ void RegisterDeviceIntrinsicAliases() {
                           sig::arg("a_ptr"), sig::arg("a_offset"), sig::arg("b_ptr"),
                           sig::arg("b_offset"), sig::arg("acc_ptr"), sig::arg("c_offset"),
                           sig::arg("saturate"), sig::var_args("args"));
+
+  for (const char* name : {
+           "tirx.cuda.tcgen05_encode_matrix_descriptor",
+           "tirx.cuda.wgmma_encode_matrix_descriptor",
+           "tirx.cuda.tcgen05_encode_instr_descriptor",
+           "tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled",
+           "tirx.cuda.wgmma_noop_barrier",
+           "tirx.cuda.cluster_sync",
+           "tirx.cuda.cta_sync",
+           "tirx.cuda.grid_sync",
+           "tirx.cuda.warp_sync",
+           "tirx.cuda.thread_fence",
+           "tirx.cuda.mbarrier_wait",
+           "tirx.cuda.printf",
+           "tirx.cuda.nano_sleep",
+           "tirx.nvshmem.fence",
+           "tirx.nvshmem.quiet",
+           "tirx.nvshmem.barrier_all",
+           "tirx.nvshmem.getmem_nbi",
+           "tirx.nvshmem.getmem_nbi_warp",
+           "tirx.nvshmem.putmem_nbi",
+           "tirx.nvshmem.putmem_nbi_warp",
+           "tirx.nvshmem.putmem_nbi_block",
+           "tirx.nvshmem.signal_op",
+           "tirx.nvshmem.wait_until",
+           "tirx.nvshmem.putmem_signal_nbi",
+           "tirx.nvshmem.putmem_signal_nbi_warp",
+           "tirx.nvshmem.putmem_signal_nbi_block",
+       }) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
+  }
+  for (const char* name : {"tirx.cuda.syncthreads_and", "tirx.cuda.syncthreads_or"}) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(64));
+  }
+  for (const char* name : {"tirx.nvshmem.my_pe", "tirx.nvshmem.n_pes"}) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32));
+  }
+  OpDef("tirx.cuda.elect_sync").set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(32));
+  OpDef("tirx.cuda.ldg")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaLdg>());
+  OpDef("tirx.s_tir.ldg32").set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Float(32));
+  OpDef("tirx.cuda.atomic_add")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>());
+  OpDef("tirx.cuda.atomic_cas")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>());
 }
 
 }  // namespace

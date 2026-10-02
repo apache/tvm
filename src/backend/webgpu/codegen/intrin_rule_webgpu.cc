@@ -32,6 +32,13 @@ namespace intrin {
 
 using tirx::FLowerIntrinsic;
 
+template <size_t N>
+static Type InferTypeReturnArgType(const CallNode* call) {
+  TVM_FFI_CHECK_GT(call->args.size(), N, ValueError)
+      << "Return type inference requires argument " << N;
+  return call->args[N]->ty;
+}
+
 // warp-level primitives. Follows implementation in intrin_rule_metal.cc
 struct WebGPUWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
@@ -176,30 +183,33 @@ void RegisterWebGPUIntrinRules() {
   OpDef("tirx.webgpu.subgroup_shuffle")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("lane", "The source thread id."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                          ffi::String("webgpu.subgroup_shuffle"))
+                                          ffi::String("tirx.webgpu.subgroup_shuffle"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffle")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.webgpu.subgroup_shuffle_up")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be added."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                          ffi::String("webgpu.subgroup_shuffle_up"))
+                                          ffi::String("tirx.webgpu.subgroup_shuffle_up"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleUp")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.webgpu.subgroup_shuffle_down")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be subtracted."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                          ffi::String("webgpu.subgroup_shuffle_down"))
+                                          ffi::String("tirx.webgpu.subgroup_shuffle_down"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "subgroupShuffleDown")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
   // clang-format on

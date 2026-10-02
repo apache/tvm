@@ -225,11 +225,13 @@ ForDoc::ForDoc(ExprDoc lhs, ExprDoc rhs, ffi::Array<StmtDoc> body) {
   this->data_ = std::move(n);
 }
 
-ScopeDoc::ScopeDoc(ffi::Optional<ExprDoc> lhs, ExprDoc rhs, ffi::Array<StmtDoc> body) {
+ScopeDoc::ScopeDoc(ffi::Optional<ExprDoc> lhs, ExprDoc rhs, ffi::Array<StmtDoc> body,
+                   bool allow_concise_scoping) {
   ffi::ObjectPtr<ScopeDocNode> n = ffi::make_object<ScopeDocNode>();
   n->lhs = lhs;
   n->rhs = rhs;
   n->body = body;
+  n->allow_concise_scoping = allow_concise_scoping;
   this->data_ = std::move(n);
 }
 
@@ -521,6 +523,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                           return OpCallDoc(callee, args, workspace, config, dispatch);
                         });
 }
+
+NamespaceDoc::NamespaceDoc(ffi::String canonical_name) {
+  auto node = ffi::make_object<NamespaceDocNode>();
+  node->canonical_name = std::move(canonical_name);
+  data_ = std::move(node);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() { NamespaceDocNode::RegisterReflection(); }
 
 }  // namespace printer
 }  // namespace script

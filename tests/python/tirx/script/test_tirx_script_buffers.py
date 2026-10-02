@@ -18,6 +18,7 @@
 """TIRx script buffers."""
 
 import math
+import sys
 
 import pytest
 import tvm_ffi
@@ -320,13 +321,14 @@ def test_buffer():
     assert_structural_equal(test, from_source(code))
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_buffer_shape_repeated_var_prints_out_of_line():
     n = tvm.tirx.Var("n", "int32")
     buffer = tvm.tirx.decl_buffer((n + n,), name="A")
     func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(0))
 
-    code = func.script(extra_config={"script.use_pep695": False})
-    assert 'n = I.dynamic("n", dtype="int32")' in code
+    code = func.script()
+    assert "def main[n: T.int32](" in code
     assert_structural_equal(func, from_source(code))
 
 
@@ -441,7 +443,10 @@ def test_buffer_local_ir():
 
     # Round-trip
     code = func.script()
-    assert "buffer_1 = buffer.local()" in code
+    assert (
+        'v_1 = T.decl_buffer((2,), "float16", data=v.data, '
+        'scope="local", layout="default")'
+    ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -514,8 +519,14 @@ def test_buffer_local_physical_order():
     assert int(flat_offset) == int(reshaped_offset) == 2
 
     code = func.script()
-    assert "buffer_1 = buffer.local()" in code
-    assert "buffer_2 = buffer.local(4, 8)" in code
+    assert (
+        'v_1 = T.decl_buffer((32,), "float32", data=v.data, '
+        'scope="local", layout="default")'
+    ) in code
+    assert (
+        'v_2 = T.decl_buffer((4, 8), "float32", data=v.data, '
+        'scope="local", layout="default")'
+    ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -544,10 +555,15 @@ def test_buffer_local_layout_overrides_roundtrip():
     assert not b_custom.ty.layout.is_trivial()
 
     code = func.script()
-    storage_line = next(line for line in code.splitlines() if "buffer_1 =" in line)
-    custom_line = next(line for line in code.splitlines() if "buffer_2 =" in line)
-    assert ".local(layout=" in storage_line
-    assert ".local(2, 4, layout=" in custom_line
+    storage_line = next(line for line in code.splitlines() if "v_1 =" in line)
+    custom_line = next(line for line in code.splitlines() if "v_2 =" in line)
+    assert (
+        'T.decl_buffer((32,), "float32", data=v.data, scope="local", layout='
+    ) in storage_line
+    assert (
+        'T.decl_buffer((2, 4), "float32", data=v.data, scope="local", '
+        'layout='
+    ) in custom_line
     assert_structural_equal(func, from_source(code))
     assert from_source(code).script() == code
 
@@ -594,8 +610,8 @@ def test_buffer_local_compose_layout_printer_roundtrip():
     assert [int(dim) for dim in b_buf.ty.shape] == [64]
     assert b_buf.ty.layout.is_trivial()
     code = func.script()
-    local_line = next(line for line in code.splitlines() if "buffer =" in line)
-    assert ".view(64, layout=" in local_line
+    local_line = next(line for line in code.splitlines() if "v =" in line)
+    assert 'T.decl_buffer((64,), "float32", data=A.data, scope="local", layout=' in local_line
     parsed = from_source(code)
     assert_structural_equal(func, parsed)
     assert parsed.script() == code
@@ -647,8 +663,8 @@ def test_buffer_local_physical_span_includes_gaps_and_offset():
     assert int(b_storage.ty.layout.apply(1, shape=list(b_storage.ty.shape))["m"]) == 5
 
     code = func.script()
-    storage_line = next(line for line in code.splitlines() if "buffer_3 =" in line)
-    assert ".local(layout=" in storage_line
+    storage_line = next(line for line in code.splitlines() if "v_3 =" in line)
+    assert 'T.decl_buffer((2,), "float32", data=v.data, scope="local", layout=' in storage_line
     assert_structural_equal(func, from_source(code))
     assert from_source(code).script() == code
 
@@ -670,10 +686,18 @@ def test_buffer_local_printer_is_stable_with_multiple_aliases():
         # fmt: on
 
     expected = func.script()
-    assert "buffer_1 = buffer.local()" in expected
-    assert "buffer_2 = buffer.local(4, 8)" in expected
-    storage_line = next(line for line in expected.splitlines() if "buffer_3 =" in line)
-    assert ".local(layout=" in storage_line
+    assert (
+        'v_1 = T.decl_buffer((32,), "float32", data=v.data, '
+        'scope="local", layout="default")'
+    ) in expected
+    assert (
+        'v_2 = T.decl_buffer((4, 8), "float32", data=v.data, '
+        'scope="local", layout="default")'
+    ) in expected
+    storage_line = next(line for line in expected.splitlines() if "v_3 =" in line)
+    assert (
+        'T.decl_buffer((32,), "float32", data=v.data, scope="local", layout='
+    ) in storage_line
     for _ in range(20):
         parsed = from_source(expected)
         assert parsed.script() == expected

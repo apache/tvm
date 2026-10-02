@@ -30,10 +30,13 @@ class Node(Object):
     """Base class of all IR Nodes."""
 
     def __repr__(self) -> str:
-        from tvm.runtime.script_printer import _script
+        from tvm.runtime.script_printer import PrinterConfig, _script
 
         try:
-            return _script(self, None)
+            return _script(
+                self,
+                PrinterConfig(extra_config={"ir.comment_imports": True}),
+            )
         except Exception:
             return super().__repr__()
 
@@ -188,13 +191,15 @@ def assert_structural_equal(lhs, rhs, map_free_vars=False):
     first_mismatch = tvm_ffi.get_first_structural_mismatch(lhs, rhs, map_free_vars)
     if first_mismatch is not None:
         from tvm.runtime.script_printer import (  # pylint: disable=import-outside-toplevel
-            PrinterConfig,
-            _script,
+            Scriptable,
         )
 
         lhs_path, rhs_path = first_mismatch
-        lhs_script = _script(lhs, PrinterConfig(syntax_sugar=False, path_to_underline=[lhs_path]))
-        rhs_script = _script(rhs, PrinterConfig(syntax_sugar=False, path_to_underline=[rhs_path]))
+        # Diagnostics use the same display policy as Object.script(), including
+        # dialect selection and commented imports. The unbound method also
+        # accepts IR objects that do not inherit the convenience mixin.
+        lhs_script = Scriptable.script(lhs, path_to_underline=[lhs_path])
+        rhs_script = Scriptable.script(rhs, path_to_underline=[rhs_path])
         raise ValueError(
             f"StructuralEqual check failed, caused by lhs at {lhs_path}:\n"
             f"{lhs_script}\n"

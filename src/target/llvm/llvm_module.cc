@@ -397,7 +397,11 @@ static void LLVMReflectionRegister() {
 #endif
            })
       .def("target.llvm_get_intrinsic_name",
-           [](int64_t id) -> ffi::String { return llvmGetIntrinName(id); })
+           [](int64_t id) -> ffi::String {
+             TVM_FFI_CHECK(id > 0 && id < llvm::Intrinsic::num_intrinsics, ValueError)
+                 << "Invalid LLVM intrinsic id: " << id;
+             return llvmGetIntrinName(id);
+           })
       .def("target.llvm_get_system_x86_vendor",
            []() -> ffi::String {
 #if defined(__i386__) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)

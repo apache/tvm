@@ -508,7 +508,9 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     return call_intrin(
         dtype,
         Op.get("tirx.call_llvm_intrin"),
-        tvm.tirx.const(llvm_id, "uint32"),
+        name
+        if isinstance(name, IntImm)
+        else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         span=span,
     )
@@ -550,7 +552,9 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     return call_intrin(
         dtype,
         Op.get("tirx.call_llvm_pure_intrin"),
-        tvm.tirx.const(llvm_id, "uint32"),
+        name
+        if isinstance(name, IntImm)
+        else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         span=span,
     )
@@ -829,7 +833,7 @@ def tvm_thread_invariant(cond):
     return call_intrin(_primexpr_ty(cond), "tirx.tvm_thread_invariant", cond)
 
 
-def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1):
+def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1, *, dtype="void"):
     """Perform synchronization in specified scope.
 
     Parameters
@@ -837,18 +841,31 @@ def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1):
     storage_scope : str
         The storage scope to perform synchronization.
 
-    is_load : bool
+    is_load : bool or Expr or None
         Whether to perform load synchronization. (for global sync only)
+        Set both ``is_load`` and ``num_blocks`` to None to omit these operands.
 
-    num_blocks : int
+    num_blocks : int or Expr or None
         The number of blocks to synchronize. (for global sync only)
+        Set to None to omit this operand.
+
+    dtype : str or tvm.ir.Type
+        The stored result type. Defaults to void.
 
     Returns
     -------
     call : Expr
         The call expression.
     """
-    return call_intrin("void", "tirx.tvm_storage_sync", storage_scope, is_load, num_blocks)
+    args = [storage_scope]
+    if is_load is None:
+        if num_blocks is not None:
+            raise ValueError("num_blocks must be None when is_load is omitted")
+    else:
+        args.append(is_load)
+        if num_blocks is not None:
+            args.append(num_blocks)
+    return call_intrin(dtype, "tirx.tvm_storage_sync", *args)
 
 
 def tvm_kernel_replace_point():

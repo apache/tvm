@@ -635,7 +635,9 @@ def while_(condition: Any, *, span: _Span = None) -> frame.WhileFrame:
 def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
     if len(args) == 1:
-        args = (0, args[0], None)
+        # serial constructs the omitted zero in the stop expression's dtype.
+        # A Python zero would promote narrow typed bounds to int32.
+        return serial(args[0], annotations=annotations)
     elif len(args) == 2:
         args = (*args, None)
     elif len(args) != 3:

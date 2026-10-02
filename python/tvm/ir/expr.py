@@ -596,8 +596,8 @@ class Call(_CallableExprWithOp):
 def reinfer_type(call: Call) -> "tvm.ir.Type":
     """Derive a Call's result type from its current inputs without changing the Call.
 
-    The operator must have a context-free inference rule. Invalid inputs and
-    missing rules raise errors.
+    The operator must register a fixed return type or a context-free inference
+    rule. This does not invoke the operator's validator.
     """
     return _ffi_api.reinfer_type(call)
 

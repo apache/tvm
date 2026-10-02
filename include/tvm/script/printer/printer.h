@@ -18,57 +18,52 @@
  */
 /*!
  * \file tvm/script/printer/printer.h
- * \brief Entry-point header for TVMScript printing.
- *
- * Declares the free function `tvm::Script(node, optional_config)` and the
- * dispatch vtable `TVMScriptPrinter::vtable()` used by per-dialect printers.
- * `PrinterConfig` and its dataclass helpers live in config.h; this header is
- * what callers include to invoke printing.
+ * \brief TVMScript text entry points.
  */
 #ifndef TVM_SCRIPT_PRINTER_PRINTER_H_
 #define TVM_SCRIPT_PRINTER_PRINTER_H_
 
-#include <tvm/ir/object_functor.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/script/printer/config.h>
+
+#include <optional>
+#include <string>
 
 namespace tvm {
 
-/*! \brief Print \p node as TVMScript with the given \p config.
- *
- *  Falls back to ffi::ReprPrint for types not registered with TVMScriptPrinter.
+/*!
+ * \brief Print an IR object as TVMScript, using repr when no translation hook exists.
+ * \param node The input IR object.
+ * \param config Optional translation and rendering configuration.
+ * \return The rendered script or fallback representation.
  */
 TVM_DLL std::string Script(const ffi::ObjectRef& node,
                            const ffi::Optional<PrinterConfig>& config = std::nullopt);
 
-/*! \brief Dispatch table for TVMScript printing and repr registration. */
-class TVMScriptPrinter {
- public:
-  using FType = ObjectFunctor<std::string(const ffi::ObjectRef&, const PrinterConfig&)>;
-  TVM_DLL static FType& vtable();
+namespace script {
+namespace printer {
 
-  /*! \brief Register a printer method for script dispatch and FFI repr.
-   * \tparam ObjectType Concrete object node type.
-   * \tparam Method Callable printer method type.
-   * \param method Printer dispatch method for that type.
-   *
-   * Example:
-   * \code
-   * TVM_FFI_STATIC_INIT_BLOCK() {
-   *   TVMScriptPrinter::Register<tirx::ForNode>(ReprPrintTIR);
-   *   TVMScriptPrinter::Register<tirx::WhileNode>(ReprPrintTIR);
-   * }
-   * \endcode
-   */
-  template <typename ObjectType, typename Method>
-  static void Register(Method method) {
-    namespace refl = tvm::ffi::reflection;
-    refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,
-                                        [](ffi::ObjectRef obj, ffi::Function) -> ffi::String {
-                                          return RedirectedReprPrinterMethod(obj);
-                                        });
-    vtable().SetDispatch<ObjectType>(method);
-  }
-};
+/*!
+ * \brief Register a namespace alias during dialect static initialization.
+ * \param key The existing prefix configuration key, such as "tirx.prefix".
+ * \param default_alias The alias reserved before translation assigns variable names.
+ */
+TVM_DLL void RegisterNamespaceAlias(const ffi::String& key, const ffi::String& default_alias);
 
+/*! \brief Read the registered namespace aliases. */
+TVM_DLL const ffi::Map<ffi::String, ffi::String>& GetNamespaceAliases();
+
+/*!
+ * \brief Translate IR, recover diagnostic paths, and render Python text.
+ * \param obj The input IR object.
+ * \param config The translation and rendering options.
+ * \return The rendered script.
+ */
+TVM_DLL ffi::String Script(const ffi::ObjectRef& obj, const PrinterConfig& config);
+
+}  // namespace printer
+}  // namespace script
 }  // namespace tvm
+
 #endif  // TVM_SCRIPT_PRINTER_PRINTER_H_
