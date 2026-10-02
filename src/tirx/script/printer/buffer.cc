@@ -58,9 +58,9 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
       << "Buffer operation destination must be a variable";
   auto var = ffi::GetRef<Var>(static_cast<const VarNode*>(destination));
   if (!ffi::StructuralEqual()(var->ty, call->ty)) return RawCall(d, call);
-  bool is_alloc = call->op.same_as(tirx::builtin::alloc_buffer());
+  bool is_alloc = call->op.same_as(tirx::builtin::alloc_tensor());
   size_t shape_index = is_alloc ? 0 : 1;
-  auto buffer = call->ty.as<tirx::BufferType>();
+  auto buffer = call->ty.as<tirx::TensorType>();
   if (!buffer || call->args.size() != shape_index + 3 || !call->ty_args.empty() ||
       call->attrs.defined() != is_alloc ||
       (call->attrs.defined() && !call->attrs.as<DictAttrsNode>())) {
@@ -106,8 +106,8 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
     if (!pointer || pointer->storage_scope != scope->value) return RawCall(d, call);
   }
   CallDoc rhs = d->Translate(buffer.value()).value().as_or_throw<CallDoc>();
-  if (rhs->callee.as_or_throw<AttrAccessDoc>()->name != "Buffer") return RawCall(d, call);
-  ffi::String method = is_alloc ? "alloc_buffer" : "decl_buffer";
+  if (rhs->callee.as_or_throw<AttrAccessDoc>()->name != "Tensor") return RawCall(d, call);
+  ffi::String method = is_alloc ? "alloc_tensor" : "decl_tensor";
   if (is_alloc && (scope->value == "local" || scope->value == "shared")) {
     method = scope->value == "local" ? "alloc_local" : "alloc_shared";
     for (size_t i = 0; i < rhs->kwargs_keys.size(); ++i) {
@@ -146,16 +146,16 @@ ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::Any
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  for (const char* name : {"tirx.alloc_buffer", "tirx.decl_buffer"}) {
+  for (const char* name : {"tirx.alloc_tensor", "tirx.decl_tensor"}) {
     OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
                                         FDocTranslate::FromNative<&BufferOperationDocTranslate>());
   }
 }
 
-ffi::Optional<ExprDoc> BufferTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                               const ffi::Object*) {
   const auto* buffer =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::BufferTypeNode>(input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TensorTypeNode>(input);
   bool default_offset =
       ffi::StructuralEqual()(buffer->elem_offset, IntImm(PrimType(buffer->DefaultIndexType()), 0));
   // The buffer type constructor normalizes these fields and constrains allocated addresses.
@@ -164,7 +164,7 @@ ffi::Optional<ExprDoc> BufferTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       (!buffer->allocated_addr.empty() && (!default_offset || buffer->offset_factor != 1))) {
     return NamespaceDoc("ir")
         ->Attr("make_node")
-        ->Call({LiteralDoc::Str("tirx.BufferType", std::nullopt)},
+        ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
                {"dtype", "storage_scope", "shape", "strides", "elem_offset", "data_alignment",
                 "offset_factor", "layout", "allocated_addr"},
                {TypeValue(d, buffer->dtype, false),
@@ -229,13 +229,13 @@ ffi::Optional<ExprDoc> BufferTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     keys.push_back("allocated_addr");
     values.push_back(addresses.size() == 1 ? addresses[0] : ExprDoc(TupleDoc(addresses)));
   }
-  return NamespaceDoc("tirx")->Attr("Buffer")->Call(
+  return NamespaceDoc("tirx")->Attr("Tensor")->Call(
       {TupleDoc(shape), LiteralDoc::DataType(buffer->dtype->dtype, std::nullopt)}, keys, values);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::BufferTypeNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&BufferTypeDocTranslate>());
+  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TensorTypeDocTranslate>());
 }
 
 }  // namespace
@@ -338,7 +338,7 @@ ffi::Optional<ExprDoc> BufferLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::BufferTypeNode>().attr(
+  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
       kTensorLoadDocTranslate, FDocTranslate::FromNative<&BufferLoadDocTranslate>());
 }
 

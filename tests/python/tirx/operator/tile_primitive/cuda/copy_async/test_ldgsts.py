@@ -80,13 +80,13 @@ def test_copy_g2s_s2g_cta_vec_load(task, dtype):
     # fmt: off
     @T.prim_func
     def copy_async(
-        A: T.Buffer(g_shape, dtype, layout=layoutA), B: T.Buffer(g_shape, dtype, layout=layoutB)
+        A: T.Tensor(g_shape, dtype, layout=layoutA), B: T.Tensor(g_shape, dtype, layout=layoutB)
     ) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
         tid = T.thread_id([thread_cnt])
-        A_smem = T.alloc_buffer(s_shape, dtype, scope="shared", layout=layoutS)
+        A_smem = T.alloc_tensor(s_shape, dtype, scope="shared", layout=layoutS)
 
         Tx.cta.copy_async(A_smem[tuple(r_smem)], A[tuple(r_gmem)], dispatch="ldgsts")
         T.ptx.cp.async_.commit_group()
@@ -123,10 +123,10 @@ def test_copy_ldgsts_predicate_zero_fill_codegen():
     """ldgsts direct mode forwards predicate/zero-fill/prefetch without partition temps."""
 
     @T.prim_func
-    def copy_async(A: T.Buffer((32, 16), "uint8", layout=TileLayout(S[32, 16]))) -> None:
+    def copy_async(A: T.Tensor((32, 16), "uint8", layout=TileLayout(S[32, 16]))) -> None:
         T.device_entry()
         tid = T.thread_id([32])
-        A_smem = T.alloc_buffer((32, 16), "uint8", scope="shared", layout=TileLayout(S[32, 16]))
+        A_smem = T.alloc_tensor((32, 16), "uint8", scope="shared", layout=TileLayout(S[32, 16]))
 
         Tx.copy_async(
             A_smem[tid, :],

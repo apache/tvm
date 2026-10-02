@@ -39,11 +39,11 @@ def compare_strings_ignore_whitespace(s1, s2):
 def test_nki_add_1():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((128, 512)), B: T.Buffer((128, 512))):
+    def func(A: T.Tensor((128, 512)), B: T.Tensor((128, 512))):
         T.func_attr({"num_inputs": 1})
         T.device_entry()
-        A_sbuf = T.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
-        B_sbuf = T.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
+        A_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
+        B_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
         with T.attr(0, "tensorized_nki_instruction", 1):
             for i in range(0, 128):
                 for j in range(0, 512):
@@ -93,11 +93,11 @@ def func_kernel(A_ptr, B_ptr: nt.mutable_tensor, ):
 def test_nki_add_2():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((128, 2048)), B: T.Buffer((128, 2048))):
+    def func(A: T.Tensor((128, 2048)), B: T.Tensor((128, 2048))):
         T.func_attr({"num_inputs": 1})
         T.device_entry()
-        A_sbuf = T.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
-        B_sbuf = T.alloc_buffer((128, 512), "float32", scope="trn.sbuf",)
+        A_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
+        B_sbuf = T.alloc_tensor((128, 512), "float32", scope="trn.sbuf",)
         for k in range(0, 4):
             with T.attr(0, "tensorized_nki_instruction", 1):
                 for i in range(0, 128):
@@ -170,22 +170,22 @@ def test_nki_matmul_1():
 
     @T.prim_func
     def func(
-        lhsT: T.Buffer((K, M), "float16"),
-        rhs: T.Buffer((K, N), "float16"),
+        lhsT: T.Tensor((K, M), "float16"),
+        rhs: T.Tensor((K, N), "float16"),
         result: T.buffer((M, N), "float16"),
     ):
         T.func_attr({"num_inputs": 2})
-        result_tiles = T.alloc_buffer(
+        result_tiles = T.alloc_tensor(
             (TILE_M, NUM_BLOCK_M, TILES_IN_BLOCK_M, TILES_IN_BLOCK_N, TILE_N),
             "float32",
             scope="trn.sbuf",
         )
-        rhs_tiles = T.alloc_buffer((TILE_K, TILES_IN_BLOCK_K, BLOCK_N), "float16", scope="trn.sbuf")
-        lhsT_tiles = T.alloc_buffer(
+        rhs_tiles = T.alloc_tensor((TILE_K, TILES_IN_BLOCK_K, BLOCK_N), "float16", scope="trn.sbuf")
+        lhsT_tiles = T.alloc_tensor(
             (TILE_K, TILES_IN_BLOCK_K, BLOCK_M), "float16", scope="trn.sbuf"
         )
-        res_tile = T.alloc_buffer((1, TILE_M, TILE_N), "float32", scope="trn.psum")
-        result_packed = T.alloc_buffer((TILE_K, BLOCK_N), "float32", scope="trn.sbuf")
+        res_tile = T.alloc_tensor((1, TILE_M, TILE_N), "float32", scope="trn.psum")
+        result_packed = T.alloc_tensor((TILE_K, BLOCK_N), "float32", scope="trn.sbuf")
         for n in range(NUM_BLOCK_N):
             with T.attr(0, "tensorized_nki_instruction", 1):
                 for i0 in range(TILE_M):

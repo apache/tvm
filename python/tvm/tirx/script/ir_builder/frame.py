@@ -88,8 +88,8 @@ class ThenFrame(TIRFrame): ...
 class ElseFrame(TIRFrame): ...
 
 
-@_register_object("script.ir_builder.tirx.DeclBufferFrame")
-class DeclBufferFrame(TIRFrame):
+@_register_object("script.ir_builder.tirx.DeclTensorFrame")
+class DeclTensorFrame(TIRFrame):
     def __enter__(self) -> Buffer:
         super().__enter__()
         return self.buffer

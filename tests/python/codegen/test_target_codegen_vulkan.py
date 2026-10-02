@@ -66,7 +66,7 @@ def test_vector_comparison(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((1024,), dtype), B: T.Buffer((1024,), dtype)):
+        def main(A: T.Tensor((1024,), dtype), B: T.Tensor((1024,), dtype)):
             for i_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):
                     for i_2 in T.vectorized(4):
@@ -137,7 +137,7 @@ def test_array_vectorize_add(dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((64,), vec_dtype), B: T.Buffer((64,), vec_dtype)):
+        def main(A: T.Tensor((64,), vec_dtype), B: T.Tensor((64,), vec_dtype)):
             for i_0 in T.thread_binding(16, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(4, thread="threadIdx.x"):
                     B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + one
@@ -169,7 +169,7 @@ def test_vulkan_bool_load():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((1024,), "bool"), B: T.Buffer((1024,), "int32")):
+        def main(A: T.Tensor((1024,), "bool"), B: T.Tensor((1024,), "int32")):
             for i_0 in T.thread_binding(8, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(128, thread="threadIdx.x"):
                     B[i_0 * 128 + i_1] = T.Cast("int32", A[i_0 * 128 + i_1])
@@ -233,8 +233,8 @@ def test_vulkan_constant_passing(vulkan_parameter_impl, vulkan_parameter_dtype):
                     v = T_builder.arg_(f"scale{i}", tvm.tirx.Var("", dtype))
                     scalar_vars.append(v)
                 n_var = T_builder.int32()
-                A = T_builder.arg_("var_A", T_builder.Buffer((n_var,), dtype))
-                B = T_builder.arg_("var_B", T_builder.Buffer((n_var,), dtype))
+                A = T_builder.arg_("var_A", T_builder.Tensor((n_var,), dtype))
+                B = T_builder.arg_("var_B", T_builder.Tensor((n_var,), dtype))
                 T_builder.func_attr({"tirx.noalias": True})
 
                 scalar_sum = scalar_vars[0]
@@ -276,9 +276,9 @@ def test_vulkan_while_if():
     dtype = "int32"
 
     @T.prim_func
-    def while_if_gpu(A: T.Buffer((1,), "int32"), B: T.Buffer((1,), "int32")):
+    def while_if_gpu(A: T.Tensor((1,), "int32"), B: T.Tensor((1,), "int32")):
         for bx in T.thread_binding(1, thread="blockIdx.x"):
-            iterations = T.decl_buffer((1,), "int32", scope="local")
+            iterations = T.decl_tensor((1,), "int32", scope="local")
             iterations[0] = 0
             B[0] = 0
             while iterations[0] < T.if_then_else(A[0] > 0, 10, 20):
@@ -310,7 +310,7 @@ def test_vulkan_local_threadidx():
     n = 32
 
     @T.prim_func
-    def local_threadidx_func(A: T.Buffer((32,), "int32"), B: T.Buffer((32,), "int32")):
+    def local_threadidx_func(A: T.Tensor((32,), "int32"), B: T.Tensor((32,), "int32")):
         # First block with thread extent 16
         for _ in range(1):
             for tx in T.thread_binding(16, thread="threadIdx.x"):
@@ -351,7 +351,7 @@ def test_vectorized_index_ramp():
     class Module:
         @T.prim_func
         def main(
-            A: T.Buffer((n,), "int32", offset_factor=1), B: T.Buffer((n,), "int32", offset_factor=1)
+            A: T.Tensor((n,), "int32", offset_factor=1), B: T.Tensor((n,), "int32", offset_factor=1)
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -389,7 +389,7 @@ def test_vectorized_index_broadcast():
     class Module:
         @T.prim_func
         def main(
-            A: T.Buffer((n,), "int32", offset_factor=1), B: T.Buffer((n,), "int32", offset_factor=1)
+            A: T.Tensor((n,), "int32", offset_factor=1), B: T.Tensor((n,), "int32", offset_factor=1)
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -437,7 +437,7 @@ def test_negative_operand_divmod():
     divisor = 5
 
     @T.prim_func
-    def func(A: T.Buffer((N, 2), "int32")):
+    def func(A: T.Tensor((N, 2), "int32")):
         for i in T.thread_binding(N, thread="threadIdx.x"):
             A[i, 0] = T.floordiv(i - offset, divisor)
             A[i, 1] = T.floormod(i - offset, divisor)
@@ -463,13 +463,13 @@ def test_cooperative_matrix(out_dtype):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(X: T.Buffer((16, 32), "float16"), W: T.Buffer((32, 16), "float16"), compute: T.Buffer((16, 16), out_dtype)):
+        def main(X: T.Tensor((16, 32), "float16"), W: T.Tensor((32, 16), "float16"), compute: T.Tensor((16, 16), out_dtype)):
             T.func_attr({"tirx.noalias": True})
-            X_shared = T.alloc_buffer((16, 32), "float16", scope="shared")
-            W_shared = T.alloc_buffer((32, 16), "float16", scope="shared")
-            X_shared_wmma_matrix_a = T.alloc_buffer((16, 32), "float16", scope="wmma.matrix_a")
-            W_shared_wmma_matrix_b = T.alloc_buffer((32, 16), "float16", scope="wmma.matrix_b")
-            compute_wmma_accumulator = T.alloc_buffer((16, 16), out_dtype, scope="wmma.accumulator")
+            X_shared = T.alloc_tensor((16, 32), "float16", scope="shared")
+            W_shared = T.alloc_tensor((32, 16), "float16", scope="shared")
+            X_shared_wmma_matrix_a = T.alloc_tensor((16, 32), "float16", scope="wmma.matrix_a")
+            W_shared_wmma_matrix_b = T.alloc_tensor((32, 16), "float16", scope="wmma.matrix_b")
+            compute_wmma_accumulator = T.alloc_tensor((16, 16), out_dtype, scope="wmma.accumulator")
             for i_0_j_0_fused in T.thread_binding(1, thread="blockIdx.x"):
                 T.tvm_fill_fragment(compute_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0.0))
                 for k_0 in range(2):
@@ -514,15 +514,15 @@ def test_cooperative_matrix(out_dtype):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_vulkan(), reason="need vulkan")
 def test_codegen_decl_buffer():
-    """DeclBuffer aliases should retain their backing storage metadata."""
+    """DeclTensor aliases should retain their backing storage metadata."""
 
     @I.ir_module
     class AllocationBacked:
         @T.prim_func
         def kernel():
             T.func_attr({"calling_conv": 2, "global_symbol": "kernel", "tirx.noalias": True})
-            A = T.alloc_buffer((256,), dtype="float32", scope="local")
-            A_buf = T.decl_buffer([256], dtype="float32", scope="local", data=A.data)
+            A = T.alloc_tensor((256,), dtype="float32", scope="local")
+            A_buf = T.decl_tensor([256], dtype="float32", scope="local", data=A.data)
             A_buf[0] = T.float32(1)
             T.evaluate(A_buf[0])
 
@@ -533,9 +533,9 @@ def test_codegen_decl_buffer():
     @I.ir_module
     class ParameterBacked:
         @T.prim_func
-        def main(A: T.Buffer((1,), "float32"), B: T.Buffer((1,), "float32")):
-            A_buf = T.decl_buffer([1], dtype="float32", data=A.data)
-            B_buf = T.decl_buffer([1], dtype="float32", data=B.data)
+        def main(A: T.Tensor((1,), "float32"), B: T.Tensor((1,), "float32")):
+            A_buf = T.decl_tensor([1], dtype="float32", data=A.data)
+            B_buf = T.decl_tensor([1], dtype="float32", data=B.data)
             for tx in T.thread_binding(1, thread="threadIdx.x"):
                 B_buf[tx] = A_buf[tx]
 
@@ -550,8 +550,8 @@ def test_codegen_static_shared_memory():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
-            A_shared = T.alloc_buffer((128,), dtype="float32", scope="shared")
+        def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
+            A_shared = T.alloc_tensor((128,), dtype="float32", scope="shared")
 
             for bx in T.thread_binding(1, thread="blockIdx.x"):
                 for tx in T.thread_binding(128, thread="threadIdx.x"):
@@ -587,7 +587,7 @@ def test_unary():
         @I.ir_module
         class Module:
             @T.prim_func
-            def main(A: T.Buffer((m,), "float32"), B: T.Buffer((m,), "float32")):
+            def main(A: T.Tensor((m,), "float32"), B: T.Tensor((m,), "float32")):
                 for i_0 in T.thread_binding((m + 63) // 64, thread="blockIdx.x"):
                     for i_1 in T.thread_binding(64, thread="threadIdx.x"):
                         if i_0 * 64 + i_1 < m:
@@ -627,7 +627,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((n,), "float32"), B: T.Buffer((n,), "float32")):
+        def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):
                 for i_1 in T.thread_binding(32, thread="threadIdx.x"):

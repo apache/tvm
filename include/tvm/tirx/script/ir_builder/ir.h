@@ -317,7 +317,7 @@ ElseFrame Else();
  * \param layout The layout of the buffer.
  * \return The declaration frame.
  */
-DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                            ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                            ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
                            int align, int offset_factor,
@@ -332,7 +332,7 @@ DeclBufferFrame DeclBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
  * \param annotations Optional annotations for the allocation.
  * \return The allocated buffer.
  */
-BufferVar AllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+BufferVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                       ffi::String storage_scope = "global",
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 

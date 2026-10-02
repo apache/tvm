@@ -45,9 +45,9 @@ def test_basic():
     class Module:
         @T.prim_func
         def main(
-            C: T.Buffer((128,), "uint8"),
-            A: T.Buffer((128,), "uint8"),
-            A_1: T.Buffer((128,), "uint8"),
+            C: T.Tensor((128,), "uint8"),
+            A: T.Tensor((128,), "uint8"),
+            A_1: T.Tensor((128,), "uint8"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i in range(128):
@@ -66,7 +66,7 @@ def test_llvm_target_features():
     @I.ir_module
     class Module:
         @T.prim_func
-        def add_one(C: T.Buffer((128,), "int32"), A: T.Buffer((128,), "uint8")):
+        def add_one(C: T.Tensor((128,), "int32"), A: T.Tensor((128,), "uint8")):
             T.func_attr({"tirx.noalias": True})
             for i in range(128):
                 C[i] = T.Cast("int32", A[i]) + 1
@@ -95,7 +95,7 @@ def test_llvm_options():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(compute: T.Buffer((10,), "int32")):
+        def main(compute: T.Tensor((10,), "int32")):
             T.func_attr({"tirx.noalias": True})
             for _ in range(10):
                 compute[_] = 0

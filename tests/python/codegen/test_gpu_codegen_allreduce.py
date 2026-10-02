@@ -35,12 +35,12 @@ def _reduce_module(d1, d2, d3, is_max=False):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((1, d1, d2, d3), "float32"), B: T.Buffer((1, d1, d2), "float32")):
+        def main(A: T.Tensor((1, d1, d2, d3), "float32"), B: T.Tensor((1, d1, d2), "float32")):
             for i in T.thread_binding(1, thread="blockIdx.x"):
                 for j in T.thread_binding(d1, thread="threadIdx.z"):
                     for k in T.thread_binding(d2, thread="threadIdx.y"):
                         for l in T.thread_binding(d3, thread="threadIdx.x"):
-                            reduced = T.alloc_buffer((1,), "float32", scope="local")
+                            reduced = T.alloc_tensor((1,), "float32", scope="local")
                             with T.attr(reducer, "reduce_scope", 0):
                                 T.tvm_thread_allreduce(
                                     T.uint32(1), A[i, j, k, l], True, reduced[0], l

@@ -166,7 +166,7 @@ def device_entry() -> None:
 
         @T.prim_func
         def kernel(...):
-            A = T.Buffer(...)
+            A = T.Tensor(...)
             T.device_entry()           # device region starts here
             bx = T.cta_id([SM_COUNT])  # standalone scope-id def
             ...

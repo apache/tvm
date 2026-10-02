@@ -24,11 +24,11 @@ from tvm.script import tirx as T
 
 def test_jit_buffer_annotation():
     @T.jit(private=True)
-    def kernel(output: T.Buffer((5,), "int32")):
+    def kernel(output: T.Tensor((5,), "int32")):
         output[0] = 7
 
     @T.prim_func(private=True)
-    def expected(output: T.Buffer((5,), "int32")):
+    def expected(output: T.Tensor((5,), "int32")):
         output[0] = 7
 
     assert_structural_equal(kernel.specialize(), expected, map_free_vars=True)
@@ -36,7 +36,7 @@ def test_jit_buffer_annotation():
 
 def test_jit_optional_buffer():
     @T.jit(private=True)
-    def kernel(value: T.Optional(T.Buffer((5,), "int32"))):
+    def kernel(value: T.Optional(T.Tensor((5,), "int32"))):
         if T.constexpr(value is not None):
             value[0] = 3
         else:
@@ -47,7 +47,7 @@ def test_jit_optional_buffer():
         T.evaluate(0)
 
     @T.prim_func(private=True)
-    def present(value: T.Buffer((5,), "int32")):
+    def present(value: T.Tensor((5,), "int32")):
         value[0] = 3
 
     assert_structural_equal(kernel.specialize(value=None), absent, map_free_vars=True)

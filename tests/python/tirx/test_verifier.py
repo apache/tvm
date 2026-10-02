@@ -171,7 +171,7 @@ def test_layout():
         T.cta_id([32])
         T.warp_id([4])
         T.lane_id([32])
-        A = T.alloc_buffer((2,), layout=T.TileLayout(T.S[2, 1]))
+        A = T.alloc_tensor((2,), layout=T.TileLayout(T.S[2, 1]))
 
         A[0] = 0
         # fmt: on
@@ -185,7 +185,7 @@ def test_layout():
         T.cta_id([32])
         T.warp_id([4])
         T.lane_id([32])
-        A = T.alloc_buffer(
+        A = T.alloc_tensor(
             (512,), scope="shared", layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(512,)]))
         )
 
@@ -197,7 +197,7 @@ def test_layout():
 def test_host():
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def test1(A: T.Buffer((16, 16), dtype='float32', align=16)):
+    def test1(A: T.Tensor((16, 16), dtype='float32', align=16)):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
         T.call_packed("runtime.cuTensorMapEncodeTiled", A_map, "float32", 2, A.data, 16, 16, 64, 16, 16, 1, 1, 0, 0, 0, 0)  # noqa: E501
@@ -205,9 +205,9 @@ def test_host():
         T.device_entry()
         for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
             for threadIdx in T.thread_binding(128, thread="threadIdx.x"):
-                bar = T.alloc_buffer((1,), "uint64", scope="shared", align=8)
-                phase = T.alloc_buffer((1,), "int32", scope="local")
-                A_smem = T.alloc_buffer((16, 16), "float32", scope="shared", align=128)
+                bar = T.alloc_tensor((1,), "uint64", scope="shared", align=8)
+                phase = T.alloc_tensor((1,), "int32", scope="local")
+                A_smem = T.alloc_tensor((16, 16), "float32", scope="shared", align=128)
 
                 phase[0] = 0
                 if threadIdx == 0:
@@ -231,14 +231,14 @@ def test_device_func():
     # is dropped.
     # fmt: off
     @T.prim_func(check_well_formed=False)
-    def test1(A: T.Buffer((128,), "float32")):
+    def test1(A: T.Tensor((128,), "float32")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([128])
         Tx.cta.fill(A, 0.)
 
     @T.prim_func(check_well_formed=False)
-    def test2(A: T.Buffer((128,), "float32")):
+    def test2(A: T.Tensor((128,), "float32")):
         T.device_entry()
         T.cta_id([128])
         T.thread_id([128])

@@ -42,7 +42,7 @@ ORACLE_PATH = Path(__file__).parent / "oracle" / "iket_official_cutlass_4_6_0_or
 
 
 @T.prim_func
-def serial_a(out: T.Buffer((32,), "int32")):
+def serial_a(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -51,7 +51,7 @@ def serial_a(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def serial_b(out: T.Buffer((32,), "int32")):
+def serial_b(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -60,14 +60,14 @@ def serial_b(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def plain_entry(out: T.Buffer((32,), "int32")):
+def plain_entry(out: T.Tensor((32,), "int32")):
     T.device_entry()
     tx = T.thread_id([32])
     out[tx] = tx + 7
 
 
 @T.prim_func
-def push_pop_kernel(out: T.Buffer((32,), "int32")):
+def push_pop_kernel(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -80,7 +80,7 @@ def push_pop_kernel(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def token_loop(n: T.int32, out: T.Buffer((32,), "int32")):
+def token_loop(n: T.int32, out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -96,7 +96,7 @@ def token_loop(n: T.int32, out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def payload_kernel(out: T.Buffer((32,), "int32")):
+def payload_kernel(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -105,7 +105,7 @@ def payload_kernel(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def payload_types(n: T.int64, out: T.Buffer((32,), "int32")):
+def payload_types(n: T.int64, out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -128,7 +128,7 @@ def payload_types(n: T.int64, out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def payload_presence_mismatch(out: T.Buffer((32,), "int32")):
+def payload_presence_mismatch(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -138,7 +138,7 @@ def payload_presence_mismatch(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def payload_type_mismatch(out: T.Buffer((32,), "int32")):
+def payload_type_mismatch(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -148,7 +148,7 @@ def payload_type_mismatch(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def sentinel_only_payload(out: T.Buffer((32,), "int32")):
+def sentinel_only_payload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -158,7 +158,7 @@ def sentinel_only_payload(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def payload_float16(out: T.Buffer((32,), "int32")):
+def payload_float16(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -167,7 +167,7 @@ def payload_float16(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def payload_bfloat16(out: T.Buffer((32,), "int32")):
+def payload_bfloat16(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -176,7 +176,7 @@ def payload_bfloat16(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def payload_pointer(out: T.Buffer((32,), "int32")):
+def payload_pointer(out: T.Tensor((32,), "int32")):
     T.device_entry()
     tx = T.thread_id([32])
     T.evaluate(tvm.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out.data))
@@ -184,13 +184,13 @@ def payload_pointer(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def payload_vector(out: T.Buffer((1,), "int32x4")):
+def payload_vector(out: T.Tensor((1,), "int32x4")):
     T.device_entry()
     T.evaluate(tvm.tirx.call_intrin("", "tirx.cuda.iket_mark", "bad", out[0]))
 
 
 @T.prim_func
-def schema_i32(out: T.Buffer((32,), "int32")):
+def schema_i32(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -199,7 +199,7 @@ def schema_i32(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def schema_u32(out: T.Buffer((32,), "int32")):
+def schema_u32(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -208,7 +208,7 @@ def schema_u32(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def schema_no_payload(out: T.Buffer((32,), "int32")):
+def schema_no_payload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -217,7 +217,7 @@ def schema_no_payload(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def marks_30(out: T.Buffer((32,), "int32")):
+def marks_30(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -255,7 +255,7 @@ def marks_30(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def marks_31(out: T.Buffer((32,), "int32")):
+def marks_31(out: T.Tensor((32,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([32])
@@ -324,7 +324,7 @@ def _event_bytes(source, name):
 def _many_marks(count):
     marks = "\n".join(f'    iket.mark("e{index:04d}")' for index in range(count))
     source = f"""@T.prim_func
-def main(out: T.Buffer((1,), "int32")):
+def main(out: T.Tensor((1,), "int32")):
     T.device_entry()
     iket = IketProfiler()
     tx = T.thread_id([1])
@@ -411,7 +411,7 @@ def test_regular_lowering_strips_annotations_and_tokens():
 
     def make_kernel(with_annotation):
         @T.prim_func
-        def main(out: T.Buffer((32,), "int32")):
+        def main(out: T.Tensor((32,), "int32")):
             T.device_entry()
             iket = IketProfiler()
             tx = T.thread_id([32])

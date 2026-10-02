@@ -79,7 +79,7 @@ class CodeGenCUDA final : public CodeGenC {
   void Dispatch_(const EvaluateNode* op) final;
   void Dispatch_(const ReturnNode* op) final;
   void Dispatch_(const BindNode* op) final;
-  void DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call);
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AttrStmtNode* op) final;
 
   // Target

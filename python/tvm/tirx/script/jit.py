@@ -113,8 +113,8 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
 
             @T.jit
             def add(
-                A: T.Buffer((N,), "float32"),
-                B: T.Buffer((N,), "float32"),
+                A: T.Tensor((N,), "float32"),
+                B: T.Tensor((N,), "float32"),
                 *,
                 N: T.constexpr,
             ):
@@ -125,8 +125,8 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
 
             @T.jit
             def guarded(
-                optional: T.Optional(T.Buffer((1,), "int32")),
-                output: T.Buffer((1,), "int32"),
+                optional: T.Optional(T.Tensor((1,), "int32")),
+                output: T.Tensor((1,), "int32"),
             ):
                 if T.constexpr(optional is not None):
                     output[0] = optional[0]
@@ -176,7 +176,7 @@ class TIRJit:
     type to what ``@T.prim_func`` produces today.
 
     Constexpr params are removed from the resulting PrimFunc's parameter list;
-    their values are baked into the IR (e.g. into ``T.Buffer((M, K), ...)``
+    their values are baked into the IR (e.g. into ``T.Tensor((M, K), ...)``
     shape annotations and into the body).
     """
 

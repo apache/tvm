@@ -58,17 +58,17 @@ def test_simple_gemm():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((128, 128), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((128, 128), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((128, 128), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((128, 128), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((128, 128), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((128, 128), "float32", scope="trn.psum", layout=C_layout)
         Tx.gemm(C_psum, A_sbuf, B_sbuf, C_psum)
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 128), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 128), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((1, 128, 128), scope="trn.psum")
+        A_sbuf = T.alloc_tensor((128, 128), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 128), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((1, 128, 128), scope="trn.psum")
         for lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(1, 1, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -92,17 +92,17 @@ def test_larger_gemm():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((256, 512), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((512, 256), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((256, 256), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((256, 512), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((512, 256), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((256, 256), "float32", scope="trn.psum", layout=C_layout)
         Tx.gemm(C_psum, A_sbuf, B_sbuf, C_psum)
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 1024), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 1024), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((1, 128, 512), scope="trn.psum")
+        A_sbuf = T.alloc_tensor((128, 1024), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 1024), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((1, 128, 512), scope="trn.psum")
         for lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(2, 1, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -126,9 +126,9 @@ def test_gemm_in_a_loop():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((512, 256), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
                 Tx.gemm(
@@ -141,9 +141,9 @@ def test_gemm_in_a_loop():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((2, 128, 512), scope="trn.psum")
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((2, 128, 512), scope="trn.psum")
         for i, k, lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(2, 2, 2, 1, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -167,9 +167,9 @@ def test_gemm_with_stride():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((512, 512, 2), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((512, 2, 256), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((512, 256), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((512, 512, 2), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((512, 2, 256), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
                 Tx.gemm(
@@ -182,9 +182,9 @@ def test_gemm_with_stride():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 4095), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((2, 128, 512), scope="trn.psum")
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 4095), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((2, 128, 512), scope="trn.psum")
         for i, k, lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(2, 2, 2, 1, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -209,9 +209,9 @@ def test_gemm_swap_lhs_rhs():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((512, 256), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
                 Tx.gemm(
@@ -224,9 +224,9 @@ def test_gemm_swap_lhs_rhs():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((2, 128, 512), scope="trn.psum")
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((2, 128, 512), scope="trn.psum")
         for i, k, lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(2, 2, 2, 2, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -250,9 +250,9 @@ def test_gemm_with_sbuf_output():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
-        C_sbuf = T.alloc_buffer((512, 256), "float32", scope="trn.sbuf", layout=C_layout)
+        A_sbuf = T.alloc_tensor((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
+        C_sbuf = T.alloc_tensor((512, 256), "float32", scope="trn.sbuf", layout=C_layout)
         for i in range(2):
             for k in range(2):
                 Tx.gemm(
@@ -264,10 +264,10 @@ def test_gemm_with_sbuf_output():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        buffer = T.alloc_buffer((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 1024), scope="trn.sbuf")
+        buffer = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 1024), scope="trn.sbuf")
         for i, k, lhs_b_loop, rhs_b_loop in T.grid(2, 2, 2, 2):
             for reduction_b_loop in range(4):
                 T.attr(0, "tensorized_nki_instruction", 1)
@@ -298,9 +298,9 @@ def test_gemm_different_shape():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((2, 512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((512, 256), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((2, 512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
                 Tx.gemm(
@@ -313,9 +313,9 @@ def test_gemm_different_shape():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 8192), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((2, 128, 512), scope="trn.psum")
+        A_sbuf = T.alloc_tensor((128, 8192), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((2, 128, 512), scope="trn.psum")
         for i, k, lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(2, 2, 2, 2, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -339,17 +339,17 @@ def test_gemm_too_large_f_size():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((256, 128), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((128, 1024), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((256, 1024), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((256, 128), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((128, 1024), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((256, 1024), "float32", scope="trn.psum", layout=C_layout)
         Tx.gemm(C_psum, A_sbuf, B_sbuf, C_psum)
 
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 256), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 1024), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((4, 128, 512), scope="trn.psum")
+        A_sbuf = T.alloc_tensor((128, 256), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 1024), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((4, 128, 512), scope="trn.psum")
         for lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(2, 2, 1):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -373,10 +373,10 @@ def test_gemm_sbuf_output_with_workspace():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
-        C_sbuf = T.alloc_buffer((512, 256), "float32", scope="trn.sbuf", layout=C_layout)
-        C_psum = T.alloc_buffer((1, 128, 512), "float32", scope="trn.psum", allocated_addr=(0, 0))
+        A_sbuf = T.alloc_tensor((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
+        C_sbuf = T.alloc_tensor((512, 256), "float32", scope="trn.sbuf", layout=C_layout)
+        C_psum = T.alloc_tensor((1, 128, 512), "float32", scope="trn.psum", allocated_addr=(0, 0))
         for i in range(2):
             for k in range(2):
                 Tx.gemm(
@@ -389,10 +389,10 @@ def test_gemm_sbuf_output_with_workspace():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 1024), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((1, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 1024), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((1, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
         for i, k, lhs_b_loop, rhs_b_loop in T.grid(2, 2, 2, 2):
             for reduction_b_loop in range(4):
                 T.attr(0, "tensorized_nki_instruction", 1)
@@ -422,9 +422,9 @@ def test_gemm_pf_mismatch_fail():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((256, 1024), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((512, 256), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((256, 1024), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
                 Tx.gemm(
@@ -450,9 +450,9 @@ def test_gemm_transpose_AB():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((1024, 512), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((256, 1024), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((512, 256), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((1024, 512), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((256, 1024), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for i in range(2):
             for k in range(2):
                 Tx.gemm(
@@ -467,9 +467,9 @@ def test_gemm_transpose_AB():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((2, 128, 512), scope="trn.psum")
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((2, 128, 512), scope="trn.psum")
         for i, k, lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(2, 2, 2, 1, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
@@ -494,9 +494,9 @@ def test_gemm_guard():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
-        C_sbuf = T.alloc_buffer((512, 256), "float32", scope="trn.sbuf", layout=C_layout)
+        A_sbuf = T.alloc_tensor((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
+        C_sbuf = T.alloc_tensor((512, 256), "float32", scope="trn.sbuf", layout=C_layout)
         for i in range(2):
             for j in range(2):
                 for k in range(2):
@@ -509,10 +509,10 @@ def test_gemm_guard():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        acc_psum = T.alloc_buffer((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        C_sbuf = T.alloc_buffer((128, 1024), scope="trn.sbuf")
+        acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        C_sbuf = T.alloc_tensor((128, 1024), scope="trn.sbuf")
         for i, j, k, lhs_b_loop, rhs_b_loop in T.grid(2, 2, 2, 2, 2):
             for reduction_b_loop in range(8):
                 T.attr(0, "tensorized_nki_instruction", 1)
@@ -545,9 +545,9 @@ def test_gemm_guard2():
     @T.prim_func
     def gemm() -> None:
         T.device_entry()
-        A_sbuf = T.alloc_buffer((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
-        B_sbuf = T.alloc_buffer((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
-        C_psum = T.alloc_buffer((512, 256), "float32", scope="trn.psum", layout=C_layout)
+        A_sbuf = T.alloc_tensor((512, 1024), "float32", scope="trn.sbuf", layout=A_layout)
+        B_sbuf = T.alloc_tensor((1024, 256), "float32", scope="trn.sbuf", layout=B_layout)
+        C_psum = T.alloc_tensor((512, 256), "float32", scope="trn.psum", layout=C_layout)
         for j in range(4):
             for i in range(2):
                 for k in range(2):
@@ -560,9 +560,9 @@ def test_gemm_guard2():
     @T.prim_func
     def expected():
         T.func_attr({"global_symbol": "gemm"})
-        A_sbuf = T.alloc_buffer((128, 4096), scope="trn.sbuf")
-        B_sbuf = T.alloc_buffer((128, 2048), scope="trn.sbuf")
-        C_psum = T.alloc_buffer((2, 128, 512), scope="trn.psum")
+        A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
+        B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
+        C_psum = T.alloc_tensor((2, 128, 512), scope="trn.psum")
         for j, i, k, lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(4, 2, 2, 2, 1, 4):
             T.attr(0, "tensorized_nki_instruction", 1)
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):

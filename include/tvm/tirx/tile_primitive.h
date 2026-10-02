@@ -92,7 +92,7 @@ constexpr const char* kDeviceInitStmt = "device_init_stmt";
  *  which will be inserted at the beginning of the kernel
  */
 constexpr const char* kHostInitStmt = "host_init_stmt";
-/*! \brief Statements to be inserted after a specific buffer's definition (DeclBuffer/AllocBuffer).
+/*! \brief Statements to be inserted after a specific buffer's definition (DeclTensor/AllocTensor).
  *  Stored as Map<BufferVar, ffi::Array<Stmt>>.
  */
 constexpr const char* kPostBufferDefStmt = "post_buffer_def_stmt";

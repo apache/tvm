@@ -21,7 +21,7 @@ Each statement node have subfields that can be visited from python side.
 .. code-block:: python
 
     x = tvm.tirx.Var("n", "int32")
-    buffer = tvm.tirx.decl_buffer((16,), "float32")
+    buffer = tvm.tirx.decl_tensor((16,), "float32")
     st = tvm.tirx.stmt.BufferStore(buffer, 1, (x,))
     assert isinstance(st, tvm.tirx.stmt.BufferStore)
     assert(st.buffer == buffer)

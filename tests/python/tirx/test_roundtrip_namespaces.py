@@ -27,7 +27,7 @@ def from_source(code):
 def test_roundtrip_tir_namespaces_minimal():
     # Exercise a selection of namespace ops and ensure round-trip consistency
     @T.prim_func
-    def func(A: T.Buffer((2, 2), "float16")) -> None:
+    def func(A: T.Tensor((2, 2), "float16")) -> None:
         T.ptx.wgmma.commit_group.sync.aligned()
         T.cuda.cluster_sync()
         T.ptx.cp.async_.wait_group(0)

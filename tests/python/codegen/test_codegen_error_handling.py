@@ -43,7 +43,7 @@ def test_wrong_argument_count_error(codegen_target):
     n0 = T.dynamic("n0")
 
     @T.prim_func
-    def func(A: T.Buffer((n0,), "float32"), B: T.Buffer((n0,), "float32")):
+    def func(A: T.Tensor((n0,), "float32"), B: T.Tensor((n0,), "float32")):
         for i in range(n0):
             B[i] = A[i] + T.float32(1)
 
@@ -71,7 +71,7 @@ def test_type_mismatch_non_tensor(codegen_target):
     n0 = T.dynamic("n0")
 
     @T.prim_func
-    def func(A: T.Buffer((n0,), "float32"), B: T.Buffer((n0,), "float32")):
+    def func(A: T.Tensor((n0,), "float32"), B: T.Tensor((n0,), "float32")):
         for i in range(n0):
             B[i] = A[i] + T.float32(1)
 
@@ -100,7 +100,7 @@ def test_shape_mismatch_shared_variable(codegen_target):
     n0 = T.dynamic("n0")
 
     @T.prim_func
-    def func(A: T.Buffer((n0,), "float32"), B: T.Buffer((n0,), "float32")):
+    def func(A: T.Tensor((n0,), "float32"), B: T.Tensor((n0,), "float32")):
         for i in range(n0):
             B[i] = A[i] + T.float32(1)
 
@@ -125,7 +125,7 @@ def test_invalid_shape_fixed(codegen_target):
     """Passing wrong shape for a fixed buffer dimension raises ValueError."""
 
     @T.prim_func
-    def func(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
+    def func(a: T.Tensor((128,), "float32"), b: T.Tensor((128,), "float32")):
         for i in range(128):
             b[i] = a[i] + T.float32(1)
 
@@ -154,7 +154,7 @@ def test_ndim_mismatch_error(codegen_target):
     """ndim mismatch produces ValueError with function signature."""
 
     @T.prim_func
-    def func(a: T.Buffer((4, 8), "float32"), b: T.Buffer((4, 8), "float32")):
+    def func(a: T.Tensor((4, 8), "float32"), b: T.Tensor((4, 8), "float32")):
         for i, j in T.grid(4, 8):
             b[i, j] = a[i, j]
 
@@ -183,7 +183,7 @@ def test_dtype_mismatch_error(codegen_target):
     """dtype mismatch produces TypeError with function signature."""
 
     @T.prim_func
-    def func(a: T.Buffer((8,), "float32"), b: T.Buffer((8,), "float32")):
+    def func(a: T.Tensor((8,), "float32"), b: T.Tensor((8,), "float32")):
         for i in range(8):
             b[i] = a[i]
 
@@ -213,7 +213,7 @@ def test_data_alignment_error(codegen_target):
     """Misaligned buffer data pointer raises ValueError."""
 
     @T.prim_func
-    def func(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
+    def func(a: T.Tensor((128,), "float32"), b: T.Tensor((128,), "float32")):
         for i in range(128):
             b[i] = a[i] + T.float32(1)
 
@@ -245,7 +245,7 @@ def test_strides_mismatch_transposed(codegen_target):
     """Transposed (non-compact) strides raise ValueError."""
 
     @T.prim_func
-    def func(a: T.Buffer((128, 128), "float32"), b: T.Buffer((128, 128), "float32")):
+    def func(a: T.Tensor((128, 128), "float32"), b: T.Tensor((128, 128), "float32")):
         for i, j in T.grid(128, 128):
             b[i, j] = a[i, j] + T.float32(1)
 
@@ -279,7 +279,7 @@ def test_device_mismatch_error():
     """Passing GPU tensor to CPU function raises ValueError."""
 
     @T.prim_func
-    def func(a: T.Buffer((128,), "float32"), b: T.Buffer((128,), "float32")):
+    def func(a: T.Tensor((128,), "float32"), b: T.Tensor((128,), "float32")):
         for i in range(128):
             b[i] = a[i] + T.float32(1)
 
@@ -392,7 +392,7 @@ def test_forward_reference_symbolic_shape(codegen_target):
     batch_size = T.dynamic("batch_size")
 
     @T.prim_func
-    def func(A: T.Buffer((batch_size + 1,), "int32"), B: T.Buffer((batch_size,), "int32")):
+    def func(A: T.Tensor((batch_size + 1,), "int32"), B: T.Tensor((batch_size,), "int32")):
         for i in range(batch_size):
             B[i] = A[i] + A[i + 1]
 
@@ -425,7 +425,7 @@ def test_invalid_arguments_mixed_params(codegen_target):
     """Mixed bool + tensor function: type, dtype, and shape errors."""
 
     @T.prim_func
-    def func(a0: T.bool, a1: T.Buffer([10], "float32")) -> T.int32:
+    def func(a0: T.bool, a1: T.Tensor([10], "float32")) -> T.int32:
         return 0
 
     lib = tvm.compile(func, target=codegen_target)
