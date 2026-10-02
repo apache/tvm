@@ -313,7 +313,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_shape_i")
       .signature(sig::arg("tensor", "The tensor to be inspected"),
-                 sig::arg("axis", "The axis whose extent should be returned"))
+                 sig::arg<IntExpr>("axis", "The axis whose extent should be returned"))
       .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeTensorShape)
       .set_attr<FLegalize>("FLegalize", LegalizeTensorShape)
       .set_attr<bool>("RequiresArgumentShapes", false)
@@ -362,7 +362,7 @@ Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.inspect.tensor_stride_i")
       .signature(sig::arg("tensor", "The tensor to be inspected"),
-                 sig::arg("axis", "The axis whose extent should be returned"))
+                 sig::arg<IntExpr>("axis", "The axis whose extent should be returned"))
       .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeTensorStride)
       .set_attr<bool>("RequiresArgumentShapes", false)
       .set_attr<FNormalize>("FNormalize", NormalizeToKnownPrimExpr)

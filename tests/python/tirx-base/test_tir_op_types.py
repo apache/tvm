@@ -29,6 +29,17 @@ def test_tir_op_tvm_struct_get():
     assert expr.op.name == "tirx.tvm_struct_get"
 
 
+def test_scalar_integer_signature():
+    ptr = tirx.Var("ptr", ty="handle")
+    for dtype in ("int8", "uint32", "int64", "uint64"):
+        index = tirx.Var("index", dtype)
+        assert tirx.tvm_struct_get(ptr, index, 2, dtype="int32").args[1].same_as(index)
+    assert tirx.tvm_struct_get(ptr, 1 << 40, 2, dtype="int32").args[1].ty.dtype == "int64"
+    for dtype in ("float32", "bool", "int32x4", "int32xvscalex4"):
+        with pytest.raises(TypeError, match=r"index.*expected `ir.IntExpr`.*dtype="):
+            tirx.tvm_struct_get(ptr, tirx.Var("index", dtype), 2, dtype="int32")
+
+
 def test_tir_op_tvm_struct_set():
     x = tirx.Var("x", ty="handle")
     expr = tirx.tvm_struct_set(x, 1, 2, 3)

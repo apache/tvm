@@ -90,6 +90,27 @@ TEST(Expr, PrimTypeBoolLanes) {
   TVM_FFI_ICHECK(boolx4.MatchesElementType(DLDataTypeCode::kDLBool, 8));
 }
 
+TEST(Expr, IntegerView) {
+  using namespace tvm;
+  for (PrimType ty : {PrimType::Int(8), PrimType::UInt(64), PrimType::Int(128)}) {
+    ffi::Any value = Var("i", ty);
+    EXPECT_TRUE(value.cast<IntExpr>().same_as(value.cast<PrimExpr>()));
+    EXPECT_TRUE(value.cast<TypedExpr<PrimType>>().ty() == ty);
+  }
+  for (PrimType ty : {PrimType::Float(32), PrimType::Bool(), PrimType::Int(32, 4),
+                      PrimType::ScalableVector(kDLInt, 32, 4)}) {
+    ffi::Any value = Var("x", ty);
+    EXPECT_FALSE(value.try_cast<IntExpr>());
+    EXPECT_TRUE(value.try_cast<PrimExpr>());
+  }
+  ffi::Any nonprimitive = Var("x", AnyType());
+  EXPECT_FALSE(nonprimitive.try_cast<IntExpr>());
+  EXPECT_FALSE(nonprimitive.try_cast<PrimExpr>());
+  EXPECT_FALSE(nonprimitive.try_cast<TypedExpr<PrimType>>());
+  EXPECT_EQ(ffi::Any(1).cast<IntExpr>().ty().bits(), 32);
+  EXPECT_EQ(ffi::Any(int64_t{1} << 40).cast<IntExpr>().ty().bits(), 64);
+}
+
 TEST(ExprNodeRef, Basic) {
   using namespace tvm;
   using namespace tvm::tirx;
