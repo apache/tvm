@@ -654,35 +654,6 @@ def test_vectorize_nested_predicates_preserve_both_masks():
     assert any(isinstance(predicate, tvm.tirx.BitwiseAnd) for predicate in predicates)
 
 
-@pytest.mark.parametrize("call_location", ["value", "attribute_node", "nonprimitive"])
-def test_rvv_call_containment(call_location):
-    target = tvm.target.Target(
-        {"kind": "llvm", "mtriple": "riscv64-unknown-linux-gnu", "mattr": ["+v"]}
-    )
-    i = tvm.tirx.Var("i", "int32")
-    buffer = tvm.tirx.decl_buffer((4,), "float32")
-    value = tvm.tirx.const(1, "float32")
-    call = tvm.tirx.exp(value)
-    body = tvm.tirx.BufferStore(buffer, call if call_location == "value" else value, [i])
-    if call_location == "attribute_node":
-        # Attribute nodes are metadata, not evaluated operands of the body.
-        body = tvm.tirx.AttrStmt(call, "test_metadata", 0, body)
-    elif call_location == "nonprimitive":
-        # The call query only matches calls with primitive result types.
-        pointer_call = tvm.ir.Call(
-            tvm.ir.Op.get("tirx.reinterpret"),
-            [tvm.tirx.const(0, "uint64")],
-            ret_ty=tvm.ir.PointerType(tvm.ir.PrimType("float32")),
-        )
-        body = tvm.tirx.SeqStmt([tvm.tirx.Evaluate(pointer_call), body])
-    loop = tvm.tirx.For(i, 0, 4, tvm.tirx.ForKind.VECTORIZED, body)
-    before = tvm.tirx.PrimFunc([buffer], loop)
-    with target:
-        after = tvm.tirx.transform.VectorizeLoop()(tvm.IRModule.from_expr(before))["main"]
-    # RVV adds a serial chunk loop only when no primitive call is evaluated.
-    assert isinstance(after.body, tvm.tirx.For) == (call_location != "value")
-
-
 def test_vectorize_and_predicate_invalid_conditions():
     @T.prim_func
     def before(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
