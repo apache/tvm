@@ -23,7 +23,7 @@ tvm.script.ir_builder
 .. automodule:: tvm.script.ir_builder
    :members:
    :imported-members:
-   :exclude-members: DataTypeImm, FuncType, GenericConst, PrimType, Range, StringImm, StringType, Type
+   :exclude-members: Call, DataTypeImm, FuncType, GenericConst, PrimType, Range, StringImm, StringType, Type
 
 tvm.relax.script.ir_builder.distributed
 ***************************************
