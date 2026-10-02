@@ -182,7 +182,7 @@ void RegisterWebGPUIntrinRules() {
   // Register low-level WebGPU device intrinsics.
   OpDef("tirx.webgpu.subgroup_shuffle")
       .signature(sig::arg("var", "The variable to sync."),
-          sig::arg("lane", "The source thread id."))
+          sig::arg<IntExpr>("lane", "The source thread id."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
@@ -193,7 +193,7 @@ void RegisterWebGPUIntrinRules() {
 
   OpDef("tirx.webgpu.subgroup_shuffle_up")
       .signature(sig::arg("var", "The variable to sync."),
-          sig::arg("delta", "The source lane id offset to be added."))
+          sig::arg<IntExpr>("delta", "The source lane id offset to be added."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
@@ -204,7 +204,7 @@ void RegisterWebGPUIntrinRules() {
 
   OpDef("tirx.webgpu.subgroup_shuffle_down")
       .signature(sig::arg("var", "The variable to sync."),
-          sig::arg("delta", "The source lane id offset to be subtracted."))
+          sig::arg<IntExpr>("delta", "The source lane id offset to be subtracted."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("webgpu"))
