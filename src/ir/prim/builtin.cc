@@ -52,6 +52,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.vscale")
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("prim.ceil")

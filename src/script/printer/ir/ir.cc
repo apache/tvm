@@ -16,196 +16,179 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/type.h>
+#include <tvm/ir/module.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/relax/expr.h>
+#include <tvm/relax/type.h>
+#include <tvm/script/printer/printer.h>
+#include <tvm/tirx/function.h>
 
-#include "./utils.h"
+#include <algorithm>
+#include <optional>
+#include <utility>
+#include <vector>
+
+#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-TVM_FFI_STATIC_INIT_BLOCK() { IRFrameNode::RegisterReflection(); }
+namespace {
 
-struct SortableFunction {
-  int priority;
-  GlobalVar gv;
-  BaseFunc func;
-
-  explicit SortableFunction(const std::pair<GlobalVar, BaseFunc>& obj)
-      : priority(0), gv(obj.first), func(obj.second) {
-    if (gv->name_hint == "main") {
-      priority = 1000;
-    } else if (func.defined()) {
-      if (func->GetTypeKey() == "tirx.PrimFunc") {
-        priority = 1;
-      } else if (func->GetTypeKey() == "relax.expr.ExternFunc") {
-        priority = 2;
-      } else if (func->GetTypeKey() == "relax.expr.Function") {
-        priority = 3;
-      } else {
-        TVM_FFI_THROW(TypeError) << "TVMScript cannot print functions of type: "
-                                 << func->GetTypeKey();
+ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
+  const auto* mod =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IRModuleNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  ffi::String module_name = d->GetExtraConfig<ffi::String>("ir.module_name", "Module");
+  IdDoc module_id = d->AllocId(module_name);
+  d->SetExtraState("ir.module_id", module_id);
+  d->SetExtraState("ir.module", ffi::GetRef<IRModule>(mod));
+  std::vector<std::pair<GlobalVar, BaseFunc>> functions(mod->functions.begin(),
+                                                        mod->functions.end());
+  auto rank = [](const BaseFunc& func) {
+    if (func.as<relax::ExternFuncNode>()) return 0;
+    if (func.as<tirx::PrimFuncNode>()) return 1;
+    return 2;
+  };
+  std::sort(functions.begin(), functions.end(), [&](const auto& a, const auto& b) {
+    int left = rank(a.second);
+    int right = rank(b.second);
+    return left == right ? a.first->name_hint < b.first->name_hint : left < right;
+  });
+  auto body = d->WithDocScope([&]() {
+    if (!mod->attrs->dict.empty()) {
+      ffi::Array<ExprDoc> keys;
+      ffi::Array<ExprDoc> values;
+      std::vector<std::pair<ffi::String, ffi::Any>> attrs(mod->attrs->dict.begin(),
+                                                          mod->attrs->dict.end());
+      std::sort(attrs.begin(), attrs.end(),
+                [](const auto& a, const auto& b) { return a.first < b.first; });
+      for (const auto& [key, value] : attrs) {
+        keys.push_back(LiteralDoc::Str(key, std::nullopt));
+        values.push_back(AnyValue(d, value));
       }
-    } else {
-      // PrimFuncPass may leave undefined GlobalVar slots when transforming
-      // this function (see tirx/ir/transform.cc); this transient state may
-      // be encountered during the internal call Dump(mod) executed in
-      // PrimFuncPass during debugging.
-      priority = 999;
-      LOG(INFO) << "Function " << gv->name_hint << " is undefined";
+      d->Emit(ExprStmtDoc(NamespaceDoc("ir")->Attr("module_attrs")->Call({DictDoc(keys, values)})),
+              ffi::GetRef<ffi::ObjectRef>(mod));
     }
-  }
-
-  bool operator<(const SortableFunction& other) const {
-    if (this->priority != other.priority) {
-      return this->priority < other.priority;
-    }
-    return this->gv->name_hint < other.gv->name_hint;
-  }
-};
-
-ffi::Optional<ffi::String> GetDynamicDeclarationName(const StmtDoc& stmt) {
-  const auto* assign = stmt.as<AssignDocNode>();
-  if (assign == nullptr || !assign->rhs.has_value()) {
-    return std::nullopt;
-  }
-  const auto* lhs = assign->lhs.as<IdDocNode>();
-  const auto* call = assign->rhs.value().as<CallDocNode>();
-  if (lhs == nullptr || call == nullptr) {
-    return std::nullopt;
-  }
-  const auto* callee = call->callee.as<AttrAccessDocNode>();
-  if (callee == nullptr || callee->name != "dynamic") {
-    return std::nullopt;
-  }
-  return lhs->name;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<IRModule>(
-      "", [](IRModule mod, AccessPath p, IRDocsifier d) -> Doc {
-        std::vector<SortableFunction> functions;
-        ffi::Array<StmtDoc> dynamic_decls;
-        std::unordered_set<ffi::String> declared_dynamic_names;
-        for (const auto& kv : mod->functions) {
-          functions.push_back(SortableFunction(kv));
-        }
-        std::sort(functions.begin(), functions.end());
-        With<IRFrame> f(d);
-        (*f)->AddDispatchToken(d, "ir");
-        IdDoc module_doc = d->Define(mod, f(), GetBindingName(d).value_or("Module"));
-        (*f)->global_infos = &mod->global_infos;
-        if (!mod->attrs->dict.empty()) {
-          (*f)->stmts.push_back(
-              ExprStmtDoc(IR(d, "module_attrs")  //
-                              ->Call({d->AsDoc<ExprDoc>(mod->attrs, p->Attr("attrs"))})));
-        }
-        if (mod->global_infos.defined() && !mod->global_infos.empty()) {
-          (*f)->stmts.push_back(ExprStmtDoc(
-              IR(d, "module_global_infos")  //
-                  ->Call({d->AsDoc<ExprDoc>(mod->global_infos, p->Attr("global_infos"))})));
-        }
-        // Declare GlobalVars first
-        IdDoc module_alias =
-            d->cfg->module_alias.empty() ? module_doc : IdDoc(d->cfg->module_alias);
-        for (const auto& entry : functions) {
-          const GlobalVar& gv = entry.gv;
-          d->Define(gv, f(), [=]() {
-            return d->AsDoc<ExprDoc>(mod, p->Attr("global_vars"))->Attr(gv->name_hint);
-          });
-        }
-        // Print functions
-        for (const auto& entry : functions) {
-          const GlobalVar& gv = entry.gv;
-          const BaseFunc& base_func = entry.func;
-          d->cfg->binding_names.push_back(gv->name_hint);
-          Doc doc = d->AsDoc(base_func, p->Attr("functions")->MapItem(gv));
-          d->cfg->binding_names.pop_back();
-          if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
-            for (const StmtDoc& stmt : stmt_block->stmts) {
-              if (ffi::Optional<ffi::String> name = GetDynamicDeclarationName(stmt)) {
-                if (!declared_dynamic_names.count(name.value())) {
-                  declared_dynamic_names.insert(name.value());
-                  dynamic_decls.push_back(stmt);
-                }
+    if (!mod->global_infos.empty()) {
+      ffi::Array<ExprDoc> keys;
+      ffi::Array<ExprDoc> values;
+      std::vector<std::pair<ffi::String, ffi::Array<GlobalInfo>>> infos(mod->global_infos.begin(),
+                                                                        mod->global_infos.end());
+      std::sort(infos.begin(), infos.end(),
+                [](const auto& a, const auto& b) { return a.first < b.first; });
+      for (const auto& [key, entries] : infos) {
+        ffi::Array<ExprDoc> items;
+        for (const GlobalInfo& entry : entries) {
+          ExprDoc item = AnyValue(d, entry);
+          if (key == "mesh") {
+            if (auto mesh = item.as<CallDoc>(); mesh && mesh.value()->args.size() == 2) {
+              if (auto range = mesh.value()->args[1].as<CallDoc>()) {
+                range.value()->callee = NamespaceDoc("ir")->Attr("Range");
               }
             }
-            (*f)->stmts.push_back(stmt_block->stmts.back());
-            (*f)->stmts.back()->source_paths = std::move(doc->source_paths);
-          } else if (auto stmt = doc.as<StmtDoc>()) {
-            (*f)->stmts.push_back(stmt.value());
-          } else if (auto func = doc.as<FunctionDoc>()) {
-            (*f)->stmts.push_back(func.value());
-          } else if (auto expr = doc.as<ExprDoc>()) {
-            ExprDoc lhs = IdDoc(gv->name_hint);
-            AssignDoc assignment(lhs, expr.value(), std::nullopt);
-            (*f)->stmts.push_back(assignment);
-          } else {
-            TVM_FFI_THROW(TypeError)
-                << "Expected IRModule to only contain functions, "
-                << " but mod[" << gv->name_hint << "] with type  " << base_func->GetTypeKey()
-                << " produced Doc type of " << doc->GetTypeKey();
           }
+          items.push_back(item);
         }
-        ClassDoc class_doc(module_doc, {IR(d, "ir_module")}, (*f)->stmts);
-        if (dynamic_decls.empty()) {
-          return HeaderWrapper(d, class_doc);
-        }
-        dynamic_decls.push_back(class_doc);
-        return HeaderWrapper(d, StmtBlockDoc(dynamic_decls));
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<DictAttrs>(
-      "", [](DictAttrs attrs, AccessPath p, IRDocsifier d) -> Doc {
-        return d->AsDoc(attrs->dict, p->Attr("dict"));
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<GlobalVar>(
-      "", [](GlobalVar gv, AccessPath p, IRDocsifier d) -> Doc {
-        return IR(d, "GlobalVar")->Call({LiteralDoc::Str(gv->name_hint, p->Attr("name_hint"))});
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<Op>("", [](Op op, AccessPath p, IRDocsifier d) -> Doc {
-    return IR(d, "Op")->Call({LiteralDoc::Str(op->name, p->Attr("name"))});
+        keys.push_back(LiteralDoc::Str(key, std::nullopt));
+        values.push_back(ListDoc(items));
+      }
+      d->Emit(ExprStmtDoc(
+                  NamespaceDoc("ir")->Attr("module_global_infos")->Call({DictDoc(keys, values)})),
+              ffi::GetRef<ffi::ObjectRef>(mod));
+    }
+    for (const auto& [gv, func] : functions) {
+      if (func.as<relax::ExternFuncNode>()) {
+        d->Emit(AssignDoc(IdDoc(gv->name_hint), d->Translate(func).value(), std::nullopt),
+                ffi::GetRef<ffi::ObjectRef>(func.get()));
+        continue;
+      }
+      TVM_FFI_CHECK(func.as<tirx::PrimFuncNode>() || func.as<relax::FunctionNode>(), TypeError)
+          << "printer IRModule needs a registered TIRx, Relax, or extern function hook";
+      d->Translate(func);
+      FunctionDoc doc = d->CurrentScopeDocs().back().as_or_throw<FunctionDoc>();
+      doc->name = IdDoc(gv->name_hint);
+      if (auto symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
+          symbol && symbol.value() != gv->name_hint) {
+        ExprDoc attr = func.as<tirx::PrimFuncNode>() ? NamespaceDoc("tirx")->Attr("func_attr")
+                                                     : NamespaceDoc("relax")->Attr("func_attr");
+        doc->body.insert(doc->body.begin(),
+                         ExprStmtDoc(attr->Call(
+                             {DictDoc({LiteralDoc::Str(tvm::attr::kGlobalSymbol, std::nullopt)},
+                                      {LiteralDoc::Str(symbol.value(), std::nullopt)})})));
+      }
+    }
   });
+  d->SetExtraState("ir.module", std::nullopt);
+  d->SetExtraState("ir.module_id", std::nullopt);
+  d->Emit(ClassDoc(module_id, {NamespaceDoc("ir")->Attr("ir_module")}, ToStmtDocArray(body)),
+          ffi::GetRef<ffi::ObjectRef>(mod));
+  return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<FuncType>(
-      "", [](FuncType func_type, AccessPath p, IRDocsifier d) -> Doc {
-        return IR(d, "FuncType")
-            ->Call({
-                d->AsDoc<ExprDoc>(func_type->arg_types, p->Attr("arg_types")),
-                d->AsDoc<ExprDoc>(func_type->ret_type, p->Attr("ret_type")),
-            });
-      });
+  RegisterNamespaceAlias("ir.prefix", "I");
+  ffi::reflection::TypeAttrDef<IRModuleNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&IRModuleDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> DictAttrsDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object*) {
+  const auto* attrs =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DictAttrsNode>(input);
+  return AnyValue(d, attrs->dict);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<Range>(
-      "ir", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
-        return IR(d, "Range")
-            ->Call({
-                d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
-                d->AsDoc<ExprDoc>(range->extent + range->min, p->Attr("extent")),
-            });
-      });
+  ffi::reflection::TypeAttrDef<DictAttrsNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&DictAttrsDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> GlobalVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object*) {
+  const auto* var =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const GlobalVarNode>(input);
+  return GlobalReference(d, var->name_hint);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<GlobalVarNode>(ReprPrintIR);
-  TVMScriptPrinter::Register<DictAttrsNode>(ReprPrintIR);
-  TVMScriptPrinter::Register<FuncTypeNode>(ReprPrintIR);
-  TVMScriptPrinter::Register<RangeNode>(ReprPrintIR);
-  TVMScriptPrinter::Register<IRModuleNode>(ReprPrintIR);
+  ffi::reflection::TypeAttrDef<GlobalVarNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&GlobalVarDocTranslate>());
 }
 
+ffi::Optional<ExprDoc> FuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object*) {
+  const auto* ty =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FuncTypeNode>(input);
+  return TypeValue(d, ffi::GetRef<FuncType>(ty), false);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<FuncTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&FuncTypeDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> RangeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                         const ffi::Object*) {
+  const auto* range =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RangeNode>(input);
+  ExprDoc min = d->Translate(range->min).value();
+  ExprDoc end = d->Translate(range->min + range->extent).value();
+  return NamespaceDoc("ir")->Attr("Range")->Call({min, end});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<RangeNode>().attr(kDocTranslate,
+                                                 FDocTranslate::FromNative<&RangeDocTranslate>());
+}
+
+}  // namespace
+
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

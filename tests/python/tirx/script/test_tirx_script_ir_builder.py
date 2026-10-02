@@ -194,7 +194,7 @@ def test_ir_builder_tir_if_then_else():
 
 
 def test_ir_builder_tir_buffer_store():
-    buffer_a = T.Buffer((10, 10), "float32")
+    buffer_a = T.buffer((10, 10), "float32")
     i = T.int32()
     with IRBuilder() as ib:
         T.buffer_store(buffer_a, 0.1, [0, i])
@@ -210,7 +210,7 @@ def test_ir_builder_tir_buffer_store():
 
 
 def test_ir_builder_tir_buffer_store_scalable_vec():
-    buffer_a = T.Buffer((30,), "float32")
+    buffer_a = T.buffer((30,), "float32")
     value = T.broadcast(0.11, 4 * tvm.tirx.vscale())
     index = T.ramp(0, 1, 4 * tvm.tirx.vscale())
 

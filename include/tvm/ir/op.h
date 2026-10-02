@@ -43,6 +43,12 @@ namespace tvm {
 template <typename>
 class OpAttrMap;
 
+/*!
+ * \brief An operator's result type independent of operands, attributes, and type arguments.
+ * When present, this concrete type takes precedence over FInferType.
+ */
+using TFixedReturnType = Type;
+
 /*! \brief Infer a Call's result type from its explicit inputs without builder state. */
 using FInferType = ffi::reflection::NativeFunctionView<Type(const CallNode* call)>;
 

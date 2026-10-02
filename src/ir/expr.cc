@@ -1208,6 +1208,10 @@ Type Call::ReinferType(const CallNode* call) {
   TVM_FFI_CHECK(call != nullptr, ValueError) << "Call::ReinferType expects a defined Call";
   auto op = call->op.as<Op>();
   TVM_FFI_CHECK(op.has_value(), ValueError) << "Call::ReinferType requires an Op callee";
+  if (Op::HasAttrMap("TFixedReturnType")) {
+    static auto fixed_return_type = Op::GetAttrMap<TFixedReturnType>("TFixedReturnType");
+    if (fixed_return_type.count(op.value())) return fixed_return_type[op.value()];
+  }
   TVM_FFI_CHECK(Op::HasAttrMap("FInferType"), ValueError)
       << "No context-free FInferType hook is registered for " << op.value();
   static auto infer_type = Op::GetAttrMap<FInferType>("FInferType");
@@ -1247,8 +1251,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
     ss << ref;
     return ss.str();
   });
-  // Note: kRepr for GlobalVarNode is registered in script/printer/ir/ir.cc
-  // via TVMScriptPrinter::Register<GlobalVarNode>(ReprPrintIR).
+  // Note: kRepr for GlobalVarNode is registered in script/printer/script_printer.cc.
 }
 
 }  // namespace tvm

@@ -17,185 +17,331 @@
  * under the License.
  */
 #include <tvm/ir/prim/op.h>
+#include <tvm/ir/prim/vector_expr.h>
 
-#include "./utils.h"
+#include <cstring>
+#include <optional>
+
+#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::BitwiseNot>(
-      "", [](prim::BitwiseNot node, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
-        if (a->IsInstance<LiteralDocNode>()) {
-          return TIR(d, "BitwiseNot")->Call({a});
-        }
-        return OperationDoc(OperationDocNode::Kind::kInvert, {a});
-      });
+namespace {
+
+template <typename T, OperationDocNode::Kind kind, PrimExpr (*operation)(PrimExpr, PrimExpr, Span)>
+ffi::Optional<ExprDoc> BinaryOpDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object*) {
+  const auto* node = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const T>(input);
+  ExprDoc a = d->Translate(node->a).value();
+  ExprDoc b = d->Translate(node->b).value();
+  // Replay operator overloads before choosing sugar. Even one constant can
+  // simplify an explicit node, while two plain Python literals fold earlier.
+  if (!(a.as<LiteralDocNode>() && b.as<LiteralDocNode>())) {
+    try {
+      PrimExpr replay = operation(node->a, node->b, Span());
+      if (const auto* result = replay.template as<T>();
+          result && result->a.same_as(node->a) && result->b.same_as(node->b)) {
+        return OperationDoc(kind, {a, b});
+      }
+    } catch (const ffi::Error&) {
+      // A constructor can preserve operands rejected by a simplifying helper.
+    }
+  }
+  return NamespaceDoc("tirx")->Attr(std::strrchr(T::_type_key, '.') + 1)->Call({a, b});
+}
+
+template <typename T, OperationDocNode::Kind kind, PrimExpr (*operation)(PrimExpr, Span)>
+ExprDoc UnaryOpDocTranslate(DocTranslatorObj* d, const T* node) {
+  ExprDoc value = d->Translate(node->a).value();
+  if (!value.as<LiteralDocNode>()) {
+    try {
+      PrimExpr replay = operation(node->a, Span());
+      if (const auto* result = replay.template as<T>(); result && result->a.same_as(node->a)) {
+        return OperationDoc(kind, {value});
+      }
+    } catch (const ffi::Error&) {
+      // Preserve the explicit node even when the overloaded spelling rejects it.
+    }
+  }
+  return NamespaceDoc("tirx")->Attr(std::strrchr(T::_type_key, '.') + 1)->Call({value});
+}
+
+template <typename T, PrimExpr (*operation)(PrimExpr, PrimExpr, Span)>
+ExprDoc BinaryHelperDocTranslate(DocTranslatorObj* d, const T* node, const char* helper) {
+  ExprDoc a = d->Translate(node->a).value();
+  ExprDoc b = d->Translate(node->b).value();
+  try {
+    PrimExpr replay = operation(node->a, node->b, Span());
+    if (const auto* result = replay.template as<T>();
+        result && result->a.same_as(node->a) && result->b.same_as(node->b)) {
+      return NamespaceDoc("tirx")->Attr(helper)->Call({a, b});
+    }
+  } catch (const ffi::Error&) {
+    // Keep the explicit constructor when the helper cannot preserve its inputs.
+  }
+  return NamespaceDoc("tirx")->Attr(std::strrchr(T::_type_key, '.') + 1)->Call({a, b});
+}
+
+ffi::Optional<ExprDoc> BitwiseNotDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::BitwiseNotNode>(input);
+  return UnaryOpDocTranslate<prim::BitwiseNotNode, OperationDocNode::Kind::kInvert,
+                             tvm::bitwise_neg>(d, node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::Not>(
-      "", [](prim::Not node, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
-        if (a->IsInstance<LiteralDocNode>()) {
-          return TIR(d, "Not")->Call({a});
-        }
-        return OperationDoc(OperationDocNode::Kind::kNot, {a});
-      });
+  ffi::reflection::TypeAttrDef<prim::BitwiseNotNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BitwiseNotDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> NotDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::NotNode>(input);
+  return UnaryOpDocTranslate<prim::NotNode, OperationDocNode::Kind::kNot, tvm::logical_not>(d,
+                                                                                            node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<StringImm>(
-      "", [](StringImm s, AccessPath p, IRDocsifier d) -> Doc {
-        if (HasMultipleLines(s->value)) {
-          return d->AddMetadata(s);
-        } else {
-          return d->AsDoc<ExprDoc>(s->value, p->Attr("value"));
-        }
-      });
+  ffi::reflection::TypeAttrDef<prim::NotNode>().attr(kDocTranslate,
+                                                     FDocTranslate::FromNative<&NotDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> StringImmDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+                                             const ffi::Object*) {
+  const auto* imm =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const StringImmNode>(input);
+  return LiteralDoc::Str(imm->value, std::nullopt);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::Cast>(
-      "", [](prim::Cast cast, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc dtype = LiteralDoc::DataType(cast.ty()->dtype, p->Attr("dtype"));
-        ExprDoc value = d->AsDoc<ExprDoc>(cast->value, p->Attr("value"));
-        return TIR(d, "Cast")->Call({dtype, value});
-      });
+  ffi::reflection::TypeAttrDef<StringImmNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&StringImmDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> CastDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                        const ffi::Object*) {
+  const auto* cast =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::CastNode>(input);
+  return NamespaceDoc("tirx")->Attr("Cast")->Call(
+      {LiteralDoc::DataType(cast->ty.as_or_throw<PrimType>()->dtype, std::nullopt),
+       d->Translate(cast->value).value()});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::Select>(
-      "", [](prim::Select select, AccessPath p, IRDocsifier d) -> Doc {
-        return TIR(d, "Select")
-            ->Call({
-                d->AsDoc<ExprDoc>(select->condition, p->Attr("condition")),
-                d->AsDoc<ExprDoc>(select->true_value, p->Attr("true_value")),
-                d->AsDoc<ExprDoc>(select->false_value, p->Attr("false_value")),
-            });
-      });
+  ffi::reflection::TypeAttrDef<prim::CastNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&CastDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> SelectDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                          const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::SelectNode>(input);
+  return NamespaceDoc("tirx")->Attr("Select")->Call({d->Translate(node->condition).value(),
+                                                     d->Translate(node->true_value).value(),
+                                                     d->Translate(node->false_value).value()});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::Ramp>(
-      "", [](prim::Ramp ramp, AccessPath ramp_p, IRDocsifier d) -> Doc {
-        return TIR(d, "Ramp")->Call({
-            d->AsDoc<ExprDoc>(ramp->base, ramp_p->Attr("base")),
-            d->AsDoc<ExprDoc>(ramp->stride, ramp_p->Attr("stride")),
-            d->AsDoc<ExprDoc>(ramp->lanes, ramp_p->Attr("lanes")),
-        });
-      });
+  ffi::reflection::TypeAttrDef<prim::SelectNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&SelectDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> RampDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                        const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::RampNode>(input);
+  return NamespaceDoc("tirx")->Attr("Ramp")->Call({d->Translate(node->base).value(),
+                                                   d->Translate(node->stride).value(),
+                                                   d->Translate(node->lanes).value()});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::Broadcast>(
-      "", [](prim::Broadcast bc, AccessPath bc_p, IRDocsifier d) -> Doc {
-        return TIR(d, "Broadcast")
-            ->Call({
-                d->AsDoc<ExprDoc>(bc->value, bc_p->Attr("value")),
-                d->AsDoc<ExprDoc>(bc->lanes, bc_p->Attr("lanes")),
-            });
-      });
+  ffi::reflection::TypeAttrDef<prim::RampNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&RampDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> BroadcastDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                             const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::BroadcastNode>(input);
+  return NamespaceDoc("tirx")
+      ->Attr("Broadcast")
+      ->Call({d->Translate(node->value).value(), d->Translate(node->lanes).value()});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::Shuffle>(  //
-      "", [](prim::Shuffle shuffle, AccessPath p, IRDocsifier d) -> Doc {
-        return TIR(d, "Shuffle")
-            ->Call({
-                d->AsDoc<ExprDoc>(shuffle->vectors, p->Attr("vectors")),
-                d->AsDoc<ExprDoc>(shuffle->indices, p->Attr("indices")),
-            });
-      });
+  ffi::reflection::TypeAttrDef<prim::BroadcastNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BroadcastDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> ShuffleDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::ShuffleNode>(input);
+  ExprDoc vectors = AnyValue(d, node->vectors);
+  ExprDoc indices = AnyValue(d, node->indices);
+  d->RecordOrigin(vectors, node->vectors);
+  d->RecordOrigin(indices, node->indices);
+  return NamespaceDoc("tirx")->Attr("Shuffle")->Call({vectors, indices});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::Let>(
-      "", [](prim::Let let, AccessPath p, IRDocsifier d) -> Doc {
-        DictDoc where({d->AsDoc<ExprDoc>(let->var, p->Attr("var"))},
-                      {d->AsDoc<ExprDoc>(let->value, p->Attr("value"))});
-        return TIR(d, "Let")->Call({d->AsDoc<ExprDoc>(let->body, p->Attr("body"))},  //
-                                   {"where"}, {where});
-      });
+  ffi::reflection::TypeAttrDef<prim::ShuffleNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&ShuffleDocTranslate>());
 }
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY(NodeType, OpString)               \
-  IRDocsifier::vtable().set_dispatch<prim::NodeType>(                   \
-      "", [](prim::NodeType node, AccessPath p, IRDocsifier d) -> Doc { \
-        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));           \
-        ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));           \
-        return TIR(d, OpString)->Call({a, b});                          \
-      });
+ffi::Optional<ExprDoc> LetDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::LetNode>(input);
+  ExprDoc value = d->Translate(node->value).value();
+  IdDoc var = VarDoc(d, node->var);
+  if (auto type = node->var->ty.as<PrimType>()) {
+    ExprDoc declaration = NamespaceDoc("ir")->Attr("dynamic")->Call(
+        {LiteralDoc::Str(node->var->name, std::nullopt)}, {"dtype"},
+        {LiteralDoc::DataType(type.value()->dtype, std::nullopt)});
+    d->Emit(AssignDoc(var, declaration, std::nullopt), node->var);
+  }
+  ExprDoc body = d->Translate(node->body).value();
+  return NamespaceDoc("tirx")->Attr("Let")->Call({body}, {"where"}, {DictDoc({var}, {value})});
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<prim::Div>(
-      "", [](prim::Div node, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));
-        ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));
-        PrimExpr ret = tvm::div(node->a, node->b);
-        if (!ret->IsInstance<prim::DivNode>()) {
-          return TIR(d, "Div")->Call({a, b});
-        }
-        PrimType a_ty = node->a.ty();
-        PrimType b_ty = node->b.ty();
-        if (a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
-            b_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
-          return TIR(d, "Div")->Call({a, b});
-        }
-        return OperationDoc(OperationDocNode::Kind::kDiv, {a, b});
-      });
+  ffi::reflection::TypeAttrDef<prim::LetNode>().attr(kDocTranslate,
+                                                     FDocTranslate::FromNative<&LetDocTranslate>());
 }
 
-#define TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NodeType, NodeObj, NodeFunc, OpString, OpKind) \
-  IRDocsifier::vtable().set_dispatch<prim::NodeType>(                                           \
-      "", [](prim::NodeType node, AccessPath p, IRDocsifier d) -> Doc {                         \
-        ExprDoc a = d->AsDoc<ExprDoc>(node->a, p->Attr("a"));                                   \
-        ExprDoc b = d->AsDoc<ExprDoc>(node->b, p->Attr("b"));                                   \
-        PrimExpr ret = tvm::NodeFunc(node->a, node->b);                                         \
-        if (const auto* ret_node = ret.as<tvm::NodeObj>()) {                                    \
-          if (ret_node->a.same_as(node->a) && ret_node->b.same_as(node->b)) {                   \
-            return OperationDoc(OperationDocNode::Kind::OpKind, {a, b});                        \
-          }                                                                                     \
-        }                                                                                       \
-        return TIR(d, OpString)->Call({a, b});                                                  \
-      });
+ffi::Optional<ExprDoc> DivDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object* destination) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::DivNode>(input);
+  PrimType a_type = node->a.ty();
+  PrimType b_type = node->b.ty();
+  if (a_type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) &&
+      b_type.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
+    return NamespaceDoc("tirx")->Attr("Div")->Call(
+        {d->Translate(node->a).value(), d->Translate(node->b).value()});
+  }
+  return BinaryOpDocTranslate<prim::DivNode, OperationDocNode::Kind::kDiv, tvm::div>(d, input,
+                                                                                     destination);
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Add, prim::AddNode, add, "Add", kAdd);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Sub, prim::SubNode, sub, "Sub", kSub);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Mul, prim::MulNode, mul, "Mul", kMult);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorDiv, prim::FloorDivNode, floordiv, "FloorDiv",
-                                           kFloorDiv);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(FloorMod, prim::FloorModNode, floormod, "FloorMod",
-                                           kMod);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LShift, prim::LShiftNode, left_shift, "LShift", kLShift);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(RShift, prim::RShiftNode, right_shift, "RShift",
-                                           kRShift);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseAnd, prim::BitwiseAndNode, bitwise_and,
-                                           "BitwiseAnd", kBitAnd);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseOr, prim::BitwiseOrNode, bitwise_or, "BitwiseOr",
-                                           kBitOr);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(BitwiseXor, prim::BitwiseXorNode, bitwise_xor,
-                                           "BitwiseXor", kBitXor);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LT, prim::LTNode, less, "LT", kLt);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(LE, prim::LENode, less_equal, "LE", kLtE);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(EQ, prim::EQNode, equal, "EQ", kEq);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(NE, prim::NENode, not_equal, "NE", kNotEq);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GT, prim::GTNode, greater, "GT", kGt);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(GE, prim::GENode, greater_equal, "GE", kGtE);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(And, prim::AndNode, logical_and, "And", kAnd);
-  TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR(Or, prim::OrNode, logical_or, "Or", kOr);
-
-  TVM_SCRIPT_PRINTER_DEF_BINARY(Mod, "truncmod");
-  TVM_SCRIPT_PRINTER_DEF_BINARY(Min, "min");
-  TVM_SCRIPT_PRINTER_DEF_BINARY(Max, "max");
+  ffi::reflection::TypeAttrDef<prim::DivNode>().attr(kDocTranslate,
+                                                     FDocTranslate::FromNative<&DivDocTranslate>());
+  ffi::reflection::TypeAttrDef<prim::AddNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::AddNode, OperationDocNode::Kind::kAdd, tvm::add>>());
+  ffi::reflection::TypeAttrDef<prim::SubNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::SubNode, OperationDocNode::Kind::kSub, tvm::sub>>());
+  ffi::reflection::TypeAttrDef<prim::MulNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::MulNode, OperationDocNode::Kind::kMult, tvm::mul>>());
+  ffi::reflection::TypeAttrDef<prim::FloorDivNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BinaryOpDocTranslate<
+                         prim::FloorDivNode, OperationDocNode::Kind::kFloorDiv, tvm::floordiv>>());
+  ffi::reflection::TypeAttrDef<prim::FloorModNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BinaryOpDocTranslate<
+                         prim::FloorModNode, OperationDocNode::Kind::kMod, tvm::floormod>>());
+  ffi::reflection::TypeAttrDef<prim::LShiftNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BinaryOpDocTranslate<
+                         prim::LShiftNode, OperationDocNode::Kind::kLShift, tvm::left_shift>>());
+  ffi::reflection::TypeAttrDef<prim::RShiftNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BinaryOpDocTranslate<
+                         prim::RShiftNode, OperationDocNode::Kind::kRShift, tvm::right_shift>>());
+  ffi::reflection::TypeAttrDef<prim::BitwiseAndNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<&BinaryOpDocTranslate<
+          prim::BitwiseAndNode, OperationDocNode::Kind::kBitAnd, tvm::bitwise_and>>());
+  ffi::reflection::TypeAttrDef<prim::BitwiseOrNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BinaryOpDocTranslate<
+                         prim::BitwiseOrNode, OperationDocNode::Kind::kBitOr, tvm::bitwise_or>>());
+  ffi::reflection::TypeAttrDef<prim::BitwiseXorNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<&BinaryOpDocTranslate<
+          prim::BitwiseXorNode, OperationDocNode::Kind::kBitXor, tvm::bitwise_xor>>());
+  ffi::reflection::TypeAttrDef<prim::LTNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::LTNode, OperationDocNode::Kind::kLt, tvm::less>>());
+  ffi::reflection::TypeAttrDef<prim::LENode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::LENode, OperationDocNode::Kind::kLtE, tvm::less_equal>>());
+  ffi::reflection::TypeAttrDef<prim::EQNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::EQNode, OperationDocNode::Kind::kEq, tvm::equal>>());
+  ffi::reflection::TypeAttrDef<prim::NENode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::NENode, OperationDocNode::Kind::kNotEq, tvm::not_equal>>());
+  ffi::reflection::TypeAttrDef<prim::GTNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::GTNode, OperationDocNode::Kind::kGt, tvm::greater>>());
+  ffi::reflection::TypeAttrDef<prim::GENode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::GENode, OperationDocNode::Kind::kGtE, tvm::greater_equal>>());
+  ffi::reflection::TypeAttrDef<prim::AndNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::AndNode, OperationDocNode::Kind::kAnd, tvm::logical_and>>());
+  ffi::reflection::TypeAttrDef<prim::OrNode>().attr(
+      kDocTranslate,
+      FDocTranslate::FromNative<
+          &BinaryOpDocTranslate<prim::OrNode, OperationDocNode::Kind::kOr, tvm::logical_or>>());
 }
 
-#undef TVM_SCRIPT_PRINTER_DEF_BINARY_WITH_SUGAR
-#undef TVM_SCRIPT_PRINTER_DEF_BINARY
+ffi::Optional<ExprDoc> ModDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::ModNode>(input);
+  return BinaryHelperDocTranslate<prim::ModNode, tvm::truncmod>(d, node, "truncmod");
+}
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<prim::ModNode>().attr(kDocTranslate,
+                                                     FDocTranslate::FromNative<&ModDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> MinDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::MinNode>(input);
+  return BinaryHelperDocTranslate<prim::MinNode, tvm::min>(d, node, "min");
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<prim::MinNode>().attr(kDocTranslate,
+                                                     FDocTranslate::FromNative<&MinDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> MaxDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                       const ffi::Object*) {
+  const auto* node =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const prim::MaxNode>(input);
+  return BinaryHelperDocTranslate<prim::MaxNode, tvm::max>(d, node, "max");
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<prim::MaxNode>().attr(kDocTranslate,
+                                                     FDocTranslate::FromNative<&MaxDocTranslate>());
+}
+
+}  // namespace
+
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

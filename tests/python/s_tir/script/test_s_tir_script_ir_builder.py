@@ -138,10 +138,10 @@ def test_ir_builder_tir_block_base():
 def test_ir_builder_tir_block_complete():
     with IRBuilder() as ib:
         a = T.int64()
-        b = T.Buffer((128, 128), "float32")
-        c = T.Buffer((128, 128), "float32")
+        b = T.buffer((128, 128), "float32")
+        c = T.buffer((128, 128), "float32")
         d = T.int32()
-        e = T.Buffer((128, 128), "float32")
+        e = T.buffer((128, 128), "float32")
         f = T.int32()
         with Ts.sblock("block"):
             Ts.where(a > 1)

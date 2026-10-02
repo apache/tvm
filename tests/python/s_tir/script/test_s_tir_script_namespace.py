@@ -30,6 +30,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_shared_operations_and_aliases():
     from tvm.script import s_tir as S
 

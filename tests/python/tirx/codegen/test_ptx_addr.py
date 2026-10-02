@@ -51,7 +51,7 @@ def test_ptx_addr_registration_and_table_capabilities():
 
     op = Op.get("tirx.ptx.addr")
     assert int(op.get_attr("TCallEffectKind")) == CallEffectKind.Pure.value
-    assert op.get_attr("TScriptPrinterName") == "ptx.addr"
+    assert op.get_attr("TScriptPrinterName") == "tirx.ptx.addr"
     assert "tirx.ptx.addr" in CODEGEN_REGISTRY
 
     addresses = [slot for entry in TABLE.values() for slot in entry.operands if slot.kind == "addr"]

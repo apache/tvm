@@ -439,8 +439,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("prim.convert",
                         [](ffi::Variant<PrimExpr, ffi::Array<PrimExpr>> expr) { return expr; });
-  // Note: kRepr for VarNode is registered via TVMScriptPrinter::Register in
-  // src/script/printer/tirx/expr.cc (-> ReprPrintTIR which delegates to TVMScriptPrinter).
+  // Note: kRepr for VarNode is registered in script/printer/script_printer.cc.
 }
 
 // Cast
