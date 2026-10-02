@@ -699,11 +699,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
 
   OpDef("tirx.TVMBackendAllocWorkspace")
-      .signature(sig::arg("device_type", "The device type."),
-                 sig::arg("device_id", "The device index."),
-                 sig::arg("nbytes", "The number of bytes."),
-                 sig::arg("dtype_code_hint", "The data type code hint."),
-                 sig::arg("dtype_bits_hint", "The data type bit-width hint."))
+      .signature(sig::arg<IntExpr>("device_type", "The device type."),
+                 sig::arg<IntExpr>("device_id", "The device index."),
+                 sig::arg<IntExpr>("nbytes", "The number of bytes."),
+                 sig::arg<IntExpr>("dtype_code_hint", "The data type code hint."),
+                 sig::arg<IntExpr>("dtype_bits_hint", "The data type bit-width hint."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                     ffi::String("tirx.TVMBackendAllocWorkspace"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
@@ -711,8 +711,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.TVMBackendFreeWorkspace")
-      .signature(sig::arg("device_type", "The device type."),
-                 sig::arg("device_id", "The device index."), sig::arg("ptr", "The pointer."))
+      .signature(sig::arg<IntExpr>("device_type", "The device type."),
+                 sig::arg<IntExpr>("device_id", "The device index."),
+                 sig::arg("ptr", "The pointer."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
                                     ffi::String("tirx.TVMBackendFreeWorkspace"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))

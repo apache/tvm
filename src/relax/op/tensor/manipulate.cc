@@ -3105,11 +3105,11 @@ Type InferTypeSliceScatter(const Call& call, const BlockBuilder& ctx) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.slice_scatter")
-      .signature(sig::arg("input", "The input tensor."),
-                 sig::arg("src", "The source tensor to scatter."),
-                 sig::arg("start", "The starting index of the slice (inclusive)."),
-                 sig::arg("end", "The ending index of the slice (exclusive)."),
-                 sig::arg("step", "The step of the slice."), sig::call_attrs<SliceScatterAttrs>())
+      .signature(
+          sig::arg("input", "The input tensor."), sig::arg("src", "The source tensor to scatter."),
+          sig::arg<IntExpr>("start", "The starting index of the slice (inclusive)."),
+          sig::arg<IntExpr>("end", "The ending index of the slice (exclusive)."),
+          sig::arg<IntExpr>("step", "The step of the slice."), sig::call_attrs<SliceScatterAttrs>())
       .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeSliceScatter)
       .set_attr<bool>("FPurity", true);
 }

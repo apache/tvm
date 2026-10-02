@@ -450,7 +450,7 @@ Type InferTypeHammingWindow(const CallNode* call_node) {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.hamming_window")
       .signature(
-          sig::arg("window_size", "The size of the window"),
+          sig::arg<IntExpr>("window_size", "The size of the window"),
           sig::arg("periodic",
                    "If True, returns a window to be used as periodic function. If False, return a "
                    "symmetric window"),
@@ -495,12 +495,14 @@ Type InferTypeTrilTriu(const CallNode* call_node) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("relax.tril")
-      .signature(sig::arg("x", "The input tensor."), sig::arg("k", "The offset of the diagonal."))
+      .signature(sig::arg("x", "The input tensor."),
+                 sig::arg<IntExpr>("k", "The offset of the diagonal."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTrilTriu>())
       .set_attr<bool>("FPurity", true);
 
   OpDef("relax.triu")
-      .signature(sig::arg("x", "The input tensor."), sig::arg("k", "The offset of the diagonal."))
+      .signature(sig::arg("x", "The input tensor."),
+                 sig::arg<IntExpr>("k", "The offset of the diagonal."))
       .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTrilTriu>())
       .set_attr<bool>("FPurity", true);
 }
