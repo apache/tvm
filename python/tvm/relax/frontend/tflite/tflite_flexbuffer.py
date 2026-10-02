@@ -31,7 +31,7 @@ class BitWidth(IntEnum):
     BIT_WIDTH_64 = 3
 
 
-class FlexTensorType(IntEnum):
+class FlexBufferType(IntEnum):
     """Flexbuffer type schema from flexbuffers.h"""
 
     FBT_NULL = 0
@@ -107,21 +107,21 @@ class FlexBufferDecoder:
         for i in range(0, size):
             value_type_pos = end + size * byte_width + i
             value_type_packed = self.buffer[value_type_pos]
-            value_type = FlexTensorType(value_type_packed >> 2)
+            value_type = FlexBufferType(value_type_packed >> 2)
             value_bit_width = BitWidth(value_type_packed & 3)
             value_byte_width = 1 << value_bit_width
             value_bytes = self.buffer[
                 end + i * byte_width : end + i * byte_width + value_byte_width
             ]
-            if value_type == FlexTensorType.FBT_BOOL:
+            if value_type == FlexBufferType.FBT_BOOL:
                 value = bool(value_bytes[0])
-            elif value_type == FlexTensorType.FBT_INT:
+            elif value_type == FlexBufferType.FBT_INT:
                 fmt = {1: "<b", 2: "<h", 4: "<i", 8: "<q"}[value_byte_width]
                 value = struct.unpack(fmt, value_bytes)[0]
-            elif value_type == FlexTensorType.FBT_UINT:
+            elif value_type == FlexBufferType.FBT_UINT:
                 fmt = {1: "<B", 2: "<H", 4: "<I", 8: "<Q"}[value_byte_width]
                 value = struct.unpack(fmt, value_bytes)[0]
-            elif value_type == FlexTensorType.FBT_FLOAT:
+            elif value_type == FlexBufferType.FBT_FLOAT:
                 fmt = {4: "<f", 8: "<d"}[value_byte_width]
                 value = struct.unpack(fmt, value_bytes)[0]
             else:
@@ -153,9 +153,9 @@ class FlexBufferDecoder:
         root_packed_type = self.buffer[root_end]
         root_end -= root_byte_width
 
-        root_type = FlexTensorType(root_packed_type >> 2)
+        root_type = FlexBufferType(root_packed_type >> 2)
         byte_width = 1 << BitWidth(root_packed_type & 3)
 
-        if root_type == FlexTensorType.FBT_MAP:
+        if root_type == FlexBufferType.FBT_MAP:
             return self.decode_map(root_end, byte_width, root_byte_width)
         raise NotImplementedError("Flexbuffer Decoding is partially imlpemented.")
