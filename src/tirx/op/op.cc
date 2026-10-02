@@ -38,9 +38,8 @@
 #include <tvm/tirx/var.h>
 
 #include <cmath>
-// Shared primitive type matching and dtype predicates.
+// Shared primitive type matching.
 #include "../../ir/prim/op_utils.h"
-#include "../analysis/check_contains.h"
 
 namespace tvm::prim {
 
@@ -147,8 +146,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
-  TVM_FFI_ICHECK(IsFloatType(a.ty())) << a;
-  TVM_FFI_ICHECK(IsFloatType(b.ty())) << b;
+  TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << a;
+  TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << b;
   BinaryOpMatchTypes(a, b, span);
   PrimExpr exp_sum = add(exp(a), exp(b));
   PrimExpr log_exp_sum = log(exp_sum);
@@ -160,7 +159,7 @@ PrimExpr infinity(PrimType value_ty, Span span) {
   using namespace tirx;
   PrimType dtype = value_ty;
   TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
-  if (IsFloatType(dtype)) {
+  if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
     if (dtype.bits() == 64) {
       return FloatImm(value_ty, std::numeric_limits<double>::infinity(), span);
     } else if (dtype.bits() == 32 || dtype.bits() == 16) {
@@ -234,7 +233,7 @@ PrimExpr reinterpret(DLDataType t, PrimExpr value, Span span) {
 // pow
 PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
-  TVM_FFI_ICHECK(IsFloatType(x.ty())) << "power only applies to float";
+  TVM_FFI_ICHECK(x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << "power only applies to float";
 
   // If we detect pow(x, 3), suggest using x * x * x
   if (y.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
@@ -247,7 +246,7 @@ PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
                "`pow(x, 2) * pow(x, 2) ...`.";
       }
     }
-  } else if (IsFloatType(y.ty())) {
+  } else if (y.ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
     const FloatImmNode* fx = y.as<FloatImmNode>();
     if (fx) {
       if (fx->value >= 3.0) {
@@ -276,7 +275,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 PrimExpr abs(PrimExpr x, Span span) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
     return prim::IntegerAbs(x, span);
-  } else if (IsFloatType(x.ty()) || IsBFloat16Type(x.ty())) {
+  } else if (x.ty().MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
       return FloatImm(x.ty(), std::fabs(fx->value), fx->span);
@@ -307,7 +306,7 @@ PrimExpr isnan(PrimExpr x, Span span) {
   PrimType bool_ty(t);
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return MakeConst(t, false);
-  } else if (IsFloatType(x.ty())) {
+  } else if (x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
     const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
       return MakeConst(t, std::isnan(fx->value), fx->span);
@@ -332,7 +331,7 @@ PrimExpr isinf(PrimExpr x, Span span) {
   PrimType t = PrimType::Bool(x.ty().lanes());
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return MakeConst(t, false, span);
-  } else if (IsFloatType(x.ty())) {
+  } else if (x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
     PrimExpr infX = infinity(x.ty(), span);
     return abs(x, span) == infX && !isnan(x, span);
   } else {
@@ -353,7 +352,9 @@ PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 }
 
 PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  type_check_boolean_args(source, "tvm::all");
+  TVM_FFI_ICHECK(source.ty().MatchesCode(DLDataTypeCode::kDLBool))
+      << "Expected boolean argument for tvm::all, but received " << source << " of type "
+      << source.ty();
   PrimVar x("x", source.ty(), span), y("y", source.ty());
   PrimExpr result = prim::And(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), true, span);
@@ -362,7 +363,9 @@ PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 }
 
 PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  type_check_boolean_args(source, "tvm::any");
+  TVM_FFI_ICHECK(source.ty().MatchesCode(DLDataTypeCode::kDLBool))
+      << "Expected boolean argument for tvm::any, but received " << source << " of type "
+      << source.ty();
   PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
   PrimExpr result = prim::Or(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), false, span);
@@ -412,7 +415,7 @@ PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> in
 // fmod
 PrimExpr fmod(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
-  TVM_FFI_ICHECK(IsFloatType(x.ty())) << "fmod only applies to float";
+  TVM_FFI_ICHECK(x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << "fmod only applies to float";
   static const Op fmod_op = Op::Get("tirx.fmod");
   return Call(x.ty(), fmod_op, {x, y}, {}, {}, span).as_or_throw<PrimExpr>();
 }
