@@ -330,13 +330,13 @@ def register_script_namespace(name: str, namespace: object, override: bool = Fal
         if isinstance(module_all, list) and name not in module_all:
             module_all.append(name)
 
-    _register_script_namespace_printer_names(namespace, name, override)
+    _register_script_namespace_printer_names(namespace, f"tirx.{name}", override)
     return namespace
 
 
 def _register_tir_namespace_printer_names():
     try:
-        _register_script_namespace_printer_names(webgpu, "webgpu")
+        _register_script_namespace_printer_names(webgpu, "tirx.webgpu")
     except Exception:
         # Best-effort registration; avoid import-time hard failure
         pass

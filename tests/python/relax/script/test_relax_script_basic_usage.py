@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 import tvm
@@ -878,6 +880,7 @@ def test_empty_tuple():
     _check(foo, bb.get()["foo"])
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_arith_operators():
     m = T.dynamic("m")
     n = T.dynamic("n")
@@ -932,6 +935,7 @@ def test_arith_operators():
     _check(foo, bb.get()["foo"])
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_memory_ops():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
@@ -949,6 +953,7 @@ def test_memory_ops():
     _check(foo)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_vm_ops():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
@@ -964,6 +969,7 @@ def test_vm_ops():
     _check(foo)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_builtin_ops():
     m = T.dynamic("m")
     n = T.dynamic("n")

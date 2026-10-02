@@ -669,7 +669,7 @@ def test_impure_in_dataflow_block():
     # The throwing form surfaces the offending impure call in its message.
     with pytest.raises(Exception) as excinfo:
         rx.analysis.well_formed(mod)
-    assert "R.print" in str(excinfo.value)
+    assert 'I.Call("relax.print", ["{}", x], ty=R.Tuple())' in str(excinfo.value)
 
 
 def test_well_formed_function():

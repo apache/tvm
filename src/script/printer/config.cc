@@ -17,21 +17,21 @@
  * under the License.
  */
 #include <tvm/script/printer/config.h>
+#include <tvm/script/printer/printer.h>
 
 #include <algorithm>
 #include <cctype>
-#include <map>
 #include <string>
 #include <unordered_set>
-
-#include "./dialect_prefix.h"
+#include <utility>
+#include <vector>
 
 namespace tvm {
 namespace {
 
-std::map<ffi::String, ffi::String>& DialectPrefixes() {
-  static std::map<ffi::String, ffi::String> prefixes;
-  return prefixes;
+ffi::Map<ffi::String, ffi::String>& NamespaceAliases() {
+  static ffi::Map<ffi::String, ffi::String> aliases;
+  return aliases;
 }
 
 bool IsIdentifier(const std::string& name) {
@@ -53,10 +53,12 @@ bool IsIdentifier(const std::string& name) {
 namespace script {
 namespace printer {
 
-void RegisterDialectPrefix(const ffi::String& key, const ffi::String& default_prefix) {
-  TVM_FFI_ICHECK(DialectPrefixes().emplace(key, default_prefix).second)
-      << "Duplicate printer dialect prefix: " << key;
+void RegisterNamespaceAlias(const ffi::String& key, const ffi::String& default_alias) {
+  TVM_FFI_ICHECK(!NamespaceAliases().count(key)) << "Duplicate printer dialect prefix: " << key;
+  NamespaceAliases().Set(key, default_alias);
 }
+
+const ffi::Map<ffi::String, ffi::String>& GetNamespaceAliases() { return NamespaceAliases(); }
 
 }  // namespace printer
 }  // namespace script
@@ -84,10 +86,14 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     n->buffer_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
   }
   if (auto v = get("int_dtype")) {
-    n->int_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
+    n->extra_config.Set(
+        "ir.int_dtype",
+        ffi::DLDataTypeToString(ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>())));
   }
   if (auto v = get("float_dtype")) {
-    n->float_dtype = ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>());
+    n->extra_config.Set(
+        "ir.float_dtype",
+        ffi::DLDataTypeToString(ffi::StringToDLDataType(v.value().as_or_throw<ffi::String>())));
   }
   if (auto v = get("verbose_expr")) {
     n->verbose_expr = v.value().cast<bool>();
@@ -122,12 +128,6 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
         v.value().as_or_throw<ffi::Optional<ffi::Map<ffi::ObjectRef, ffi::String>>>().value_or(
             ffi::Map<ffi::ObjectRef, ffi::String>());
   }
-  if (auto v = get("syntax_sugar")) {
-    n->syntax_sugar = v.value().cast<bool>();
-  }
-  if (auto v = get("show_object_address")) {
-    n->show_object_address = v.value().cast<bool>();
-  }
   if (auto v = get("render_invisible_path_info")) {
     n->render_invisible_path_info = v.value().cast<bool>();
   }
@@ -147,7 +147,15 @@ PrinterConfig::PrinterConfig(ffi::Map<ffi::String, Any> config_dict) {
     }
   }
 
-  // Validate all registered prefixes before names can be assigned by a docsifier.
+  // Keep legacy constructor arguments as adapters; explicit extra_config values
+  // take precedence. Store validated dtype strings with the existing defaults.
+  for (const auto& [key, fallback] :
+       {std::pair{"ir.int_dtype", "int32"}, std::pair{"ir.float_dtype", "void"}}) {
+    ffi::String value = n->GetExtraConfig<ffi::String>(key, fallback);
+    n->extra_config.Set(key, ffi::DLDataTypeToString(ffi::StringToDLDataType(value)));
+  }
+
+  // Validate all registered prefixes before translation assigns names.
   n->GetBuiltinKeywords();
 
   this->data_ = std::move(n);
@@ -158,7 +166,10 @@ ffi::Array<ffi::String> PrinterConfigNode::GetBuiltinKeywords() {
   TVM_FFI_ICHECK(module_alias.empty() || IsIdentifier(std::string(module_alias)))
       << "Invalid `module_alias`: " << module_alias;
   ffi::Array<ffi::String> result{ir_prefix};
-  for (const auto& [key, default_prefix] : DialectPrefixes()) {
+  const auto& aliases = NamespaceAliases();
+  std::vector<std::pair<ffi::String, ffi::String>> ordered(aliases.begin(), aliases.end());
+  std::sort(ordered.begin(), ordered.end());
+  for (const auto& [key, default_prefix] : ordered) {
     ffi::String prefix = GetExtraConfig<ffi::String>(key, default_prefix);
     TVM_FFI_ICHECK(IsIdentifier(std::string(prefix))) << "Invalid `" << key << "`: " << prefix;
     result.push_back(prefix);

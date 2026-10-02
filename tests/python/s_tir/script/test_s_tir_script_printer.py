@@ -17,9 +17,7 @@
 # ruff: noqa: E501, F841
 """S-TIR script printer."""
 
-import io
-import re
-import tokenize
+import sys
 
 import pytest
 from tvm_ffi.access_path import AccessPath
@@ -41,6 +39,7 @@ def _assert_print(obj, expected):
     assert obj.script(verbose_expr=True).strip() == expected.strip()
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_prim_func_symbolic_buffer_param_roundtrip():
     n = tirx.Var("n", "int32")
     A = tirx.decl_buffer(shape=[n + 1, n], dtype="float32", name="A", layout=None)
@@ -50,9 +49,9 @@ def test_prim_func_symbolic_buffer_param_roundtrip():
         .with_attr("s_tir", True)
     )
 
-    source = func.script(extra_config={"script.use_pep695": False})
+    source = func.script()
     assert "T.Buffer((n + 1, n)" in source
-    assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
+    assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
@@ -61,6 +60,7 @@ def test_prim_func_symbolic_buffer_param_roundtrip():
     )
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_prim_func_compound_buffer_shape_first_use_roundtrip():
     n = tirx.Var("n", "int32")
     A = tirx.decl_buffer(shape=[tirx.max(n, 1)], dtype="float32", name="A", layout=None)
@@ -70,9 +70,9 @@ def test_prim_func_compound_buffer_shape_first_use_roundtrip():
         .with_attr("s_tir", True)
     )
 
-    source = func.script(extra_config={"script.use_pep695": False})
+    source = func.script()
     assert "T.Buffer((T.max(n, 1),)" in source
-    assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
+    assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
@@ -107,7 +107,7 @@ def test_prim_func_symbolic_alloc_buffer_roundtrip():
     ).with_attr("s_tir", True)
 
     source = func.script()
-    assert "T.alloc_buffer((size,))" in source
+    assert 'T.alloc_buffer((size,), "float32")' in source
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source,
@@ -133,12 +133,13 @@ def test_prim_func():
     _assert_print(
         func,
         expected="""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
     T.evaluate(0)""",
     )
 
@@ -158,12 +159,13 @@ def test_prim_func_buffer_data_use():
     _assert_print(
         func,
         expected="""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
     T.evaluate(A.data)
 """,
     )
@@ -185,12 +187,13 @@ def test_prim_func_buffer_data_argument_is_scope_hint():
     _assert_print(
         func,
         expected="""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
     T.evaluate(0)
 """,
     )
@@ -267,8 +270,8 @@ def test_match_buffer_region():
     _assert_print(
         obj,
         """
-src = T.Buffer((128, 128))
-tgt = Ts.match_buffer(src[64:128, 64:128], (64, 64))
+src = T.Var("src", T.Buffer((128, 128), "float32", layout="default"))
+tgt = Ts.match_buffer(src[64:128, 64:128], (64, 64), "float32", layout="default")
 """,
     )
 
@@ -283,9 +286,8 @@ def test_bind():
     _assert_print(
         obj,
         """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func(private=True)
 def main():
@@ -319,22 +321,30 @@ def test_remap():
                 v4, v5 = Ts.axis.remap("RS", [i4, i5])
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
-    # with Ts.sblock("root"):
-    for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-        with Ts.sblock("update"):
-            v = Ts.axis.spatial(128, i0 + 1)
-            v_1, v_2 = Ts.axis.remap("SR", [i1, i2])
-            v_3 = Ts.axis.spatial(128, i3 - 1)
-            v_4, v_5 = Ts.axis.remap("RS", [i4, i5])
-            Ts.reads()
-            Ts.writes()
-            T.evaluate(0)"""
+    with Ts.sblock("root"):
+        Ts.reads()
+        Ts.writes()
+        for i0 in range(128):
+            for i1 in range(128):
+                for i2 in range(128):
+                    for i3 in range(128):
+                        for i4 in range(128):
+                            for i5 in range(128):
+                                with Ts.sblock("update"):
+                                    v = Ts.axis.spatial(128, i0 + 1)
+                                    v_1 = Ts.axis.spatial(128, i1)
+                                    v_2 = Ts.axis.reduce(128, i2)
+                                    v_3 = Ts.axis.spatial(128, i3 - 1)
+                                    v_4 = Ts.axis.reduce(128, i4)
+                                    v_5 = Ts.axis.spatial(128, i5)
+                                    Ts.reads()
+                                    Ts.writes()
+                                    T.evaluate(0)"""
     _assert_print(block_with_remap_explicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(block_with_remap_implicitly.with_attr("global_symbol", "main"), expected_output)
 
@@ -358,20 +368,21 @@ def test_root_block():
                     TB.evaluate(0)
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
-    # with Ts.sblock("root"):
-    buffer = Ts.sblock_alloc_buffer((128, 128))
-    for i, j in T.grid(128, 128):
-        with Ts.sblock(""):
-            Ts.reads()
-            Ts.writes()
-            T.evaluate(0)
-    """
+    with Ts.sblock("root"):
+        Ts.reads()
+        Ts.writes()
+        v = Ts.sblock_alloc_buffer((128, 128), "float32")
+        for i in range(128):
+            for j in range(128):
+                with Ts.sblock(""):
+                    Ts.reads()
+                    Ts.writes()
+                    T.evaluate(0)"""
     _assert_print(root_block_implicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(root_block_explicitly.with_attr("global_symbol", "main"), expected_output)
 
@@ -387,12 +398,13 @@ def test_private_primfunc():
     _assert_print(
         func,
         expected="""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func(private=True)
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
     T.evaluate(0)""",
     )
 
@@ -406,64 +418,15 @@ def test_prim_func_different_symbol():
         TB.evaluate(0)
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    T.evaluate(0)
-    """
+    T.evaluate(0)"""
     _assert_print(main, expected_output)
-
-
-def test_variable_with_cpp_address():
-    """The show_object_address option displays the C++ addressess
-
-    Because the C++ address may vary with each execution, the output
-    produced with this option cannot be compared to a fixed string.
-    Instead, this test uses the normal script output to generate a
-    regular expression against with the test output must match.  The
-    regular expression validates that all names have been appended
-    with "_0x" followed by a hexadecimal number, and that the address
-    is the same for each variable.
-    """
-    from tvm.script import tirx as TB
-
-    # The test function has all named objects suffixed with "_name",
-    # to avoid spurious replacement when generating the expected
-    # regex.
-    N_name = I.dynamic("N_name")
-
-    @Ts.prim_func
-    def func(A_name: TB.Buffer(N_name, "float32")):
-        for i_name in range(N_name):
-            A_name[i_name] = A_name[i_name] + 1.0
-
-    without_address = func.script(show_object_address=False)
-    script = func.script(show_object_address=True)
-
-    # Address suffixes belong to identifiers, not display-name string literals
-    # passed to constructors such as I.dynamic("N_name").
-    names = {"a_name", "A_name", "N_name", "i_name"}
-    line_offsets = [0]
-    for line in without_address.splitlines(keepends=True):
-        line_offsets.append(line_offsets[-1] + len(line))
-    parts = []
-    seen = set()
-    cursor = 0
-    for token in tokenize.generate_tokens(io.StringIO(without_address).readline):
-        name = token.string
-        if token.type != tokenize.NAME or name not in names:
-            continue
-        start = line_offsets[token.start[0] - 1] + token.start[1]
-        end = line_offsets[token.end[0] - 1] + token.end[1]
-        parts.append(re.escape(without_address[cursor:start]))
-        parts.append(rf"(?P={name})" if name in seen else rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)")
-        seen.add(name)
-        cursor = end
-    parts.append(re.escape(without_address[cursor:]))
-    assert re.fullmatch("".join(parts), script)
 
 
 def test_return_statement():
@@ -481,7 +444,7 @@ def func():
     return 5
     """
     _assert_print(func, expected_output)
-    assert func.script(verbose_expr=True, syntax_sugar=False).strip() == expected_output.strip()
+    assert func.script(verbose_expr=True).strip() == expected_output.strip()
 
 
 CUSTOM_FLOAT_DTYPES = [
@@ -511,9 +474,8 @@ def test_custom_float_types(dtype):
         TB.evaluate(getattr(TB, dtype)(0.0))
 
     expected_output = f"""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def func():
@@ -551,15 +513,15 @@ def test_predicated_load_store():
         )
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
     a_load: T.let[T.float32x4] = T.masked_load("float32x4", A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4))
-    T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
-    """
+    T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
     _assert_print(main, expected_output)
 
 
@@ -596,14 +558,14 @@ def test_predicated_buffer_load_store():
     ).with_attr("s_tir", True)
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func(private=True)
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    T.masked_store(A, T.masked_load("float32x4", B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
-    """
+def main(A: T.Buffer((128, 128), "float32", layout="default"), B: T.Buffer((256, 256), "float32", layout="default")):
+    T.masked_store(A, T.masked_load("float32x4", B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
     _assert_print(func, expected_output)
 
 
@@ -626,16 +588,17 @@ def test_predicated_scalable_load_store():
         )
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    mask: T.let[T.uint1xvscalex4] = T.get_active_lane_mask("uint1xvscalex4", 0, 13)
-    a_load: T.let[T.float32xvscalex4] = T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
+    mask: T.let["uint1xvscalex4"] = T.get_active_lane_mask("uint1xvscalex4", 0, 13)
+    a_load: T.let["float32xvscalex4"] = T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, T.vscale() * 4), mask)
-    """
+"""
     _assert_print(main, expected_output)
 
 
@@ -666,14 +629,14 @@ def test_vload_with_explicit_scalable_data_type():
         B[0 : TB.vscale() * 4] = A.vload([TB.Ramp(0, 1, TB.vscale() * 4)], dtype="float32xvscalex4")
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
-    B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]
-    """
+    B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]"""
     _assert_print(main, expected_output)
 
 
@@ -687,14 +650,14 @@ def test_vectorize_llvm_pure_intrin():
         )
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
-    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])
-    """
+    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])"""
     _assert_print(main, expected_output)
 
 
@@ -711,9 +674,10 @@ def test_func_with_loop_jumps():
                 break
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
@@ -722,8 +686,7 @@ def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
             A[1] = A[1] + T.float32(1.0)
             continue
         if A[0] >= B[0]:
-            break
-    """
+            break"""
     _assert_print(main, expected_output)
 
 
@@ -1321,9 +1284,10 @@ def test_same_name_var():
         },
     )
     tvm.ir.assert_structural_equal(func, rt_func)
-    assert out_str.count("for i, j in T.grid(16, 16)") == 2
-    assert out_str.find("i_") == -1
-    assert out_str.find("i_") == -1
+    assert out_str.count("for i in range(16):\n            for j in range(16):") == 1
+    assert out_str.count("for i_1 in range(16):\n            for j_1 in range(16):") == 1
+    assert out_str.find("i_2") == -1
+    assert out_str.find("j_2") == -1
 
 
 def primfunc_with_allocate_annotations():
@@ -1447,10 +1411,10 @@ def multiple_commreducer():
     # normal_reduce_temp0 is treated as uninitialized value
     @Ts.prim_func(check_well_formed=False)
     def multiple_commreducer() -> None:
-        normal_reduce_temp0 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
-        normal_reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp0 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
+        normal_reduce_temp0 = T.buffer([1], dtype="float32", strides=[1], scope="local")
+        normal_reduce_temp1 = T.buffer([1], dtype="float32", strides=[1], scope="local")
+        reduce_temp0 = T.buffer([1], dtype="float32", strides=[1], scope="local")
+        reduce_temp1 = T.buffer([1], dtype="float32", strides=[1], scope="local")
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):
                 T.attr(
@@ -2127,9 +2091,8 @@ def test_annotation_multi_access_paths():
     )
     assert (
         result
-        == """# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
+        == """# from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
@@ -2155,9 +2118,8 @@ def test_annotate_from_multi_obj():
     )
     assert (
         result
-        == """# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
+        == """# from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
@@ -2188,9 +2150,8 @@ def test_disable_concise_scoping_when_scope_annotated():
     )
     assert (
         result
-        == """# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
+        == """# from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
@@ -2217,9 +2178,8 @@ def test_ir_module():
         mod,
         """
 # from tvm.script import ir as I
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
@@ -2230,9 +2190,9 @@ class Module:
 
 
 def test_str_metadata():
-    # This test is to check we reuse the existing metadata element for the same tvm.ir.StringImm
-    # So metadata["ir.StringImm"][0] will occur in the printed script for three times
-    str_imm = tvm.ir.StringImm("aaa\nbbb\n")
+    # This test is to check we reuse the existing metadata element for the same metadata-backed GenericConst
+    # So metadata["ir.GenericConst"][0] will occur in the printed script for three times
+    str_imm = tvm.ir.GenericConst(tvm.runtime.convert(["aaa\nbbb\n"]), tvm.ir.AnyType())
 
     @I.ir_module
     class Module:
@@ -2247,8 +2207,8 @@ def test_str_metadata():
 
     printed_str = Module.script(verbose_expr=True)
     assert (
-        printed_str.count('metadata["ir.StringImm"][0]') == 3
-        and printed_str.count('metadata["ir.StringImm"][1]') == 0
+        printed_str.count('metadata["ir.GenericConst"][0]') == 3
+        and printed_str.count('metadata["ir.GenericConst"][1]') == 0
     )
 
 

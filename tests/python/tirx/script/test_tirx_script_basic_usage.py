@@ -58,14 +58,14 @@ def test_native_concise_scopes_unwind_with_their_parent():
 def test_tir_buffer_annotation():
     buffer_0 = T.Buffer((128, 128), "float32")
     assert (
-        tirx.is_buffer_var(buffer_0)
+        isinstance(buffer_0, tirx.BufferType)
         and list(buffer_0.shape) == [128, 128]
         and buffer_0.dtype == ir.PrimType("float32")
     )
 
     buffer_1 = T.Buffer((64, 64, 64), "int32")
     assert (
-        tirx.is_buffer_var(buffer_1)
+        isinstance(buffer_1, tirx.BufferType)
         and list(buffer_1.shape) == [64, 64, 64]
         and buffer_1.dtype == ir.PrimType("int32")
     )
@@ -732,7 +732,7 @@ def test_roundtrip_serial_unroll_false():
 
     code = test.script()
     assert "unroll=False" in code, f"printer should emit unroll=False, got:\n{code}"
-    assert "annotations" not in code, "printer should NOT emit annotations dict"
+    assert "annotations=" not in code, "printer should NOT emit annotations dict"
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
 
@@ -754,7 +754,7 @@ def test_roundtrip_serial_unroll_true():
 
     code = test.script()
     assert "unroll=True" in code, f"printer should emit unroll=True, got:\n{code}"
-    assert "annotations" not in code, "printer should NOT emit annotations dict"
+    assert "annotations=" not in code, "printer should NOT emit annotations dict"
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
 
@@ -776,7 +776,7 @@ def test_roundtrip_serial_unroll_count():
 
     code = test.script()
     assert "unroll=2" in code, f"printer should emit unroll=2, got:\n{code}"
-    assert "annotations" not in code, "printer should NOT emit annotations dict"
+    assert "annotations=" not in code, "printer should NOT emit annotations dict"
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
 

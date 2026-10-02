@@ -272,10 +272,22 @@ def test_async_copy():
     # Verify cp_async uses typed views of the merged byte allocation.  Its
     # offsets remain in float32 elements and are scaled by the intrinsic
     # lowering, rather than being pre-scaled as byte offsets here.
-    assert 'A_sh = buf_dyn_shmem.view("float32")' in script
-    assert 'B_sh = buf_dyn_shmem.view("float32")' in script
-    assert 'T.s_tir.cp_async_raw("float32", A_sh.data, threadIdx_x' in script
-    assert 'T.s_tir.cp_async_raw("float32", B_sh.data, threadIdx_x' in script
+    assert (
+        'A_sh = T.decl_buffer((128,), "float32", data=buf_dyn_shmem.data, '
+        'scope="shared.dyn")' in script
+    )
+    assert (
+        'B_sh = T.decl_buffer((128,), "float32", data=buf_dyn_shmem.data, '
+        'scope="shared.dyn")' in script
+    )
+    assert (
+        'T.s_tir.cp_async_raw("float32", A_sh.data, threadIdx_x, '
+        "A.data, threadIdx_x, 512)" in script
+    )
+    assert (
+        'T.s_tir.cp_async_raw("float32", B_sh.data, threadIdx_x, '
+        "B.data, threadIdx_x, 512)" in script
+    )
 
 
 def test_decl_buffer_alias_extends_allocation_lifetime():

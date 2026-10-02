@@ -313,6 +313,10 @@ std::optional<std::string> RenderScriptWithUnderline(const ffi::ObjectRef& node,
   if (!config_fn.has_value() || !script_fn.has_value()) return std::nullopt;
   try {
     ffi::Map<ffi::String, ffi::Any> config_dict;
+    // Error snippets use the same display conventions as script() and repr().
+    config_dict.Set("extra_config", ffi::Map<ffi::String, ffi::Any>{
+                                        {"ir.comment_imports", true},
+                                    });
     config_dict.Set("path_to_underline", ffi::Array<ffi::reflection::AccessPath>{path});
     // Show enough context that a small function renders in full (no
     // "(... N lines skipped ...)" marker), while still bounding a large

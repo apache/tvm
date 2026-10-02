@@ -55,7 +55,7 @@ using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
 /*!
- * \brief The operator's name in TVMScript printer
+ * \brief The fully qualified TVMScript name, including its dialect namespace.
  */
 using TScriptPrinterName = ffi::String;
 

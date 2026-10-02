@@ -39,11 +39,13 @@ def test_underline_from_obj():
     )
     assert result == format_script(
         """
+        from __future__ import annotations
+
         # from tvm.script import tirx as T
-        # from tvm.tirx.layout import Axis
 
         @T.prim_func
         def main(a: T.int32, b: T.int32):
+                 ^
             T.evaluate(a)
                        ^
             T.evaluate(b)
@@ -101,7 +103,6 @@ def test_underline_from_multi_obj():
     assert result == format_script(
         """
         # from tvm.script import tirx as T
-        # from tvm.tirx.layout import Axis
 
         @T.prim_func
         def main():
@@ -135,7 +136,6 @@ def test_underline_func():
     assert result == format_script(
         """
         # from tvm.script import tirx as T
-        # from tvm.tirx.layout import Axis
 
         @T.prim_func
         ^^^^^^^^^^^^
@@ -164,7 +164,6 @@ def test_underline_func_in_irmodule():
         """
         # from tvm.script import ir as I
         # from tvm.script import tirx as T
-        # from tvm.tirx.layout import Axis
 
         @I.ir_module
         class Module:
@@ -195,7 +194,6 @@ def test_underline_irmodule():
         """
         # from tvm.script import ir as I
         # from tvm.script import tirx as T
-        # from tvm.tirx.layout import Axis
 
         @I.ir_module
         ^^^^^^^^^^^^

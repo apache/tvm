@@ -41,7 +41,7 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg("value", "The value to use."), sig::arg("col", "The column index."),
                  sig::arg("row", "The row index."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
-                                    ffi::String("metal.make_filled_simdgroup_matrix"))
+                                    ffi::String("tirx.metal.make_filled_simdgroup_matrix"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -50,7 +50,7 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg("ptr", "The pointer."), sig::arg("stride", "The stride."),
                  sig::arg("col", "The column index."), sig::arg("row", "The row index."),
                  sig::arg("transpose_matrix", "Whether to transpose the matrix."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simdgroup_load"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.metal.simdgroup_load"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -59,7 +59,7 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg("ptr", "The pointer."), sig::arg("stride", "The stride."),
                  sig::arg("col", "The column index."), sig::arg("row", "The row index."),
                  sig::arg("transpose_matrix", "Whether to transpose the matrix."))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simdgroup_store"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.metal.simdgroup_store"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
@@ -69,7 +69,7 @@ void RegisterMetalTargetBuiltins() {
                  sig::arg("b", "The B operand."), sig::arg("index_b", "The B fragment index."),
                  sig::arg("c", "The C operand."), sig::arg("index_c", "The C fragment index."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
-                                    ffi::String("metal.simdgroup_multiply_accumulate"))
+                                    ffi::String("tirx.metal.simdgroup_multiply_accumulate"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 }

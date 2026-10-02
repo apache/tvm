@@ -116,11 +116,13 @@ def test_func():
     _assert_print(
         TestModule["foo"],
         """
+from __future__ import annotations
+
 # from tvm.script import relax as R
 
 @R.function
 def foo(x: R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R")) -> R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R"):
-    gv0 = R.dist.call_tir(tir_func, (x,), out_ty=R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R"))
+    gv0 = R.dist.call_tir(Module.tir_func, (x,), out_ty=R.DTensor((128, 128), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "S[0], R"))
     return gv0
             """,
     )
@@ -133,10 +135,9 @@ def test_module():
 from __future__ import annotations
 
 # from tvm.script import ir as I
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
 # from tvm.script import relax as R
+# from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
@@ -145,18 +146,21 @@ class Module:
     @Ts.prim_func
     def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
-        # with Ts.sblock("root"):
-        for i, j in T.grid(T.int64(128), T.int64(128)):
-            with Ts.sblock(""):
-                v, v_1 = Ts.axis.remap("SS", [i, j])
-                Ts.reads(x[v, v_1])
-                Ts.writes(y[v, v_1])
-                y[v, v_1] = x[v, v_1] + T.float32(1.0)
+        with Ts.sblock("root"):
+            Ts.reads()
+            Ts.writes()
+            for i in range(T.int64(0), T.int64(128)):
+                for j in range(T.int64(0), T.int64(128)):
+                    with Ts.sblock(""):
+                        v = Ts.axis.spatial(T.int64(128), i, dtype="int64")
+                        v_1 = Ts.axis.spatial(T.int64(128), j, dtype="int64")
+                        Ts.reads(x[v, v_1])
+                        Ts.writes(y[v, v_1])
+                        y[v, v_1] = x[v, v_1] + T.float32(1.0)
 
     @R.function
     def foo(x: R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R")) -> R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R"):
-        cls = Module
-        gv0 = R.dist.call_tir(cls.tir_func, (x,), out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R"))
+        gv0 = R.dist.call_tir(Module.tir_func, (x,), out_ty=R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R"))
         return gv0
     """,
     )
@@ -180,6 +184,8 @@ def test_function():
     _assert_print_lines(
         func,
         """
+from __future__ import annotations
+
 # from tvm.script import relax as R
 
 @R.function
@@ -229,7 +235,7 @@ def test_function_dependent_shape_source_spans():
     definition, underline = render(cast_path.attr("dtype"))
     dtype_start = definition.index(dtype_literal)
     assert underline[dtype_start : dtype_start + len(dtype_literal)] == "^" * len(dtype_literal)
-    assert underline.strip() == "^" * len(dtype_literal)
+    assert underline.strip() == "^" * len(expression)
 
     definition, underline = render(cast_path.attr("value"))
     variable_start = definition.index(expression) + expression.rindex("n")
@@ -247,6 +253,8 @@ def test_lone_private_function():
     _assert_print_lines(
         func,
         """
+from __future__ import annotations
+
 # from tvm.script import relax as R
 
 @R.function(private=True)
@@ -270,6 +278,8 @@ def test_extern_func():
     _assert_print_lines(
         obj,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
 # from tvm.script import relax as R
 
@@ -341,6 +351,8 @@ def test_nested_function():
     _assert_print_lines(
         NestedFunction,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
 # from tvm.script import relax as R
 
@@ -497,9 +509,10 @@ def test_prim_value():
     _assert_print_lines(
         func,
         """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import relax as R
+# from tvm.script import tirx as T
 
 @R.function
 def func() -> T.int64:
@@ -642,7 +655,7 @@ def test_call():
         """
 x = I.dynamic("x", dtype="int64")
 a: R.Tensor((1, x, 3), dtype="float32")
-R.call_tir(tir_func, (a, x), out_ty=R.Tensor((1, x, 3), dtype="float32"))
+R.call_tir(Module.tir_func, (a, x), out_ty=R.Tensor((1, x, 3), dtype="float32"))
 """,
     )
     _assert_print_lines(
@@ -671,7 +684,7 @@ def test_call_tir_with_grad():
         """
 v0: R.Tensor((54, 96), dtype="float32")
 x = I.dynamic("x", dtype="int64")
-R.call_tir_with_grad(tir_func, (v0,), out_ty=R.Tensor((54, 96), dtype="float32"), te_grad_name="grad_func", te_grad_kwargs={"k": 1.0, "x": x})
+R.call_tir_with_grad(Module.tir_func, (v0,), out_ty=R.Tensor((54, 96), dtype="float32"), te_grad_name="grad_func", te_grad_kwargs={"k": 1.0, "x": x})
 """,
     )
 
@@ -696,7 +709,7 @@ def test_call_tir_inplace():
 x: R.Tensor((32, 32), dtype="int32")
 y: R.Tensor((32, 32), dtype="int32")
 t = I.dynamic("t", dtype="int64")
-R.call_tir_inplace(tir_func, (x, y, t), out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0])
+R.call_tir_inplace(Module.tir_func, (x, y, t), out_ty=[R.Tensor((32, 32), dtype="int32"), R.Tensor((32, 32), dtype="int32")], inplace_indices=[-1, 0])
         """,
     )
 
@@ -827,10 +840,11 @@ def test_if():
 a: R.Tensor((), dtype="bool")
 if a:
     b: R.Tensor((1, 2, 3), dtype="float32")
-    b
+    if_result = b
 else:
     c: R.Tensor((1, 2, 3), dtype="float32")
-    c
+    if_result = c
+if_result
 """,
     )
 
@@ -869,11 +883,12 @@ def test_module_cross_func_call():
     _assert_print_lines(
         TestModule,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
 # from tvm.script import relax as R
+# from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
@@ -883,8 +898,7 @@ class Module:
 
     @R.function
     def foo(x: R.Tensor((128,), dtype="float32")) -> R.Tensor((128,), dtype="float32"):
-        cls = Module
-        gv0 = R.call_tir(cls.tir_func, (x,), out_ty=R.Tensor((128,), dtype="float32"))
+        gv0 = R.call_tir(Module.tir_func, (x,), out_ty=R.Tensor((128,), dtype="float32"))
         return gv0
 """,
     )
@@ -894,11 +908,12 @@ class Module:
     _assert_print_lines(
         module_str,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
 # from tvm.script import relax as R
+# from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
@@ -925,6 +940,8 @@ def test_assert_op():
     _assert_print_lines(
         AssertOpMod,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
 # from tvm.script import relax as R
 
@@ -949,6 +966,8 @@ def test_print():
     _assert_print_lines(
         PrintMod,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
 # from tvm.script import relax as R
 
@@ -973,6 +992,8 @@ def test_private_function():
     _assert_print_lines(
         AddMod,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
 # from tvm.script import relax as R
 
@@ -1026,6 +1047,8 @@ def test_directly_construct_private_funcs():
     _assert_print_lines(
         obj,
         """
+from __future__ import annotations
+
 # from tvm.script import ir as I
 # from tvm.script import relax as R
 
@@ -1071,11 +1094,13 @@ def test_reused_extern_func():
     _assert_print_lines(
         func,
         """
+from __future__ import annotations
+
 # from tvm.script import relax as R
 
 @R.function
 def func(x: R.Tensor((128, 128), dtype="float32")) -> R.Tensor((128, 128), dtype="float32"):
-    extern_func: R.Callable = R.ExternFunc("extern_func")
+    extern_func: R.Callable(derive_func="tvm.relax.type.infer_by_ty_args") = R.ExternFunc("extern_func")
     y = R.call_dps_packed(extern_func, (x,), out_ty=R.Tensor((128, 128), dtype="float32"))
     z = R.call_dps_packed(extern_func, (y,), out_ty=R.Tensor((128, 128), dtype="float32"))
     return z
@@ -1099,6 +1124,8 @@ def test_inline_extern_func():
     _assert_print_lines(
         func,
         """
+from __future__ import annotations
+
 # from tvm.script import relax as R
 
 @R.function
@@ -1147,12 +1174,14 @@ def test_hide_inferable_ty():
     _assert_print_lines(
         func.script(show_all_ty=False),
         """
+from __future__ import annotations
+
 # from tvm.script import relax as R
 
 @R.function
 def func(A: R.Tensor((10, 20), dtype="float32"), B: R.Tensor(dtype="float32", ndim=2)) -> R.Tensor((10, 20), dtype="float32"):
     B2 = R.match_cast(B, R.Tensor((10, 20), dtype="float32"))
-    C = R.add(A, B2)
+    C: R.Tensor((10, 20), dtype="float32") = R.add(A, B2)
     D = C
     E: R.Tensor((10, 20), dtype="float32") = R.add(D, B)
     return E""",
@@ -1190,6 +1219,23 @@ def test_extern_func_roundtrip(show_all_ty):
         },
     )
     tvm.ir.assert_structural_equal(original, after_roundtrip, map_free_vars=True)
+
+
+def test_typed_add_binding_without_context_free_inference():
+    assert tvm.ir.Op.get("relax.add").get_attr("FInferType") is None
+
+    @R.function
+    def func(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")):
+        lv: R.Tensor((2, 3), "float32") = R.add(x, y)
+        return lv
+
+    source = func.script()
+    assert 'lv: R.Tensor((2, 3), dtype="float32") = R.add(x, y)' in source
+    restored = tvm.script.from_source(source, extra_vars={"I": I, "R": R})
+    binding = restored.body.blocks[0].bindings[0]
+    assert binding.value.op.same_as(tvm.ir.Op.get("relax.add"))
+    tvm.ir.assert_structural_equal(binding.var.ty, binding.value.ty)
+    tvm.ir.assert_structural_equal(func, restored)
 
 
 if __name__ == "__main__":

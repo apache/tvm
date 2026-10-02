@@ -16,59 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/reflection/registry.h>
 
-#include "./utils.h"
+#include "../../../script/printer/ir/utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<relax::PackedFuncType>(  //
-      "", [](relax::PackedFuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
-        return Relax(d, "PackedFunc");  // TODO(@junrushao): verify if this is correct
-      });
+namespace {
+
+ffi::Optional<ExprDoc> PackedFuncTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
+                                                  const ffi::Object*) {
+  return NamespaceDoc("relax")->Attr("PackedFunc");
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tvm::TupleType>(  //
-      "relax", [](tvm::TupleType n, AccessPath n_p, IRDocsifier d) -> Doc {
-        if (n->fields.empty()) {
-          return Relax(d, "Tuple");
-        }
-        ffi::Array<ExprDoc> fields_doc;
-        AccessPath fields_p = n_p->Attr("fields");
-        for (int i = 0, l = n->fields.size(); i < l; ++i) {
-          fields_doc.push_back(d->AsDoc<ExprDoc>(n->fields[i], fields_p->ArrayItem(i)));
-        }
-        return Relax(d, "Tuple")->Call(fields_doc);
-      });
+  ffi::reflection::TypeAttrDef<relax::PackedFuncTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&PackedFuncTypeDocTranslate>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tvm::FuncType>(
-      "relax", [](tvm::FuncType n, AccessPath n_p, IRDocsifier d) -> Doc {
-        ffi::Array<ExprDoc> arg_types_doc;
-        ffi::Array<Type> arg_types = n->arg_types;
-        AccessPath arg_types_p = n_p->Attr("arg_types");
-        for (int i = 0, n_params = arg_types.size(); i < n_params; ++i) {
-          arg_types_doc.push_back(d->AsDoc<ExprDoc>(arg_types[i], arg_types_p->ArrayItem(i)));
-        }
-        return Relax(d, "Callable")
-            ->Call({TupleDoc(arg_types_doc),  //
-                    d->AsDoc<ExprDoc>(n->ret_type, n_p->Attr("ret_type"))});
-      });
-}
+}  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<relax::PackedFuncTypeNode>(ReprPrintRelax);
-}
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.printer.ReprPrintRelax", ReprPrintRelax);
-}
-
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

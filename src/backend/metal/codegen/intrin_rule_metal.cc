@@ -30,6 +30,13 @@ namespace codegen {
 namespace intrin {
 using tirx::FLowerIntrinsic;
 
+template <size_t N>
+static Type InferTypeReturnArgType(const CallNode* call) {
+  TVM_FFI_CHECK_GT(call->args.size(), N, ValueError)
+      << "Return type inference requires argument " << N;
+  return call->args[N]->ty;
+}
+
 struct MetalWarpIntrinsic {
   const Op operator()(PrimType t, const Op& orig_op) const {
     if (orig_op.same_as(builtin::tvm_warp_shuffle())) {
@@ -149,29 +156,33 @@ void RegisterMetalIntrinRules() {
   OpDef("tirx.metal.simd_shuffle")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("lane", "The source thread id."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
-      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName", ffi::String("metal.simd_shuffle"))
+      .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
+                                          ffi::String("tirx.metal.simd_shuffle"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.metal.simd_shuffle_up")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be added."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                          ffi::String("metal.simd_shuffle_up"))
+                                          ffi::String("tirx.metal.simd_shuffle_up"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_up")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.metal.simd_shuffle_down")
       .signature(sig::arg("var", "The variable to sync."),
           sig::arg("delta", "The source lane id offset to be subtracted."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
       .set_attr<tirx::TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<tirx::TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("metal"))
       .set_attr<tirx::TScriptPrinterName>("TScriptPrinterName",
-                                          ffi::String("metal.simd_shuffle_down"))
+                                          ffi::String("tirx.metal.simd_shuffle_down"))
       .set_attr<TGlobalSymbol>("TGlobalSymbol", "simd_shuffle_down")
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
   // clang-format on

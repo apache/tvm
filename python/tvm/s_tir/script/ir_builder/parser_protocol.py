@@ -20,7 +20,6 @@
 from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.script.ir_builder import base as _base
-from tvm.tirx.script.ir_builder.ir import buffer
 from tvm.tirx.script.ir_builder.parser_protocol import arg_ as _shared_arg
 from tvm.tirx.script.ir_builder.parser_protocol import bind_ as _shared_bind
 
@@ -50,21 +49,11 @@ def function_(*, private=False, persistent=False, decl=False, span=None):
 
 
 def arg_(name, annotation, *, span=None):
-    """Normalize eagerly constructed parameter buffers for S-TIR."""
-    if _tir.is_buffer_var(annotation) and annotation.ty.layout is not None:
-        ty = annotation.ty
-        annotation = buffer(
-            ty.shape,
-            ty.dtype,
-            strides=ty.strides,
-            elem_offset=ty.elem_offset,
-            scope=ty.storage_scope,
-            align=ty.data_alignment,
-            offset_factor=ty.offset_factor,
-            layout=None,
-            allocated_addr=list(ty.allocated_addr),
-            buffer_name=name,
-        )
+    """Preserve parameter annotations, including explicitly constructed layouts.
+
+    Buffer annotations are evaluated inside the function frame, which already
+    supplies the S-TIR default layout when the constructor omits it.
+    """
     return _shared_arg(name, annotation, span=span)
 
 
