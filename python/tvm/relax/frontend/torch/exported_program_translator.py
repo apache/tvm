@@ -88,12 +88,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         scaled_x = x
         if input_scale != 1:
             scaled_x = bb.emit(relax.op.multiply(x, relax.const(input_scale, dtype)))
-        # scale * (ReLU(x) - alpha * ReLU(1 - exp(input_scale * x)))
         negative = relax.op.multiply(
-            relax.const(-alpha, dtype),
-            relax.op.nn.relu(relax.op.subtract(relax.const(1, dtype), relax.op.exp(scaled_x))),
+            relax.const(alpha, dtype),
+            relax.op.subtract(relax.op.exp(scaled_x), relax.const(1, dtype)),
         )
-        out = bb.emit(relax.op.add(negative, relax.op.nn.relu(x)))
+        out = bb.emit(relax.op.where(relax.op.less(x, relax.const(0, dtype)), negative, x))
         return out if scale == 1 else bb.emit(relax.op.multiply(out, relax.const(scale, dtype)))
 
     def _hardtanh(self, node: fx.Node) -> relax.Expr:
