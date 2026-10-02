@@ -337,7 +337,7 @@ TVM_DLL Pass TilePrimitiveDispatch();
 TVM_DLL Pass LowerTIRxCleanup();
 
 /*!
- * \brief Lower opaque constructs in TIRX programs: AllocBuffer, For(thread_binding),
+ * \brief Lower opaque constructs in TIRX programs: allocation calls, For(thread_binding),
  *        unit loop elimination. This is the tirx-specific counterpart of
  *        s_tir::LowerOpaqueBlock, without any SBlock handling.
  * \return The pass.

@@ -54,10 +54,10 @@ def test_relax_dynamo():
     class Input1_ir:
         @Ts.prim_func
         def main(
-            inp_0: T.Buffer((T.int64(10), T.int64(100)), "float32"),
-            param_0: T.Buffer((T.int64(100), T.int64(10)), "float32"),
-            param_1: T.Buffer(T.int64(10), "float32"),
-            compute: T.Buffer((T.int64(10), T.int64(10)), "float32"),
+            inp_0: T.Tensor((T.int64(10), T.int64(100)), "float32"),
+            param_0: T.Tensor((T.int64(100), T.int64(10)), "float32"),
+            param_1: T.Tensor(T.int64(10), "float32"),
+            compute: T.Tensor((T.int64(10), T.int64(10)), "float32"),
         ):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "main"})

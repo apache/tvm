@@ -33,9 +33,9 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def matmul_before(
-    A: T.Buffer((128, 127), "float32"),
-    B: T.Buffer((127, 127), "float32"),
-    C: T.Buffer((128, 127), "float32"),
+    A: T.Tensor((128, 127), "float32"),
+    B: T.Tensor((127, 127), "float32"),
+    C: T.Tensor((128, 127), "float32"),
 ) -> None:
     A_shared = Ts.sblock_alloc_buffer((128, 127), "float32", scope="shared")
     B_shared = Ts.sblock_alloc_buffer((127, 127), "float32", scope="shared")
@@ -62,9 +62,9 @@ def matmul_before(
 
 @Ts.prim_func
 def matmul_expected(
-    A: T.Buffer((128, 127), "float32"),
-    B: T.Buffer((127, 127), "float32"),
-    C: T.Buffer((128, 127), "float32"),
+    A: T.Tensor((128, 127), "float32"),
+    B: T.Tensor((127, 127), "float32"),
+    C: T.Tensor((128, 127), "float32"),
 ) -> None:
     A_shared_padded = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
     B_shared_padded = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
@@ -109,9 +109,9 @@ def test_pad_matmul():
 
     @Ts.prim_func
     def matmul_before(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((n, 128), "float32"),
-        C: T.Buffer((128, n), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((n, 128), "float32"),
+        C: T.Tensor((128, n), "float32"),
     ) -> None:
         for i0, i1, i2 in T.grid(128, n, 128):
             with Ts.sblock("C"):
@@ -124,9 +124,9 @@ def test_pad_matmul():
 
     @Ts.prim_func
     def matmul_after(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((n, 128), "float32"),
-        C: T.Buffer((128, n), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((n, 128), "float32"),
+        C: T.Tensor((128, n), "float32"),
     ):
         B_pad = Ts.sblock_alloc_buffer(((n + 31) // 32 * 32, 128))
         C_pad = Ts.sblock_alloc_buffer((128, (n + 31) // 32 * 32))
@@ -159,10 +159,10 @@ def test_pad_matmul_2():
 
     @Ts.prim_func
     def before(
-        A: T.Buffer((1, n, 4096)),
-        B: T.Buffer((11008, 4096)),
-        M: T.Buffer((1, n, 11008)),
-        D: T.Buffer((1, n, 11008)),
+        A: T.Tensor((1, n, 4096)),
+        B: T.Tensor((11008, 4096)),
+        M: T.Tensor((1, n, 11008)),
+        D: T.Tensor((1, n, 11008)),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -184,10 +184,10 @@ def test_pad_matmul_2():
 
     @Ts.prim_func
     def after(
-        A: T.Buffer((1, n, 4096)),
-        B: T.Buffer((11008, 4096)),
-        M: T.Buffer((1, n, 11008)),
-        D: T.Buffer((1, n, 11008)),
+        A: T.Tensor((1, n, 4096)),
+        B: T.Tensor((11008, 4096)),
+        M: T.Tensor((1, n, 11008)),
+        D: T.Tensor((1, n, 11008)),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -230,9 +230,9 @@ def test_pad_rms():
 
     @Ts.prim_func
     def before(
-        A: T.Buffer((1, n, 4096)),
-        W: T.Buffer((4096,), "float32"),
-        Result: T.Buffer((1, n, 4096), "float32"),
+        A: T.Tensor((1, n, 4096)),
+        W: T.Tensor((4096,), "float32"),
+        Result: T.Tensor((1, n, 4096), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -257,7 +257,7 @@ def test_pad_rms():
 
     @Ts.prim_func
     def after(
-        A: T.Buffer((1, n, 4096)), W: T.Buffer((4096,), "float32"), Result: T.Buffer((1, n, 4096))
+        A: T.Tensor((1, n, 4096)), W: T.Tensor((4096,), "float32"), Result: T.Tensor((1, n, 4096))
     ):
         T.func_attr({"tirx.noalias": True})
 

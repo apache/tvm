@@ -62,14 +62,14 @@ def test_substitute_allocate():
     class Before:
         @T.prim_func
         def main(n: T.int32):
-            A = T.alloc_buffer((n,), "float32")
+            A = T.alloc_tensor((n,), "float32")
             T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer((16,), "float32")
+            A = T.alloc_tensor((16,), "float32")
             T.evaluate(A.data)
 
     After = _apply_substitute(Before)
@@ -81,7 +81,7 @@ def test_substitute_buffer_load():
     class Before:
         @T.prim_func
         def main(n: T.int32):
-            A = T.alloc_buffer((n,), "float32")
+            A = T.alloc_tensor((n,), "float32")
             for i in range(n):
                 T.evaluate(A[i])
 
@@ -89,7 +89,7 @@ def test_substitute_buffer_load():
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer((16,), "float32")
+            A = T.alloc_tensor((16,), "float32")
             for i in range(16):
                 T.evaluate(A[i])
 
@@ -102,14 +102,14 @@ def test_substitute_decl_buffer():
     class Before:
         @T.prim_func
         def main(n: T.int32):
-            A = T.alloc_buffer((n,), "float32")
+            A = T.alloc_tensor((n,), "float32")
             T.evaluate(A.data)
 
     @I.ir_module
     class Expected:
         @T.prim_func
         def main():
-            A = T.alloc_buffer((16,), "float32")
+            A = T.alloc_tensor((16,), "float32")
             T.evaluate(A.data)
 
     After = _apply_substitute(Before)

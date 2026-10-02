@@ -28,9 +28,9 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def matmul(
-    A: T.Buffer((128, 128), "float32"),
-    B: T.Buffer((128, 128), "float32"),
-    C: T.Buffer((128, 128), "float32"),
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
 ) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):
@@ -42,9 +42,9 @@ def matmul(
 
 @Ts.prim_func
 def matmul_after_reorder_block_iter_var(
-    A: T.Buffer((128, 128), "float32"),
-    B: T.Buffer((128, 128), "float32"),
-    C: T.Buffer((128, 128), "float32"),
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
 ):
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):

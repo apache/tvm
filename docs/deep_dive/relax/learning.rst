@@ -133,13 +133,13 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
     class Module:
         M, N, K = T.int64(), T.int64(), T.int64()
         @Ts.prim_func(private=True)
-        def linear(X: T.Buffer((M, K), 'float32'), W: T.Buffer((K, N), 'float32'), B: T.Buffer((N,), 'float32'), Z: T.Buffer((M, N), 'float32')):
+        def linear(X: T.Tensor((M, K), 'float32'), W: T.Tensor((K, N), 'float32'), B: T.Tensor((N,), 'float32'), Z: T.Tensor((M, N), 'float32')):
 
 
 
 
 
-            Y = T.alloc_buffer((M, N), "float32")
+            Y = T.alloc_tensor((M, N), "float32")
             for i, j, k in T.grid(M, N, K):
                 with Ts.sblock("Y"):
                     v_i, v_j, v_k = Ts.axis.remap("SSR", [i, j, k])
@@ -153,7 +153,7 @@ for the end-to-end model execution. The code block below shows a TVMScript imple
 
         M, N = T.int64(), T.int64()
         @Ts.prim_func(private=True)
-        def relu(X: T.Buffer((M, N), 'float32'), Y: T.Buffer((M, N), 'float32')):
+        def relu(X: T.Tensor((M, N), 'float32'), Y: T.Tensor((M, N), 'float32')):
 
 
 

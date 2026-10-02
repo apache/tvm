@@ -38,7 +38,7 @@ MATMUL_M = 32
 @tvm.script.ir_module
 class Matmul:
     @Ts.prim_func
-    def main(A: T.Buffer((32, 32), 'float32'), B: T.Buffer((32, 32), 'float32'), C: T.Buffer((32, 32), 'float32')) -> None: # type: ignore
+    def main(A: T.Tensor((32, 32), 'float32'), B: T.Tensor((32, 32), 'float32'), C: T.Tensor((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
 
         for i, j, k in T.grid(32, 32, 32):
@@ -51,7 +51,7 @@ class Matmul:
 @tvm.script.ir_module
 class OtherBlock:
     @Ts.prim_func
-    def main(A: T.Buffer((32, 32), 'float32'), B: T.Buffer((32, 32), 'float32'), C: T.Buffer((32, 32), 'float32')) -> None: # type: ignore
+    def main(A: T.Tensor((32, 32), 'float32'), B: T.Tensor((32, 32), 'float32'), C: T.Tensor((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
 
         for i, j, k in T.grid(32, 32, 32):

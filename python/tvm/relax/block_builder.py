@@ -477,9 +477,9 @@ class BlockBuilder(Object):
             class Module:
                 @Ts.prim_func
                 def te_func(
-                    rxplaceholder: T.Buffer([n, m], dtype="float32"),
-                    rxplaceholder_1: T.Buffer([n, m], dtype="float32"),
-                    compute: T.Buffer([128, 128], dtype="float32"),
+                    rxplaceholder: T.Tensor([n, m], dtype="float32"),
+                    rxplaceholder_1: T.Tensor([n, m], dtype="float32"),
+                    compute: T.Tensor([128, 128], dtype="float32"),
                 ) -> None:
                     # function attr dict
                     T.func_attr({"tirx.noalias": True})
@@ -528,8 +528,8 @@ class BlockBuilder(Object):
             class Module:
                 @Ts.prim_func
                 def te_func(
-                    rxplaceholder: T.Buffer([n + T.int64(1)], dtype="float32"),
-                    compute: T.Buffer([n + T.int64(1)], dtype="float32"),
+                    rxplaceholder: T.Tensor([n + T.int64(1)], dtype="float32"),
+                    compute: T.Tensor([n + T.int64(1)], dtype="float32"),
                     n: T.int64,
                 ) -> None:
 

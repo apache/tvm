@@ -68,9 +68,9 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
 
     @Tx.prim_func
     def profiled_kernel(
-        out: Tx.Buffer((N,), "float32"),
-        inp: Tx.Buffer((N,), "float32"),
-        prof: Tx.Buffer((PROF_SIZE,), "uint64"),
+        out: Tx.Tensor((N,), "float32"),
+        inp: Tx.Tensor((N,), "float32"),
+        prof: Tx.Tensor((PROF_SIZE,), "uint64"),
     ):
 
         Tx.device_entry()

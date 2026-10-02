@@ -103,15 +103,15 @@ into shared (from
     from tvm.tirx.layout import S, TCol, TLane, TileLayout, tid_in_wg as axis_tid_in_wg
     from tvm.backend.cuda.tile_primitive.tma_utils import mma_shared_layout
 
-    A_smem = Tx.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
-    B_smem = Tx.alloc_buffer((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
+    A_smem = Tx.alloc_tensor((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
+    B_smem = Tx.alloc_tensor((3,128,64), "float16", scope="shared", layout=mma_shared_layout("float16", 3, (3,128,64)))
     tmem_addr = Tx.alloc_shared([1], "uint32"); mma_mbar = Tx.alloc_shared([1], "uint64")
     # ... mbarrier.init, cta_sync ...
     if warp_id == 0:
         Tx.ptx["tcgen05.alloc.cta_group::1.sync.aligned.shared::cta.b32"](
             Tx.address_of(tmem_addr), Tx.uint32(512))
     Tx.cuda.cta_sync()
-    tmem = Tx.decl_buffer((128, 512), "float32", scope="tmem", allocated_addr=tmem_addr[0],
+    tmem = Tx.decl_tensor((128, 512), "float32", scope="tmem", allocated_addr=tmem_addr[0],
                          layout=TileLayout(S[(128, 512) : (1 @ TLane, 1 @ TCol)]))
     # ... TMA-load A_smem, B_smem from global, wait ...
     if tid_in_wg == 0:

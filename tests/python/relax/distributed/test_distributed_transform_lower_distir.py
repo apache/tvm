@@ -39,8 +39,8 @@ def test_mlp():
 
         @Ts.prim_func(private=True)
         def gelu1(
-            A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
-            T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(64)), "float32"),
+            T_multiply: T.Tensor((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -81,9 +81,9 @@ def test_mlp():
 
         @Ts.prim_func(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
-            matmul_1: T.Buffer((T.int64(128), T.int64(64)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            B: T.Tensor((T.int64(128), T.int64(64)), "float32"),
+            matmul_1: T.Tensor((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -98,9 +98,9 @@ def test_mlp():
 
         @Ts.prim_func(private=True)
         def matmul2(
-            A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
-            B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
-            matmul_1: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(64)), "float32"),
+            B: T.Tensor((T.int64(64), T.int64(128)), "float32"),
+            matmul_1: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -198,8 +198,8 @@ def test_mlp_with_tuple():
 
         @Ts.prim_func(private=True)
         def gelu1(
-            A: T.Buffer((T.int64(128), T.int64(64)), "float32"),
-            T_multiply: T.Buffer((T.int64(128), T.int64(64)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(64)), "float32"),
+            T_multiply: T.Tensor((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -240,9 +240,9 @@ def test_mlp_with_tuple():
 
         @Ts.prim_func(private=True)
         def matmul11(
-            A: T.Buffer((T.int64(64), T.int64(64)), "float32"),
-            B: T.Buffer((T.int64(64), T.int64(128)), "float32"),
-            matmul: T.Buffer((T.int64(64), T.int64(128)), "float32"),
+            A: T.Tensor((T.int64(64), T.int64(64)), "float32"),
+            B: T.Tensor((T.int64(64), T.int64(128)), "float32"),
+            matmul: T.Tensor((T.int64(64), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -257,9 +257,9 @@ def test_mlp_with_tuple():
 
         @Ts.prim_func(private=True)
         def matmul2(
-            A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            B: T.Buffer((T.int64(128), T.int64(64)), "float32"),
-            matmul: T.Buffer((T.int64(128), T.int64(64)), "float32"),
+            A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            B: T.Tensor((T.int64(128), T.int64(64)), "float32"),
+            matmul: T.Tensor((T.int64(128), T.int64(64)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -274,9 +274,9 @@ def test_mlp_with_tuple():
 
         @Ts.prim_func(private=True)
         def split11(
-            A: T.Buffer((128, 64), "float32"),
-            T_split: T.Buffer((64, 64), "float32"),
-            T_split_1: T.Buffer((64, 64), "float32"),
+            A: T.Tensor((128, 64), "float32"),
+            T_split: T.Tensor((64, 64), "float32"),
+            T_split_1: T.Tensor((64, 64), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):

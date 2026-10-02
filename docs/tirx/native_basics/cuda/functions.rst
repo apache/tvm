@@ -26,13 +26,13 @@ pass, symbolic shapes, and the ``prim_func`` / ``jit`` distinction.
 Declaring buffer parameters
 ---------------------------
 
-Declare tensor parameters with ``Tx.Buffer`` annotations. The annotation accepts
+Declare tensor parameters with ``Tx.Tensor`` annotations. The annotation accepts
 shape, dtype, layout, offset, scope, and alignment metadata:
 
 .. code-block:: python
 
     @Tx.prim_func
-    def f(A: Tx.Buffer((256,), "float32", align=16), B: Tx.Buffer((256,), "float32")): ...
+    def f(A: Tx.Tensor((256,), "float32", align=16), B: Tx.Tensor((256,), "float32")): ...
 
 The parameters are buffers that you index with ``A[i]`` or ``A[i, j]``.
 Annotations also support :ref:`symbolic shapes <symbolic-shapes>`.
@@ -50,7 +50,7 @@ pass on the Python side when you call the compiled ``Executable``:
    * - Annotation
      - Is
      - Pass at call time
-   * - ``Tx.Buffer((d0, d1), dtype)``
+   * - ``Tx.Tensor((d0, d1), dtype)``
      - a tensor parameter (shape + dtype fixed)
      - a tensor on the right device
    * - ``Tx.handle``
@@ -69,7 +69,7 @@ interop) or
 order. For example, a kernel with a scalar parameter::
 
     @Tx.prim_func
-    def scal(A: Tx.Buffer((256,), 'float32'), B: Tx.Buffer((256,), 'float32'), s: Tx.float32):
+    def scal(A: Tx.Tensor((256,), 'float32'), B: Tx.Tensor((256,), 'float32'), s: Tx.float32):
 
 
         Tx.device_entry(); bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
@@ -92,7 +92,7 @@ passed tensor** at run time, so a *single compiled kernel* handles any size:
 
 
     @Tx.prim_func
-    def scale_dyn(A: Tx.Buffer((n,), "float32"), B: Tx.Buffer((n,), "float32")):
+    def scale_dyn(A: Tx.Tensor((n,), "float32"), B: Tx.Tensor((n,), "float32")):
         Tx.device_entry()
         bx = Tx.cta_id([1])
         tx = Tx.thread_id([1])
@@ -144,7 +144,7 @@ merged function (trimmed):
 
 
     @Tx.prim_func
-    def main(A: Tx.Buffer((n,)), B: Tx.Buffer((n,))):
+    def main(A: Tx.Tensor((n,)), B: Tx.Tensor((n,))):
 
         with Tx.launch_thread("blockIdx.x", 1), Tx.launch_thread("threadIdx.x", 1):
             for i in range(n):
@@ -167,7 +167,7 @@ trailing ``1, 1`` are the grid/block launch dims):
 
 
     @Tx.prim_func  # host
-    def main(A: Tx.Buffer((n,)), B: Tx.Buffer((n,))):
+    def main(A: Tx.Tensor((n,)), B: Tx.Tensor((n,))):
 
         Tx.call_packed("scale_dyn_kernel", A.data, B.data, n, 1, 1)  # n forwarded
 
@@ -186,7 +186,7 @@ device checks (e.g. asserting ``B.shape[0] == n``)::
   parameters annotated ``Tx.constexpr`` are baked in as compile-time constants and
   the result is an ordinary ``PrimFunc``. Use it when you want sizes/flags fixed at
   compile time (so the compiler can unroll, statically size shared memory, etc.).
-  Referencing a constexpr inside an annotation (e.g. ``Tx.Buffer((N,), ...)``)
+  Referencing a constexpr inside an annotation (e.g. ``Tx.Tensor((N,), ...)``)
   requires ``from __future__ import annotations`` at the top of the file.
 
 .. code-block:: python
@@ -196,9 +196,9 @@ device checks (e.g. asserting ``B.shape[0] == n``)::
 
     @Tx.jit
     def add(
-        A: Tx.Buffer((N,), "float32"),
-        B: Tx.Buffer((N,), "float32"),
-        C: Tx.Buffer((N,), "float32"),
+        A: Tx.Tensor((N,), "float32"),
+        B: Tx.Tensor((N,), "float32"),
+        C: Tx.Tensor((N,), "float32"),
         *,
         N: Tx.constexpr,
     ):

@@ -41,13 +41,13 @@ class VtcmAllocator : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, call, inplace_mode);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
     if (IsVtcmStorage(scope)) {
@@ -60,7 +60,7 @@ class VtcmAllocator : public StmtExprMutator {
       BufferVar buffer = op->var.as_or_throw<BufferVar>();
       return Bind(
           buffer,
-          Call(buffer.type(), tirx::builtin::decl_buffer(),
+          Call(buffer.type(), tirx::builtin::decl_tensor(),
                {Call(buffer.DataPointerType(), tirx::builtin::nd_mem_alloc_with_scope(), args),
                 tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                 StringImm(buffer.scope())},

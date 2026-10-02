@@ -40,7 +40,7 @@ def test_const_shape_arg():
             return x
 
         @Ts.prim_func
-        def extra_func(H: T.Buffer(T.int64(4), "int64")):
+        def extra_func(H: T.Tensor(T.int64(4), "int64")):
             """Extra function, checks if the pass preserves it."""
             H[T.int64(1)] = H[T.int64(0)] + T.int64(1)
 
@@ -67,7 +67,7 @@ def test_const_shape_arg():
             return x
 
         @Ts.prim_func
-        def extra_func(H: T.Buffer(T.int64(4), "int64")):
+        def extra_func(H: T.Tensor(T.int64(4), "int64")):
             H[T.int64(1)] = H[T.int64(0)] + T.int64(1)
 
     before = Before
@@ -205,7 +205,7 @@ def test_symbolic_compute():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def shape_func(H: T.Buffer(T.int64(4), "int64")):
+        def shape_func(H: T.Tensor(T.int64(4), "int64")):
             # generated compute function
             T.func_attr({"tirx.is_host_func": True})
             H[T.int64(sindex["k+1"])] = H[T.int64(sindex["k"])] + T.int64(1)
@@ -546,7 +546,7 @@ def test_return_match_check_with_new_expr():
             return out
 
         @Ts.prim_func(private=True)
-        def shape_func(H: T.Buffer(T.int64(2), "int64")):
+        def shape_func(H: T.Tensor(T.int64(2), "int64")):
             # generated compute function
             T.func_attr({"tirx.is_host_func": True})
             H[T.int64(sindex["n * n"])] = H[T.int64(sindex["n"])] * H[T.int64(sindex["n"])]

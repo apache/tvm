@@ -308,7 +308,7 @@ def extern(
             raise ValueError("expect inputs to be tensor")
         if in_buffers is None:
             input_placeholders.append(
-                tvm.tirx.decl_buffer(
+                tvm.tirx.decl_tensor(
                     t.shape,
                     t.dtype,
                     t.op.name,
@@ -329,7 +329,7 @@ def extern(
 
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
-                tvm.tirx.decl_buffer(
+                tvm.tirx.decl_tensor(
                     shp,
                     dt,
                     name,
@@ -378,7 +378,7 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
         B = te.placeholder((128, 128), name="B")
 
         @Ts.prim_func
-        def before_split(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))) -> None:
+        def before_split(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
 
 
             for i, j in T.grid(128, 128):
@@ -389,7 +389,7 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
         C = te.extern_primfunc([A, B], func)
     """
 
-    # Preserve the function parameter order while selecting BufferType annotations.
+    # Preserve the function parameter order while selecting TensorType annotations.
     dt_access_map = tvm.s_tir._ffi_api.DomainTouchedAccessMap(primfunc)
     ordered_buffers = [param for param in primfunc.params if tvm.tirx.is_buffer_var(param)]
     in_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][0])]
@@ -571,7 +571,7 @@ def create_prim_func(
 
         @Ts.prim_func
         def tir_matmul(
-            A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+            A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
         ) -> None:
 
             for i, j, k in T.grid(128, 128, 128):

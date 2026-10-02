@@ -174,7 +174,7 @@ For example, a small function can be authored, printed and parsed again:
    from tvm.script import tirx as T
 
    @T.prim_func
-   def increment(A: T.Buffer((4,), "float32")):
+   def increment(A: T.Tensor((4,), "float32")):
        for i in T.serial(4):
            A[i] = A[i] + 1.0
 

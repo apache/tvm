@@ -61,8 +61,8 @@ def test_emit_te_primfunc_attrs():
     class TestModule:
         @Ts.prim_func(private=True)
         def plus_one(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"some_attr": "foo", "another_attr": True, "tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -173,7 +173,7 @@ def test_inline_prim_func():
             def f(x: R.Tensor((128, 128), "float32"), y: R.Tensor((128, 128), "float32")):
                 @Ts.prim_func
                 def my_matmul(
-                    A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+                    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
                 ) -> None:
                     for i, j, k in T.grid(128, 128, 128):
                         with Ts.sblock():
@@ -242,9 +242,9 @@ def test_context_aware_parsing(monkeypatch):
     class Module:
         @Ts.prim_func
         def add(
-            X: T.Buffer([T.int64(2), T.int64(4)], "float32"),
-            Y: T.Buffer((), "float32"),
-            Z: T.Buffer([T.int64(2), T.int64(4)], "float32"),
+            X: T.Tensor([T.int64(2), T.int64(4)], "float32"),
+            Y: T.Tensor((), "float32"),
+            Z: T.Tensor([T.int64(2), T.int64(4)], "float32"),
         ):
             T.evaluate(0)
 

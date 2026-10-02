@@ -81,16 +81,16 @@ def _attention_prefill_cpu(
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_paged_kv_cpu(
-        q: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        pages: T.Buffer((max_num_pages, 2, h_kv, page_size, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
-        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
-        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        q: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Tensor((max_num_pages, 2, h_kv, page_size, d), dtype), # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
-        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
-        output: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        q_rope_position: T.Tensor((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        output: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Tensor((total_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -235,16 +235,16 @@ def _attention_prefill(
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_paged_kv(
-        q: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        pages: T.Buffer((max_num_pages, 2, h_kv, page_size, d), dtype, elem_offset=pages_elem_offset), # [max_num_pages, 2, h_kv, page_size, d]
-        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
-        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        q: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Tensor((max_num_pages, 2, h_kv, page_size, d), dtype, elem_offset=pages_elem_offset), # [max_num_pages, 2, h_kv, page_size, d]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
-        q_rope_position: T.Buffer((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
-        output: T.Buffer((total_len, h_q, d), dtype), # [total_len, h_q, d]
-        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        q_rope_position: T.Tensor((total_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_len]
+        output: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Tensor((total_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -378,11 +378,11 @@ def _attention_sequence_prefill(h_kv, h_q, d, dtype, target: Target, causal=0, s
     kv_len = T.dynamic("kv_len", "int32")
     @Ts.prim_func
     def batch_sequence_prefill_kv(  # pylint: disable=too-many-branches
-        q: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
-        k: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
-        v: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
-        output: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
-        lse: T.Buffer((batch_size, qo_len, h_q), dtype) # [total_len, h_q]
+        q: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        k: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        v: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [total_len, h_kv, d]
+        output: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [total_len, h_q, d]
+        lse: T.Tensor((batch_size, qo_len, h_q), dtype) # [total_len, h_q]
     ):
 
           # pylint: disable=unused-variable
@@ -540,12 +540,12 @@ def _attention_sequence_prefill_with_mask(
     kv_len = T.dynamic("kv_len", "int32")
     @Ts.prim_func
     def batch_sequence_prefill_kv_masked(  # pylint: disable=too-many-branches
-        q: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
-        k: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
-        v: T.Buffer((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
-        valid_lens: T.Buffer((batch_size,), 'int32'), # [batch_size], int32
-        output: T.Buffer((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
-        lse: T.Buffer((batch_size, qo_len, h_q), dtype) # [batch_size, qo_len, h_q]
+        q: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
+        k: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
+        v: T.Tensor((batch_size, kv_len, h_kv, d), dtype), # [batch_size, kv_len, h_kv, d]
+        valid_lens: T.Tensor((batch_size,), 'int32'), # [batch_size], int32
+        output: T.Tensor((batch_size, qo_len, h_q, d), dtype), # [batch_size, qo_len, h_q, d]
+        lse: T.Tensor((batch_size, qo_len, h_q), dtype) # [batch_size, qo_len, h_q]
     ):
 
         batch_tiles: T.let[T.int32] = T.ceildiv(qo_len * group_size, tile_x)
@@ -650,15 +650,15 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dic
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
-        q: T.Buffer((qo_len, h_q, d_qk), dtype),  # [total_len, h_q, d_qk]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
-        k: T.Buffer((kv_len, h_kv, d_qk), dtype),  # [total_len, h_kv, d_qk]
-        v: T.Buffer((kv_len, h_kv, d_v), dtype),  # [total_len, h_kv, d_v]
-        kv_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1]
-        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
-        output: T.Buffer((qo_len, h_q, d_v), dtype),  # [total_len, h_q, d_v]
-        lse: T.Buffer((qo_len, h_q), 'float32'),  # [total_len, h_q]
+        q: T.Tensor((qo_len, h_q, d_qk), dtype),  # [total_len, h_q, d_qk]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
+        k: T.Tensor((kv_len, h_kv, d_qk), dtype),  # [total_len, h_kv, d_qk]
+        v: T.Tensor((kv_len, h_kv, d_v), dtype),  # [total_len, h_kv, d_v]
+        kv_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset),  # [batch_size + 1]
+        q_rope_position: T.Tensor((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset),  # [total_q_len]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),  # [b]
+        output: T.Tensor((qo_len, h_q, d_v), dtype),  # [total_len, h_q, d_v]
+        lse: T.Tensor((qo_len, h_q), 'float32'),  # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -759,15 +759,15 @@ def _attention_prefill_ragged(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: dict[st
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_ragged_kv(  # pylint: disable=too-many-branches
-        q: T.Buffer((qo_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        k: T.Buffer((kv_len, h_kv, d_qk), dtype), # [total_len, h_kv, d_qk]
-        v: T.Buffer((kv_len, h_kv, d_v), dtype), # [total_len, h_kv, d_v]
-        kv_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1]
-        q_rope_position: T.Buffer((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
-        k_rope_pos_offset: T.Buffer((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
-        output: T.Buffer((qo_len, h_q, d_v), dtype), # [total_len, h_q, d_v]
-        lse: T.Buffer((qo_len, h_q), 'float32'), # [total_len, h_q]
+        q: T.Tensor((qo_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        k: T.Tensor((kv_len, h_kv, d_qk), dtype), # [total_len, h_kv, d_qk]
+        v: T.Tensor((kv_len, h_kv, d_v), dtype), # [total_len, h_kv, d_v]
+        kv_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=kv_indptr_elem_offset), # [batch_size + 1]
+        q_rope_position: T.Tensor((qo_len,), 'int32', elem_offset=q_rope_position_elem_offset), # [total_q_len]
+        k_rope_pos_offset: T.Tensor((batch_size,), 'int32', elem_offset=k_rope_pos_offset_elem_offset), # [b]
+        output: T.Tensor((qo_len, h_q, d_v), dtype), # [total_len, h_q, d_v]
+        lse: T.Tensor((qo_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         rotary_mode: T.int32,
         rope_scale: T.float32,
@@ -889,14 +889,14 @@ def _attention_prefill_mla(h_q, d_latent, d_rope, dtype, sliding_window: bool, t
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_prefill_paged_kv_mla(
-        q: T.Buffer((total_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
-        q_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
-        pages: T.Buffer((max_num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset), # [max_num_pages, page_size, d_qk]
-        page_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
-        page_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
+        q: T.Tensor((total_len, h_q, d_qk), dtype), # [total_len, h_q, d_qk]
+        q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
+        pages: T.Tensor((max_num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset), # [max_num_pages, page_size, d_qk]
+        page_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=page_indptr_elem_offset), # [batch_size + 1]
+        page_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset), # [nnz_pages]
         length_info: _length_info_buffer(batch_size, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        output: T.Buffer((total_len, h_q, d_latent), dtype), # [total_len, h_q, d_latent]
-        lse: T.Buffer((total_len, h_q), 'float32'), # [total_len, h_q]
+        output: T.Tensor((total_len, h_q, d_latent), dtype), # [total_len, h_q, d_latent]
+        lse: T.Tensor((total_len, h_q), 'float32'), # [total_len, h_q]
         causal: T.int32,
         sm_scale: T.float32,
     ):

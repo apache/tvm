@@ -528,7 +528,7 @@ def check_well_formed(obj: IRModule | Function, check_ty: bool = True) -> bool:
 
 
 def _get_prim_func_default_dtype(func: PrimFunc):
-    """Detect default index dtype from BufferType-annotated parameters."""
+    """Detect default index dtype from TensorType-annotated parameters."""
     for param in func.params:
         if tirx.is_buffer_var(param):
             for value in param.shape:

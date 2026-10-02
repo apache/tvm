@@ -77,12 +77,12 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
     if scope == "warp":
 
         @T.prim_func
-        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
+        def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.lane_id([32])
             T.thread_id([n_threads])
-            A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
             Tx.warp.copy(A_smem[full], A[full])
             T.cuda.cta_sync()
             Tx.warp.copy(B[full], A_smem[full])
@@ -90,7 +90,7 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
     elif scope == "warpgroup":
 
         @T.prim_func
-        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
+        def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.warpgroup_id([n_threads // 128])
@@ -98,7 +98,7 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
             T.lane_id([32])
             T.thread_id_in_wg([128])
             T.thread_id([n_threads])
-            A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
             Tx.wg.copy(A_smem[full], A[full])
             T.cuda.cta_sync()
             Tx.wg.copy(B[full], A_smem[full])
@@ -106,13 +106,13 @@ def _build_round_trip_kernel(scope, n_threads, shape, dtype):
     elif scope == "cta":
 
         @T.prim_func
-        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
+        def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.warp_id([n_threads // 32])
             T.lane_id([32])
             T.thread_id([n_threads])
-            A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
             Tx.cta.copy(A_smem[full], A[full])
             T.cuda.cta_sync()
             Tx.cta.copy(B[full], A_smem[full])
@@ -172,11 +172,11 @@ def test_fallback_thread_scope():
     full = tuple(slice(0, d) for d in shape)
 
     @T.prim_func
-    def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
+    def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.thread_id([1])
-        A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+        A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
         Tx.copy(A_smem[full], A[full])
         T.cuda.cta_sync()
         Tx.copy(B[full], A_smem[full])
@@ -210,13 +210,13 @@ def test_fallback_emits_gate():
     full = tuple(slice(0, d) for d in shape)
 
     @T.prim_func
-    def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
+    def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
         T.device_entry()
         T.cta_id([1])
         T.warp_id([8])  # 256 threads => 8 warps
         T.lane_id([32])
         T.thread_id([256])
-        A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+        A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
         Tx.cta.copy(A_smem[full], A[full])
         Tx.cta.copy(B[full], A_smem[full])
 

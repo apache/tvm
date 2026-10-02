@@ -91,7 +91,7 @@ def _emit_reduction_local_thread_packed_add_sum(
     # fmt: off
     @T.prim_func(check_well_formed=False)
     def impl():
-        local_sum = T.alloc_buffer([8], dtype, scope="local")
+        local_sum = T.alloc_tensor([8], dtype, scope="local")
         # add.f32x2's operands are .b64 register pairs, so each packed add is
         # mov (pack) -> add -> mov (unpack). nvcc emitted exactly these movs for
         # the old make_float2/float2_x glue too; writing them keeps every
@@ -173,7 +173,7 @@ def _emit_reduction_local_thread_3input_maxmin(
     # fmt: off
     @T.prim_func(check_well_formed=False)
     def impl():
-        temp = T.alloc_buffer([4], dtype, scope="local")
+        temp = T.alloc_tensor([4], dtype, scope="local")
         # First pass: process first 8 elements into 4 temps
         for i in T.unroll(4):
             if accum and i == 0:

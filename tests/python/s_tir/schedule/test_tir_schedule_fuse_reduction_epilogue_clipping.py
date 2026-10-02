@@ -34,9 +34,9 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def matmul_clipping_before(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
     lower: T.float32,
     upper: T.float32,
 ) -> None:
@@ -57,9 +57,9 @@ def matmul_clipping_before(
 
 @Ts.prim_func
 def matmul_clipping_expected(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
     lower: T.float32,
     upper: T.float32,
 ) -> None:
@@ -85,9 +85,9 @@ def test_matmul_clipping():
 
 @Ts.prim_func
 def matmul_clipping_before_per_iteration(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
 ) -> None:
     """Original function with per-iteration clipping (same semantics as fused)."""
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
@@ -156,10 +156,10 @@ def test_matmul_clipping_correctness_unified():
 
 @Ts.prim_func
 def matmul_clipping_multiple_epilogue_before(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
-    E: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
+    E: T.Tensor((16, 16), "float32"),
     lower: T.float32,
     upper: T.float32,
 ) -> None:
@@ -185,10 +185,10 @@ def matmul_clipping_multiple_epilogue_before(
 
 @Ts.prim_func
 def matmul_clipping_multiple_epilogue_expected(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
-    E: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
+    E: T.Tensor((16, 16), "float32"),
     lower: T.float32,
     upper: T.float32,
 ) -> None:
@@ -247,9 +247,9 @@ def test_matmul_clipping_commutative_variants(pattern_func):
 
     @Ts.prim_func
     def test_func(
-        A: T.Buffer((8, 8), "float32"),
-        B: T.Buffer((8, 8), "float32"),
-        D: T.Buffer((8, 8), "float32"),
+        A: T.Tensor((8, 8), "float32"),
+        B: T.Tensor((8, 8), "float32"),
+        D: T.Tensor((8, 8), "float32"),
     ) -> None:
         temp = Ts.sblock_alloc_buffer((8, 8), dtype="float32")
         for i, j, k in T.grid(8, 8, 8):

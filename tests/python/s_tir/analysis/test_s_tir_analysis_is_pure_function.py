@@ -60,21 +60,21 @@ class TestComputeValueAndReturn(CheckPureFunction):
 
 class TestReadBufferArgument(CheckPureFunction):
     @Ts.prim_func
-    def func(A: T.Buffer(16, "float32")) -> T.float32:
+    def func(A: T.Tensor(16, "float32")) -> T.float32:
         return A[0]
 
 
 class TestWriteToBufferArgument(CheckImpureFunction):
     @Ts.prim_func
-    def func(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+    def func(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
         for i in range(16):
             B[i] = A[i]
 
 
 class TestWriteToInternalAllocation(CheckPureFunction):
     @Ts.prim_func
-    def func(A: T.Buffer([16, 16], "float32")) -> T.float32:
-        Sum = T.decl_buffer([], "float32")
+    def func(A: T.Tensor([16, 16], "float32")) -> T.float32:
+        Sum = T.decl_tensor([], "float32")
         Sum[()] = 0.0
         for i, j in T.grid(16, 16):
             Sum[()] = Sum[()] + A[i, j]

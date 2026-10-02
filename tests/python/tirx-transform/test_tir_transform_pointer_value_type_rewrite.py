@@ -39,8 +39,8 @@ def test_rewrite_to_shuffle_0():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32")):
-            A_local = T.alloc_buffer((16,), scope="local")
+        def main(A: T.Tensor((16,), "float32"), B: T.Tensor((4,), "float32")):
+            A_local = T.alloc_tensor((16,), scope="local")
             for i in range(4):
                 A_local[T.ramp(i * 4, 1, 4)] = A[T.ramp(i * 4, 1, 4)]
             for i in range(4):
@@ -49,8 +49,8 @@ def test_rewrite_to_shuffle_0():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer((4,), "float32x4", layout=None), B: T.Buffer((4,), "float32")):
-            A_local = T.alloc_buffer((4,), "float32x4", scope="local", layout=None)
+        def main(A: T.Tensor((4,), "float32x4", layout=None), B: T.Tensor((4,), "float32")):
+            A_local = T.alloc_tensor((4,), "float32x4", scope="local", layout=None)
             for i in range(4):
                 A_local[T.Div(i * 4, 4)] = A[T.Div(i * 4, 4)]
             for i in range(4):
@@ -71,8 +71,8 @@ def test_rewrite_to_shuffle_1():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer((8,), "float32"), B: T.Buffer((1,), "float32")):
-            A_local = T.alloc_buffer((8,), scope="local")
+        def main(A: T.Tensor((8,), "float32"), B: T.Tensor((1,), "float32")):
+            A_local = T.alloc_tensor((8,), scope="local")
             A_local[T.ramp(0, 1, 4)] = A[T.ramp(0, 1, 4)]
             A_local[T.ramp(4, 1, 4)] = A[T.ramp(4, 1, 4)]
             B[0] = (
@@ -89,8 +89,8 @@ def test_rewrite_to_shuffle_1():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer((2,), "float32x4", layout=None), B: T.Buffer((1,), "float32")):
-            A_local = T.alloc_buffer((2,), "float32x4", scope="local", layout=None)
+        def main(A: T.Tensor((2,), "float32x4", layout=None), B: T.Tensor((1,), "float32")):
+            A_local = T.alloc_tensor((2,), "float32x4", scope="local", layout=None)
             A_local[0] = A[0]
             A_local[1] = A[1]
             B[0] = (
@@ -114,7 +114,7 @@ def test_address_of():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        def main(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
                 B[T.ramp(i * 4, 1, 4)] = A[T.ramp(i * 4, 1, 4)]
@@ -122,7 +122,7 @@ def test_address_of():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer((16,), "float32"), B: T.Buffer((4,), "float32x4", layout=None)):
+        def main(A: T.Tensor((16,), "float32"), B: T.Tensor((4,), "float32x4", layout=None)):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
                 B[T.Div(i * 4, 4)] = A[T.ramp(i * 4, 1, 4)]
@@ -137,7 +137,7 @@ def test_scalar_read_without_write():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer((16,), "float32")):
+        def main(A: T.Tensor((16,), "float32")):
             for i in range(4):
                 T.evaluate(A[i * 4])
 
@@ -145,7 +145,7 @@ def test_scalar_read_without_write():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer((16,), "float32")):
+        def main(A: T.Tensor((16,), "float32")):
             for i in range(4):
                 T.evaluate(A[i * 4])
 
@@ -159,9 +159,9 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer((16,), "float32")):
-            A_view = T.decl_buffer((16,), "float32", data=A.data)
-            A_view_2 = T.decl_buffer((16,), "float32", data=A_view.data)
+        def main(A: T.Tensor((16,), "float32")):
+            A_view = T.decl_tensor((16,), "float32", data=A.data)
+            A_view_2 = T.decl_tensor((16,), "float32", data=A_view.data)
             for i in range(4):
                 A_view_2[T.ramp(i * 4, 1, 4)] = T.broadcast(T.float32(1), 4)
 
@@ -176,7 +176,7 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
         func.body,
         lambda node: (
             decl_buffers.append(node)
-            if _is_buffer_binding(node, "tirx.decl_buffer")
+            if _is_buffer_binding(node, "tirx.decl_tensor")
             else buffer_stores.append(node)
             if isinstance(node, tvm.tirx.BufferStore)
             else None

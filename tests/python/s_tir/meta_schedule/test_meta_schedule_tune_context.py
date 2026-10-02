@@ -36,9 +36,9 @@ from tvm.target import Target
 class Matmul:
     @Ts.prim_func
     def main(
-        A: T.Buffer((1024, 1024), "float32"),
-        B: T.Buffer((1024, 1024), "float32"),
-        C: T.Buffer((1024, 1024), "float32"),
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        C: T.Tensor((1024, 1024), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 

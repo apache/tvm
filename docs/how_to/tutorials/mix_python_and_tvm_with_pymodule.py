@@ -87,9 +87,9 @@ if RUN_EXAMPLE:
     class MyFirstModule(BasePyModule):
         @Ts.prim_func
         def add_tir(
-            A: T.Buffer((4,), "float32"),
-            B: T.Buffer((4,), "float32"),
-            C: T.Buffer((4,), "float32"),
+            A: T.Tensor((4,), "float32"),
+            B: T.Tensor((4,), "float32"),
+            C: T.Tensor((4,), "float32"),
         ):
             for i in range(4):
                 C[i] = A[i] + B[i]
@@ -133,9 +133,9 @@ if RUN_EXAMPLE:
     class DebugModule(BasePyModule):
         @Ts.prim_func
         def matmul_tir(
-            A: T.Buffer((n, 4), "float32"),
-            B: T.Buffer((4, 3), "float32"),
-            C: T.Buffer((n, 3), "float32"),
+            A: T.Tensor((n, 4), "float32"),
+            B: T.Tensor((4, 3), "float32"),
+            C: T.Tensor((n, 3), "float32"),
         ):
             for i, j, k in T.grid(n, 3, 4):
                 with Ts.sblock("matmul"):
@@ -210,9 +210,9 @@ if RUN_EXAMPLE:
     class PipelineModule(BasePyModule):
         @Ts.prim_func
         def matmul_tir(
-            A: T.Buffer((2, 4), "float32"),
-            B: T.Buffer((4, 3), "float32"),
-            C: T.Buffer((2, 3), "float32"),
+            A: T.Tensor((2, 4), "float32"),
+            B: T.Tensor((4, 3), "float32"),
+            C: T.Tensor((2, 3), "float32"),
         ):
             for i, j, k in T.grid(2, 3, 4):
                 with Ts.sblock("matmul"):
@@ -274,9 +274,9 @@ if RUN_EXAMPLE:
     class DenseLayer:
         @Ts.prim_func
         def bias_add_tir(
-            x: T.Buffer((2, 4), "float32"),
-            b: T.Buffer((4,), "float32"),
-            out: T.Buffer((2, 4), "float32"),
+            x: T.Tensor((2, 4), "float32"),
+            b: T.Tensor((4,), "float32"),
+            out: T.Tensor((2, 4), "float32"),
         ):
             for i, j in T.grid(2, 4):
                 out[i, j] = x[i, j] + b[j]
@@ -401,7 +401,7 @@ if RUN_EXAMPLE:
     @R.py_module
     class DynamicModule(BasePyModule):
         @Ts.prim_func
-        def scale_tir(x: T.Buffer((n,), "float32"), out: T.Buffer((n,), "float32")):
+        def scale_tir(x: T.Tensor((n,), "float32"), out: T.Tensor((n,), "float32")):
             for i in T.serial(n):
                 out[i] = x[i] * T.float32(2.0)
 

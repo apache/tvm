@@ -32,7 +32,7 @@ def test_lazy_transform_params():
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -69,7 +69,7 @@ def test_lazy_transform_params():
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
@@ -113,7 +113,7 @@ def test_get_item_only():
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -151,7 +151,7 @@ def test_get_item_only():
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
@@ -196,7 +196,7 @@ def test_extra_get_item_params():
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -234,7 +234,7 @@ def test_extra_get_item_params():
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
@@ -281,7 +281,7 @@ def test_extra_set_item_params():
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -319,7 +319,7 @@ def test_extra_set_item_params():
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
@@ -431,9 +431,9 @@ def test_lazy_transform_params_with_symbolic_vars():
 
         @Ts.prim_func(private=True)
         def slice_buffer(
-            Input: T.Buffer((16, 16), "float32"),
+            Input: T.Tensor((16, 16), "float32"),
             slice_index: T.int64,
-            Output: T.Buffer(16, "float32"),
+            Output: T.Tensor(16, "float32"),
         ):
             for i in T.grid(16):
                 with Ts.sblock("slice_buffer"):
@@ -466,9 +466,9 @@ def test_lazy_transform_params_with_symbolic_vars():
 
         @Ts.prim_func(private=True)
         def slice_buffer(
-            Input: T.Buffer((16, 16), "float32"),
+            Input: T.Tensor((16, 16), "float32"),
             slice_index: T.int64,
-            Output: T.Buffer(16, "float32"),
+            Output: T.Tensor(16, "float32"),
         ):
             for i in T.grid(16):
                 with Ts.sblock("slice_buffer"):
@@ -487,8 +487,8 @@ def test_param_shape_symbolic():
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
-            out: T.Buffer((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
+            w1: T.Tensor((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
+            out: T.Tensor((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, ic_transform_layout_IOHW_to_OIHW, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -530,8 +530,8 @@ def test_param_shape_symbolic():
     class Expected:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
-            out: T.Buffer((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
+            w1: T.Tensor((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
+            out: T.Tensor((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, ic_transform_layout_IOHW_to_OIHW, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -573,7 +573,7 @@ def test_output_with_use_site():
     @I.ir_module
     class Module:
         @Ts.prim_func
-        def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
+        def copy(x: T.Tensor((), "float32"), y: T.Tensor((), "float32")):
             with Ts.sblock("block"):
                 Ts.reads(x[()])
                 Ts.writes(y[()])
@@ -595,7 +595,7 @@ def test_output_with_use_site():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def copy(x: T.Buffer((), "float32"), y: T.Buffer((), "float32")):
+        def copy(x: T.Tensor((), "float32"), y: T.Tensor((), "float32")):
             with Ts.sblock("block"):
                 Ts.reads(x[()])
                 Ts.writes(y[()])

@@ -125,7 +125,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_buffer())) {
+        call && call->op.same_as(tirx::builtin::decl_tensor())) {
       if (auto source = GetBufferDataVar(call->args[0])) {
         buffer_aliases_.insert_or_assign(op->var.get(), ResolveBuffer(source.value()));
         return std::nullopt;
@@ -657,8 +657,8 @@ void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // 
 
 void CodeGenWebGPU::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
-    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
   }
   // Stateful reads cannot be substituted after the underlying state changes.
   if (auto prim_value = op->value.as<PrimExpr>();
@@ -739,7 +739,7 @@ void CodeGenWebGPU::Dispatch_(const BufferStoreNode* op) {
   }
 }
 
-void CodeGenWebGPU::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;

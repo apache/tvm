@@ -285,14 +285,14 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    for (const BufferVar& alloc_buffer : op->alloc_buffers) {
-      buffer_data_to_buffer_.Set(alloc_buffer.var(), alloc_buffer);
+    for (const BufferVar& alloc_tensor : op->alloc_buffers) {
+      buffer_data_to_buffer_.Set(alloc_tensor.var(), alloc_tensor);
     }
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
-    for (const BufferVar& alloc_buffer : op->alloc_buffers) {
-      buffer_data_to_buffer_.erase(alloc_buffer.var());
+    for (const BufferVar& alloc_tensor : op->alloc_buffers) {
+      buffer_data_to_buffer_.erase(alloc_tensor.var());
     }
     return block;
   }
@@ -392,7 +392,7 @@ class PipelineRewriter : public StmtExprMutator {
     for (const BufferVar& buffer : pipeline_allocs_) {
       int num_versions = ComputeBufferVersions(buffer, infos.at(buffer));
       if (num_versions > 1) {
-        buffer_remap_.Set(buffer, RewriteAllocBuffer(buffer, num_versions));
+        buffer_remap_.Set(buffer, RewriteAllocTensor(buffer, num_versions));
       }
     }
     for (const auto& [_, remapped] : buffer_remap_) {
@@ -577,8 +577,8 @@ class PipelineRewriter : public StmtExprMutator {
    * \param num_versions The number of versions to keep.
    * \return The resized buffer.
    */
-  BufferVar RewriteAllocBuffer(const BufferVar& buffer, int num_versions) {
-    ffi::ObjectPtr<BufferTypeNode> new_buffer = CopyBufferType(buffer);
+  BufferVar RewriteAllocTensor(const BufferVar& buffer, int num_versions) {
+    ffi::ObjectPtr<TensorTypeNode> new_buffer = CopyTensorType(buffer);
     new_buffer->shape.insert(new_buffer->shape.begin(), PrimExpr(num_versions));
     if (new_buffer->strides.size()) {
       TVM_FFI_ICHECK(new_buffer->strides.size() + 1 == new_buffer->shape.size());
@@ -1182,7 +1182,7 @@ class PipelineInjector : public StmtExprMutator {
     if (const auto* realize = for_node->body.as<SBlockRealizeNode>()) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
-        TVM_FFI_ICHECK(buffer->IsInstance<BufferTypeNode>());
+        TVM_FFI_ICHECK(buffer->IsInstance<TensorTypeNode>());
         buffer_data_to_buffer_.Set(buffer.var(), buffer);
       }
       pipeline_body = block->body;
@@ -1284,14 +1284,14 @@ class PipelineInjector : public StmtExprMutator {
    * \param alloc_buffers The buffer allocations to be added.
    */
   void AddAllocBuffers(SBlockNode* n, const ffi::Array<BufferVar> alloc_buffers) {
-    for (const BufferVar& alloc_buffer : alloc_buffers) {
-      n->alloc_buffers.push_back(alloc_buffer);
+    for (const BufferVar& alloc_tensor : alloc_buffers) {
+      n->alloc_buffers.push_back(alloc_tensor);
       Region region;
-      region.reserve(alloc_buffer->shape.size());
-      for (const PrimExpr& dim : alloc_buffer->shape) {
+      region.reserve(alloc_tensor->shape.size());
+      for (const PrimExpr& dim : alloc_tensor->shape) {
         region.push_back(Range::FromMinExtent(0, dim));
       }
-      n->writes.push_back(BufferRegion(alloc_buffer, region));
+      n->writes.push_back(BufferRegion(alloc_tensor, region));
     }
   }
 

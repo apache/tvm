@@ -146,7 +146,7 @@ def test_call_tir_rewrite():
     @tvm.script.ir_module
     class TestCallTIRRewrite:
         @Ts.prim_func
-        def exp(A: T.Buffer((m_exp, n_exp), "float32"), B: T.Buffer((m_exp, n_exp), "float32")):
+        def exp(A: T.Tensor((m_exp, n_exp), "float32"), B: T.Tensor((m_exp, n_exp), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -188,10 +188,10 @@ def test_call_tir_rewrite_with_interspersed_primitive_argument():
     class Module:
         @Ts.prim_func
         def scale_add(
-            A: T.Buffer((16,), "float32"),
+            A: T.Tensor((16,), "float32"),
             scale: T.float32,
-            C: T.Buffer((16,), "float32"),
-            B: T.Buffer((16,), "float32"),
+            C: T.Tensor((16,), "float32"),
+            B: T.Tensor((16,), "float32"),
         ):
             for i in range(16):
                 B[i] = A[i] + scale * C[i]
@@ -412,7 +412,7 @@ def test_call_tir_inplace_simple():
     @tvm.script.ir_module
     class Input:
         @Ts.prim_func
-        def zeros(A: T.Buffer((2, 3), "int32")):
+        def zeros(A: T.Tensor((2, 3), "int32")):
             # just overwrites A with 0s
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -431,7 +431,7 @@ def test_call_tir_inplace_simple():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def zeros(A: T.Buffer((2, 3), "int32")):
+        def zeros(A: T.Tensor((2, 3), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_zeros"):
@@ -455,7 +455,7 @@ def test_call_tir_inplace_multiple_args():
     class Input:
         @Ts.prim_func
         def copy(
-            A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
+            A: T.Tensor((2, 3), "int32"), B: T.Tensor((2, 3), "int32"), C: T.Tensor((2, 3), "int32")
         ):
             # copies the contents of C into A and B
             T.func_attr({"tirx.noalias": True})
@@ -484,7 +484,7 @@ def test_call_tir_inplace_multiple_args():
     class Expected:
         @Ts.prim_func
         def copy(
-            A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
+            A: T.Tensor((2, 3), "int32"), B: T.Tensor((2, 3), "int32"), C: T.Tensor((2, 3), "int32")
         ):
             # copies the contents of C into A and B
             T.func_attr({"tirx.noalias": True})
@@ -514,11 +514,11 @@ def test_call_tir_inplace_some_new():
     class Input:
         @Ts.prim_func
         def copy(
-            A: T.Buffer((2, 3), "int32"),
-            B: T.Buffer((2, 3), "int32"),
-            C: T.Buffer((2, 3), "int32"),
-            out1: T.Buffer((2, 3), "int32"),
-            out2: T.Buffer((2, 3), "int32"),
+            A: T.Tensor((2, 3), "int32"),
+            B: T.Tensor((2, 3), "int32"),
+            C: T.Tensor((2, 3), "int32"),
+            out1: T.Tensor((2, 3), "int32"),
+            out2: T.Tensor((2, 3), "int32"),
         ):
             # copies the contents of C into A, out1, and out2
             T.func_attr({"tirx.noalias": True})
@@ -554,11 +554,11 @@ def test_call_tir_inplace_some_new():
     class Expected:
         @Ts.prim_func
         def copy(
-            A: T.Buffer((2, 3), "int32"),
-            B: T.Buffer((2, 3), "int32"),
-            C: T.Buffer((2, 3), "int32"),
-            out1: T.Buffer((2, 3), "int32"),
-            out2: T.Buffer((2, 3), "int32"),
+            A: T.Tensor((2, 3), "int32"),
+            B: T.Tensor((2, 3), "int32"),
+            C: T.Tensor((2, 3), "int32"),
+            out1: T.Tensor((2, 3), "int32"),
+            out2: T.Tensor((2, 3), "int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -602,9 +602,9 @@ def test_call_tir_inplace_repeated_input():
         class Input:
             @Ts.prim_func
             def func(
-                A: T.Buffer((2, 3), "int32"),
-                B: T.Buffer((2, 3), "int32"),
-                C: T.Buffer((2, 3), "int32"),
+                A: T.Tensor((2, 3), "int32"),
+                B: T.Tensor((2, 3), "int32"),
+                C: T.Tensor((2, 3), "int32"),
             ):
                 T.evaluate(0)
 
@@ -631,7 +631,7 @@ def test_call_tir_inplace_all_new():
         @tvm.script.ir_module
         class Input:
             @Ts.prim_func
-            def func(A: T.Buffer((2, 3), "int32")):
+            def func(A: T.Tensor((2, 3), "int32")):
                 T.evaluate(0)
 
             @R.function
@@ -671,7 +671,7 @@ def test_inplace_mutation_with_tuple_argument_raises_error():
                 return gv1
 
             @Ts.prim_func(private=True)
-            def multiply_by_two(A: T.Buffer((16,), "float32")):
+            def multiply_by_two(A: T.Tensor((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
 
@@ -702,7 +702,7 @@ def test_inplace_mutation_with_non_tensor_argument_raises_error():
                 return gv1
 
             @Ts.prim_func(private=True)
-            def multiply_by_two(A: T.Buffer((16,), "float32")):
+            def multiply_by_two(A: T.Tensor((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
 
@@ -731,7 +731,7 @@ def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
                 return gv1
 
             @Ts.prim_func(private=True)
-            def multiply_by_two(A: T.Buffer((16,), "float32")):
+            def multiply_by_two(A: T.Tensor((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
 
@@ -760,7 +760,7 @@ def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
                 return gv1
 
             @Ts.prim_func(private=True)
-            def multiply_by_two(A: T.Buffer((16,), "float32")):
+            def multiply_by_two(A: T.Tensor((16,), "float32")):
                 for i in range(16):
                     A[i] = A[i] * T.float32(2)
 

@@ -113,16 +113,16 @@ register, from ``test_ld_stmatrix.py`` (register layout = the m8n8 fragment,
 
 
     @Tx.prim_func
-    def kernel(A: Tx.Buffer((M, N), "float16"), B: Tx.Buffer((M, N), "float16")):
+    def kernel(A: Tx.Tensor((M, N), "float16"), B: Tx.Tensor((M, N), "float16")):
 
         Tx.device_entry()
         Tx.cta_id([1])
         Tx.lane_id([32])
         tid = Tx.thread_id([32])
-        A_smem = Tx.alloc_buffer((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
+        A_smem = Tx.alloc_tensor((8, 4, num, 2), "float16", scope="shared", layout=s_layout)
         # ... stage A into A_smem (row = tid//4, cp = tid%4) ...
         Tx.cuda.cta_sync()
-        R = Tx.alloc_buffer((8, 4, num, 2), "float16", scope="local", layout=r_layout)
+        R = Tx.alloc_tensor((8, 4, num, 2), "float16", scope="local", layout=r_layout)
         Tx.tile.warp.copy(R[full], A_smem[full])  # shared -> register  (ldmatrix)
         # ... write R back out to B ...
 

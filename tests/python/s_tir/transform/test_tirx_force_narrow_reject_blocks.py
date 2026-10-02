@@ -23,7 +23,7 @@ from tvm.script import tirx as T
 
 def test_reject_blocks():
     @Ts.prim_func(private=True)
-    def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+    def before(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
                 with Ts.sblock():

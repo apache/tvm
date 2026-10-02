@@ -122,14 +122,14 @@ def _odd_even_sort(
         tid = 2 * tx
         start = bx * block_size
 
-        # Buffer declarations (DeclBuffer generates both Allocate + DeclBuffer nodes)
-        tmp_keys_swap = T.decl_buffer([block_size], keys_swap.dtype, scope="shared")
-        temp_keys = T.decl_buffer([1], keys_swap.dtype, scope="local")
-        temp_cond1 = T.decl_buffer([1], keys_swap.dtype, scope="local")
-        temp_cond2 = T.decl_buffer([1], keys_swap.dtype, scope="local")
+        # Tensor declarations without data allocate their storage.
+        tmp_keys_swap = T.decl_tensor([block_size], keys_swap.dtype, scope="shared")
+        temp_keys = T.decl_tensor([1], keys_swap.dtype, scope="local")
+        temp_cond1 = T.decl_tensor([1], keys_swap.dtype, scope="local")
+        temp_cond2 = T.decl_tensor([1], keys_swap.dtype, scope="local")
         if values_swap is not None:
-            tmp_values_swap = T.decl_buffer([block_size], values_swap.dtype, scope="shared")
-            temp_values = T.decl_buffer([1], values_swap.dtype, scope="local")
+            tmp_values_swap = T.decl_tensor([block_size], values_swap.dtype, scope="shared")
+            temp_values = T.decl_tensor([1], values_swap.dtype, scope="local")
 
         # Copy data to scratch space
         base_idx = by_val * size * axis_mul_after + bz
@@ -411,10 +411,10 @@ def _sort_common(
         step_count,
         even,
     ):
-        first_buf = T.decl_buffer([1], target_dtype, scope="local")
-        last_buf = T.decl_buffer([1], target_dtype, scope="local")
-        i_buf_buf = T.decl_buffer([1], target_dtype, scope="local")
-        j_buf_buf = T.decl_buffer([1], target_dtype, scope="local")
+        first_buf = T.decl_tensor([1], target_dtype, scope="local")
+        last_buf = T.decl_tensor([1], target_dtype, scope="local")
+        i_buf_buf = T.decl_tensor([1], target_dtype, scope="local")
+        j_buf_buf = T.decl_tensor([1], target_dtype, scope="local")
         first = first_buf
         last = last_buf
         i_buf = i_buf_buf
@@ -478,12 +478,12 @@ def _sort_common(
         step_count,
         even,
     ):
-        outer_first_buf = T.decl_buffer([1], target_dtype, scope="local")
-        outer_last_buf = T.decl_buffer([1], target_dtype, scope="local")
-        first_buf = T.decl_buffer([1], target_dtype, scope="local")
-        last_buf = T.decl_buffer([1], target_dtype, scope="local")
-        i_buf_buf = T.decl_buffer([1], target_dtype, scope="local")
-        j_buf_buf = T.decl_buffer([1], target_dtype, scope="local")
+        outer_first_buf = T.decl_tensor([1], target_dtype, scope="local")
+        outer_last_buf = T.decl_tensor([1], target_dtype, scope="local")
+        first_buf = T.decl_tensor([1], target_dtype, scope="local")
+        last_buf = T.decl_tensor([1], target_dtype, scope="local")
+        i_buf_buf = T.decl_tensor([1], target_dtype, scope="local")
+        j_buf_buf = T.decl_tensor([1], target_dtype, scope="local")
         outer_first = outer_first_buf
         outer_last = outer_last_buf
         first = first_buf
@@ -782,10 +782,10 @@ def sort(data, axis=-1, is_ascend=1):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    value_buf = tvm.tirx.decl_buffer(
+    value_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
     )
-    value_buf_swap = tvm.tirx.decl_buffer(
+    value_buf_swap = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "value_buf_swap", data_alignment=8, layout=None
     )
 
@@ -840,10 +840,10 @@ def sort_thrust(data, axis=-1, is_ascend=1, workspace=None):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    value_buf = tvm.tirx.decl_buffer(
+    value_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
     )
-    indices_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
+    indices_buf = tvm.tirx.decl_tensor(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
 
     def f_compute(ins, outs):
         args = ["tvm.contrib.thrust.sort", ins[0], outs[0], outs[1], is_ascend]
@@ -904,14 +904,14 @@ def argsort(data, axis=-1, is_ascend=1, dtype="float32", ret_type="indices"):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    value_buf = tvm.tirx.decl_buffer(
+    value_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "value_buf", data_alignment=8, layout=None
     )
-    value_swap_buf = tvm.tirx.decl_buffer(
+    value_swap_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "value_swap_buf", data_alignment=8, layout=None
     )
-    indices_buf = tvm.tirx.decl_buffer(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
-    indices_swap_buf = tvm.tirx.decl_buffer(
+    indices_buf = tvm.tirx.decl_tensor(data.shape, dtype, "out_buf", data_alignment=8, layout=None)
+    indices_swap_buf = tvm.tirx.decl_tensor(
         data.shape, dtype, "out_swap_buf", data_alignment=8, layout=None
     )
 
@@ -1018,16 +1018,16 @@ def topk(data, k=1, axis=-1, ret_type="both", is_ascend=False, dtype="int64"):
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    values_buf = tvm.tirx.decl_buffer(
+    values_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "values_buf", data_alignment=8, layout=None
     )
-    values_swap_buf = tvm.tirx.decl_buffer(
+    values_swap_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "values_swap_buf", data_alignment=8, layout=None
     )
-    indices_buf = tvm.tirx.decl_buffer(
+    indices_buf = tvm.tirx.decl_tensor(
         data.shape, dtype, "indices_buf", data_alignment=8, layout=None
     )
-    indices_swap_buf = tvm.tirx.decl_buffer(
+    indices_swap_buf = tvm.tirx.decl_tensor(
         data.shape, dtype, "indies_swap_buf", data_alignment=8, layout=None
     )
 
@@ -1129,18 +1129,18 @@ def topk_thrust(
         axes = swap(list(range(ndim)), axis)
         data = transpose(data, axes)
 
-    data_buf = tvm.tirx.decl_buffer(
+    data_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
     )
     if workspace is not None:
-        workspace_buf = tvm.tirx.decl_buffer(
+        workspace_buf = tvm.tirx.decl_tensor(
             workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8, layout=None
         )
     else:
         workspace_buf = None
     out_bufs = [
-        tvm.tirx.decl_buffer(data.shape, data.dtype, "value_buf", data_alignment=8, layout=None),
-        tvm.tirx.decl_buffer(data.shape, dtype, "indices_buf", data_alignment=8, layout=None),
+        tvm.tirx.decl_tensor(data.shape, data.dtype, "value_buf", data_alignment=8, layout=None),
+        tvm.tirx.decl_tensor(data.shape, dtype, "indices_buf", data_alignment=8, layout=None),
     ]
 
     def f_compute(ins, outs):

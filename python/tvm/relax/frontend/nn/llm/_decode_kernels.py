@@ -67,15 +67,15 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_decode_paged_kv(
-        Q: T.Buffer((B, H_qo, D), qkv_dtype),
-        pages: T.Buffer((max_num_pages, 2, H_kv, page_size, D), qkv_dtype),
-        page_table_indptr: T.Buffer((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
-        page_table_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        Q: T.Tensor((B, H_qo, D), qkv_dtype),
+        pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype),
+        page_table_indptr: T.Tensor((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
+        page_table_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
         length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset),  # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
-        q_rope_position: T.Buffer((B,), 'int32', elem_offset=q_rope_position_elem_offset),
-        output: T.Buffer((B, H_qo, D), qkv_dtype),
-        lse: T.Buffer((B, H_qo), 'float32'),
+        k_rope_pos_offset: T.Tensor((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
+        q_rope_position: T.Tensor((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        output: T.Tensor((B, H_qo, D), qkv_dtype),
+        lse: T.Tensor((B, H_qo), 'float32'),
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
@@ -214,15 +214,15 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
     @Ts.prim_func
     def batch_decode_paged_kv(
-        Q: T.Buffer((B, H_qo, D), qkv_dtype),
-        pages: T.Buffer((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset),
-        page_table_indptr: T.Buffer((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
-        page_table_values: T.Buffer((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
+        Q: T.Tensor((B, H_qo, D), qkv_dtype),
+        pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset),
+        page_table_indptr: T.Tensor((B + 1,), 'int32', elem_offset=page_indptr_elem_offset),
+        page_table_values: T.Tensor((nnz_pages,), 'int32', elem_offset=page_values_elem_offset),
         length_info: _length_info_buffer(B, sliding_window, length_info_elem_offset), # [b] when sliding window = False, or otherwise [3, b]
-        k_rope_pos_offset: T.Buffer((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
-        q_rope_position: T.Buffer((B,), 'int32', elem_offset=q_rope_position_elem_offset),
-        output: T.Buffer((B, H_qo, D), qkv_dtype),
-        lse: T.Buffer((B, H_qo), 'float32'),
+        k_rope_pos_offset: T.Tensor((B,), 'int32', elem_offset=k_rope_pos_offset_elem_offset),
+        q_rope_position: T.Tensor((B,), 'int32', elem_offset=q_rope_position_elem_offset),
+        output: T.Tensor((B, H_qo, D), qkv_dtype),
+        lse: T.Tensor((B, H_qo), 'float32'),
         rotary_mode: T.int32,
         rope_scale: T.float32,
         rope_theta: T.float32,
@@ -400,10 +400,10 @@ def _merge_state_inplace_cpu(v_dtype):
     D = T.dynamic("D", "int32")
     @Ts.prim_func
     def merge_state_inplace_cpu(
-        V: T.Buffer((N, H, D), v_dtype),
-        S: T.Buffer((N, H), 'float32'),
-        V_other: T.Buffer((N, H, D), v_dtype),
-        S_other: T.Buffer((N, H), 'float32'),
+        V: T.Tensor((N, H, D), v_dtype),
+        S: T.Tensor((N, H), 'float32'),
+        V_other: T.Tensor((N, H, D), v_dtype),
+        S_other: T.Tensor((N, H), 'float32'),
     ):
         T.func_attr({"tirx.is_scheduled": True})
 
@@ -445,10 +445,10 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
     D = T.dynamic("D", "int32")
     @Ts.prim_func
     def merge_state_inplace(
-        V: T.Buffer((N, H, D), v_dtype),
-        S: T.Buffer((N, H), 'float32'),
-        V_other: T.Buffer((N, H, D), v_dtype),
-        S_other: T.Buffer((N, H), 'float32'),
+        V: T.Tensor((N, H, D), v_dtype),
+        S: T.Tensor((N, H), 'float32'),
+        V_other: T.Tensor((N, H, D), v_dtype),
+        S_other: T.Tensor((N, H), 'float32'),
     ):
         T.func_attr({"tirx.is_scheduled": True})
 

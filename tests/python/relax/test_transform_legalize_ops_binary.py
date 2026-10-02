@@ -44,7 +44,7 @@ def test_add():
             return gv
 
         @Ts.prim_func(private=True)
-        def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_add"):
@@ -75,7 +75,7 @@ def test_add_with_arg0_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def add(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_add: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_add"):
@@ -106,7 +106,7 @@ def test_add_with_arg1_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def add(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_add: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_add"):
@@ -151,7 +151,7 @@ def test_add_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def add(rxplaceholder: T.Buffer([T.int64(1), c_add, d_add], dtype='float32'), rxplaceholder_1: T.Buffer([a_add, b_add, c_add, T.int64(1)], dtype='float32'), T_add: T.Buffer([a_add, b_add, c_add, d_add], dtype='float32')):
+        def add(rxplaceholder: T.Tensor([T.int64(1), c_add, d_add], dtype='float32'), rxplaceholder_1: T.Tensor([a_add, b_add, c_add, T.int64(1)], dtype='float32'), T_add: T.Tensor([a_add, b_add, c_add, d_add], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_add, b_add, c_add, d_add):
@@ -190,9 +190,9 @@ def test_add_primvalue():
 
         @Ts.prim_func(private=True)
         def add(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -221,7 +221,7 @@ def test_divide():
             return gv
 
         @Ts.prim_func(private=True)
-        def divide(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_divide: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def divide(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_divide: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_divide"):
@@ -252,7 +252,7 @@ def test_divide_with_arg0_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def divide(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_divide: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def divide(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_divide: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_divide"):
@@ -283,7 +283,7 @@ def test_divide_with_arg1_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def divide(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_divide: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def divide(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_divide: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_divide"):
@@ -328,7 +328,7 @@ def test_divide_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def divide(rxplaceholder: T.Buffer([T.int64(1), c_divide, d_divide], dtype='float32'), rxplaceholder_1: T.Buffer([a_divide, b_divide, c_divide, T.int64(1)], dtype='float32'), T_divide: T.Buffer([a_divide, b_divide, c_divide, d_divide], dtype='float32')):
+        def divide(rxplaceholder: T.Tensor([T.int64(1), c_divide, d_divide], dtype='float32'), rxplaceholder_1: T.Tensor([a_divide, b_divide, c_divide, T.int64(1)], dtype='float32'), T_divide: T.Tensor([a_divide, b_divide, c_divide, d_divide], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_divide, b_divide, c_divide, d_divide):
@@ -367,9 +367,9 @@ def test_divide_primvalue():
 
         @Ts.prim_func(private=True)
         def divide(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -398,7 +398,7 @@ def test_floor_divide():
             return gv
 
         @Ts.prim_func(private=True)
-        def floor_divide(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_floor_divide: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def floor_divide(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_floor_divide: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_floor_divide"):
@@ -429,7 +429,7 @@ def test_floor_divide_with_arg0_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def floor_divide(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_floor_divide: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def floor_divide(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_floor_divide: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_floor_divide"):
@@ -460,7 +460,7 @@ def test_floor_divide_with_arg1_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def floor_divide(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_floor_divide: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def floor_divide(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_floor_divide: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_floor_divide"):
@@ -505,7 +505,7 @@ def test_floor_divide_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def floor_divide(rxplaceholder: T.Buffer([T.int64(1), c_floor_divide, d_floor_divide], dtype='float32'), rxplaceholder_1: T.Buffer([a_floor_divide, b_floor_divide, c_floor_divide, T.int64(1)], dtype='float32'), T_floor_divide: T.Buffer([a_floor_divide, b_floor_divide, c_floor_divide, d_floor_divide], dtype='float32')):
+        def floor_divide(rxplaceholder: T.Tensor([T.int64(1), c_floor_divide, d_floor_divide], dtype='float32'), rxplaceholder_1: T.Tensor([a_floor_divide, b_floor_divide, c_floor_divide, T.int64(1)], dtype='float32'), T_floor_divide: T.Tensor([a_floor_divide, b_floor_divide, c_floor_divide, d_floor_divide], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_floor_divide, b_floor_divide, c_floor_divide, d_floor_divide):
@@ -544,9 +544,9 @@ def test_floordiv_primvalue():
 
         @Ts.prim_func(private=True)
         def floor_divide(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -575,7 +575,7 @@ def test_multiply():
             return gv
 
         @Ts.prim_func(private=True)
-        def multiply(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_multiply: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def multiply(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_multiply: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_multiply"):
@@ -620,7 +620,7 @@ def test_multiply_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def multiply(rxplaceholder: T.Buffer([T.int64(1), c_multiply, d_multiply], dtype='float32'), rxplaceholder_1: T.Buffer([a_multiply, b_multiply, c_multiply, T.int64(1)], dtype='float32'), T_multiply: T.Buffer([a_multiply, b_multiply, c_multiply, d_multiply], dtype='float32')):
+        def multiply(rxplaceholder: T.Tensor([T.int64(1), c_multiply, d_multiply], dtype='float32'), rxplaceholder_1: T.Tensor([a_multiply, b_multiply, c_multiply, T.int64(1)], dtype='float32'), T_multiply: T.Tensor([a_multiply, b_multiply, c_multiply, d_multiply], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_multiply, b_multiply, c_multiply, d_multiply):
@@ -659,9 +659,9 @@ def test_multiply_primvalue():
 
         @Ts.prim_func(private=True)
         def multiply(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -685,7 +685,7 @@ def test_power():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def power(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_power: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def power(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_power: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
@@ -732,7 +732,7 @@ def test_power_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def power(rxplaceholder: T.Buffer((T.int64(1), c_power, d_power)), rxplaceholder_1: T.Buffer((a_power, b_power, c_power, T.int64(1))), T_power: T.Buffer((a_power, b_power, c_power, d_power))):
+        def power(rxplaceholder: T.Tensor((T.int64(1), c_power, d_power)), rxplaceholder_1: T.Tensor((a_power, b_power, c_power, T.int64(1))), T_power: T.Tensor((a_power, b_power, c_power, d_power))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -777,9 +777,9 @@ def test_power_primvalue():
 
         @Ts.prim_func(private=True)
         def power(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -803,7 +803,7 @@ def test_atan2():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def atan2(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_atan2: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def atan2(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_atan2: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
@@ -850,7 +850,7 @@ def test_atan2_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def atan2(rxplaceholder: T.Buffer((T.int64(1), c_atan2, d_atan2)), rxplaceholder_1: T.Buffer((a_atan2, b_atan2, c_atan2, T.int64(1))), T_atan2: T.Buffer((a_atan2, b_atan2, c_atan2, d_atan2))):
+        def atan2(rxplaceholder: T.Tensor((T.int64(1), c_atan2, d_atan2)), rxplaceholder_1: T.Tensor((a_atan2, b_atan2, c_atan2, T.int64(1))), T_atan2: T.Tensor((a_atan2, b_atan2, c_atan2, d_atan2))):
             T.func_attr({"tirx.noalias": True})
 
             for ax0, ax1, ax2, ax3 in T.grid(a_atan2, b_atan2, c_atan2, d_atan2):
@@ -894,9 +894,9 @@ def test_atan2_primvalue():
 
         @Ts.prim_func(private=True)
         def atan2(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -925,7 +925,7 @@ def test_subtract():
             return gv
 
         @Ts.prim_func(private=True)
-        def subtract(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_subtract: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def subtract(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_subtract: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_subtract"):
@@ -970,7 +970,7 @@ def test_subtract_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def subtract(rxplaceholder: T.Buffer([T.int64(1), c_subtract, d_subtract], dtype='float32'), rxplaceholder_1: T.Buffer([a_subtract, b_subtract, c_subtract, T.int64(1)], dtype='float32'), T_subtract: T.Buffer([a_subtract, b_subtract, c_subtract, d_subtract], dtype='float32')):
+        def subtract(rxplaceholder: T.Tensor([T.int64(1), c_subtract, d_subtract], dtype='float32'), rxplaceholder_1: T.Tensor([a_subtract, b_subtract, c_subtract, T.int64(1)], dtype='float32'), T_subtract: T.Tensor([a_subtract, b_subtract, c_subtract, d_subtract], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_subtract, b_subtract, c_subtract, d_subtract):
@@ -1009,9 +1009,9 @@ def test_subtract_primvalue():
 
         @Ts.prim_func(private=True)
         def subtract(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -1043,7 +1043,7 @@ def test_equal():
             return gv
 
         @Ts.prim_func(private=True)
-        def equal(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_equal: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
+        def equal(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_equal: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_equal"):
@@ -1074,7 +1074,7 @@ def test_equal_with_arg0_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def equal(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_equal: T.Buffer((T.int64(2), T.int64(3)), "bool")):
+        def equal(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_equal: T.Tensor((T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_equal"):
@@ -1105,7 +1105,7 @@ def test_equal_with_arg1_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def equal(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_equal: T.Buffer((T.int64(2), T.int64(3)), "bool")):
+        def equal(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_equal: T.Tensor((T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_equal"):
@@ -1150,7 +1150,7 @@ def test_equal_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def equal(rxplaceholder: T.Buffer([T.int64(1), c_equal, d_equal], dtype='float32'), rxplaceholder_1: T.Buffer([a_equal, b_equal, c_equal, T.int64(1)], dtype='float32'), T_equal: T.Buffer([a_equal, b_equal, c_equal, d_equal], dtype='bool')):
+        def equal(rxplaceholder: T.Tensor([T.int64(1), c_equal, d_equal], dtype='float32'), rxplaceholder_1: T.Tensor([a_equal, b_equal, c_equal, T.int64(1)], dtype='float32'), T_equal: T.Tensor([a_equal, b_equal, c_equal, d_equal], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_equal, b_equal, c_equal, d_equal):
@@ -1189,9 +1189,9 @@ def test_equal_primvalue():
 
         @Ts.prim_func(private=True)
         def equal(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -1220,7 +1220,7 @@ def test_greater():
             return gv
 
         @Ts.prim_func(private=True)
-        def greater(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_greater: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
+        def greater(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_greater: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_greater"):
@@ -1251,7 +1251,7 @@ def test_greater_with_arg0_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def greater(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_greater: T.Buffer((T.int64(2), T.int64(3)), "bool")):
+        def greater(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_greater: T.Tensor((T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_greater"):
@@ -1282,7 +1282,7 @@ def test_greater_with_arg1_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def greater(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_greater: T.Buffer((T.int64(2), T.int64(3)), "bool")):
+        def greater(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_greater: T.Tensor((T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_greater"):
@@ -1327,7 +1327,7 @@ def test_greater_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def greater(rxplaceholder: T.Buffer([T.int64(1), c_greater, d_greater], dtype='float32'), rxplaceholder_1: T.Buffer([a_greater, b_greater, c_greater, T.int64(1)], dtype='float32'), T_greater: T.Buffer([a_greater, b_greater, c_greater, d_greater], dtype='bool')):
+        def greater(rxplaceholder: T.Tensor([T.int64(1), c_greater, d_greater], dtype='float32'), rxplaceholder_1: T.Tensor([a_greater, b_greater, c_greater, T.int64(1)], dtype='float32'), T_greater: T.Tensor([a_greater, b_greater, c_greater, d_greater], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_greater, b_greater, c_greater, d_greater):
@@ -1366,9 +1366,9 @@ def test_greater_primvalue():
 
         @Ts.prim_func(private=True)
         def greater(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -1397,7 +1397,7 @@ def test_greater_equal():
             return gv
 
         @Ts.prim_func(private=True)
-        def greater_equal(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_greater_equal: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
+        def greater_equal(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_greater_equal: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_greater_equal"):
@@ -1442,7 +1442,7 @@ def test_greater_equal_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def greater_equal(rxplaceholder: T.Buffer([T.int64(1), c_greater_equal, d_greater_equal], dtype='float32'), rxplaceholder_1: T.Buffer([a_greater_equal, b_greater_equal, c_greater_equal, T.int64(1)], dtype='float32'), T_greater_equal: T.Buffer([a_greater_equal, b_greater_equal, c_greater_equal, d_greater_equal], dtype='bool')):
+        def greater_equal(rxplaceholder: T.Tensor([T.int64(1), c_greater_equal, d_greater_equal], dtype='float32'), rxplaceholder_1: T.Tensor([a_greater_equal, b_greater_equal, c_greater_equal, T.int64(1)], dtype='float32'), T_greater_equal: T.Tensor([a_greater_equal, b_greater_equal, c_greater_equal, d_greater_equal], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_greater_equal, b_greater_equal, c_greater_equal, d_greater_equal):
@@ -1481,9 +1481,9 @@ def test_greater_equal_primvalue():
 
         @Ts.prim_func(private=True)
         def greater_equal(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -1512,7 +1512,7 @@ def test_less():
             return gv
 
         @Ts.prim_func(private=True)
-        def less(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_less: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
+        def less(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_less: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_less"):
@@ -1557,7 +1557,7 @@ def test_less_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def less(rxplaceholder: T.Buffer([T.int64(1), c_less, d_less], dtype='float32'), rxplaceholder_1: T.Buffer([a_less, b_less, c_less, T.int64(1)], dtype='float32'), T_less: T.Buffer([a_less, b_less, c_less, d_less], dtype='bool')):
+        def less(rxplaceholder: T.Tensor([T.int64(1), c_less, d_less], dtype='float32'), rxplaceholder_1: T.Tensor([a_less, b_less, c_less, T.int64(1)], dtype='float32'), T_less: T.Tensor([a_less, b_less, c_less, d_less], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_less, b_less, c_less, d_less):
@@ -1596,9 +1596,9 @@ def test_less_primvalue():
 
         @Ts.prim_func(private=True)
         def less(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -1627,7 +1627,7 @@ def test_less_equal():
             return gv
 
         @Ts.prim_func(private=True)
-        def less_equal(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_less_equal: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
+        def less_equal(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_less_equal: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_less_equal"):
@@ -1658,7 +1658,7 @@ def test_less_equal_with_arg0_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def less_equal(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_less_equal: T.Buffer((T.int64(2), T.int64(3)), "bool")):
+        def less_equal(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_less_equal: T.Tensor((T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_less_equal"):
@@ -1689,7 +1689,7 @@ def test_less_equal_with_arg1_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def less_equal(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_less_equal: T.Buffer((T.int64(2), T.int64(3)), "bool")):
+        def less_equal(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_less_equal: T.Tensor((T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_less_equal"):
@@ -1734,7 +1734,7 @@ def test_less_equal_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def less_equal(rxplaceholder: T.Buffer([T.int64(1), c_less_equal, d_less_equal], dtype='float32'), rxplaceholder_1: T.Buffer([a_less_equal, b_less_equal, c_less_equal, T.int64(1)], dtype='float32'), T_less_equal: T.Buffer([a_less_equal, b_less_equal, c_less_equal, d_less_equal], dtype='bool')):
+        def less_equal(rxplaceholder: T.Tensor([T.int64(1), c_less_equal, d_less_equal], dtype='float32'), rxplaceholder_1: T.Tensor([a_less_equal, b_less_equal, c_less_equal, T.int64(1)], dtype='float32'), T_less_equal: T.Tensor([a_less_equal, b_less_equal, c_less_equal, d_less_equal], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_less_equal, b_less_equal, c_less_equal, d_less_equal):
@@ -1773,9 +1773,9 @@ def test_less_equal_primvalue():
 
         @Ts.prim_func(private=True)
         def less_equal(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -1804,7 +1804,7 @@ def test_not_equal():
             return gv
 
         @Ts.prim_func(private=True)
-        def not_equal(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_not_equal: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
+        def not_equal(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_not_equal: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_not_equal"):
@@ -1849,7 +1849,7 @@ def test_not_equal_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def not_equal(rxplaceholder: T.Buffer([T.int64(1), c_not_equal, d_not_equal], dtype='float32'), rxplaceholder_1: T.Buffer([a_not_equal, b_not_equal, c_not_equal, T.int64(1)], dtype='float32'), T_not_equal: T.Buffer([a_not_equal, b_not_equal, c_not_equal, d_not_equal], dtype='bool')):
+        def not_equal(rxplaceholder: T.Tensor([T.int64(1), c_not_equal, d_not_equal], dtype='float32'), rxplaceholder_1: T.Tensor([a_not_equal, b_not_equal, c_not_equal, T.int64(1)], dtype='float32'), T_not_equal: T.Tensor([a_not_equal, b_not_equal, c_not_equal, d_not_equal], dtype='bool')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_not_equal, b_not_equal, c_not_equal, d_not_equal):
@@ -1888,9 +1888,9 @@ def test_not_equal_primvalue():
 
         @Ts.prim_func(private=True)
         def not_equal(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -1919,7 +1919,7 @@ def test_maximum():
             return gv
 
         @Ts.prim_func(private=True)
-        def maximum(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_maximum: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def maximum(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_maximum: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_maximum"):
@@ -1950,7 +1950,7 @@ def test_maximum_with_arg0_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def maximum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_maximum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def maximum(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_maximum: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_maximum"):
@@ -1981,7 +1981,7 @@ def test_maximum_with_arg1_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def maximum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_maximum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def maximum(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_maximum: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_maximum"):
@@ -2026,7 +2026,7 @@ def test_maximum_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def maximum(rxplaceholder: T.Buffer([T.int64(1), c_maximum, d_maximum], dtype='float32'), rxplaceholder_1: T.Buffer([a_maximum, b_maximum, c_maximum, T.int64(1)], dtype='float32'), T_maximum: T.Buffer([a_maximum, b_maximum, c_maximum, d_maximum], dtype='float32')):
+        def maximum(rxplaceholder: T.Tensor([T.int64(1), c_maximum, d_maximum], dtype='float32'), rxplaceholder_1: T.Tensor([a_maximum, b_maximum, c_maximum, T.int64(1)], dtype='float32'), T_maximum: T.Tensor([a_maximum, b_maximum, c_maximum, d_maximum], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_maximum, b_maximum, c_maximum, d_maximum):
@@ -2065,9 +2065,9 @@ def test_max_primvalue():
 
         @Ts.prim_func(private=True)
         def maximum(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):
@@ -2096,7 +2096,7 @@ def test_minimum():
             return gv
 
         @Ts.prim_func(private=True)
-        def minimum(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_minimum: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def minimum(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_minimum: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_minimum"):
@@ -2127,7 +2127,7 @@ def test_minimum_with_arg0_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def minimum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_minimum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def minimum(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_minimum: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_minimum"):
@@ -2158,7 +2158,7 @@ def test_minimum_with_arg1_constant_scalar():
             return gv
 
         @Ts.prim_func(private=True)
-        def minimum(rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_minimum: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def minimum(rxplaceholder: T.Tensor((T.int64(2), T.int64(3)), "float32"), T_minimum: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_minimum"):
@@ -2203,7 +2203,7 @@ def test_minimum_symbolic():
             return gv
 
         @Ts.prim_func(private=True)
-        def minimum(rxplaceholder: T.Buffer([T.int64(1), c_minimum, d_minimum], dtype='float32'), rxplaceholder_1: T.Buffer([a_minimum, b_minimum, c_minimum, T.int64(1)], dtype='float32'), T_minimum: T.Buffer([a_minimum, b_minimum, c_minimum, d_minimum], dtype='float32')):
+        def minimum(rxplaceholder: T.Tensor([T.int64(1), c_minimum, d_minimum], dtype='float32'), rxplaceholder_1: T.Tensor([a_minimum, b_minimum, c_minimum, T.int64(1)], dtype='float32'), T_minimum: T.Tensor([a_minimum, b_minimum, c_minimum, d_minimum], dtype='float32')):
             T.func_attr({"tirx.noalias": True})
 
             for i0, i1, i2, i3 in T.grid(a_minimum, b_minimum, c_minimum, d_minimum):
@@ -2242,9 +2242,9 @@ def test_min_primvalue():
 
         @Ts.prim_func(private=True)
         def minimum(
-            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            lhs: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
             rhs: T.float32,
-            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            output: T.Tensor([T.int64(64), T.int64(32), T.int64(16)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j, k in T.grid(*lhs.shape):

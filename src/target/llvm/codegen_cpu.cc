@@ -574,7 +574,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
     llvm::Argument* v = &(*it);
     const Var& var = vargs[idx];
     var_map_[var.get()] = v;
-    if ((var->ty.as<PointerTypeNode>() || var->ty.as<BufferTypeNode>()) &&
+    if ((var->ty.as<PointerTypeNode>() || var->ty.as<TensorTypeNode>()) &&
         !alias_var_set_.count(var.get())) {
       // set non alias.
       fcompute->addParamAttr(idx, llvm::Attribute::NoAlias);
@@ -594,7 +594,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
 
   function_ = fcompute;
   ffi::Array<Type> debug_param_types = vargs.Map([](const Var& var) -> Type {
-    if (const auto* buffer_type = var->ty.as<BufferTypeNode>()) {
+    if (const auto* buffer_type = var->ty.as<TensorTypeNode>()) {
       // Compute-scope captures use their physical LLVM pointer values.
       return buffer_type->DataPointerType();
     }

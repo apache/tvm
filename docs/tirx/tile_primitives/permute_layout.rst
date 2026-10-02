@@ -87,7 +87,7 @@ canonical SF-transpose, from ``test_permute_layout.py``):
 
 
     @Tx.prim_func
-    def f(A_buf: Tx.Buffer(shape, dtype, layout=pre), B_buf: Tx.Buffer(shape, dtype, layout=post)):
+    def f(A_buf: Tx.Tensor(shape, dtype, layout=pre), B_buf: Tx.Tensor(shape, dtype, layout=post)):
 
         Tx.device_entry()
         Tx.cta_id([1])
@@ -117,7 +117,7 @@ destination layout:
 
 .. code-block:: python
 
-    regs = Tx.alloc_buffer((P,), dtype, scope="local")
+    regs = Tx.alloc_tensor((P,), dtype, scope="local")
     for r in Tx.unroll(0, P):                                   # read via src layout
         j   = r ^ ((lane_id >> shift) & mask)
         idx = decompose(lane_id + j * 32, extent)

@@ -46,7 +46,7 @@ from tvm.tirx import (
     ForKind,
     IndexMap,
     Var,
-    decl_buffer,
+    decl_tensor,
     floordiv,
     floormod,
 )
@@ -73,7 +73,7 @@ def _make_loops(loop_vars: list[Var], extents: list[int]) -> list[For]:
 def test_suggest_index_map_simple():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        buffer=decl_buffer(shape=[8, 256]),
+        buffer=decl_tensor(shape=[8, 256]),
         indices=[
             floordiv(i, 16) * 4 + floordiv(j, 16),
             floormod(i, 16) * 16 + floormod(j, 16),
@@ -98,7 +98,7 @@ def test_suggest_index_map_simple():
 def test_suggest_index_map_bijective():
     i, j = _make_vars("i", "j")
     index_map = suggest_index_map(
-        buffer=decl_buffer(shape=[8]),
+        buffer=decl_tensor(shape=[8]),
         indices=[floormod(j, 4) * 2 + i],
         loops=_make_loops(
             loop_vars=[i, j],
@@ -122,7 +122,7 @@ def test_suggest_index_map_winograd():
     nu = floordiv(floormod(fused_outer, 336), 112) * 2 + floordiv(floormod(fused_outer, 8), 4)
     co = floormod(fused_outer, 4) * 32 + i3_3_fused
     ci = (i4_0 * 32) + i4_1
-    buffer = decl_buffer(shape=[6, 6, 128, 128])
+    buffer = decl_tensor(shape=[6, 6, 128, 128])
     index_map = suggest_index_map(
         buffer=buffer,
         indices=[eps, nu, co, ci],
@@ -160,9 +160,9 @@ def test_suggest_index_map_winograd():
 class DenseTIRModule:
     @Ts.prim_func
     def main(
-        placeholder: T.Buffer((1024, 1024), "uint8"),
-        placeholder_1: T.Buffer((64, 256, 16, 4), "int8"),
-        compute: T.Buffer((1024, 1024), "int32"),
+        placeholder: T.Tensor((1024, 1024), "uint8"),
+        placeholder_1: T.Tensor((64, 256, 16, 4), "int8"),
+        compute: T.Tensor((1024, 1024), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -184,9 +184,9 @@ class DenseTIRModule:
 class Conv2dNCHWcTIRModule:
     @Ts.prim_func
     def main(
-        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
-        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
-        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
+        placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i0, i1, i2, i3, i4, i5, i6, i7, i8, i9 in T.grid(1, 16, 56, 56, 16, 1, 1, 4, 4, 4):
@@ -268,9 +268,9 @@ def test_get_tensorize_loop_mapping_conv2d_nchwc_16x4():
 def test_get_tensorize_loop_mapping_matmul_mma():
     @Ts.prim_func
     def matmul_16x16x16xf16f16f16_desc(
-        A: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
-        B: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
-        C: T.Buffer((16, 16), "float16", align=64, offset_factor=1),
+        A: T.Tensor((16, 16), "float16", align=64, offset_factor=1),
+        B: T.Tensor((16, 16), "float16", align=64, offset_factor=1),
+        C: T.Tensor((16, 16), "float16", align=64, offset_factor=1),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:16, 0:16], A[0:16, 0:16], B[0:16, 0:16])
@@ -404,7 +404,7 @@ def test_get_auto_tensorize_mapping_info_matmul(n, m, k, expected):
 def test_is_output_block():
     @Ts.prim_func
     def two_elementwise(
-        A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")
+        A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
     ) -> None:
         B = Ts.sblock_alloc_buffer((128, 128), "float32")
 
@@ -424,7 +424,7 @@ def test_is_output_block():
 
 def test_empty_grid():
     @Ts.prim_func
-    def foo(out: T.Buffer((T.int64(1), T.int64(8), T.int64(8)), "int32")):
+    def foo(out: T.Tensor((T.int64(1), T.int64(8), T.int64(8)), "int32")):
         act = Ts.sblock_alloc_buffer((1, 8, 8), "int32")
         for z2, y2, x2 in T.grid(1, 8, 8):
             with Ts.sblock("b0"):

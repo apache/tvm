@@ -30,7 +30,7 @@ def test_handle_irrgular_unit_loop():
     """Dedicated testcase to check the unitloop with loop jump not simplified"""
 
     @Ts.prim_func
-    def before(A: T.Buffer((10,), "int32")):
+    def before(A: T.Tensor((10,), "int32")):
         for i in T.serial(1):
             if A[i] > 5:
                 break
@@ -43,7 +43,7 @@ def test_handle_irrgular_unit_loop():
             A[k] = A[k] + 1
 
     @Ts.prim_func
-    def expected(A: T.Buffer((10,), "int32")):
+    def expected(A: T.Tensor((10,), "int32")):
         for i in T.serial(1, annotations={"irregular_loop_mark": 1}):
             if A[i] > 5:
                 break
@@ -67,7 +67,7 @@ def test_annotate_loop_with_break():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32")):
+        def main(A: T.Tensor((10,), "int32")):
             for i in T.serial(10):
                 if A[i] > 5:
                     break
@@ -76,7 +76,7 @@ def test_annotate_loop_with_break():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32")):
+        def main(A: T.Tensor((10,), "int32")):
             for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
                 if A[i] > 5:
                     break
@@ -93,7 +93,7 @@ def test_annotate_loop_with_continue():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32")):
+        def main(A: T.Tensor((10,), "int32")):
             for i in T.serial(10):
                 if A[i] < 0:
                     continue
@@ -102,7 +102,7 @@ def test_annotate_loop_with_continue():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32")):
+        def main(A: T.Tensor((10,), "int32")):
             for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
                 if A[i] < 0:
                     continue
@@ -119,7 +119,7 @@ def test_nested_irregular_both_loops():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((10, 10), "int32")):
+        def main(A: T.Tensor((10, 10), "int32")):
             for i in T.serial(10):
                 if i > 7:
                     break
@@ -131,7 +131,7 @@ def test_nested_irregular_both_loops():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def main(A: T.Buffer((10, 10), "int32")):
+        def main(A: T.Tensor((10, 10), "int32")):
             for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
                 if i > 7:
                     break
@@ -151,7 +151,7 @@ def test_while_loop_with_break():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32")):
+        def main(A: T.Tensor((10,), "int32")):
             i = T.int32(0)
             while i < 10:
                 if A[i] > 5:
@@ -162,7 +162,7 @@ def test_while_loop_with_break():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32")):
+        def main(A: T.Tensor((10,), "int32")):
             i = T.int32(0)
             while i < 10:
                 if A[i] > 5:
@@ -181,7 +181,7 @@ def test_break_in_nested_conditional():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32"), flag1: T.int32, flag2: T.int32):
+        def main(A: T.Tensor((10,), "int32"), flag1: T.int32, flag2: T.int32):
             for i in T.serial(10):
                 if flag1 > 0:
                     if flag2 > 0:
@@ -192,7 +192,7 @@ def test_break_in_nested_conditional():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32"), flag1: T.int32, flag2: T.int32):
+        def main(A: T.Tensor((10,), "int32"), flag1: T.int32, flag2: T.int32):
             for i in T.serial(10, annotations={"irregular_loop_mark": 1}):
                 if flag1 > 0:
                     if flag2 > 0:
@@ -211,7 +211,7 @@ def test_while_loop_with_break_standalone():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32")):
+        def main(A: T.Tensor((10,), "int32")):
             i = T.int32(0)
             while i < 10:
                 if A[i] > 5:
@@ -222,7 +222,7 @@ def test_while_loop_with_break_standalone():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def main(A: T.Buffer((10,), "int32")):
+        def main(A: T.Tensor((10,), "int32")):
             i = T.int32(0)
             while i < 10:
                 if A[i] > 5:
@@ -241,7 +241,7 @@ def test_nested_irregular_loop_standalone():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((5, 5, 5), "int32")):
+        def main(A: T.Tensor((5, 5, 5), "int32")):
             for i in T.serial(5):
                 for j in T.serial(5):
                     for k in T.serial(5):
@@ -254,7 +254,7 @@ def test_nested_irregular_loop_standalone():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def main(A: T.Buffer((5, 5, 5), "int32")):
+        def main(A: T.Tensor((5, 5, 5), "int32")):
             for i in T.serial(5):
                 for j in T.serial(5):
                     for k in T.serial(5, annotations={"irregular_loop_mark": 1}):

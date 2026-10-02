@@ -31,7 +31,7 @@ def test_prim_func_pass():
 
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
-    b = tvm.tirx.decl_buffer((x,), "float32")
+    b = tvm.tirx.decl_tensor((x,), "float32")
     stmt = tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 10), tvm.tirx.Evaluate(x + 1)])
 
     func = tvm.tirx.PrimFunc([x, y, b], stmt)

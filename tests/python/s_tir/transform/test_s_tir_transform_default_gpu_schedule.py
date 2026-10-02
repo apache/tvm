@@ -33,8 +33,8 @@ def test_broadcast_to_symbolic():
     class Before:
         @Ts.prim_func
         def broadcast_to(
-            rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"),
-            T_broadcast_to: T.Buffer((x_0, x_1)),
+            rxplaceholder: T.Tensor((T.int64(3), T.int64(1)), "float32"),
+            T_broadcast_to: T.Tensor((x_0, x_1)),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -52,7 +52,7 @@ def test_broadcast_to_symbolic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def broadcast_to(rxplaceholder: T.Buffer((T.int64(3), T.int64(1)), "float32"), T_broadcast_to: T.Buffer((x_0, x_1))):
+        def broadcast_to(rxplaceholder: T.Tensor((T.int64(3), T.int64(1)), "float32"), T_broadcast_to: T.Tensor((x_0, x_1))):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             for ax0_ax1_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
@@ -78,9 +78,9 @@ def test_matmul():
     class Before:
         @Ts.prim_func
         def matmul(
-            A: T.Buffer((32, 32), "float16"),
-            B: T.Buffer((32, 32), "float16"),
-            C: T.Buffer((32, 32), "float16"),
+            A: T.Tensor((32, 32), "float16"),
+            B: T.Tensor((32, 32), "float16"),
+            C: T.Tensor((32, 32), "float16"),
         ):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -95,9 +95,9 @@ def test_matmul():
 
         @Ts.prim_func
         def matmul_gpu(
-            A: T.Buffer((32, 32), "float16"),
-            B: T.Buffer((32, 32), "float16"),
-            C: T.Buffer((32, 32), "float16"),
+            A: T.Tensor((32, 32), "float16"),
+            B: T.Tensor((32, 32), "float16"),
+            C: T.Tensor((32, 32), "float16"),
         ):
             T.func_attr({"global_symbol": "main",
                          "target": T.target({"arch": "sm_86",
@@ -119,9 +119,9 @@ def test_matmul():
 
         @Ts.prim_func
         def matmul_cpu(
-            A: T.Buffer((32, 32), "float16"),
-            B: T.Buffer((32, 32), "float16"),
-            C: T.Buffer((32, 32), "float16"),
+            A: T.Tensor((32, 32), "float16"),
+            B: T.Tensor((32, 32), "float16"),
+            C: T.Tensor((32, 32), "float16"),
         ):
             T.func_attr({"global_symbol": "main",
                          "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
@@ -140,9 +140,9 @@ def test_matmul():
     class Expected:
         @Ts.prim_func
         def matmul(
-            A: T.Buffer((32, 32), "float16"),
-            B: T.Buffer((32, 32), "float16"),
-            C: T.Buffer((32, 32), "float16"),
+            A: T.Tensor((32, 32), "float16"),
+            B: T.Tensor((32, 32), "float16"),
+            C: T.Tensor((32, 32), "float16"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -164,7 +164,7 @@ def test_matmul():
                             C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
         @Ts.prim_func
-        def matmul_cpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
+        def matmul_cpu(A: T.Tensor((32, 32), "float16"), B: T.Tensor((32, 32), "float16"), C: T.Tensor((32, 32), "float16")):
             T.func_attr({"global_symbol": "main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}), "tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for i, j, k in T.grid(32, 32, 32):
@@ -177,7 +177,7 @@ def test_matmul():
                     C[v_i, v_j] = C[v_i, v_j] + A[v_i, v_k] * B[v_k, v_j]
 
         @Ts.prim_func
-        def matmul_gpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
+        def matmul_gpu(A: T.Tensor((32, 32), "float16"), B: T.Tensor((32, 32), "float16"), C: T.Tensor((32, 32), "float16")):
             T.func_attr({"global_symbol": "main", "target": T.target({"arch": "sm_86", "keys": ["cuda", "gpu"], "kind": "cuda", "max_num_threads": 1024, "tag": "", "thread_warp_size": 32}), "tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -206,7 +206,7 @@ def test_add():
     @tvm.script.ir_module
     class Before:
         @Ts.prim_func
-        def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_add"):
@@ -219,11 +219,11 @@ def test_add():
     class Expected:
         @Ts.prim_func
         def add(
-            rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"),
-            rxplaceholder_1: T.Buffer(
+            rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"),
+            rxplaceholder_1: T.Tensor(
                 (T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"
             ),
-            T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
+            T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.is_scheduled": True,  "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -278,7 +278,7 @@ def test_full():
     @tvm.script.ir_module
     class Before:
         @Ts.prim_func
-        def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
+        def full(rxplaceholder: T.Tensor((), "int32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_full"):
@@ -291,8 +291,8 @@ def test_full():
     class Expected:
         @Ts.prim_func
         def full(
-            rxplaceholder: T.Buffer((), "int32"),
-            T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            rxplaceholder: T.Tensor((), "int32"),
+            T_full: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -327,8 +327,8 @@ def test_scheduled():
     class Scheduled:
         @Ts.prim_func
         def full(
-            rxplaceholder: T.Buffer((), "int32"),
-            T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            rxplaceholder: T.Tensor((), "int32"),
+            T_full: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -362,7 +362,7 @@ def test_multiple():
     @tvm.script.ir_module
     class Before:
         @Ts.prim_func
-        def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_add"):
@@ -372,7 +372,7 @@ def test_multiple():
                     T_add[ax0, ax1, ax2, ax3] = rxplaceholder[T.int64(0), ax2, ax3] + rxplaceholder_1[ax0, ax1, ax2, T.int64(0)]
 
         @Ts.prim_func
-        def full(rxplaceholder: T.Buffer((), "int32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
+        def full(rxplaceholder: T.Tensor((), "int32"), T_full: T.Tensor((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with Ts.sblock("T_full"):
@@ -385,11 +385,11 @@ def test_multiple():
     class Expected:
         @Ts.prim_func
         def add(
-            rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"),
-            rxplaceholder_1: T.Buffer(
+            rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"),
+            rxplaceholder_1: T.Tensor(
                 (T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"
             ),
-            T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
+            T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -432,8 +432,8 @@ def test_multiple():
 
         @Ts.prim_func
         def full(
-            rxplaceholder: T.Buffer((), "int32"),
-            T_full: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            rxplaceholder: T.Tensor((), "int32"),
+            T_full: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -465,7 +465,7 @@ def test_add_on_metal():
     @tvm.script.ir_module
     class Before:
         @Ts.prim_func
-        def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_add"):
@@ -477,7 +477,7 @@ def test_add_on_metal():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             for i0_i1_i2_i3_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_i2_i3_fused_1 in T.thread_binding(T.int64(72), thread="threadIdx.x"):
@@ -503,7 +503,7 @@ def test_scalar_add():
     @tvm.script.ir_module
     class Before:
         @Ts.prim_func
-        def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
+        def add(rxplaceholder: T.Tensor((), "int64"), T_add: T.Tensor((), "int64")):
             T.func_attr({"tirx.noalias": True})
             with Ts.sblock("T_add"):
                 vi = Ts.axis.spatial(1, T.int64(0))
@@ -514,7 +514,7 @@ def test_scalar_add():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def add(rxplaceholder: T.Buffer((), "int64"), T_add: T.Buffer((), "int64")):
+        def add(rxplaceholder: T.Tensor((), "int64"), T_add: T.Tensor((), "int64")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -539,7 +539,7 @@ def test_sum():
     @tvm.script.ir_module
     class Before:
         @Ts.prim_func
-        def sum(A: T.Buffer((T.int64(2), T.int64(2)), "float64"), A_red: T.Buffer((), "float64")):
+        def sum(A: T.Tensor((T.int64(2), T.int64(2)), "float64"), A_red: T.Tensor((), "float64")):
             for k0, k1 in T.grid(T.int64(2), T.int64(2)):
                 with Ts.sblock("A_red"):
                     v_k0, v_k1 = Ts.axis.remap("RR", [k0, k1])
@@ -550,7 +550,7 @@ def test_sum():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def sum(A: T.Buffer((T.int64(2), T.int64(2)), "float64"), A_red: T.Buffer((), "float64")):
+        def sum(A: T.Tensor((T.int64(2), T.int64(2)), "float64"), A_red: T.Tensor((), "float64")):
             T.func_attr({"tirx.is_scheduled": True})
             # with Ts.sblock("root"):
             for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -580,14 +580,14 @@ def test_scalar_block_no_loops():
     @tvm.script.ir_module
     class Before:
         @Ts.prim_func
-        def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
+        def scalar_add(a: T.Tensor((), "float32"), b: T.Tensor((), "float32"), c: T.Tensor((), "float32")):
             with Ts.sblock("scalar_add"):
                 c[()] = a[()] + b[()]
 
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def scalar_add(a: T.Buffer((), "float32"), b: T.Buffer((), "float32"), c: T.Buffer((), "float32")):
+        def scalar_add(a: T.Tensor((), "float32"), b: T.Tensor((), "float32"), c: T.Tensor((), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with Ts.sblock("root"):
             for u_fused_0 in T.thread_binding(1, thread="blockIdx.x"):

@@ -1134,9 +1134,9 @@ def LegalizeOps(
 
             @Ts.prim_func
             def add(
-                A: T.Buffer((2, 3), "float32"),
-                B: T.Buffer((2, 3), "float32"),
-                T_add: T.Buffer((2, 3), "float32"),
+                A: T.Tensor((2, 3), "float32"),
+                B: T.Tensor((2, 3), "float32"),
+                T_add: T.Tensor((2, 3), "float32"),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):
@@ -1148,9 +1148,9 @@ def LegalizeOps(
 
             @Ts.prim_func
             def multiply(
-                A: T.Buffer((2, 3), "float32"),
-                B: T.Buffer((2, 3), "float32"),
-                T_multiply: T.Buffer((2, 3), "float32"),
+                A: T.Tensor((2, 3), "float32"),
+                B: T.Tensor((2, 3), "float32"),
+                T_multiply: T.Tensor((2, 3), "float32"),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for ax0, ax1 in T.grid(2, 3):

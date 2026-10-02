@@ -40,7 +40,7 @@ def _build_kernel(scope, n_threads, shape, dtype):
     if scope == "warpgroup":
 
         @T.prim_func
-        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
+        def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.warpgroup_id([n_threads // 128])
@@ -48,7 +48,7 @@ def _build_kernel(scope, n_threads, shape, dtype):
             T.lane_id([32])
             T.thread_id_in_wg([128])
             T.thread_id([n_threads])
-            A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
             Tx.wg.copy(A_smem[full_slices], A[full_slices])
             T.cuda.cta_sync()
             Tx.wg.copy(B[full_slices], A_smem[full_slices])
@@ -56,12 +56,12 @@ def _build_kernel(scope, n_threads, shape, dtype):
     elif scope == "warp":
 
         @T.prim_func
-        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
+        def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.lane_id([32])
             T.thread_id([n_threads])
-            A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
             Tx.warp.copy(A_smem[full_slices], A[full_slices])
             T.cuda.cta_sync()
             Tx.warp.copy(B[full_slices], A_smem[full_slices])
@@ -69,13 +69,13 @@ def _build_kernel(scope, n_threads, shape, dtype):
     elif scope == "cta":
 
         @T.prim_func
-        def kernel(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)) -> None:
+        def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
             T.warp_id([n_threads // 32])
             T.lane_id([32])
             T.thread_id([n_threads])
-            A_smem = T.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+            A_smem = T.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
             Tx.cta.copy(A_smem[full_slices], A[full_slices])
             T.cuda.cta_sync()
             Tx.cta.copy(B[full_slices], A_smem[full_slices])
@@ -207,13 +207,13 @@ def test_copy_g2s_s2g(task, dtype, scope):
 
     @T.prim_func
     def copy_sync(
-        A: T.Buffer(g_shape, dtype, layout=layoutA), B: T.Buffer(g_shape, dtype, layout=layoutB)
+        A: T.Tensor(g_shape, dtype, layout=layoutA), B: T.Tensor(g_shape, dtype, layout=layoutB)
     ) -> None:
         T.device_entry()
         T.cta_id([2])
         T.thread_id([thread_cnt])
 
-        A_smem = T.alloc_buffer(s_shape, dtype, scope="shared", layout=layoutS)
+        A_smem = T.alloc_tensor(s_shape, dtype, scope="shared", layout=layoutS)
         # `scope` is parametrized at runtime; select the scope namespace
         # dynamically (T.cta / T.thread) instead of a literal prefix.
         getattr(Tx, scope).copy(A_smem[r_smem], A[r_gmem])
@@ -354,7 +354,7 @@ def test_swizzled_smem_emit_must_be_swizzle_aware():
     s_layout = ComposeLayout(3, 3, 3, TileLayout(S[shape]))
 
     @T.prim_func
-    def kernel(A: T.Buffer(shape, "float16")) -> None:
+    def kernel(A: T.Tensor(shape, "float16")) -> None:
         T.device_entry()
         T.cta_id([1])
         T.warpgroup_id([1])
@@ -362,7 +362,7 @@ def test_swizzled_smem_emit_must_be_swizzle_aware():
         T.lane_id([32])
         T.thread_id_in_wg([128])
         T.thread_id([128])
-        A_smem = T.alloc_buffer(shape, "float16", scope="shared", layout=s_layout)
+        A_smem = T.alloc_tensor(shape, "float16", scope="shared", layout=s_layout)
         Tx.wg.copy(A_smem[0:128, 0:32], A[0:128, 0:32])
 
     # NB: pin sm_90 explicitly — the default cuda target falls back to sm_50
@@ -519,14 +519,14 @@ def test_gmem_smem_swizzle_uses_structured_compose_apply():
 
     @T.prim_func
     def kernel(
-        A: T.Buffer(shape, "float16", layout=g_layout),
-        B: T.Buffer(shape, "float16", layout=g_layout),
+        A: T.Tensor(shape, "float16", layout=g_layout),
+        B: T.Tensor(shape, "float16", layout=g_layout),
     ) -> None:
         T.device_entry()
         T.cta_id([1])
         T.lane_id([32])
         T.thread_id([32])
-        smem = T.alloc_buffer(shape, "float16", scope="shared", layout=s_layout)
+        smem = T.alloc_tensor(shape, "float16", scope="shared", layout=s_layout)
         Tx.warp.copy(smem, A[:, :])
         T.cuda.cta_sync()
         Tx.warp.copy(B[:, :], smem)

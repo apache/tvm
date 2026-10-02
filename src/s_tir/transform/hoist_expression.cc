@@ -349,8 +349,8 @@ class HoistInfoCollector : public StmtExprVisitor {
         if (!bind) {
           non_bind_count++;
         } else if (const auto* call = bind->value.as<CallNode>();
-                   call && (call->op.same_as(tirx::builtin::alloc_buffer()) ||
-                            call->op.same_as(tirx::builtin::decl_buffer()))) {
+                   call && (call->op.same_as(tirx::builtin::alloc_tensor()) ||
+                            call->op.same_as(tirx::builtin::decl_tensor()))) {
           non_bind_count++;
         }
       }

@@ -794,7 +794,7 @@ class FusedTIRConstructor : public ExprVisitor {
         return unique_name;
       };
       // Update buffer with new symbolic shape according to the ty
-      tirx::BufferType new_type(buffer->storage_scope, buffer->dtype, output_shapes[i],
+      tirx::TensorType new_type(buffer->storage_scope, buffer->dtype, output_shapes[i],
                                 buffer->strides, buffer->elem_offset, buffer->data_alignment,
                                 buffer->offset_factor, buffer->layout, buffer->allocated_addr);
       tirx::BufferVar new_buffer(unify_name_hints(), std::move(new_type), buffer.span());
@@ -833,10 +833,10 @@ class FusedTIRConstructor : public ExprVisitor {
       PrimType dtype = tensor->dtype.value();
       tirx::BufferVar buffer;
       if (tir_buffer_param.has_value()) {
-        buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint,
+        buffer = tirx::decl_tensor(shape_expr->values, dtype, name_hint,
                                    tir_buffer_param.value().scope());
       } else {
-        buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint);
+        buffer = tirx::decl_tensor(shape_expr->values, dtype, name_hint);
       }
       out->push_back(std::move(buffer));
 

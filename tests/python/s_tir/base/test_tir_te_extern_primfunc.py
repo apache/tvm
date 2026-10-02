@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def func_1(A: T.Buffer((16,), "float32"), C: T.Buffer((1,), "float32")):
+def func_1(A: T.Tensor((16,), "float32"), C: T.Tensor((1,), "float32")):
     for i in T.serial(
         0,
         16,
@@ -61,7 +61,7 @@ def verify_func_1(module):
 
 @Ts.prim_func
 def func_2(
-    C: T.Buffer((1,), "float32"), A: T.Buffer((16,), "float32"), D: T.Buffer((2,), "float32")
+    C: T.Tensor((1,), "float32"), A: T.Tensor((16,), "float32"), D: T.Tensor((2,), "float32")
 ):
     for i in T.serial(
         0,
@@ -91,11 +91,11 @@ def verify_func_2(module):
 
 @Ts.prim_func
 def func_3(
-    C: T.Buffer((1,), "float32"),
-    A: T.Buffer((16,), "float32"),
-    D: T.Buffer((2,), "float32"),
-    E: T.Buffer((16,), "float32"),
-    F: T.Buffer((16,), "float32"),
+    C: T.Tensor((1,), "float32"),
+    A: T.Tensor((16,), "float32"),
+    D: T.Tensor((2,), "float32"),
+    E: T.Tensor((16,), "float32"),
+    F: T.Tensor((16,), "float32"),
 ):
     for i in T.serial(
         0,
@@ -133,11 +133,11 @@ def verify_func_3(module):
 
 @Ts.prim_func
 def func_4(
-    C: T.Buffer((1,), "float32"),
-    A: T.Buffer((16,), "float32"),
-    F: T.Buffer((16,), "float32"),
-    D: T.Buffer((2,), "float32"),
-    E: T.Buffer((16,), "float32"),
+    C: T.Tensor((1,), "float32"),
+    A: T.Tensor((16,), "float32"),
+    F: T.Tensor((16,), "float32"),
+    D: T.Tensor((2,), "float32"),
+    E: T.Tensor((16,), "float32"),
 ):
     for i in T.serial(
         0,

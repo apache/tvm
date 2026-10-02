@@ -30,9 +30,9 @@ from . import _buffer_view, _ffi_api
 _REARRANGE_PATTERN_UNSET = object()
 
 
-@tvm_ffi.register_object("tirx.BufferType")
-class BufferType(Type):
-    """The structural type carried by an ordinary buffer variable."""
+@tvm_ffi.register_object("tirx.TensorType")
+class TensorType(Type):
+    """The structural type carried by an ordinary TIRx tensor variable."""
 
     dtype: PrimType
     storage_scope: str
@@ -46,14 +46,14 @@ class BufferType(Type):
 
 
 def is_buffer_var(value) -> bool:
-    """Return whether ``value`` is an ordinary Var carrying BufferType.
+    """Return whether ``value`` is an ordinary Var carrying TensorType.
 
     Use this predicate instead of ``isinstance(value, Buffer)``.  ``Buffer`` is
     a source-compatibility alias for :class:`tvm.ir.Var` and therefore does not
     discriminate buffer variables from scalar or pointer variables.
     """
 
-    return isinstance(value, tvm.ir.Var) and isinstance(value.ty, BufferType)
+    return isinstance(value, tvm.ir.Var) and isinstance(value.ty, TensorType)
 
 
 class BufferAccessKind(IntEnum):
@@ -69,12 +69,12 @@ class _BufferMethods:
     Buffer provide a way to represent data layout
     specialization of data structure in TVM.
 
-    Do not construct directly, use :py:func:`~decl_buffer` instead.
-    See the documentation of :py:func:`decl_buffer` for more details.
+    Do not construct directly, use :py:func:`~decl_tensor` instead.
+    See the documentation of :py:func:`decl_tensor` for more details.
 
     See Also
     --------
-    decl_buffer : Declare a buffer
+    decl_tensor : Declare a buffer
     """
 
     def access_ptr(self, access_mask, ptr_type="handle", content_lanes=1, offset=0, extent=None):
@@ -314,7 +314,7 @@ class _BufferMethods:
 
         Returns
         -------
-        view : DeclBufferFrame
+        view : DeclTensorFrame
             The corresponding view buffer.
         """
 
@@ -351,7 +351,7 @@ class _BufferMethods:
 
         Returns
         -------
-        local : DeclBufferFrame
+        local : DeclTensorFrame
             The corresponding local buffer.
         """
         return _buffer_view.local(self, *shape, layout=layout)
@@ -366,7 +366,7 @@ class _BufferMethods:
 
         Returns
         -------
-        permuted : DeclBufferFrame
+        permuted : DeclTensorFrame
             The buffer with permuted dimensions.
         """
         return _buffer_view.permute(self, *dims)
@@ -463,7 +463,7 @@ class _BufferMethods:
 # definitions precede this class to avoid a circular buffer/view import.
 
 
-def decl_buffer(
+def decl_tensor(
     shape,
     dtype=None,
     name="buffer",
@@ -497,7 +497,7 @@ def decl_buffer(
         if not isinstance(data.ty.element_type, PrimType):
             raise TypeError("Buffer data must point to a primitive type")
         storage_scope = data.ty.storage_scope
-    buffer_type = _ffi_api.BufferType(  # type: ignore
+    buffer_type = _ffi_api.TensorType(  # type: ignore
         storage_scope,
         dtype,
         shape,
@@ -516,7 +516,7 @@ def buffer_data(buffer):
     """Project the physical pointer associated with a buffer variable."""
 
     if not is_buffer_var(buffer):
-        raise TypeError("buffer_data expects a Var with BufferType")
+        raise TypeError("buffer_data expects a Var with TensorType")
     return _ffi_api.BufferData(buffer)
 
 
@@ -524,7 +524,7 @@ def buffer_data_pointer_type(buffer):
     """Return the pointer type produced by :func:`buffer_data`."""
 
     if not is_buffer_var(buffer):
-        raise TypeError("buffer_data_pointer_type expects a Var with BufferType")
+        raise TypeError("buffer_data_pointer_type expects a Var with TensorType")
     return _ffi_api.BufferDataPointerType(buffer)
 
 
@@ -542,13 +542,13 @@ for _name, _value in _BufferMethods.__dict__.items():
 def _buffer_type_field(name):
     def getter(value):
         if not is_buffer_var(value):
-            raise AttributeError(f"{name} is only available on a Var with BufferType")
+            raise AttributeError(f"{name} is only available on a Var with TensorType")
         return getattr(value.ty, name)
 
     return property(getter)
 
 
-# Preserve Buffer's public metadata surface while keeping BufferType as the
+# Preserve Buffer's public metadata surface while keeping TensorType as the
 # single source of truth.
 for _name in (
     "shape",
@@ -564,8 +564,8 @@ for _name in (
 
 def _buffer_dtype_property(value):
     if not is_buffer_var(value):
-        raise AttributeError("dtype is only available on a Var with BufferType")
-    # Preserve the pre-migration Python Buffer surface.  BufferType stores a
+        raise AttributeError("dtype is only available on a Var with TensorType")
+    # Preserve the pre-migration Python Buffer surface.  TensorType stores a
     # PrimType, while Python callers historically receive its runtime DataType.
     return value.ty.dtype.dtype
 
@@ -577,7 +577,7 @@ tvm.ir.Var.dtype = property(_buffer_dtype_property)
 # and builder code calls ``buffer_data(A)`` directly.
 def _buffer_data_property(value):
     if not is_buffer_var(value):
-        raise AttributeError("data is only available on a Var with BufferType")
+        raise AttributeError("data is only available on a Var with TensorType")
     return buffer_data(value)
 
 

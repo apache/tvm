@@ -76,14 +76,14 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {
 }
 
 void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
-  // BufferType metadata may introduce symbolic dimensions.  Define those
+  // TensorType metadata may introduce symbolic dimensions.  Define those
   // symbols before entering the buffer parameter itself.
   std::vector<DefContext<Var>> context;
 
   auto ppath = path->Attr("params");
   for (size_t i = 0; i < func->params.size(); i++) {
     const Var& param = func->params[i];
-    if (!param->ty.as<BufferTypeNode>()) {
+    if (!param->ty.as<TensorTypeNode>()) {
       context.push_back(WithDef(param, ppath->ArrayItem(i)));
     }
   }

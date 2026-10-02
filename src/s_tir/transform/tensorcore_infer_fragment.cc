@@ -208,7 +208,7 @@ class InferFragmenter : public s_tir::StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
       auto it = fragment_getter.fragments.find(op->var.get());
       if (it == fragment_getter.fragments.end()) return ffi::Unchanged();
       const FragmentInfo& info = it->second;

@@ -76,7 +76,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
                          {IntImm::Int32(dim0->value / 16), IntImm::Int32(dim1->value / 8), 2, 2});
 
         BufferVar new_buffer =
-            decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
+            decl_tensor(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         VarRemapSet(buffer, new_buffer);
         return new_buffer;
 
@@ -97,7 +97,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
                          {IntImm::Int32(dim0->value / 32), IntImm::Int32(dim1->value / 8), 4, 2});
 
         BufferVar new_buffer =
-            decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
+            decl_tensor(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         VarRemapSet(buffer, new_buffer);
         return new_buffer;
 
@@ -118,7 +118,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
                          {IntImm::Int32(dim0->value / 8), IntImm::Int32(dim1->value / 32), 1, 8});
 
         BufferVar new_buffer =
-            decl_buffer(std::move(new_shape), buffer->dtype, buffer.name(), "local");
+            decl_tensor(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         VarRemapSet(buffer, new_buffer);
         return new_buffer;
       }

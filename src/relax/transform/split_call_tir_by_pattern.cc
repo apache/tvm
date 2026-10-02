@@ -411,7 +411,7 @@ class TIRPatternMatcher {
       ffi::Array<Var> pattern_symbolic_vars;
       int buffer_count = 0;
       while (buffer_count < static_cast<int>(pattern_func->params.size()) &&
-             pattern_func->params[buffer_count]->ty.as<tirx::BufferTypeNode>()) {
+             pattern_func->params[buffer_count]->ty.as<tirx::TensorTypeNode>()) {
         ++buffer_count;
       }
       for (int i = buffer_count; i < static_cast<int>(pattern_func->params.size()); i++) {

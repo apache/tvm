@@ -26,8 +26,8 @@ from tvm.target import Target
 
 @Ts.prim_func
 def add(
-    A: T.Buffer([2048, 2048, 2048], dtype="float32"),
-    B: T.Buffer([2048, 2048, 2048], dtype="float32"),
+    A: T.Tensor([2048, 2048, 2048], dtype="float32"),
+    B: T.Tensor([2048, 2048, 2048], dtype="float32"),
 ) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main"})

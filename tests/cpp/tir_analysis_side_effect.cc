@@ -29,7 +29,7 @@
 TEST(SimplePasses, SideEffect) {
   using namespace tvm::prim;
   using namespace tvm;
-  auto buf = tirx::decl_buffer({16}, PrimType::Float(32));
+  auto buf = tirx::decl_tensor({16}, PrimType::Float(32));
   auto i = PrimVar("i", PrimType::Int(32));
   TVM_FFI_ICHECK(SideEffect(tirx::BufferLoad(buf, {i})) == CallEffectKind::kReadState);
   TVM_FFI_ICHECK(SideEffect(exp(prim::Cast(PrimType::Float(32), i + 1))) == CallEffectKind::kPure);

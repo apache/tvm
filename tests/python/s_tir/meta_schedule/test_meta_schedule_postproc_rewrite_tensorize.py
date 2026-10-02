@@ -27,9 +27,9 @@ from tvm.script import tirx as T
 class Conv2dNCHWcVNNIModuleTiled:
     @Ts.prim_func
     def main(
-        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
-        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
-        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
+        placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for (
@@ -147,9 +147,9 @@ class Conv2dNCHWcVNNIModuleTiled:
 class Conv2dNCHWcVNNIModuleTensorized:
     @Ts.prim_func
     def main(
-        placeholder: T.Buffer((1, 4, 56, 56, 16), "uint8"),
-        placeholder_1: T.Buffer((16, 4, 1, 1, 4, 16, 4), "int8"),
-        conv2d_NCHWc_int8: T.Buffer((1, 16, 56, 56, 16), "int32"),
+        placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
+        placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
+        conv2d_NCHWc_int8: T.Tensor((1, 16, 56, 56, 16), "int32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -249,9 +249,9 @@ class Conv2dNCHWcVNNIModuleTensorized:
 class DenseDP4ATiled:
     @Ts.prim_func
     def main(
-        X: T.Buffer((128, 128), "int8"),
-        W: T.Buffer((128, 128), "int8"),
-        compute: T.Buffer((128, 128), "int32"),
+        X: T.Tensor((128, 128), "int8"),
+        W: T.Tensor((128, 128), "int8"),
+        compute: T.Tensor((128, 128), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         compute_local = Ts.sblock_alloc_buffer([128, 128], dtype="int32", scope="local")
@@ -339,9 +339,9 @@ class DenseDP4ATiled:
 class DenseDP4ATensorized:
     @Ts.prim_func
     def main(
-        X: T.Buffer((128, 128), "int8"),
-        W: T.Buffer((128, 128), "int8"),
-        compute: T.Buffer((128, 128), "int32"),
+        X: T.Tensor((128, 128), "int8"),
+        W: T.Tensor((128, 128), "int8"),
+        compute: T.Tensor((128, 128), "int32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})

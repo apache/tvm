@@ -25,13 +25,13 @@ from tvm.script import tirx as T
 
 def test_canonicalize_loop():
     @Ts.prim_func
-    def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+    def before(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         T.func_attr({"global_symbol": "main"})
         for i in range(1, 128, 5):
             B[i] = A[i] + 1.0
 
     @Ts.prim_func
-    def expected(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+    def expected(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         T.func_attr({"global_symbol": "main"})
         for i in T.serial(0, 26):
             B[i * 5 + 1] = A[i * 5 + 1] + 1.0
@@ -43,14 +43,14 @@ def test_canonicalize_loop():
 
 def test_canonicalize_nested_loop():
     @Ts.prim_func
-    def before(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
+    def before(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
         T.func_attr({"global_symbol": "main"})
         for i in range(1, 128, 5):
             for j in range(2, 128, 3):
                 B[i, j] = A[i, j] + 1.0
 
     @Ts.prim_func
-    def expected(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
+    def expected(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
         T.func_attr({"global_symbol": "main"})
         for i in T.serial(0, 26):
             for j in T.serial(0, 42):
@@ -63,7 +63,7 @@ def test_canonicalize_nested_loop():
 
 def test_canonicalize_negative_step():
     @Ts.prim_func
-    def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+    def before(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         T.func_attr({"global_symbol": "main"})
         for i in T.serial(0, 127, step=-3):
             B[i] = A[i] + 1.0
@@ -77,7 +77,7 @@ def test_canonicalize_dynamic_step():
     """Currently we report error for dynamic step since we could not prove it is positive"""
 
     @Ts.prim_func
-    def before(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32"), step: T.int32):
+    def before(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32"), step: T.int32):
         T.func_attr({"global_symbol": "main"})
         for i in T.serial(0, 128, step=step):
             B[i] = A[i] + 1.0

@@ -22,7 +22,7 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def buffer_load_store_func(
-    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
     C = Ts.sblock_alloc_buffer((128, 128), "float32")
     D = Ts.sblock_alloc_buffer((128, 128), "float32")
@@ -47,12 +47,12 @@ def buffer_load_store_func(
 
 @Ts.prim_func
 def buffer_opaque_access(
-    B: T.Buffer([16, 16], "float32"), C: T.Buffer([16, 16], "float32")
+    B: T.Tensor([16, 16], "float32"), C: T.Tensor([16, 16], "float32")
 ) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(B[0:16, 0:16])
-        A = T.decl_buffer([256], "float32")
+        A = T.decl_tensor([256], "float32")
         for i, j in T.grid(16, 16):
             A[i * 16 + j] = 1
         for i in range(0, 16):
@@ -68,13 +68,13 @@ def buffer_opaque_access(
 
 
 @Ts.prim_func
-def lca_is_func_root(A: T.Buffer([0, 0], "float32")) -> None:
+def lca_is_func_root(A: T.Tensor([0, 0], "float32")) -> None:
     A[0, 0] = 1.0
 
 
 @Ts.prim_func
 def match_buffer_func(
-    A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")
+    A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock("block"):
@@ -94,7 +94,7 @@ def match_buffer_func(
 
 @Ts.prim_func
 def global_buffer_with_blockidx(
-    a: T.Buffer((1, 32), "int32"), b: T.Buffer((1, 32), "int32")
+    a: T.Tensor((1, 32), "int32"), b: T.Tensor((1, 32), "int32")
 ) -> None:
     for i0 in T.thread_binding(0, 1, thread="blockIdx.x"):
         for i1 in T.thread_binding(0, 32, thread="threadIdx.x"):

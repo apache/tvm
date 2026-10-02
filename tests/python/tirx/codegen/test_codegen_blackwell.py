@@ -54,7 +54,7 @@ def _assert_remote_mbarrier_ir(func, arrive_op_name, n_arrives=1):
         if isinstance(node, tvm.tirx.Bind) and node.var.name == "remote_mbar_ptr":
             bindings.append(node)
         if (
-            _is_buffer_binding(node, "tirx.decl_buffer")
+            _is_buffer_binding(node, "tirx.decl_tensor")
             and getattr(node.value.args[0], "name", None) == "remote_mbar_ptr"
         ):
             buffers.append(node)
@@ -94,13 +94,13 @@ def test_tmem_alloc_dealloc_relinquish():
 
     # fmt: off
     @T.prim_func
-    def test_tmem(A: T.Buffer((16, 16), "float16")):
+    def test_tmem(A: T.Tensor((16, 16), "float16")):
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
         tid = T.thread_id([128])
-        # tmem_addr = T.alloc_buffer((1,), "uint32", scope="shared", align=8)
+        # tmem_addr = T.alloc_tensor((1,), "uint32", scope="shared", align=8)
         tmem_addr = T.shared_scalar("uint32")
 
         # alloc TMEM
@@ -131,7 +131,7 @@ def test_tmem_alloc_dealloc_relinquish():
 def test_mbarrier_try_wait_once_codegen():
     # fmt: off
     @T.prim_func
-    def test_try_wait_once(A: T.Buffer((16, 16), "float16")):
+    def test_try_wait_once(A: T.Tensor((16, 16), "float16")):
         T.device_entry()
         T.cta_id([1])
         T.thread_id([128])
@@ -323,7 +323,7 @@ def test_mbarrier_remote_view_rejects_invalid_operations():
 def test_fence_before_after_thread_sync():
     # fmt: off
     @T.prim_func
-    def test_fence(A: T.Buffer((16, 16), "float16")):
+    def test_fence(A: T.Tensor((16, 16), "float16")):
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([4])
@@ -352,14 +352,14 @@ def test_tcgen05_ld_st_roundtrip():
 
     # fmt: off
     @T.prim_func
-    def test_ld_st(A: T.Buffer((HEIGHT, WIDTH), "float32"), B: T.Buffer((HEIGHT, WIDTH), "float32")):  # noqa: E501
+    def test_ld_st(A: T.Tensor((HEIGHT, WIDTH), "float32"), B: T.Tensor((HEIGHT, WIDTH), "float32")):  # noqa: E501
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
         tx = T.thread_id([128])
-        reg = T.alloc_buffer((WIDTH,), "float32", scope="local")
-        # tmem_addr = T.alloc_buffer((1,), "uint32", scope="shared", align=8)
+        reg = T.alloc_tensor((WIDTH,), "float32", scope="local")
+        # tmem_addr = T.alloc_tensor((1,), "uint32", scope="shared", align=8)
         tmem_addr = T.shared_scalar("uint32")
 
         # alloc TMEM
@@ -431,20 +431,20 @@ def test_tcgen05_cp_ld_roundtrip():
 
     # fmt: off
     @T.prim_func
-    def test_cp_ld(A: T.Buffer((HEIGHT, WIDTH), dtype, layout=T.TileLayout(T.S[(HEIGHT, WIDTH // 4, 4) : (4, HEIGHT * 4, 1)])),  # noqa: E501
-                   B: T.Buffer((HEIGHT, WIDTH), dtype, layout=T.TileLayout(T.S[(HEIGHT, WIDTH // 4, 4) : (4, HEIGHT * 4, 1)]))):  # noqa: E501
+    def test_cp_ld(A: T.Tensor((HEIGHT, WIDTH), dtype, layout=T.TileLayout(T.S[(HEIGHT, WIDTH // 4, 4) : (4, HEIGHT * 4, 1)])),  # noqa: E501
+                   B: T.Tensor((HEIGHT, WIDTH), dtype, layout=T.TileLayout(T.S[(HEIGHT, WIDTH // 4, 4) : (4, HEIGHT * 4, 1)]))):  # noqa: E501
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
         tx = T.thread_id([128])
-        A_smem = T.alloc_buffer((HEIGHT, WIDTH), dtype, scope="shared", layout=A_layout)
-        reg = T.alloc_buffer((WIDTH,), dtype, scope="local")
-        # tmem_addr = T.alloc_buffer((1,), "uint32", scope="shared", align=8)
+        A_smem = T.alloc_tensor((HEIGHT, WIDTH), dtype, scope="shared", layout=A_layout)
+        reg = T.alloc_tensor((WIDTH,), dtype, scope="local")
+        # tmem_addr = T.alloc_tensor((1,), "uint32", scope="shared", align=8)
         tmem_addr = T.shared_scalar("uint32")
-        descA = T.alloc_buffer((1,), "uint64", scope="local")
-        bar = T.alloc_buffer((1,), "uint64", scope="shared", align=8)
-        phase = T.alloc_buffer((1,), "int32", scope="local")
+        descA = T.alloc_tensor((1,), "uint64", scope="local")
+        bar = T.alloc_tensor((1,), "uint64", scope="shared", align=8)
+        phase = T.alloc_tensor((1,), "int32", scope="local")
 
         # alloc TMEM
         if warp_id == 0:
@@ -543,25 +543,25 @@ def test_tcgen05_mma_ss_no_tma(swizzle):
 
     # fmt: off
     @T.prim_func
-    def test_mma_ss_no_tma(A: T.Buffer((M, K), a_type, layout=T.TileLayout(T.S[M, K])),
-                           B: T.Buffer((N, K), b_type, layout=T.TileLayout(T.S[N, K])),
-                           C: T.Buffer((M, N), d_type)):
+    def test_mma_ss_no_tma(A: T.Tensor((M, K), a_type, layout=T.TileLayout(T.S[M, K])),
+                           B: T.Tensor((N, K), b_type, layout=T.TileLayout(T.S[N, K])),
+                           C: T.Tensor((M, N), d_type)):
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
         tx = T.thread_id([128])
-        dyn = T.alloc_buffer((dyn_smem_bytes,), "uint8", scope="shared")
+        dyn = T.alloc_tensor((dyn_smem_bytes,), "uint8", scope="shared")
         tmem_addr = T.decl_scalar("uint32", dyn.data, scope="shared", elem_offset=0)
-        A_smem = T.decl_buffer((M, K), a_type, dyn.data, elem_offset=256, layout=A_layout)
-        B_smem = T.decl_buffer((N, K), b_type, dyn.data, elem_offset=256 + M*K, layout=B_layout)
-        bar = T.decl_buffer((1,), "uint64", dyn.data, scope="shared", elem_offset=8)
+        A_smem = T.decl_tensor((M, K), a_type, dyn.data, elem_offset=256, layout=A_layout)
+        B_smem = T.decl_tensor((N, K), b_type, dyn.data, elem_offset=256 + M*K, layout=B_layout)
+        bar = T.decl_tensor((1,), "uint64", dyn.data, scope="shared", elem_offset=8)
 
-        reg = T.alloc_buffer((N,), d_type, scope="local")
-        descA = T.alloc_buffer((1,), "uint64", scope="local")
-        descB = T.alloc_buffer((1,), "uint64", scope="local")
-        descI = T.alloc_buffer((1,), "uint32", scope="local")
-        phase = T.alloc_buffer((1,), "int32", scope="local")
+        reg = T.alloc_tensor((N,), d_type, scope="local")
+        descA = T.alloc_tensor((1,), "uint64", scope="local")
+        descB = T.alloc_tensor((1,), "uint64", scope="local")
+        descI = T.alloc_tensor((1,), "uint32", scope="local")
+        phase = T.alloc_tensor((1,), "int32", scope="local")
 
         # alloc TMEM
         if warp_id == 0:
@@ -644,11 +644,11 @@ def test_tcgen05_mma_pred_codegen():
     def test_mma_pred():
         T.device_entry()
         T.thread_id([1])
-        tmem_addr = T.alloc_buffer((1,), "uint32", scope="local")
-        desc_a = T.alloc_buffer((1,), "uint64", scope="local")
-        desc_b = T.alloc_buffer((1,), "uint64", scope="local")
-        desc_i = T.alloc_buffer((1,), "uint32", scope="local")
-        pred = T.alloc_buffer((1,), "uint32", scope="local")
+        tmem_addr = T.alloc_tensor((1,), "uint32", scope="local")
+        desc_a = T.alloc_tensor((1,), "uint64", scope="local")
+        desc_b = T.alloc_tensor((1,), "uint64", scope="local")
+        desc_i = T.alloc_tensor((1,), "uint32", scope="local")
+        pred = T.alloc_tensor((1,), "uint32", scope="local")
 
         tmem_addr[0] = T.uint32(0)
         desc_a[0] = T.uint64(0)

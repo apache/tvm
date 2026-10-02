@@ -63,20 +63,20 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, call, inplace_mode);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
     if (IsTextureStorage(scope)) {
       op = stmt.as<BindNode>();
       if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
-          !call || !call->op.same_as(tirx::builtin::alloc_buffer())) {
+          !call || !call->op.same_as(tirx::builtin::alloc_tensor())) {
         TVM_FFI_THROW(InternalError) << "Expected an allocation binding after buffer mutation";
       }
       const auto* allocation = op->value.as<CallNode>();
@@ -100,7 +100,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
       stmt = Bind(op->var.as_or_throw<BufferVar>(),
-                  Call(op->var.as_or_throw<BufferVar>().type(), tirx::builtin::decl_buffer(),
+                  Call(op->var.as_or_throw<BufferVar>().type(), tirx::builtin::decl_tensor(),
                        {Call(op->var.as_or_throw<BufferVar>().DataPointerType(),
                              tirx::builtin::nd_mem_alloc_with_scope(), args),
                         tvm::Tuple(op->var.as_or_throw<BufferVar>()->shape),

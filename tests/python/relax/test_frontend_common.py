@@ -71,8 +71,8 @@ class TestAutopad:
         class expected:
             @Ts.prim_func(private=True)
             def pad(
-                x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
-                PadInput: T.Buffer((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"),
+                x: T.Tensor((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
+                PadInput: T.Tensor((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"),
             ):
                 T.func_attr({"tirx.noalias": True})
                 for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(1), T.int64(5), T.int64(5)):
@@ -107,8 +107,8 @@ class TestAutopad:
         class expected:
             @Ts.prim_func(private=True)
             def replicate_pad(
-                x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
-                ReplicatePadInput: T.Buffer(
+                x: T.Tensor((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
+                ReplicatePadInput: T.Tensor(
                     (T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"
                 ),
             ):
@@ -152,8 +152,8 @@ class TestAutopad:
         class expected:
             @Ts.prim_func(private=True)
             def mirror_pad(
-                x: T.Buffer((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
-                MirrorPadInput: T.Buffer(
+                x: T.Tensor((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
+                MirrorPadInput: T.Tensor(
                     (T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"
                 ),
             ):

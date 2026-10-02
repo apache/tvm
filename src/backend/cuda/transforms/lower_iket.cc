@@ -597,7 +597,7 @@ class StripIket : public StmtExprMutator {
  private:
   UnchangedOr<Stmt> Mutate_(const BindNode* alloc, InplaceMode inplace_mode) final {
     if (const auto* call = alloc->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer()) &&
+        call && call->op.same_as(tirx::builtin::alloc_tensor()) &&
         token_buffers_.count(alloc->var.get())) {
       return Evaluate(0);
     }

@@ -332,9 +332,9 @@ def test_no_local_func():
     class Before:
         @Ts.prim_func
         def sub(
-            A: T.Buffer((16, 16), "float32"),
-            B: T.Buffer((16, 16), "float32"),
-            C: T.Buffer((16, 16), "float32"),
+            A: T.Tensor((16, 16), "float32"),
+            B: T.Tensor((16, 16), "float32"),
+            C: T.Tensor((16, 16), "float32"),
         ) -> None:
             for i, j in T.grid(16, 16):
                 with Ts.sblock("sub"):

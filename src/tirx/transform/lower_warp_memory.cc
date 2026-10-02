@@ -268,7 +268,7 @@ class WarpAccessRewriter : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
   explicit WarpAccessRewriter(int warp_size, sym::AnalyzerObj* analyzer)
       : warp_size_(warp_size), analyzer_(analyzer) {}
-  // Rewrite the AllocBuffer statement which transforms
+  // Rewrite the AllocTensor statement which transforms
   // warp memory to local memory.
   // \param op The allocation binding for warp memory.
   // \param buffer_call The matched allocation Call.
@@ -299,7 +299,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    auto type = CopyBufferType(op->var.as_or_throw<BufferVar>());
+    auto type = CopyTensorType(op->var.as_or_throw<BufferVar>());
     type->storage_scope = "local";
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
@@ -309,7 +309,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
     return SeqStmt::Flatten(
         Bind(new_buf.var(),
-             Call(new_buf.type(), tirx::builtin::alloc_buffer(),
+             Call(new_buf.type(), tirx::builtin::alloc_tensor(),
                   {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
                    DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
                    StringImm(new_buf.scope(), buffer_call->args[2]->span)},
@@ -553,13 +553,13 @@ class WarpMemoryRewriter : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) {
-    // Process SeqStmt to find warp AllocBuffer and gather remaining siblings as body.
+    // Process SeqStmt to find warp AllocTensor and gather remaining siblings as body.
     ffi::Array<Stmt> new_seq;
     bool changed = false;
     for (size_t i = 0; i < op->seq.size(); ++i) {
       const auto* alloc = op->seq[i].as<BindNode>();
       if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
-          call && call->op.same_as(builtin::alloc_buffer()) &&
+          call && call->op.same_as(builtin::alloc_tensor()) &&
           call->args[2].as_or_throw<StringImm>()->value == "warp") {
         new_storage_scopes_[alloc->var] = "local";
         // Gather remaining siblings as the "body" for rewriting.

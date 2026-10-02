@@ -34,7 +34,7 @@ def test_static_init():
     @I.ir_module
     class Module:
         @T.prim_func
-        def ramp(Ab: T.Buffer((n,), "int64")):
+        def ramp(Ab: T.Tensor((n,), "int64")):
             T.func_attr({"global_symbol": "ramp"})
 
             T.call_packed(

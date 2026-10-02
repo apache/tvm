@@ -116,7 +116,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* o
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::decl_buffer())) {
+      call && call->op.same_as(tirx::builtin::decl_tensor())) {
     if (auto source = GetBufferDataVar(call->args[0])) {
       buffer_aliases_.insert_or_assign(op->var.as_or_throw<BufferVar>().get(),
                                        ResolveBuffer(source.value()));
@@ -124,7 +124,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
     return StmtExprVisitor::Visit_(op);
   }
   if (const auto* call = op->value.as<CallNode>();
-      call && call->op.same_as(tirx::builtin::alloc_buffer()))
+      call && call->op.same_as(tirx::builtin::alloc_tensor()))
     return StmtExprVisitor::Visit_(op);
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
@@ -358,7 +358,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
 }
 
 StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
-  if (auto buffer_type = buffer_var->ty.as<BufferType>()) {
+  if (auto buffer_type = buffer_var->ty.as<TensorType>()) {
     return StorageScope::Create(buffer_type.value()->storage_scope);
   }
   if (buffer_var->ty.as<PointerTypeNode>()) {

@@ -157,7 +157,7 @@ def index_put(data, indices, values, accumulate=False):
     in_buffers.extend(indices)
     in_buffers.append(values)
 
-    out_buf = tirx.decl_buffer(data.shape, data.dtype, "out_buf", layout=None)
+    out_buf = tirx.decl_tensor(data.shape, data.dtype, "out_buf", layout=None)
     return te.extern(
         [data.shape],
         in_buffers,

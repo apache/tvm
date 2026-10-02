@@ -84,7 +84,7 @@ def test_target_host_removed():
     @I.ir_module
     class before:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host=host)})
             T.evaluate(0)
 
@@ -105,7 +105,7 @@ def test_internal_subroutine_call():
     @I.ir_module
     class before:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm", host="llvm")})
             before.subroutine(A.data)
 
@@ -138,7 +138,7 @@ def test_subroutine_call_to_externally_visible_subroutine():
     @I.ir_module
     class before:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
             before.subroutine(A.data)
 
@@ -461,7 +461,7 @@ def test_forward_reference_symbolic_variable():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer((batch_size + 1,), "int32"), B: T.Buffer((batch_size,), "int32")):
+        def main(A: T.Tensor((batch_size + 1,), "int32"), B: T.Tensor((batch_size,), "int32")):
             T.func_attr({"target": T.target("llvm", host="llvm")})
 
             for i in range(batch_size):
@@ -478,7 +478,7 @@ def test_buffer_alignment_attached_to_buffer_var():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer((16,), "float32", align=64)):
+        def main(A: T.Tensor((16,), "float32", align=64)):
             T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
             T.evaluate(A[0])
 
@@ -489,7 +489,7 @@ def test_buffer_alignment_attached_to_buffer_var():
     def collect(node):
         if isinstance(node, tirx.AttrStmt) and node.attr_key == "storage_alignment":
             alignment_nodes.append(node.node)
-        if _is_buffer_binding(node, "tirx.decl_buffer"):
+        if _is_buffer_binding(node, "tirx.decl_tensor"):
             declared_buffers.append(node.var)
 
     tvm_ffi.structural_walk(after.body, collect)

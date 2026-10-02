@@ -28,9 +28,9 @@ def test_single_buffer():
     class Before:
         @Ts.prim_func(private=True)
         def tir_func(
-            X: T.Buffer((224, 224), "float32"),
-            W: T.Buffer((224, 224), "float32"),
-            Out: T.Buffer((224, 224), "float32"),
+            X: T.Tensor((224, 224), "float32"),
+            W: T.Tensor((224, 224), "float32"),
+            Out: T.Tensor((224, 224), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1]})
             W_rewrite = Ts.sblock_alloc_buffer((4, 4, 56, 56))
@@ -61,9 +61,9 @@ def test_single_buffer():
     class After:
         @Ts.prim_func(private=True)
         def tir_func_prepacked(
-            X: T.Buffer((224, 224), "float32"),
-            W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
-            Out: T.Buffer((224, 224), "float32"),
+            X: T.Tensor((224, 224), "float32"),
+            W_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
+            Out: T.Tensor((224, 224), "float32"),
         ):
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
                 with Ts.sblock("Out"):
@@ -73,8 +73,8 @@ def test_single_buffer():
 
         @Ts.prim_func(private=True)
         def tir_func_weight_prepack(
-            W: T.Buffer((224, 224), "float32"),
-            W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
+            W: T.Tensor((224, 224), "float32"),
+            W_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
         ):
             for i, j in T.grid(224, 224):
                 with Ts.sblock("W_rewrite"):
@@ -108,10 +108,10 @@ def test_multiple_buffers():
     class Before:
         @Ts.prim_func(private=True)
         def tir_func(
-            X: T.Buffer((224, 224), "float32"),
-            W1: T.Buffer((224, 224), "float32"),
-            W2: T.Buffer((224, 224), "float32"),
-            Out: T.Buffer((224, 224), "float32"),
+            X: T.Tensor((224, 224), "float32"),
+            W1: T.Tensor((224, 224), "float32"),
+            W2: T.Tensor((224, 224), "float32"),
+            Out: T.Tensor((224, 224), "float32"),
         ):
             W1_rewrite = Ts.sblock_alloc_buffer((4, 4, 56, 56))
             W2_rewrite = Ts.sblock_alloc_buffer((4, 4, 56, 56))
@@ -154,10 +154,10 @@ def test_multiple_buffers():
     class After:
         @Ts.prim_func(private=True)
         def tir_func_prepacked(
-            X: T.Buffer((224, 224), "float32"),
-            W1_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
-            W2_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
-            Out: T.Buffer((224, 224), "float32"),
+            X: T.Tensor((224, 224), "float32"),
+            W1_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
+            W2_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
+            Out: T.Tensor((224, 224), "float32"),
         ):
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
                 with Ts.sblock("Out"):
@@ -171,10 +171,10 @@ def test_multiple_buffers():
 
         @Ts.prim_func(private=True)
         def tir_func_weight_prepack(
-            W1: T.Buffer((224, 224), "float32"),
-            W2: T.Buffer((224, 224), "float32"),
-            W1_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
-            W2_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
+            W1: T.Tensor((224, 224), "float32"),
+            W2: T.Tensor((224, 224), "float32"),
+            W1_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
+            W2_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
         ):
             for i, j in T.grid(224, 224):
                 with Ts.sblock("W1_rewrite"):
@@ -220,9 +220,9 @@ def test_attr_inheritance():
     class Before:
         @Ts.prim_func(private=True)
         def tir_func(
-            X: T.Buffer((224, 224), "float32"),
-            W: T.Buffer((224, 224), "float32"),
-            Out: T.Buffer((224, 224), "float32"),
+            X: T.Tensor((224, 224), "float32"),
+            W: T.Tensor((224, 224), "float32"),
+            Out: T.Tensor((224, 224), "float32"),
         ):
             T.func_attr({"layout_free_buffers": [1], "tirx.noalias": True})
             W_rewrite = Ts.sblock_alloc_buffer((4, 4, 56, 56))
@@ -253,9 +253,9 @@ def test_attr_inheritance():
     class After:
         @Ts.prim_func(private=True)
         def tir_func_prepacked(
-            X: T.Buffer((224, 224), "float32"),
-            W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
-            Out: T.Buffer((224, 224), "float32"),
+            X: T.Tensor((224, 224), "float32"),
+            W_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
+            Out: T.Tensor((224, 224), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
@@ -266,8 +266,8 @@ def test_attr_inheritance():
 
         @Ts.prim_func(private=True)
         def tir_func_weight_prepack(
-            W: T.Buffer((224, 224), "float32"),
-            W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
+            W: T.Tensor((224, 224), "float32"),
+            W_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(224, 224):

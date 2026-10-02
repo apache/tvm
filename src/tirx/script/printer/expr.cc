@@ -55,7 +55,7 @@ ffi::Optional<ExprDoc> VarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
       rhs = NamespaceDoc("ir")->Attr("dynamic")->Call(
           {LiteralDoc::Str(var->name, std::nullopt)}, {"dtype"},
           {LiteralDoc::DataType(primitive.value()->dtype, std::nullopt)});
-    } else if (var->ty.as<tirx::BufferTypeNode>()) {
+    } else if (var->ty.as<tirx::TensorTypeNode>()) {
       rhs = NamespaceDoc("tirx")->Attr("Var")->Call(
           {LiteralDoc::Str(var->name, std::nullopt), d->Translate(var->ty).value()});
     } else {

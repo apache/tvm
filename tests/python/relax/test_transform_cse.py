@@ -402,9 +402,9 @@ def test_call_tir_tuple_arg():
 
         @Ts.prim_func(private=True)
         def product(
-            A: T.Buffer([16, 16], "int32"),
-            B: T.Buffer([16, 16], "int32"),
-            C: T.Buffer([16, 16], "int32"),
+            A: T.Tensor([16, 16], "int32"),
+            B: T.Tensor([16, 16], "int32"),
+            C: T.Tensor([16, 16], "int32"),
         ):
             for (*iters,) in T.grid(*A.shape):
                 with Ts.sblock("compute"):
@@ -413,9 +413,9 @@ def test_call_tir_tuple_arg():
 
         @Ts.prim_func(private=True)
         def sum(
-            A: T.Buffer([16, 16], "int32"),
-            B: T.Buffer([16, 16], "int32"),
-            C: T.Buffer([16, 16], "int32"),
+            A: T.Tensor([16, 16], "int32"),
+            B: T.Tensor([16, 16], "int32"),
+            C: T.Tensor([16, 16], "int32"),
         ):
             for (*iters,) in T.grid(*A.shape):
                 with Ts.sblock("compute"):

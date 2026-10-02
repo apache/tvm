@@ -475,7 +475,7 @@ def make_macro_decorator(
                 B[()] = A[x_value]  # x_value resolved from enclosing scope
 
             @T.prim_func
-            def use(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+            def use(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
                 capture(A, B)       # Produces B[()] = A[128]
         """
         if function is not None and not inspect.isfunction(function):

@@ -174,7 +174,7 @@ class AutoPadder {
           reverse_strides.push_back(stride);
         }
         // Step 3. create the new padded buffer
-        ffi::ObjectPtr<BufferTypeNode> b = CopyBufferType(buffer);
+        ffi::ObjectPtr<TensorTypeNode> b = CopyTensorType(buffer);
         ffi::Array<PrimExpr> strides;
         for (int i = static_cast<int>(reverse_strides.size()) - 1; i >= 0; i--) {
           strides.push_back(reverse_strides[i]);
@@ -765,7 +765,7 @@ class AutoCopyMutator : public StmtExprMutator {
     for (RewriteRule* rule : rules) {
       n->body = rule->Apply(std::move(n->body), constraints, &outputs);
     }
-    for (const BufferVar& buffer : outputs.alloc_buffer) {
+    for (const BufferVar& buffer : outputs.alloc_tensor) {
       n->alloc_buffers.push_back(buffer);
     }
     for (const auto& p : outputs.padding_min) {

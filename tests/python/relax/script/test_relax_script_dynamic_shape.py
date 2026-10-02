@@ -216,9 +216,9 @@ def test_call_tir_with_tir_var():
 
         @Ts.prim_func
         def copy(
-            X: T.Buffer((copy_n * 2,), dtype="float32"),
+            X: T.Tensor((copy_n * 2,), dtype="float32"),
             n: copy_n,
-            Y: T.Buffer((copy_n * 2,), dtype="float32"),
+            Y: T.Tensor((copy_n * 2,), dtype="float32"),
         ):
             for i in T.grid(n * 2):
                 with Ts.sblock("block"):

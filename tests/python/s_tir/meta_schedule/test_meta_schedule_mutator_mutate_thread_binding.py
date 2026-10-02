@@ -26,7 +26,7 @@ from tvm.target import Target
 
 @Ts.prim_func
 def element_wise(
-    A: T.Buffer([512, 512], dtype="float32"), B: T.Buffer([512, 512], dtype="float32")
+    A: T.Tensor([512, 512], dtype="float32"), B: T.Tensor([512, 512], dtype="float32")
 ) -> None:
     for i, j in T.grid(512, 512):
         with Ts.sblock("C"):

@@ -132,7 +132,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
     ffi::Array<Var> new_params;
     ffi::Map<BufferVar, BufferVar> replace_buffer_map;
     for (const Var& param : prim_func->params) {
-      if (!param->ty.as<BufferTypeNode>()) {
+      if (!param->ty.as<TensorTypeNode>()) {
         new_params.push_back(param);
         continue;
       }
@@ -163,7 +163,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
     std::unordered_set<BufferAxis, BufferAxisHash> visited;
     for (int i = 0, j = 0; i < static_cast<int>(prim_func->params.size()); i++) {
       Var param_var = prim_func->params[i];
-      if (!param_var->ty.as<BufferTypeNode>()) {
+      if (!param_var->ty.as<TensorTypeNode>()) {
         continue;
       }
       BufferVar param_buffer = param_var.as_or_throw<BufferVar>();
@@ -250,7 +250,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
         shape.push_back(buffer->shape[i]);
       }
     }
-    BufferType new_type(buffer->storage_scope, buffer->dtype, std::move(shape), buffer->strides,
+    TensorType new_type(buffer->storage_scope, buffer->dtype, std::move(shape), buffer->strides,
                         buffer->elem_offset, buffer->data_alignment, buffer->offset_factor,
                         buffer->layout, buffer->allocated_addr);
     return BufferVar(buffer.name(), std::move(new_type), buffer.span());
@@ -396,7 +396,7 @@ class LowerTIRToLocalView : public ExprMutator {
     for (size_t i = 0; i < args.size(); ++i) {
       const Expr& arg = args[i];
       const tirx::Var& param = prim_func->params[i];
-      if (param->ty.as<tirx::BufferTypeNode>()) {
+      if (param->ty.as<tirx::TensorTypeNode>()) {
         const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
         TVM_FFI_CHECK(ty, TypeError)
             << "Expected buffer parameter " << param << " to receive a distributed tensor, but "

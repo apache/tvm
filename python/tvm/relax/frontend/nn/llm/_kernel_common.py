@@ -107,7 +107,7 @@ class RopeMode(enum.IntEnum):
     NORMAL = 1
     INLINE = 2
 
-def _rope(buffer: T.Buffer, offset: tirx.Var, rotary_dim: int, theta: tirx.Var, scale: tirx.Var, indices: tuple[tirx.Var, ...], qkv_dtype: str, rope_scaling: dict[str, Any]):
+def _rope(buffer: T.Tensor, offset: tirx.Var, rotary_dim: int, theta: tirx.Var, scale: tirx.Var, indices: tuple[tirx.Var, ...], qkv_dtype: str, rope_scaling: dict[str, Any]):
     d = indices[-1]
     cos_freq, sin_freq, var_map = switch_rope_freq_func(rope_scaling)(offset * scale, d, rotary_dim, theta, "float32")
     cos = cos_freq * buffer[indices].astype("float32")
@@ -138,9 +138,9 @@ def _causal_or_sliding_cross_mask(causal, row, col, kv_len, qo_len, sliding_wind
 
 def _length_info_buffer(batch_size, sliding_window, elem_offset):
     return (
-        T.Buffer( (3, batch_size), "int32", elem_offset=elem_offset)
+        T.Tensor( (3, batch_size), "int32", elem_offset=elem_offset)
         if sliding_window
-        else T.Buffer( (batch_size,), "int32", elem_offset=elem_offset)
+        else T.Tensor( (batch_size,), "int32", elem_offset=elem_offset)
     )
 
 def _get_kv_chunk_len(num_pages, page_size, seq_id, length_info, sliding_window):
@@ -206,7 +206,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
     """
     @T.macro
     def init_states(
-        m_smem: T.Buffer, d_smem: T.Buffer, O_local: T.Buffer, ty: T.int32, tx: T.int32,
+        m_smem: T.Tensor, d_smem: T.Tensor, O_local: T.Tensor, ty: T.int32, tx: T.int32,
     ):
         for i in T.serial(T.ceildiv(tile_x, bdx * num_warps)):
             row: T.let[T.int32] = i * bdx * num_warps + ty * bdx + tx
@@ -221,7 +221,7 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def compute_s_gemm(
-        Q_smem: T.Buffer, K_smem: T.Buffer, S_local: T.Buffer, S_smem: T.Buffer, sm_scale: T.float32,
+        Q_smem: T.Tensor, K_smem: T.Tensor, S_local: T.Tensor, S_smem: T.Tensor, sm_scale: T.float32,
     ):
         with Ts.sblock():
             for li, lj, lk in T.grid(tile_x, tile_z, tile_y):
@@ -239,8 +239,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def softmax_update_causal(
-        S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
-        m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
+        S_smem: T.Tensor, m_smem: T.Tensor, d_smem: T.Tensor, m_prev_smem: T.Tensor,
+        m_new: T.Tensor, m_prev: T.Tensor, d_new: T.Tensor,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
         causal: T.int32, kv_len: T.int32, qo_len: T.int32, sliding_window_size: T.int32,
     ):
@@ -282,8 +282,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def compute_o_gemm(
-        S_smem: T.Buffer, V_smem: T.Buffer, O_local: T.Buffer,
-        m_prev_smem: T.Buffer, m_smem: T.Buffer,
+        S_smem: T.Tensor, V_smem: T.Tensor, O_local: T.Tensor,
+        m_prev_smem: T.Tensor, m_smem: T.Tensor,
     ):
         with Ts.sblock():
             for li, lj, lk in T.grid(tile_x, tile_o, tile_z):
@@ -295,8 +295,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def paged_store_output_lse(
-        output: T.Buffer, lse: T.Buffer, O_local: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer,
-        q_indptr: T.Buffer, b_idx: T.int32, by: T.int32, LH_start: T.int32,
+        output: T.Tensor, lse: T.Tensor, O_local: T.Tensor, m_smem: T.Tensor, d_smem: T.Tensor,
+        q_indptr: T.Tensor, b_idx: T.int32, by: T.int32, LH_start: T.int32,
     ):
         """Paged-style (q_indptr-based) O_store + lse_store epilogue.
 
@@ -320,8 +320,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def advance_tile_batch(
-        tile_id: T.Buffer, batch_idx: T.Buffer, batch_tiles: T.Buffer, batch_rows: T.Buffer,
-        q_indptr: T.Buffer, batch_size: T.int32,
+        tile_id: T.Tensor, batch_idx: T.Tensor, batch_tiles: T.Tensor, batch_rows: T.Tensor,
+        q_indptr: T.Tensor, batch_size: T.int32,
     ):
         """Advance tile_id/batch_idx past exhausted batches.
 
@@ -338,8 +338,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def softmax_update_valid_length(
-        S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
-        m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
+        S_smem: T.Tensor, m_smem: T.Tensor, d_smem: T.Tensor, m_prev_smem: T.Tensor,
+        m_new: T.Tensor, m_prev: T.Tensor, d_new: T.Tensor,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
         valid_len: T.int32, qo_len: T.int32, kv_len: T.int32,
     ):
@@ -379,8 +379,8 @@ def _make_prefill_macros(tile_x, tile_y, tile_z, tile_o, bdx, num_warps, group_s
 
     @T.macro
     def softmax_update_causal_padded_left(
-        S_smem: T.Buffer, m_smem: T.Buffer, d_smem: T.Buffer, m_prev_smem: T.Buffer,
-        m_new: T.Buffer, m_prev: T.Buffer, d_new: T.Buffer,
+        S_smem: T.Tensor, m_smem: T.Tensor, d_smem: T.Tensor, m_prev_smem: T.Tensor,
+        m_new: T.Tensor, m_prev: T.Tensor, d_new: T.Tensor,
         ty: T.int32, tx: T.int32, LH_start: T.int32, L_kv_start: T.int32,
         valid_len: T.int32, qo_len: T.int32, kv_len: T.int32,
     ):

@@ -64,9 +64,9 @@ class PyTorchIntegrationModule(BasePyModule):
 
     @Ts.prim_func
     def matmul(
-        A: T.Buffer((n_matmul, 16), "float32"),
-        B: T.Buffer((16, 20), "float32"),
-        C: T.Buffer((n_matmul, 20), "float32"),
+        A: T.Tensor((n_matmul, 16), "float32"),
+        B: T.Tensor((16, 20), "float32"),
+        C: T.Tensor((n_matmul, 20), "float32"),
     ):
         """TIR function for matrix multiplication."""
 

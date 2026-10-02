@@ -91,7 +91,7 @@ def test_compile_mixed_module():
     @tvm.script.ir_module
     class MyModule:
         @Ts.prim_func
-        def add_one(X: T.Buffer((4,), "float32"), Y: T.Buffer((4,), "float32")):
+        def add_one(X: T.Tensor((4,), "float32"), Y: T.Tensor((4,), "float32")):
             for i in range(4):
                 Y[i] = X[i] + 1
 
