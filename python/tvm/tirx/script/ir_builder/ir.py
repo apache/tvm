@@ -36,7 +36,7 @@ from typing import Literal
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import TensorLoad, Type, is_prim_expr
+from tvm.ir import Range, TensorLoad, Type, is_prim_expr
 from tvm.script.ir_builder.base import MISSING, IRBuilder
 from tvm.script.ir_builder.ir import meta_var
 from tvm.script.parser.protocol_registry import (
@@ -641,7 +641,7 @@ def alloc_buffer(
             ir.StringImm(buf.scope()),
         ],
         attrs=ir.DictAttrs(norm_annotations),
-        ret_ty=buf.ty,
+        ty=buf.ty,
     )
     _ffi_api.AddToParent(tir.Bind(buf, allocation))
     return buf
@@ -1617,21 +1617,6 @@ def target(
             "or as a separate argument, but not both."
         )
     return Target(target_config, host)
-
-
-def Range(begin: Expr, end: Expr) -> ir.Range:  # pylint: disable=invalid-name
-    """
-    Create a Range object.
-
-    Parameters
-    ----------
-    begin : Expr
-        The begin value of the range.
-
-    end : Optional[Expr]
-        The end value of the range.
-    """
-    return ir.Range(begin, end)
 
 
 if TYPE_CHECKING:

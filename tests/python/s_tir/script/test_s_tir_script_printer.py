@@ -98,7 +98,7 @@ def test_prim_func_symbolic_alloc_buffer_roundtrip():
                             tvm.ir.StringImm(buf.scope()),
                         ],
                         attrs=tvm.ir.DictAttrs({}),
-                        ret_ty=buf.ty,
+                        ty=buf.ty,
                     ),
                 ),
                 tirx.Evaluate(tirx.BufferLoad(buf, [0])),
@@ -780,16 +780,8 @@ def opt_conv_tensorcore_lower():
         T.launch_thread(by, 4)
         T.launch_thread(ty, 4)
         T.launch_thread(tz, 2)
-        T.evaluate(
-            T.tvm_fill_fragment(
-                Conv_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0), dtype="handle"
-            )
-        )
-        T.evaluate(
-            T.tvm_fill_fragment(
-                Conv_wmma_accumulator.data, 16, 16, 16, 7, T.float32(0), dtype="handle"
-            )
-        )
+        T.evaluate(T.tvm_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0)))
+        T.evaluate(T.tvm_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 7, T.float32(0)))
         for ic_outer in T.serial(0, 8):
             for kh in T.serial(0, 3):
                 for ax2 in T.serial(0, 3):
@@ -831,7 +823,6 @@ def opt_conv_tensorcore_lower():
                                     ),
                                 ],
                                 T.float16(0),
-                                dtype="float16",
                             )
                         )
                     T.launch_thread(tx, 32)
@@ -872,7 +863,6 @@ def opt_conv_tensorcore_lower():
                                 ),
                             ],
                             T.float16(0),
-                            dtype="float16",
                         )
                     )
                 with T.launch_thread(tx, 32):
@@ -927,11 +917,9 @@ def opt_conv_tensorcore_lower():
                                     (((ty * 3072) + (kw * 512)) + (ic_inner * 256)),
                                     256,
                                     1,
-                                    dtype="handle",
                                 ),
                                 16,
                                 "row_major",
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -947,11 +935,9 @@ def opt_conv_tensorcore_lower():
                                     ((((ty * 3072) + (kw * 512)) + (ic_inner * 256)) + 1536),
                                     256,
                                     1,
-                                    dtype="handle",
                                 ),
                                 16,
                                 "row_major",
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -967,11 +953,9 @@ def opt_conv_tensorcore_lower():
                                     (((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)),
                                     256,
                                     1,
-                                    dtype="handle",
                                 ),
                                 16,
                                 "row_major",
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -987,11 +971,9 @@ def opt_conv_tensorcore_lower():
                                     ((((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)) + 768),
                                     256,
                                     1,
-                                    dtype="handle",
                                 ),
                                 16,
                                 "row_major",
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -1004,7 +986,6 @@ def opt_conv_tensorcore_lower():
                                 0,
                                 Conv_wmma_accumulator.data,
                                 0,
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -1017,7 +998,6 @@ def opt_conv_tensorcore_lower():
                                 3,
                                 Conv_wmma_accumulator.data,
                                 7,
-                                dtype="handle",
                             )
                         )
         T.evaluate(
@@ -1036,11 +1016,9 @@ def opt_conv_tensorcore_lower():
                     ),
                     256,
                     2,
-                    dtype="handle",
                 ),
                 16,
                 "row_major",
-                dtype="handle",
             )
         )
         T.evaluate(
@@ -1062,11 +1040,9 @@ def opt_conv_tensorcore_lower():
                     ),
                     256,
                     2,
-                    dtype="handle",
                 ),
                 16,
                 "row_major",
-                dtype="handle",
             )
         )
 
@@ -1095,11 +1071,9 @@ def opt_conv_tensorcore_mod_host():
             }
         )
         # body
-        stack_tcode_data: T.let[T.handle("int32")] = T.tvm_stack_alloca(
-            "arg_tcode", 10, dtype="handle"
-        )
+        stack_tcode_data: T.let[T.handle("int32")] = T.tvm_stack_alloca("arg_tcode", 10)
         stack_tcode = T.decl_buffer([9], "int32", data=stack_tcode_data)
-        stack_value: T.let[T.handle] = T.tvm_stack_alloca("arg_value", 10, dtype="handle")
+        stack_value: T.let[T.handle] = T.tvm_stack_alloca("arg_value", 10)
         assert num_args == 3, "default_function: num_args should be 3"
         arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, dtype="handle")
         arg0_code: T.let[T.int32] = arg_type_ids[0]
@@ -1141,7 +1115,7 @@ def opt_conv_tensorcore_mod_host():
         assert 14 == T.cast(arg0_shape[1], "int32"), (
             "Argument arg0.shape[1] has an unsatisfied constraint"
         )
-        if not (T.isnullptr(arg0_strides.data, dtype="bool")):
+        if not (T.isnullptr(arg0_strides.data)):
             assert (
                 (
                     (
@@ -1173,33 +1147,31 @@ def opt_conv_tensorcore_mod_host():
         assert dev_id == T.tvm_struct_get(arg2, 0, 9, dtype="int32"), (
             "Argument arg2.device_id has an unsatisfied constraint"
         )
-        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, T.cast(2, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, T.cast(2, "int64")))
         stack_tcode[0] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, T.cast(dev_id, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, T.cast(dev_id, "int64")))
         stack_tcode[1] = 0
-        T.evaluate(T.tvm_call_packed_lowered("__tvm_set_device", stack_value, 0, 2, dtype="int32"))
+        T.evaluate(T.tvm_call_packed_lowered("__tvm_set_device", stack_value, 0, 2))
         T.attr(0, "compute_scope", "default_function_compute_")
-        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, A, dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, A))
         stack_tcode[0] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, W, dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, W))
         stack_tcode[1] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 2, 12, Conv, dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 2, 12, Conv))
         stack_tcode[2] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 3, 12, T.cast(196, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 3, 12, T.cast(196, "int64")))
         stack_tcode[3] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 4, 12, T.cast(2, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 4, 12, T.cast(2, "int64")))
         stack_tcode[4] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 5, 12, T.cast(4, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 5, 12, T.cast(4, "int64")))
         stack_tcode[5] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 6, 12, T.cast(4, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 6, 12, T.cast(4, "int64")))
         stack_tcode[6] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 7, 12, T.cast(2, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 7, 12, T.cast(2, "int64")))
         stack_tcode[7] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 8, 12, T.cast(32, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 8, 12, T.cast(32, "int64")))
         stack_tcode[8] = 0
-        T.evaluate(
-            T.tvm_call_packed_lowered("default_function_kernel0", stack_value, 0, 9, dtype="int32")
-        )
+        T.evaluate(T.tvm_call_packed_lowered("default_function_kernel0", stack_value, 0, 9))
 
     return opt_conv_tensorcore_mod_host
 
@@ -1331,7 +1303,6 @@ def primfunc_with_allocate_annotations():
                                 )
                             ],
                             T.uint8(0),
-                            dtype="uint8",
                         ),
                     )
         for ax0_ax1_fused_5 in T.serial(0, 56):
@@ -1364,7 +1335,6 @@ def comm_reducer_single_reduce_group():
                         True,
                         reduce_temp0.data,
                         threadIdx_x,
-                        dtype="handle",
                     )
                 )
 
@@ -1400,7 +1370,6 @@ def comm_reducer_multiple_reduce_groups():
                         True,
                         reduce_temp0.data,
                         threadIdx_x,
-                        dtype="handle",
                     )
                 )
 
@@ -1429,7 +1398,6 @@ def multiple_commreducer():
                         True,
                         reduce_temp0.data,
                         ax0_1,
-                        dtype="handle",
                     )
                 )
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
@@ -1444,7 +1412,6 @@ def multiple_commreducer():
                         True,
                         reduce_temp1.data,
                         ax0_1,
-                        dtype="handle",
                     )
                 )
 
@@ -1612,8 +1579,8 @@ def pointer_type():
     def func_with_ptr_type_annotations(x: T.handle("int32"), y: T.handle("int32", "shared")):
         xx = T.alloc_buffer((16,), "int32")
         yy = T.alloc_buffer((16,), "int32", scope="shared")
-        a: T.let[T.handle("int32")] = T.address_of(xx[0], dtype="handle")
-        b: T.let[T.handle("int32", "shared")] = T.address_of(yy[0], dtype="handle")
+        a: T.let[T.handle("int32")] = T.address_of(xx[0])
+        b: T.let[T.handle("int32", "shared")] = T.address_of(yy[0])
         T.evaluate(T.call_extern("copy", a, b, dtype=""))
 
     return func_with_ptr_type_annotations
@@ -1802,9 +1769,9 @@ def float_infinity():
                 ax0, ax1, ax2 = Ts.axis.remap("SSS", [i0, i1, i2])
                 Ts.reads(placeholder[ax0, ax1, ax2])
                 Ts.writes(T_isinf[ax0, ax1, ax2])
-                T_isinf[ax0, ax1, ax2] = T.fabs(
-                    placeholder[ax0, ax1, ax2], dtype="float32"
-                ) == T.float32("inf") and not (T.isnan(placeholder[ax0, ax1, ax2], dtype="bool"))
+                T_isinf[ax0, ax1, ax2] = T.fabs(placeholder[ax0, ax1, ax2]) == T.float32(
+                    "inf"
+                ) and not (T.isnan(placeholder[ax0, ax1, ax2]))
 
     return func
 
@@ -1980,14 +1947,12 @@ def tvm_struct_set_generated_in_cpp():
                     "tvm_test_cpacked",
                     T.tvm_stack_make_array(
                         A.data,
-                        T.tvm_stack_make_shape(16, dtype="handle"),
+                        T.tvm_stack_make_shape(16),
                         T.reinterpret(T.uint64(0), dtype="handle"),
                         T.uint32(1),
                         T.Cast("float32", 0),
                         0,
-                        dtype="handle",
                     ),
-                    dtype="int32",
                 )
             )
 
@@ -2369,7 +2334,6 @@ def lowered_loop_split(
                         True,
                         reduce_temp0.data,
                         ki,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("B_write_back"):

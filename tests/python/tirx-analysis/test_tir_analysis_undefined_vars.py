@@ -45,7 +45,7 @@ def test_decl_buffer_data_is_use():
                 tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
                 tvm.ir.StringImm(buf.scope()),
             ],
-            ret_ty=buf.ty,
+            ty=buf.ty,
         ),
     )
     stmt = tirx.SeqStmt([decl, body])
@@ -80,7 +80,7 @@ def test_decl_buffer_elem_offset_is_use():
                 tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
                 tvm.ir.StringImm(buf.scope()),
             ],
-            ret_ty=buf.ty,
+            ty=buf.ty,
         ),
     )
     stmt = tirx.SeqStmt([decl, body])
@@ -113,7 +113,7 @@ def test_alloc_buffer_data_is_def():
                 tvm.ir.StringImm(buf.scope()),
             ],
             attrs=tvm.ir.DictAttrs({}),
-            ret_ty=buf.ty,
+            ty=buf.ty,
         ),
     )
     stmt = tirx.SeqStmt([alloc, body])

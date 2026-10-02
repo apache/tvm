@@ -51,7 +51,7 @@ class _CpAsyncRaw:
             return tvm.ir.Call(
                 tvm.ir.Op.get("tirx.s_tir.cp_async_raw"),
                 [dst, dst_off, src, src_off, cp_size],
-                ret_ty=tvm.ir.PrimType(elem_dtype),
+                ty=tvm.ir.PrimType(elem_dtype),
             )
         raise TypeError(
             "T.s_tir.cp_async_raw only accepts the printed 6-arg raw form; "

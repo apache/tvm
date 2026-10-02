@@ -63,7 +63,7 @@ def test_bind_uses_type_identity_after_real_value_mutation(inplace):
     var = ir.Var("y", binder_ty)
     input_var = ir.Var("x", result_ty)
     replacement = ir.Var("replacement", result_ty)
-    call = ir.Call("relax.exp", [input_var], ret_ty=result_ty)
+    call = ir.Call("relax.exp", [input_var], ty=result_ty)
     stmt = tirx.SeqStmt([tirx.Bind(var, call), tirx.Evaluate(var)])
     if inplace:
         stmt = stmt._move()
@@ -100,7 +100,7 @@ def test_unchanged_equal_but_distinct_types_do_not_rebind(inplace):
     binder_ty = relax.TensorType(result_ty.shape, result_ty.dtype)
     var = ir.Var("y", binder_ty)
     x = ir.Var("x", result_ty)
-    stmt = tirx.Bind(var, ir.Call("relax.exp", [x], ret_ty=result_ty))
+    stmt = tirx.Bind(var, ir.Call("relax.exp", [x], ty=result_ty))
     if inplace:
         stmt = stmt._move()
 
@@ -146,7 +146,7 @@ def test_symbolic_call_type_rewrite_remaps_later_use(inplace):
     tensor_ty = relax.TensorType([n], "float32")
     x = ir.Var("x", tensor_ty)
     y = ir.Var("y", tensor_ty)
-    call = ir.Call("relax.exp", [x], ret_ty=tensor_ty)
+    call = ir.Call("relax.exp", [x], ty=tensor_ty)
     stmt = tirx.SeqStmt([tirx.Bind(y, call), tirx.Evaluate(y)])
     if inplace:
         stmt = stmt._move()

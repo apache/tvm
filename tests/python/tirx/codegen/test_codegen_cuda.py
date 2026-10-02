@@ -160,7 +160,7 @@ def test_vector_access_ptr_preserves_packed_offset(monkeypatch):
                         tvm.ir.DataTypeImm(tvm.DataType(buffer.dtype)),
                         tvm.ir.StringImm(buffer.scope()),
                     ],
-                    ret_ty=buffer.ty,
+                    ty=buffer.ty,
                 ),
             ),
             tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr)),

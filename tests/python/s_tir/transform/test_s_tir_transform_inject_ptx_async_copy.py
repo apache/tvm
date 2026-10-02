@@ -401,13 +401,13 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
                         Ts.reads(A[tx, i])
                         Ts.writes(A_shared[tx, 0])
                         A_shared[tx, 0] = T.if_then_else(
-                            1 <= i and i < 15, A[tx, i - 1], T.float32(0), dtype="float32"
+                            1 <= i and i < 15, A[tx, i - 1], T.float32(0)
                         )
                     with Ts.sblock():
                         Ts.reads(B[tx, i])
                         Ts.writes(B_shared[tx, 0])
                         B_shared[tx, 0] = T.if_then_else(
-                            1 <= i and i < 15, B[tx, i - 1], T.float32(0), dtype="float32"
+                            1 <= i and i < 15, B[tx, i - 1], T.float32(0)
                         )
                     with Ts.sblock():
                         Ts.reads(A_shared[tx, 0], B_shared[tx, 0])
