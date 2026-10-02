@@ -19,6 +19,7 @@
 #ifndef SRC_TIRX_SCRIPT_PRINTER_UTILS_H_
 #define SRC_TIRX_SCRIPT_PRINTER_UTILS_H_
 
+#include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/var.h>
 
@@ -31,6 +32,9 @@ namespace script {
 namespace printer {
 namespace details {
 
+void PrintPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func, ExprDoc decorator,
+                   const ffi::String& dialect_attr);
+bool CanTranslateExplicitResultCall(const CallNode* call);
 bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source);
 ffi::Array<StmtDoc> Body(const tirx::Stmt& stmt, DocTranslatorObj* d);
 ffi::Optional<ExprDoc> TIRCallPrefixDocTranslate(DocTranslatorObj* d, const CallNode* call);

@@ -28,7 +28,6 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/s_tir/stmt.h>
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
 #include <tvm/te/operation.h>
@@ -41,6 +40,8 @@
 
 #include <sstream>
 #include <utility>
+
+#include "utils.h"
 
 namespace tvm {
 namespace {
@@ -59,15 +60,6 @@ std::string RenderFallbackWithInvisiblePathInfo(const ffi::String& script,
   }
   os << "\n\n" << script;
   return os.str();
-}
-
-template <typename ObjectType>
-void RegisterScriptRepr() {
-  namespace refl = ffi::reflection;
-  refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,
-                                      [](ffi::ObjectRef obj, ffi::Function) -> ffi::String {
-                                        return RedirectedReprPrinterMethod(obj);
-                                      });
 }
 
 }  // namespace
@@ -100,6 +92,7 @@ std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = ffi::reflection;
+  using script::printer::details::RegisterScriptRepr;
   refl::GlobalDef()
       .def("node.TVMScriptPrinterScript", tvm::Script)
       .def("script.printer.ReprPrintRelax",
@@ -173,9 +166,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<relax::distributed::DTensorTypeNode>();
   RegisterScriptRepr<relax::distributed::DeviceMeshNode>();
   RegisterScriptRepr<relax::distributed::PlacementNode>();
-  RegisterScriptRepr<s_tir::MatchBufferRegionNode>();
-  RegisterScriptRepr<s_tir::SBlockNode>();
-  RegisterScriptRepr<s_tir::SBlockRealizeNode>();
   RegisterScriptRepr<te::CommReducerNode>();
   RegisterScriptRepr<te::ReduceNode>();
   RegisterScriptRepr<tirx::AssertStmtNode>();

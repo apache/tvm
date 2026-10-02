@@ -20,6 +20,8 @@
 #define TVM_SCRIPT_PRINTER_UTILS_H_
 
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/script/printer/config.h>
 
 #include <string>
 
@@ -37,6 +39,19 @@ inline std::string DType2Str(DLDataType dtype) {
              ? "void"
              : ffi::DLDataTypeToString(dtype);
 }
+
+namespace details {
+
+template <typename ObjectType>
+void RegisterScriptRepr() {
+  namespace refl = ffi::reflection;
+  refl::TypeAttrDef<ObjectType>().def(refl::type_attr::kRepr,
+                                      [](ffi::ObjectRef obj, ffi::Function) -> ffi::String {
+                                        return RedirectedReprPrinterMethod(obj);
+                                      });
+}
+
+}  // namespace details
 
 }  // namespace printer
 }  // namespace script
