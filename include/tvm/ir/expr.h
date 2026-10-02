@@ -519,8 +519,8 @@ class Call : public Expr {
   /*! \brief Recompute a result type from the Call's current explicit inputs.
    *
    * This ignores the Call's stored result type and does not mutate the Call.
-   * A context-free inference hook must be registered for the operator. Missing
-   * or invalid inputs are reported by the hook rather than screened here.
+   * The operator must register TFixedReturnType or a context-free FInferType hook.
+   * This does not invoke the operator's validator.
    */
   TVM_DLL static Type ReinferType(const CallNode* call);
 

@@ -246,8 +246,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     from tvm import ir, tirx
     from tvm.script.ir_builder import base
 
-    captured = T.Buffer((4, 4), "float32")
-    original = type(captured).view
+    original = ir.Var.view
     seen, produced, observed = [], [], []
     span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
 
@@ -265,17 +264,18 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     def observe(value):
         observed.append((value, value.span))
 
-    monkeypatch.setattr(type(captured), "view", view)
+    monkeypatch.setattr(ir.Var, "view", view)
 
     @T.prim_func
-    def main(A: captured):
-        renamed = captured.view(mark())
+    def main(A: T.Buffer((4, 4), "float32")):
+        renamed = A.view(mark())
         alias = renamed
         observe(renamed)
         observe(alias)
         alias[0] = 0
-        captured.view(mark())
+        A.view(mark())
 
+    captured = main.params[0]
     assert seen == ["argument", "view", "argument", "view"]
     value, name, produced_span = produced[0]
     assert len(produced) == len(observed) == 2
@@ -299,8 +299,6 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     from tvm.script.ir_builder import base
 
     producer_span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
-    buffer = T.Buffer((4,), "float32")
-    base.at_(producer_span, buffer)
     layout = T.TileLayout(T.S[4])
 
     @T.meta_class
@@ -308,13 +306,16 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
         def __init__(self, resource):
             self.resource = resource
 
-    holder = Holder(buffer)
-    projection = ir.TupleGetItem(ir.Tuple([buffer]), 0)
-    values = [layout, holder, projection]
+    values = []
+
+    def initialize(buffer):
+        base.at_(producer_span, buffer)
+        values.extend([layout, Holder(buffer), ir.TupleGetItem(ir.Tuple([buffer]), 0)])
+
     calls, observed, resource_spans = [], [], []
 
     def make(index):
-        resource_spans.append(buffer.span)
+        resource_spans.append(values[1].resource.span)
         calls.append(index)
         return values[index]
 
@@ -322,7 +323,8 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
         observed.extend(items)
 
     @T.prim_func
-    def main(A: buffer):
+    def main(A: T.Buffer((4,), "float32")):
+        initialize(A)
         renamed_layout = make(0)
         renamed_holder = make(1)
         bound = make(2)
@@ -330,6 +332,8 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
         make(0)
         make(1)
 
+    buffer = main.params[0]
+    holder, projection = values[1:]
     assert calls == [0, 1, 2, 0, 1]
     assert observed[0].same_as(layout)
     assert observed[1] is holder and holder.resource.same_as(buffer)

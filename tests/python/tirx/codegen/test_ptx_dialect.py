@@ -67,7 +67,7 @@ def test_ptx_registration():
         # *escaped* family: `and`/`or`/`not` (ISA 9.7.9) are Python keywords and
         # print as `T.ptx.and_`. Identity for every other family.
         family = escape_token(entry.family)  # several entries may share a mnemonic
-        assert op.get_attr("TScriptPrinterName") == f"ptx.{family}", entry.name
+        assert op.get_attr("TScriptPrinterName") == f"tirx.ptx.{family}", entry.name
         assert entry.op_name in CODEGEN_REGISTRY, entry.name
 
 
@@ -1103,6 +1103,10 @@ def test_ptx_vec256_cache_policy():
 
 
 @requires_nvcc
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="st.async.release.global requires CUDA compute >= 10.0",
+)
 def test_ptx_st_bulk_size_carriers_and_st_async_byte_bridge():
     """st.bulk takes 32/64-bit sizes; st.async stages one private .b8 register."""
     from tvm.backend.cuda.ptx.render import render_variant
@@ -1436,6 +1440,10 @@ def test_ptx_half_precision_dispatch():
             T.ptx.abs.ftz.bf16(out[0], T.uint16(0))
 
 
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="mixed f32/f16 and f32/bf16 arithmetic requires CUDA compute >= 10.0",
+)
 def test_ptx_mixed_precision_dispatch():
     """ISA 9.7.5, which adds no instruction of its own.
 
@@ -2383,6 +2391,10 @@ def test_ptx_codegen_rejects_stale_table_layout(mismatch):
 
 
 @requires_nvcc
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="tcgen05.mma.block32 requires at least CUDA compute 10.0",
+)
 def test_ptx_tcgen05_mma_block_size_form():
     @T.prim_func
     def kernel(A: T.Buffer((32,), "uint32")):

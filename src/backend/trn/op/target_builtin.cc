@@ -62,11 +62,12 @@ TVM_FFI_NO_INLINE NKIIntrinsicNames MakeNKIIntrinsicNames(const char* op_name) {
   if (suffix.rfind(prefix, 0) == 0) {
     suffix = suffix.substr(prefix.size());
   }
-  return {"tirx.nki." + suffix, "nki." + suffix};
+  return {"tirx.nki." + suffix, "tirx.nki." + suffix};
 }
 
 TVM_FFI_NO_INLINE void RegisterNKIIntrinsicAttrs(OpDef& def, const std::string& printer_name) {
-  def.set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+  def.set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("nki"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(printer_name));

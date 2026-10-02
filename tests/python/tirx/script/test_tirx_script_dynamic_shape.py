@@ -124,6 +124,7 @@ def test_tir_return_annotation_does_not_define_symbolic_var():
             return A
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_type_vars_roundtrip():
     M = I.dynamic("M")
     UNUSED = I.dynamic("UNUSED")
@@ -133,31 +134,27 @@ def test_type_vars_roundtrip():
         A[0, 0] = T.float32(1)
 
     script = func.script()
-    if sys.version_info >= (3, 12):
-        assert script.startswith("from __future__ import annotations\n\n")
-        assert "def main[M](" in script
-        assert 'T.Buffer((M, M * T.int64(2)), "float32")' in script
-        assert "M = T.int64()" not in script
-        typed = tvm.script.from_source(
-            """
+    assert script.startswith("from __future__ import annotations\n\n")
+    assert "def main[M](" in script
+    assert 'T.Buffer((M, M * T.int64(2)), "float32", layout="default")' in script
+    assert "M = T.int64()" not in script
+    typed = tvm.script.from_source(
+        """
 @T.prim_func(private=True)
 def func[M: int](A: T.Buffer((M, M * 2), "float32")):
     A[0, 0] = T.float32(1)
 """,
-            extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
-        )
-        tvm.ir.assert_structural_equal(func, typed)
-    else:
-        assert "from __future__ import annotations" not in script
-        assert 'M = I.dynamic("M", dtype="int64")' in script
-        assert "M = T.int64()" not in script
+        extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx},
+    )
+    tvm.ir.assert_structural_equal(func, typed)
+    assert 'M = I.dynamic("M", dtype="int64")' not in script
 
-    portable = func.script(extra_config={"script.use_pep695": False})
-    assert "from __future__ import annotations" not in portable
-    assert 'M = I.dynamic("M", dtype="int64")' in portable
-    assert 'T.Buffer((M, M * T.int64(2)), "float32")' in portable
+    repeated = func.script()
+    assert "from __future__ import annotations" in repeated
+    assert "def main[M](" in repeated
+    assert 'T.Buffer((M, M * T.int64(2)), "float32", layout="default")' in repeated
     assert "UNUSED" not in script
-    assert "M = T.int64()" not in portable
+    assert "M = T.int64()" not in repeated
     assert len(func.params) == 1
     assert not hasattr(func, "type_params")
     assert func.attrs.get("tirx.type_vars") is None
@@ -166,10 +163,11 @@ def func[M: int](A: T.Buffer((M, M * 2), "float32")):
     )
     tvm.ir.assert_structural_equal(
         func,
-        tvm.script.from_source(portable, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
+        tvm.script.from_source(repeated, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
     )
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_dynamic_int32_roundtrip():
     n = I.dynamic("n", "int32")
 
@@ -178,18 +176,16 @@ def test_dynamic_int32_roundtrip():
         A[0] = T.float32(1)
 
     source = func.script()
-    if sys.version_info >= (3, 12):
-        assert "def main[n: T.int32](" in source
-    else:
-        assert 'n = I.dynamic("n", dtype="int32")' in source
-    portable = func.script(extra_config={"script.use_pep695": False})
-    assert 'n = I.dynamic("n", dtype="int32")' in portable
+    assert "def main[n: T.int32](" in source
+    assert 'n = I.dynamic("n", dtype="int32")' not in source
+    repeated = func.script()
+    assert "def main[n: T.int32](" in repeated
     tvm.ir.assert_structural_equal(
         func, tvm.script.from_source(source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     )
     tvm.ir.assert_structural_equal(
         func,
-        tvm.script.from_source(portable, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
+        tvm.script.from_source(repeated, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}),
     )
 
 

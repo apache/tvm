@@ -223,11 +223,13 @@ BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
 }
 namespace axis {
 
-IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
+IterVar PushBlockVar(IterVar iter_var, ffi::Optional<PrimExpr> binding) {
   if (ffi::Optional<SBlockFrame> opt_frame = IRBuilder::Current()->GetLastFrame<SBlockFrame>()) {
     SBlockFrame frame = opt_frame.value();
+    TVM_FFI_CHECK(binding.has_value() || frame->no_realize, TypeError)
+        << "Block axes require a binding unless no_realize=True";
     frame->iter_vars.push_back(iter_var);
-    frame->iter_values.push_back(binding);
+    if (binding.has_value()) frame->iter_values.push_back(binding.value());
   } else {
     TVM_FFI_THROW(InternalError) << "TypeError: The last frame is not SBlockFrame";
   }
@@ -235,7 +237,7 @@ IterVar PushBlockVar(IterVar iter_var, PrimExpr binding) {
 }
 
 #define TVM_S_TIR_IR_BUILDER_AXIS(Method, Kind, Name)                                              \
-  Var Method(Range dom, PrimExpr binding, PrimType dtype) {                                        \
+  Var Method(Range dom, ffi::Optional<PrimExpr> binding, PrimType dtype) {                         \
     TVM_FFI_ICHECK(dom.defined()) << Name << " axis must have a domain";                           \
     PrimType min_ty = dom->min.ty();                                                               \
     PrimType extent_ty = dom->extent.ty();                                                         \

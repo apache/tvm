@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TypeVar
 
 import pytest
@@ -425,6 +426,7 @@ def test_define_relax_function_using_global_var():
     tvm.ir.assert_structural_equal(DefinedAllAtOnce, MainDefinedLater)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_shared_meta_var_uses_ordinary_relax_bindings():
     """Identity calls retain ordinary fresh Relax bindings and strict roundtrip."""
 

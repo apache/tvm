@@ -29,7 +29,7 @@ printer converts IR back into readable, parseable source.
    Source + definition context
        → Python AST → syntax transpiler → Python builder program → TVM IR
    TVM IR
-       → IRDocsifier → Doc tree → Python text
+       → DocTranslator → Doc tree + origins → diagnostic paths → Python text
 
 Source and frontend
 -------------------
@@ -139,9 +139,17 @@ protocol.
 Printing and round trips
 ------------------------
 
-``IRDocsifier`` dispatches on IR types and context to produce a ``Doc`` tree of
-expressions and statements. It tracks scopes and names; ``DocToPythonScript`` formats
-the tree as Python text. This document tree is separate from the parser's Python AST.
+``DocTranslator`` invokes native type and operation hooks to produce a ``Doc`` tree
+of expressions and statements. The translation engine tracks scopes, names and each
+Doc's original IR object. The script entry point maps these origins to diagnostic
+paths; the private Doc printer formats the tree, annotations and underlines as Python
+text. Printer configuration stays read-only throughout. ``DocToPythonScript`` also
+formats an existing Doc directly. This tree is separate from the parser's Python AST.
+
+The public ``Script`` text entry points are declared in
+``tvm/script/printer/printer.h``. Their orchestration and diagnostic path mapping
+live in ``src/script/printer/printer.cc``; ``doc_translator.h`` exposes the
+IR-to-Doc translation protocol.
 
 For example, a small function can be authored, printed and parsed again:
 
@@ -156,7 +164,7 @@ For example, a small function can be authored, printed and parsed again:
            A[i] = A[i] + 1.0
 
    text = increment.script()
-   reparsed = tvm.script.from_source(text)
+   reparsed = tvm.script.from_source(text, extra_vars={"T": T})
    tvm.ir.assert_structural_equal(increment, reparsed)
 
 Printed source uses canonical forms rather than preserving the original spelling.
@@ -170,7 +178,10 @@ A language variant supplies construction hooks and a public script namespace, th
 registers its aliases with ``register_namespace``. ``register_namespace_initializer``
 supports lazy setup. ``tvm.script.register_dialect`` exposes a package through the
 public script namespace. Syntax policies are registered beside the operations that
-need them, while IR printing is extended through docsifier registrations.
+need them. IR printing uses ``FDocTranslate`` hooks from
+``tvm/script/printer/doc_translator.h``, registered through the existing type or
+operation attributes. A hook returns an expression Doc or emits completed statements
+through its translator context.
 
 This division keeps source acquisition, syntax translation and formatting shared.
 Language-specific construction and validation remain with the namespace and its

@@ -793,7 +793,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
                        PrimExpr delta_or_lane) {
     ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask;
-    if (mask_buffer.has_value()) {
+    if (need_warp_shuffle_mask_ && mask_buffer.has_value()) {
       mask = BufferLoad(mask_buffer.value(), indices);
     } else {
       mask = IntImm::Int32(0);

@@ -16,21 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_PRINTER_DIALECT_PREFIX_H_
-#define TVM_SCRIPT_PRINTER_DIALECT_PREFIX_H_
+#ifndef SRC_SCRIPT_PRINTER_DOC_PRINTER_H_
+#define SRC_SCRIPT_PRINTER_DOC_PRINTER_H_
 
-#include <tvm/ffi/string.h>
+#include <tvm/script/printer/doc.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-// Register during dialect static initialization so configuration can validate
-// and reserve the prefix before any docsifier assigns variable names.
-void RegisterDialectPrefix(const ffi::String& key, const ffi::String& default_prefix);
+// Render a Doc with this invocation's recovered paths and statement annotations.
+ffi::String RenderPythonScript(Doc doc, const PrinterConfig& config,
+                               const ffi::Array<ffi::Any>& header,
+                               const ffi::Array<AccessPath>& underline_paths,
+                               const ffi::Map<AccessPath, ffi::String>& annotations);
 
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_PRINTER_DIALECT_PREFIX_H_
+#endif  // SRC_SCRIPT_PRINTER_DOC_PRINTER_H_

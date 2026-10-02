@@ -37,7 +37,7 @@ from typing import Literal
 from tvm import DataType, ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, Type, is_prim_expr
-from tvm.script.ir_builder.base import IRBuilder
+from tvm.script.ir_builder.base import MISSING, IRBuilder
 from tvm.script.ir_builder.ir import meta_var
 from tvm.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
@@ -74,18 +74,22 @@ from . import _ffi_api, frame
 
 
 def _get_layout(layout: str | Layout | None, shape: list[Expr], scope: str) -> Layout | None:
-    if layout is None:
-        return None
-    if isinstance(layout, Layout):
-        return layout
-    assert isinstance(layout, str)
-    if layout == "default":
+    if layout is MISSING:
         if IRBuilder.is_in_scope():
             for function_frame in reversed(list(IRBuilder.current().frames)):
                 if isinstance(function_frame, frame.PrimFuncFrame):
                     return function_frame.default_buffer_layout(shape, scope)
         if scope in ["trn.sbuf", "trn.psum"]:
             return None
+        return TileLayout(S[tuple(shape)])
+    if layout is None:
+        return None
+    if isinstance(layout, Layout):
+        return layout
+    assert isinstance(layout, str)
+    if layout == "default":
+        # An explicit default denotes the same TileLayout in every dialect.
+        # Only an omitted argument consults the enclosing function's policy.
         return TileLayout(S[tuple(shape)])
     shape = tuple(shape)
     if scope == "trn.sbuf":
@@ -206,6 +210,90 @@ def _record_meta_resource(value: Any, skip_frames: int = 2) -> None:
 
 @_register_mutable_decl("tirx.Buffer", syntax="parameter")
 @_annotation_constructor
+def _buffer_type(
+    shape: list[Expr] | tuple[Expr] | Expr | Integral,
+    dtype: str = "float32",
+    data: Var = None,
+    strides: list[Expr] | None = None,
+    elem_offset: Expr = None,
+    byte_offset: Expr = None,
+    scope: str = "global",
+    align: int = 0,
+    offset_factor: int = 0,
+    layout: str | Layout | None = MISSING,
+    allocated_addr: int | tuple[int, ...] | None = None,
+    *,
+    span=None,
+) -> tir.BufferType:
+    """Construct a buffer type for annotations and explicit type-valued fields.
+
+    Parameters
+    ----------
+    shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
+        The shape of the buffer prior to flattening.
+
+    dtype : str
+        The data type in the content of the buffer.
+
+    data : Var
+        An optional pointer whose storage scope determines the buffer type scope.
+
+    strides : List[Expr]
+        The strides of each dimension.
+
+    elem_offset : Expr
+        The offset in terms of number of dtype elements (including lanes).
+
+    byte_offset : Expr, optional
+        The offset in bytes, as an alternative to elem_offset.
+
+    scope : str
+        The optional storage scope of buffer data pointer.
+
+    align : int
+        The alignment requirement of data pointer in bytes.
+
+    offset_factor : int
+        The factor of elem_offset field.
+
+    layout : str or Layout, optional
+        The buffer layout. "default" constructs the shape's default TileLayout;
+        omission uses the enclosing dialect and scope default. None omits a layout.
+
+    allocated_addr : int or tuple of int, optional
+        Addresses assigned to the buffer allocation.
+
+    Returns
+    -------
+    res : BufferType
+        The buffer type. Function annotations introduce variables of this type;
+        allocation and declaration operations construct buffer variables.
+    """
+    shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
+    shape = tuple(shape)
+    if strides is None:
+        strides = []
+    if allocated_addr is None:
+        allocated_addr = []
+    if not isinstance(allocated_addr, list | tuple):
+        allocated_addr = [allocated_addr]
+    result = _ffi_api.BufferType(  # type: ignore[attr-defined] # pylint: disable=no-member
+        shape,
+        dtype,
+        data,
+        strides,
+        _get_elem_offset(elem_offset, byte_offset, dtype),
+        scope,
+        align,
+        offset_factor,
+        _get_layout(layout, shape, scope),
+        allocated_addr,
+    )
+    return _at(span, result)
+
+
+@_register_mutable_decl("tirx.buffer", syntax="parameter")
+@_annotation_constructor
 def buffer(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
@@ -216,7 +304,7 @@ def buffer(
     scope: str = "global",
     align: int = 0,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
+    layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
     buffer_name: str = "",
     *,
@@ -254,7 +342,8 @@ def buffer(
         The factor of elem_offset field.
 
     layout : str or Layout, optional
-        The buffer layout; "default" selects the layout for the buffer scope.
+        The buffer layout. "default" constructs the shape's default TileLayout;
+        omission uses the enclosing dialect and scope default. None omits a layout.
 
     allocated_addr : int or tuple of int, optional
         Addresses assigned to the buffer allocation.
@@ -470,7 +559,7 @@ def alloc_buffer(
     scope: str = "global",
     align: int = -1,
     offset_factor: int = 0,
-    layout: str | Layout | None = "default",
+    layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
 ) -> Buffer:
@@ -678,7 +767,7 @@ def decl_buffer(
     scope="global",
     align=0,
     offset_factor=0,
-    layout="default",
+    layout=MISSING,
     allocated_addr=None,
 ) -> Buffer:
     """Create a buffer declaration node.
@@ -1614,8 +1703,7 @@ def Ptr(dtype, storage_scope="global", *, span=None):
     return _at(span, ptr(dtype, storage_scope))
 
 
-Buffer = buffer
-_register_mutable_decl("tirx.buffer", syntax="parameter")(buffer)
+Buffer = _buffer_type
 
 __all__ = [
     "Buffer",

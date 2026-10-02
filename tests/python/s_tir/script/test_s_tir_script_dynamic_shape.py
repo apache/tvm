@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 import tvm.testing
@@ -100,6 +102,7 @@ def gemm_dyn_shape(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_dynamic_shape_gemm():
     gemm_dyn_shape_roundtrip = from_source(
         gemm_dyn_shape.script(),

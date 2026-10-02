@@ -180,6 +180,10 @@ def test_ptx_ld_st_immediate_offset_codegen():
     assert "st.global.v2.b64 [%0+16], {%1, %2};" in src
 
 
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="256-bit ld.global.nc.v8 requires CUDA compute >= 10.0",
+)
 def test_ptx_ld_global_nc_v8_codegen():
     """FlashMLA index loads need ``ld.global.nc`` with a 256B prefetch."""
 
@@ -203,6 +207,10 @@ def test_ptx_ld_global_nc_v8_codegen():
     assert "{%0, %1, %2, %3, %4, %5, %6, %7}, [%8];" in src
 
 
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="256-bit ld.global.nc.v4.u64 requires CUDA compute >= 10.0",
+)
 def test_ptx_ld_global_nc_v4_u64_256b_codegen():
     """FlashMLA 32-byte index loads may use four 64-bit PTX outputs."""
 

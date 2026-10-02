@@ -120,38 +120,42 @@ namespace axis {
 /*!
  * \brief The spatial block axis defining function.
  * \param dom The domain of the iteration variable.
- * \param binding The binding value of the iteration variable.
+ * \param binding The binding value, omitted only for a no_realize block.
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Spatial(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
+Var Spatial(Range dom, ffi::Optional<PrimExpr> binding = std::nullopt,
+            PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The reduced block axis defining function.
  * \param dom The domain of the iteration variable.
- * \param binding The binding value of the iteration variable.
+ * \param binding The binding value, omitted only for a no_realize block.
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Reduce(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
+Var Reduce(Range dom, ffi::Optional<PrimExpr> binding = std::nullopt,
+           PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The scanning block axis defining function.
  * \param dom The domain of the iteration variable.
- * \param binding The binding value of the iteration variable.
+ * \param binding The binding value, omitted only for a no_realize block.
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Scan(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
+Var Scan(Range dom, ffi::Optional<PrimExpr> binding = std::nullopt,
+         PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The opaque block axis defining function.
  * \param dom The domain of the iteration variable.
- * \param binding The binding value of the iteration variable.
+ * \param binding The binding value, omitted only for a no_realize block.
  * \param dtype The data type of the iteration variable.
  * \return The iteration variable.
  */
-Var Opaque(Range dom, PrimExpr binding, PrimType dtype = PrimType::Int(32));
+Var Opaque(Range dom, ffi::Optional<PrimExpr> binding = std::nullopt,
+           PrimType dtype = PrimType::Int(32));
 
 /*!
  * \brief The block axis remapping function.

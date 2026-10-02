@@ -16,302 +16,267 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/exec_scope.h>
 
-#include "./utils.h"
+#include <optional>
+
+#include "../../../script/printer/ir/utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace script {
-
 namespace printer {
+namespace details {
 
-Doc PrintBlock(IRDocsifier d, s_tir::SBlock block, AccessPath block_p,  //
-               ffi::Optional<s_tir::SBlockRealize> opt_realize,
-               ffi::Optional<AccessPath> opt_realize_p) {
-  With<TIRFrame> frame(d, block);
-  TVM_FFI_ICHECK_EQ(opt_realize.has_value(), opt_realize_p.has_value());
-  const s_tir::SBlockRealizeNode* realize =
-      opt_realize.has_value() ? opt_realize.value().get() : nullptr;
-  AccessPath realize_p = *opt_realize_p;
+namespace {
 
-  // Step 1. Handle block var and block bindings
-  // Step 1.1. Obtain all loop var defined along path
-  std::unordered_map<const tirx::VarNode*, tirx::For> loop_vars;
-  for (Frame f : d->frames) {
-    if (const auto* tir_f = f.as<TIRFrameNode>()) {
-      if (auto for_loop = tir_f->tirx.as<tirx::For>()) {
-        for (ffi::Optional<tirx::For> loop = for_loop; loop;
-             loop = loop.value()->body.as<tirx::For>()) {
-          loop_vars.insert(std::make_pair(loop.value()->loop_var.get(), loop.value()));
-        }
+ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* block,
+                               const s_tir::SBlockRealizeNode* realize) {
+  auto docs = d->WithDocScope([&]() {
+    TVM_FFI_CHECK(!realize || realize->iter_values.size() == block->iter_vars.size(), TypeError)
+        << "SBlockRealize binding count must match its iter vars";
+    ffi::Array<AssignDoc> axes;
+    for (size_t i = 0; i < block->iter_vars.size(); ++i) {
+      const tirx::IterVar& iter = block->iter_vars[i];
+      ffi::String kind;
+      switch (iter->iter_type) {
+        case tirx::IterVarType::kDataPar:
+          kind = "spatial";
+          break;
+        case tirx::IterVarType::kCommReduce:
+          kind = "reduce";
+          break;
+        case tirx::IterVarType::kOrdered:
+          kind = "scan";
+          break;
+        case tirx::IterVarType::kOpaque:
+          kind = "opaque";
+          break;
+        default:
+          TVM_FFI_THROW(TypeError) << "printer unsupported SBlock iter var kind";
       }
-    }
-  }
-
-  std::vector<int> remap_vars_indices;
-  auto add_remapped_iter_var = [&](int i) -> bool {
-    if (realize && d->cfg->syntax_sugar) {
-      prim::ExprDeepEqual expr_equal;
-      tirx::IterVar iter_var = block->iter_vars[i];
-      PrimExpr value = realize->iter_values[i];
-      if (iter_var->iter_type == tirx::IterVarType::kDataPar ||
-          iter_var->iter_type == tirx::IterVarType::kCommReduce) {
-        if (auto var = value.as<PrimVar>()) {
-          if (loop_vars.count(var.value().get())) {
-            tirx::For for_loop = loop_vars.at(var.value().get());
-            if (expr_equal(for_loop->min, iter_var->dom->min) &&
-                expr_equal(for_loop->extent, iter_var->dom->extent)) {
-              remap_vars_indices.push_back(i);
-              return true;
-            }
-          }
-        }
+      ExprDoc domain =
+          prim::is_zero(iter->dom->min) && iter->dom->min.ty() == iter->dom->extent.ty()
+              ? d->Translate(iter->dom->extent).value()
+              : NamespaceDoc("ir")
+                    ->Attr("Range")
+                    ->Attr("from_min_extent")
+                    ->Call({d->Translate(iter->dom->min).value(),
+                            d->Translate(iter->dom->extent).value()});
+      ffi::Array<ExprDoc> args = {domain};
+      if (realize) args.push_back(d->Translate(realize->iter_values[i]).value());
+      IdDoc lhs = VarDoc(d, iter->var);
+      ffi::Array<ffi::String> keys;
+      ffi::Array<ExprDoc> values;
+      if (iter->var.ty() != PrimType::Int(32)) {
+        keys.push_back("dtype");
+        values.push_back(
+            LiteralDoc::Str(ffi::DLDataTypeToString(iter->var.ty()->dtype), std::nullopt));
       }
+      axes.push_back(
+          AssignDoc(lhs, NamespaceDoc("s_tir")->Attr("axis")->Attr(kind)->Call(args, keys, values),
+                    std::nullopt));
     }
-    return false;
-  };
-
-  auto print_single_iter_var = [&](int i) {
-    tirx::IterVar iter_var = block->iter_vars[i];
-    AccessPath iter_var_p = block_p->Attr("iter_var")->ArrayItem(i);
-    ExprDoc rhs = STIR(d, "axis");
-    if (iter_var->iter_type == tirx::IterVarType::kDataPar) {
-      rhs = rhs->Attr("spatial");
-    } else if (iter_var->iter_type == tirx::IterVarType::kCommReduce) {
-      rhs = rhs->Attr("reduce");
-    } else if (iter_var->iter_type == tirx::IterVarType::kOrdered) {
-      rhs = rhs->Attr("scan");
-    } else if (iter_var->iter_type == tirx::IterVarType::kOpaque) {
-      rhs = rhs->Attr("opaque");
-    } else {
-      TVM_FFI_THROW(ValueError) << "Unknown IterVarType in block signature: "
-                                << tirx::IterVarType2String(iter_var->iter_type);
+    for (size_t i = 0; i < axes.size(); ++i) d->Emit(axes[i], block->iter_vars[i]);
+    if (realize && !tvm::prim::is_one(realize->predicate)) {
+      d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("where")->Call(
+                  {d->Translate(realize->predicate).value()})),
+              realize->predicate);
     }
-    ExprDoc dom{ffi::UnsafeInit()};
-    if (tvm::prim::is_zero(iter_var->dom->min)) {
-      ExprDoc extent = d->AsDoc<ExprDoc>(iter_var->dom->extent,  //
-                                         iter_var_p->Attr("dom")->Attr("extent"));
-      dom = extent;
-    } else {
-      ExprDoc min = d->AsDoc<ExprDoc>(iter_var->dom->min, iter_var_p->Attr("dom")->Attr("min"));
-      ExprDoc max = d->AsDoc<ExprDoc>(iter_var->dom->min + iter_var->dom->extent,
-                                      iter_var_p->Attr("dom")->Attr("extent"));
-      dom = TupleDoc({min, max});
-    }
-    if (realize) {
-      ExprDoc binding = d->AsDoc<ExprDoc>(realize->iter_values[i],  //
-                                          realize_p->Attr("iter_values")->ArrayItem(i));
-      rhs = rhs->Call({dom, binding});
-    } else {
-      rhs = rhs->Call({dom});
-    }
-    (*frame)->stmts.push_back(AssignDoc(DefineVar(iter_var->var, *frame, d), rhs, std::nullopt));
-  };
-
-  auto print_remapped_iter_var = [&]() {
-    if (remap_vars_indices.size()) {
-      int m = remap_vars_indices.size();
-      if (m == 1) {
-        print_single_iter_var(remap_vars_indices[0]);
-        remap_vars_indices.clear();
-        return;
-      }
-      ffi::Array<ExprDoc> lhs;
-      ffi::Array<ExprDoc> loop_var_doc;
-      lhs.reserve(m);
-      loop_var_doc.reserve(m);
-      std::string binding_type = "";
-      ffi::Array<AccessPath> binding_paths;
-      for (int i : remap_vars_indices) {
-        tirx::IterVar iter_var = block->iter_vars[i];
-        AccessPath iter_var_p = block_p->Attr("iter_vars")->ArrayItem(i);
-        lhs.push_back(DefineVar(iter_var->var, *frame, d));
-        loop_var_doc.push_back(d->AsDoc<ExprDoc>(realize->iter_values[i],
-                                                 realize_p->Attr("iter_values")->ArrayItem(i)));
-        binding_paths.push_back(iter_var_p->Attr("iter_type"));
-        binding_type += iter_var->iter_type == tirx::IterVarType::kDataPar ? "S" : "R";
-      }
-      ExprDoc rhs = STIR(d, "axis")->Attr("remap");
-      ExprDoc binding_str = LiteralDoc::Str(binding_type, std::nullopt);
-      binding_str->source_paths = std::move(binding_paths);
-      rhs = rhs->Call({binding_str, ListDoc(loop_var_doc)});
-      (*frame)->stmts.push_back(AssignDoc(TupleDoc(lhs), rhs, std::nullopt));
-      remap_vars_indices.clear();
-    }
-  };
-
-  // Step 1.2. Construct all block var bindings
-  int n_vars = block->iter_vars.size();
-  for (int i = 0; i < n_vars; ++i) {
-    if (!add_remapped_iter_var(i)) {
-      print_remapped_iter_var();
-      print_single_iter_var(i);
-    }
-  }
-  print_remapped_iter_var();
-
-  // Step 2. Handle block predicate
-  if (realize) {
-    PrimType predicate_ty = realize->predicate.ty();
-    TVM_FFI_ICHECK(realize->predicate.defined() &&
-                   predicate_ty.MatchesCode(DLDataTypeCode::kDLBool));
-    if (!tvm::prim::is_one(realize->predicate)) {
-      (*frame)->stmts.push_back(ExprStmtDoc(
-          STIR(d, "where")
-              ->Call({d->AsDoc<ExprDoc>(realize->predicate, realize_p->Attr("predicate"))})));
-    }
-  }
-  // Step 3. Handle block read/write regions
-  {
     ffi::Array<ExprDoc> reads;
-    for (int i = 0, n = block->reads.size(); i < n; ++i) {
-      reads.push_back(d->AsDoc<ExprDoc>(block->reads[i], block_p->Attr("reads")->ArrayItem(i)));
-    }
-    (*frame)->stmts.push_back(ExprStmtDoc(STIR(d, "reads")->Call(reads)));
+    for (const TensorRegion& region : block->reads) reads.push_back(d->Translate(region).value());
+    d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("reads")->Call(reads)), block->reads);
     ffi::Array<ExprDoc> writes;
-    for (int i = 0, n = block->writes.size(); i < n; ++i) {
-      writes.push_back(d->AsDoc<ExprDoc>(block->writes[i], block_p->Attr("writes")->ArrayItem(i)));
+    for (const TensorRegion& region : block->writes) writes.push_back(d->Translate(region).value());
+    d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("writes")->Call(writes)), block->writes);
+    if (!block->annotations.empty()) {
+      d->Emit(
+          ExprStmtDoc(
+              NamespaceDoc("s_tir")->Attr("sblock_attr")->Call({AnyValue(d, block->annotations)})),
+          block->annotations);
     }
-    (*frame)->stmts.push_back(ExprStmtDoc(STIR(d, "writes")->Call(writes)));
-  }
-  // Step 4. Handle block attributes
-  if (!block->annotations.empty()) {
-    (*frame)->stmts.push_back(ExprStmtDoc(
-        STIR(d, "sblock_attr")
-            ->Call({d->AsDoc<ExprDoc>(block->annotations, block_p->Attr("annotations"))})));
-  }
-  // Step 5. Handle `alloc_buffer`
-  for (int i = 0, n = block->alloc_buffers.size(); i < n; ++i) {
-    tirx::BufferVar buffer = block->alloc_buffers[i];
-    AccessPath buffer_p = block_p->Attr("alloc_buffers")->ArrayItem(i);
-    ExprDoc lhs = DefineVar(buffer.var(), *frame, d);
-    ExprDoc rhs = BufferDecl(buffer, "sblock_alloc_buffer", {}, buffer_p, *frame, d,
-                             BufferVarDefinition::DataPointer);
-    (*frame)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
-  }
-  // Step 6. Handle `match_buffer`
-  for (int i = 0, n = block->match_buffers.size(); i < n; ++i) {
-    s_tir::MatchBufferRegion buffer_region = block->match_buffers[i];
-    AccessPath buffer_region_p = block_p->Attr("match_buffers")->ArrayItem(i);
-    StmtDoc doc = d->AsDoc<StmtDoc>(buffer_region, buffer_region_p);
-    (*frame)->stmts.push_back(doc);
-  }
-  // Step 7. Handle init block
-  if (block->init.has_value()) {
-    tirx::Stmt init = block->init.value();
-    With<TIRFrame> init_frame(d, init);
-    AsDocBody(init, block_p->Attr("init"), init_frame->get(), d);
-    (*frame)->stmts.push_back(
-        ScopeDoc(std::nullopt, STIR(d, "init")->Call({}), (*init_frame)->stmts));
-  }
-  // Step 8. Handle block body
-  AsDocBody(block->body, block_p->Attr("body"), frame->get(), d);
-  ffi::Array<ffi::String> kwargs_keys;
-  ffi::Array<ExprDoc> kwargs_values;
-  if (!realize) {
-    kwargs_keys.push_back("no_realize");
-    kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
-  }
-  return ScopeDoc(std::nullopt,
-                  STIR(d, "sblock")  //
-                      ->Call({LiteralDoc::Str(block->name_hint, block_p->Attr("name_hint"))},
-                             kwargs_keys, kwargs_values),
-                  (*frame)->stmts);
+    for (const tirx::BufferVar& buffer : block->alloc_buffers) {
+      CallDoc rhs = d->Translate(buffer.var()->ty).value().as_or_throw<CallDoc>();
+      TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Buffer", TypeError)
+          << "Ts.sblock_alloc_buffer cannot reconstruct this nonrepresentable BufferType";
+      const auto* buffer_type = buffer.var()->ty.as<tirx::BufferTypeNode>();
+      TVM_FFI_CHECK(
+          buffer_type->allocated_addr.empty() ||
+              (buffer_type->storage_scope != "global" && buffer_type->storage_scope != "shared" &&
+               buffer_type->storage_scope != "shared.dyn" && buffer_type->storage_scope != "local"),
+          TypeError)
+          << "Ts.sblock_alloc_buffer does not accept allocated_addr in "
+          << buffer_type->storage_scope;
+      rhs->callee = NamespaceDoc("s_tir")->Attr("sblock_alloc_buffer");
+      IdDoc lhs = VarDoc(d, buffer);
+      d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(buffer.get()));
+    }
+    for (const s_tir::MatchBufferRegion& match : block->match_buffers) {
+      ExprDoc source = d->Translate(match->source).value();
+      CallDoc rhs = d->Translate(match->buffer.var()->ty).value().as_or_throw<CallDoc>();
+      TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Buffer", TypeError)
+          << "Ts.match_buffer cannot reconstruct this nonrepresentable BufferType";
+      rhs->callee = NamespaceDoc("s_tir")->Attr("match_buffer");
+      rhs->args.insert(rhs->args.begin(), source);
+      IdDoc lhs = VarDoc(d, match->buffer);
+      d->Emit(AssignDoc(lhs, rhs, std::nullopt), ffi::GetRef<ffi::ObjectRef>(match.get()));
+    }
+    if (block->init.has_value()) {
+      d->Emit(ScopeDoc(std::nullopt, NamespaceDoc("s_tir")->Attr("init")->Call({}),
+                       Body(block->init.value(), d)),
+              block->init.value());
+    }
+    d->Translate(block->body);
+  });
+  return ToStmtDocArray(docs);
+}
+
+ffi::Optional<ExprDoc> SBlockRealizeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object* destination) {
+  const auto* realize =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const s_tir::SBlockRealizeNode>(
+          input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  const s_tir::SBlockNode* block = realize->block.get();
+  d->Emit(ScopeDoc(std::nullopt,
+                   NamespaceDoc("s_tir")->Attr("sblock")->Call(
+                       {LiteralDoc::Str(block->name_hint, std::nullopt)}),
+                   SBlockBody(d, block, realize)),
+          ffi::GetRef<ffi::ObjectRef>(realize));
+  return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<s_tir::SBlockRealize>(
-      "", [](s_tir::SBlockRealize realize, AccessPath p, IRDocsifier d) -> Doc {
-        Doc doc = PrintBlock(d, realize->block, p->Attr("block"), realize, p);
-        // since we do not have d->AsDoc for realize->block,
-        // we should add possible doc decoration manually.
-        AddDocDecoration<ScopeDoc>(doc, realize->block, p->Attr("block"), d->cfg);
-        return doc;
-      });
+  ffi::reflection::TypeAttrDef<s_tir::SBlockRealizeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&SBlockRealizeDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> SBlockDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                          const ffi::Object* destination) {
+  const auto* block =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const s_tir::SBlockNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  d->Emit(ScopeDoc(std::nullopt,
+                   NamespaceDoc("s_tir")->Attr("sblock")->Call(
+                       {LiteralDoc::Str(block->name_hint, std::nullopt)}, {"no_realize"},
+                       {LiteralDoc::Boolean(true, std::nullopt)}),
+                   SBlockBody(d, block, nullptr)),
+          ffi::GetRef<ffi::ObjectRef>(block));
+  return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<s_tir::SBlock>(
-      "", [](s_tir::SBlock block, AccessPath p, IRDocsifier d) -> Doc {
-        return PrintBlock(d, block, p, std::nullopt, std::nullopt);
-      });
+  ffi::reflection::TypeAttrDef<s_tir::SBlockNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&SBlockDocTranslate>());
+}
+
+ffi::String ScopeIdApi(tirx::ScopeBinding scope) {
+  auto [parent, current] = tirx::ScopeBindingToStringPair(scope);
+  if (parent == "kernel" && current == "cluster") return "cluster_id";
+  if (parent == "kernel" && current == "cta") return "cta_id";
+  if (parent == "cluster" && current == "cta") return "cta_id_in_cluster";
+  if (parent == "cluster" && current == "cta_pair") return "cta_id_in_pair";
+  if (parent == "cta" && current == "warpgroup") return "warpgroup_id";
+  if (parent == "cta" && current == "warp") return "warp_id";
+  if (parent == "warpgroup" && current == "warp") return "warp_id_in_wg";
+  if (parent == "warp" && current == "thread") return "lane_id";
+  if (parent == "cta" && current == "thread") return "thread_id";
+  if (parent == "warpgroup" && current == "thread") return "thread_id_in_wg";
+  TVM_FFI_THROW(ValueError) << "printer unknown scope-id binding " << parent << "/" << current;
+}
+
+ExprDoc ScopeExtents(DocTranslatorObj* d, const ffi::Array<PrimExpr>& values) {
+  ffi::Array<ExprDoc> items;
+  for (const PrimExpr& value : values) items.push_back(d->Translate(value).value());
+  return ListDoc(items);
+}
+
+ffi::Optional<ExprDoc> ScopeIdDefStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                  const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ScopeIdDefStmtNode>(
+          input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  const tirx::ScopeIdDef& def = stmt->def;
+  ffi::Array<ExprDoc> lhs;
+  for (const PrimVar& var : def->def_ids) lhs.push_back(VarDoc(d, var));
+  ffi::Array<ExprDoc> args;
+  if (def->scope != tirx::ScopeBinding::kClusterCtaPair && def->extents.has_value()) {
+    args.push_back(ScopeExtents(d, def->extents.value()));
+  }
+  ffi::Array<ffi::String> keys;
+  ffi::Array<ExprDoc> values;
+  if (def->preferred_extents.has_value()) {
+    keys.push_back("preferred");
+    values.push_back(ScopeExtents(d, def->preferred_extents.value()));
+  }
+  if (!def->def_ids.empty()) {
+    PrimType dtype = def->def_ids[0].ty();
+    for (const PrimVar& var : def->def_ids) {
+      TVM_FFI_CHECK(var.ty() == dtype, TypeError) << "printer mixed scope-id dtypes";
+    }
+    if (dtype != PrimType::Int(32)) {
+      keys.push_back("dtype");
+      values.push_back(LiteralDoc::Str(ffi::DLDataTypeToString(dtype->dtype), std::nullopt));
+    }
+  }
+  d->Emit(AssignDoc(TupleDoc(lhs),
+                    NamespaceDoc("tirx")->Attr(ScopeIdApi(def->scope))->Call(args, keys, values),
+                    std::nullopt),
+          ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<s_tir::SBlockNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<s_tir::SBlockRealizeNode>(ReprPrintTIR);
+  ffi::reflection::TypeAttrDef<tirx::ScopeIdDefStmtNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&ScopeIdDefStmtDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> ExecScopeDocTranslate(DocTranslatorObj*, ffi::AnyView input,
+                                             const ffi::Object*) {
+  const auto* scope =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ExecScopeNode>(input);
+  return NamespaceDoc("tirx")
+      ->Attr("ExecScope")
+      ->Call({LiteralDoc::Str(scope->name(), std::nullopt)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::ScopeIdDefStmt>(
-      "", [](tirx::ScopeIdDefStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
-        // Render as ``(var1, var2, ...) = T.cta_id([ext], preferred=[...])``
-        // (or the appropriate API name for the binding).
-        TVM_FFI_ICHECK(!d->frames.empty());
-        tirx::ScopeIdDef def = stmt->def;
-        AccessPath def_p = p->Attr("def");
-        ffi::Array<ExprDoc> lhs;
-        for (auto scope_id : def->def_ids) {
-          lhs.push_back(DefineVar(scope_id, d->frames.back(), d));
-        }
-        ffi::Array<ExprDoc> rhs_args;
-        if (def->scope != tirx::ScopeBinding::kClusterCtaPair && def->extents.has_value()) {
-          rhs_args.push_back(d->AsDoc<ExprDoc>(def->extents.value(), def_p->Attr("extents")));
-        }
-        ffi::Array<ffi::String> kwarg_keys;
-        ffi::Array<ExprDoc> kwarg_vals;
-        if (def->preferred_extents.has_value()) {
-          kwarg_keys.push_back("preferred");
-          kwarg_vals.push_back(
-              d->AsDoc<ExprDoc>(def->preferred_extents.value(), def_p->Attr("preferred_extents")));
-        }
-        // The scope-id dtype is independent of the extents, so it has to be printed
-        // explicitly whenever it is not the int32 default in order to round-trip.
-        if (!def->def_ids.empty()) {
-          PrimType scope_id_ty = def->def_ids[0].ty();
-          for (auto scope_id : def->def_ids) {
-            TVM_FFI_ICHECK(scope_id.ty() == scope_id_ty)
-                << "mixed scope-id dtypes are unsupported, got " << scope_id_ty << " and "
-                << scope_id.ty();
-          }
-          if (scope_id_ty != PrimType::Int(32)) {
-            kwarg_keys.push_back("dtype");
-            kwarg_vals.push_back(
-                LiteralDoc::Str(DType2Str(scope_id_ty->dtype), def_p->Attr("def_ids")));
-          }
-        }
-        ExprDoc rhs = TIR(d, ScopeIdApiName(def->scope))->Call(rhs_args, kwarg_keys, kwarg_vals);
-        return AssignDoc(TupleDoc(lhs), rhs, std::nullopt);
-      });
+  ffi::reflection::TypeAttrDef<tirx::ExecScopeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&ExecScopeDocTranslate>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { TVMScriptPrinter::Register<tirx::ScopeIdDefStmtNode>(ReprPrintTIR); }
+ffi::Optional<ExprDoc> ScopeIdDefDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* def =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ScopeIdDefNode>(input);
+  auto [parent, current] = tirx::ScopeBindingToStringPair(def->scope);
+  ExprDoc ids = AnyValue(d, def->def_ids);
+  ExprDoc extents = AnyValue(d, def->extents);
+  ExprDoc preferred = AnyValue(d, def->preferred_extents);
+  d->RecordOrigin(ids, def->def_ids);
+  if (def->extents.has_value()) d->RecordOrigin(extents, def->extents.value());
+  if (def->preferred_extents.has_value())
+    d->RecordOrigin(preferred, def->preferred_extents.value());
+  return NamespaceDoc("tirx")
+      ->Attr("ScopeIdDef")
+      ->Call({ids, extents, LiteralDoc::Str(parent, std::nullopt),
+              LiteralDoc::Str(current, std::nullopt), preferred});
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::ExecScope>(
-      "", [](tirx::ExecScope exec_scope, AccessPath p, IRDocsifier d) -> Doc {
-        Doc doc = TIR(d, "ExecScope")->Call({LiteralDoc::Str(exec_scope->name(), p->Attr("name"))});
-        return doc;
-      });
+  ffi::reflection::TypeAttrDef<tirx::ScopeIdDefNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&ScopeIdDefDocTranslate>());
 }
-TVM_FFI_STATIC_INIT_BLOCK() { TVMScriptPrinter::Register<tirx::ExecScopeNode>(ReprPrintTIR); }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::ScopeIdDef>(
-      "", [](tirx::ScopeIdDef def, AccessPath p, IRDocsifier d) -> Doc {
-        auto [parent, cur] = tirx::ScopeBindingToStringPair(def->scope);
-        ExprDoc extents_doc = def->extents.has_value()
-                                  ? d->AsDoc<ExprDoc>(def->extents.value(), p->Attr("extents"))
-                                  : LiteralDoc::None(p->Attr("extents"));
-        Doc doc = TIR(d, "ScopeIdDef")
-                      ->Call({d->AsDoc<ExprDoc>(def->def_ids, p->Attr("def_ids")), extents_doc,
-                              LiteralDoc::Str(parent, p->Attr("parent")),
-                              LiteralDoc::Str(cur, p->Attr("cur"))});
-        return doc;
-      });
-}
-TVM_FFI_STATIC_INIT_BLOCK() { TVMScriptPrinter::Register<tirx::ScopeIdDefNode>(ReprPrintTIR); }
+}  // namespace
 
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

@@ -561,6 +561,7 @@ def match_cast(value, ty, *, span=None):
 
 
 Any = Object
+PackedFunc = _relax.PackedFuncType
 Range = _ir.Range
 
 __all__ = [
@@ -569,6 +570,7 @@ __all__ = [
     "DTensor",
     "ExternFunc",
     "Object",
+    "PackedFunc",
     "Range",
     "Shape",
     "ShapeExpr",

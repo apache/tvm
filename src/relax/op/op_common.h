@@ -339,6 +339,8 @@ inline std::optional<PrimType> GetElementDType(const Type& ty) {
  */
 inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, const Type& lhs_ty,
                                                           const Type& rhs_ty) {
+  // Formatting the full Call in an inference error would invoke the printer
+  // and reenter the same inference hook before the exception is thrown.
   auto opt_lhs_dtype = GetElementDType(lhs_ty);
   if (!opt_lhs_dtype) {
     if (const auto* lhs_tensor = lhs_ty.as<TensorTypeNode>()) {
@@ -346,9 +348,8 @@ inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, cons
     }
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
-        << "However, " << call << " has argument " << call->args[0] << " on the LHS, with type "
-        << lhs_ty << ".   This is of type " << lhs_ty->GetTypeKey()
-        << ", which does not have a datatype.";
+        << "However, " << call->op << " has LHS type " << lhs_ty << ".   This is of type "
+        << lhs_ty->GetTypeKey() << ", which does not have a datatype.";
   }
   auto lhs_dtype = opt_lhs_dtype.value();
 
@@ -359,9 +360,8 @@ inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, cons
     }
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
-        << "However, " << call << " has argument " << call->args[1] << " on the RHS, with type "
-        << rhs_ty << ".   This is of type " << rhs_ty->GetTypeKey()
-        << ", which does not have a datatype.";
+        << "However, " << call->op << " has RHS type " << rhs_ty << ".   This is of type "
+        << rhs_ty->GetTypeKey() << ", which does not have a datatype.";
   }
   auto rhs_dtype = opt_rhs_dtype.value();
 
@@ -369,7 +369,7 @@ inline ffi::Optional<PrimType> InferBinaryArithOpOutDtype(const Call& call, cons
       !rhs_dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     TVM_FFI_VISIT_THROW(TypeError, call)
         << "Binary operators must have the same datatype for both operands.  "
-        << "However, " << call << " uses datatype " << lhs_dtype << " on the LHS (Type of "
+        << "However, " << call->op << " uses datatype " << lhs_dtype << " on the LHS (Type of "
         << lhs_ty << "), and datatype " << rhs_dtype << " on the RHS (Type of " << rhs_ty << ").";
   }
   return lhs_dtype;
