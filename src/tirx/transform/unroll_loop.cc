@@ -313,12 +313,13 @@ namespace transform {
 
 Pass UnrollLoop() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<UnrollLoopConfig>("tirx.UnrollLoop");
     if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<UnrollLoopConfig>();
     }
-    n->body = UnrollLoop(std::move(f->body), cfg.value());
+    n->body = UnrollLoop(std::move(f->body).value(), cfg.value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.UnrollLoop", {});

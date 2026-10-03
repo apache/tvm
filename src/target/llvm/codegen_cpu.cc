@@ -679,8 +679,8 @@ void CodeGenCPU::CreateParallelLaunch(const Stmt& body, int num_task, std::strin
   ParallelEnv par_env;
   par_env.task_id = Var("task_id", PrimType::Int(32));
   par_env.num_task = Var("num_task", PrimType::Int(32));
-  new_vmap[par_env.task_id.get()] = task_id;
-  new_vmap[par_env.num_task.get()] = builder_->CreateLoad(
+  new_vmap[par_env.task_id.value().get()] = task_id;
+  new_vmap[par_env.num_task.value().get()] = builder_->CreateLoad(
       t_int32_,
       builder_->CreateInBoundsGEP(t_tvm_parallel_group_env_, penv, {ConstInt32(0), ConstInt32(1)}),
       "num_task");
@@ -1143,7 +1143,8 @@ void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
       this->Dispatch(op->body);
       auto bar_callee =
           llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
-      builder_->CreateCall(bar_callee, {MakeValue(parallel_env_.task_id), parallel_env_.penv});
+      builder_->CreateCall(bar_callee,
+                           {MakeValue(parallel_env_.task_id.value()), parallel_env_.penv});
     } else if (op->attr_key == tirx::attr::pragma_import_llvm) {
       const StringImmNode* value = op->value.as<StringImmNode>();
       TVM_FFI_ICHECK(value != nullptr);
@@ -1177,8 +1178,8 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
       TVM_FFI_ICHECK(parallel_env_.num_task.defined());
       TVM_FFI_ICHECK(parallel_env_.penv != nullptr);
       PrimType t(op->extent.ty()->dtype);
-      PrimExpr num_task = cast(t, parallel_env_.num_task.as_or_throw<PrimExpr>());
-      PrimExpr task_id = cast(t, parallel_env_.task_id.as_or_throw<PrimExpr>());
+      PrimExpr num_task = cast(t, parallel_env_.num_task.value().as_or_throw<PrimExpr>());
+      PrimExpr task_id = cast(t, parallel_env_.task_id.value().as_or_throw<PrimExpr>());
       TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;

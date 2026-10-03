@@ -63,6 +63,10 @@ inline DLDataType DefaultIndexType() {
  */
 class TensorTypeNode : public TypeNode {
  public:
+  explicit TensorTypeNode(ffi::UnsafeInit tag) : elem_offset(tag) {}
+
+  explicit TensorTypeNode(PrimExpr elem_offset) : elem_offset(std::move(elem_offset)) {}
+
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
   /*! \brief Storage scope/address space of the buffer. */
@@ -96,9 +100,6 @@ class TensorTypeNode : public TypeNode {
    * For example, trn.psum takes 2D address, representing (bank, offset).
    */
   ffi::Array<PrimExpr> allocated_addr;
-
-  /*! \brief constructor */
-  TensorTypeNode() {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -155,8 +156,9 @@ class TensorTypeNode : public TypeNode {
 class TensorType : public Type {
  public:
   TVM_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                     ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
-                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                     ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
+                     int data_alignment, int offset_factor,
+                     ffi::Optional<Layout> layout = std::nullopt,
                      ffi::Array<PrimExpr> allocated_addr = {}, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);

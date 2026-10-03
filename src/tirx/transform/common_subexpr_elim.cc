@@ -153,7 +153,7 @@ class CSEPlanner : public StmtExprVisitor {
   static std::pair<InsertBeforeTable, ExprRemapTable> Plan(const Stmt& body) {
     auto planner = ffi::make_object<CSEPlanner>();
     // Root scope (no parent, depth 0, no creator statement)
-    planner->scopes_.push_back({-1, 0, Stmt()});
+    planner->scopes_.push_back({-1, 0, std::nullopt});
     planner->current_scope_ = 0;
     // Scan the tree (Visit sets current_stmt_ automatically)
     planner->Visit(body);
@@ -181,7 +181,7 @@ class CSEPlanner : public StmtExprVisitor {
      * Null for the root scope. Used as the insertion point when a CSE
      * binding must be placed before the scope.
      */
-    Stmt creator_stmt;
+    ffi::Optional<Stmt> creator_stmt;
   };
 
   /*!
@@ -204,7 +204,7 @@ class CSEPlanner : public StmtExprVisitor {
      */
     int expr_depth{0};
     /*! \brief The expression itself (first occurrence). */
-    PrimExpr repr;
+    PrimExpr repr{ffi::UnsafeInit{}};
     /*!
      * \brief Scope ID of the Lowest Common Ancestor of all scopes containing an occurrence.
      *
@@ -222,7 +222,7 @@ class CSEPlanner : public StmtExprVisitor {
      *
      * Used as the insertion point when the LCA equals the first-use scope.
      */
-    Stmt first_use_stmt;
+    Stmt first_use_stmt{ffi::UnsafeInit{}};
     /*!
      * \brief Direct children in the expression DAG: (child_expr, multiplicity).
      *
@@ -333,7 +333,7 @@ class CSEPlanner : public StmtExprVisitor {
       using StmtExprMutator::Mutate;
       using StmtExprMutator::Mutate_;
       prim::ExprDeepEqual eq;
-      PrimExpr target, replacement;
+      PrimExpr target{ffi::UnsafeInit{}}, replacement{ffi::UnsafeInit{}};
       UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final {
         if (auto prim = input.as<PrimExpr>(); prim && eq(prim.value(), target)) return replacement;
         return StmtExprMutator::Mutate(input, inplace_mode);
@@ -402,7 +402,7 @@ class CSEPlanner : public StmtExprVisitor {
     }
     int s = entry.first_use_scope;
     while (scopes_[s].parent != entry.lca_scope) s = scopes_[s].parent;
-    return scopes_[s].creator_stmt;
+    return scopes_[s].creator_stmt.value();
   }
 
   // ------------------------------------------------------------------
@@ -431,7 +431,7 @@ class CSEPlanner : public StmtExprVisitor {
     if (is_first_occurrence) {
       entry.lca_scope = current_scope_;
       entry.first_use_scope = current_scope_;
-      entry.first_use_stmt = current_stmt_;
+      entry.first_use_stmt = current_stmt_.value();
       entry.repr = e;
       // Build DAG edges: check which AST children are eligible table entries.
       // Since we visit bottom-up, children are already in the table.
@@ -696,7 +696,7 @@ class CSEPlanner : public StmtExprVisitor {
       // Step 3c: Record in output tables.
       // expr_remap maps the ORIGINAL expression (for tree matching by the rewriter).
       insert_before[insert_at].push_back(bind);
-      expr_remap[expr] = cse_var;
+      expr_remap.insert_or_assign(expr, cse_var);
 
       // Step 3d: Propagate into deeper entries' repr.
       // Replace occurrences of this entry's repr with cse_var so that
@@ -722,7 +722,7 @@ class CSEPlanner : public StmtExprVisitor {
   /*! \brief Scope ID of the currently visited node. */
   int current_scope_ = 0;
   /*! \brief Current statement for insertion-point tracking. Set by Visit. */
-  Stmt current_stmt_;
+  ffi::Optional<Stmt> current_stmt_;
   /*! \brief Nesting depth of Let expression bodies. When > 0, recording is suppressed. */
   int let_depth_ = 0;
 };
@@ -819,7 +819,7 @@ class CSERewriter : public StmtExprMutator {
         Expr value =
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(bind->value, lookup).as_or_throw<Expr>();
         Var fresh(bind->var->name, bind->var->ty.as_or_throw<PrimType>());
-        remap[bind->var.get()] = fresh.as_or_throw<PrimExpr>();
+        remap.insert_or_assign(bind->var.get(), fresh.as_or_throw<PrimExpr>());
         new_stmts.push_back(Bind(fresh, value));
       }
       visited = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(visited, lookup).as_or_throw<Stmt>();
@@ -853,11 +853,12 @@ namespace transform {
  */
 Pass CommonSubexprElim() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    auto [insert_before, expr_remap] = CSEPlanner::Plan(f->body);
+    if (!f->body.has_value()) return f;
+    auto [insert_before, expr_remap] = CSEPlanner::Plan(f->body.value());
     if (!insert_before.empty()) {
       auto* n = f.CopyOnWrite();
       n->body = ffi::make_object<CSERewriter>(std::move(insert_before), std::move(expr_remap))
-                    ->Rewrite(f->body);
+                    ->Rewrite(f->body.value());
     }
     return f;
   };

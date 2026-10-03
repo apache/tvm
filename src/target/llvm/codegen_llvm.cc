@@ -322,6 +322,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
   this->InitFuncState();
 
   function_ = DeclareFunctionInternal(gvar, f);
+  if (!f->body.has_value()) return;
 
   // set var map and align information
   auto arg_it = function_->arg_begin();
@@ -340,7 +341,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(entry);
-  this->Dispatch(f->body);
+  this->Dispatch(f->body.value());
 
   // Add alignment attribute if needed.
   for (size_t i = 0; i < f->params.size(); ++i) {

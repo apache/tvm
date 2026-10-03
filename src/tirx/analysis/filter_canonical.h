@@ -84,10 +84,10 @@ enum class FilterAtomKind {
  */
 struct FilterAtom {
   FilterAtomKind kind;
-  Var scopeid_var;
+  ffi::Optional<Var> scopeid_var;
   int64_t lo = 0;
   int64_t hi = 0;
-  PrimExpr elect_sync_call;
+  ffi::Optional<PrimExpr> elect_sync_call;
 };
 
 /*!

@@ -44,9 +44,9 @@ constexpr int kWgSize = 4;
 
 /*! \brief Active slice offset + stride * [0, extent) encoded on one TileLayout axis. */
 struct AxisRange {
-  PrimExpr extent;
-  PrimExpr offset;
-  PrimExpr stride;
+  PrimExpr extent{ffi::UnsafeInit{}};
+  PrimExpr offset{ffi::UnsafeInit{}};
+  PrimExpr stride{ffi::UnsafeInit{}};
 
   /*! \brief Intersect with [lo, hi). Returns false if the result is empty. */
   bool Intersect(int64_t lo, int64_t hi, AxisRange* out) const;

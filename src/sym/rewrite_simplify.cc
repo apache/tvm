@@ -390,7 +390,7 @@ void RewriteSimplifier::Impl::Update(const Var& var, const PrimExpr& info, bool 
           << "original=" << it->second << ", new=" << info;
     }
   }
-  var_map_[var] = info;
+  var_map_.insert_or_assign(var, info);
 }
 
 UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AddNode* op,
@@ -518,7 +518,7 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   for (const PrimExpr& subconstraint : ExtractConstraints(new_constraint, false)) {
     if (is_assume || SideEffect(subconstraint) <= CallEffectKind::kPure) {
       literal_constraints_.push_back(subconstraint);
-      PrimExpr negation;
+      PrimExpr negation{ffi::UnsafeInit{}};
       if (subconstraint.ty().MatchesElementType(DLDataTypeCode::kDLBool, 8)) {
         // We could apply NormalizeBooleanOperators during
         // TryMatchLiteralConstraint, but that would require
@@ -536,7 +536,8 @@ std::function<void()> RewriteSimplifier::Impl::EnterConstraint(const PrimExpr& c
   size_t new_literal_size = literal_constraints_.size();
   auto frecover = [old_literal_size, new_literal_size, this]() {
     TVM_FFI_ICHECK_EQ(literal_constraints_.size(), new_literal_size);
-    literal_constraints_.resize(old_literal_size);
+    literal_constraints_.erase(literal_constraints_.begin() + old_literal_size,
+                               literal_constraints_.end());
   };
   return frecover;
 }
@@ -2150,7 +2151,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(prim::Not ret, InplaceMode i
 
 UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::AndNode* op,
                                                        InplaceMode inplace_mode) {
-  PrimExpr ret;
+  PrimExpr ret{ffi::UnsafeInit{}};
   // If this extension isn't enabled, just delegate out.
   if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
     ret = SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
@@ -2301,7 +2302,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::OrNode* op,
                                                        InplaceMode inplace_mode) {
   PrimExpr orig = ffi::GetRef<PrimExpr>(op);
 
-  PrimExpr ret;
+  PrimExpr ret{ffi::UnsafeInit{}};
   // If this extension isn't enabled, just delegate out.
   if (!(enabled_extensions_ & kApplyConstraintsToBooleanBranches)) {
     ret = SimplifierBase::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));

@@ -164,8 +164,7 @@ class BufferVar : public Var {
   /*! \return type of the physical pointer projected by buffer_data. */
   PointerType DataPointerType() const { return (*this)->DataPointerType(); }
 
-  BufferVar() = default;
-  explicit BufferVar(ffi::ObjectPtr<VarNode> n) : Var(std::move(n)) {}
+  explicit BufferVar(ffi::ObjectPtr<VarNode> node) : Var(std::move(node)) {}
   explicit BufferVar(ffi::UnsafeInit tag) : Var(tag) {}
   TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(BufferVar);
 

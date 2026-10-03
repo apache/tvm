@@ -132,7 +132,7 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
                          FilterAtom* out) {
   // Decode op + (lhs, rhs). The five comparison node types map to CmpOp.
   CmpOp op;
-  PrimExpr lhs, rhs;
+  PrimExpr lhs{ffi::UnsafeInit{}}, rhs{ffi::UnsafeInit{}};
   if (const auto* eq = expr.as<prim::EQNode>()) {
     op = CmpOp::kEq;
     lhs = eq->a;
@@ -183,7 +183,7 @@ bool TryParseCompareAtom(const PrimExpr& expr, const ScopeIdPredicate& is_scope_
   out->scopeid_var = var;
   out->lo = lo;
   out->hi = hi;
-  out->elect_sync_call = PrimExpr();
+  out->elect_sync_call = std::nullopt;
   return true;
 }
 
@@ -195,7 +195,7 @@ bool TryParseElectSyncAtom(const PrimExpr& expr, FilterAtom* out) {
   if (call == nullptr) return false;
   if (!IsPtxElectSyncCall(call)) return false;
   out->kind = FilterAtomKind::kElectSync;
-  out->scopeid_var = Var();
+  out->scopeid_var = std::nullopt;
   out->lo = 0;
   out->hi = 0;
   out->elect_sync_call = expr;

@@ -217,7 +217,7 @@ ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> a
 
 BufferVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
                       ffi::String storage_scope, Span span) {
-  return BufferVar(name, TensorType(storage_scope, dtype, shape, {}, PrimExpr(), 0, 0), span);
+  return BufferVar(name, TensorType(storage_scope, dtype, shape, {}, std::nullopt, 0, 0), span);
 }
 
 // Split the given expression w.r.t the add operator
@@ -248,13 +248,13 @@ inline std::vector<const PrimExpr*> ExprSplitAddition(const PrimExpr& expr) {
 // If it can be optimized, returns (true, (a1 + a2 + ... + aj) * kt * ... * ki + c1)
 // Currently the we will not search the add/mult combinations exhaustively
 //   as it will take too much computation.
-inline std::pair<bool, PrimExpr> MergeMulModInner(sym::AnalyzerObj* analyzer,
-                                                  const PrimExpr& mult_expr,
-                                                  const PrimExpr& mod_l_expr,
-                                                  const PrimExpr& mod_r_expr) {
+inline ffi::Optional<PrimExpr> MergeMulModInner(sym::AnalyzerObj* analyzer,
+                                                const PrimExpr& mult_expr,
+                                                const PrimExpr& mod_l_expr,
+                                                const PrimExpr& mod_r_expr) {
   using namespace tirx;
   const prim::MulNode* mult_ptr = mult_expr.as<prim::MulNode>();
-  if (!mult_ptr) return std::make_pair(false, PrimExpr());
+  if (!mult_ptr) return std::nullopt;
   PrimExpr mult_outer = mult_ptr->b;
   const PrimExpr* inner = &(mult_ptr->a);
   // 1. Calculate the outer multiplier
@@ -274,8 +274,8 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(sym::AnalyzerObj* analyzer,
   //   If Div is found, we will go on testing whether lhs matches the lhs of mod expr
   //      and returns the optimization result.
   const PrimExpr* search_ptr = inner;
-  PrimExpr mult_inner;  // The inner multiplication factor
-  PrimExpr no_opt_sum;  // Sum of the exprs that cannot be optimized
+  ffi::Optional<PrimExpr> mult_inner;  // The inner multiplication factor
+  ffi::Optional<PrimExpr> no_opt_sum;  // Sum of the exprs that cannot be optimized
   prim::ExprDeepEqual expr_equal;
 
   while (true) {
@@ -283,33 +283,35 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(sym::AnalyzerObj* analyzer,
     auto inner_mult_ptr = search_ptr->as<prim::MulNode>();
     auto inner_add_ptr = search_ptr->as<prim::AddNode>();
     if (!inner_div_ptr && !inner_mult_ptr && !inner_add_ptr) {
-      return std::make_pair(false, PrimExpr());
+      return std::nullopt;
     } else if (inner_div_ptr) {
-      PrimExpr overall_mult = mult_inner.get() ? mult_inner * mult_outer : mult_outer;
+      PrimExpr overall_mult = mult_inner.has_value() ? mult_inner.value() * mult_outer : mult_outer;
       if (expr_equal(overall_mult, inner_div_ptr->b) && expr_equal(overall_mult, mod_r_expr) &&
           analyzer->CanProveEqual(floormod(inner_div_ptr->a - mod_l_expr, mod_r_expr), 0)) {
         // Found!
-        PrimExpr ret =
-            no_opt_sum.get() ? no_opt_sum * mult_outer + inner_div_ptr->a : inner_div_ptr->a;
-        return std::make_pair(true, ret);
+        PrimExpr ret = no_opt_sum.has_value() ? no_opt_sum.value() * mult_outer + inner_div_ptr->a
+                                              : inner_div_ptr->a;
+        return ret;
       } else {
-        return std::make_pair(false, PrimExpr());
+        return std::nullopt;
       }
     } else if (inner_mult_ptr) {
-      mult_inner = mult_inner.get() ? inner_mult_ptr->b * mult_inner : inner_mult_ptr->b;
+      mult_inner =
+          mult_inner.has_value() ? inner_mult_ptr->b * mult_inner.value() : inner_mult_ptr->b;
       search_ptr = &(inner_mult_ptr->a);
     } else if (inner_add_ptr) {
-      if (mult_inner.get()) {
-        return std::make_pair(false, PrimExpr());
+      if (mult_inner.has_value()) {
+        return std::nullopt;
       }
-      no_opt_sum = no_opt_sum.get() ? no_opt_sum + inner_add_ptr->a : inner_add_ptr->a;
+      no_opt_sum =
+          no_opt_sum.has_value() ? no_opt_sum.value() + inner_add_ptr->a : inner_add_ptr->a;
       search_ptr = &(inner_add_ptr->b);
     } else {
       TVM_FFI_THROW(InternalError) << "Unexpected search result!";
       break;
     }
   }
-  return std::make_pair(false, PrimExpr());
+  return std::nullopt;
 }
 
 // Insert the elements into the corresponding mult_exprs and mod_exprs.
@@ -319,7 +321,8 @@ inline std::pair<bool, PrimExpr> MergeMulModInner(sym::AnalyzerObj* analyzer,
 inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
                                       std::list<PrimExpr>* mult_exprs,
                                       std::list<std::pair<PrimExpr, PrimExpr>>* mod_exprs,
-                                      PrimExpr* no_opt_sum, bool* has_mult, bool* has_mod) {
+                                      ffi::Optional<PrimExpr>* no_opt_sum, bool* has_mult,
+                                      bool* has_mod) {
   using namespace tirx;
   *has_mult = false;
   *has_mod = false;
@@ -333,7 +336,7 @@ inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
       *has_mult = true;
       mult_exprs->emplace_back(*ele);
     } else {
-      *no_opt_sum = no_opt_sum->get() ? *no_opt_sum + *ele : *ele;
+      *no_opt_sum = no_opt_sum->has_value() ? no_opt_sum->value() + *ele : *ele;
     }
   }
 }
@@ -343,8 +346,7 @@ inline void MergeMulModInsertElements(const std::vector<const PrimExpr*>& eles,
 //   + c % (k1 * k2 * ... * ki)
 // and simplifies to (a1 + a2 + ... + aj) * kt * ... * ki + c
 // The search will be performed repeatively until no pattern is found.
-// Return: a pair with (false, Expr()) if cannot be optimized.
-//         a pair with (true, optimized_expr) if can be optimized
+// Return the simplified expression, retaining the input when no merge is possible.
 inline PrimExpr MergeMulMod(sym::AnalyzerObj* analyzer, const PrimExpr& base) {
   using namespace tirx;
   // 1. Prepare the lists.
@@ -361,7 +363,7 @@ inline PrimExpr MergeMulMod(sym::AnalyzerObj* analyzer, const PrimExpr& base) {
   std::vector<const PrimExpr*> eles = ExprSplitAddition(simplified_base);
   std::list<PrimExpr> mult_exprs;
   std::list<std::pair<PrimExpr, PrimExpr>> mod_exprs;
-  PrimExpr no_opt_sum;
+  ffi::Optional<PrimExpr> no_opt_sum;
   bool has_mult;
   bool has_mod;
   MergeMulModInsertElements(eles, &mult_exprs, &mod_exprs, &no_opt_sum, &has_mult, &has_mod);
@@ -372,15 +374,15 @@ inline PrimExpr MergeMulMod(sym::AnalyzerObj* analyzer, const PrimExpr& base) {
     std::list<PrimExpr>::iterator mult_it = mult_exprs.begin();
     bool inner_find_opt = false;
     while (mult_it != mult_exprs.end()) {
-      std::pair<bool, PrimExpr> ret =
+      ffi::Optional<PrimExpr> ret =
           MergeMulModInner(analyzer, *mult_it, search_mod_it->first, search_mod_it->second);
-      if (ret.first) {
+      if (ret.has_value()) {
         inner_find_opt = true;
         auto temp_mod_it = search_mod_it;
         ++search_mod_it;
         mod_exprs.erase(temp_mod_it);
         mult_exprs.erase(mult_it);
-        std::vector<const PrimExpr*> ret_eles = ExprSplitAddition(ret.second);
+        std::vector<const PrimExpr*> ret_eles = ExprSplitAddition(ret.value());
         MergeMulModInsertElements(ret_eles, &mult_exprs, &mod_exprs, &no_opt_sum, &has_mult,
                                   &has_mod);
         if (has_mult) {
@@ -402,14 +404,14 @@ inline PrimExpr MergeMulMod(sym::AnalyzerObj* analyzer, const PrimExpr& base) {
     return simplified_base;
   }
   for (std::list<PrimExpr>::iterator it = mult_exprs.begin(); it != mult_exprs.end(); ++it) {
-    no_opt_sum = no_opt_sum.get() ? no_opt_sum + *it : *it;
+    no_opt_sum = no_opt_sum.has_value() ? no_opt_sum.value() + *it : *it;
   }
   for (std::list<std::pair<PrimExpr, PrimExpr>>::iterator it = mod_exprs.begin();
        it != mod_exprs.end(); ++it) {
-    no_opt_sum = no_opt_sum.get() ? no_opt_sum + indexmod(it->first, it->second)
-                                  : indexmod(it->first, it->second);
+    no_opt_sum = no_opt_sum.has_value() ? no_opt_sum.value() + indexmod(it->first, it->second)
+                                        : indexmod(it->first, it->second);
   }
-  return no_opt_sum;
+  return no_opt_sum.value();
 }
 
 ffi::Array<PrimExpr> BufferVar::OffsetOf(ffi::Array<PrimExpr> input_indices) const {
@@ -620,8 +622,8 @@ Expr BufferVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
   // requested type controls its pointee, while the buffer controls its address
   // space (for example, shared or local memory).
   ptr_type = PointerType(ptr_type->element_type, self->storage_scope);
-  PrimExpr e_dtype;
-  PrimExpr extent;
+  PrimExpr e_dtype{ffi::UnsafeInit{}};
+  PrimExpr extent{ffi::UnsafeInit{}};
   if (self->shape.size() == 0) {
     extent = IntImm(PrimType(self->DefaultIndexType()), 1);
   } else if (self->strides.size() == self->shape.size()) {
@@ -656,11 +658,9 @@ Expr BufferVar::data() const { return Call(DataPointerType(), builtin::buffer_da
 tirx::BufferVar BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                           std::string name, int data_alignment, int offset_factor,
                                           std::string memory_scope) {
-  PrimExpr elem_offset;
+  ffi::Optional<PrimExpr> elem_offset;
   if (offset_factor != 0) {
     elem_offset = PrimVar(name + "_elem_offset", shape[0].ty());
-  } else {
-    elem_offset = PrimExpr();
   }
 
   return tirx::BufferVar(

@@ -157,13 +157,11 @@ PrimExpr DispatchFastErf(const PrimExpr& e) {
   PrimExpr arg = call->args[0].as_or_throw<PrimExpr>();
   PrimType arg_ty = arg.ty();
   int bits = arg_ty.bits();
-  PrimExpr res;
   if (arg_ty.code() == DLDataTypeCode::kDLFloat && (bits == 16 || bits == 32)) {
-    res = fast_erf_float_expr(arg, bits);
+    return fast_erf_float_expr(arg, bits);
   } else {
     TVM_FFI_THROW(InternalError) << "Unsupported type in Metal fast_erf";
   }
-  return res;
 }
 
 PrimExpr DispatchNumericalStableTanh(const PrimExpr& e) {

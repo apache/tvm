@@ -177,6 +177,7 @@ void CodeGenC::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
   // If the function has already been forward-declared, this is a
   // no-op.
   DeclareFunction(gvar, f);
+  if (!f->body.has_value()) return;
   auto function_name = GetFunctionName(gvar);
 
   // clear previous generated state.
@@ -186,7 +187,7 @@ void CodeGenC::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
   stream << " {\n";
   this->PreFunctionBody(f);
   int func_scope = this->BeginScope();
-  this->PrintStmt(f->body);
+  this->PrintStmt(f->body.value());
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";

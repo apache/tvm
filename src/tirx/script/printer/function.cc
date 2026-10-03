@@ -112,7 +112,7 @@ void PrintPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func, ExprDoc 
     }
     if (!decorator_keys.empty()) decorator = decorator->Call({}, decorator_keys, decorator_values);
     ffi::Array<StmtDoc> body;
-    body = Body(func->body, d);
+    if (func->body.has_value()) body = Body(func->body.value(), d);
     body.insert(body.begin(), thread_declarations.begin(), thread_declarations.end());
     std::vector<std::pair<ffi::String, ffi::Any>> attrs;
     for (const auto& [key, value] : func->attrs->dict) {

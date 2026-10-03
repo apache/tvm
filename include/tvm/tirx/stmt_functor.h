@@ -249,6 +249,15 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
         ffi::details::UnchangedOrUnsafe::MoveToTVMFFIAny(Mutate(ffi::AnyView(stmt), inplace_mode)));
   }
 
+  /*! \brief Mutate an optional statement, preserving an absent function body. */
+  TVM_FFI_INLINE UnchangedOr<ffi::Optional<Stmt>> Mutate(
+      const ffi::Optional<Stmt>& stmt, InplaceMode inplace_mode = InplaceMode::kDisallow) {
+    if (!stmt.has_value()) return ffi::Unchanged();
+    auto result = Mutate(stmt.value(), inplace_mode);
+    if (result.IsUnchanged()) return ffi::Unchanged();
+    return ffi::Optional<Stmt>(std::move(result).ValueUnchecked());
+  }
+
   virtual UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode);
