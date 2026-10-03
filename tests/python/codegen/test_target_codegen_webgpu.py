@@ -367,10 +367,10 @@ def test_workgroup_allocation_uses_target_limit():
 def test_grid_pack_guard_rejects_id_equal_to_workgroup_count():
     """The runtime pads the launch when it folds x into z, so id == packGridDimX must return."""
 
-    @I.ir_module(s_tir=True)
+    @I.ir_module
     class Module:
-        @T.prim_func(s_tir=True)
-        def main(B: T.Buffer((8,), "int32")):
+        @T.prim_func
+        def main(B: T.Tensor((8,), "int32")):
             for i in T.thread_binding(8, thread="blockIdx.x"):
                 for j in T.thread_binding(1, thread="threadIdx.x"):
                     B[i] = i
