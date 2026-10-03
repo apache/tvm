@@ -239,6 +239,13 @@ inline Type InferTypeUnary(const Call& call, const BlockBuilder&, FType f_comput
 }
 
 /*!
+ * \brief Derive the output type of a call_tir from the callee signature and the
+ * argument types, or nullopt when it cannot be derived.
+ */
+ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
+    Type func_ty, Type arg_ty, ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices);
+
+/*!
  * \brief Infer the type by returning the type of the input argument.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
