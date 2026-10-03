@@ -7611,6 +7611,102 @@ def test_prod(torch_dtype, relax_dtype):
     verify_model(Prod(), example_args, {}, Expected)
 
 
+def test_prod_dim_and_integer_accumulation():
+    # prod.dim_int had no converter, and prod on a bool or integer input kept the input
+    # dtype where torch accumulates in int64 (as sum already did here).
+    class ProdDim(Module):
+        def forward(self, x):
+            return torch.prod(x, 1)
+
+    @tvm.script.ir_module
+    class expected_prod_dim:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="int32")) -> R.Tuple(R.Tensor((2,), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="int64") = R.astype(x, dtype="int64")
+                lv1: R.Tensor((2,), dtype="int64") = R.prod(lv, axis=[1], keepdims=False)
+                gv: R.Tuple(R.Tensor((2,), dtype="int64")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    x = torch.tensor([[2**20, 2**20, 2], [1, 2, 3]], dtype=torch.int32)
+    verify_model(ProdDim(), (x,), {}, expected_prod_dim)
+
+
+@pytest.mark.parametrize("dtype", [torch.bool, torch.int32, torch.int64, torch.float32])
+def test_prod_values(dtype):
+    class ProdAll(Module):
+        def forward(self, x):
+            return torch.prod(x)
+
+    class ProdDim(Module):
+        def forward(self, x):
+            return torch.prod(x, 0)
+
+    class ProdKeep(Module):
+        def forward(self, x):
+            return torch.prod(x, 1, keepdim=True)
+
+    if dtype is torch.bool:
+        x = torch.tensor([[True, True, False], [True, True, True]])
+    elif dtype is torch.int32:
+        x = torch.tensor([[2**20, 2**20, 2], [1, 2, 3]], dtype=dtype)  # overflows int32
+    else:
+        x = torch.tensor([[1, 2, 3], [4, 5, 6]]).to(dtype)
+    for model in (ProdAll(), ProdDim(), ProdKeep()):
+        with torch.no_grad():
+            want = model(x)
+        mod = from_exported_program(export(model, (x,)))
+        assert str(mod["main"].ret_ty.fields[0].dtype) == str(want.dtype).replace("torch.", "")
+        verify_model_numerically(model, (x,))
+
+
+def test_any_returns_bool_for_every_dtype():
+    # any.default had no converter, and any.dim on a non-bool input returned max(x) in
+    # the input dtype -- the largest value, not a truth value. torch.any is "is any
+    # element non-zero" and is always bool.
+    class AnyAll(Module):
+        def forward(self, x):
+            return torch.any(x)
+
+    class AnyDim(Module):
+        def forward(self, x):
+            return torch.any(x, 1)
+
+    class AnyKeep(Module):
+        def forward(self, x):
+            return torch.any(x, 0, keepdim=True)
+
+    @tvm.script.ir_module
+    class expected_any_dim:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="int32")) -> R.Tuple(R.Tensor((2,), dtype="bool")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="bool") = R.not_equal(x, R.const(0, "int32"))
+                lv1: R.Tensor((2, 3), dtype="int8") = R.astype(lv, dtype="int8")
+                lv2: R.Tensor((2,), dtype="int8") = R.max(lv1, axis=[1], keepdims=False)
+                lv3: R.Tensor((2,), dtype="bool") = R.astype(lv2, dtype="bool")
+                gv: R.Tuple(R.Tensor((2,), dtype="bool")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    verify_model(
+        AnyDim(), (torch.tensor([[0, 0, 5], [0, 0, 0]], dtype=torch.int32),), {}, expected_any_dim
+    )
+
+    for dtype in (torch.bool, torch.int32, torch.int64, torch.float32):
+        if dtype is torch.bool:
+            x = torch.tensor([[False, False, True], [False, False, False]])
+        else:
+            x = torch.tensor([[0, 0, 5], [0, 0, 0]]).to(dtype)
+        for model in (AnyAll(), AnyDim(), AnyKeep()):
+            with torch.no_grad():
+                want = model(x)
+            mod = from_exported_program(export(model, (x,)))
+            assert str(mod["main"].ret_ty.fields[0].dtype) == "bool"
+            verify_model_numerically(model, (x,))
+
+
 def test_cumprod():
     class Cumprod(Module):
         def forward(self, x):
