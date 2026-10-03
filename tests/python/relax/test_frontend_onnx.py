@@ -5932,6 +5932,45 @@ def test_layer_norm():
     from_onnx(model, opset=17, keep_params_in_input=True)
 
 
+def test_layer_norm_optional_outputs():
+    node = helper.make_node(
+        "LayerNormalization",
+        ["input", "scale", "bias"],
+        ["Y", "Mean", "InvStdDev"],
+        axis=-1,
+        epsilon=1e-5,
+    )
+    graph = helper.make_graph(
+        [node],
+        "layer_norm_optional_outputs_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [2, 3, 4]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [4]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [4]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [2, 3, 4]),
+            helper.make_tensor_value_info("Mean", TensorProto.FLOAT, [2, 3, 1]),
+            helper.make_tensor_value_info("InvStdDev", TensorProto.FLOAT, [2, 3, 1]),
+        ],
+    )
+    model = helper.make_model(
+        graph,
+        producer_name="layer_norm_optional_outputs_test",
+        opset_imports=[helper.make_opsetid("", 17)],
+    )
+    check_correctness(
+        model,
+        inputs={
+            "input": np.arange(24, dtype="float32").reshape(2, 3, 4),
+            "scale": np.ones(4, dtype="float32"),
+            "bias": np.zeros(4, dtype="float32"),
+        },
+        opset=17,
+        check_dtypes=True,
+    )
+
+
 def test_layer_norm_with_nd_gamma_beta():
     layer_norm_node = helper.make_node(
         "LayerNormalization", ["input", "scale", "bias"], ["Y"], axis=1, epsilon=1e-12
@@ -9858,6 +9897,7 @@ def test_batch_norm_training_preserves_output_dtypes():
 
     assert len(batch_norm_calls) == 1
     assert [str(arg.ty.dtype) for arg in batch_norm_calls[0].args] == ["float32"] * 5
+    assert batch_norm_calls[0].attrs.momentum == pytest.approx(0.1)
 
 
 def get_pool_padding(shape, auto_pad, kernel_shape, strides, pads):
