@@ -1806,9 +1806,9 @@ class ReIndexRewriter : public StmtExprMutator {
       : block_sref_(block_sref),
         info_(info),
         covered_(covered),
-        new_buffer_(info->alloc.value()),
         old_buffer_(info->read_buffer.same_as(info->alloc.value()) ? info->write_buffer
-                                                                   : info->read_buffer) {}
+                                                                   : info->read_buffer),
+        new_buffer_(info->alloc.value()) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
