@@ -57,13 +57,11 @@ class MultiLevelTilingWideVectorNode : public MultiLevelTilingNode {
     return ScheduleRule(n);
   }
 
-  std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>> SplitLoop(const Schedule& sch,
-                                                                            SBlockRV block,
-                                                                            LoopRV loop,
-                                                                            int n_tiles) const;
+  std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>> SplitLoop(
+      const Schedule& sch, SBlockRV block, LoopRV loop, int n_tiles) const;
 };
 
-std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>>
+std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>>
 MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv, LoopRV loop_rv,
                                           int n_tiles) const {
   const tirx::ForNode* loop = TVM_SREF_TO_FOR(sch->GetSRef(loop_rv));
@@ -107,20 +105,20 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
       ffi::Array<s_tir::LoopRV> inner_splits =
           sch->Split(/*loop=*/loop_rv,
                      /*factors=*/{std::nullopt, PrimExpr(vec_len)});
-      ffi::Array<s_tir::ExprRV> outer_factors = sch->SamplePerfectTile(
+      ffi::Array<ffi::Optional<s_tir::ExprRV>> outer_factors = sch->SamplePerfectTile(
           /*loop=*/inner_splits[0],
           /*n=*/n_tiles - 1,
           /*max_innermost_factor=*/max_innermost_factor);
       ffi::Array<s_tir::LoopRV> outer_splits = sch->Split(
-          /*loop=*/inner_splits[0], /*factors=*/{outer_factors.begin(), outer_factors.end()});
+          /*loop=*/inner_splits[0], /*factors=*/outer_factors);
       outer_splits.push_back(inner_splits[1]);
       outer_factors.push_back(PrimExpr(vec_len));
       return {outer_factors, outer_splits};
     } else {
-      ffi::Array<s_tir::ExprRV> factors(n_tiles - 1, PrimExpr(1));
+      ffi::Array<ffi::Optional<s_tir::ExprRV>> factors(n_tiles - 1, PrimExpr(1));
       factors.push_back(loop->extent);
       ffi::Array<s_tir::LoopRV> splits = sch->Split(/*loop=*/loop_rv,
-                                                    /*factors=*/{factors.begin(), factors.end()});
+                                                    /*factors=*/factors);
       return {factors, splits};
     }
   }

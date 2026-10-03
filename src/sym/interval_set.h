@@ -46,9 +46,9 @@ namespace sym {
 class IntervalSetNode : public IntSetNode {
  public:
   /*! \brief Minimum value in the interval. */
-  PrimExpr min_value;
+  PrimExpr min_value{ffi::UnsafeInit{}};
   /*! \brief Maximum value in the interval. */
-  PrimExpr max_value;
+  PrimExpr max_value{ffi::UnsafeInit{}};
 
   // visitor overload.
   static void RegisterReflection() {

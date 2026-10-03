@@ -66,7 +66,11 @@ class StmtNode : public ffi::Object {
 /*! \brief Container of all statements */
 class Stmt : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Stmt, ffi::ObjectRef, StmtNode);
+  explicit Stmt(ffi::ObjectPtr<StmtNode> node) : ffi::ObjectRef(std::move(node)) {
+    TVM_FFI_CHECK(defined(), ValueError) << "Stmt expects a defined node";
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Stmt, ffi::ObjectRef, StmtNode);
 };
 
 /*!
@@ -79,9 +83,9 @@ class Stmt : public ffi::ObjectRef {
 class BindNode : public StmtNode {
  public:
   /*! \brief The variable being bound. */
-  Var var;
+  Var var{ffi::UnsafeInit{}};
   /*! \brief The value to bind to the variable. */
-  Expr value;
+  Expr value{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -100,7 +104,9 @@ class Bind : public Stmt {
  public:
   TVM_DLL Bind(Var var, Expr value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Bind, Stmt, BindNode);
+  explicit Bind(ffi::ObjectPtr<BindNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Bind, Stmt, BindNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
 };
 
@@ -121,9 +127,9 @@ class AttrStmtNode : public StmtNode {
   /*! \brief the type key of the attribute */
   ffi::String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
-  Expr value;
+  Expr value{ffi::UnsafeInit{}};
   /*! \brief The body statement to be executed */
-  Stmt body;
+  Stmt body{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -144,7 +150,9 @@ class AttrStmt : public Stmt {
  public:
   TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrStmt, Stmt, AttrStmtNode);
+  explicit AttrStmt(ffi::ObjectPtr<AttrStmtNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
 };
 
@@ -160,9 +168,9 @@ class AttrStmt : public Stmt {
 class AssertStmtNode : public StmtNode {
  public:
   /*! \brief Condition to be checked. */
-  PrimExpr condition;
+  PrimExpr condition{ffi::UnsafeInit{}};
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  StringImm error_kind;
+  StringImm error_kind{ffi::UnsafeInit{}};
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
   ffi::Array<StringImm> message_parts;
 
@@ -185,7 +193,9 @@ class AssertStmt : public Stmt {
   TVM_DLL AssertStmt(PrimExpr condition, StringImm error_kind, ffi::Array<StringImm> message_parts,
                      Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
+  explicit AssertStmt(ffi::ObjectPtr<AssertStmtNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertStmt, Stmt, AssertStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AssertStmtNode);
 };
 
@@ -202,9 +212,9 @@ class AssertStmt : public Stmt {
 class BufferStoreNode : public StmtNode {
  public:
   /*! \brief The buffer variable. */
-  BufferVar buffer;
+  BufferVar buffer{ffi::UnsafeInit{}};
   /*! \brief The value to be stored. */
-  PrimExpr value;
+  PrimExpr value{ffi::UnsafeInit{}};
   /*! \brief The indices location to be stored. */
   ffi::Array<PrimExpr> indices;
 
@@ -227,7 +237,9 @@ class BufferStore : public Stmt {
   TVM_DLL explicit BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                                Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferStore, Stmt, BufferStoreNode);
+  explicit BufferStore(ffi::ObjectPtr<BufferStoreNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferStore, Stmt, BufferStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
@@ -263,7 +275,7 @@ class SeqStmtNode : public StmtNode {
 class EvaluateNode : public StmtNode {
  public:
   /*! \brief The expression to be evaluated. */
-  Expr value;
+  Expr value{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -282,7 +294,9 @@ class Evaluate : public Stmt {
 
   explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Evaluate, Stmt, EvaluateNode);
+  explicit Evaluate(ffi::ObjectPtr<EvaluateNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Evaluate, Stmt, EvaluateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(EvaluateNode);
 };
 
@@ -382,6 +396,10 @@ class SeqStmt : public Stmt {
       return std::nullopt;
     }
 
+    void operator()(size_t i, const ffi::Optional<Stmt>& stmt) const {
+      if (stmt.has_value()) (*this)(i, stmt.value());
+    }
+
     template <typename T>
     void operator()(size_t i, const T& stmt_or_seq) const {
       if constexpr (std::is_base_of_v<ObjectRef, T>) {
@@ -433,7 +451,9 @@ class SeqStmt : public Stmt {
     ffi::Array<Stmt>* seq_;
   };
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SeqStmt, Stmt, SeqStmtNode);
+  explicit SeqStmt(ffi::ObjectPtr<SeqStmtNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SeqStmt, Stmt, SeqStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqStmtNode);
 };
 
@@ -443,9 +463,9 @@ class SeqStmt : public Stmt {
 class IfThenElseNode : public StmtNode {
  public:
   /*! \brief The condition. */
-  PrimExpr condition;
+  PrimExpr condition{ffi::UnsafeInit{}};
   /*! \brief The branch to be executed when condition is true. */
-  Stmt then_case;
+  Stmt then_case{ffi::UnsafeInit{}};
   /*! \brief The branch to be executed when condition is false, can be null. */
   ffi::Optional<Stmt> else_case;
 
@@ -468,7 +488,9 @@ class IfThenElse : public Stmt {
   TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case,
                      ffi::Optional<Stmt> else_case = std::nullopt, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IfThenElse, Stmt, IfThenElseNode);
+  explicit IfThenElse(ffi::ObjectPtr<IfThenElseNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfThenElse, Stmt, IfThenElseNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfThenElseNode);
 };
 
@@ -513,15 +535,15 @@ enum class ForKind : int {
 class ForNode : public StmtNode {
  public:
   /*! \brief The loop variable. */
-  PrimVar loop_var;
+  PrimVar loop_var{ffi::UnsafeInit{}};
   /*! \brief The minimum value of iteration. */
-  PrimExpr min;
+  PrimExpr min{ffi::UnsafeInit{}};
   /*! \brief The extent of the iteration. */
-  PrimExpr extent;
+  PrimExpr extent{ffi::UnsafeInit{}};
   /*! \brief The kind of the for loop. */
   ForKind kind;
   /*! \brief The body of the for loop. */
-  Stmt body;
+  Stmt body{ffi::UnsafeInit{}};
   /*!
    * \brief Only valid when kind == ForKind::kThreadBinding
    * The context thread that this loop variable bounds to.
@@ -571,7 +593,9 @@ class For : public Stmt {
               ffi::Map<ffi::String, ffi::Any> annotations = {},
               ffi::Optional<PrimExpr> step = std::nullopt, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(For, Stmt, ForNode);
+  explicit For(ffi::ObjectPtr<ForNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(For, Stmt, ForNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
 };
 
@@ -588,9 +612,9 @@ class For : public Stmt {
 class WhileNode : public StmtNode {
  public:
   /*! \brief The termination condition. */
-  PrimExpr condition;
+  PrimExpr condition{ffi::UnsafeInit{}};
   /*! \brief The body of the while loop. */
-  Stmt body;
+  Stmt body{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -609,7 +633,9 @@ class While : public Stmt {
  public:
   TVM_DLL While(PrimExpr condition, Stmt body, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(While, Stmt, WhileNode);
+  explicit While(ffi::ObjectPtr<WhileNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(While, Stmt, WhileNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(WhileNode);
 };
 
@@ -619,7 +645,7 @@ class While : public Stmt {
 class ReturnNode : public StmtNode {
  public:
   /*! \brief The value to return. */
-  Expr value;
+  Expr value{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -637,7 +663,9 @@ class Return : public Stmt {
  public:
   TVM_DLL explicit Return(Expr value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Return, Stmt, ReturnNode);
+  explicit Return(ffi::ObjectPtr<ReturnNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Return, Stmt, ReturnNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReturnNode);
 };
 
@@ -662,7 +690,9 @@ class Break : public Stmt {
  public:
   TVM_DLL explicit Break(Span span);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Break, Stmt, BreakNode);
+  explicit Break(ffi::ObjectPtr<BreakNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Break, Stmt, BreakNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BreakNode);
 };
 
@@ -687,7 +717,9 @@ class Continue : public Stmt {
  public:
   TVM_DLL explicit Continue(Span span);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Continue, Stmt, ContinueNode);
+  explicit Continue(ffi::ObjectPtr<ContinueNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Continue, Stmt, ContinueNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ContinueNode);
 };
 
@@ -716,7 +748,9 @@ class ScopeIdDefStmt : public Stmt {
  public:
   TVM_DLL ScopeIdDefStmt(ScopeIdDef def, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScopeIdDefStmt, Stmt, ScopeIdDefStmtNode);
+  explicit ScopeIdDefStmt(ffi::ObjectPtr<ScopeIdDefStmtNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScopeIdDefStmt, Stmt, ScopeIdDefStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ScopeIdDefStmtNode);
 };
 

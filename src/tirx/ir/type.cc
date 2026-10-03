@@ -211,8 +211,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferRegionTypeMaybeIn
 }  // namespace
 
 TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                       ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
-                       int offset_factor, ffi::Optional<Layout> layout,
+                       ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
+                       int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
                        ffi::Array<PrimExpr> allocated_addr, Span span)
     : Type(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<TensorTypeNode>();
@@ -220,10 +220,7 @@ TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<Pri
   n->storage_scope = storage_scope.empty() ? ffi::String("global") : std::move(storage_scope);
   n->shape = std::move(shape);
   n->strides = std::move(strides);
-  if (!elem_offset.defined()) {
-    elem_offset = IntImm(PrimType(n->DefaultIndexType()), 0);
-  }
-  n->elem_offset = std::move(elem_offset);
+  n->elem_offset = elem_offset.value_or(IntImm(PrimType(n->DefaultIndexType()), 0));
   n->data_alignment =
       data_alignment <= 0 ? static_cast<int>(runtime::kAllocAlignment) : data_alignment;
   n->offset_factor = offset_factor == 0 ? 1 : offset_factor;
@@ -245,10 +242,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&TensorTypeMaybeInplaceMutate>());
 
   refl::GlobalDef().def(
-      "tirx.TensorType",
-      [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-         ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment, int offset_factor,
-         ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr, Span span) {
+      "tirx.TensorType", [](ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
+                            ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
+                            int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
+                            ffi::Array<PrimExpr> allocated_addr, Span span) {
         return TensorType(std::move(storage_scope), std::move(dtype), std::move(shape),
                           std::move(strides), std::move(elem_offset), data_alignment, offset_factor,
                           std::move(layout), std::move(allocated_addr), std::move(span));

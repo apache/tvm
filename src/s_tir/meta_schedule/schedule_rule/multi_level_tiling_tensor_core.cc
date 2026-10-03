@@ -158,9 +158,9 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
   // Subrule: Add software pipeline
   inline std::vector<State> AddSoftwarePipeline(TensorCoreState state) const;
   // Subrule: split loop for mma using sample partitioned tile
-  inline std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>> MMASplitLoop(
-      const Schedule& sch, SBlockRV block, LoopRV loop, int n_tiles, int partition_pos,
-      int innerpart_factor) const;
+  inline std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>>
+  MMASplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop, int n_tiles, int partition_pos,
+               int innerpart_factor) const;
   // Subrule: tile loop nest for mma
   // Basically same with MultiLevelTilingNode::TileLoopNest, but change SamplePerfectTile to
   // SamplePartitionedTile
@@ -337,17 +337,18 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMAAddReadReuse(TensorCoreSta
   return results;
 }
 
-std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>>
+std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>>
 MultiLevelTilingTensorCoreNode::MMASplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop,
                                              int n_tiles, int partition_pos,
                                              int innerpart_factor) const {
-  ffi::Array<s_tir::ExprRV> factors = sch->SamplePartitionedTile(
+  auto sampled_factors = sch->SamplePartitionedTile(
       /*loop=*/loop,
       /*n=*/n_tiles,
       /*partition_pos=*/partition_pos,
       /*innerpart_factor=*/innerpart_factor);
+  ffi::Array<ffi::Optional<s_tir::ExprRV>> factors(sampled_factors.begin(), sampled_factors.end());
   ffi::Array<s_tir::LoopRV> splits = sch->Split(/*loop=*/loop,
-                                                /*factors=*/{factors.begin(), factors.end()});
+                                                /*factors=*/factors);
   return {factors, splits};
 }
 
@@ -366,7 +367,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::MMATileLoopNest(TensorCoreSta
   int64_t spatial_loop_product = 1;
   std::vector<ffi::Array<LoopRV>> tiles(s_indices_.size() + r_indices_.size());
   state->tile_factors.resize(tiles.size());
-  std::vector<ffi::Array<s_tir::ExprRV>> tile_factors;
+  std::vector<ffi::Array<ffi::Optional<s_tir::ExprRV>>> tile_factors;
   tile_factors.resize(tiles.size());
   for (int i = 0, n = loops.size(); i < n; ++i) {
     LoopRV loop = loops[i];
@@ -468,7 +469,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
   // This function computes the product of tile_factors[i][loop_idx] for i > tile_index_warp_id.
   // `loop_idx` can be negative, in which case it is counted from the end.
   auto f_get_inner_tile_product = [&](int loop_idx) {
-    ffi::Array<s_tir::ExprRV> factors;
+    ffi::Array<ffi::Optional<s_tir::ExprRV>> factors;
     for (int i = tile_index_warp_id + 1; i < static_cast<int>(s_indices_.size()); ++i) {
       auto s_factors = state->tile_factors[s_indices_[i]];
       if (loop_idx < 0) {
@@ -478,11 +479,11 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
     }
     TVM_FFI_ICHECK(!factors.empty());
     if (factors.size() == 1) {
-      return factors[0];
+      return factors[0].value();
     }
-    auto result = factors[0];
+    auto result = factors[0].value();
     for (int i = 1; i < static_cast<int>(factors.size()); ++i) {
-      result = result * factors[i];
+      result = result * factors[i].value();
     }
     return result;
   };
@@ -812,7 +813,8 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   std::unordered_set<PrimVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> unmapped_index_map_src;
   TVM_FFI_ICHECK_EQ(mapping_info->lhs_iters.size(), index_map->initial_indices.size());
   for (int i = 0; i < static_cast<int>(mapping_info->lhs_iters.size()); ++i) {
-    lhs_to_index_map_src[mapping_info->lhs_iters[i]->var] = index_map->initial_indices[i];
+    lhs_to_index_map_src.insert_or_assign(mapping_info->lhs_iters[i]->var,
+                                          index_map->initial_indices[i]);
   }
   // The number of result iters in the index map is equal or more than the number of rhs (the
   // tensor intrin) iters. When there are extra iters, these iters represent unmapped iters from
@@ -828,7 +830,8 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     unmapped_index_map_src.insert(var.value());
   }
   for (int i = offset; i < static_cast<int>(index_map->final_indices.size()); ++i) {
-    rhs_to_index_map_tgt[mapping_info->rhs_iters[i - offset]->var] = index_map->final_indices[i];
+    rhs_to_index_map_tgt.insert_or_assign(mapping_info->rhs_iters[i - offset]->var,
+                                          index_map->final_indices[i]);
   }
 
   auto f_get_sub_index_map = [&](const tirx::BufferVar& lhs_buffer,
@@ -840,7 +843,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
       TVM_FFI_ICHECK(tvm::prim::is_one(range->extent));
       auto var = range->min.as<PrimVar>();
       TVM_FFI_ICHECK(var.has_value());
-      const PrimVar& lhs_representer = lhs_to_index_map_src[var.value()];
+      const PrimVar& lhs_representer = lhs_to_index_map_src.at(var.value());
       sub_index_map_src.push_back(lhs_representer);
       if (unmapped_index_map_src.count(lhs_representer)) {
         sub_index_map_tgt.push_back(lhs_representer);
@@ -849,7 +852,7 @@ ffi::Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     for (size_t i = 0; i < mapping_info->rhs_buffer_indices[rhs_buffer].size(); ++i) {
       auto var = mapping_info->rhs_buffer_indices[rhs_buffer][i].as<PrimVar>();
       TVM_FFI_ICHECK(var.has_value());
-      sub_index_map_tgt.push_back(rhs_to_index_map_tgt[var.value()]);
+      sub_index_map_tgt.push_back(rhs_to_index_map_tgt.at(var.value()));
     }
     return tirx::IndexMap(sub_index_map_src, sub_index_map_tgt);
   };

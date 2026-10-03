@@ -71,7 +71,9 @@ class LCADetector : public s_tir::StmtExprVisitor {
     for (const auto& kv : detector->buffer_lca_) {
       BufferVar buffer = ffi::GetRef<Var>(kv.first).as_or_throw<BufferVar>();
       const ffi::Optional<Stmt> stmt =
-          kv.second ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(kv.second->stmt)) : std::nullopt;
+          kv.second && kv.second->stmt
+              ? ffi::Optional<Stmt>(ffi::GetRef<Stmt>(kv.second->stmt))
+              : std::nullopt;
       buffer_lca.Set(buffer, stmt);
     }
     return buffer_lca;

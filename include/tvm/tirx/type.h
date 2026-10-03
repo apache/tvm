@@ -80,7 +80,7 @@ class TensorTypeNode : public TypeNode {
    */
   ffi::Array<PrimExpr> strides;
   /*! \brief The offset in terms of number of dtype elements (including lanes) */
-  PrimExpr elem_offset;
+  PrimExpr elem_offset{ffi::UnsafeInit{}};
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
   /*!
@@ -155,8 +155,9 @@ class TensorTypeNode : public TypeNode {
 class TensorType : public Type {
  public:
   TVM_DLL TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<PrimExpr> shape,
-                     ffi::Array<PrimExpr> strides, PrimExpr elem_offset, int data_alignment,
-                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                     ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
+                     int data_alignment, int offset_factor,
+                     ffi::Optional<Layout> layout = std::nullopt,
                      ffi::Array<PrimExpr> allocated_addr = {}, Span span = Span());
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorType, Type, TensorTypeNode);

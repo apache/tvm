@@ -188,14 +188,15 @@ std::vector<State> MultiLevelTilingNode::AddWriteReuse(State state) const {
   return results;
 }
 
-std::pair<ffi::Array<s_tir::ExprRV>, ffi::Array<s_tir::LoopRV>> MultiLevelTilingNode::SplitLoop(
-    const Schedule& sch, SBlockRV block, LoopRV loop, int n_tiles) const {
-  ffi::Array<s_tir::ExprRV> factors = sch->SamplePerfectTile(
+std::pair<ffi::Array<ffi::Optional<s_tir::ExprRV>>, ffi::Array<s_tir::LoopRV>>
+MultiLevelTilingNode::SplitLoop(const Schedule& sch, SBlockRV block, LoopRV loop,
+                                int n_tiles) const {
+  ffi::Array<ffi::Optional<s_tir::ExprRV>> factors = sch->SamplePerfectTile(
       /*loop=*/loop,
       /*n=*/n_tiles,
       /*max_innermost_factor=*/max_innermost_factor);
   ffi::Array<s_tir::LoopRV> splits = sch->Split(/*loop=*/loop,
-                                                /*factors=*/{factors.begin(), factors.end()});
+                                                /*factors=*/factors);
   return {factors, splits};
 }
 
@@ -221,7 +222,7 @@ std::vector<State> MultiLevelTilingNode::TileLoopNest(State state,
   ffi::Array<LoopRV> skipped_outer_spatial_loops;
   std::vector<ffi::Array<LoopRV>> tiles(s_indices_.size() + r_indices_.size());
   state->tile_factors.resize(tiles.size());
-  std::vector<ffi::Array<s_tir::ExprRV>> tile_factors;
+  std::vector<ffi::Array<ffi::Optional<s_tir::ExprRV>>> tile_factors;
   tile_factors.resize(tiles.size());
   for (int i = 0, n = loops.size(); i < n; ++i) {
     LoopRV loop = loops[i];

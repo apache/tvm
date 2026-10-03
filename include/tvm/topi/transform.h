@@ -251,7 +251,7 @@ inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<int64_t>> opt_
  * Input is first sliced along batch axis and then elements are reversed along seq axis.
  *
  * \param x The input tensor
- * \param seq_lengths A 1D Tensor with length x.dims[batch_axis]. Optional Tensor() can be passed.
+ * \param seq_lengths A 1D Tensor with length x.dims[batch_axis]. Pass std::nullopt to omit it.
  * If not defined batch axis is ignored and tensor is reversed along seq_axis.
  * \param seq_axis The axis along which the elements will be reveresed
  * \param batch_axis The axis along which the tensor will be sliced
@@ -260,14 +260,15 @@ inline Tensor transpose(const Tensor& x, ffi::Optional<ffi::Array<int64_t>> opt_
  *
  * \return A Tensor whose op member is the reverse_sequence operation
  */
-inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int seq_axis = 1,
-                               int batch_axis = 0, std::string name = "T_reverse_sequence",
+inline Tensor reverse_sequence(const Tensor& x, const ffi::Optional<Tensor>& seq_lengths,
+                               int seq_axis = 1, int batch_axis = 0,
+                               std::string name = "T_reverse_sequence",
                                std::string tag = kInjective) {
   size_t src_tensor_dim = x->shape.size();
   int seq_axis_inp = seq_axis;
 
-  if (seq_lengths.defined()) {
-    size_t seq_lengths_dim = seq_lengths->shape.size();
+  if (seq_lengths.has_value()) {
+    size_t seq_lengths_dim = seq_lengths.value()->shape.size();
     int batch_axis_inp = batch_axis;
     if (batch_axis < 0) {
       batch_axis = static_cast<int>(x->shape.size()) + batch_axis;
@@ -275,10 +276,10 @@ inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int s
 
     TVM_FFI_ICHECK(seq_lengths_dim == 1) << "seq_lengths should be 1D vector";
 
-    TVM_FFI_ICHECK(GetConstInt(seq_lengths->shape[0]) == GetConstInt(x->shape[batch_axis]))
+    TVM_FFI_ICHECK(GetConstInt(seq_lengths.value()->shape[0]) == GetConstInt(x->shape[batch_axis]))
         << "For reverse_sequnece seq_lengths size should match with dimension of batch axis"
         << ", but got dimension of batch_axis = " << GetConstInt(x->shape[batch_axis])
-        << ", and seq_length size = " << GetConstInt(seq_lengths->shape[0]);
+        << ", and seq_length size = " << GetConstInt(seq_lengths.value()->shape[0]);
 
     TVM_FFI_ICHECK((0 <= batch_axis) && (batch_axis < static_cast<int>(x->shape.size())))
         << "batch_axis=" << batch_axis_inp << " is invalid for the "
@@ -296,8 +297,8 @@ inline Tensor reverse_sequence(const Tensor& x, const Tensor& seq_lengths, int s
     ffi::Array<PrimExpr> real_indices;
     for (size_t i = 0; i < src_tensor_dim; ++i) {
       if (i == static_cast<size_t>(seq_axis)) {
-        if (seq_lengths.defined()) {
-          auto len = seq_lengths(indices[batch_axis]);
+        if (seq_lengths.has_value()) {
+          auto len = seq_lengths.value()(indices[batch_axis]);
           auto idx = if_then_else(
               len <= 1 || len <= indices[i], indices[i],
               if_then_else(len > x->shape[i], x->shape[i] - 1 - indices[i], len - 1 - indices[i]));
@@ -606,12 +607,8 @@ inline ffi::Array<Tensor> split_indices_array(const Tensor& x, ffi::Array<PrimEx
 
   ffi::Array<ffi::Array<PrimExpr>> out_shapes;
   for (size_t i = 0; i < begin_ids.size(); ++i) {
-    PrimExpr out_axis_size;
-    if (i == begin_ids.size() - 1) {
-      out_axis_size = src_axis_size - begin_ids[i];
-    } else {
-      out_axis_size = begin_ids[i + 1] - begin_ids[i];
-    }
+    PrimExpr out_axis_size =
+        (i == begin_ids.size() - 1 ? src_axis_size : begin_ids[i + 1]) - begin_ids[i];
 
     ffi::Array<PrimExpr> shape;
     for (size_t i = 0; i < static_cast<size_t>(axis); ++i) {
@@ -1763,25 +1760,26 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, ffi::Array<Pr
 inline Tensor arange(const PrimExpr& start, const PrimExpr& stop, const PrimExpr& step,
                      PrimType dtype, std::string name = "T_arange", std::string tag = kInjective) {
   sym::Analyzer analyzer;
-  PrimExpr num_elem;
   PrimType start_ty = start.ty();
   PrimType stop_ty = stop.ty();
   PrimType step_ty = step.ty();
   bool is_all_int = start_ty.code() == DLDataTypeCode::kDLInt &&
                     stop_ty.code() == DLDataTypeCode::kDLInt &&
                     step_ty.code() == DLDataTypeCode::kDLInt;
-  if (is_all_int && analyzer->CanProveGreaterEqual(step, 1)) {
-    // fast path for integer arange when step is positive
-    num_elem = tvm::floordiv((stop - start + step - 1), step);
-  } else if (is_all_int && analyzer->CanProveLess(step, 0)) {
-    // fast path for integer arange when step is negative
-    num_elem = tvm::floordiv((start - stop - step - 1), -step);
-  } else {
-    // fallback path for non-integer or step of unknown sign
-    num_elem =
-        tvm::prim::cast(PrimType(DefaultIndexType()),
-                        tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), stop - start) / step));
-  }
+  PrimExpr num_elem = [&]() -> PrimExpr {
+    if (is_all_int && analyzer->CanProveGreaterEqual(step, 1)) {
+      // fast path for integer arange when step is positive
+      return tvm::floordiv((stop - start + step - 1), step);
+    } else if (is_all_int && analyzer->CanProveLess(step, 0)) {
+      // fast path for integer arange when step is negative
+      return tvm::floordiv((start - stop - step - 1), -step);
+    } else {
+      // fallback path for non-integer or step of unknown sign
+      return tvm::prim::cast(
+          PrimType(DefaultIndexType()),
+          tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), stop - start) / step));
+    }
+  }();
   num_elem = analyzer->Simplify(num_elem);
 
   return compute(
@@ -2169,10 +2167,10 @@ inline Tensor sparse_to_dense(const Tensor& sparse_indices,
           }
         } else {
           for (int j = 0; j < GetConstInt(sparse_indices->shape[0]); j++) {
-            PrimExpr aggregate_condition;
+            PrimExpr aggregate_condition = IntImm::Bool(true);
             for (int k = 0; k < GetConstInt(sparse_indices->shape[1]); k++) {
               PrimExpr comparision = indices[k].as_or_throw<PrimExpr>() == sparse_indices[j][k];
-              aggregate_condition = 0 == k ? comparision : aggregate_condition && comparision;
+              aggregate_condition = aggregate_condition && comparision;
             }
             ret = if_then_else(aggregate_condition, sparse_values[j], ret);
           }
@@ -2207,15 +2205,13 @@ inline Tensor matrix_set_diag(const Tensor& input, const Tensor& diagonal, int k
       [&](const ffi::Array<PrimVar>& iter_vars) {
         auto get_diag = [&]() {
           ffi::Array<PrimExpr> diagonal_indices;
-          PrimExpr k, offset = 0;
+          PrimExpr k = only_one_diagonal ? PrimExpr(k1) : iter_vars[ndim] - iter_vars[ndim - 1];
+          PrimExpr offset = 0;
           for (size_t i = 0; i < ndim - 1; i++) {
             diagonal_indices.push_back(iter_vars[i]);
           }
-          if (only_one_diagonal) {
-            k = k1;
-          } else {
+          if (!only_one_diagonal) {
             // Determining which diagonal/sub-diagonal/super-diagonal it is
-            k = iter_vars[ndim] - iter_vars[ndim - 1];
             diagonal_indices.push_back(k2 - k);
 
             // Calculating the offset in diagonal tensor for this diagonal

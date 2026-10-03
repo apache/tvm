@@ -137,13 +137,8 @@ class DataflowReshapeRewriter : public ExprMutator {
       return false;
     }
     auto product = [](ffi::Array<PrimExpr> args) -> PrimExpr {
-      PrimExpr p;
-      if (args.empty()) {
-        // Scalar tensors may be empty indicating a single element.
-        p = 1;
-      } else {
-        p = args[0];
-      }
+      // Scalar tensors may be empty indicating a single element.
+      PrimExpr p = args.empty() ? PrimExpr(1) : args[0];
       for (int i = 1, e = args.size(); i < e; ++i) p *= args[i];
       return p;
     };

@@ -159,7 +159,6 @@ class OpaqueBlockLower : public StmtExprMutator {
     } else {
       TVM_FFI_THROW(InternalError) << "Illegal attribute of key " << key << ", value type "
                                    << obj.GetTypeKey() << " not supported";
-      return Expr();
     }
   }
 
@@ -207,8 +206,9 @@ namespace transform {
 
 Pass LowerOpaqueBlock() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body));
+    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerOpaqueBlock", {});

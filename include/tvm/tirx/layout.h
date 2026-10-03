@@ -182,8 +182,8 @@ class Axis : public ffi::Enum {
 
 class IterNode : public ffi::Object {
  public:
-  PrimExpr extent;
-  PrimExpr stride;
+  PrimExpr extent{ffi::UnsafeInit{}};
+  PrimExpr stride{ffi::UnsafeInit{}};
   Axis axis;
 
   static void RegisterReflection() {

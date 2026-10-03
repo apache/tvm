@@ -160,6 +160,7 @@ struct GlobalCollectInfo : public BaseCollectInfo {
   ffi::Array<Var> GetCompileTimeOutputs() const { return GetCompileTimeOutputsHelper(params); }
 };
 struct LocalCollectInfo : public BaseCollectInfo {
+  explicit LocalCollectInfo(Function func) : orig_func(std::move(func)) {}
   /* \brief The analyzed function */
   Function orig_func;
 
@@ -378,9 +379,8 @@ class BaseLiftableBindingCollector : public ExprVisitor {
 class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
  public:
   static LocalCollectInfo Collect(const Function& func, GlobalCollectInfo* global_info) {
-    LocalLiftableBindingCollector visitor(global_info);
+    LocalLiftableBindingCollector visitor(func, global_info);
     visitor(func);
-    visitor.info_.orig_func = func;
 
     auto set_union =
         [&](std::unordered_set<Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& target_set,
@@ -405,7 +405,8 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
   }
 
  private:
-  explicit LocalLiftableBindingCollector(GlobalCollectInfo* global_info) {
+  LocalLiftableBindingCollector(Function func, GlobalCollectInfo* global_info)
+      : info_(std::move(func)) {
     info_.global_info = global_info;
   }
   void VisitExpr_(const FunctionNode* func) override {
@@ -645,7 +646,7 @@ class ConsumeBundledParams : public ExprMutator {
       }
       ExprMutator::VisitBinding_(binding, tuple_get_item);
       auto new_var = VisitExpr(binding->var);
-      param_remap_[tuple_get_item->index] = new_var;
+      param_remap_.insert_or_assign(tuple_get_item->index, new_var);
       builder_->Emit(Call::Unchecked(
           Type::Missing(), call_pure_packed,
           {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
@@ -666,7 +667,7 @@ class ConsumeBundledParams : public ExprMutator {
   }
 
  private:
-  Var params_;
+  Var params_{ffi::UnsafeInit{}};
   std::unordered_map<int, Expr> param_remap_;
 };
 
@@ -745,7 +746,7 @@ Pass PartitionTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared
     for (const auto& [gvar, func] : target_functions) {
       auto info = LocalLiftableBindingCollector::Collect(
           func, global_collect_info.has_value() ? &global_collect_info.value() : nullptr);
-      local_collect_info[gvar] = info;
+      local_collect_info.insert_or_assign(gvar, info);
     }
 
     IRModule updated_runtime_functions;
@@ -813,7 +814,7 @@ Pass LiftTransformParams(ffi::Variant<bool, ffi::Array<ffi::String>> shared_tran
           if (pc->GetConfig<bool>(kLiftTransformConsumeParams).value_or(false)) {
             func = ConsumeBundledParams()(func).as_or_throw<Function>();
           }
-          to_add[gvar] = func;
+          to_add.insert_or_assign(gvar, func);
         }
       }
     }

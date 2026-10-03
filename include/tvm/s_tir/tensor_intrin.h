@@ -35,9 +35,9 @@ namespace s_tir {
 class TensorIntrinNode : public ffi::Object {
  public:
   /*! \brief The function to describe the computation. */
-  tirx::PrimFunc desc;
+  tirx::PrimFunc desc{ffi::UnsafeInit{}};
   /*! \brief The function of the implementation for the execution. */
-  tirx::PrimFunc impl;
+  tirx::PrimFunc impl{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

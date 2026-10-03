@@ -108,7 +108,7 @@ class ReduceNode : public OpaqueExprNode {
    * \brief Predicate on the reduction
    *  Only add the body to reduction if condition is true.
    */
-  PrimExpr condition;
+  PrimExpr condition{ffi::UnsafeInit{}};
   /*! \brief the index of this reduce node */
   int value_index;
 
@@ -132,9 +132,11 @@ class ReduceNode : public OpaqueExprNode {
 class Reduce : public PrimExpr {
  public:
   TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<tirx::IterVar> rdom,
-                 PrimExpr condition, int value_index, ffi::Array<PrimExpr> init,
+                 ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
                  Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Reduce, PrimExpr, ReduceNode);
+  explicit Reduce(ffi::ObjectPtr<ReduceNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Reduce, PrimExpr, ReduceNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
 };
@@ -359,7 +361,7 @@ class ExternOpNode : public OperationNode {
   /*! \brief Symbolic placeholder representation of outputs */
   ffi::Array<BufferVar> output_placeholders;
   /*! \brief the statement that generates the computation. */
-  Stmt body;
+  Stmt body{ffi::UnsafeInit{}};
 
   /*! \brief constructor */
   ExternOpNode() {}

@@ -42,11 +42,11 @@ namespace prim {
 class RampNode : public ExprNode {
  public:
   /*! \brief The base value. */
-  PrimExpr base;
+  PrimExpr base{ffi::UnsafeInit{}};
   /*! \brief The stride of each step. */
-  PrimExpr stride;
+  PrimExpr stride{ffi::UnsafeInit{}};
   /*! \brief Total number of lanes. */
-  PrimExpr lanes;
+  PrimExpr lanes{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RampNode>()
@@ -64,7 +64,9 @@ class RampNode : public ExprNode {
 class Ramp : public PrimExpr {
  public:
   TVM_DLL Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Ramp, PrimExpr, RampNode);
+  explicit Ramp(ffi::ObjectPtr<RampNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Ramp, PrimExpr, RampNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RampNode);
 };
@@ -73,9 +75,9 @@ class Ramp : public PrimExpr {
 class BroadcastNode : public ExprNode {
  public:
   /*! \brief The base value. */
-  PrimExpr value;
+  PrimExpr value{ffi::UnsafeInit{}};
   /*! \brief The number of lanes. */
-  PrimExpr lanes;
+  PrimExpr lanes{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BroadcastNode>()
@@ -92,7 +94,9 @@ class BroadcastNode : public ExprNode {
 class Broadcast : public PrimExpr {
  public:
   TVM_DLL Broadcast(PrimExpr value, PrimExpr lanes, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Broadcast, PrimExpr, BroadcastNode);
+  explicit Broadcast(ffi::ObjectPtr<BroadcastNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Broadcast, PrimExpr, BroadcastNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BroadcastNode);
 };
@@ -126,7 +130,9 @@ class Shuffle : public PrimExpr {
   TVM_DLL Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span = Span());
   TVM_DLL static PrimExpr Concat(ffi::Array<PrimExpr> vectors, Span span = Span());
   TVM_DLL static PrimExpr ExtractElement(PrimExpr vector, int index, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Shuffle, PrimExpr, ShuffleNode);
+  explicit Shuffle(ffi::ObjectPtr<ShuffleNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Shuffle, PrimExpr, ShuffleNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ShuffleNode);
 };

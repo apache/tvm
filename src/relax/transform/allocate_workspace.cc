@@ -46,7 +46,7 @@ class ExternFunctionRewriter : ExprMutator {
     std::unordered_map<const GlobalVarNode*, Function> ret;
     for (const auto& [gvar, f] : builder_->GetContextIRModule()->functions) {
       if (f->GetAttr<int64_t>(attr::kWorkspaceSize)) {
-        ret[gvar.get()] = VisitExpr(f).as_or_throw<Function>();
+        ret.insert_or_assign(gvar.get(), VisitExpr(f).as_or_throw<Function>());
       }
     }
     return ret;
@@ -87,7 +87,7 @@ class ExternFunctionRewriter : ExprMutator {
         // a workspace as the last parameter.
         auto new_args = call_node->args;
         TVM_FFI_ICHECK(workspace_var_param_.defined());
-        new_args.push_back(workspace_var_param_);
+        new_args.push_back(workspace_var_param_.value());
         return Call::Unchecked(Type::Missing(), new_op, new_args, call_node->attrs,
                                call_node->ty_args, call_node->span);
       }
@@ -98,7 +98,7 @@ class ExternFunctionRewriter : ExprMutator {
  private:
   UniqueNameSupply name_sup_;
   /*! \brief A variable that represents the workspace parameter passed from main. */
-  Var workspace_var_param_;
+  ffi::Optional<Var> workspace_var_param_;
   size_t max_workspace_size_ = 0;
 };
 
@@ -127,13 +127,13 @@ class WorkspaceProvider : ExprMutator {
       // as the actual name of the global variable.
       builder_->UpdateFunction(new_gvar,
                                WithAttr(f, tvm::attr::kGlobalSymbol, new_gvar->name_hint));
-      gvar_map_[gvar] = new_gvar;
+      gvar_map_.insert_or_assign(gvar, new_gvar);
       new_gvars_.insert(new_gvar);
       builder_->GetContextIRModule()->Remove(ffi::GetRef<GlobalVar>(gvar));
     }
 
     for (const auto& [gvar, f] : mod_->functions) {
-      workspace_var_main_ = Var();
+      workspace_var_main_ = std::nullopt;
       if (!f->IsInstance<relax::FunctionNode>() || f->GetAttr<ffi::String>(attr::kCodegen) ||
           f->GetAttr<ffi::String>(attr::kComposite)) {
         continue;
@@ -162,7 +162,7 @@ class WorkspaceProvider : ExprMutator {
 
   Expr VisitExpr_(const GlobalVarNode* gvar_node) override {
     if (gvar_map_.count(gvar_node)) {
-      return gvar_map_[gvar_node];
+      return gvar_map_.at(gvar_node);
     }
     return ExprMutator::VisitExpr_(gvar_node);
   }
@@ -174,7 +174,7 @@ class WorkspaceProvider : ExprMutator {
       if (new_gvars_.count(gv.value())) {
         auto new_args = call_node->args;
         TVM_FFI_ICHECK(workspace_var_main_.defined());
-        new_args.push_back(workspace_var_main_);
+        new_args.push_back(workspace_var_main_.value());
         return Call::Unchecked(Type::Missing(), new_op, new_args, call_node->attrs,
                                call_node->ty_args, call_node->span);
       }
@@ -186,7 +186,7 @@ class WorkspaceProvider : ExprMutator {
  private:
   IRModule mod_;
   /*! \brief A variable that represents the workspace created at the beginning of main. */
-  Var workspace_var_main_;
+  ffi::Optional<Var> workspace_var_main_;
   size_t max_workspace_size_ = 0;
   /*! \brief A map from old global variables representing a function with workspace requirement to
    * the new ones that are transformed to take an additional workspace parameter. This is only

@@ -55,7 +55,7 @@ std::vector<PrimExpr> GetDefaultStrides(const ffi::Array<PrimExpr>& data, PrimEx
   std::vector<PrimExpr> strides;
   if (data.empty()) return strides;
   size_t n = data.size();
-  strides.resize(n);
+  strides.reserve(n);
   // Promote ``initial_stride`` (an IntImm constructed from `1`, defaults to
   // int32) to the dtype of the shape extents so the resulting strides
   // match what the tvmscript parser produces (``stride *= shape[i]`` in
@@ -66,9 +66,10 @@ std::vector<PrimExpr> GetDefaultStrides(const ffi::Array<PrimExpr>& data, PrimEx
     current_stride = IntImm(data[0].ty(), imm->value);
   }
   for (int i = static_cast<int>(n) - 1; i >= 0; --i) {
-    strides[i] = current_stride;
+    strides.push_back(current_stride);
     current_stride *= data[i];
   }
+  std::reverse(strides.begin(), strides.end());
   return strides;
 }
 

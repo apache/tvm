@@ -338,21 +338,20 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
   void VisitExpr_(const CallNode* call) final {
     static const Op call_tir_op = Op::Get("relax.call_tir");
-    GlobalVar gv;
+    ffi::Optional<GlobalVar> gv;
     ffi::Array<Attrs> op_attrs;
     ffi::Optional<int64_t> op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);
-    Tuple func_args;
+    Tuple func_args =
+        call->op.same_as(call_tir_op) ? call->args[1].as_or_throw<Tuple>() : Tuple(call->args);
 
     if (call->op.same_as(call_tir_op)) {
       gv = call->args[0].as_or_throw<GlobalVar>();
-      tirx::PrimFunc pfunc = mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>();
+      tirx::PrimFunc pfunc = mod_->Lookup(gv.value()).as_or_throw<tirx::PrimFunc>();
       op_attrs = ExtractAttrs<tirx::PrimFunc>(pfunc);
       op_pattern = ExtractPattern<tirx::PrimFunc>(pfunc);
-      func_args = call->args[1].as_or_throw<Tuple>();
     } else {
       op_attrs = {call->attrs};
       op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);
-      func_args = Tuple(call->args);
     }
 
     auto is_texture_supported = SupportsTexture(op_attrs, op_pattern.value());
@@ -628,16 +627,14 @@ class DefineVDevice : ExprMutator {
     auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
     static const Op call_tir_op = Op::Get("relax.call_tir");
 
-    GlobalVar gv;
-    Tuple func_args;
+    ffi::Optional<GlobalVar> gv;
+    Tuple func_args =
+        call->op.same_as(call_tir_op) ? call->args[1].as_or_throw<Tuple>() : Tuple(call->args);
 
     Type out_ty = Type::Missing();
 
     if (call->op.same_as(call_tir_op)) {
       gv = call->args[0].as_or_throw<GlobalVar>();
-      func_args = call->args[1].as_or_throw<Tuple>();
-    } else {
-      func_args = Tuple(call->args);
     }
 
     ffi::Array<Expr> new_args;
@@ -698,8 +695,9 @@ class DefineVDevice : ExprMutator {
     }
 
     if (call->op.same_as(call_tir_op)) {
-      return builder_->Normalize(Call::Unchecked(
-          Type::Missing(), call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_ty}));
+      return builder_->Normalize(Call::Unchecked(Type::Missing(), call_tir_op,
+                                                 {gv.value(), Tuple(new_args)}, call->attrs,
+                                                 {updated_ret_ty}));
     } else {
       return builder_->Normalize(
           Call::Unchecked(Type::Missing(), call->op, new_args, call->attrs, {updated_ret_ty}));

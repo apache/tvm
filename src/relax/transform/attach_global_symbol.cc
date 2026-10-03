@@ -84,7 +84,7 @@ IRModule ReplaceGlobalVarsInModule(IRModule mod, ffi::Map<GlobalVar, GlobalVar> 
 
   for (const auto& [old_gvar, old_func] : mod->functions) {
     auto new_gvar = replacements.Get(old_gvar).value_or(old_gvar);
-    BaseFunc new_func;
+    BaseFunc new_func = old_func;
 
     if (auto* prim_func_node = old_func.as<tirx::PrimFuncNode>()) {
       auto func = ffi::GetRef<tirx::PrimFunc>(prim_func_node);
@@ -151,7 +151,7 @@ Pass AttachGlobalSymbol() {
       // if (old_name) continue;
 
       ffi::Optional<ffi::String> new_name;
-      BaseFunc new_func;
+      BaseFunc new_func = func;
 
       if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
         new_name = c_prefix + gvar->name_hint;

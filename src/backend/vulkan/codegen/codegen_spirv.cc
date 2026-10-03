@@ -75,6 +75,8 @@ const VarNode* AsBufferVarNode(const Expr& expr) {
 CodeGenSPIRV::CodeGenSPIRV(Target target) : spirv_support_(target) {}
 
 runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::string& name) {
+  TVM_FFI_CHECK(f->body.has_value(), ValueError)
+      << "Kernel code generation requires a function body";
   this->InitFuncState();
   TVM_FFI_ICHECK(f->HasNonzeroAttr(tirx::attr::kNoAlias))
       << "SPIRV only takes restricted memory model";
@@ -137,7 +139,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
       }
     }
   }
-  this->Dispatch(f->body);
+  this->Dispatch(f->body.value());
   builder_->SetLocalSize(func_ptr, workgroup_size_);
   builder_->MakeInst(spv::OpReturn);
   builder_->MakeInst(spv::OpFunctionEnd);

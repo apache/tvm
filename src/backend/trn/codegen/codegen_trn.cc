@@ -76,6 +76,8 @@ CodeGenTrainium::CodeGenTrainium(Target target) : target_(target) {
 }
 
 void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  TVM_FFI_CHECK(func->body.has_value(), ValueError)
+      << "Kernel code generation requires a function body";
   // NOTE: There is no inter-function calls among Trainium kernels.
   // For now we keep the Trainium codegen without inter-function call
   // process.
@@ -132,7 +134,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // the function scope.
   stream << "):\n";
   int func_scope = this->BeginScope();
-  this->PrintStmt(func->body);
+  this->PrintStmt(func->body.value());
   this->PrintIndent();
   stream << "return ";
   for (size_t i = 0; i < output_vids.size(); i++) {
@@ -278,7 +280,7 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
 void CodeGenTrainium::Dispatch_(const AttrStmtNode* op) {
   if (op->attr_key == tirx::attr::tensorized_nki_instruction) {
     ctx_.tensorizing = true;
-    ctx_.mask = PrimExpr(nullptr);
+    ctx_.mask = std::nullopt;
     ctx_.loopvar2dim.clear();
     ctx_.is_matmul_input = false;
   }
@@ -550,8 +552,8 @@ void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLI
       }
       return ffi::WalkResult::Advance();
     };
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(ctx_.mask, walk_fn);
-    os << ", mask=" << PrintExpr(ctx_.mask);
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(ctx_.mask.value(), walk_fn);
+    os << ", mask=" << PrintExpr(ctx_.mask.value());
   }
   os << ")";
 }
@@ -668,7 +670,7 @@ void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buf
   buffer_idmap_[buffer] = buffer_vid;
   buffer_data_varmap_[buffer] = data_var;
   data_buffer_idmap_[data_var] = buffer_vid;
-  data_decl_buffer_map_[data_var] = buffer;
+  data_decl_buffer_map_.insert_or_assign(data_var, buffer);
   PrintIndent();
   stream << buffer_vid << " = " << data_vid << ".reshape("
          << PrintShapeAsList(shape->fields.as_or_throw<Array<PrimExpr>>()) << ")\n";

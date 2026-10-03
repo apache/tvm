@@ -241,7 +241,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BindNode* op)
     return WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var); });
   }
   if (auto value = op->value.as<PrimExpr>()) {
-    let_bindings_[op->var.get()] = value.value();
+    let_bindings_.insert_or_assign(op->var.get(), value.value());
   }
   return s_tir::StmtExprVisitor::Visit_(op);
 }
@@ -368,7 +368,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const s_tir::SBlock
   /*! \note detector will not visit child block recursively, so it will stop here */
   std::unordered_map<const VarNode*, PrimExpr> vmap;
   for (size_t i = 0; i < op->block->iter_vars.size(); ++i) {
-    vmap[op->block->iter_vars[i]->var.get()] = op->iter_values[i];
+    vmap.insert_or_assign(op->block->iter_vars[i]->var.get(), op->iter_values[i]);
   }
   auto f_substitute = [&vmap](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto it = vmap.find(var.get()); it != vmap.end()) return ffi::Any(it->second);

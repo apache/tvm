@@ -102,7 +102,7 @@ class SSAVerifier final : public StmtExprVisitor {
         return;
       }
     } else {
-      def_map_[var] = value;
+      def_map_.insert_or_assign(var, value);
     }
   }
   // whether we are in match scope, where a var can occur multiple times.

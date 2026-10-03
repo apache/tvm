@@ -70,9 +70,9 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  return tvm::tirx::TensorType(
-      storage_scope, dtype, shape, strides.value_or(ffi::Array<PrimExpr>()),
-      elem_offset.value_or(PrimExpr()), align, offset_factor, layout, allocated_addr);
+  return tvm::tirx::TensorType(storage_scope, dtype, shape,
+                               strides.value_or(ffi::Array<PrimExpr>()), elem_offset, align,
+                               offset_factor, layout, allocated_addr);
 }
 
 }  // namespace

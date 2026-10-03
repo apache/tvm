@@ -131,6 +131,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 };
 
 PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocates) {
+  if (!func->body.has_value()) return func;
   ffi::Map<Var, BufferVar> buffer_var_map;
   for (const Var& param : func->params) {
     if (auto buffer = param.as<BufferVar>()) {
@@ -141,7 +142,7 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
     buffer_var_map.Set(alloc.var(), alloc);
   }
 
-  Stmt res = func->body;
+  Stmt res = func->body.value();
 
   // Generate root block automatically.  This is done before
   // ScriptCompleter, in order to fill the root block's Ts.reads() and
@@ -154,7 +155,7 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
     if (block_realize && block_realize->block->iter_vars.size()) {
       return true;
     }
-    if (!block_realize && ContainsNode<s_tir::SBlockRealizeNode>(func->body)) {
+    if (!block_realize && ContainsNode<s_tir::SBlockRealizeNode>(func->body.value())) {
       return true;
     }
     return false;

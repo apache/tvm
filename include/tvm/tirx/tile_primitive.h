@@ -47,7 +47,7 @@ class LambdaExprNode : public ffi::Object {
   /*! \brief The bound variables of the lambda. */
   Array<Var> vars;
   /*! \brief The lambda body over ``vars``. */
-  PrimExpr pred;
+  PrimExpr pred{ffi::UnsafeInit{}};
 
   /*! \brief Replace the bound variables with the given indices, returning the substituted body. */
   PrimExpr Apply(const Array<PrimExpr>& indices) const;
@@ -201,7 +201,7 @@ class TilePrimitiveCallNode : public StmtNode {
         scope(std::move(scope)) {}
 
   // tvm::Op which corresponds to the TIRX operator.
-  tvm::Op op;
+  tvm::Op op{ffi::UnsafeInit{}};
 
   // Arguments to the operator.
   ffi::Array<ffi::Any> args;
@@ -246,7 +246,9 @@ class TilePrimitiveCall : public Stmt {
 
   static bool IsValidOpCallArgType(const ffi::Any& arg);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
+  explicit TilePrimitiveCall(ffi::ObjectPtr<TilePrimitiveCallNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TilePrimitiveCallNode);
 };
 

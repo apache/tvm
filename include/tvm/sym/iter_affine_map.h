@@ -75,7 +75,9 @@ class IterMapExprNode : public ExprNode {
  */
 class IterMapExpr : public PrimExpr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterMapExpr, PrimExpr, IterMapExprNode);
+  explicit IterMapExpr(ffi::ObjectPtr<IterMapExprNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterMapExpr, PrimExpr, IterMapExprNode);
   static constexpr bool _type_container_is_exact = true;
 };
 
@@ -91,11 +93,11 @@ class IterMarkNode : public ffi::Object {
    * \brief The source expression, can either be
    *  a IterSumExpr or a Var.
    */
-  PrimExpr source;
+  PrimExpr source{ffi::UnsafeInit{}};
   /*!
    * \brief The extent of the iteration.
    */
-  PrimExpr extent;
+  PrimExpr extent{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -135,11 +137,11 @@ class IterSplitExprNode : public IterMapExprNode {
   /*! \brief The source marked iterator. */
   IterMark source;
   /*! \brief The lower factor to split the source. */
-  PrimExpr lower_factor;
+  PrimExpr lower_factor{ffi::UnsafeInit{}};
   /*! \brief The extent of the split. */
-  PrimExpr extent;
+  PrimExpr extent{ffi::UnsafeInit{}};
   /*! \brief Additional scale. */
-  PrimExpr scale;
+  PrimExpr scale{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -181,7 +183,9 @@ class IterSplitExpr : public IterMapExpr {
   TVM_DLL explicit IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
                                  PrimExpr scale);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterSplitExpr, IterMapExpr, IterSplitExprNode);
+  explicit IterSplitExpr(ffi::ObjectPtr<IterSplitExprNode> node) : IterMapExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterSplitExpr, IterMapExpr, IterSplitExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterSplitExprNode);
 };
 
@@ -195,7 +199,7 @@ class IterSumExprNode : public IterMapExprNode {
   /*! \brief The args to the sum. */
   ffi::Array<IterSplitExpr> args;
   /*! \brief The base offset. */
-  PrimExpr base;
+  PrimExpr base{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -221,7 +225,9 @@ class IterSumExpr : public IterMapExpr {
    */
   TVM_DLL IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterSumExpr, IterMapExpr, IterSumExprNode);
+  explicit IterSumExpr(ffi::ObjectPtr<IterSumExprNode> node) : IterMapExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterSumExpr, IterMapExpr, IterSumExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterSumExprNode);
 };
 
@@ -264,9 +270,9 @@ class IterMapResultNode : public ffi::Object {
    * are outside the bounds of the provided index iterators, but
    * inside the bounds of the returned index iterators.  This
    * expression is in terms of the variables provided in
-   * `input_iters`.
+   * `input_iters`. It is absent if detection fails before a predicate is computed.
    */
-  PrimExpr padding_predicate;
+  ffi::Optional<PrimExpr> padding_predicate;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

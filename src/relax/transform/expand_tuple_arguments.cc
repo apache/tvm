@@ -133,8 +133,8 @@ Pass ExpandTupleArguments() {
             auto new_func = opt.value();
             GlobalVar new_gvar(gvar->name_hint);
             new_gvar->ty = new_func->ty;
-            gvar_replacements[gvar] = new_gvar;
-            new_callees[new_gvar] = new_func;
+            gvar_replacements.insert_or_assign(gvar, new_gvar);
+            new_callees.insert_or_assign(new_gvar, new_func);
           }
         }
       }

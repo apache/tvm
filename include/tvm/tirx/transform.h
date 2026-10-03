@@ -55,9 +55,9 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-                                int opt_level, ffi::String name,
-                                tvm::ffi::Array<ffi::String> required, bool traceable = false);
+TVM_DLL Pass CreatePrimFuncPass(
+    std::function<ffi::Optional<PrimFunc>(PrimFunc, IRModule, PassContext)> pass_func,
+    int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required, bool traceable = false);
 
 /*!
  * \brief Lower vectorization loops.

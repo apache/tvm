@@ -299,7 +299,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         op->op.same_as(tirx::builtin::masked_store())) {
       bool is_load = op->op.same_as(tirx::builtin::masked_load());
       BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
-      PrimExpr value;
+      ffi::Optional<PrimExpr> value;
       if (!is_load)
         value = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       ffi::Array<PrimExpr> indices;
@@ -317,7 +317,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         args.push_back(predicate);
         return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
       }
-      BufferStore access = VisitBufferAccess(BufferStore(buffer, value, indices, op->span));
+      BufferStore access = VisitBufferAccess(BufferStore(buffer, value.value(), indices, op->span));
       ffi::Array<Expr> args{access->buffer.var(), access->value};
       for (const PrimExpr& index : access->indices) args.push_back(index);
       args.push_back(predicate);
@@ -612,7 +612,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
       PrimExpr stride = new_shape[0];
       new_shape = {stride * num_threads_};
-      alloc_remap_[op->var.as_or_throw<BufferVar>().get()] = stride;
+      alloc_remap_.insert_or_assign(op->var.as_or_throw<BufferVar>().get(), stride);
     }
 
     if (new_shape.same_as(original_shape)) {
@@ -737,14 +737,15 @@ namespace transform {
 
 Pass InjectVirtualThread() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
 
     sym::Analyzer analyzer;
 
     n->body = ffi::make_object<VirtualThreadInjector>(analyzer)
-                  ->Mutate(n->body, InplaceMode::kAllow)
-                  .ValueOrUnchanged(std::move(n->body));
-    n->body = s_tir::ConvertSSA(std::move(n->body));
+                  ->Mutate(n->body.value(), InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body).value());
+    n->body = s_tir::ConvertSSA(std::move(n->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectVirtualThread", {});

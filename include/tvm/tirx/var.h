@@ -123,7 +123,7 @@ class IterVarNode : public PrimExprConvertibleNode {
    */
   Range dom;
   /*! \brief The looping variable */
-  PrimVar var;
+  PrimVar var{ffi::UnsafeInit{}};
   /*! \brief The type of the IterVar */
   IterVarType iter_type;
   /*!

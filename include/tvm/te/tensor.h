@@ -203,7 +203,9 @@ class Tensor : public OpaqueExpr {
    */
   inline Slice operator[](PrimExpr i) const { return Slice(*this, {i}); }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tensor, OpaqueExpr, TensorNode);
+  explicit Tensor(ffi::ObjectPtr<TensorNode> node) : OpaqueExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Tensor, OpaqueExpr, TensorNode);
 };
 
 /*! \brief Return whether an expression calls the registered te.tensor_load operator. */

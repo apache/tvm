@@ -60,7 +60,7 @@ class RenewDefMutator : public StmtExprMutator {
       return mapped != nullptr ? mapped.as_or_throw<Var>() : generator->ReDefineVar(param);
     });
     // Visit body
-    Stmt body = generator->Mutate(func->body).ValueOrUnchanged(func->body);
+    auto body = generator->Mutate(func->body).ValueOrUnchanged(func->body);
     // Recreate function
     return PrimFunc(params, body, func->ret_type, func->attrs, func->span);
   }

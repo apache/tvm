@@ -381,7 +381,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
  * explicitly invoked.
  */
 #define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                        \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                 \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {   \
     using T = Name::ContainerType;                                                \
     TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                 \
     TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                 \
@@ -398,7 +398,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
   }
 
 #define TVM_DEFINE_BITWISE_CONSTRUCTOR(Name, AllowBool)                                     \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                           \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {             \
     using T = Name::ContainerType;                                                          \
     TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                           \
     TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                           \
@@ -419,7 +419,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
   }
 
 #define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                        \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                 \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {   \
     using T = Name::ContainerType;                                                \
     TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                 \
     TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                 \
@@ -443,7 +443,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Cast
-Cast::Cast(PrimType value_ty, PrimExpr value, Span span) {
+Cast::Cast(PrimType value_ty, PrimExpr value, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   PrimType value_expr_ty = value.ty();
   TVM_FFI_ICHECK_EQ(value_ty->dtype.lanes, value_expr_ty->dtype.lanes);
@@ -809,7 +809,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // And
-And::And(PrimExpr a, PrimExpr b, Span span) {
+And::And(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined";
   PrimType a_ty = a.ty();
@@ -841,7 +841,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Or
-Or::Or(PrimExpr a, PrimExpr b, Span span) {
+Or::Or(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined";
   PrimType a_ty = a.ty();
@@ -873,7 +873,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Not
-Not::Not(PrimExpr a, Span span) {
+Not::Not(PrimExpr a, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   PrimType a_ty = a.ty();
   TVM_FFI_ICHECK(a_ty.MatchesCode(DLDataTypeCode::kDLBool));
@@ -898,7 +898,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // BitwiseNot
-BitwiseNot::BitwiseNot(PrimExpr a, Span span) {
+BitwiseNot::BitwiseNot(PrimExpr a, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   PrimType a_ty = a.ty();
   TVM_FFI_CHECK(a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) ||
@@ -929,7 +929,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Select
-Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span) {
+Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span)
+    : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(condition.defined(), ValueError) << "condition is undefined";
   TVM_FFI_CHECK(true_value.defined(), ValueError) << "true_value is undefined";
   TVM_FFI_CHECK(false_value.defined(), ValueError) << "true_value is undefined";
@@ -968,7 +969,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Let
-Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
+Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(body.defined());
   TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());

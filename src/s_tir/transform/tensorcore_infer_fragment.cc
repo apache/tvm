@@ -255,8 +255,9 @@ namespace transform {
 
 Pass InferFragment() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    n->body = s_tir::InferFragment(std::move(n->body));
+    n->body = s_tir::InferFragment(std::move(n->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InferFragment", {});

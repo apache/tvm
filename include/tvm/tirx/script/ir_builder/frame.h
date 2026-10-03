@@ -206,9 +206,9 @@ class ForFrame : public TIRFrame {
 class AssertFrameNode : public TIRFrameNode {
  public:
   /*! \brief The PrimExpr to test. */
-  PrimExpr condition;
+  PrimExpr condition{ffi::UnsafeInit{}};
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  tvm::StringImm error_kind;
+  tvm::StringImm error_kind{ffi::UnsafeInit{}};
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
   ffi::Array<tvm::StringImm> message_parts;
 
@@ -251,7 +251,7 @@ class AssertFrame : public TIRFrame {
 class LaunchThreadFrameNode : public TIRFrameNode {
  public:
   /*! \brief The extent of environment thread. */
-  PrimExpr extent;
+  PrimExpr extent{ffi::UnsafeInit{}};
   /*! \brief The attribute key, could be either virtual_thread or thread_extent. */
   ffi::String attr_key;
   /*! \brief The iteration variable. */
@@ -302,7 +302,7 @@ class AttrFrameNode : public TIRFrameNode {
   /*! \brief Attribute type key. */
   ffi::String attr_key;
   /*! \brief The value of the attribute. */
-  Expr value;
+  Expr value{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -344,7 +344,7 @@ class AttrFrame : public TIRFrame {
 class WhileFrameNode : public TIRFrameNode {
  public:
   /*! \brief The termination condition of while. */
-  PrimExpr condition;
+  PrimExpr condition{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -383,7 +383,7 @@ class WhileFrame : public TIRFrame {
 class IfFrameNode : public TIRFrameNode {
  public:
   /*! \brief The condition of the if statement. */
-  PrimExpr condition;
+  PrimExpr condition{ffi::UnsafeInit{}};
   /*! \brief The statements in the true branch. */
   ffi::Optional<ffi::Array<tvm::tirx::Stmt>> then_stmts;
   /*! \brief The stetements in the false branch. */
@@ -503,9 +503,9 @@ class ElseFrame : public TIRFrame {
 class DeclTensorFrameNode : public TIRFrameNode {
  public:
   /*! \brief The declared buffer. */
-  tvm::tirx::BufferVar buffer;
+  tvm::tirx::BufferVar buffer{ffi::UnsafeInit{}};
   /*! \brief Physical pointer expression backing the declaration. */
-  Expr data;
+  ffi::Optional<Expr> data;
   /*! \brief The buffer allocated or not. */
   bool allocated;
 

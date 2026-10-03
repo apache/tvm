@@ -208,7 +208,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ShuffleMaybeInplaceMuta
 
 }  // namespace
 // Ramp
-Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
+Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span)
+    : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(base.defined());
   TVM_FFI_ICHECK(stride.defined());
   PrimType base_ty = base.ty();
@@ -258,7 +259,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Broadcast
-Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
+Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   PrimType value_ty = value.ty();
   TVM_FFI_ICHECK(value_ty.IsScalar());
@@ -302,7 +303,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Shuffle
-Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span) {
+Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span)
+    : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK_NE(vectors.size(), 0U);
   TVM_FFI_ICHECK_NE(indices.size(), 0U);
 

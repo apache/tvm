@@ -44,9 +44,9 @@ namespace s_tir {
 class MatchBufferRegionNode : public ffi::Object {
  public:
   /*! \brief The target buffer. */
-  tirx::BufferVar buffer;
+  tirx::BufferVar buffer{ffi::UnsafeInit{}};
   /*! \brief The source buffer region. */
-  TensorRegion source;
+  TensorRegion source{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -118,7 +118,7 @@ class SBlockNode : public tirx::StmtNode {
    */
   ffi::Optional<tirx::Stmt> init;
   /*! \brief The body of the block. */
-  tirx::Stmt body;
+  tirx::Stmt body{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -156,7 +156,9 @@ class SBlock : public tirx::Stmt {
                           ffi::Array<tirx::BufferVar> alloc_buffers = ffi::Array<tirx::BufferVar>(),
                           Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlock, tirx::Stmt, SBlockNode);
+  explicit SBlock(ffi::ObjectPtr<SBlockNode> node) : tirx::Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlock, tirx::Stmt, SBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockNode);
 };
 
@@ -171,9 +173,9 @@ class SBlockRealizeNode : public tirx::StmtNode {
    * \brief The predicate of the block realization, the block will only be executed when the
    * predicate is true.
    */
-  PrimExpr predicate;
+  PrimExpr predicate{ffi::UnsafeInit{}};
   /*! \brief The block to be realized. */
-  SBlock block;
+  SBlock block{ffi::UnsafeInit{}};
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -194,7 +196,9 @@ class SBlockRealize : public tirx::Stmt {
   TVM_DLL explicit SBlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
                                  Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlockRealize, tirx::Stmt, SBlockRealizeNode);
+  explicit SBlockRealize(ffi::ObjectPtr<SBlockRealizeNode> node) : tirx::Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockRealize, tirx::Stmt, SBlockRealizeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeNode);
 };
 

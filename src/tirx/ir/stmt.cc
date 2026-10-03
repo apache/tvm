@@ -666,7 +666,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ScopeIdDefStmtMaybeInpl
 TVM_FFI_STATIC_INIT_BLOCK() { StmtNode::RegisterReflection(); }
 
 // Bind
-Bind::Bind(Var var, Expr value, Span span) {
+Bind::Bind(Var var, Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(ffi::StructuralEqual()(value->ty, var->ty));
 
@@ -691,7 +691,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // AttrStmt
-AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span) {
+AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
@@ -719,7 +720,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // AssertStmt
 AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
-                       ffi::Array<StringImm> message_parts, Span span) {
+                       ffi::Array<StringImm> message_parts, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   PrimType condition_ty = condition.ty();
   TVM_FFI_ICHECK(condition_ty.MatchesCode(DLDataTypeCode::kDLBool))
@@ -755,7 +757,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // For
 For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
          ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations,
-         ffi::Optional<PrimExpr> step, Span span) {
+         ffi::Optional<PrimExpr> step, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(loop_var.defined());
   TVM_FFI_ICHECK(min.defined());
   TVM_FFI_ICHECK(extent.defined());
@@ -859,7 +862,7 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
 }
 
 // While
-While::While(PrimExpr condition, Stmt body, Span span) {
+While::While(PrimExpr condition, Stmt body, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(condition.ty().IsScalar());
   TVM_FFI_ICHECK(body.defined());
@@ -886,7 +889,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Return
-Return::Return(Expr value, Span span) {
+Return::Return(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
 
   ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>();
@@ -908,7 +911,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Break
-Break::Break(Span span) {
+Break::Break(Span span) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<BreakNode> node = ffi::make_object<BreakNode>();
   node->span = std::move(span);
   data_ = std::move(node);
@@ -927,7 +930,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Continue
-Continue::Continue(Span span) {
+Continue::Continue(Span span) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ContinueNode> node = ffi::make_object<ContinueNode>();
   node->span = std::move(span);
   data_ = std::move(node);
@@ -947,7 +950,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // SeqStmt
-SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) {
+SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) : Stmt(ffi::UnsafeInit{}) {
   bool requires_flattening = std::any_of(
       seq.begin(), seq.end(), [](const Stmt& stmt) { return stmt->IsInstance<SeqStmtNode>(); });
 
@@ -989,8 +992,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // IfThenElse
-IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> else_case,
-                       Span span) {
+IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> else_case, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(then_case.defined());
   // else_case may be null.
@@ -1013,14 +1016,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&IfThenElseMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.IfThenElse",
-                        [](PrimExpr condition, Stmt then_case, Stmt else_case, Span span) {
-                          return IfThenElse(condition, then_case, else_case, span);
-                        });
+  refl::GlobalDef().def("tirx.IfThenElse", [](PrimExpr condition, Stmt then_case,
+                                              ffi::Optional<Stmt> else_case, Span span) {
+    return IfThenElse(condition, then_case, else_case, span);
+  });
 }
 
 // Evaluate
-Evaluate::Evaluate(Expr value, Span span) {
+Evaluate::Evaluate(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(!(value->IsInstance<VarNode>() && value->ty.as<TensorTypeNode>()))
       << "A buffer variable cannot be used as a scalar Evaluate value; "
@@ -1051,8 +1054,8 @@ TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
   return ty.IsScalableVector() ? ty.VScaleFactor() : ty.lanes();
 }
 
-BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                         Span span) {
+BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -1125,7 +1128,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // ScopeIdDefStmt
-ScopeIdDefStmt::ScopeIdDefStmt(ScopeIdDef def, Span span) {
+ScopeIdDefStmt::ScopeIdDefStmt(ScopeIdDef def, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(def.defined());
   ffi::ObjectPtr<ScopeIdDefStmtNode> node = ffi::make_object<ScopeIdDefStmtNode>();
   node->def = std::move(def);

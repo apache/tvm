@@ -99,10 +99,9 @@ ffi::Array<s_tir::Schedule> AddRFactorNode::Apply(const s_tir::Schedule& sch,
   ReorderAndFuseReductionLoops(sch, block_rv, &fused_reduce_loop, &num_spatial_loops);
 
   // Split the fused reduction loop.
-  ffi::Array<s_tir::ExprRV> factors =
+  ffi::Array<ffi::Optional<s_tir::ExprRV>> factors =
       sch->SamplePerfectTile(fused_reduce_loop, 2, max_innermost_factor);
-  ffi::Array<s_tir::LoopRV> split_loops =
-      sch->Split(fused_reduce_loop, {factors.begin(), factors.end()});
+  ffi::Array<s_tir::LoopRV> split_loops = sch->Split(fused_reduce_loop, factors);
 
   ffi::Array<s_tir::Schedule> res;
   for (const s_tir::LoopRV& split_loop : split_loops) {

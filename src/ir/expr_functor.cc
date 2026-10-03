@@ -783,7 +783,7 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const VarNode* node, InplaceMode inplace_
             : Mutate(node->ty, inplace_mode);
     auto mapped_ty_u = std::move(mapped_ty_result_u).as_or_throw<UnchangedOr<Type>>();
     if (!mapped_ty_u.UnchangedOrSameAs(node->ty)) {
-      Expr mapped_expr;
+      Expr mapped_expr{ffi::UnsafeInit{}};
       if (inplace_mode == InplaceMode::kAllow) {
         const_cast<VarNode*>(node)->ty = std::move(mapped_ty_u).ValueUnchecked();
         mapped_expr = ffi::GetRef<Expr>(node);

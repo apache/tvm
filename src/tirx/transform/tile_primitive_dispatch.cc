@@ -448,9 +448,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         }
       }
     }
-    buffer_root_[new_var] = root;
+    buffer_root_.insert_or_assign(new_var, root);
     if (!old_var.same_as(new_var)) {
-      buffer_root_[old_var] = root;
+      buffer_root_.insert_or_assign(old_var, root);
     }
   }
 
@@ -598,7 +598,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
     // Propagate shared_state changes back (Map uses COW semantics)
     shared_state_ = sctx->shared_state;
-    return res->body;
+    TVM_FFI_CHECK(res->body.has_value(), ValueError)
+        << "A tile primitive implementation must have a body";
+    return res->body.value();
   }
 
   // --- Scope-id resolution at kernel scope ----------------------------------
@@ -1065,8 +1067,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   bool TryExtractModuloTarget(const PrimExpr& expr, ScopeIdTarget* target, int64_t* modulus) {
-    PrimExpr lhs;
-    PrimExpr rhs;
+    PrimExpr lhs{ffi::UnsafeInit{}};
+    PrimExpr rhs{ffi::UnsafeInit{}};
     if (const auto* mod = expr.as<prim::ModNode>()) {
       lhs = mod->a;
       rhs = mod->b;
@@ -1295,7 +1297,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         elect_atoms.push_back(&atom);
         continue;
       }
-      auto target = ResolveScopeIdTarget(atom.scopeid_var.as_or_throw<PrimExpr>());
+      auto target = ResolveScopeIdTarget(atom.scopeid_var.value().as_or_throw<PrimExpr>());
       if (!target) continue;  // atom recognized but target not in scope
       bool merged = false;
       for (auto& g : groups) {
@@ -1344,9 +1346,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     auto lane = FindLaneScopeVar();
     if (!lane) return false;
     ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-    PrimExpr selector =
-        Call((*lane)->ty, tirx::builtin::selector(), ffi::Array<Expr>{*lane, atom.elect_sync_call})
-            .as_or_throw<PrimExpr>();
+    PrimExpr selector = Call((*lane)->ty, tirx::builtin::selector(),
+                             ffi::Array<Expr>{*lane, atom.elect_sync_call.value()})
+                            .as_or_throw<PrimExpr>();
     return TryPushSelectorForTarget(target, selector);
   }
 
@@ -1519,10 +1521,11 @@ namespace transform {
 
 Pass TilePrimitiveDispatch() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    n->body = TilePrimitiveDispatcher::LowerOpCalls(n->body, target);
-    if (!NoOpCallVerifier::Verify(n->body, false)) {
+    n->body = TilePrimitiveDispatcher::LowerOpCalls(n->body.value(), target);
+    if (!NoOpCallVerifier::Verify(n->body.value(), false)) {
       LOG(FATAL) << "Failed to lower the TIRx program: " << f;
     }
     return f;

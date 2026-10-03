@@ -90,17 +90,16 @@ UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplac
                           })
                           .ValueOrUnchanged((*args)[1])
                           .as_or_throw<Expr>();
-    Expr false_value;
-    {
+    Expr false_value = [&]() {
       PrimExpr not_cond = prim::Not(cond);
-      false_value = constraint_scope_
-                        .WithNewScope([&]() {
-                          constraint_scope_.Current().Emplace(analyzer_, not_cond);
-                          return Mutate((*args)[2], inplace_mode_args);
-                        })
-                        .ValueOrUnchanged((*args)[2])
-                        .as_or_throw<Expr>();
-    }
+      return constraint_scope_
+          .WithNewScope([&]() {
+            constraint_scope_.Current().Emplace(analyzer_, not_cond);
+            return Mutate((*args)[2], inplace_mode_args);
+          })
+          .ValueOrUnchanged((*args)[2])
+          .as_or_throw<Expr>();
+    }();
     if (prim::is_zero(cond)) return false_value;
     if (prim::is_one(cond)) return true_value;
     if (cond.same_as(op->args[0]) && true_value.same_as(op->args[1]) &&
@@ -143,16 +142,15 @@ UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::SelectNode* op,
                               return Mutate(op->true_value, inplace_mode);
                             })
                             .ValueOrUnchanged(op->true_value);
-  PrimExpr false_value;
-  {
+  PrimExpr false_value = [&]() {
     PrimExpr neg_cond = analyzer_->rewrite_simplify(prim::Not(cond));
-    false_value = constraint_scope_
-                      .WithNewScope([&]() {
-                        constraint_scope_.Current().Emplace(analyzer_, neg_cond);
-                        return Mutate(op->false_value, inplace_mode);
-                      })
-                      .ValueOrUnchanged(op->false_value);
-  }
+    return constraint_scope_
+        .WithNewScope([&]() {
+          constraint_scope_.Current().Emplace(analyzer_, neg_cond);
+          return Mutate(op->false_value, inplace_mode);
+        })
+        .ValueOrUnchanged(op->false_value);
+  }();
   if (prim::is_zero(cond)) return false_value;
   if (prim::is_one(cond)) return true_value;
   if (cond.same_as(op->condition) && true_value.same_as(op->true_value) &&

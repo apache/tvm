@@ -90,7 +90,8 @@ class SymbolicVarCanonicalizer : public ExprMutator {
             << ", while the later definition of Relax variable " << binding->var
             << " instead implies that TIR variable " << tir_var.value() << " is " << prim_expr;
       } else {
-        known_values_[tir_var.value()] = KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)};
+        known_values_.insert_or_assign(tir_var.value(),
+                                       KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)});
       }
     }
     // A MatchCast that defines a runtime-used symbolic variable cannot be folded away.
@@ -552,7 +553,7 @@ class BindingCanonicalizer : public ExprMutator {
         // if the current var is an output and has not been disqualified,
         // then include it in the candidate map
         if (!disqualified_set.count(df_var) && output_vars.count(df_var)) {
-          candidates[df_var] = value;
+          candidates.insert_or_assign(df_var, value);
         }
       } else {
         // The LHS is an output binding.

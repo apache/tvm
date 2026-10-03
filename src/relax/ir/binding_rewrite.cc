@@ -156,7 +156,7 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
       return std::make_pair(mc->var, mc->value);
     }
     TVM_FFI_THROW(InternalError) << "Unsupported binding type";
-    return std::make_pair(Var{}, Expr{});
+    throw;
   }();
 
   TVM_FFI_ICHECK(0 == to_users_.count(var)) << var << " has been defined so cannot be added.";

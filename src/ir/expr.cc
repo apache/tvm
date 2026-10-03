@@ -695,7 +695,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&TensorLoadMaybeInplaceMutate>());
 }
 
-TensorRegion::TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Span span) {
+TensorRegion::TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Span span)
+    : Expr(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<TensorRegionNode>();
   node->source = std::move(source);
   node->region = std::move(region);
@@ -721,7 +722,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Tuple
-Tuple::Tuple(ffi::Array<Expr> fields, Span span) {
+Tuple::Tuple(ffi::Array<Expr> fields, Span span) : Expr(ffi::UnsafeInit{}) {
   ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {
     ffi::Array<Type> field_ty;
     for (const Expr& field : fields) {
@@ -756,7 +757,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // TupleGetItem
-TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
+TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) : Expr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK_GE(index, 0, IndexError) << "Index out of bounds: Tuple " << tuple
                                          << " cannot be accessed with negative index " << index;
   ffi::ObjectPtr<TupleGetItemNode> node = ffi::make_object<TupleGetItemNode>();
@@ -821,7 +822,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Constants
-GenericConst::GenericConst(ffi::Any value, Type ty, Span span) {
+GenericConst::GenericConst(ffi::Any value, Type ty, Span span) : Constant(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(!ty.IsMissing(), TypeError) << "GenericConst requires an expression type";
   TVM_FFI_CHECK(!value.as<ffi::BigInt>() && !value.as<bool>() && !value.as<double>() &&
                     !value.as<ffi::String>(),
@@ -834,7 +835,7 @@ GenericConst::GenericConst(ffi::Any value, Type ty, Span span) {
   data_ = std::move(node);
 }
 
-StringImm::StringImm(ffi::String value, Span span) {
+StringImm::StringImm(ffi::String value, Span span) : Constant(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<StringImmNode>();
   node->value = std::move(value);
   node->ty = StringType();
@@ -842,7 +843,7 @@ StringImm::StringImm(ffi::String value, Span span) {
   data_ = std::move(node);
 }
 
-DataTypeImm::DataTypeImm(DLDataType value, Span span) {
+DataTypeImm::DataTypeImm(DLDataType value, Span span) : Constant(ffi::UnsafeInit{}) {
   auto node = ffi::make_object<DataTypeImmNode>();
   node->value = std::move(value);
   node->ty = AnyType();
@@ -889,7 +890,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       });
 }
 
-IntImm::IntImm(PrimType value_ty, ffi::BigInt value, Span span) {
+IntImm::IntImm(PrimType value_ty, ffi::BigInt value, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   DLDataType runtime_dtype = value_ty->dtype;
   DLDataTypeCode code = value_ty.code();
   int32_t bits = value_ty.bits();
@@ -948,7 +949,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // FloatImm
-FloatImm::FloatImm(PrimType value_ty, double value, Span span) {
+FloatImm::FloatImm(PrimType value_ty, double value, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   DLDataType runtime_dtype = value_ty->dtype;
   DLDataTypeCode code = value_ty.code();
   int32_t bits = value_ty.bits();
@@ -1109,7 +1110,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Var
-Var::Var(ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
+Var::Var(ffi::String name, ffi::Optional<Type> ty_annotation, Span span) : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<VarNode> n = ffi::make_object<VarNode>();
   n->name = std::move(name);
   if (ty_annotation.has_value()) {
@@ -1155,7 +1156,7 @@ Var Var::CopyWithType(Type type) const {
 }
 
 // GlobalVar
-GlobalVar::GlobalVar(ffi::String name_hint, Span span) {
+GlobalVar::GlobalVar(ffi::String name_hint, Span span) : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<GlobalVarNode> n = ffi::make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
   n->span = std::move(span);
@@ -1188,7 +1189,8 @@ Call Call::Unchecked(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs,
 }
 
 Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
-           Span span, bool validate) {
+           Span span, bool validate)
+    : Expr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
 
   ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>();

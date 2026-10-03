@@ -292,7 +292,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
           }
           TensorType fp16_ty(tensor_ty->shape.value(), PrimType::Float(16), vdev, tensor_ty->span);
           Var fp16_var(var->name, fp16_ty, var->span);
-          var_remap_[var] = fp16_var;
+          var_remap_.insert_or_assign(var, fp16_var);
           return fp16_var;
         }
       }
@@ -424,7 +424,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // If cur_var is not rewritten, we don't need to emit a new var
     if (!rewrite.same_as(cur_var)) {
       // Emit a new var, and update the var remap
-      var_remap_[var] = builder_->Emit(rewrite);
+      var_remap_.insert_or_assign(var, builder_->Emit(rewrite));
     }
   }
 

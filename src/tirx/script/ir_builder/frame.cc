@@ -105,7 +105,8 @@ void PrimFuncFrameNode::ExitWithScope() {
   }
   TVM_FFI_CHECK(!is_declaration || stmts.empty(), ValueError)
       << "A function declaration cannot contain body statements";
-  tvm::tirx::Stmt body = is_declaration ? tvm::tirx::Stmt() : AsStmt(stmts);
+  ffi::Optional<tvm::tirx::Stmt> body = std::nullopt;
+  if (!is_declaration) body = AsStmt(stmts);
   tvm::tirx::PrimFunc func(
       /*params=*/args,
       /*body=*/body,
@@ -238,10 +239,11 @@ void IfFrameNode::ExitWithScope() {
   if (!then_stmts.has_value()) {
     TVM_FFI_THROW(InternalError) << "IfThenElse frame should have at least one then branch";
   }
-  AddToParent(tvm::tirx::IfThenElse(
-                  condition, AsStmt(then_stmts.value()),
-                  else_stmts.has_value() ? AsStmt(else_stmts.value()) : tvm::tirx::Stmt(nullptr),
-                  source_span),
+  AddToParent(tvm::tirx::IfThenElse(condition, AsStmt(then_stmts.value()),
+                                    else_stmts.has_value()
+                                        ? ffi::Optional<tvm::tirx::Stmt>(AsStmt(else_stmts.value()))
+                                        : std::nullopt,
+                                    source_span),
               source_span);
 }
 
@@ -279,10 +281,11 @@ void ElseFrameNode::ExitWithScope() {
 void DeclTensorFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   if (allocated) {
+    TVM_FFI_ICHECK(data.has_value());
     AddToParent(tvm::tirx::SeqStmt::Flatten(
                     tvm::tirx::Bind(buffer,
                                     tvm::Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
-                                              {data, tvm::Tuple(buffer->shape),
+                                              {data.value(), tvm::Tuple(buffer->shape),
                                                tvm::DataTypeImm(buffer->dtype->dtype),
                                                tvm::StringImm(buffer.scope())},
                                               {}, {}, source_span),

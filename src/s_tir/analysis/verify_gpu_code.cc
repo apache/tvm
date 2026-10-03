@@ -347,9 +347,10 @@ std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
     }
   }
 
-  return verifier->Verify(func->body, max_local_memory_per_block, max_shared_memory_per_block,
-                          max_threads_per_block, max_thread_x, max_thread_y, max_thread_z,
-                          max_vthread, max_vector_bytes, max_kernels);
+  if (!func->body.has_value()) return {};
+  return verifier->Verify(func->body.value(), max_local_memory_per_block,
+                          max_shared_memory_per_block, max_threads_per_block, max_thread_x,
+                          max_thread_y, max_thread_z, max_vthread, max_vector_bytes, max_kernels);
 }
 
 bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constraints) {

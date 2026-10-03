@@ -209,13 +209,13 @@ class BindingBlockFrame : public RelaxFrame {
 class IfFrameNode : public RelaxFrameNode {
  public:
   /*! \brief The condition of the if statement. */
-  tvm::relax::Expr condition;
+  tvm::relax::Expr condition{ffi::UnsafeInit{}};
   /*! \brief The Bindings in the true branch. */
   ffi::Optional<tvm::relax::Expr> then_expr;
   /*! \brief The Bindings in the false branch. */
   ffi::Optional<tvm::relax::Expr> else_expr;
   /*! \brief The Binding var. */
-  tvm::Var var;
+  ffi::Optional<tvm::Var> var;
   /*! \brief The binding var name. */
   ffi::String var_name;
 

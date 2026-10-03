@@ -881,7 +881,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     auto mod = builder_->GetContextIRModule();
     auto old_primfunc = mod->Lookup(legal_op).as_or_throw<tirx::PrimFunc>();
 
-    tirx::Stmt new_body = old_primfunc->body;
+    tirx::Stmt new_body = old_primfunc->body.value();
 
     size_t num_outs = inplace_indices.size();
     size_t num_params = old_primfunc->params.size();

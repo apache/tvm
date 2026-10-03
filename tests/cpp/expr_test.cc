@@ -22,10 +22,74 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/source_map.h>
+#include <tvm/relax/expr.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
+#include <tvm/tirx/function.h>
 
 #include <type_traits>
+
+namespace {
+using namespace tvm;
+template <typename Ref>
+void CheckRequiredIRReference() {
+  static_assert(!Ref::_type_is_nullable);
+  static_assert(!std::is_default_constructible_v<Ref>);
+  ffi::Any none;
+  EXPECT_FALSE(none.as<Ref>().has_value());
+  EXPECT_FALSE(none.try_cast<Ref>().has_value());
+  EXPECT_THROW(none.as_or_throw<Ref>(), ffi::Error);
+  EXPECT_THROW(none.cast<Ref>(), ffi::Error);
+  EXPECT_FALSE(none.cast<ffi::Optional<Ref>>().has_value());
+  ffi::Any missing_element = ffi::Array<ffi::Any>({none});
+  EXPECT_THROW(missing_element.cast<ffi::Array<Ref>>(), ffi::Error);
+  ffi::TypedFunction<Ref()> missing_result =
+      ffi::Function::FromTyped([]() -> ffi::Any { return {}; });
+  EXPECT_THROW(missing_result(), ffi::Error);
+  ffi::TypedFunction<Ref(Ref)> required = [](Ref value) { return value; };
+  EXPECT_THROW(required.packed()(none), ffi::Error);
+  ffi::TypedFunction<ffi::Optional<Ref>(ffi::Optional<Ref>)> optional =
+      [](ffi::Optional<Ref> value) { return value; };
+  EXPECT_EQ(optional.packed()(none).type_index(), ffi::TypeIndex::kTVMFFINone);
+}
+}  // namespace
+
+TEST(Expr, RequiredIRReferences) {
+  using namespace tvm;
+  CheckRequiredIRReference<Expr>();
+  CheckRequiredIRReference<PrimExpr>();
+  CheckRequiredIRReference<TypedExpr<PrimType>>();
+  CheckRequiredIRReference<IntExpr>();
+  CheckRequiredIRReference<PrimVar>();
+  CheckRequiredIRReference<tirx::BufferVar>();
+  CheckRequiredIRReference<tirx::Stmt>();
+  CheckRequiredIRReference<tirx::Evaluate>();
+  CheckRequiredIRReference<s_tir::SBlock>();
+  CheckRequiredIRReference<tirx::PrimFunc>();
+  CheckRequiredIRReference<relax::Function>();
+  CheckRequiredIRReference<Type>();
+  CheckRequiredIRReference<PrimType>();
+  EXPECT_TRUE(Type::Missing().IsMissing());
+  EXPECT_TRUE(ffi::Any(Type::Missing()).cast<Type>().IsMissing());
+  EXPECT_THROW(ffi::Array<ffi::Any>({ffi::Any()}).as_or_throw<ffi::Array<Expr>>(), ffi::Error);
+}
+
+TEST(Expr, NonNullablePrimitiveFallbacks) {
+  using namespace tvm;
+  EXPECT_EQ(ffi::Any(false).cast<PrimExpr>().as<IntImmNode>()->value, 0);
+  EXPECT_EQ(ffi::Any(0).cast<PrimExpr>().as<IntImmNode>()->value, 0);
+  EXPECT_EQ(ffi::Any(1.25).cast<PrimExpr>().as<FloatImmNode>()->value, 1.25);
+  EXPECT_TRUE(ffi::Any(0).cast<Expr>().defined());
+  Var primitive("i", PrimType::Int(32));
+  EXPECT_TRUE(ffi::Any(primitive).cast<PrimExpr>().same_as(primitive));
+  EXPECT_TRUE(ffi::Any(primitive).cast<TypedExpr<PrimType>>().same_as(primitive));
+  Var wrong_type("x", AnyType());
+  EXPECT_FALSE(ffi::Any(wrong_type).try_cast<PrimExpr>().has_value());
+  EXPECT_FALSE(ffi::Any(wrong_type).try_cast<TypedExpr<PrimType>>().has_value());
+  auto tensor = te::placeholder({1}, PrimType::Float(32), "input");
+  EXPECT_TRUE(ffi::Any(tensor(0)).cast<PrimExpr>().defined());
+}
 
 TEST(Expr, Basic) {
   using namespace tvm;

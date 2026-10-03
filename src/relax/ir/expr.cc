@@ -399,7 +399,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
 
 TVM_FFI_STATIC_INIT_BLOCK() { BindingNode::RegisterReflection(); }
 
-If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) {
+If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<IfNode> n = ffi::make_object<IfNode>();
   n->cond = std::move(cond);
   n->true_branch = std::move(true_branch);
@@ -422,7 +422,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) {
+ShapeExpr::ShapeExpr(ffi::Array<PrimExpr> values, Span span) : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ShapeExprNode> n = ffi::make_object<ShapeExprNode>();
 
   n->values = values.Map([](PrimExpr value) {
@@ -453,7 +453,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-DataflowVar::DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation, Span span) {
+DataflowVar::DataflowVar(ffi::String name, ffi::Optional<Type> ty_annotation, Span span)
+    : Var(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<DataflowVarNode> n = ffi::make_object<DataflowVarNode>();
   n->name = std::move(name);
   if (ty_annotation.has_value()) {
@@ -611,7 +612,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-SeqExpr::SeqExpr(Expr body) {
+SeqExpr::SeqExpr(Expr body) : Expr(ffi::UnsafeInit{}) {
   if (auto seq = body.as<SeqExpr>()) {
     *this = seq.value();
   } else {
@@ -619,7 +620,7 @@ SeqExpr::SeqExpr(Expr body) {
   }
 }
 
-SeqExpr::SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span) {
+SeqExpr::SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span) : Expr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<SeqExprNode> n = ffi::make_object<SeqExprNode>();
   n->blocks = std::move(blocks);
   n->body = std::move(body);
@@ -643,7 +644,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty, bool is_pure,
-                   DictAttrs attrs, Span span) {
+                   DictAttrs attrs, Span span)
+    : BaseFunc(ffi::UnsafeInit{}) {
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.
@@ -786,7 +788,8 @@ FuncType GetExternFuncType() {
 ExternFunc::ExternFunc(ffi::String global_symbol, Span span)
     : ExternFunc(global_symbol, GetExternFuncType(), span) {}
 
-ExternFunc::ExternFunc(ffi::String global_symbol, Type ty, Span span) {
+ExternFunc::ExternFunc(ffi::String global_symbol, Type ty, Span span)
+    : BaseFunc(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(ty.as<FuncTypeNode>())
       << "ExternFunc must have FuncType, "
       << "but declaration of '" << global_symbol << "' received " << ty;

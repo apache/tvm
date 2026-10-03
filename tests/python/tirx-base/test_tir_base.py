@@ -114,7 +114,7 @@ def test_return_accepts_expr_and_roundtrips():
     tvm.ir.assert_structural_equal(restored, stmt)
     assert tvm_ffi.structural_hash(restored) == tvm_ffi.structural_hash(stmt)
 
-    with pytest.raises(tvm.error.InternalError):
+    with pytest.raises(TypeError):
         tirx.Return(None)
 
 
@@ -226,9 +226,9 @@ def test_eq_ops():
     # `__eq__` / `__ne__` operators on `IntImm` / `StringImm`; the `is` operators
     # bypass those overloads and would defeat the test.
     a = tirx.IntImm("int8", 1)
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         assert a != None
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         assert not a == None
     b = tvm.ir.StringImm("abc")
     assert b != None

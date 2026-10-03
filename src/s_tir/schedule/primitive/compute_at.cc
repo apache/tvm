@@ -304,7 +304,7 @@ class ScopeReconstructor : public StmtExprMutator {
     }
     this->new_block_realize_ =
         SBlockRealize(std::move(iter_values), analyzer->Simplify(predicate), std::move(block_));
-    Stmt new_subtree = this->new_block_realize_;
+    Stmt new_subtree = this->new_block_realize_.value();
     for (int i = static_cast<int>(loop_vars.size()) - 1; i >= 0; --i) {
       const Var& loop_var = loop_vars[i];
       const PrimExpr& loop_extent = loop_extents[i];
@@ -338,7 +338,7 @@ class ScopeReconstructor : public StmtExprMutator {
       loop = TVM_TYPE_AS(rm_tgt_stmt_, ForNode);
     }
     if (loop == loop_.get()) {
-      return new_loop_;
+      return new_loop_.value();
     }
     return StmtExprMutator::Mutate_(loop, loop->unique() ? inplace_mode : InplaceMode::kDisallow)
         .ValueOrUnchanged(ffi::GetRef<Stmt>(loop));
@@ -352,13 +352,14 @@ class ScopeReconstructor : public StmtExprMutator {
   /*! \brief The given loop the block and its loop nest to be put under */
   For loop_;
   /*! \brief The new loop to replace the original loop */
-  For new_loop_{nullptr};
+  ffi::Optional<For> new_loop_;
   /*! \brief The new block realize to the moved block */
-  SBlockRealize new_block_realize_{nullptr};
+  ffi::Optional<SBlockRealize> new_block_realize_;
   /*! \brief The plan to remove the given block by replacing this loop/block in the AST */
-  Stmt rm_src_stmt_{nullptr};
+  // LeafBlockRemovalPlan initializes both removal statements before this mutator is used.
+  Stmt rm_src_stmt_{ffi::UnsafeInit{}};
   /*! \brief The plan to remove the given block by replacing to this loop/block in the AST */
-  Stmt rm_tgt_stmt_{nullptr};
+  Stmt rm_tgt_stmt_{ffi::UnsafeInit{}};
 };
 
 /*!
@@ -788,7 +789,7 @@ void ComputeAtOrReverseComputeAtImpl(ScheduleState self, const StmtSRef& block_s
   // Step 8. Update the cached flags
   SBlockInfo& block_info = self->block_info[block_sref];
   block_info.affine_binding = IsAffineBinding(
-      /*realize=*/reconstructor->new_block_realize_,
+      /*realize=*/reconstructor->new_block_realize_.value(),
       /*loop_var_ranges=*/LoopDomainOfSRefTreePath(ffi::GetRef<StmtSRef>(block_sref->parent)),
       /*analyzer=*/analyzer);
 }

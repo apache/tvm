@@ -432,7 +432,9 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
     if (auto opt = base_func.as<PrimFunc>()) {
       auto func = opt.value();
       s_tir::VerifyWellFormed(func);
-      SBlockInfoCollector::Collect(self, func->body);
+      if (func->body.has_value()) {
+        SBlockInfoCollector::Collect(self, func->body.value());
+      }
     }
   }
   data_ = std::move(n);
@@ -970,7 +972,7 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   int num_copy_steps = -1;
   bool need_module_copy = false;
   const PrimFuncNode* g_func = nullptr;
-  GlobalVar g_var;
+  GlobalVar g_var{ffi::UnsafeInit{}};
   {
     int i = 0;
     const StmtSRefNode* p = src_sref.get();

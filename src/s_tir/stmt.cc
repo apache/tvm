@@ -342,7 +342,8 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
                ffi::Array<TensorRegion> writes, ffi::String name_hint, Stmt body,
                ffi::Optional<Stmt> init, ffi::Array<BufferVar> alloc_buffers,
                ffi::Array<MatchBufferRegion> match_buffers, ffi::Map<ffi::String, Any> annotations,
-               Span span) {
+               Span span)
+    : tirx::Stmt(ffi::UnsafeInit{}) {
   for (const auto& regions : {reads, writes}) {
     for (const TensorRegion& region : regions) {
       const auto buffer = region->source.as_or_throw<BufferVar>();
@@ -364,7 +365,8 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
   data_ = std::move(node);
 }
 
-SBlock::SBlock(ffi::String name_hint, Stmt body, ffi::Array<BufferVar> alloc_buffers, Span span) {
+SBlock::SBlock(ffi::String name_hint, Stmt body, ffi::Array<BufferVar> alloc_buffers, Span span)
+    : tirx::Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
   node->iter_vars = {};
   node->reads = {};
@@ -401,7 +403,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // BlockRealize
 SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SBlock block,
-                             Span span) {
+                             Span span)
+    : tirx::Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK_EQ(block->iter_vars.size(), values.size(), ValueError)
       << "BlockRealize needs to have the same number of iter_vars and binding values";
   PrimType predicate_ty = predicate.ty();

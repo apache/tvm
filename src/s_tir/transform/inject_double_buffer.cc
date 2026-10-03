@@ -198,7 +198,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       // In flat IR, AllocTensor appears before its usage in the SeqStmt,
       // so entry.loop may not be set yet. Defer double-buffer allocation
       // processing to be handled in VisitStmt_(ForNode*).
-      pending_dbuffer_allocs_[buf] = ffi::GetRef<Bind>(op);
+      pending_dbuffer_allocs_.insert_or_assign(buf, ffi::GetRef<Bind>(op));
       // Remove the original AllocTensor (will be re-emitted in ForNode visitor)
       return Evaluate(0);
     } else {
@@ -217,7 +217,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       if (db_it != dbuffer_info_.end() && db_it->second.loop != nullptr) {
         StorageEntry& entry = db_it->second;
         const Bind& alloc = pend_it->second;
-        auto new_buf = GetRemappedBuffer(alloc->var.as_or_throw<BufferVar>(), entry.stride);
+        auto new_buf = GetRemappedBuffer(alloc->var.as_or_throw<BufferVar>(), entry.stride.value());
         auto& alloc_nest = loop_allocs_[entry.loop];
         const auto* call = alloc->value.as<CallNode>();
         alloc_nest.emplace_back(Bind(new_buf.var(),
@@ -253,8 +253,9 @@ class DoubleBufferInjector : public StmtExprMutator {
         };
         std::vector<Stmt> loop_seq;
         for (int32_t i = 0; i < split_loop_; ++i) {
-          vmap[old_loop->loop_var.get()] =
-              outer_var.as_or_throw<PrimExpr>() * factor + IntImm(factor.ty(), i);
+          vmap.insert_or_assign(
+              old_loop->loop_var.get(),
+              outer_var.as_or_throw<PrimExpr>() * factor + IntImm(factor.ty(), i));
           loop_seq.emplace_back(
               ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(old_loop->body, map_var)
                   .as_or_throw<Stmt>());
@@ -268,7 +269,7 @@ class DoubleBufferInjector : public StmtExprMutator {
                              .ValueOrUnchanged(old_loop->body);
         for (int32_t i = 0; i < split_loop_; ++i) {
           PrimExpr idx = tail_base + IntImm(tail_base.ty(), i);
-          vmap[old_loop->loop_var.get()] = idx;
+          vmap.insert_or_assign(old_loop->loop_var.get(), idx);
           tail_seq.emplace_back(
               IfThenElse(idx < old_loop->extent,
                          ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(tail_body, map_var)
@@ -300,14 +301,15 @@ class DoubleBufferInjector : public StmtExprMutator {
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
       TVM_FFI_ICHECK(in_double_buffer_scope_);
-      TVM_FFI_ICHECK(e.switch_write_var.defined());
+      TVM_FFI_ICHECK(e.switch_write_var.has_value());
 
       TVM_FFI_ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
                                                  << "Has FlattenBuffer been run?";
 
       auto writer = node.CopyOnWrite();
-      writer->buffer = GetRemappedBuffer(node->buffer, e.stride);
-      writer->indices = {e.switch_write_var.as_or_throw<PrimExpr>() * e.stride + node->indices[0]};
+      writer->buffer = GetRemappedBuffer(node->buffer, e.stride.value());
+      writer->indices = {e.switch_write_var.value().as_or_throw<PrimExpr>() * e.stride.value() +
+                         node->indices[0]};
     }
 
     return node;
@@ -324,14 +326,14 @@ class DoubleBufferInjector : public StmtExprMutator {
     auto it = dbuffer_info_.find(buffer.get());
     if (it != dbuffer_info_.end()) {
       const StorageEntry& e = it->second;
-      TVM_FFI_ICHECK(e.switch_read_var.defined());
+      TVM_FFI_ICHECK(e.switch_read_var.has_value());
 
       TVM_FFI_ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
                                                  << "Has FlattenBuffer been run?";
 
       auto* writer = node.CopyOnWrite();
-      writer->source = GetRemappedBuffer(buffer, e.stride);
-      writer->indices = {e.switch_read_var * e.stride + node->indices[0]};
+      writer->source = GetRemappedBuffer(buffer, e.stride.value());
+      writer->indices = {e.switch_read_var.value() * e.stride.value() + node->indices[0]};
       return node;
     }
 
@@ -403,14 +405,14 @@ class DoubleBufferInjector : public StmtExprMutator {
       if (auto it = vmap.find(var.get()); it != vmap.end()) return ffi::Any(it->second);
       return ffi::Unchanged();
     };
-    vmap[e.switch_write_var.get()] = zero;
-    vmap[e.loop->loop_var.get()] = zero;
+    vmap.insert_or_assign(e.switch_write_var.value().get(), zero);
+    vmap.insert_or_assign(e.loop->loop_var.get(), zero);
     loop_pre_[e.loop].emplace_back(
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(body, map_var).as_or_throw<Stmt>());
-    vmap[e.loop->loop_var.get()] = loop_shift;
-    vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
+    vmap.insert_or_assign(e.loop->loop_var.get(), loop_shift);
+    vmap.insert_or_assign(e.switch_write_var.value().get(), indexmod(loop_shift, two));
     body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(body, map_var).as_or_throw<Stmt>();
-    body = AttrStmt(GetRemappedBuffer(buffer.as_or_throw<BufferVar>(), e.stride).data(),
+    body = AttrStmt(GetRemappedBuffer(buffer.as_or_throw<BufferVar>(), e.stride.value()).data(),
                     s_tir::attr::double_buffer_write, IntImm::Int32(1), body);
     body = IfThenElse(loop_shift < e.loop->extent, body);
     return body;
@@ -418,13 +420,13 @@ class DoubleBufferInjector : public StmtExprMutator {
   // Storage entry for those who need double buffering.
   struct StorageEntry {
     // The size of the buffer
-    PrimExpr stride;
+    ffi::Optional<PrimExpr> stride;
     // The loop we need
     const ForNode* loop{nullptr};
     // The switch variable.
-    Var switch_write_var;
+    ffi::Optional<Var> switch_write_var;
     // The switch variable for reading.
-    PrimExpr switch_read_var;
+    ffi::Optional<PrimExpr> switch_read_var;
     // The storage scope.
     std::string scope;
   };
@@ -449,13 +451,14 @@ namespace transform {
 
 Pass InjectDoubleBuffer() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<InjectDoubleBufferConfig>("s_tir.InjectDoubleBuffer");
     if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<InjectDoubleBufferConfig>();
     }
-    n->body =
-        ffi::make_object<DoubleBufferInjector>(cfg.value()->split_loop)->Inject(std::move(n->body));
+    n->body = ffi::make_object<DoubleBufferInjector>(cfg.value()->split_loop)
+                  ->Inject(std::move(n->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectDoubleBuffer", {});

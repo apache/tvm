@@ -105,7 +105,7 @@ class StorageTokenNode : public ffi::Object {
   /*! \brief Reference counter. */
   int ref_counter{0};
   /*! \brief Number of bytes that this token requires. */
-  PrimExpr bytes;
+  PrimExpr bytes{ffi::UnsafeInit{}};
   /*! \brief The dtype of this token. */
   DLDataType dtype;
   /*! \brief The memory scope of the token. */
@@ -444,10 +444,10 @@ void SetTIRVarRangeConstraints(Function func, sym::AnalyzerObj* ana,
   std::unordered_set<ffi::String> non_negative_var_attr;
   // We manually check the value type to ensure the values are all positive IntImm.
   for (auto [key, value] : var_upper_bound_attr_raw) {
-    var_upper_bound_attr[key] = value;
+    var_upper_bound_attr.insert_or_assign(key, value);
   }
   for (auto [key, value] : var_lower_bound_attr_raw) {
-    var_lower_bound_attr[key] = value;
+    var_lower_bound_attr.insert_or_assign(key, value);
   }
   for (const ffi::String& var_name : non_negative_var_attr_raw) {
     non_negative_var_attr.insert(var_name);
@@ -522,7 +522,7 @@ bool IsStaticShape(ffi::Array<PrimExpr> shape) {
  * used by each Expr. After the initialization, we
  * - know the tokens that each Expr is using,
  * - know the number of references for each token,
- * - rule out the builtin alloc_tensors to which the planning does not apply.
+ * - rule out the builtin alloc_buffers to which the planning does not apply.
  */
 class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
  public:
@@ -963,21 +963,23 @@ class StorageAllocationRewriter : public ExprMutator {
       // If the token is visited for the first time, create a storage variable using
       // `memory.alloc_storage` for it.
       StorageToken token = it->second;
-      Var storage_var{nullptr};
-      auto it_token = token2storage_var_.find(token.get());
-      if (it_token == token2storage_var_.end()) {
-        ShapeExpr size({token->bytes});
-        PrimExpr virtual_device_index = runtime_device_index;
-        DLDataType dtype = token->dtype;
-        Call alloc_storage(Type::Missing(), mem_alloc_storage,
-                           {std::move(size), virtual_device_index, StringImm(token->storage_scope),
-                            DataTypeImm(dtype)},
-                           Attrs());
-        storage_var = builder_->Emit(alloc_storage, "storage");
-        token2storage_var_[token.get()] = storage_var;
-      } else {
-        storage_var = it_token->second;
-      }
+      Var storage_var = [&]() -> Var {
+        auto it_token = token2storage_var_.find(token.get());
+        if (it_token == token2storage_var_.end()) {
+          ShapeExpr size({token->bytes});
+          PrimExpr virtual_device_index = runtime_device_index;
+          DLDataType dtype = token->dtype;
+          Call alloc_storage(Type::Missing(), mem_alloc_storage,
+                             {std::move(size), virtual_device_index,
+                              StringImm(token->storage_scope), DataTypeImm(dtype)},
+                             Attrs());
+          Var storage_var = builder_->Emit(alloc_storage, "storage");
+          token2storage_var_.insert_or_assign(token.get(), storage_var);
+          return storage_var;
+        } else {
+          return it_token->second;
+        }
+      }();
 
       // And always create a `memory.alloc_tensor` for the old `builtin.alloc_tensor`.
       PrimExpr offset = IntImm::Int64(0);

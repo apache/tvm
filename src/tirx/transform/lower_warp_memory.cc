@@ -205,7 +205,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
   // The buffer variable
   const VarNode* buffer_;
   // the warp index
-  Var warp_index_;
+  Var warp_index_{ffi::UnsafeInit{}};
   // the coefficient
   int64_t warp_coeff_{0};
   // analyzer.
@@ -479,11 +479,11 @@ class WarpAccessRewriter : public StmtExprMutator {
   // The buffer variable
   const VarNode* buffer_;
   // The fresh local buffer replacing the warp-scoped definition.
-  BufferVar new_buffer_;
+  BufferVar new_buffer_{ffi::UnsafeInit{}};
   // number of threads involved in one shuffle
   int width_{0};
   // Warp index
-  Var warp_index_;
+  Var warp_index_{ffi::UnsafeInit{}};
   // the coefficient m
   int warp_coeff_{0};
   // the coefficient n
@@ -593,12 +593,13 @@ namespace transform {
 
 Pass LowerWarpMemory() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerWarpMemory: Require the target attribute";
     int warp_size = target.value()->GetAttr<int64_t>("thread_warp_size", 1).value();
     auto warp_memory_rewriter = ffi::make_object<WarpMemoryRewriter>(warp_size);
-    auto stmt = warp_memory_rewriter->Rewrite(std::move(n->body));
+    auto stmt = warp_memory_rewriter->Rewrite(std::move(n->body).value());
     n->body = ffi::make_object<UpdatePointerStorageScope>(warp_memory_rewriter->new_storage_scopes_)
                   ->Mutate(stmt, InplaceMode::kAllow)
                   .ValueOrUnchanged(stmt);

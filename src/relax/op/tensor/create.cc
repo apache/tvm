@@ -47,16 +47,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 /* relax.full */
 Expr full(ffi::Variant<Expr, ffi::Array<PrimExpr>> shape, Expr fill_value,
           ffi::Optional<DLDataType> dtype) {
-  Expr shape_in_expr{nullptr};
-  if (const auto* expr = shape.as<ExprNode>()) {
-    shape_in_expr = ffi::GetRef<Expr>(expr);
-  } else if (const auto* _array = shape.as<ffi::ArrayObj>()) {
-    shape_in_expr =
-        ShapeExpr(ffi::GetRef<ffi::ObjectRef>(_array).as_or_throw<ffi::Array<PrimExpr>>());
-  } else {
-    TVM_FFI_THROW(InternalError)
-        << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. ";
-  }
+  Expr shape_in_expr = [&]() -> Expr {
+    if (const auto* expr = shape.as<ExprNode>()) {
+      return ffi::GetRef<Expr>(expr);
+    }
+    return ShapeExpr(shape.get<ffi::Array<PrimExpr>>());
+  }();
 
   ffi::ObjectPtr<InitAttrs> attrs = ffi::make_object<InitAttrs>();
   attrs->dtype = dtype;
@@ -376,15 +372,16 @@ Type InferTypeArange(const CallNode* call_node) {
   const auto* attrs = call->attrs.as<InitAttrs>();
   TVM_FFI_ICHECK(attrs->dtype.has_value());
   DLDataType dtype = attrs->dtype.value();
-  PrimExpr num_elem;
-  if (start.ty().code() == DLDataTypeCode::kDLInt && end.ty().code() == DLDataTypeCode::kDLInt &&
-      step.ty().code() == DLDataTypeCode::kDLInt) {
-    num_elem = tvm::floordiv((end - start + step - 1), step);
-  } else {
-    num_elem =
-        tvm::prim::cast(tvm::PrimType::Int(64),
-                        tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), end - start) / step));
-  }
+  PrimExpr num_elem = [&]() -> PrimExpr {
+    if (start.ty().code() == DLDataTypeCode::kDLInt && end.ty().code() == DLDataTypeCode::kDLInt &&
+        step.ty().code() == DLDataTypeCode::kDLInt) {
+      return tvm::floordiv((end - start + step - 1), step);
+    } else {
+      return tvm::prim::cast(
+          tvm::PrimType::Int(64),
+          tvm::ceil(tvm::prim::cast(tvm::PrimType::Float(32), end - start) / step));
+    }
+  }();
   sym::Analyzer analyzer;
   num_elem = analyzer->Simplify(num_elem);
   return TensorType(ShapeExpr({num_elem}), PrimType(dtype));

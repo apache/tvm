@@ -51,7 +51,8 @@ PrimFuncFrame DeclFunction(bool is_private = false, bool persistent = false);
  */
 BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                       PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
-                      ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
+                      ffi::Array<PrimExpr> strides = {},
+                      ffi::Optional<PrimExpr> elem_offset = std::nullopt,
                       ffi::String storage_scope = "global", int align = -1, int offset_factor = 0,
                       ffi::Optional<Layout> layout = std::nullopt,
                       ffi::Array<PrimExpr> allocated_addr = {});
@@ -110,7 +111,8 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  */
 BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                             ffi::Optional<Expr> data = std::nullopt,
-                            ffi::Array<PrimExpr> strides = {}, PrimExpr elem_offset = PrimExpr(),
+                            ffi::Array<PrimExpr> strides = {},
+                            ffi::Optional<PrimExpr> elem_offset = std::nullopt,
                             ffi::String storage_scope = "", int align = -1, int offset_factor = 0,
                             ffi::Optional<Layout> layout = std::nullopt,
                             ffi::Array<PrimExpr> allocated_addr = {});

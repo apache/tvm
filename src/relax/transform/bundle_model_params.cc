@@ -119,7 +119,7 @@ class ModelParamBundler : public ExprMutator {
     for (const Var& var : prim_params) {
       auto it = var_to_expr_.find(var);
       TVM_FFI_ICHECK(it != var_to_expr_.end());
-      var_remap_[var] = builder_->Emit((*it).second, var->name);
+      var_remap_.insert_or_assign(var, builder_->Emit((*it).second, var->name));
     }
     BindingBlock prologue = builder_->EndBlock();
 

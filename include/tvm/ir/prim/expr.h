@@ -56,7 +56,7 @@ using FloatImmNode = tvm::FloatImmNode;
 class CastNode : public ExprNode {
  public:
   /*! \brief Original data type. */
-  PrimExpr value;
+  PrimExpr value{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CastNode>().def_ro("value", &CastNode::value);
@@ -71,7 +71,9 @@ class CastNode : public ExprNode {
 class Cast : public PrimExpr {
  public:
   TVM_DLL Cast(PrimType value_ty, PrimExpr value, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Cast, PrimExpr, CastNode);
+  explicit Cast(ffi::ObjectPtr<CastNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Cast, PrimExpr, CastNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CastNode);
 };
@@ -84,9 +86,9 @@ template <typename T>
 class BinaryOpNode : public ExprNode {
  public:
   /*! \brief The left operand. */
-  PrimExpr a;
+  PrimExpr a{ffi::UnsafeInit{}};
   /*! \brief The right operand. */
-  PrimExpr b;
+  PrimExpr b{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
@@ -109,7 +111,9 @@ class AddNode : public BinaryOpNode<AddNode> {
 class Add : public PrimExpr {
  public:
   TVM_DLL Add(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Add, PrimExpr, AddNode);
+  explicit Add(ffi::ObjectPtr<AddNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Add, PrimExpr, AddNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AddNode);
 };
@@ -127,7 +131,9 @@ class LShiftNode : public BinaryOpNode<LShiftNode> {
 class LShift : public PrimExpr {
  public:
   TVM_DLL LShift(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LShift, PrimExpr, LShiftNode);
+  explicit LShift(ffi::ObjectPtr<LShiftNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LShift, PrimExpr, LShiftNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LShiftNode);
 };
@@ -145,7 +151,9 @@ class RShiftNode : public BinaryOpNode<RShiftNode> {
 class RShift : public PrimExpr {
  public:
   TVM_DLL RShift(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(RShift, PrimExpr, RShiftNode);
+  explicit RShift(ffi::ObjectPtr<RShiftNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RShift, PrimExpr, RShiftNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RShiftNode);
 };
@@ -163,7 +171,9 @@ class BitwiseAndNode : public BinaryOpNode<BitwiseAndNode> {
 class BitwiseAnd : public PrimExpr {
  public:
   TVM_DLL BitwiseAnd(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseAnd, PrimExpr, BitwiseAndNode);
+  explicit BitwiseAnd(ffi::ObjectPtr<BitwiseAndNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BitwiseAnd, PrimExpr, BitwiseAndNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseAndNode);
 };
@@ -181,7 +191,9 @@ class BitwiseOrNode : public BinaryOpNode<BitwiseOrNode> {
 class BitwiseOr : public PrimExpr {
  public:
   TVM_DLL BitwiseOr(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseOr, PrimExpr, BitwiseOrNode);
+  explicit BitwiseOr(ffi::ObjectPtr<BitwiseOrNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BitwiseOr, PrimExpr, BitwiseOrNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseOrNode);
 };
@@ -199,7 +211,9 @@ class BitwiseXorNode : public BinaryOpNode<BitwiseXorNode> {
 class BitwiseXor : public PrimExpr {
  public:
   TVM_DLL BitwiseXor(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseXor, PrimExpr, BitwiseXorNode);
+  explicit BitwiseXor(ffi::ObjectPtr<BitwiseXorNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BitwiseXor, PrimExpr, BitwiseXorNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseXorNode);
 };
@@ -218,7 +232,9 @@ class Sub : public PrimExpr {
  public:
   TVM_DLL Sub(PrimExpr a, PrimExpr b, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Sub, PrimExpr, SubNode);
+  explicit Sub(ffi::ObjectPtr<SubNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Sub, PrimExpr, SubNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SubNode);
 };
@@ -236,7 +252,9 @@ class MulNode : public BinaryOpNode<MulNode> {
 class Mul : public PrimExpr {
  public:
   TVM_DLL Mul(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mul, PrimExpr, MulNode);
+  explicit Mul(ffi::ObjectPtr<MulNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Mul, PrimExpr, MulNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MulNode);
 };
@@ -257,7 +275,9 @@ class DivNode : public BinaryOpNode<DivNode> {
 class Div : public PrimExpr {
  public:
   TVM_DLL Div(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Div, PrimExpr, DivNode);
+  explicit Div(ffi::ObjectPtr<DivNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Div, PrimExpr, DivNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DivNode);
 };
@@ -278,7 +298,9 @@ class ModNode : public BinaryOpNode<ModNode> {
 class Mod : public PrimExpr {
  public:
   TVM_DLL Mod(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Mod, PrimExpr, ModNode);
+  explicit Mod(ffi::ObjectPtr<ModNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Mod, PrimExpr, ModNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ModNode);
 };
@@ -296,7 +318,9 @@ class FloorDivNode : public BinaryOpNode<FloorDivNode> {
 class FloorDiv : public PrimExpr {
  public:
   TVM_DLL FloorDiv(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FloorDiv, PrimExpr, FloorDivNode);
+  explicit FloorDiv(ffi::ObjectPtr<FloorDivNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FloorDiv, PrimExpr, FloorDivNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloorDivNode);
 };
@@ -314,7 +338,9 @@ class FloorModNode : public BinaryOpNode<FloorModNode> {
 class FloorMod : public PrimExpr {
  public:
   TVM_DLL FloorMod(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FloorMod, PrimExpr, FloorModNode);
+  explicit FloorMod(ffi::ObjectPtr<FloorModNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FloorMod, PrimExpr, FloorModNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloorModNode);
 };
@@ -332,7 +358,9 @@ class MinNode : public BinaryOpNode<MinNode> {
 class Min : public PrimExpr {
  public:
   TVM_DLL Min(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Min, PrimExpr, MinNode);
+  explicit Min(ffi::ObjectPtr<MinNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Min, PrimExpr, MinNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MinNode);
 };
@@ -350,7 +378,9 @@ class MaxNode : public BinaryOpNode<MaxNode> {
 class Max : public PrimExpr {
  public:
   TVM_DLL Max(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Max, PrimExpr, MaxNode);
+  explicit Max(ffi::ObjectPtr<MaxNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Max, PrimExpr, MaxNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(MaxNode);
 };
@@ -363,9 +393,9 @@ template <typename T>
 class CmpOpNode : public ExprNode {
  public:
   /*! \brief The left operand. */
-  PrimExpr a;
+  PrimExpr a{ffi::UnsafeInit{}};
   /*! \brief The right operand. */
-  PrimExpr b;
+  PrimExpr b{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
@@ -388,7 +418,9 @@ class EQNode : public CmpOpNode<EQNode> {
 class EQ : public PrimExpr {
  public:
   TVM_DLL EQ(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(EQ, PrimExpr, EQNode);
+  explicit EQ(ffi::ObjectPtr<EQNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(EQ, PrimExpr, EQNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(EQNode);
 };
@@ -406,7 +438,9 @@ class NENode : public CmpOpNode<NENode> {
 class NE : public PrimExpr {
  public:
   TVM_DLL NE(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(NE, PrimExpr, NENode);
+  explicit NE(ffi::ObjectPtr<NENode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NE, PrimExpr, NENode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(NENode);
 };
@@ -424,7 +458,9 @@ class LTNode : public CmpOpNode<LTNode> {
 class LT : public PrimExpr {
  public:
   TVM_DLL LT(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LT, PrimExpr, LTNode);
+  explicit LT(ffi::ObjectPtr<LTNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LT, PrimExpr, LTNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LTNode);
 };
@@ -442,7 +478,9 @@ struct LENode : public CmpOpNode<LENode> {
 class LE : public PrimExpr {
  public:
   TVM_DLL LE(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LE, PrimExpr, LENode);
+  explicit LE(ffi::ObjectPtr<LENode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LE, PrimExpr, LENode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LENode);
 };
@@ -460,7 +498,9 @@ class GTNode : public CmpOpNode<GTNode> {
 class GT : public PrimExpr {
  public:
   TVM_DLL GT(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GT, PrimExpr, GTNode);
+  explicit GT(ffi::ObjectPtr<GTNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GT, PrimExpr, GTNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GTNode);
 };
@@ -478,7 +518,9 @@ class GENode : public CmpOpNode<GENode> {
 class GE : public PrimExpr {
  public:
   TVM_DLL GE(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GE, PrimExpr, GENode);
+  explicit GE(ffi::ObjectPtr<GENode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GE, PrimExpr, GENode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GENode);
 };
@@ -487,9 +529,9 @@ class GE : public PrimExpr {
 class AndNode : public ExprNode {
  public:
   /*! \brief The left operand. */
-  PrimExpr a;
+  PrimExpr a{ffi::UnsafeInit{}};
   /*! \brief The right operand. */
-  PrimExpr b;
+  PrimExpr b{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
@@ -504,7 +546,9 @@ class AndNode : public ExprNode {
 class And : public PrimExpr {
  public:
   TVM_DLL And(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(And, PrimExpr, AndNode);
+  explicit And(ffi::ObjectPtr<AndNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(And, PrimExpr, AndNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AndNode);
 };
@@ -513,9 +557,9 @@ class And : public PrimExpr {
 class OrNode : public ExprNode {
  public:
   /*! \brief The left operand. */
-  PrimExpr a;
+  PrimExpr a{ffi::UnsafeInit{}};
   /*! \brief The right operand. */
-  PrimExpr b;
+  PrimExpr b{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
@@ -530,7 +574,9 @@ class OrNode : public ExprNode {
 class Or : public PrimExpr {
  public:
   TVM_DLL Or(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Or, PrimExpr, OrNode);
+  explicit Or(ffi::ObjectPtr<OrNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Or, PrimExpr, OrNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(OrNode);
 };
@@ -539,7 +585,7 @@ class Or : public PrimExpr {
 class NotNode : public ExprNode {
  public:
   /*! \brief The input operand. */
-  PrimExpr a;
+  PrimExpr a{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<NotNode>().def_ro("a", &NotNode::a);
@@ -554,7 +600,9 @@ class NotNode : public ExprNode {
 class Not : public PrimExpr {
  public:
   TVM_DLL Not(PrimExpr a, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Not, PrimExpr, NotNode);
+  explicit Not(ffi::ObjectPtr<NotNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Not, PrimExpr, NotNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(NotNode);
 };
@@ -563,7 +611,7 @@ class Not : public PrimExpr {
 class BitwiseNotNode : public ExprNode {
  public:
   /*! \brief The input operand. */
-  PrimExpr a;
+  PrimExpr a{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BitwiseNotNode>().def_ro("a", &BitwiseNotNode::a);
@@ -578,7 +626,9 @@ class BitwiseNotNode : public ExprNode {
 class BitwiseNot : public PrimExpr {
  public:
   TVM_DLL BitwiseNot(PrimExpr a, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BitwiseNot, PrimExpr, BitwiseNotNode);
+  explicit BitwiseNot(ffi::ObjectPtr<BitwiseNotNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BitwiseNot, PrimExpr, BitwiseNotNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BitwiseNotNode);
 };
@@ -593,11 +643,11 @@ class BitwiseNot : public PrimExpr {
 class SelectNode : public ExprNode {
  public:
   /*! \brief The condition */
-  PrimExpr condition;
+  PrimExpr condition{ffi::UnsafeInit{}};
   /*! \brief value to be returned when condition is true. */
-  PrimExpr true_value;
+  PrimExpr true_value{ffi::UnsafeInit{}};
   /*! \brief value to be returned when condition is false. */
-  PrimExpr false_value;
+  PrimExpr false_value{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SelectNode>()
@@ -616,7 +666,9 @@ class Select : public PrimExpr {
  public:
   TVM_DLL Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Select, PrimExpr, SelectNode);
+  explicit Select(ffi::ObjectPtr<SelectNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Select, PrimExpr, SelectNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SelectNode);
 };
@@ -627,11 +679,11 @@ class Select : public PrimExpr {
 class LetNode : public ExprNode {
  public:
   /*! \brief The variable. */
-  Var var;
+  Var var{ffi::UnsafeInit{}};
   /*! \brief The value to be binded. */
-  PrimExpr value;
+  PrimExpr value{ffi::UnsafeInit{}};
   /*! \brief The result expression. */
-  PrimExpr body;
+  PrimExpr body{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetNode>()
@@ -649,7 +701,9 @@ class LetNode : public ExprNode {
 class Let : public PrimExpr {
  public:
   TVM_DLL Let(Var var, PrimExpr value, PrimExpr body, Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Let, PrimExpr, LetNode);
+  explicit Let(ffi::ObjectPtr<LetNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Let, PrimExpr, LetNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(LetNode);
 };

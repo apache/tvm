@@ -324,15 +324,14 @@ class LambdaLifter : public ExprMutator {
     Type ret_ty = GetType(body);
     body = Bind(body, rebinding_map);
 
-    Function lifted_func;
-    if (lifted_func_params.same_as(func_node->params) && body.same_as(func_node->body) &&
-        ret_ty.same_as(func_node->ret_ty)) {
-      lifted_func = ffi::GetRef<Function>(func_node);
-    } else {
-      lifted_func =
-          Function(lifted_func_params, body, ret_ty, func_node->is_pure, func_node->attrs);
-    }
-
+    Function lifted_func = [&]() -> Function {
+      if (lifted_func_params.same_as(func_node->params) && body.same_as(func_node->body) &&
+          ret_ty.same_as(func_node->ret_ty)) {
+        return ffi::GetRef<Function>(func_node);
+      } else {
+        return Function(lifted_func_params, body, ret_ty, func_node->is_pure, func_node->attrs);
+      }
+    }();
     TVM_FFI_ICHECK(lifted_func.defined());
 
     if (is_closure || IsClosure(lifted_func)) {

@@ -434,7 +434,7 @@ class PatternCheckContextNode : public ffi::Object {
   /*!
    * \brief The expression that's matched with the FusionPattern::pattern.
    */
-  Expr matched_expr;
+  Expr matched_expr{ffi::UnsafeInit{}};
 
   /*!
    * \brief A map which contains all expressions matched by the sub patterns in
