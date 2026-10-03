@@ -67,7 +67,10 @@ def test_public_namespace_and_old_bench_path_is_absent():
     assert not hasattr(bench, "IketProfiler")
 
 
-@pytest.mark.parametrize("injection_variable", ["CUDA_INJECTION64_PATH", "SMODEL_INJECTION_CONFIG"])
+@pytest.mark.parametrize(
+    "injection_variable",
+    ["CUDA_INJECTION64_PATH", "IKET_INJECTION_CONFIG", "SMODEL_INJECTION_CONFIG"],
+)
 def test_profile_rejects_nested_injection_before_validation(
     injection_variable, tmp_path, monkeypatch
 ):
@@ -198,6 +201,33 @@ def test_multi_process_singular_properties_point_to_plural(tmp_path, monkeypatch
         _ = result.perfetto
     with pytest.raises(iket.IketProfileError, match="html_reports"):
         _ = result.html
+
+
+def test_statistics_json_is_not_a_trace(tmp_path, monkeypatch):
+    def run_process(argv, **_kwargs):
+        staging = Path(argv[argv.index("--output-dir") + 1])
+        _write_artifacts(staging, "json")
+        (staging / "run-iket.stats.json").write_text('{"phases": {}}', encoding="utf-8")
+
+    monkeypatch.setattr(iket, "_validate_official_installation", lambda: "run-iket")
+    monkeypatch.setattr(iket, "_run_process", run_process)
+    result = iket.profile(
+        ("python", "workload.py"), output_dir=tmp_path / "result", postprocess="json"
+    )
+    assert result.trace == {"launches": [{"index": 0}]}
+    assert len(result.json_traces) == 1
+    assert (result.output_dir / "run-iket.stats.json").is_file()
+
+
+def test_statistics_json_does_not_satisfy_requested_trace(tmp_path, monkeypatch):
+    def run_process(argv, **_kwargs):
+        staging = Path(argv[argv.index("--output-dir") + 1])
+        (staging / "run-iket.stats.json").write_text('{"phases": {}}', encoding="utf-8")
+
+    monkeypatch.setattr(iket, "_validate_official_installation", lambda: "run-iket")
+    monkeypatch.setattr(iket, "_run_process", run_process)
+    with pytest.raises(iket.IketProfileError, match="JSON trace"):
+        iket.profile(("python", "workload.py"), output_dir=tmp_path / "result", postprocess="json")
 
 
 def test_missing_artifact_rolls_back_existing_output(tmp_path, monkeypatch):
@@ -435,6 +465,7 @@ def test_imported_callable_is_rejected_before_profile_starts(tmp_path, monkeypat
 
     monkeypatch.delenv("CUDA_INJECTION64_PATH", raising=False)
     monkeypatch.delenv("SMODEL_INJECTION_CONFIG", raising=False)
+    monkeypatch.delenv("IKET_INJECTION_CONFIG", raising=False)
     monkeypatch.setattr(iket, "profile", should_not_start)
     with pytest.raises(ValueError, match=r"iket\.profile\(command\)"):
         iket.run(test_imported_callable_is_rejected_before_profile_starts, output_dir=tmp_path)
