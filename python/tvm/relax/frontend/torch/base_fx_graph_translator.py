@@ -2556,10 +2556,33 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # Skip identity reshape
         current_shape = self.shape_of(x)
-        if current_shape is not None and list(current_shape) == list(dims):
+        if current_shape is not None and self._same_dims(current_shape, dims):
             return x
 
         return self._emit_torch_reshape(x, dims)
+
+    def _same_dims(self, lhs, rhs) -> bool:
+        """Whether two shapes are the same, dimension by dimension.
+
+        Plain ``list(lhs) == list(rhs)`` is not usable here: for a symbolic dimension
+        ``==`` builds a PrimExpr rather than answering, and Python then asks it for a
+        truth value and raises. That only surfaces when the ranks match, since list
+        equality compares lengths first, which is why ``x.reshape(x.shape[0], -1)``
+        worked and ``x.reshape(x.shape[0], 0, x.shape[0])`` on a rank-3 input did not.
+        """
+        if len(lhs) != len(rhs):
+            return False
+        for a, b in zip(lhs, rhs):
+            a_static, b_static = self._static_dim(a), self._static_dim(b)
+            if a_static is not None or b_static is not None:
+                if a_static != b_static:
+                    return False
+                continue
+            if not (isinstance(a, tvm.ir.Expr) and isinstance(b, tvm.ir.Expr)):
+                return False
+            if not tvm_ffi.structural_equal(a, b):
+                return False
+        return True
 
     def _reshape_as(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
