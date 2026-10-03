@@ -21,6 +21,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from tvm import ir as _ir
 from tvm.backend.cuda import op as _cuda_op
 from tvm.tirx import is_buffer_var
 from tvm.tirx import op as _tir_op
@@ -120,128 +121,80 @@ class IketNamespace:
         self.official_event = _op_wrapper(_cuda_op.cuda_iket_official_event)
 
 
-class CUDANamespace:
-    """The CUDA intrinsics submodule."""
+def _shfl_sync(mask, var, lane, width):
+    if is_buffer_var(var):
+        var = var[0]
+    return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_sync", mask, var, lane, width)
 
-    def __init__(self):
-        self.iket = IketNamespace()
-        self.wgmma = CudaWgmmaNamespace()
-        self.tcgen05 = CudaTcgen05Namespace()
-        self.any_sync = _op_wrapper(_cuda_op.cuda_any_sync)
-        # elect.sync plus the predicated mov that materializes its predicate:
-        # a multi-statement asm block, so it belongs here rather than T.ptx.
-        # The warp-specialization passes match this op to build predicates.
-        self.elect_sync: Callable[..., Any] = _op_wrapper(_cuda_op.cuda_elect_sync)
-        # `mov.u32 d, %sreg` -- one PTX instruction, but the special-register
-        # name is baked into the asm text, so it is a helper per register
-        # rather than a ptx entry with a register operand.
-        self.mov_sreg: Callable[..., Any] = _op_wrapper(_cuda_op.cuda_mov_sreg)
-        # Spin-until-ready mbarrier waits: label-loop asm blocks, not single
-        # PTX instructions -- which is why they live here and not in T.ptx.
-        # One declared synchronization word: every access a protocol makes to
-        # it goes through these, so a checker can separate them from a stray
-        # access and read the word's write history off the declaration.
-        self.wait_until = _op_wrapper(_cuda_op.cuda_wait_until)
-        self.mbarrier_wait = _op_wrapper(_cuda_op.cuda_mbarrier_wait)
-        self.mbarrier_wait_acquire_cluster = _op_wrapper(
-            _cuda_op.cuda_mbarrier_wait_acquire_cluster
-        )
-        self.atomic_add = _op_wrapper(_cuda_op.cuda_atomic_add)
-        self.thread_fence = _op_wrapper(_cuda_op.cuda_thread_fence)
-        self.warpgroup_sync = _op_wrapper(_cuda_op.cuda_warpgroup_sync)
-        self.warp_sync = _op_wrapper(_cuda_op.cuda_warp_sync)
-        self.warp_reduce = _op_wrapper(_cuda_op.cuda_warp_reduce)
-        self.warp_sum = _op_wrapper(_cuda_op.cuda_warp_sum)
-        self.warp_max = _op_wrapper(_cuda_op.cuda_warp_max)
-        self.warp_min = _op_wrapper(_cuda_op.cuda_warp_min)
-        self.cta_reduce = _op_wrapper(_cuda_op.cuda_cta_reduce)
-        self.cta_sum = _op_wrapper(_cuda_op.cuda_cta_sum)
-        self.cta_max = _op_wrapper(_cuda_op.cuda_cta_max)
-        self.cta_min = _op_wrapper(_cuda_op.cuda_cta_min)
-        self.cta_sync = _op_wrapper(_cuda_op.cuda_cta_sync)
-        self.grid_sync = _op_wrapper(_cuda_op.cuda_grid_sync)
-        self.cluster_sync = _op_wrapper(_cuda_op.cuda_cluster_sync)
-        self.thread_rank = _op_wrapper(_cuda_op.cuda_thread_rank)
-        self.trap_when_assert_failed = _op_wrapper(_cuda_op.cuda_trap_when_assert_failed)
-        self.runtime_instr_desc = _op_wrapper(_cuda_op.cuda_runtime_instr_desc)
-        self.half2float = _op_wrapper(_cuda_op.cuda_half2float)
-        self.bfloat162float = _op_wrapper(_cuda_op.cuda_bfloat162float)
-        self.float22half2 = _op_wrapper(_cuda_op.cuda_float22half2)
-        self.half8tofloat8 = _op_wrapper(_cuda_op.cuda_half8tofloat8)
-        self.float8tohalf8 = _op_wrapper(_cuda_op.cuda_float8tohalf8)
-        self.syncthreads_and = _op_wrapper(_cuda_op.cuda_syncthreads_and)
-        self.syncthreads_or = _op_wrapper(_cuda_op.cuda_syncthreads_or)
-        self.nano_sleep = _op_wrapper(_cuda_op.cuda_nano_sleep)
-        self.atomic_cas = _op_wrapper(_cuda_op.cuda_atomic_cas)
-        self.func_call = _op_wrapper(_cuda_op.cuda_func_call)
-        self.printf = _op_wrapper(_cuda_op.cuda_printf)
-        self.ldg = _op_wrapper(_cuda_op.cuda_ldg)
-        self.fdividef = _op_wrapper(_cuda_op.cuda_fdividef)
-        self.get_tmem_addr = _op_wrapper(_cuda_op.cuda_get_tmem_addr)
-        self.cvta_generic_to_shared = _op_wrapper(_cuda_op.cuda_cvta_generic_to_shared)
-        self.smem_addr_from_uint64 = _op_wrapper(_cuda_op.cuda_smem_addr_from_uint64)
-        self.sm100_2sm_leader_smem_addr = _op_wrapper(_cuda_op.cuda_sm100_2sm_leader_smem_addr)
-        self.uint_as_float = _op_wrapper(_cuda_op.cuda_uint_as_float)
-        self.float_as_uint = _op_wrapper(_cuda_op.cuda_float_as_uint)
-        self.ballot_sync = _op_wrapper(_cuda_op.cuda_ballot_sync)
-        self.ffs_u32 = _op_wrapper(_cuda_op.cuda_ffs_u32)
-        self.reduce_add_sync_u32 = _op_wrapper(_cuda_op.cuda_reduce_add_sync_u32)
-        self.reduce_min_sync_u32 = _op_wrapper(_cuda_op.cuda_reduce_min_sync_u32)
-        self.clock64 = _op_wrapper(_cuda_op.cuda_clock64)
-        self.make_float2 = _op_wrapper(_cuda_op.cuda_make_float2)
-        self.float2_x = _op_wrapper(_cuda_op.cuda_float2_x)
-        self.float2_y = _op_wrapper(_cuda_op.cuda_float2_y)
-        self.fmul2_rn = _op_wrapper(_cuda_op.cuda_fmul2_rn)
-        self.fadd2_rn = _op_wrapper(_cuda_op.cuda_fadd2_rn)
-        self.float22bfloat162_rn = _op_wrapper(_cuda_op.cuda_float22bfloat162_rn)
-        self.float22bfloat162_rn_from_float2 = _op_wrapper(
-            _cuda_op.cuda_float22bfloat162_rn_from_float2
-        )
-        self.bfloat1622float2 = _op_wrapper(_cuda_op.cuda_bfloat1622float2)
-        self.hmin2 = _op_wrapper(_cuda_op.cuda_hmin2)
-        self.hmax2 = _op_wrapper(_cuda_op.cuda_hmax2)
-        self.fp8x4_e4m3_from_float4 = _op_wrapper(_cuda_op.cuda_fp8x4_e4m3_from_float4)
-        self.timer_init = _op_wrapper(_cuda_op.timer_init_cuda)
-        self.timer_start = _op_wrapper(_cuda_op.timer_start_cuda)
-        self.timer_end = _op_wrapper(_cuda_op.timer_end_cuda)
-        self.timer_finalize = _op_wrapper(_cuda_op.timer_finalize_cuda)
-        self.mma_store = _dtype_forward(_cuda_op.mma_store)
-        self.mma_fill = _dtype_forward(_cuda_op.mma_fill)
-        self.mma_store_legacy = _dtype_forward(_cuda_op.mma_store_legacy)
-        self.mma_fill_legacy = _dtype_forward(_cuda_op.mma_fill_legacy)
-        setattr(self, "__shfl_sync", self._shfl_sync)
-        setattr(self, "__shfl_up_sync", self._shfl_up_sync)
-        setattr(self, "__shfl_down_sync", self._shfl_down_sync)
-        setattr(self, "__shfl_xor_sync", self._shfl_xor_sync)
-        setattr(self, "__activemask", self._activemask)
 
-    @staticmethod
-    def _shfl_sync(mask, var, lane, width):
-        if is_buffer_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_sync", mask, var, lane, width)
+def _shfl_up_sync(mask, var, delta, width):
+    if is_buffer_var(var):
+        var = var[0]
+    return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
 
-    @staticmethod
-    def _shfl_up_sync(mask, var, delta, width):
-        if is_buffer_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
 
-    @staticmethod
-    def _shfl_down_sync(mask, var, delta, width):
-        if is_buffer_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
+def _shfl_down_sync(mask, var, delta, width):
+    if is_buffer_var(var):
+        var = var[0]
+    return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
 
-    @staticmethod
-    def _shfl_xor_sync(mask, var, lane_mask, width):
-        if is_buffer_var(var):
-            var = var[0]
-        return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width)
 
-    @staticmethod
-    def _activemask():
-        return _tir_op.call_intrin("uint32", "tirx.cuda.__activemask")
+def _shfl_xor_sync(mask, var, lane_mask, width):
+    if is_buffer_var(var):
+        var = var[0]
+    return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width)
+
+
+def _activemask():
+    return _tir_op.call_intrin("uint32", "tirx.cuda.__activemask")
+
+
+iket = IketNamespace()
+wgmma = CudaWgmmaNamespace()
+tcgen05 = CudaTcgen05Namespace()
+mov_sreg: Callable[..., Any] = _cuda_op.cuda_mov_sreg
+wait_until = _cuda_op.cuda_wait_until
+atomic_add = _cuda_op.cuda_atomic_add
+warp_reduce = _cuda_op.cuda_warp_reduce
+warp_sum = _cuda_op.cuda_warp_sum
+warp_max = _cuda_op.cuda_warp_max
+warp_min = _cuda_op.cuda_warp_min
+cta_reduce = _cuda_op.cuda_cta_reduce
+cta_sum = _cuda_op.cuda_cta_sum
+cta_max = _cuda_op.cuda_cta_max
+cta_min = _cuda_op.cuda_cta_min
+atomic_cas = _cuda_op.cuda_atomic_cas
+func_call = _cuda_op.cuda_func_call
+ldg = _cuda_op.cuda_ldg
+sm100_2sm_leader_smem_addr_composed = _cuda_op.cuda_sm100_2sm_leader_smem_addr
+timer_init = _cuda_op.timer_init_cuda
+timer_start = _cuda_op.timer_start_cuda
+timer_end = _cuda_op.timer_end_cuda
+timer_finalize = _cuda_op.timer_finalize_cuda
+mma_store = _dtype_forward(_cuda_op.mma_store)
+mma_fill = _dtype_forward(_cuda_op.mma_fill)
+mma_store_legacy = _dtype_forward(_cuda_op.mma_store_legacy)
+mma_fill_legacy = _dtype_forward(_cuda_op.mma_fill_legacy)
+mov_sreg.__tvm_op__ = _ir.Op.get("tirx.cuda.mov_sreg")
+wait_until.__tvm_op__ = _ir.Op.get("tirx.cuda.wait_until")
+atomic_add.__tvm_op__ = _ir.Op.get("tirx.cuda.atomic_add")
+warp_reduce.__tvm_op__ = _ir.Op.get("tirx.cuda.warp_reduce")
+cta_reduce.__tvm_op__ = _ir.Op.get("tirx.cuda.cta_reduce")
+atomic_cas.__tvm_op__ = _ir.Op.get("tirx.cuda.atomic_cas")
+func_call.__tvm_op__ = _ir.Op.get("tirx.cuda.func_call")
+ldg.__tvm_op__ = _ir.Op.get("tirx.cuda.ldg")
+__shfl_sync = _shfl_sync
+__shfl_sync.__tvm_op__ = _ir.Op.get("tirx.cuda.__shfl_sync")
+__shfl_up_sync = _shfl_up_sync
+__shfl_up_sync.__tvm_op__ = _ir.Op.get("tirx.cuda.__shfl_up_sync")
+__shfl_down_sync = _shfl_down_sync
+__shfl_down_sync.__tvm_op__ = _ir.Op.get("tirx.cuda.__shfl_down_sync")
+__shfl_xor_sync = _shfl_xor_sync
+__shfl_xor_sync.__tvm_op__ = _ir.Op.get("tirx.cuda.__shfl_xor_sync")
+__activemask = _activemask
+__activemask.__tvm_op__ = _ir.Op.get("tirx.cuda.__activemask")
+
+_ir.op._init_op_api("tirx.cuda", __name__)
 
 
 class NVSHMEMNamespace:
@@ -300,6 +253,3 @@ class NVSHMEMPutMemSignalNBINamespace:
 
     # __call__ corresponds to nvshmem_putmem_signal_nbi
     __tir_call_op_name__ = "nvshmem_putmem_signal_nbi"
-
-
-__all__ = ["CUDANamespace", "NVSHMEMNamespace", "PTXLegacyNamespace", "STIRNamespace"]

@@ -73,7 +73,7 @@ def register_backend():
         pass
     register_device_target_detector("cuda", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
-        builder_op.register_script_namespace(name, namespace)
+        builder_op.register_script_namespace(name, namespace, register_printer_names=name != "cuda")
 
     # script_namespaces() above pulls in ptx, which only imports the shared
     # codegen layer -- not the device-helper modules. This import is the sole
@@ -85,16 +85,16 @@ def register_backend():
 
 def script_namespaces(**_):
     """Return CUDA-owned TVMScript namespaces."""
+    from . import script  # pylint: disable=import-outside-toplevel
     from .ptx import PTXNamespace  # pylint: disable=import-outside-toplevel
     from .script import (  # pylint: disable=import-outside-toplevel
-        CUDANamespace,
         NVSHMEMNamespace,
         PTXLegacyNamespace,
         STIRNamespace,
     )
 
     return {
-        "cuda": CUDANamespace(),
+        "cuda": script,
         "nvshmem": NVSHMEMNamespace(),
         "ptx_legacy": PTXLegacyNamespace(),
         "ptx": PTXNamespace(),

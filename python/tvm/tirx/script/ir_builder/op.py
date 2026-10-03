@@ -297,7 +297,9 @@ def _get_script_namespace(name: str) -> object:
     raise AttributeError(f"No script namespace {name!r}")
 
 
-def register_script_namespace(name: str, namespace: object, override: bool = False) -> object:
+def register_script_namespace(
+    name: str, namespace: object, override: bool = False, *, register_printer_names: bool = True
+) -> object:
     """Register a construction namespace and return it.
 
     Parameters
@@ -309,6 +311,9 @@ def register_script_namespace(name: str, namespace: object, override: bool = Fal
     override : bool, optional
         Replace differing operator printer names if True. Existing equal names
         are reused; other duplicates raise ValueError.
+    register_printer_names : bool, optional
+        Discover printer names from legacy wrappers. Backends exposing canonical
+        registered Op names disable this to retain registration-owned spelling.
     """
     _SCRIPT_NAMESPACES[name] = namespace
     globals()[name] = namespace
@@ -330,7 +335,8 @@ def register_script_namespace(name: str, namespace: object, override: bool = Fal
         if isinstance(module_all, list) and name not in module_all:
             module_all.append(name)
 
-    _register_script_namespace_printer_names(namespace, f"tirx.{name}", override)
+    if register_printer_names:
+        _register_script_namespace_printer_names(namespace, f"tirx.{name}", override)
     return namespace
 
 

@@ -240,16 +240,10 @@ TVM_FFI_NO_INLINE DeviceIntrinsicNames MakeDeviceIntrinsicNames(const char* op_n
   if (suffix.rfind(prefix, 0) == 0) {
     suffix = suffix.substr(prefix.size());
   }
-
   std::string canonical = "tirx." + namespace_name + "." + suffix;
-  // Match the nested construction namespaces at the canonical registration site.
-  if (namespace_name == "cuda" &&
-      (suffix.rfind("tcgen05_", 0) == 0 || suffix.rfind("wgmma_", 0) == 0 ||
-       suffix.rfind("iket_", 0) == 0)) {
-    suffix[suffix.find('_')] = '.';
-  } else if (namespace_name == "nvshmem" &&
-             ((suffix.size() >= 6 && suffix.compare(suffix.size() - 6, 6, "_block") == 0) ||
-              (suffix.size() >= 5 && suffix.compare(suffix.size() - 5, 5, "_warp") == 0))) {
+  if (namespace_name == "nvshmem" &&
+      ((suffix.size() >= 6 && suffix.compare(suffix.size() - 6, 6, "_block") == 0) ||
+       (suffix.size() >= 5 && suffix.compare(suffix.size() - 5, 5, "_warp") == 0))) {
     suffix[suffix.rfind('_')] = '.';
   }
   return {std::move(canonical), "tirx." + namespace_name + "." + suffix};
@@ -260,8 +254,10 @@ TVM_FFI_NO_INLINE void RegisterDeviceIntrinsicAttrs(OpDef& def, const char* op_n
                                                     const std::string& printer_name) {
   def.set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String(op_namespace))
-      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(effect_kind))
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(printer_name));
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(effect_kind));
+  if (std::string(op_namespace) != "cuda") {
+    def.set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(printer_name));
+  }
 }
 
 template <typename... Specs>
@@ -438,6 +434,31 @@ void RegisterDeviceIntrinsicAliases() {
       sig::arg<IntExpr>("b_offset"), sig::arg("acc_ptr"), sig::arg<IntExpr>("c_offset"),
       sig::arg("saturate"), sig::var_args("args"));
 
+  for (const char* name : {"tirx.cuda.thread_rank", "tirx.cuda.any_sync", "tirx.cuda.ffs_u32"}) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32));
+  }
+  for (const char* name : {"tirx.cuda.half2float", "tirx.cuda.bfloat162float", "tirx.cuda.fdividef",
+                           "tirx.cuda.uint_as_float", "tirx.cuda.float2_x", "tirx.cuda.float2_y"}) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Float(32));
+  }
+  for (const char* name :
+       {"tirx.cuda.float22half2", "tirx.cuda.trap_when_assert_failed",
+        "tirx.cuda.runtime_instr_desc", "tirx.cuda.half8tofloat8", "tirx.cuda.float8tohalf8",
+        "tirx.cuda.mbarrier_wait_acquire_cluster", "tirx.cuda.warpgroup_sync"}) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
+  }
+  for (const char* name :
+       {"tirx.cuda.get_tmem_addr", "tirx.cuda.cvta_generic_to_shared",
+        "tirx.cuda.smem_addr_from_uint64", "tirx.cuda.float_as_uint", "tirx.cuda.ballot_sync",
+        "tirx.cuda.reduce_add_sync_u32", "tirx.cuda.reduce_min_sync_u32",
+        "tirx.cuda.float22bfloat162_rn", "tirx.cuda.float22bfloat162_rn_from_float2",
+        "tirx.cuda.hmin2", "tirx.cuda.hmax2", "tirx.cuda.fp8x4_e4m3_from_float4"}) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(32));
+  }
+  for (const char* name : {"tirx.cuda.clock64", "tirx.cuda.make_float2", "tirx.cuda.fmul2_rn",
+                           "tirx.cuda.fadd2_rn", "tirx.cuda.bfloat1622float2"}) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(64));
+  }
   for (const char* name : {
            "tirx.cuda.tcgen05_encode_matrix_descriptor",
            "tirx.cuda.wgmma_encode_matrix_descriptor",

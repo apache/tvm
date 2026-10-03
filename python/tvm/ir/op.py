@@ -17,12 +17,100 @@
 # pylint: disable=invalid-name
 """Primitive operators in the TVM IR."""
 
+import keyword
+import sys
 from collections.abc import Sequence
+from types import ModuleType, SimpleNamespace
 
 import tvm_ffi
 
 from . import _ffi_api
 from .expr import Expr
+
+
+def _make_op_api(op, module_name):
+    """Build a callable whose operands and result are governed by its Op."""
+    from .expr import Call, reinfer_type  # pylint: disable=import-outside-toplevel
+
+    def call(*args, attrs=None, ty_args=None, span=None, ret_ty=None, **kwargs):
+        # Bind named operands using the registered signature, without inventing
+        # defaults or interpreting arbitrary Python wrapper signatures.
+        operands = list(args)
+        for index, info in enumerate(op.args_info):
+            if index < len(args):
+                if info.name in kwargs:
+                    raise TypeError(f"{op.name}: multiple values for {info.name!r}")
+            elif info.name in kwargs:
+                operands.append(kwargs.pop(info.name))
+            else:
+                raise TypeError(f"{op.name}: missing operand {info.name!r}")
+        if kwargs:
+            raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
+        if ret_ty is None and (
+            op.get_attr("TFixedReturnType") is not None or op.get_attr("FInferType") is not None
+        ):
+            provisional = Call.unchecked(op, operands, attrs=attrs, ty_args=ty_args, span=span)
+            ret_ty = reinfer_type(provisional)
+        return Call(op, operands, attrs=attrs, ty_args=ty_args, span=span, ret_ty=ret_ty)
+
+    call.__name__ = op.name.rsplit(".", 1)[-1]
+    call.__module__ = module_name
+    call.__doc__ = op.doc or f"Construct a call to {op.name}."
+    call.__tvm_op__ = op
+    return call
+
+
+def _init_op_api(namespace, target_module_name=None):
+    """Initialize registered Op callables in an already loaded Python module.
+
+    Like :func:`tvm_ffi.init_ffi_api`, the registry prefix comes first and the
+    target defaults to that module name. For example, a backend module uses
+    ``_init_op_api("tirx.cuda", __name__)``. Dotted suffixes require existing
+    module or SimpleNamespace containers; underscores are ordinary name parts.
+
+    Generated functions accept registered positional/named operands plus
+    ``attrs``, ``ty_args``, ``span`` and ``ret_ty``. Omitting the result invokes
+    an available Op inference hook; without one, Call retains a missing type.
+    Explicit results and inference/validation errors are preserved.
+
+    Existing generated functions are reused. A deliberate wrapper may declare
+    ``__tvm_op__ = Op.get(name)`` to retain ownership of that name. This declares
+    identity, not semantic equivalence: the wrapper must accept printed calls
+    or have an appropriate exceptional printer hook. Other collisions fail
+    before any functions are installed. Returns None.
+    """
+    if not namespace or any(
+        not part.isidentifier() or keyword.iskeyword(part) for part in namespace.split(".")
+    ):
+        raise ValueError(f"Invalid Op namespace {namespace!r}")
+    target = sys.modules[target_module_name or namespace]
+    pending = []
+    destinations = set()
+    for name in sorted(Op.list_op_names()):
+        if not name.startswith(namespace + "."):
+            continue
+        parts = name[len(namespace) + 1 :].split(".")
+        if any(not part.isidentifier() or keyword.iskeyword(part) for part in parts):
+            raise ValueError(f"Op {name!r} has no Python attribute spelling")
+        container = target
+        for part in parts[:-1]:
+            container = vars(container).get(part)
+            if not isinstance(container, ModuleType | SimpleNamespace):
+                raise ValueError(f"Op {name!r} requires an existing namespace at {part!r}")
+        destination = (id(container), parts[-1])
+        if destination in destinations:
+            raise ValueError(f"Op {name!r} aliases another exposure destination")
+        destinations.add(destination)
+        op = Op.get(name)
+        if parts[-1] in vars(container):
+            current = vars(container)[parts[-1]]
+            identity = getattr(current, "__tvm_op__", None)
+            if not callable(current) or not isinstance(identity, Op) or not identity.same_as(op):
+                raise ValueError(f"Op {name!r} conflicts with an existing Python attribute")
+        else:
+            pending.append((container, parts[-1], _make_op_api(op, target.__name__)))
+    for container, name, call in pending:
+        setattr(container, name, call)
 
 
 @tvm_ffi.register_object("ir.Op")
