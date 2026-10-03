@@ -55,10 +55,10 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
                                            Stmt decomposed_body, SBlock old_reduction_block) {
     auto replacer = ffi::make_object<DecomposeReductionBlockReplacer>(
         std::move(target_loop), std::move(decomposed_body), std::move(old_reduction_block));
-    return std::make_pair(replacer->Mutate(old_scope_root, InplaceMode::kAllow)
-                              .ValueOrUnchanged(std::move(old_scope_root))
-                              .as_or_throw<SBlock>(),
-                          replacer->new_reduction_block_.value());
+    SBlock new_scope_root = replacer->Mutate(old_scope_root, InplaceMode::kAllow)
+                                .ValueOrUnchanged(std::move(old_scope_root))
+                                .as_or_throw<SBlock>();
+    return std::make_pair(std::move(new_scope_root), replacer->new_reduction_block_.value());
   }
 
   explicit DecomposeReductionBlockReplacer(For target_loop, Stmt decomposed_body,
