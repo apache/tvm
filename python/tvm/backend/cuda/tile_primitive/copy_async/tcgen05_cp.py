@@ -109,6 +109,7 @@ import functools
 import operator
 
 import tvm
+from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
@@ -116,7 +117,7 @@ from tvm.tirx import Buffer, PrimFunc
 from tvm.tirx.layout import ComposeLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt
+from tvm.tirx.stmt import Bind, Evaluate, SeqStmt
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ..copy import _single_thread_exec
@@ -675,11 +676,28 @@ def _get_or_create_desc(sctx, s_buf, ldo, sdo, swizzle):
     if cached is not None:
         return cached
 
-    desc_buf = tvm.tirx.decl_buffer((1,), "uint64", name="cp_desc", scope="local")
+    desc_buf = tvm.tirx.decl_tensor((1,), "uint64", name="cp_desc", scope="local")
     encode_call = T.cuda.tcgen05.encode_matrix_descriptor(
         desc_buf.data, T.reinterpret("handle", T.uint64(0)), ldo, sdo, swizzle
     )
-    wrap = SeqStmt([AllocBuffer(desc_buf), Evaluate(encode_call)])
+    wrap = SeqStmt(
+        [
+            Bind(
+                desc_buf,
+                Call(
+                    "tirx.alloc_tensor",
+                    [
+                        Tuple(desc_buf.ty.shape),
+                        DataTypeImm(desc_buf.ty.dtype.dtype),
+                        StringImm(desc_buf.scope()),
+                    ],
+                    attrs=DictAttrs({}),
+                    ty=desc_buf.ty,
+                ),
+            ),
+            Evaluate(encode_call),
+        ]
+    )
     sctx.add_post_buffer_def_stmt(s_buf, wrap)
     sctx.cache_set(cache_key, desc_buf)
     return desc_buf

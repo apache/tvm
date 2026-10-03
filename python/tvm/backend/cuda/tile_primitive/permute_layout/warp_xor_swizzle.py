@@ -332,7 +332,7 @@ def _impl(op_call, sctx):
         def impl():
             warp_size = T.meta_var(32)
             lane_id = T.meta_var(tid_x % warp_size)
-            regs = T.alloc_buffer((P,), bits_dtype, scope="local")
+            regs = T.alloc_tensor((P,), bits_dtype, scope="local")
             base_src = T.meta_var(src_buf.ptr_to(list(src_st)))
             base_dst = T.meta_var(dst_buf.ptr_to(list(dst_st)))
             # Phase 1: read via L_src
@@ -358,7 +358,7 @@ def _impl(op_call, sctx):
         def impl():
             warp_size = T.meta_var(32)
             lane_id = T.meta_var(tid_x % warp_size)
-            regs = T.alloc_buffer((P,), dtype, scope="local")
+            regs = T.alloc_tensor((P,), dtype, scope="local")
             # Phase 1: read via L_src
             for r in T.unroll(0, P):
                 j = T.meta_var(r ^ ((lane_id >> shift) & mask))
@@ -400,7 +400,7 @@ def _impl(op_call, sctx):
 #
 # After (BLK_SFA=128, P=4, k=2, shift=3):
 #     lane_id = threadIdx.x % 32
-#     regs = T.alloc_buffer((4,), "uint32", scope="local")
+#     regs = T.alloc_tensor((4,), "uint32", scope="local")
 #     for r in T.unroll(4):
 #         j = r ^ ((lane_id >> 3) & 0x3)
 #         flat = lane_id + j * 32

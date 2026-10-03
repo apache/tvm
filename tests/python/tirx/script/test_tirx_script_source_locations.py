@@ -45,7 +45,7 @@ def test_parser_attaches_span_to_direct_call():
     @_capture_source(sources)
     def direct_call():
         T.device_entry()
-        barriers = T.alloc_buffer((1,), "uint64", scope="shared")
+        barriers = T.alloc_tensor((1,), "uint64", scope="shared")
         T.cuda.mbarrier_wait(
             T.address_of(barriers[0]),
             0,
@@ -98,8 +98,8 @@ def test_parser_attaches_span_to_nested_tensor_load():
     @T.prim_func
     @_capture_source(sources)
     def nested_load():
-        source_buffer = T.alloc_buffer((1,), "int32")
-        output = T.alloc_buffer((1,), "int32")
+        source_buffer = T.alloc_tensor((1,), "int32")
+        output = T.alloc_tensor((1,), "int32")
         output[0] = source_buffer[0] + 1
 
     source = sources[0]
@@ -130,7 +130,7 @@ def test_parser_retains_inline_call_site_and_definition_spans():
     @_capture_source(sources)
     def inline_call():
         T.device_entry()
-        barriers = T.alloc_buffer((1,), "uint64", scope="shared")
+        barriers = T.alloc_tensor((1,), "uint64", scope="shared")
         wait(T.address_of(barriers[0]))
 
     caller_source = sources[0]
@@ -156,7 +156,7 @@ def test_parser_attaches_span_to_tile_primitive_call():
     @T.prim_func
     @_capture_source(sources)
     def tile_call():
-        A = T.alloc_buffer((16,), "float32")
+        A = T.alloc_tensor((16,), "float32")
         Tx.memset(A[0:16], T.float32(0))
 
     source = sources[0]
@@ -186,7 +186,7 @@ def test_statement_receipts_keep_emitted_nodes_and_spans():
     with I.IRBuilder():
         with T.function_(private=True) as frame:
             T.func_name_("receipts")
-            output = T.arg_("output", T.Buffer((1,), "int32"))
+            output = T.arg_("output", T.Tensor((1,), "int32"))
             stored = T.setitem_(value=3, target=output, key=0, span=location)
             holder = SimpleNamespace(value=output)
             updated = T.setattr_(holder, "value", 4, span=location)
@@ -246,8 +246,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     from tvm import ir, tirx
     from tvm.script.ir_builder import base
 
-    captured = T.Buffer((4, 4), "float32")
-    original = type(captured).view
+    original = ir.Var.view
     seen, produced, observed = [], [], []
     span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
 
@@ -265,17 +264,18 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     def observe(value):
         observed.append((value, value.span))
 
-    monkeypatch.setattr(type(captured), "view", view)
+    monkeypatch.setattr(ir.Var, "view", view)
 
     @T.prim_func
-    def main(A: captured):
-        renamed = captured.view(mark())
+    def main(A: T.Tensor((4, 4), "float32")):
+        renamed = A.view(mark())
         alias = renamed
         observe(renamed)
         observe(alias)
         alias[0] = 0
-        captured.view(mark())
+        A.view(mark())
 
+    captured = main.params[0]
     assert seen == ["argument", "view", "argument", "view"]
     value, name, produced_span = produced[0]
     assert len(produced) == len(observed) == 2
@@ -284,11 +284,12 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
         item.same_as(value) and location.same_as(produced_span) for item, location in observed
     )
     nodes = list(main.body.seq)
-    assert len(nodes) == 3 and not any(isinstance(node, tirx.Bind) for node in nodes)
-    assert nodes[0].buffer.same_as(value) and nodes[1].buffer.same_as(value)
-    assert nodes[2].buffer.same_as(produced[1][0])
-    ir.assert_structural_equal(nodes[0].data, captured.data)
-    ir.assert_structural_equal(nodes[2].data, captured.data)
+    assert len(nodes) == 3 and isinstance(nodes[0], tirx.Bind)
+    assert isinstance(nodes[1], tirx.BufferStore) and isinstance(nodes[2], tirx.Bind)
+    assert nodes[0].var.same_as(value) and nodes[1].buffer.same_as(value)
+    assert nodes[2].var.same_as(produced[1][0])
+    ir.assert_structural_equal(nodes[0].value.args[0], captured.data)
+    ir.assert_structural_equal(nodes[2].value.args[0], captured.data)
 
 
 def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
@@ -298,8 +299,6 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     from tvm.script.ir_builder import base
 
     producer_span = ir.Span(ir.SourceName("producer.py"), 7, 7, 2, 19)
-    buffer = T.Buffer((4,), "float32")
-    base.at_(producer_span, buffer)
     layout = T.TileLayout(T.S[4])
 
     @T.meta_class
@@ -307,13 +306,16 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
         def __init__(self, resource):
             self.resource = resource
 
-    holder = Holder(buffer)
-    projection = ir.TupleGetItem(ir.Tuple([buffer]), 0)
-    values = [layout, holder, projection]
+    values = []
+
+    def initialize(buffer):
+        base.at_(producer_span, buffer)
+        values.extend([layout, Holder(buffer), ir.TupleGetItem(ir.Tuple([buffer]), 0)])
+
     calls, observed, resource_spans = [], [], []
 
     def make(index):
-        resource_spans.append(buffer.span)
+        resource_spans.append(values[1].resource.span)
         calls.append(index)
         return values[index]
 
@@ -321,7 +323,8 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
         observed.extend(items)
 
     @T.prim_func
-    def main(A: buffer):
+    def main(A: T.Tensor((4,), "float32")):
+        initialize(A)
         renamed_layout = make(0)
         renamed_holder = make(1)
         bound = make(2)
@@ -329,6 +332,8 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
         make(0)
         make(1)
 
+    buffer = main.params[0]
+    holder, projection = values[1:]
     assert calls == [0, 1, 2, 0, 1]
     assert observed[0].same_as(layout)
     assert observed[1] is holder and holder.resource.same_as(buffer)

@@ -38,9 +38,9 @@ class Mutator : public ExprMutator {
 
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const CallNode* op) override {
-    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
-    static const Op& mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
-    static const Op& mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
+    static const Op alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op mem_alloc_storage_op = Op::Get("relax.memory.alloc_storage");
+    static const Op mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
 
     if (op->op.same_as(alloc_tensor_op)) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 4)
@@ -119,8 +119,8 @@ class Mutator : public ExprMutator {
           Type::Missing(), mem_alloc_storage_op,
           {size, runtime_device_index, storage_scope, DataTypeImm((DLDataType{kDLUInt, 8, 1}))});
       storage = builder_->Emit(storage, "storage");
-      Expr tensor = Call(Type::Missing(), mem_alloc_tensor_op,
-                         {storage, offset, shape_arg, dtype, op->args[2]});
+      Expr tensor = Call::Unchecked(Type::Missing(), mem_alloc_tensor_op,
+                                    {storage, offset, shape_arg, dtype, op->args[2]});
       return tensor;
     } else {
       return ExprMutator::VisitExpr_(op);

@@ -71,8 +71,6 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
       body = Stmt(n);
     } else if (s.as<AssertStmtNode>()) {
       body = SeqStmt({s, body});
-    } else if (s.as<AllocBufferNode>() || s.as<DeclBufferNode>()) {
-      body = SeqStmt::Flatten(s, body);
     } else {
       TVM_FFI_THROW(InternalError) << "not supported nest type";
     }
@@ -88,70 +86,33 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
 }
 
 PrimFunc IRConvertSSA::VisitPrimFunc(PrimFunc func) {
-  // Remap parameters, if they were used in another function.
-  // Function-scope remaps use function_scope_var_remap_ (not the scope stack),
-  // because they persist across the entire function body.
-  auto params = func->params.Map([&](const tirx::Var& var) -> tirx::Var {
-    if (defined_.count(var.get())) {
-      Var new_var = MakeNewVar(var);
-      PushVarRemap(var, new_var);
-      return new_var;
-    } else {
-      defined_.insert(var.get());
-      return var;
+  std::unordered_set<const VarNode*> parameter_symbols;
+  // Define explicit parameters before the symbolic values in their types.
+  for (const Var& param : func->params) {
+    DefineVar(param);
+    parameter_symbols.insert(param.get());
+  }
+  for (const Var& param : func->params) {
+    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(
+        param->ty, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          if (!parameter_symbols.count(var.get())) {
+            parameter_symbols.insert(var.get());
+            DefineVar(var);
+          }
+          return ffi::WalkResult::Advance();
+        });
+  }
+  auto params = func->params.Map([&](const Var& var) {
+    Var mapped = GetRemappedVar(var);
+    Type type = Mutate(var->ty, InplaceMode::kDisallow)
+                    .as_or_throw<UnchangedOr<Type>>()
+                    .ValueOrUnchanged(var->ty);
+    if (!type.same_as(mapped->ty)) {
+      mapped = mapped.CopyWithType(type);
+      PushVarRemap(var, mapped);
     }
+    return mapped;
   });
-
-  // Remap implicitly defined buffer parameters
-  {
-    std::unordered_set<const VarNode*> defined_params;
-    for (const auto& var : func->params) {
-      defined_params.insert(var.get());
-    }
-    std::unordered_set<const VarNode*> defined_match_vars;
-    for (const Var& param : func->params) {
-      auto buffer = param.as<BufferVar>();
-      if (!buffer) continue;
-      auto check_var = [&](const Var& var) {
-        const VarNode* var_ptr = var.get();
-        if (defined_params.count(var_ptr)) return;
-        if (!defined_match_vars.insert(var_ptr).second) return;
-
-        // Buffer-parameter shape vars use "match" semantics: first occurrence
-        // defines the var, subsequent occurrences (in other buffers) are
-        // just consistent uses of the same var -- not redefinitions.
-        if (defined_.count(var_ptr)) {
-          Var new_var = MakeNewVar(var);
-          PushVarRemap(var, new_var);
-        } else {
-          defined_.insert(var_ptr);
-        }
-      };
-      auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-        check_var(var);
-        return ffi::WalkResult::Advance();
-      };
-      for (const auto& dim : buffer.value()->shape) {
-        ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(dim, walk_fn);
-      }
-      for (const auto& stride : buffer.value()->strides) {
-        if (auto var = stride.as<Var>()) check_var(var.value());
-      }
-      if (auto var = buffer.value()->elem_offset.as<Var>()) check_var(var.value());
-    }
-  }
-
-  // Update the buffer parameters, based on the redefined parameters
-  bool buffer_params_changed = false;
-  for (size_t i = 0; i < func->params.size(); ++i) {
-    if (auto buffer = func->params[i].as<BufferVar>()) {
-      BufferVar new_buffer = GetRemappedBuffer(buffer.value());
-      if (!new_buffer.same_as(buffer.value()) || !params[i].same_as(new_buffer)) {
-        buffer_params_changed = true;
-        params.Set(i, new_buffer.var());
-      }
-    }
-  }
 
   auto attrs = [&]() -> DictAttrs {
     ffi::Map<ffi::String, ffi::Any> dict;
@@ -182,8 +143,7 @@ PrimFunc IRConvertSSA::VisitPrimFunc(PrimFunc func) {
   auto body = std::move(body_result).ValueOrUnchanged(func->body);
 
   // If anything changed, update the returned function
-  if (!params.same_as(func->params) || buffer_params_changed || !attrs.same_as(func->attrs) ||
-      !body_unchanged) {
+  if (!params.same_as(func->params) || !attrs.same_as(func->attrs) || !body_unchanged) {
     func = PrimFunc(params, body, func->ret_type, attrs);
   }
 
@@ -195,58 +155,25 @@ PrimFunc IRConvertSSA::VisitPrimFunc(PrimFunc func) {
 
 UnchangedOr<Expr> IRConvertSSA::Mutate_(const VarNode* op, InplaceMode inplace_mode) {
   Var var = ffi::GetRef<Var>(op);
+  if (def_region_kind() != kTVMFFIDefRegionKindNone) {
+    if (def_region_kind() == kTVMFFIDefRegionKindPattern) {
+      Var mapped = GetRemappedVar(var);
+      if (!mapped.same_as(var) || defined_.count(var.get())) return mapped;
+    }
+    return DefineVar(var);
+  }
   Var mapped = GetRemappedVar(var);
   if (!mapped.same_as(var)) return mapped;
-  return StmtExprMutator::Mutate_(op, inplace_mode);
+  return ffi::Unchanged();
 }
 
 UnchangedOr<PrimExpr> IRConvertSSA::Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) {
-  const Var& v = op->var;
-  if (defined_.count(v.get())) {
-    PrimExpr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
-    Var new_var = MakeNewVar(v);
-    PushVarRemap(v, new_var);
-    PrimExpr body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    PopVarRemap(v, new_var);
-    return prim::Let(new_var, value, body);
-  } else {
-    defined_.insert(v.get());
-    return StmtExprMutator::Mutate_(op, inplace_mode);
-  }
-}
-
-UnchangedOr<PrimExpr> IRConvertSSA::Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
-  auto node = StmtExprMutator::Mutate_(op, inplace_mode)
-                  .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
-                  .as_or_throw<TensorLoad>();
-  auto output = VisitBufferAccess(std::move(node));
-  return output;
-}
-
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {
-  auto node = StmtExprMutator::Mutate_(op, inplace_mode)
-                  .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                  .as_or_throw<BufferStore>();
-  auto output = VisitBufferAccess(std::move(node));
-  return output;
-}
-
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) {
-  Var v = op->buffer.var();
-  if (defined_.count(v.get())) {
-    Var new_var = MakeNewVar(v);
-    PushVarRemap(v, new_var);
-  } else {
-    defined_.insert(v.get());
-  }
-  DeclBuffer decl = StmtExprMutator::Mutate_(op, inplace_mode)
-                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                        .as_or_throw<DeclBuffer>();
-  BufferVar new_buffer = GetRemappedBuffer(decl->buffer);
-  if (!new_buffer.same_as(decl->buffer)) {
-    decl.CopyOnWrite()->buffer = std::move(new_buffer);
-  }
-  return decl;
+  ffi::Any previous_remap = VarRemapGet(op->var);
+  PrimExpr result = scope_.WithNewScope([&] {
+    return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
+  });
+  VarRemapSet(op->var, previous_remap);
+  return result;
 }
 
 Stmt IRConvertSSA::WithScope(const std::function<Stmt()>& body) {
@@ -254,32 +181,16 @@ Stmt IRConvertSSA::WithScope(const std::function<Stmt()>& body) {
 }
 
 Var IRConvertSSA::DefineVar(Var var) {
-  if (defined_.count(var.get())) {
-    Var new_var = MakeNewVar(var);
-    PushVarRemap(var, new_var);
-    return new_var;
-  }
+  Type type = WithDefRegionKind(kTVMFFIDefRegionKindNone, [&] {
+    return Mutate(var->ty, InplaceMode::kDisallow)
+        .as_or_throw<UnchangedOr<Type>>()
+        .ValueOrUnchanged(var->ty);
+  });
+  Var result = defined_.count(var.get()) ? MakeNewVar(var) : var;
   defined_.insert(var.get());
-  return var;
-}
-
-BufferStore IRConvertSSA::VisitBufferAccess(BufferStore node) {
-  BufferVar new_buf = GetRemappedBuffer(node->buffer);
-  if (!new_buf.same_as(node->buffer)) {
-    auto writer = node.CopyOnWrite();
-    writer->buffer = new_buf;
-  }
-
-  return node;
-}
-
-TensorLoad IRConvertSSA::VisitBufferAccess(TensorLoad node) {
-  BufferVar buffer = node->source.as_or_throw<BufferVar>();
-  BufferVar new_buf = GetRemappedBuffer(buffer);
-  if (new_buf.same_as(buffer)) {
-    return node;
-  }
-  return BufferLoad(new_buf, node->indices, node->span);
+  if (!type.same_as(result->ty)) result = result.CopyWithType(type);
+  if (!result.same_as(var)) PushVarRemap(var, result);
+  return result;
 }
 
 Var IRConvertSSA::GetRemappedVar(Var var) {
@@ -294,119 +205,15 @@ Var IRConvertSSA::GetRemappedVar(Var var) {
   }
 }
 
-BufferVar IRConvertSSA::GetRemappedBuffer(BufferVar buf) {
-  // Determine the buffer var that should be in the updated buffer,
-  // given the current scope.  If no redefines are present, then the
-  // buffer var is unchanged.
-  Var new_buffer_var = GetRemappedVar(buf.var());
-  PrimExpr elem_offset =
-      Mutate(buf->elem_offset, InplaceMode::kDisallow).ValueOrUnchanged(buf->elem_offset);
-  auto visit_expr = [this](const PrimExpr& expr) {
-    return Mutate(expr, InplaceMode::kDisallow).ValueOrUnchanged(expr);
-  };
-  ffi::Array<PrimExpr> shape = buf->shape.Map(visit_expr);
-  ffi::Array<PrimExpr> strides = buf->strides.Map(visit_expr);
-
-  // Rewrite the layout's per-iter extent/stride expressions in lockstep
-  // with the shape. If we don't, SSA-renamed shape vars end up as fresh
-  // Vars while the layout still references the original, producing
-  // structurally-unequal buffers whose shape and layout disagree (e.g.,
-  // test_dynamic_launch_thread).
-  ffi::Optional<Layout> new_layout = buf->layout;
-  bool layout_changed = false;
-  if (buf->layout.has_value()) {
-    if (auto opt_tile = buf->layout.value().as<TileLayoutNode>()) {
-      auto remap_iter = [&](const Iter& it) -> Iter {
-        PrimExpr new_extent =
-            Mutate(it->extent, InplaceMode::kDisallow).ValueOrUnchanged(it->extent);
-        PrimExpr new_stride =
-            Mutate(it->stride, InplaceMode::kDisallow).ValueOrUnchanged(it->stride);
-        if (new_extent.same_as(it->extent) && new_stride.same_as(it->stride)) {
-          return it;
-        }
-        return Iter(new_extent, new_stride, it->axis);
-      };
-      auto new_shard = opt_tile->shard.Map(remap_iter);
-      auto new_replica = opt_tile->replica.Map(remap_iter);
-      if (!new_shard.same_as(opt_tile->shard) || !new_replica.same_as(opt_tile->replica)) {
-        new_layout = TileLayout(new_shard, new_replica, opt_tile->offset);
-        layout_changed = true;
-      }
-    }
-  }
-
-  // If no mapping is required, return the original buffer.
-  if (new_buffer_var.same_as(buf.var()) && elem_offset.same_as(buf->elem_offset) &&
-      shape.same_as(buf->shape) && strides.same_as(buf->strides) && !layout_changed) {
-    return buf;
-  }
-
-  // If the current scope already has a mapping of this buffer, use
-  // the mapped buffer.
-  auto key = buf.get();
-  std::vector<BufferVar>& buffers = buf_remap_[key];
-  if (buffers.size() && buffers.back().same_as(new_buffer_var)) {
-    return buffers.back();
-  }
-
-  // When only the buffer's identity changed, the remapped Var already has
-  // the desired BufferType.  Reuse that exact Var so the definition and all
-  // subsequent uses remain in SSA.
-  if (const auto* type = new_buffer_var->ty.as<BufferTypeNode>()) {
-    BufferVar candidate(new_buffer_var);
-    if (shape.same_as(type->shape) && strides.same_as(type->strides) &&
-        elem_offset.same_as(type->elem_offset) && !layout_changed) {
-      buffers.push_back(candidate);
-      return candidate;
-    }
-  }
-
-  // Otherwise, make and return a new buffer object that uses the
-  // new buffer, pushing it onto the scoped stack of existing
-  // buffers.  This will be popped when the new_buffer_var
-  // redefinition is popped.
-  auto type = CopyBufferType(buf);
-  type->shape = shape;
-  type->strides = strides;
-  type->elem_offset = elem_offset;
-  if (layout_changed) {
-    type->layout = std::move(new_layout);
-  }
-  BufferVar new_buf = RebuildBufferVar(buf, std::move(type), new_buffer_var->name);
-
-  // A BufferVar's metadata lives in its Var type.  If rewriting the
-  // metadata required a fresh Var, make it the active remap as well.  This
-  // keeps BufferLoad/BufferStore and ordinary Var uses (such as
-  // buffer_data) on the same identity.
-  auto it = scoped_var_remap_.find(buf.get());
-  if (it != scoped_var_remap_.end() && it->second.size() &&
-      it->second.back().same_as(new_buffer_var)) {
-    it->second.back() = new_buf.var();
-  } else if (auto function_it = function_scope_var_remap_.find(buf.get());
-             function_it != function_scope_var_remap_.end() &&
-             function_it->second.same_as(new_buffer_var)) {
-    function_it->second = new_buf.var();
-  } else {
-    PushVarRemap(buf.var(), new_buf.var());
-  }
-  buffers.push_back(new_buf);
-  return new_buf;
-}
-
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const BindNode* op, InplaceMode inplace_mode) {
-  // Bind var remaps are tracked in the current scope so they persist
-  // across SeqStmt siblings and are cleaned up when the enclosing
-  // body-carrying statement's scope exits.
-  const Var& v = op->var;
-  if (defined_.count(v.get())) {
-    Expr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
-    Var new_var = MakeNewVar(v);
-    PushVarRemap(v, new_var);
-    return Bind(new_var, value);
-  } else {
-    defined_.insert(v.get());
-    return StmtExprMutator::Mutate_(op, inplace_mode);
-  }
+  Var var = op->var;
+  ffi::Any previous_remap = VarRemapGet(var);
+  // The ordinary Bind path rewrites the RHS before defining the Var and propagates its type.
+  Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+  Var bound_var = stmt.as<BindNode>()->var;
+  if (!bound_var.same_as(GetRemappedVar(var))) PushVarRemap(var, bound_var);
+  VarRemapSet(var, previous_remap);
+  return stmt;
 }
 
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) {
@@ -454,27 +261,6 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const WhileNode* op, InplaceMode inplace
   return scope_.WithNewScope([&]() -> Stmt {
     return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
   });
-}
-
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) {
-  Var v = op->buffer.var();
-  if (defined_.count(v.get())) {
-    Var new_var = MakeNewVar(v);
-    PushVarRemap(v, new_var);
-  } else {
-    defined_.insert(v.get());
-  }
-  Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-  op = stmt.as<AllocBufferNode>();
-  // Use GetRemappedBuffer so that the AllocBuffer's buffer is the same
-  // object as the one used by BufferStore/TensorLoad in subsequent siblings.
-  BufferVar new_buf = GetRemappedBuffer(op->buffer);
-  if (!new_buf.same_as(op->buffer)) {
-    auto node = stmt.as_or_throw<AllocBuffer>();
-    node.CopyOnWrite()->buffer = std::move(new_buf);
-    return node;
-  }
-  return stmt;
 }
 
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
@@ -565,38 +351,9 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inpl
   }
 }
 
-bool IRConvertSSA::BufferDependsOnVar(const BufferVar& buffer, const VarNode* var) {
-  if (buffer.get() == var) return true;
-
-  auto uses_var = [var](const PrimExpr& expr) {
-    auto walkfn = [var](const Var& candidate) -> ffi::Expected<ffi::WalkResult> {
-      return candidate.get() == var ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(candidate))
-                                    : ffi::WalkResult::Advance();
-    };
-    return expr.defined() &&
-           ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(expr, walkfn).has_value();
-  };
-  if (uses_var(buffer->elem_offset)) return true;
-  for (const PrimExpr& dim : buffer->shape) {
-    if (uses_var(dim)) return true;
-  }
-  for (const PrimExpr& stride : buffer->strides) {
-    if (uses_var(stride)) return true;
-  }
-  if (buffer->layout.has_value()) {
-    if (const auto* tile_layout = buffer->layout.value().as<TileLayoutNode>()) {
-      for (const Iter& iter : tile_layout->shard) {
-        if (uses_var(iter->extent) || uses_var(iter->stride)) return true;
-      }
-      for (const Iter& iter : tile_layout->replica) {
-        if (uses_var(iter->extent) || uses_var(iter->stride)) return true;
-      }
-    }
-  }
-  return false;
+Var IRConvertSSA::MakeNewVar(const Var& old_var) {
+  return Var(old_var->name, old_var->ty, old_var->span);
 }
-
-Var IRConvertSSA::MakeNewVar(const Var& old_var) { return Var(old_var->name, old_var->ty); }
 
 void IRConvertSSA::PushVarRemap(const Var& old_var, const Var& new_var) {
   scoped_var_remap_[old_var.get()].push_back(new_var);
@@ -605,32 +362,11 @@ void IRConvertSSA::PushVarRemap(const Var& old_var, const Var& new_var) {
   level.push_back({old_var, new_var});
 }
 
-void IRConvertSSA::PopVarRemap(const Var& old_var, const Var& new_var) {
-  scoped_var_remap_[old_var.get()].pop_back();
-  for (auto& kv : buf_remap_) {
-    std::vector<BufferVar>& buffers = kv.second;
-    if (buffers.size() && BufferDependsOnVar(buffers.back(), new_var.get())) {
-      buffers.pop_back();
-    }
-  }
-  // Also remove from the current scope's tracking vector
-  auto& current = scope_.Current();
-  if (current.size() && current.back().new_var.same_as(new_var)) {
-    current.pop_back();
-  }
-}
-
 void IRConvertSSA::PopAllRemapsInCurrentScope() {
   auto& current = scope_.Current();
   while (current.size()) {
     auto& remap = current.back();
     scoped_var_remap_[remap.old_var.get()].pop_back();
-    for (auto& kv : buf_remap_) {
-      std::vector<BufferVar>& buffers = kv.second;
-      if (buffers.size() && BufferDependsOnVar(buffers.back(), remap.new_var.get())) {
-        buffers.pop_back();
-      }
-    }
     current.pop_back();
   }
 }
@@ -640,7 +376,7 @@ Stmt ConvertSSA(Stmt stmt) {
 }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
-  if (const auto* buffer_type = buffer_var->ty.as<BufferTypeNode>()) {
+  if (const auto* buffer_type = buffer_var->ty.as<TensorTypeNode>()) {
     return buffer_type->storage_scope;
   }
   const auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();

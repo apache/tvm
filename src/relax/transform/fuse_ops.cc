@@ -199,8 +199,8 @@ class GraphCreator : public ExprVisitor {
   void VisitCall(const CallNode* call, IndexedForwardGraph::Node* binding_var_node) {
     TVM_FFI_ICHECK_NOTNULL(binding_var_node);
 
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
     OpPatternKind pattern = OpPatternKind::kOpaque;
     ffi::Array<Expr> args = call->args;
@@ -938,7 +938,7 @@ class OperatorFusor : public ExprMutator {
       // insertion point and may itself be a dead internal binding.
       TVM_FFI_ICHECK(!output_vars.empty());
       Var new_var;
-      Call call_to_emit = Call(Type::Missing(), gv, UpdateArgs(func_info.arguments_));
+      Call call_to_emit = Call::Unchecked(Type::Missing(), gv, UpdateArgs(func_info.arguments_));
 
       if (output_vars.size() == 1 && !output_vars[0]->IsInstance<DataflowVarNode>()) {
         new_var = builder_->EmitOutput(call_to_emit);
@@ -1387,7 +1387,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call_node) final {
     if (auto const* gvar = call_node->op.as<GlobalVarNode>()) {
       if (auto it = gvar_map_.find(gvar); it != gvar_map_.end()) {
-        return Call(Type::Missing(), it->second, call_node->args);
+        return Call::Unchecked(Type::Missing(), it->second, call_node->args);
       }
       auto func = builder_->GetContextIRModule()->Lookup(ffi::GetRef<GlobalVar>(gvar));
       if (auto composite_name = func->GetAttr<ffi::String>(attr::kComposite)) {
@@ -1400,7 +1400,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         builder_->GetContextIRModule()->Remove(ffi::GetRef<GlobalVar>(gvar));
         auto new_gvar = builder_->AddFunction(new_func, gsymbol);
         gvar_map_[gvar] = new_gvar;
-        return Call(Type::Missing(), new_gvar, call_node->args);
+        return Call::Unchecked(Type::Missing(), new_gvar, call_node->args);
       }
     }
     return ExprMutator::VisitExpr_(call_node);
@@ -1431,11 +1431,12 @@ class CompositeFunctionAnnotator : public ExprMutator {
     // well-formed Relax IR.  As a result, we need to build the SeqExpr ourselves.
     Var local_func_var("local_func", GetType(f_inner));
     Var output_var("output", f_inner->ret_ty);
-    SeqExpr new_body({BindingBlock({
-                         VarBinding(local_func_var, f_inner),
-                         VarBinding(output_var, Call(Type::Missing(), local_func_var, params)),
-                     })},
-                     output_var);
+    SeqExpr new_body(
+        {BindingBlock({
+            VarBinding(local_func_var, f_inner),
+            VarBinding(output_var, Call::Unchecked(Type::Missing(), local_func_var, params)),
+        })},
+        output_var);
 
     // pure if the inner func is pure (no need to force purity if it's forced for the inner func)
     return Function(param_vars, new_body, func_node->ret_ty, f_inner->is_pure);

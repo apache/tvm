@@ -25,10 +25,12 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/int_set.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <numeric>
@@ -99,13 +101,10 @@ class Var2BufferCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-    var2buffer_[op->buffer.var()].insert(op->buffer);
-    return StmtExprVisitor::Visit_(op);
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    var2buffer_[op->buffer.var()].insert(op->buffer);
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (auto buffer = op->var.as<BufferVar>()) {
+      var2buffer_[op->var].insert(buffer.value());
+    }
     return StmtExprVisitor::Visit_(op);
   }
 };
@@ -127,8 +126,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
     // collect buffer access regions
     region_collector->Visit(f->body);
-    // Compact any remaining flat AllocBuffer nodes at function scope
-    region_collector->CompactPendingFlatAllocBuffers();
+    // Compact any remaining flat AllocTensor nodes at function scope
+    region_collector->CompactPendingFlatAllocTensors();
     return std::move(region_collector->buffer_access_region_);
   }
 
@@ -179,7 +178,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
     VisitBufferVar(ffi::GetRef<Var>(op));
     return std::nullopt;
   }
@@ -195,14 +194,21 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     dom_map_.emplace(op->loop_var.get(), sym::IntSet::FromRange(loop_range));
     size_t n_pending_before = pending_flat_alloc_buffers_.size();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    // Compact flat AllocBuffers defined inside this For scope
-    CompactPendingFlatAllocBuffers(n_pending_before);
+    // Compact flat AllocTensors defined inside this For scope
+    CompactPendingFlatAllocTensors(n_pending_before);
     dom_map_.erase(op->loop_var.get());
     ancestor_iters_.pop_back();
     return std::nullopt;
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return DispatchAllocTensor(op);
+    }
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_tensor()))
+      return StmtExprVisitor::Visit_(op);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit(op->value));
     if (auto value = op->value.as<PrimExpr>(); value && sym::IsIndexTypedExpr(value.value())) {
       dom_analyzer_->Bind(op->var, value.value());
@@ -340,10 +346,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    // AllocBuffer is flat: register the buffer def and track for post-scope compaction.
-    RecordBufferDefinition(op->buffer.var());
-    pending_flat_alloc_buffers_.push_back(op->buffer);
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op) {
+    // AllocTensor is flat: register the buffer def and track for post-scope compaction.
+    RecordBufferDefinition(op->var.as_or_throw<BufferVar>().var());
+    pending_flat_alloc_buffers_.push_back(op->var.as_or_throw<BufferVar>());
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -360,7 +366,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       dom_map_.emplace(iter->var.get(), sym::IntSet::FromRange(dom));
       size_t n_pending_before = pending_flat_alloc_buffers_.size();
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-      CompactPendingFlatAllocBuffers(n_pending_before);
+      CompactPendingFlatAllocTensors(n_pending_before);
       dom_map_.erase(iter->var.get());
       ancestor_iters_.pop_back();
       return std::nullopt;
@@ -518,10 +524,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   /*!
-   * \brief Compact pending flat AllocBuffer nodes registered since position n_before.
+   * \brief Compact pending flat AllocTensor nodes registered since position n_before.
    * Call SimplifyAndNarrowBufferRegionFromNDIntSet for each, then remove them.
    */
-  void CompactPendingFlatAllocBuffers(size_t n_before = 0) {
+  void CompactPendingFlatAllocTensors(size_t n_before = 0) {
     for (size_t i = n_before; i < pending_flat_alloc_buffers_.size(); ++i) {
       const BufferVar& buf = pending_flat_alloc_buffers_[i];
       auto it = relaxed_accesses_.find(buf);
@@ -535,7 +541,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /**************** Class members ****************/
   /*! \brief Only collect accessed region within original buffer shape bound. */
   bool collect_inbound_{true};
-  /*! \brief Pending flat AllocBuffer nodes to compact when leaving scope. */
+  /*! \brief Pending flat AllocTensor nodes to compact when leaving scope. */
   std::vector<BufferVar> pending_flat_alloc_buffers_;
 
   /*! \brief The iteration scopes from the current node up to the root. */
@@ -640,36 +646,40 @@ class BufferCompactor : public StmtExprMutator {
     RewriteBufferRegions(&n->writes);
     RewriteMatchBuffers(&n->match_buffers);
     n->alloc_buffers =
-        op->alloc_buffers.Map([this](const BufferVar& buf) { return RewriteAllocBuffer(buf); });
+        op->alloc_buffers.Map([this](const BufferVar& buf) { return RewriteAllocTensor(buf); });
     // Recursively rewrite the body after installing the allocation remaps.
     return StmtExprMutator::Mutate_(block.get(),
                                     block.unique() ? inplace_mode : InplaceMode::kDisallow)
         .ValueOrUnchanged(block);
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    RewriteAllocBuffer(op->buffer);
-    return StmtExprMutator::Mutate_(op, inplace_mode);
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    const auto* call = op->value.as<CallNode>();
+    if (!call || (!call->op.same_as(tirx::builtin::alloc_tensor()) &&
+                  !call->op.same_as(tirx::builtin::decl_tensor()))) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+    BufferVar buffer = op->var.as_or_throw<BufferVar>();
+    BufferVar new_buffer = RewriteAllocTensor(buffer);
+    bool is_alloc = call->op.same_as(tirx::builtin::alloc_tensor());
+    if (new_buffer.same_as(buffer) ||
+        (is_alloc &&
+         PrimType(call->args[1].as_or_throw<DataTypeImm>()->value) != new_buffer->dtype)) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+
+    // Update the producer before generic Bind mutation propagates its result type.
+    size_t shape_index = is_alloc ? 0 : 1;
+    ffi::Array<Expr> args = call->args;
+    args.Set(shape_index, tvm::Tuple(new_buffer->shape, args[shape_index]->span));
+    auto rewritten = ffi::make_object<BindNode>(*op);
+    rewritten->value =
+        Call(new_buffer.type(), call->op, args, call->attrs, call->ty_args, call->span);
+    tirx::Bind binding(std::move(rewritten));
+    return StmtExprMutator::Mutate_(binding.get(), inplace_mode).ValueOrUnchanged(binding);
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    RewriteAllocBuffer(op->buffer);
-    AllocBuffer alloc_buf = StmtExprMutator::Mutate_(op, inplace_mode)
-                                .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                                .as_or_throw<AllocBuffer>();
-    auto it = buffer_info_.find(op->buffer.var());
-    if (it == buffer_info_.end()) {
-      return alloc_buf;
-    }
-    const BufferVar& new_buffer = it->second.new_buffer;
-    if (op->buffer->dtype != new_buffer->dtype) {
-      return alloc_buf;
-    }
-    alloc_buf.CopyOnWrite()->buffer = new_buffer;
-    return alloc_buf;
-  }
-
-  BufferVar RewriteAllocBuffer(const BufferVar& buffer) {
+  BufferVar RewriteAllocTensor(const BufferVar& buffer) {
     auto it = buffer_info_.find(buffer.var());
     if (it != buffer_info_.end()) {
       const BufferVar& new_buffer = it->second.new_buffer;
@@ -799,7 +809,7 @@ Stmt BufferCompactorCompact(
     // prepare new buffer
     ffi::Array<PrimExpr> shape = region.Map([](const Range& range) { return range->extent; });
     ffi::Array<PrimExpr> strides = CalcStrides(alloc_info, shape);
-    ffi::ObjectPtr<BufferTypeNode> n = CopyBufferType(buffer);
+    ffi::ObjectPtr<TensorTypeNode> n = CopyTensorType(buffer);
     n->shape = std::move(shape);
     n->strides = std::move(strides);
     alloc_info.new_buffer = RebuildBufferVar(buffer, std::move(n));

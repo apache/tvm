@@ -46,7 +46,7 @@ def test_annotate_opkind_outewisefusable():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def tir_matmul(A: T.Buffer((m, n)), B: T.Buffer((n, k)), C: T.Buffer((m, k))) -> None:
+        def tir_matmul(A: T.Tensor((m, n)), B: T.Tensor((n, k)), C: T.Tensor((m, k))) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
             for i, j, k_index in T.grid(m, k, n):
@@ -78,9 +78,9 @@ def test_annotate_opkind_outewisefusable_with_cast(cast_pattern):
     class InputModule:
         @Ts.prim_func
         def tir_matmul(
-            A: T.Buffer((m, n), "float16"),
-            B: T.Buffer((n, k), "float16"),
-            C: T.Buffer((m, k), "float32"),
+            A: T.Tensor((m, n), "float16"),
+            B: T.Tensor((n, k), "float16"),
+            C: T.Tensor((m, k), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
@@ -101,9 +101,9 @@ def test_annotate_opkind_outewisefusable_int_var_signature():
     class InputModule:
         @Ts.prim_func
         def tir_matmul(
-            A: T.Buffer((m, n)),  # noqa: F821
-            B: T.Buffer((n, k)),  # noqa: F821
-            C: T.Buffer((m, k)),  # noqa: F821
+            A: T.Tensor((m, n)),  # noqa: F821
+            B: T.Tensor((n, k)),  # noqa: F821
+            C: T.Tensor((m, k)),  # noqa: F821
             m: T.int64,
             n: T.int64,
             k: T.int64,
@@ -126,7 +126,7 @@ def test_annotate_opkind_reduce():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def sum(A: T.Buffer((16, 16)), B: T.Buffer((16,))) -> None:
+        def sum(A: T.Tensor((16, 16)), B: T.Tensor((16,))) -> None:
             T.func_attr({"global_symbol": "elemwise"})
 
             for i, j in T.grid(16, 16):
@@ -145,7 +145,7 @@ def test_annotate_opkind_ewise():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def elemwise(A: T.Buffer((16, 16)), B: T.Buffer((16, 16))) -> None:
+        def elemwise(A: T.Tensor((16, 16)), B: T.Tensor((16, 16))) -> None:
             T.func_attr({"global_symbol": "elemwise"})
 
             for i, j in T.grid(16, 16):
@@ -162,7 +162,7 @@ def test_annotate_opkind_broadcast():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def broadcast(A: T.Buffer((16, 16)), B: T.Buffer((16, 16, 16, 16))) -> None:
+        def broadcast(A: T.Tensor((16, 16)), B: T.Tensor((16, 16, 16, 16))) -> None:
             T.func_attr({"global_symbol": "elemwise"})
 
             for i0, j0, i1, j1 in T.grid(16, 16, 16, 16):
@@ -179,7 +179,7 @@ def test_annotate_opkind_injective():
     @tvm.script.ir_module
     class InputModule:
         @Ts.prim_func
-        def injective(A: T.Buffer((4, 4, 4, 4)), B: T.Buffer((16, 16))) -> None:
+        def injective(A: T.Tensor((4, 4, 4, 4)), B: T.Tensor((16, 16))) -> None:
             T.func_attr({"global_symbol": "elemwise"})
 
             for i, j in T.grid(16, 16):
@@ -197,9 +197,9 @@ def test_annotate_opkind_bias_add():
     class InputModule:
         @Ts.prim_func
         def tir_bias_add(
-            A: T.Buffer((1, 1000), "float32"),
-            B: T.Buffer((1000,), "float32"),
-            C: T.Buffer((1, 1000), "float32"),
+            A: T.Tensor((1, 1000), "float32"),
+            B: T.Tensor((1000,), "float32"),
+            C: T.Tensor((1, 1000), "float32"),
         ) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "tir_bias_add", "tirx.noalias": True})
@@ -222,9 +222,9 @@ def test_annotate_opkind_add_broadcast_with_unit_shape():
     class InputModule:
         @Ts.prim_func
         def add_with_unit_dim_len_broadcast(
-            A: T.Buffer((1, 64, 112, 112), "float32"),
-            B: T.Buffer((64, 1, 1), "float32"),
-            C: T.Buffer((1, 64, 112, 112), "float32"),
+            A: T.Tensor((1, 64, 112, 112), "float32"),
+            B: T.Tensor((64, 1, 1), "float32"),
+            C: T.Tensor((1, 64, 112, 112), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "add5", "tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(1, 64, 112, 112):
@@ -244,9 +244,9 @@ def test_annotate_opkind_add_zero_dim_element_wise():
     class InputModule:
         @Ts.prim_func
         def add_zero_dim(
-            A: T.Buffer((128,), "float32"),
-            B: T.Buffer((), "float32"),
-            C: T.Buffer((128,), "float32"),
+            A: T.Tensor((128,), "float32"),
+            B: T.Tensor((), "float32"),
+            C: T.Tensor((128,), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "add8", "tirx.noalias": True})
             for i0 in T.serial(128):
@@ -266,8 +266,8 @@ def test_annotate_opkind_pooling():
     class InputModule:
         @Ts.prim_func
         def max_pool2d(
-            rxplaceholder_1: T.Buffer((1, 64, 112, 112), "float32"),
-            tensor_1: T.Buffer((1, 64, 56, 56), "float32"),
+            rxplaceholder_1: T.Tensor((1, 64, 112, 112), "float32"),
+            tensor_1: T.Tensor((1, 64, 56, 56), "float32"),
         ) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "max_pool2d", "T.noalias": True})
@@ -283,7 +283,6 @@ def test_annotate_opkind_pooling():
                         1 <= ax2 and ax2 < 113 and 1 <= ax3 and ax3 < 113,
                         rxplaceholder_1[ax0, ax1, ax2 - 1, ax3 - 1],
                         T.float32(-3.4028234663852886e38),
-                        dtype="float32",
                     )
             for i0, i1, i2, i3, i4, i5 in T.grid(1, 64, 56, 56, 3, 3):
                 with Ts.sblock("tensor"):
@@ -310,8 +309,8 @@ def test_annotate_opkind_softmax():
     class InputModule:
         @Ts.prim_func
         def softmax(
-            rxplaceholder_1: T.Buffer((16, 16), "float32"),
-            T_softmax_norm_1: T.Buffer((16, 16), "float32"),
+            rxplaceholder_1: T.Tensor((16, 16), "float32"),
+            T_softmax_norm_1: T.Tensor((16, 16), "float32"),
         ) -> None:
             # function attr dict
             T.func_attr({"global_symbol": "softmax", "T.noalias": True})
@@ -336,7 +335,7 @@ def test_annotate_opkind_softmax():
                     Ts.reads(rxplaceholder_1[i0_10, i1_5], T_softmax_maxelem_1[i0_10])
                     Ts.writes(T_softmax_exp_1[i0_10, i1_5])
                     T_softmax_exp_1[i0_10, i1_5] = T.exp(
-                        rxplaceholder_1[i0_10, i1_5] - T_softmax_maxelem_1[i0_10], dtype="float32"
+                        rxplaceholder_1[i0_10, i1_5] - T_softmax_maxelem_1[i0_10]
                     )
             for i0_11, i1_6 in T.grid(16, 16):
                 with Ts.sblock("T_softmax_expsum"):
@@ -368,8 +367,8 @@ def test_multiple_bufer_stores_fallback():
     class CumsumModule:
         @Ts.prim_func
         def cumsum(
-            rxplaceholder: T.Buffer([10, 16], dtype="float32", offset_factor=1),
-            out_buf: T.Buffer(160, "float32"),
+            rxplaceholder: T.Tensor([10, 16], dtype="float32", offset_factor=1),
+            out_buf: T.Tensor(160, "float32"),
         ):
             with Ts.sblock("cumsum_generic"):
                 Ts.reads(rxplaceholder[0:10, 0:16])
@@ -395,9 +394,9 @@ def test_sum_sqsum():
     class Module:
         @Ts.prim_func
         def sum_sqsum(
-            A: T.Buffer((32, 64), "float32"),
-            vsum: T.Buffer((32,), "float32"),
-            sqsum: T.Buffer((32,), "float32"),
+            A: T.Tensor((32, 64), "float32"),
+            vsum: T.Tensor((32,), "float32"),
+            sqsum: T.Tensor((32,), "float32"),
         ):
             for ax0, k0 in T.grid(32, 64):
                 with Ts.sblock("block"):
@@ -421,7 +420,7 @@ def test_no_buffer_stores():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def no_buffer_stores(A: T.Buffer((32, 64), "float32"), vsum: T.Buffer((32,), "float32")):
+        def no_buffer_stores(A: T.Tensor((32, 64), "float32"), vsum: T.Tensor((32,), "float32")):
             for ax0, k0 in T.grid(32, 64):
                 with Ts.sblock("block"):
                     v_ax0, v_k0 = Ts.axis.remap("SR", [ax0, k0])

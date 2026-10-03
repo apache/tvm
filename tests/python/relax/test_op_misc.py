@@ -31,7 +31,7 @@ def identity_packed(a):
 
 
 @Ts.prim_func
-def identity_tir(A: T.Buffer([54, 96]), B: T.Buffer([54, 96])) -> None:
+def identity_tir(A: T.Tensor([54, 96]), B: T.Tensor([54, 96])) -> None:
     for i, j in T.grid(54, 96):
         with Ts.sblock("compute"):
             vi, vj = Ts.axis.remap("SS", [i, j])

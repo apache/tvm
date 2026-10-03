@@ -47,7 +47,7 @@ void CollectAxisGraphBinary(const VarBindingNode* binding, const CallNode* call,
       "add",     "subtract",      "multiply", "divide",     "power",     "floor_divide", "equal",
       "greater", "greater_equal", "less",     "less_equal", "not_equal", "minimum",      "maximum"};
   for (const auto& op_name : binary_op_names) {
-    const Op& binary_op = Op::Get("relax." + op_name);
+    const Op binary_op = Op::Get("relax." + op_name);
     if (call->op.same_as(binary_op)) {
       BuildAxisGraphBinary(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
       break;
@@ -70,7 +70,7 @@ void CollectAxisGraphUnary(const VarBindingNode* binding, const CallNode* call,
       "isinf",  "isnan",    "dist.annotate_sharding",
       "erf",    "nn.gelu",  "builtin.stop_lift_params"};
   for (const auto& op_name : unary_op_names) {
-    const Op& unary_op = Op::Get("relax." + op_name);
+    const Op unary_op = Op::Get("relax." + op_name);
     if (call->op.same_as(unary_op)) {
       BuildAxisGraphUnary(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
     }
@@ -82,7 +82,7 @@ void CollectAxisGraphReduce(const VarBindingNode* binding, const CallNode* call,
   const std::vector<std::string> reduction_op_names = {"sum",  "max", "min",      "prod",
                                                        "mean", "std", "variance", "nn.softmax"};
   for (const auto& op_name : reduction_op_names) {
-    const Op& reduction_op = Op::Get("relax." + op_name);
+    const Op reduction_op = Op::Get("relax." + op_name);
     if (call->op.same_as(reduction_op)) {
       BuildAxisGraphReduce(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
       break;
@@ -92,7 +92,7 @@ void CollectAxisGraphReduce(const VarBindingNode* binding, const CallNode* call,
 
 void CollectAxisGraphMatmul(const VarBindingNode* binding, const CallNode* call,
                             AxisGroupGraph* axis_group_graph) {
-  static const Op& matmul_op = Op::Get("relax.matmul");
+  static const Op matmul_op = Op::Get("relax.matmul");
   if (call->op.same_as(matmul_op)) {
     BuildAxisGraphMatmul(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
   }
@@ -100,7 +100,7 @@ void CollectAxisGraphMatmul(const VarBindingNode* binding, const CallNode* call,
 
 void CollectAxisGraphPermuteDims(const VarBindingNode* binding, const CallNode* call,
                                  AxisGroupGraph* axis_group_graph) {
-  static const Op& permute_dims_op = Op::Get("relax.permute_dims");
+  static const Op permute_dims_op = Op::Get("relax.permute_dims");
   if (call->op.same_as(permute_dims_op)) {
     BuildAxisGraphPermuteDims(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
   }
@@ -108,7 +108,7 @@ void CollectAxisGraphPermuteDims(const VarBindingNode* binding, const CallNode* 
 
 void CollectAxisGraphReshape(const VarBindingNode* binding, const CallNode* call,
                              AxisGroupGraph* axis_group_graph) {
-  static const Op& reshape_op = Op::Get("relax.reshape");
+  static const Op reshape_op = Op::Get("relax.reshape");
   if (call->op.same_as(reshape_op)) {
     BuildAxisGraphReshape(binding->var, ffi::GetRef<Call>(call), axis_group_graph);
   }
@@ -117,7 +117,7 @@ void CollectAxisGraphReshape(const VarBindingNode* binding, const CallNode* call
 void CollectAxisGraphForDeviceMesh(const VarBindingNode* binding, const CallNode* call,
                                    AxisGroupGraph* axis_group_graph) {
   ffi::Array<Expr> tensor_list;
-  static const Op& call_tir_op = Op::Get("relax.call_tir");
+  static const Op call_tir_op = Op::Get("relax.call_tir");
   ffi::Array<Expr> args;
   if (call->op.same_as(call_tir_op)) {
     args = call->args[1].as_or_throw<Tuple>()->fields;
@@ -157,7 +157,7 @@ class AxisGroupGraphBuilder : public ExprVisitor {
     CollectAxisGraphMatmul(binding, val, axis_group_graph_);
     CollectAxisGraphPermuteDims(binding, val, axis_group_graph_);
     CollectAxisGraphReshape(binding, val, axis_group_graph_);
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     if (val->op.same_as(call_tir_op)) {
       if (ffi::Optional<tirx::PrimFunc> func = MatchPrimFunc(mod_, val->args[0])) {
         BuildAxisGraphCallTIR(binding->var, ffi::GetRef<Call>(val), func.value(),
@@ -225,7 +225,7 @@ class ShardingAnnotationCollector : public ExprVisitor {
   explicit ShardingAnnotationCollector(AxisGroupGraph* axis_group_graph)
       : axis_group_graph_(axis_group_graph) {}
   void VisitBinding_(const VarBindingNode* binding, const CallNode* val) {
-    static const Op& annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
+    static const Op annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
     if (val->op.same_as(annotate_sharding_op)) {
       const auto* attrs = val->attrs.as<DistributionAttrs>();
       TVM_FFI_ICHECK(attrs);
@@ -435,7 +435,7 @@ class DistributedIRBuilder : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* call) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     FBuildAxisGraph f = [&](const Var& var, const Call& call, AxisGroupGraph* axis_group_graph) {
       ffi::Optional<tirx::PrimFunc> prim_func =
           MatchPrimFunc(this->builder_->GetContextIRModule(), call->args[0]);
@@ -472,7 +472,7 @@ class DistributedIRBuilder : public ExprMutator {
   }
 
   Expr RemoveAnnotateSharding(Call call) {
-    static const Op& annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
+    static const Op annotate_sharding_op = Op::Get("relax.dist.annotate_sharding");
     if (call->op.same_as(annotate_sharding_op)) {
       return call->args[0];
     } else {

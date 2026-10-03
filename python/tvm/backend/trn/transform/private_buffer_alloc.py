@@ -16,12 +16,12 @@
 # under the License.
 import tvm_ffi
 
-from tvm.ir import Range
+from tvm.ir import Call, DataTypeImm, DictAttrs, Range, StringImm, Tuple
 from tvm.target import Target
 from tvm.tirx.buffer import Buffer
 from tvm.tirx.stmt import (
-    AllocBuffer,
     AttrStmt,
+    Bind,
     For,
     SeqStmt,
     Stmt,
@@ -87,7 +87,20 @@ def _inject_private_allocations(
                 for init_stmt in init_stmts:
                     body = seek_kernel_replace_point(init_stmt, body)
                 for buffer in reversed(alloc_buffers):
-                    body = SeqStmt([AllocBuffer(buffer), body])
+                    allocation = Bind(
+                        buffer,
+                        Call(
+                            "tirx.alloc_tensor",
+                            [
+                                Tuple(buffer.ty.shape),
+                                DataTypeImm(buffer.ty.dtype.dtype),
+                                StringImm(buffer.scope()),
+                            ],
+                            attrs=DictAttrs({}),
+                            ty=buffer.ty,
+                        ),
+                    )
+                    body = SeqStmt([allocation, body])
                 return AttrStmt(op.node, op.attr_key, op.value, body)
         return op
 

@@ -151,7 +151,7 @@ ffi::Array<BufferVar> MakeScratchpads(const ffi::Array<BufferVar>& reduction_buf
   for (const BufferVar& buffer : reduction_buffers) {
     ffi::String name = is_cross_thread_buffer ? "cross" : "in";
     name = name + "_thread_" + buffer.name();
-    new_buffers.push_back(BufferVar(name, BufferType(/*storage_scope=*/"local",
+    new_buffers.push_back(BufferVar(name, TensorType(/*storage_scope=*/"local",
                                                      /*dtype=*/buffer->dtype,
                                                      /*shape=*/{IntImm::Int32(1)},
                                                      /*strides=*/{IntImm::Int32(1)},

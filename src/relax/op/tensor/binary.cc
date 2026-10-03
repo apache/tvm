@@ -35,22 +35,17 @@ using namespace tvm::prim;
 
 template <typename FType>
 Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compute_out_dtype) {
-  Op op = call->op.as_or_throw<Op>();
-  size_t n_input = op->arguments.size();
-  if (call->args.size() != n_input) {
-    TVM_FFI_VISIT_THROW(ValueError, call)
-        << call->op << " op should have " << n_input << " arguments";
-  }
+  CheckNumArguments(call, ctx);
 
   auto lhs_ty = GetType(call->args[0]);
   auto rhs_ty = GetType(call->args[1]);
 
   TVM_FFI_CHECK(lhs_ty.as<PrimTypeNode>() || lhs_ty.as<TensorTypeNode>(), TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
-      << "but expression " << call << " has LHS " << call->args[0] << ", which has Type " << lhs_ty;
+      << "but " << call->op << " has LHS type " << lhs_ty;
   TVM_FFI_CHECK(rhs_ty.as<PrimTypeNode>() || rhs_ty.as<TensorTypeNode>(), TypeError)
       << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
-      << "but expression " << call << " has RHS " << call->args[1] << ", which has Type " << rhs_ty;
+      << "but " << call->op << " has RHS type " << rhs_ty;
 
   // Dtype
   ffi::Optional<PrimType> output_dtype = f_compute_out_dtype(call, ctx, lhs_ty, rhs_ty);
@@ -132,7 +127,10 @@ Type InferTypeBroadcast(const Call& call, const BlockBuilder& ctx, FType f_compu
 }
 
 Type InferTypeBroadcastArith(const Call& call, const BlockBuilder& ctx) {
-  return InferTypeBroadcast(call, ctx, InferBinaryArithOpOutDtype);
+  return InferTypeBroadcast(
+      call, ctx, [](const Call& call, const BlockBuilder& ctx, const Type& lhs, const Type& rhs) {
+        return InferBinaryArithOpOutDtype(call, ctx, lhs, rhs);
+      });
 }
 
 Type InferTypeBroadcastCMP(const Call& call, const BlockBuilder& ctx) {

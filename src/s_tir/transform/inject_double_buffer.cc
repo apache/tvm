@@ -25,10 +25,12 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/attrs.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include "ir_utils.h"
@@ -119,7 +121,7 @@ class DoubleBufferDetector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
     if (touched_.count(op)) {
       touched_.erase(op);
     }
@@ -172,23 +174,32 @@ class DoubleBufferInjector : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    const VarNode* buf = op->buffer.get();
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
+                                       InplaceMode inplace_mode) {
+    const VarNode* buf = op->var.as_or_throw<BufferVar>().get();
     auto it = dbuffer_info_.find(buf);
     if (it != dbuffer_info_.end()) {
       StorageEntry& entry = it->second;
-      entry.scope = op->buffer.scope();
+      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+      entry.scope = call->args[2].as_or_throw<StringImm>()->value;
 
-      TVM_FFI_ICHECK_EQ(op->buffer->shape.size(), 1)
-          << "InjectDoubleBuffer expects flat 1-d buffers.  "
-          << "Has FlattenBuffer been run?";
-      entry.stride = op->buffer->shape[0];
+      TVM_FFI_ICHECK_EQ(shape->fields.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
+                                                 << "Has FlattenBuffer been run?";
+      entry.stride = shape->fields[0].as_or_throw<PrimExpr>();
 
-      // In flat IR, AllocBuffer appears before its usage in the SeqStmt,
+      // In flat IR, AllocTensor appears before its usage in the SeqStmt,
       // so entry.loop may not be set yet. Defer double-buffer allocation
       // processing to be handled in VisitStmt_(ForNode*).
-      pending_dbuffer_allocs_[buf] = ffi::GetRef<AllocBuffer>(op);
-      // Remove the original AllocBuffer (will be re-emitted in ForNode visitor)
+      pending_dbuffer_allocs_[buf] = ffi::GetRef<Bind>(op);
+      // Remove the original AllocTensor (will be re-emitted in ForNode visitor)
       return Evaluate(0);
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -199,16 +210,23 @@ class DoubleBufferInjector : public StmtExprMutator {
     loop_nest_.push_back(op);
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     // Process any pending double-buffer allocations that were deferred
-    // from VisitStmt_(AllocBufferNode*) -- now entry.loop should be set.
+    // from allocation binding visitor -- now entry.loop should be set.
     for (auto pend_it = pending_dbuffer_allocs_.begin();
          pend_it != pending_dbuffer_allocs_.end();) {
       auto db_it = dbuffer_info_.find(pend_it->first);
       if (db_it != dbuffer_info_.end() && db_it->second.loop != nullptr) {
         StorageEntry& entry = db_it->second;
-        const AllocBuffer& alloc = pend_it->second;
-        auto new_buf = GetRemappedBuffer(alloc->buffer, entry.stride);
+        const Bind& alloc = pend_it->second;
+        auto new_buf = GetRemappedBuffer(alloc->var.as_or_throw<BufferVar>(), entry.stride);
         auto& alloc_nest = loop_allocs_[entry.loop];
-        alloc_nest.emplace_back(AllocBuffer(new_buf, alloc->annotations));
+        const auto* call = alloc->value.as<CallNode>();
+        alloc_nest.emplace_back(Bind(new_buf.var(),
+                                     Call(new_buf.type(), tirx::builtin::alloc_tensor(),
+                                          {tvm::Tuple(new_buf->shape, call->args[0]->span),
+                                           DataTypeImm(new_buf->dtype->dtype, call->args[1]->span),
+                                           StringImm(new_buf.scope(), call->args[2]->span)},
+                                          call->attrs, call->ty_args, call->span),
+                                     alloc->span));
         pend_it = pending_dbuffer_allocs_.erase(pend_it);
       } else {
         ++pend_it;
@@ -334,7 +352,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
     // Stride gives the distance between the two halves of the
     // double-buffer, not the stride of the buffer's index.
-    auto type = CopyBufferType(buf);
+    auto type = CopyTensorType(buf);
     type->shape = {buf->shape[0] + stride};
     buf = RebuildBufferVar(buf, std::move(type));
 
@@ -392,7 +410,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap[e.loop->loop_var.get()] = loop_shift;
     vmap[e.switch_write_var.get()] = indexmod(loop_shift, two);
     body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(body, map_var).as_or_throw<Stmt>();
-    body = AttrStmt(GetRemappedBuffer(BufferVar(buffer), e.stride).data(),
+    body = AttrStmt(GetRemappedBuffer(buffer.as_or_throw<BufferVar>(), e.stride).data(),
                     s_tir::attr::double_buffer_write, IntImm::Int32(1), body);
     body = IfThenElse(loop_shift < e.loop->extent, body);
     return body;
@@ -423,8 +441,8 @@ class DoubleBufferInjector : public StmtExprMutator {
   // The allocation size of the buffer
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
   // The updated BufferVar objects
-  // Pending double-buffer AllocBuffer nodes (deferred from flat AllocBuffer visit)
-  std::unordered_map<const VarNode*, AllocBuffer> pending_dbuffer_allocs_;
+  // Pending double-buffer AllocTensor nodes (deferred from flat AllocTensor visit)
+  std::unordered_map<const VarNode*, Bind> pending_dbuffer_allocs_;
 };
 
 namespace transform {

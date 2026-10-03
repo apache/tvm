@@ -72,6 +72,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/stmt.h>
@@ -86,7 +87,6 @@
 #include <vector>
 
 #include "../../support/ordered_map.h"
-#include "../analysis/check_contains.h"
 
 namespace tvm {
 namespace tirx {
@@ -301,8 +301,15 @@ class CSEPlanner : public StmtExprVisitor {
     // (LT/LE/GT/GE/EQ/NE/And/Or/Not/Cast-to-bool/Select-of-bool).
     PrimType expr_ty = expr.ty();
     if (expr_ty.MatchesCode(DLDataTypeCode::kDLBool)) return false;
-    if (CheckContains::ExprContains(expr, IsForbiddenNode)) return false;
-    return true;
+    struct ForbiddenNodeFinder : StmtExprVisitor {
+      ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+        if (auto expr = value.as<PrimExpr>(); expr && IsForbiddenNode(*expr)) {
+          return VisitInterrupt();
+        }
+        return StmtExprVisitor::Visit(value);
+      }
+    };
+    return !ffi::make_object<ForbiddenNodeFinder>()->Visit(expr).has_value();
   }
 
   // ------------------------------------------------------------------
@@ -612,13 +619,6 @@ class CSEPlanner : public StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
     current_scope_ = saved;
     return std::nullopt;
-  }
-
-  /*! \brief DeclBuffer is flat (no body). Visit buffer shape expressions. */
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
-        WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->buffer); }));
-    return VisitBufferMetadata(op->buffer);
   }
 
   // ------------------------------------------------------------------

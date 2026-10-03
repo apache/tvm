@@ -134,3 +134,6 @@ def _initialize_script_namespace() -> None:
 from tvm.script.parser import register_namespace_initializer as _register_namespace_initializer
 
 _register_namespace_initializer(_initialize_script_namespace, aliases=("relax",))
+
+# Register the exported operator printer names for compiler diagnostics as well.
+from .script import ir_builder as _script_ir_builder

@@ -71,7 +71,7 @@ def te_matmul():
 
 
 @Ts.prim_func
-def tir_matmul(A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+def tir_matmul(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
     for i0, j0, k0 in T.grid(128, 128, 128):
@@ -84,9 +84,9 @@ def tir_matmul(A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((12
 
 @Ts.prim_func
 def tir_matmul_int64(
-    A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-    B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-    C: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+    A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+    B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+    C: T.Tensor((T.int64(128), T.int64(128)), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     for i0, j0, k0 in T.grid(T.int64(128), T.int64(128), T.int64(128)):
@@ -113,7 +113,7 @@ def te_element_wise():
 
 
 @Ts.prim_func
-def tir_element_wise(A: T.Buffer((128, 128)), C: T.Buffer((128, 128))) -> None:
+def tir_element_wise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
     B = Ts.sblock_alloc_buffer((128, 128))
@@ -165,7 +165,7 @@ def te_conv2d():
 
 @Ts.prim_func
 def tir_conv2d(
-    A: T.Buffer([16, 16, 14, 14]), W: T.Buffer([16, 3, 3, 32]), B: T.Buffer([16, 32, 14, 14])
+    A: T.Tensor([16, 16, 14, 14]), W: T.Tensor([16, 3, 3, 32]), B: T.Tensor([16, 32, 14, 14])
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -178,7 +178,6 @@ def tir_conv2d(
                 1 <= yy and yy < 15 and 1 <= xx and xx < 15,
                 A[nn, cc, yy - 1, xx - 1],
                 0.0,
-                dtype="float32",
             )
     for n, f, y, x, kc, ky, kx in T.grid(16, 32, 14, 14, 16, 3, 3):
         with Ts.sblock("B"):
@@ -207,7 +206,7 @@ n = T.dynamic("n", "int32")
 
 @Ts.prim_func
 def tir_multi_output(
-    A0: T.Buffer((m, n)), A1: T.Buffer((m, n)), B0: T.Buffer((m, n)), B1: T.Buffer((m, n))
+    A0: T.Tensor((m, n)), A1: T.Tensor((m, n)), B0: T.Tensor((m, n)), B1: T.Tensor((m, n))
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -245,9 +244,9 @@ off3 = T.dynamic("off3", "int32")
 
 @Ts.prim_func
 def tir_extern(
-    A: T.Buffer((128, 128), elem_offset=off1),
-    B: T.Buffer((128, 128), elem_offset=off2),
-    C: T.Buffer((128, 128), elem_offset=off3),
+    A: T.Tensor((128, 128), elem_offset=off1),
+    B: T.Tensor((128, 128), elem_offset=off2),
+    C: T.Tensor((128, 128), elem_offset=off3),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -260,34 +259,30 @@ def tir_extern(
                 "tvm.contrib.cblas.matmul",
                 T.tvm_stack_make_array(
                     A.data,
-                    T.tvm_stack_make_shape(128, 128, dtype="handle"),
+                    T.tvm_stack_make_shape(128, 128),
                     0,
                     2,
                     0.0,
                     off1,
-                    dtype="handle",
                 ),
                 T.tvm_stack_make_array(
                     B.data,
-                    T.tvm_stack_make_shape(128, 128, dtype="handle"),
+                    T.tvm_stack_make_shape(128, 128),
                     0,
                     2,
                     0.0,
                     off2,
-                    dtype="handle",
                 ),
                 T.tvm_stack_make_array(
                     C.data,
-                    T.tvm_stack_make_shape(128, 128, dtype="handle"),
+                    T.tvm_stack_make_shape(128, 128),
                     0,
                     2,
                     0.0,
                     off3,
-                    dtype="handle",
                 ),
                 0,
                 0,
-                dtype="int32",
             )
         )
 
@@ -311,9 +306,9 @@ def te_extern_epilogue():
 
 @Ts.prim_func
 def tir_extern_epilogue(
-    A: T.Buffer((4, 3), offset_factor=1),
-    B: T.Buffer((3, 2), offset_factor=1),
-    D: T.Buffer((4, 2), "float32"),
+    A: T.Tensor((4, 3), offset_factor=1),
+    B: T.Tensor((3, 2), offset_factor=1),
+    D: T.Tensor((4, 2), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -346,7 +341,7 @@ def te_reordered_matmul():
 
 @Ts.prim_func
 def tir_reordered_matmul(
-    C: T.Buffer((128, 128)), A: T.Buffer((128, 128)), B: T.Buffer((128, 128))
+    C: T.Tensor((128, 128)), A: T.Tensor((128, 128)), B: T.Tensor((128, 128))
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -469,9 +464,9 @@ def test_tensor_attr():
 
 @Ts.prim_func
 def expected_layout_attr(
-    A: T.Buffer((128, 128), "float32"),
-    B: T.Buffer((128, 128), "float32"),
-    D: T.Buffer((128, 128), "float32"),
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    D: T.Tensor((128, 128), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
     C = Ts.sblock_alloc_buffer([128, 128], dtype="float32")
@@ -490,9 +485,9 @@ def expected_layout_attr(
 
 @Ts.prim_func
 def expected_layout_attr_int64(
-    A: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-    B: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-    D: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+    A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+    B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+    D: T.Tensor((T.int64(128), T.int64(128)), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tirx.noalias": True, "layout_free_buffers": [1]})
     C = Ts.sblock_alloc_buffer([T.int64(128), T.int64(128)], dtype="float32")
@@ -565,10 +560,10 @@ n = T.dynamic("n", "int32")
 
 @Ts.prim_func
 def tir_argmax_idx_val(
-    idx: T.Buffer([m, n], dtype="int32"),
-    val: T.Buffer([m, n], dtype="float32"),
-    argmax_v0: T.Buffer([m], dtype="int32"),
-    argmax_v1: T.Buffer([m], dtype="float32"),
+    idx: T.Tensor([m, n], dtype="int32"),
+    val: T.Tensor([m, n], dtype="float32"),
+    argmax_v0: T.Tensor([m], dtype="int32"),
+    argmax_v1: T.Tensor([m], dtype="float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -618,10 +613,10 @@ n = T.dynamic("n", "int32")
 
 @Ts.prim_func
 def tir_argmax_val_idx(
-    val: T.Buffer([m, n], dtype="float32"),
-    idx: T.Buffer([m, n], dtype="int32"),
-    argmax_v0: T.Buffer([m], dtype="float32"),
-    argmax_v1: T.Buffer([m], dtype="int32"),
+    val: T.Tensor([m, n], dtype="float32"),
+    idx: T.Tensor([m, n], dtype="int32"),
+    argmax_v0: T.Tensor([m], dtype="float32"),
+    argmax_v1: T.Tensor([m], dtype="int32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -671,9 +666,9 @@ def test_zero_dim_add():
 
     @Ts.prim_func
     def expected(
-        a: T.Buffer((), "int32"),
-        b: T.Buffer((), "int32"),
-        c: T.Buffer((), "int32"),
+        a: T.Tensor((), "int32"),
+        b: T.Tensor((), "int32"),
+        c: T.Tensor((), "int32"),
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -697,8 +692,8 @@ def te_reshape():
 
 @Ts.prim_func
 def tir_reshape(
-    A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
-    T_reshape: T.Buffer((T.int64(4), T.int64(2)), "float32"),
+    A: T.Tensor((T.int64(2), T.int64(4)), "float32"),
+    T_reshape: T.Tensor((T.int64(4), T.int64(2)), "float32"),
 ):
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     for i0, i1 in T.grid(T.int64(4), T.int64(2)):
@@ -743,8 +738,8 @@ ow = T.dynamic("ow")
 
 @Ts.prim_func
 def tir_resize2d_symbolic(
-    A: T.Buffer((T.int64(2), T.int64(3), T.int64(128), T.int64(128)), "float32"),
-    resize: T.Buffer([T.int64(2), T.int64(3), oh, ow], dtype="float32"),
+    A: T.Tensor((T.int64(2), T.int64(3), T.int64(128), T.int64(128)), "float32"),
+    resize: T.Tensor([T.int64(2), T.int64(3), oh, ow], dtype="float32"),
 ):
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -762,7 +757,6 @@ def tir_resize2d_symbolic(
                             "int64",
                             T.round(
                                 T.float32(128) / T.Cast("float32", oh) * T.Cast("float32", v_i2),
-                                dtype="float32",
                             ),
                         ),
                         T.int64(127),
@@ -775,7 +769,6 @@ def tir_resize2d_symbolic(
                             "int64",
                             T.round(
                                 T.float32(128) / T.Cast("float32", ow) * T.Cast("float32", v_i3),
-                                dtype="float32",
                             ),
                         ),
                         T.int64(127),
@@ -806,10 +799,10 @@ def test_extern_with_explicit_buffer_access():
 
     @Ts.prim_func
     def tir_extern(
-        A: T.Buffer([128, 128], dtype="float32", offset_factor=1),
-        B: T.Buffer([128, 128], dtype="float32", offset_factor=1),
-        P: T.Buffer([1], dtype="float32", offset_factor=1),
-        C: T.Buffer([128, 128], dtype="float32", offset_factor=1),
+        A: T.Tensor([128, 128], dtype="float32", offset_factor=1),
+        B: T.Tensor([128, 128], dtype="float32", offset_factor=1),
+        P: T.Tensor([1], dtype="float32", offset_factor=1),
+        C: T.Tensor([128, 128], dtype="float32", offset_factor=1),
     ):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -835,7 +828,7 @@ n = T.dynamic("n")
 
 
 @Ts.prim_func
-def tir_slice_with_var_input(tensor: T.Buffer((m, n)), idx: T.int64, slice: T.Buffer((idx, n))):  # noqa: F821
+def tir_slice_with_var_input(tensor: T.Tensor((m, n)), idx: T.int64, slice: T.Tensor((idx, n))):  # noqa: F821
     T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
 
     # with Ts.sblock("root"):
@@ -856,7 +849,7 @@ def test_loop_aware_initial_value():
     """Test initial value aware of spatial iter position"""
 
     @Ts.prim_func
-    def tir_workload(a: T.Buffer((5, 5)), b: T.Buffer((5,)), sum_red: T.Buffer((5,))):
+    def tir_workload(a: T.Tensor((5, 5)), b: T.Tensor((5,)), sum_red: T.Tensor((5,))):
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
 
         for i, ax in T.grid(5, 5):
@@ -889,7 +882,7 @@ def test_loop_aware_reducer_combiner():
     """Test combiner aware of spatial iter position"""
 
     @Ts.prim_func
-    def tir_workload(a: T.Buffer((5, 5)), b: T.Buffer((5,)), sum_red: T.Buffer((5,))):
+    def tir_workload(a: T.Tensor((5, 5)), b: T.Tensor((5,)), sum_red: T.Tensor((5,))):
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
 
         for i, ax in T.grid(5, 5):
@@ -924,8 +917,8 @@ def test_loop_aware_reducer_combiner():
 def test_adaptive_pooling_window():
     @Ts.prim_func
     def tir_workload(
-        x: T.Buffer((1, 1024, 16, 40), "float32"),
-        adaptive_pool_avg: T.Buffer((1, 1024, 12, 30), "float32"),
+        x: T.Tensor((1, 1024, 16, 40), "float32"),
+        adaptive_pool_avg: T.Tensor((1, 1024, 12, 30), "float32"),
     ):
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # fmt: off
@@ -998,7 +991,7 @@ def test_global_pool():
 def test_nested_reduce_domain_dependency():
     @Ts.prim_func
     def tir_workload(
-        x: T.Buffer((8, 8, 8, 8, 8), "float32"), compute: T.Buffer((8, 8, 8), "float32")
+        x: T.Tensor((8, 8, 8, 8, 8), "float32"), compute: T.Tensor((8, 8, 8), "float32")
     ):
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         for i0, i1, i2 in T.grid(8, 8, 8):

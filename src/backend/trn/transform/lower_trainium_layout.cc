@@ -68,7 +68,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       }
       if (buffer.value()->layout.has_value()) {
         BufferVar flattened = storage_lower->GetFlattenedBuffer(buffer.value());
-        auto type = CopyBufferType(buffer.value());
+        auto type = CopyTensorType(buffer.value());
         type->layout = std::nullopt;
         BufferVar source = RebuildBufferVar(buffer.value(), std::move(type));
         param_flattened_buffers.emplace_back(flattened, source);
@@ -79,7 +79,12 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
-      new_stmt = SeqStmt::Flatten(DeclBuffer(buf, source.data()), std::move(new_stmt));
+      new_stmt =
+          SeqStmt::Flatten(Bind(buf, Call(buf.type(), tirx::builtin::decl_tensor(),
+                                          {source.data(), tvm::Tuple(buf->shape),
+                                           DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                                          {})),
+                           std::move(new_stmt));
     }
     return std::make_pair(new_stmt, new_params);
   }
@@ -103,32 +108,44 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return any;
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    if (!op->buffer->layout.has_value()) {
-      return ffi::Unchanged();
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
+      if (!original_buffer->layout.has_value()) {
+        return ffi::Unchanged();
+      }
+      auto buffer = GetFlattenedBuffer(original_buffer, /*is_alloc=*/true);
+      if (buffer.same_as(original_buffer)) {
+        return ffi::Unchanged();
+      }
+      return Bind(buffer.var(),
+                  Call(buffer.type(), tirx::builtin::alloc_tensor(),
+                       {tvm::Tuple(buffer->shape, call->args[0]->span),
+                        DataTypeImm(buffer->dtype->dtype, call->args[1]->span),
+                        StringImm(buffer.scope(), call->args[2]->span)},
+                       call->attrs, call->ty_args, call->span),
+                  op->span);
     }
-    auto buffer = GetFlattenedBuffer(op->buffer, /*is_alloc=*/true);
-    if (buffer.same_as(op->buffer)) {
-      return ffi::Unchanged();
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_tensor())) {
+      BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
+      Expr original_data = call->args[0];
+      auto data_update = Mutate(original_data, inplace_mode);
+      bool data_unchanged = data_update.UnchangedOrSameAs(original_data);
+      Expr data = std::move(data_update).ValueOrUnchanged(original_data);
+      auto buffer = GetFlattenedBuffer(original_buffer);
+      if (buffer.same_as(original_buffer) && data_unchanged) {
+        return ffi::Unchanged();
+      }
+      return Bind(buffer,
+                  Call(buffer.type(), tirx::builtin::decl_tensor(),
+                       {std::move(data), tvm::Tuple(buffer->shape),
+                        DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+                       call->attrs, call->ty_args, call->span),
+                  op->span);
     }
-    if (inplace_mode == InplaceMode::kAllow) {
-      const_cast<AllocBufferNode*>(op)->buffer = std::move(buffer);
-      return ffi::Unchanged();
-    }
-    auto n = ffi::make_object<AllocBufferNode>(*op);
-    n->buffer = std::move(buffer);
-    return Stmt(n);
-  }
-
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    auto data_update = Mutate(op->data, inplace_mode);
-    bool data_unchanged = data_update.UnchangedOrSameAs(op->data);
-    Expr data = std::move(data_update).ValueOrUnchanged(op->data);
-    auto buffer = GetFlattenedBuffer(op->buffer);
-    if (buffer.same_as(op->buffer) && data_unchanged) {
-      return ffi::Unchanged();
-    }
-    return DeclBuffer(buffer, std::move(data), op->span);
+    return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
   BufferVar GetFlattenedBuffer(BufferVar buf, bool is_alloc = false) {
@@ -138,7 +155,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     auto trn_layout = buf->layout.as<TileLayoutNode>();
     BufferVar flattened;
-    ffi::ObjectPtr<BufferTypeNode> type;
+    ffi::ObjectPtr<TensorTypeNode> type;
     if (IsTrainiumLayout(trn_layout)) {
       ffi::Array<PrimExpr> new_shape =
           buf.scope() == "trn.psum" ? ffi::Array<PrimExpr>{trn_layout->GetSpan(ffi::String("Bank")),
@@ -147,7 +164,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
                                     : ffi::Array<PrimExpr>{trn_layout->GetSize(ffi::String("P")),
                                                            trn_layout->GetSpan(ffi::String("F"))};
       flattened = buf;
-      type = CopyBufferType(flattened);
+      type = CopyTensorType(flattened);
       type->shape = new_shape;
       type->strides = {};
     } else if (is_alloc) {
@@ -171,16 +188,16 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
           }
         }
         flattened = buf;
-        type = CopyBufferType(flattened);
+        type = CopyTensorType(flattened);
         type->shape = {ana->Simplify(mem_span)};
         type->strides = {};
       } else {
         flattened = buf.GetFlattenedBuffer();
-        type = CopyBufferType(flattened);
+        type = CopyTensorType(flattened);
       }
     } else {
       flattened = buf.GetFlattenedBuffer();
-      type = CopyBufferType(flattened);
+      type = CopyTensorType(flattened);
     }
     if (flattened->dtype->dtype == DLDataType{kDLBool, 8, 1}) {
       type->dtype = PrimType::Int(8);

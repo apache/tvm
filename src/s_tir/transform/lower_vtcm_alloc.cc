@@ -39,16 +39,33 @@ class VtcmAllocator : public StmtExprMutator {
 
   VtcmAllocator() {}
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    std::string storage_scope = op->buffer.scope();
-    if (IsVtcmStorage(storage_scope)) {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
+                                       InplaceMode inplace_mode) {
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    if (IsVtcmStorage(scope)) {
+      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
       ffi::Array<Expr> args;
-      args.push_back(StringImm(storage_scope));
-      args.push_back(IntImm::Int64(op->buffer->shape.size()));
+      args.push_back(StringImm(scope));
+      args.push_back(IntImm::Int64(shape->fields.size()));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
-                          op->buffer->shape));
-      return DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
-                                         tirx::builtin::nd_mem_alloc_with_scope(), args));
+                          shape->fields));
+      BufferVar buffer = op->var.as_or_throw<BufferVar>();
+      return Bind(
+          buffer,
+          Call(buffer.type(), tirx::builtin::decl_tensor(),
+               {Call(buffer.DataPointerType(), tirx::builtin::nd_mem_alloc_with_scope(), args),
+                tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                StringImm(buffer.scope())},
+               {}, call->ty_args, call->span),
+          op->span);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }

@@ -34,10 +34,10 @@ from tvm.testing import env
 
 @Ts.prim_func
 def get_valid_counts(
-    data_buf: T.Buffer((1, 2500, 6), "float32"),
-    valid_count_buf: T.Buffer((1,), "int32"),
-    out_buf: T.Buffer((1, 2500, 6), "float32"),
-    out_indices_buf: T.Buffer((1, 2500), "int32"),
+    data_buf: T.Tensor((1, 2500, 6), "float32"),
+    valid_count_buf: T.Tensor((1,), "int32"),
+    out_buf: T.Tensor((1, 2500, 6), "float32"),
+    out_indices_buf: T.Tensor((1, 2500), "int32"),
     score_threshold: T.float32,
     id_index: T.int32,
     score_index: T.int32,
@@ -110,7 +110,7 @@ def test_get_valid_counts_script_func():
 
 
 @Ts.prim_func
-def ceildiv_test(A: T.Buffer(16, "int32")):
+def ceildiv_test(A: T.Tensor(16, "int32")):
     for i in range(16):
         A[i] = T.ceildiv(A[i], 4)
 
@@ -126,7 +126,7 @@ def test_ceildiv():
 
 def test_tir_func_name():
     @Ts.prim_func
-    def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+    def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("update"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -138,7 +138,7 @@ def test_tir_func_name():
 
 def test_tir_func_private_attrs():
     @Ts.prim_func(private=True)
-    def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+    def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
         T.func_attr({"attr": "value"})
 
         for i, j, k in T.grid(128, 128, 128):
@@ -154,7 +154,7 @@ def test_tir_loop_steps():
 
     @Ts.prim_func(private=True)
     def loop_with_steps(
-        A: T.Buffer((N,)), B: T.Buffer((N,)), C: T.Buffer((N,)), tid: T.int32, v: T.int32
+        A: T.Tensor((N,)), B: T.Tensor((N,)), C: T.Tensor((N,)), tid: T.int32, v: T.int32
     ):
         for i in T.serial(tid, N, step=2):
             C[i] = A[i] + B[i]
@@ -181,11 +181,11 @@ def test_tir_empty_tuple_index():
         T.evaluate(val)
 
     @Ts.prim_func(private=True)
-    def func_with_empty_tuple(A: T.Buffer((), "int32"), B: T.Buffer((), "int32")):
+    def func_with_empty_tuple(A: T.Tensor((), "int32"), B: T.Tensor((), "int32")):
         bar(val=A[()])
 
     @Ts.prim_func(private=True)
-    def expected(A: T.Buffer((), "int32"), B: T.Buffer((), "int32")):
+    def expected(A: T.Tensor((), "int32"), B: T.Tensor((), "int32")):
         T.evaluate(A[()])
 
     tvm.ir.assert_structural_equal(func_with_empty_tuple, expected)
@@ -193,7 +193,7 @@ def test_tir_empty_tuple_index():
 
 def test_thread_binding_dtype():
     @Ts.prim_func(private=True)
-    def func(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))):
+    def func(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))):
         for i in T.thread_binding(T.int64(128), "threadIdx.x"):
             for j in T.thread_binding(128, "threadIdx.y"):
                 B[i, j] = A[i, j]
@@ -228,7 +228,7 @@ def test_inferred_ty_with_buffer_args():
     """PrimFunc buffer arguments are inferred as R.Tensor"""
 
     @Ts.prim_func
-    def func(A: T.Buffer([16, 16], "float32"), B: T.Buffer([256], "int32")) -> T.float32:
+    def func(A: T.Tensor([16, 16], "float32"), B: T.Tensor([256], "int32")) -> T.float32:
         return T.float32(42.0)
 
     expected = tvm.relax.FuncType(
@@ -250,8 +250,8 @@ def test_inferred_ty_with_internal_allocation():
     """
 
     @Ts.prim_func
-    def func(A: T.Buffer([16, 16], "float32")) -> T.float32:
-        Sum = T.decl_buffer([], "float32")
+    def func(A: T.Tensor([16, 16], "float32")) -> T.float32:
+        Sum = T.decl_tensor([], "float32")
         Sum[()] = 0.0
         for i, j in T.grid(16, 16):
             Sum[()] = Sum[()] + A[i, j]
@@ -275,7 +275,7 @@ def test_inferred_ty_with_output_buffer():
     """
 
     @Ts.prim_func
-    def func(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+    def func(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
         for i in range(16):
             B[i] = A[i]
 
@@ -294,7 +294,7 @@ def test_reinterpret_nop():
     """Test builtin reinterpret op"""
 
     @Ts.prim_func
-    def func(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
+    def func(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")) -> None:
         T.func_attr({"global_symbol": "main"})
         for i in T.serial(0, 32):
             with Ts.sblock():
@@ -302,7 +302,7 @@ def test_reinterpret_nop():
                 B[vi] = T.reinterpret("float32", A[vi])
 
     @Ts.prim_func
-    def expected(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
+    def expected(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")) -> None:
         T.func_attr({"global_symbol": "main"})
         for i in T.serial(0, 32):
             with Ts.sblock():
@@ -410,7 +410,7 @@ def test_ifexp():
 
 def test_sequence_compare():
     @Ts.prim_func(private=True)
-    def tir_func(A: T.Buffer((128, 128), "float32")):
+    def tir_func(A: T.Tensor((128, 128), "float32")):
         for i, j in T.grid(128, 128):
             if 0 < i < 128 and 0 < j < 128:
                 A[i, j] = 1
@@ -430,7 +430,7 @@ def test_sequence_compare():
 
 def launch_env_thread():
     @Ts.prim_func
-    def main(inputs: T.Buffer((64, 2, 4), "float32")) -> None:
+    def main(inputs: T.Tensor((64, 2, 4), "float32")) -> None:
         bx = T.launch_thread("blockIdx.x", 64)
         for i, j in T.grid(2, 4):
             T.evaluate(inputs[bx, i, j])
@@ -440,7 +440,7 @@ def launch_env_thread():
 
 def vthread_func():
     @Ts.prim_func
-    def vthread_func(A: T.Buffer([256], "float32"), C: T.Buffer([256], "float32")) -> None:
+    def vthread_func(A: T.Tensor([256], "float32"), C: T.Tensor([256], "float32")) -> None:
         i0 = T.env_thread("blockIdx.x")
         i1 = T.env_thread("threadIdx.x")
         i2 = T.env_thread("vthread")
@@ -448,7 +448,7 @@ def vthread_func():
         T.launch_thread(i0, 4)
         T.launch_thread(i1, 2)
         T.launch_thread(i2, 2)
-        B = T.alloc_buffer((16,), scope="local")
+        B = T.alloc_tensor((16,), scope="local")
         for j in range(16):
             B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + T.float32(1)
         for j in range(16):
@@ -460,7 +460,7 @@ def vthread_func():
 def for_thread_binding():
     @Ts.prim_func
     def for_thread_binding(
-        A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")
+        A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")
     ) -> None:
         for i in T.thread_binding(0, 16, thread="threadIdx.x"):
             for j in T.thread_binding(
@@ -495,7 +495,7 @@ def test_for_thread_binding():
 
 def while_loop():
     @Ts.prim_func
-    def while_loop(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")) -> None:
+    def while_loop(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")) -> None:
         i = Ts.sblock_alloc_buffer((), "int32", scope="local")
         for ii in range(16):
             with Ts.sblock():
@@ -543,7 +543,7 @@ def return_none():
 
 def implicit_evaluate():
     @Ts.prim_func
-    def func(A: T.Buffer(1, "int32")):
+    def func(A: T.Tensor(1, "int32")):
         T.evaluate(T.assume(A[0] == 5))
         A[0] = 10
 
@@ -619,7 +619,7 @@ def ir_module_with_attrs():
         I.module_attrs({"attr": 10})
 
         @Ts.prim_func
-        def tir_func(A: T.Buffer(16, "int32"), B: T.Buffer(16, "int32")):
+        def tir_func(A: T.Tensor(16, "int32"), B: T.Tensor(16, "int32")):
             for i in range(16):
                 B[i] = A[i]
 
@@ -632,7 +632,7 @@ def subroutine_call():
     @I.ir_module
     class mod:
         @Ts.prim_func
-        def main(A: T.Buffer(16, "float32")):
+        def main(A: T.Tensor(16, "float32")):
             mod.subroutine(A.data, T.int32(16))
 
         @Ts.prim_func
@@ -648,7 +648,7 @@ def subroutine_call_returning_int():
     @I.ir_module
     class mod:
         @Ts.prim_func
-        def main(A: T.Buffer(2, "float32")):
+        def main(A: T.Tensor(2, "float32")):
             mod.subroutine(A[0]) + mod.subroutine(A[1])
 
         @Ts.prim_func
@@ -699,7 +699,7 @@ def return_zero_private_with_attr():
 
 def func_with_loop_jumps():
     @Ts.prim_func
-    def func(In: T.Buffer((1,), "int32"), Out: T.Buffer((2,), "int32")):
+    def func(In: T.Tensor((1,), "int32"), Out: T.Tensor((2,), "int32")):
         Out[0] = 0
         Out[1] = 0
         for i in range(1000):
@@ -716,7 +716,7 @@ def func_with_loop_jumps():
 def func_with_loop_steps():
     @Ts.prim_func
     def func(
-        A: T.Buffer((1024,)), B: T.Buffer((1024,)), C: T.Buffer((1024,)), tid: T.int32, v: T.int32
+        A: T.Tensor((1024,)), B: T.Tensor((1024,)), C: T.Tensor((1024,)), tid: T.int32, v: T.int32
     ):
         for i in T.serial(tid, 1024, step=2):
             C[i] = A[i] + B[i]
@@ -769,7 +769,7 @@ def test_assert_stmt_roundtrip(error_type, message_parts):
 
 
 @Ts.prim_func
-def loop_no_syntax_sugar(A: T.Buffer((128, 128, 128, 128))) -> None:
+def loop_no_syntax_sugar(A: T.Tensor((128, 128, 128, 128))) -> None:
     for i in T.serial(0, 128):
         for j in T.parallel(0, 128):
             for k in T.vectorized(0, 128):
@@ -780,7 +780,7 @@ def loop_no_syntax_sugar(A: T.Buffer((128, 128, 128, 128))) -> None:
 
 
 @Ts.prim_func
-def loop_syntax_sugar(A: T.Buffer((128, 128, 128, 128))) -> None:
+def loop_syntax_sugar(A: T.Tensor((128, 128, 128, 128))) -> None:
     for i in T.serial(128):
         for j in T.parallel(128):
             for k in T.vectorized(128):
@@ -796,8 +796,8 @@ def test_loop_syntax_sugar():
 
 @Ts.prim_func
 def elementwise_buffer_default_dtype(
-    A: T.Buffer((128, 128, 128, 128)),
-    B: T.Buffer((128, 128, 128, 128)),
+    A: T.Tensor((128, 128, 128, 128)),
+    B: T.Tensor((128, 128, 128, 128)),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):  # noqa: E741
         with Ts.sblock("B"):
@@ -807,8 +807,8 @@ def elementwise_buffer_default_dtype(
 
 @Ts.prim_func
 def elementwise_buffer_kwargs(
-    a: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
-    b: T.Buffer(shape=(128, 128, 128, 128), dtype="float32"),
+    a: T.Tensor(shape=(128, 128, 128, 128), dtype="float32"),
+    b: T.Tensor(shape=(128, 128, 128, 128), dtype="float32"),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):  # noqa: E741
         with Ts.sblock("B"):
@@ -818,8 +818,8 @@ def elementwise_buffer_kwargs(
 
 @Ts.prim_func
 def elementwise_buffer_no_kwargs(
-    a: T.Buffer((128, 128, 128, 128), "float32"),
-    b: T.Buffer((128, 128, 128, 128), "float32"),
+    a: T.Tensor((128, 128, 128, 128), "float32"),
+    b: T.Tensor((128, 128, 128, 128), "float32"),
 ) -> None:
     for i, j, k, l in T.grid(128, 128, 128, 128):  # noqa: E741
         with Ts.sblock("B"):
@@ -840,12 +840,12 @@ def test_buffer_signature_syntax_sugar():
 
 def test_buffer_1d():
     @Ts.prim_func
-    def func_no_sugar(A: T.Buffer(shape=(16,))):
+    def func_no_sugar(A: T.Tensor(shape=(16,))):
         for i in T.serial(16):
             A[i] = 0.0
 
     @Ts.prim_func
-    def func_with_sugar(A: T.Buffer(16, "float32")):
+    def func_with_sugar(A: T.Tensor(16, "float32")):
         for i in T.serial(16):
             A[i] = 0.0
 
@@ -861,19 +861,19 @@ def test_bind_bufferload_without_type_annotation():
 
     # Failure occurred during parsing of the tvmscript.
     @Ts.prim_func
-    def func_without_type_annotation(A: T.Buffer((1,), "int32")):
+    def func_without_type_annotation(A: T.Tensor((1,), "int32")):
         x = A[0]
         T.evaluate(x)
 
 
 def test_implicit_evaluate_assume():
     @Ts.prim_func
-    def explicit(A: T.Buffer(1, "int32")):
+    def explicit(A: T.Tensor(1, "int32")):
         T.evaluate(T.assume(A[0] == 5))
         A[0] = 10
 
     @Ts.prim_func
-    def implicit(A: T.Buffer(1, "int32")):
+    def implicit(A: T.Tensor(1, "int32")):
         T.assume(A[0] == 5)
         A[0] = 10
 
@@ -882,11 +882,11 @@ def test_implicit_evaluate_assume():
 
 def test_implicit_evaluate_call_extern():
     @Ts.prim_func
-    def explicit(A: T.Buffer(1, "int32")):
+    def explicit(A: T.Tensor(1, "int32")):
         T.evaluate(T.call_extern("extern_func", A.data, dtype="int32"))
 
     @Ts.prim_func
-    def implicit(A: T.Buffer(1, "int32")):
+    def implicit(A: T.Tensor(1, "int32")):
         T.call_extern("extern_func", A.data, dtype="int32")
 
     assert_structural_equal_ignore_global_symbol(implicit, explicit)
@@ -895,7 +895,7 @@ def test_implicit_evaluate_call_extern():
 def test_preserve_trivial_let_binding():
     """Trivial `T.let[...]` annotations survive the parser as LetStmt and are not inlined.
 
-    In fork, bare `j = i` lowers to a local_scalar (AllocBuffer + BufferStore); the
+    In fork, bare `j = i` lowers to a local_scalar (AllocTensor + BufferStore); the
     LetStmt form is opt-in via `T.let[T.dtype]`. Both the explicit `T.bind(..., var=j)`
     builder API and the `j: T.let[T.dtype]` annotation produce the same LetStmt IR.
     """
@@ -945,7 +945,7 @@ def test_preserve_parameter_name():
 
 @pytest.mark.parametrize("mutable", [False, True])
 def test_preserve_variable_name(mutable):
-    """Use variable name when generating tirx::Bind / AllocBuffer"""
+    """Use variable name when generating tirx::Bind / AllocTensor"""
 
     # Bare bindings name the immutable Var; explicit declarations name scalar storage.
     annotation = ": T.int32" if mutable else ""
@@ -960,8 +960,9 @@ def func():
     )
     binding = func.body.body.seq[0]
     if mutable:
-        assert isinstance(binding, tvm.tirx.AllocBuffer)
-        var_name = binding.buffer.name
+        assert isinstance(binding, tvm.tirx.Bind) and isinstance(binding.value, tvm.ir.Call)
+        assert binding.value.op.name == "tirx.alloc_tensor"
+        var_name = binding.var.name
     else:
         assert isinstance(binding, tvm.tirx.Bind)
         var_name = binding.var.name
@@ -1083,7 +1084,7 @@ def test_roundtrip_basic_usage(ir_generator):
 # Import-time construction also checks the annotated S-TIR API.
 @Ts.prim_func
 def element_wise_env_thread_x(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     j1_0 = T.env_thread("threadIdx.x")
     j0_0 = T.env_thread("threadIdx.x")

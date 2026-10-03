@@ -92,9 +92,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
 
  private:
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == "pragma_debug_skip_region") {
-      return MakeEvaluate(IntImm::Int32(0));
-    } else if (op->attr_key == tvm::tirx::attr::async_wait_queue_scope) {
+    if (op->attr_key == tvm::tirx::attr::async_wait_queue_scope) {
       auto wait_attrs = GetAsyncWaitAttributes(op);
       auto wait_cnt = wait_attrs.second;
       sym::Analyzer ana;
@@ -230,10 +228,10 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
   bool HasSideEffect(const PrimExpr& value) {
     if (ignore_profiler_call_) {
       if (const CallNode* call = value.as<CallNode>()) {
-        static const Op& timer_init_cuda_op = Op::Get("tirx.timer_init_cuda");
-        static const Op& timer_start_cuda_op = Op::Get("tirx.timer_start_cuda");
-        static const Op& timer_end_cuda_op = Op::Get("tirx.timer_end_cuda");
-        static const Op& timer_finalize_cuda_op = Op::Get("tirx.timer_finalize_cuda");
+        static const Op timer_init_cuda_op = Op::Get("tirx.timer_init_cuda");
+        static const Op timer_start_cuda_op = Op::Get("tirx.timer_start_cuda");
+        static const Op timer_end_cuda_op = Op::Get("tirx.timer_end_cuda");
+        static const Op timer_finalize_cuda_op = Op::Get("tirx.timer_finalize_cuda");
         if (call->op.same_as(timer_init_cuda_op) || call->op.same_as(timer_start_cuda_op) ||
             call->op.same_as(timer_end_cuda_op) || call->op.same_as(timer_finalize_cuda_op)) {
           return false;

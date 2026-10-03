@@ -1173,19 +1173,18 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     }
   }
 
-  static const Op& tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
-  static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-  static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-  static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-  static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
-  static const Op& mma_store_op = Op::Get("tirx.mma_store");
-  static const Op& mma_fill_op = Op::Get("tirx.mma_fill");
-  static const Op& ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
-  static const Op& ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
-  static const Op& mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
-  static const Op& mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-  static const Op& ptx_ldg32_op = Op::Get("tirx.s_tir.ldg32");
-  static const Op& cuda_func_call_op = Op::Get("tirx.cuda.func_call");
+  static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
+  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+  static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
+  static const Op tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
+  static const Op mma_store_op = Op::Get("tirx.mma_store");
+  static const Op mma_fill_op = Op::Get("tirx.mma_fill");
+  static const Op ptx_mma_legacy_op = Op::Get("tirx.ptx_legacy.mma");
+  static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
+  static const Op mma_store_legacy_op = Op::Get("tirx.mma_store_legacy");
+  static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
+  static const Op cuda_func_call_op = Op::Get("tirx.cuda.func_call");
 
   if (op->op.same_as(tvm_fill_fragment_op)) {
     codegen_tags_.insert("mma");
@@ -1412,38 +1411,6 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
     os << dst << "[" << dst_offset << " + i] = 0.0;";
     os << "}\n";
-  } else if (IsOp(op, ptx_ldg32_op, "tirx.s_tir.ldg32")) {
-    /*
-    asm volatile (
-        "{.reg .pred p;\n"
-        " setp.ne.b32 p, %2, 0;\n"
-        // " @p ld.global.nc.f32 %0, [%1];}\n"t
-        " @p ld.global.nc.L2::128B.f32 %0, [%1];}\n"
-        : "=f"(reg)
-        : "l"(addr), "r"((int)guard)
-    );
-    */
-
-    // get local
-    std::string reg = this->PrintExpr(op->args[0]);
-    // get guard
-    std::string guard = this->PrintExpr(op->args[1]);
-    const TensorLoadNode* addr_buffer = op->args[2].as<TensorLoadNode>();
-    std::string global_addr = this->PrintExpr(addr_buffer->indices[0]);
-    std::string global_buffer =
-        this->PrintExpr(addr_buffer->source.as_or_throw<tvm::tirx::BufferVar>().data());
-    std::string local_addr = this->PrintExpr(op->args[3]);
-    this->stream << "asm volatile (\n";
-    this->stream << "\"{.reg .pred p;\\n\"\n";
-    this->stream << "\" setp.ne.b32 p, %2, 0;\\n\"\n";
-    this->stream << "\" @!p mov.b32 %0, 0;\\n\"\n";
-    this->stream << "\" @p ld.global.nc.f32 %0, [%1];}\\n\"\n";
-    // stream << "\" @p ld.global.nc.L2::128B.f32 %0, [%1];}\\n\"\n" ;
-    stream << ": \"=f\"(" << reg << "[" << local_addr << "]"
-           << ")\n";
-    stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
-           << guard << ")\n";
-    stream << ");\n";
   } else if (op->op.same_as(tirx::builtin::reinterpret())) {
     // Compile-time pointer reinterpret of a literal (e.g. a tcgen05 descriptor
     // template encoded at address 0): emit C++-style reinterpret_cast<T*>(...)
@@ -1565,7 +1532,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     if (const auto* call = arg.as<CallNode>();
         call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
       var_node = call->args[0].as<VarNode>();
-      TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::BufferTypeNode>())
+      TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::TensorTypeNode>())
           << "print_buffer expects buffer_data to project a BufferVar";
     }
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
@@ -1715,20 +1682,12 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
 }
 
 void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
-  if (op->attr_key == s_tir::attr::fragment_shape) {
-    const VarNode* buffer = op->node.as<VarNode>();
-    const StringImmNode* shape_str = op->value.as<StringImmNode>();
-    fragment_shapes[buffer] = shape_str->value;
-  } else if (op->attr_key == s_tir::attr::fragment_layout) {
-    const VarNode* buffer = op->node.as<VarNode>();
-    const StringImmNode* layout_str = op->value.as<StringImmNode>();
-    fragment_layouts[buffer] = layout_str->value;
-  } else if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
+  if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     this->Dispatch(op->body);
-    static const Op& ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
+    static const Op ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
     // ptx Call layout: [operands...] [slot tokens] [pred marker ""].
     auto commit_group = Call(PrimType::Void(), ptx_cp_async_commit_group_op,
                              {StringImm("async"), StringImm("commit_group"), StringImm("")})
@@ -1743,7 +1702,7 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
         << "For CUDA, the index of an async queue must be 0.";
     auto wait_cnt = wait_attrs.second;
-    static const Op& ptx_cp_async_wait_group_op = Op::Get("tirx.ptx.cp_async_wait_group");
+    static const Op ptx_cp_async_wait_group_op = Op::Get("tirx.ptx.cp_async_wait_group");
     // ptx Call layout: [operands...] [slot tokens] [pred marker ""]. The group
     // count is a role="imm" operand baked into the instruction text, so it must
     // already be a compile-time constant here (the pipeline pass guarantees it).
@@ -1757,56 +1716,61 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(inner);
     this->Dispatch(inner->body);
     return;
-  } else if (op->attr_key == "disable_unroll") {
-    PrintIndent();
-    stream << "#pragma unroll 1\n";
-    this->Dispatch(op->body);
-    return;
-  } else if (op->attr_key == "pragma_unroll") {
-    PrintIndent();
-    stream << "#pragma unroll";
-    if (const auto* count = op->value.as<IntImmNode>(); count && count->value != 1) {
-      stream << " " << count->value;
-    }
-    stream << "\n";
-    this->Dispatch(op->body);
-    return;
   } else if (op->attr_key == tirx::attr::thread_extent) {
   }
   CodeGenC::Dispatch_(op);
 }
 
-void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
-  TVM_FFI_ICHECK(op->buffer.defined());
-  std::string vid = AllocVarID(op->buffer.get(), op->buffer.name() + "_ptr");
+void CodeGenCUDA::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+  }
+  CodeGenC::Dispatch_(op);
+}
 
+void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
+  TVM_FFI_ICHECK(buffer.defined());
+  std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
+
+  std::string fragment_shape;
+  std::string fragment_layout;
+  if (std::string(scope).find("wmma.") == 0) {
+    auto shape = annotations->dict.Get(s_tir::attr::fragment_shape);
+    TVM_FFI_ICHECK(shape.has_value()) << "Cannot find shape of the wmma fragment " << buffer.name();
+    fragment_shape = shape.value().as_or_throw<ffi::String>();
+    if (auto layout = annotations->dict.Get(s_tir::attr::fragment_layout)) {
+      fragment_layout = layout.value().as_or_throw<ffi::String>();
+    }
+  }
   this->PrintIndent();
-  std::string scope = op->buffer.scope();
-  const VarNode* buffer = op->buffer.get();
-  PrimType dtype = op->buffer->dtype;
-
-  if (scope.find("wmma.") == 0) {
+  if (std::string(scope).find("wmma.") == 0) {
     if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
-      bool supported_wmma_input_dtype = dtype == PrimType::Float(16) || dtype == PrimType::Int(8) ||
-                                        dtype == PrimType::UInt(8) || dtype == PrimType::Int(4) ||
-                                        dtype == PrimType::UInt(4) || dtype == PrimType::Int(1) ||
-                                        dtype == PrimType::BFloat(16);
+      bool supported_wmma_input_dtype =
+          PrimType(dtype) == PrimType::Float(16) || PrimType(dtype) == PrimType::Int(8) ||
+          PrimType(dtype) == PrimType::UInt(8) || PrimType(dtype) == PrimType::Int(4) ||
+          PrimType(dtype) == PrimType::UInt(4) || PrimType(dtype) == PrimType::Int(1) ||
+          PrimType(dtype) == PrimType::BFloat(16);
       TVM_FFI_ICHECK(supported_wmma_input_dtype)
           << "Matrix_a and matrix_b only support half or char or unsigned char "
           << "or uint4 or int4 or int1 type for now";
     } else {
-      bool supported_wmma_accumulator_dtype = dtype == PrimType::Float(16) ||
-                                              dtype == PrimType::Float(32) ||
-                                              dtype == PrimType::Int(32);
+      bool supported_wmma_accumulator_dtype = PrimType(dtype) == PrimType::Float(16) ||
+                                              PrimType(dtype) == PrimType::Float(32) ||
+                                              PrimType(dtype) == PrimType::Int(32);
       TVM_FFI_ICHECK(supported_wmma_accumulator_dtype)
           << "Accumulator only support half, float and int type for now";
     }
-    PrintWmmaScope(scope, dtype, buffer, stream);
+    PrintWmmaScope(scope, PrimType(dtype), fragment_shape, fragment_layout, stream);
   } else {
     PrintStorageScope(scope, stream);
-    int align = op->buffer->data_alignment;
-    auto it = op->annotations.find(tirx::attr::buffer_data_alignment);
-    if (it != op->annotations.end()) {
+    int align = buffer->data_alignment;
+    auto it = annotations->dict.find(tirx::attr::buffer_data_alignment);
+    if (it != annotations->dict.end()) {
       if (const auto* n = (*it).second.as<IntImmNode>()) {
         align = n->value.as<int>().value();
       }
@@ -1816,7 +1780,7 @@ void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
     } else if (align > 0) {
       stream << "alignas(" << align << ") ";
     }
-    PrintType(dtype, stream);
+    PrintType(PrimType(dtype), stream);
   }
 
   if (scope == "shared.dyn") {
@@ -1824,27 +1788,28 @@ void CodeGenCUDA::Dispatch_(const AllocBufferNode* op) {
   } else {
     // Compute constant_size from buffer shape
     size_t constant_size = 1;
-    for (const auto& dim : op->buffer->shape) {
+    for (const auto& dim : shape->fields) {
       const IntImmNode* dim_imm = dim.as<IntImmNode>();
       TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
       constant_size *= dim_imm->value.as<size_t>().value();
     }
     TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
 
-    if (scope.find("wmma.") == 0) {
-      constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
+    if (std::string(scope).find("wmma.") == 0) {
+      constant_size = GetWmmaFragmentSize(scope, fragment_shape, constant_size);
     }
-    bool is_packed_integer_dtype =
-        dtype == PrimType::Int(4) || dtype == PrimType::UInt(4) || dtype == PrimType::Int(1);
+    bool is_packed_integer_dtype = PrimType(dtype) == PrimType::Int(4) ||
+                                   PrimType(dtype) == PrimType::UInt(4) ||
+                                   PrimType(dtype) == PrimType::Int(1);
     if (is_packed_integer_dtype && scope == "shared") {
-      constant_size = constant_size / (32 / dtype.bits());
+      constant_size = constant_size / (32 / dtype.bits);
     }
     stream << ' ' << vid << '[' << constant_size << "];\n";
   }
 
-  RegisterHandleType(op->buffer.get(), dtype);
-  if (op->annotations.count(tirx::attr::kVolatile)) {
-    MarkVolatile(op->buffer.get());
+  RegisterHandleType(buffer.get(), PrimType(dtype));
+  if (annotations->dict.count(tirx::attr::kVolatile)) {
+    MarkVolatile(buffer.get());
   }
 }
 
@@ -2127,12 +2092,10 @@ void CodeGenCUDA::Dispatch_(const FloatImmNode* op, std::ostream& os) {  // NOLI
 }
 
 void CodeGenCUDA::PrintWmmaScope(const std::string& scope, const PrimType& t,
-                                 const VarNode* variable, std::ostream& os) {
+                                 const std::string& shape_str, const std::string& layout_str,
+                                 std::ostream& os) {
   std::stringstream type;
   PrintType(t, type);
-  TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name;
-  std::string shape_str = fragment_shapes.at(variable);
   if ((t.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) && t.bits() < 8 &&
       t.lanes() == 1) {
     type.str(std::string());
@@ -2154,13 +2117,11 @@ void CodeGenCUDA::PrintWmmaScope(const std::string& scope, const PrimType& t,
   }
   if (scope == "wmma.matrix_a") {
     codegen_tags_.insert("mma");
-    std::string layout_str = fragment_layouts[variable];
     TVM_FFI_ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_a";
     os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, " << shape_str << ", " << type.str()
        << ", nvcuda::wmma::" << layout_str << ">";
   } else if (scope == "wmma.matrix_b") {
     codegen_tags_.insert("mma");
-    std::string layout_str = fragment_layouts[variable];
     TVM_FFI_ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_b";
     os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, " << shape_str << ", " << type.str()
        << ", nvcuda::wmma::" << layout_str << ">";
@@ -2180,11 +2141,8 @@ int stoi(const std::string& str) {
   }
 }
 
-int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
+int32_t CodeGenCUDA::GetWmmaFragmentSize(const std::string& scope, const std::string& shape_str,
                                          int32_t size) {
-  TVM_FFI_ICHECK(fragment_shapes.count(variable))
-      << "Cannot find shape of the wmma fragment " << variable->name;
-  std::string shape_str = fragment_shapes.at(variable);
   std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
   if (dim.first * dim.second != 0)
     return size / dim.first / dim.second;

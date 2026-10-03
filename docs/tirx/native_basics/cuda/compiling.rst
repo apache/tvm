@@ -76,7 +76,7 @@ Rung 2 in full — a 256-element block sum via a shared-memory tree reduction
 .. code-block:: python
 
     @Tx.prim_func
-    def block_sum(A: Tx.Buffer((256,), "float32"), out: Tx.Buffer((1,), "float32")):
+    def block_sum(A: Tx.Tensor((256,), "float32"), out: Tx.Tensor((1,), "float32")):
 
         Tx.device_entry()
         bx = Tx.cta_id([1])

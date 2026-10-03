@@ -16,7 +16,18 @@
 # under the License.
 """Shared TVMScript construction APIs and lazy language variant builders."""
 
-from tvm.ir import DataTypeImm, GenericConst, Range, StringImm, StringType
+from tvm.ir import (
+    Call,
+    DataTypeImm,
+    FuncType,
+    GenericConst,
+    PrimType,
+    Range,
+    StringImm,
+    StringType,
+    Type,
+    make_node,
+)
 
 from .base import (
     MISSING,
@@ -50,13 +61,17 @@ from .parser_protocol import (
 __all__ = [
     "MISSING",
     "AlreadyEmitted",
+    "Call",
     "DataTypeImm",
+    "FuncType",
     "GenericConst",
     "IRBuilder",
     "IRModuleFrame",
+    "PrimType",
     "Range",
     "StringImm",
     "StringType",
+    "Type",
     "at_",
     "check_well_formed_",
     "constexpr",
@@ -64,6 +79,7 @@ __all__ = [
     "dtype",
     "dynamic",
     "ir_module",
+    "make_node",
     "meta_var",
     "module_attrs",
     "module_get_attr",

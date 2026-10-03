@@ -66,7 +66,7 @@ using FCallPacked = ffi::String;
  * \param call The call expression to be derived.
  * \param ctx The builder context.
  */
-using FInferType = ffi::TypedFunction<Type(const Call& call, const BlockBuilder& ctx)>;
+using FInferTypeWithBuilder = ffi::TypedFunction<Type(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
  * \brief The function type of a normalization function.
@@ -76,12 +76,8 @@ using FInferType = ffi::TypedFunction<Type(const Call& call, const BlockBuilder&
  * equivalent forms, to normalize to a single representation.
  *
  * Note: `FNormalize` is applied for each expression as part of the
- *    `relax::BlockBuilder`.  While operator-specific validation may
- *    be performed within the `FNormalize` implementation, ensuring
- *    that errors are caught as early as possible, this should only be
- *    used when validation is fast to apply.  If the validation logic
- *    may be slow, it should instead be implemented in `FValidate`,
- *    which is only run as part of the well-formed checker.
+ *    `relax::BlockBuilder`. Operator-specific validation belongs in
+ *    `OpDef::set_validator` and runs after normalization.
  *
  * \param bb The BlockBuilder context.
  *
@@ -89,25 +85,6 @@ using FInferType = ffi::TypedFunction<Type(const Call& call, const BlockBuilder&
  * avoid copies for the common case where the call is already normalized.
  */
 using FNormalize = ffi::TypedFunction<Expr(const BlockBuilder& bb, Call call)>;
-
-/*!
- * \brief The function type of a validation function.
- *
- * A validation function is used to define constraints that should be
- * verified for an operator as part of the well-formed checker.
- *
- * Note: `FValidate` is only applied as part of the well-formed
- *    checker.  While this minimizes overhead while compiling Relax,
- *    this delay between generating an ill-formed `relax::Call` and
- *    identifying the ill-formed call may complicate debugging.  If
- *    the validation logic is very fast to check, and doing so would
- *    not introduce a significant overhead, consider validating as part
- *    of `FNormalize`, which is applied by the block builder for each
- *    `relax::Call`.
- *
- * \param call The call to be validated.
- */
-using FValidate = ffi::TypedFunction<void(const Call& call)>;
 
 /*! \brief The function type of a legalization function.
  *

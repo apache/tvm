@@ -27,7 +27,7 @@ def test_local_shadows_enclosing():
     """A local parameter in the inline shadows a variable from the enclosing scope."""
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((128,), "int32")) -> None:
+    def func(A: T.Tensor((128,), "int32")) -> None:
         T.int32(10)
 
         @T.inline
@@ -38,7 +38,7 @@ def test_local_shadows_enclosing():
         write(T.int32(20))
 
     @T.prim_func(private=True)
-    def expected(A: T.Buffer((128,), "int32")) -> None:
+    def expected(A: T.Tensor((128,), "int32")) -> None:
         T.int32(10)
         A[0] = T.int32(20)
 
@@ -54,11 +54,11 @@ def test_enclosing_variable_capture():
         A[0] = val
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((128,), "int32")) -> None:
+    def func(A: T.Tensor((128,), "int32")) -> None:
         write_val(A)
 
     @T.prim_func(private=True)
-    def expected(A: T.Buffer((128,), "int32")) -> None:
+    def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = 64
 
     assert_structural_equal(func, expected)
@@ -77,11 +77,11 @@ def test_nested_inline():
         add_one(A)
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((128,), "int32")) -> None:
+    def func(A: T.Tensor((128,), "int32")) -> None:
         add_two(A)
 
     @T.prim_func(private=True)
-    def expected(A: T.Buffer((128,), "int32")) -> None:
+    def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = A[0] + 1
         A[0] = A[0] + 1
 
@@ -96,11 +96,11 @@ def test_module_globals_visible():
         A[0] = MODULE_CONST
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((128,), "int32")) -> None:
+    def func(A: T.Tensor((128,), "int32")) -> None:
         write_const(A)
 
     @T.prim_func(private=True)
-    def expected(A: T.Buffer((128,), "int32")) -> None:
+    def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = 42
 
     assert_structural_equal(func, expected)
@@ -110,7 +110,7 @@ def test_shadowing_in_inner_scope():
     """An inline defined inside a for-loop captures the loop variable."""
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((10,), "int32")) -> None:
+    def func(A: T.Tensor((10,), "int32")) -> None:
         for i in T.serial(10):
 
             @T.inline
@@ -120,7 +120,7 @@ def test_shadowing_in_inner_scope():
             write_i(A)
 
     @T.prim_func(private=True)
-    def expected(A: T.Buffer((10,), "int32")) -> None:
+    def expected(A: T.Tensor((10,), "int32")) -> None:
         for i in range(10):
             A[i] = i
 
@@ -138,12 +138,12 @@ def test_lexical_not_dynamic():
         B[()] = A[x_value]
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+    def func(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
         for x_value in T.serial(10):
             static_capture(A, B)
 
     @T.prim_func(private=True)
-    def expected(A: T.Buffer((1024,), "int32"), B: T.Buffer((), "int32")) -> None:
+    def expected(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
         for x_value in range(10):
             B[()] = A[128]
 
@@ -162,11 +162,11 @@ def test_callback_pattern():
         A[0] = A[0] + 1
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((128,), "int32")) -> None:
+    def func(A: T.Tensor((128,), "int32")) -> None:
         apply_fn(inc, A)
 
     @T.prim_func(private=True)
-    def expected(A: T.Buffer((128,), "int32")) -> None:
+    def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = A[0] + 1
 
     assert_structural_equal(func, expected)
@@ -184,12 +184,12 @@ def test_sibling_calls():
         A[1] = 2
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((128,), "int32")) -> None:
+    def func(A: T.Tensor((128,), "int32")) -> None:
         write_a(A)
         write_b(A)
 
     @T.prim_func(private=True)
-    def expected(A: T.Buffer((128,), "int32")) -> None:
+    def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = 1
         A[1] = 2
 
@@ -230,7 +230,7 @@ def test_late_binding():
     """Variable defined after inline but before call (inside prim_func)."""
 
     @T.prim_func(private=True)
-    def func(A: T.Buffer((128,), "int32")) -> None:
+    def func(A: T.Tensor((128,), "int32")) -> None:
         @T.inline
         def write(A):
             A[0] = val
@@ -239,7 +239,7 @@ def test_late_binding():
         write(A)
 
     @T.prim_func(private=True)
-    def expected(A: T.Buffer((128,), "int32")) -> None:
+    def expected(A: T.Tensor((128,), "int32")) -> None:
         val = T.int32(99)
         A[0] = val
 

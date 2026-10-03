@@ -16,846 +16,415 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/sym/analyzer.h>
+#include <tvm/ffi/extra/structural_visit.h>
+#include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/tirx/attrs.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op_attr_types.h>
+#include <tvm/tirx/tile_primitive.h>
 
 #include <algorithm>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "../../../tirx/transform/ir_utils.h"  // For `GetPtrStorageScope`
-#include "./utils.h"
+#include "../../../script/printer/ir/utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-Doc DoConciseScoping(const ffi::Optional<ExprDoc>& lhs, const ExprDoc& rhs,
-                     ffi::Array<StmtDoc>* stmts, bool concise_scoping) {
-  if (concise_scoping) {
-    if (lhs.has_value()) {
-      stmts->insert(stmts->begin(), AssignDoc(lhs.value(), rhs, std::nullopt));
+ffi::Array<StmtDoc> Body(const tirx::Stmt& stmt, DocTranslatorObj* d) {
+  return ToStmtDocArray(d->WithDocScope([&]() { d->Translate(stmt); }));
+}
+
+namespace {
+
+ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                     const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TilePrimitiveCallNode>(
+          input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  static const OpAttrMap<tirx::TScriptPrinterName>& names =
+      Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
+  TVM_FFI_CHECK(names.count(stmt->op), TypeError)
+      << "printer tile primitive has no canonical script name: " << stmt->op->name;
+  std::string name = names[stmt->op];
+  TVM_FFI_CHECK(name.find("tirx.tile.") == 0, TypeError)
+      << "printer tile primitive name must be in tirx.tile namespace: " << name;
+  name.erase(0, 10);
+  ffi::String scope;
+  switch (stmt->scope->kind) {
+    case tirx::ScopeKind::kWarp:
+      scope = "warp";
+      break;
+    case tirx::ScopeKind::kWarpgroup:
+      scope = "wg";
+      break;
+    case tirx::ScopeKind::kCta:
+      scope = "cta";
+      break;
+    case tirx::ScopeKind::kCluster:
+      scope = "cluster";
+      break;
+    default:
+      scope = "tile";
+  }
+  ffi::Array<Doc> args;
+  size_t n = stmt->args.size();
+  while (n && stmt->args[n - 1].type_index() == ffi::TypeIndex::kTVMFFINone) --n;
+  if (n == 2 &&
+      (stmt->op->name == "tirx.tile.exp2" || stmt->op->name == "tirx.tile.sqrt" ||
+       stmt->op->name == "tirx.tile.reciprocal") &&
+      [&]() {
+        const auto* dst = stmt->args[0].as<TensorRegionNode>();
+        const auto* src = stmt->args[1].as<TensorRegionNode>();
+        return dst && src && dst->source.same_as(src->source) &&
+               ffi::StructuralEqual()(dst->region, src->region);
+      }()) {
+    n = 1;
+  }
+  std::vector<size_t> arg_order;
+  if (stmt->op->name == "tirx.tile.reduce_negate" && n == 5) {
+    // The parser API takes reduce_op before axes; the IR stores it last.
+    arg_order = {0, 1, 4, 2, 3};
+  } else {
+    for (size_t i = 0; i < n; ++i) arg_order.push_back(i);
+  }
+  for (size_t i : arg_order) {
+    if (auto op = stmt->args[i].as<Op>()) {
+      const std::string& op_name = op.value()->name;
+      if (op_name.find("tirx.tile.") == 0) {
+        args.push_back(LiteralDoc::Str(op_name.substr(10), std::nullopt));
+        continue;
+      }
+    }
+    if (const auto* region = stmt->args[i].as<TensorRegionNode>()) {
+      // Tile APIs require a region even when every extent is one. Point
+      // indexing would instead construct a TensorLoad and select builtin APIs.
+      ExprDoc value = TensorRegionValue(d, region, true);
+      d->RecordOrigin(value, ffi::GetRef<TensorRegion>(region));
+      args.push_back(value);
     } else {
-      stmts->insert(stmts->begin(), ExprStmtDoc(rhs));
-    }
-    return StmtBlockDoc(*stmts);
-  } else {
-    return ScopeDoc(lhs, rhs, *stmts);
-  }
-}
-
-bool AllowConciseScoping(const IRDocsifier& d, const ffi::ObjectRef& obj) {
-  if (d->cfg.defined()) {
-    if (d->cfg->obj_to_annotate.count(obj)) {
-      // if the object requires annotation, do not fold this frame
-      return false;
+      args.push_back(AnyValue(d, stmt->args[i]));
     }
   }
-  TVM_FFI_ICHECK(!d->frames.empty());
-  if (const auto* f = d->frames.back().as<TIRFrameNode>()) {
-    return f->allow_concise_scoping;
+  auto dict = [&](const auto& source) -> ffi::Optional<DictDoc> {
+    if (source.empty()) return std::nullopt;
+    std::vector<std::pair<ffi::String, ffi::Any>> sorted;
+    for (const auto& [key, value] : source) sorted.emplace_back(key, value);
+    std::sort(sorted.begin(), sorted.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    ffi::Array<ExprDoc> keys;
+    ffi::Array<ExprDoc> values;
+    for (const auto& [key, value] : sorted) {
+      keys.push_back(LiteralDoc::Str(key, std::nullopt));
+      values.push_back(AnyValue(d, value));
+    }
+    return DictDoc(keys, values);
+  };
+  ffi::Optional<ExprDoc> dispatch = std::nullopt;
+  if (stmt->dispatch.has_value()) {
+    dispatch = LiteralDoc::Str(stmt->dispatch.value(), std::nullopt);
   }
-  TVM_FFI_THROW(NotImplementedError) << "fragment printing";
-  TVM_FFI_UNREACHABLE();
-}
-
-bool IsAncestorOfAllVarUse(const tirx::Stmt& node, const ffi::ObjectRef& var,
-                           const IRDocsifier& d) {
-  if (!d->common_prefix.count(var.get())) {
-    return false;
-  }
-  const std::vector<const ffi::Object*>& path = d->common_prefix.at(var.get());
-  for (auto it = path.rbegin(); it != path.rend(); ++it) {
-    if (*it == node.get()) {
-      return true;
-    }
-  }
-  return false;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::TilePrimitiveCall>(
-      "", [](tirx::TilePrimitiveCall op_call, AccessPath p, IRDocsifier d) -> Doc {
-        static const OpAttrMap<tirx::TScriptPrinterName>& op_names =
-            Op::GetAttrMap<tirx::TScriptPrinterName>("TScriptPrinterName");
-        auto op = op_call->op;
-        if (op_names.count(op) == 0) {
-          LOG(WARNING) << "No TScriptPrinterName attribute for " << op->name;
-        }
-
-        static const auto& category_map = Op::GetAttrMap<tirx::TIRxOpCategory>("TIRxOpCategory");
-        bool is_tile_primitive = category_map.get(op, ffi::String("")) == "tile_primitive";
-        TVM_FFI_ICHECK(is_tile_primitive)
-            << "Only tile primitive ops can be used in tirx::TilePrimitiveCall";
-        ffi::String name = op_names.get(op, op->name);
-        // Per-call execution scope is printed as a namespace prefix on the op,
-        // e.g. ``T.warp.copy(...)``. ``warpgroup`` prints as ``wg``. The
-        // default ``thread`` scope prints through the explicit tile namespace,
-        // e.g. ``T.tile.copy(...)``, so canonical script only needs the full
-        // TIRx dialect import. ``Tx`` remains a handwritten shorthand for
-        // ``T.tile`` and ``T.<scope>`` tile calls.
-        auto scope_ns = [](tirx::ScopeKind k) -> ffi::Optional<ffi::String> {
-          switch (k) {
-            case tirx::ScopeKind::kWarp:
-              return ffi::String("warp");
-            case tirx::ScopeKind::kWarpgroup:
-              return ffi::String("wg");
-            case tirx::ScopeKind::kCta:
-              return ffi::String("cta");
-            case tirx::ScopeKind::kCluster:
-              return ffi::String("cluster");
-            default:  // kThread -> no prefix
-              return std::nullopt;
-          }
-        };
-        auto scoped_callee = [&](const ffi::String& op_name) -> ExprDoc {
-          ffi::Optional<ffi::String> ns = scope_ns(op_call->scope->kind);
-          if (ns.has_value()) {
-            return TIR(d, ns.value())->Attr(op_name);
-          }
-          return TIR(d, "tile")->Attr(op_name);
-        };
-        // Trim trailing None args (e.g. optional bias=None, scale=None)
-        size_t n_args = op_call->args.size();
-        while (n_args > 0 &&
-               op_call->args[n_args - 1].type_index() == ffi::TypeIndex::kTVMFFINone) {
-          --n_args;
-        }
-        // Detect in-place unary ops: after trimming Nones, if exactly 2 args
-        // and args[0]/args[1] refer to the same buffer region, collapse to 1 arg
-        bool inplace_unary = false;
-        if (n_args == 2) {
-          auto dst_opt = op_call->args[0].as<tvm::TensorRegion>();
-          auto src_opt = op_call->args[1].as<tvm::TensorRegion>();
-          if (dst_opt.has_value() && src_opt.has_value() &&
-              dst_opt.value()->source.same_as(src_opt.value()->source) &&
-              StructuralEqual()(dst_opt.value()->region, src_opt.value()->region)) {
-            inplace_unary = true;
-          }
-        }
-        ffi::Array<Doc> args;
-        for (size_t i = 0; i < n_args; ++i) {
-          if (inplace_unary && i == 1) continue;  // skip duplicate src
-          args.push_back(d->AsDoc<Doc>(op_call->args[i], p->Attr("args")->ArrayItem(i)));
-        }
-        ffi::Optional<ExprDoc> disp = std::nullopt;
-        if (op_call->dispatch.has_value()) {
-          disp = LiteralDoc::Str(op_call->dispatch.value(), p->Attr("dispatch"));
-        }
-        return OpCallDoc(scoped_callee(name), args,
-                         d->AsDoc<DictDoc>(op_call->workspace, p->Attr("workspace")),
-                         d->AsDoc<DictDoc>(op_call->config, p->Attr("config")), disp);
-      });
-}
-TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<tirx::TilePrimitiveCallNode>(ReprPrintTIR);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::Evaluate>(
-      "", [](tirx::Evaluate eval, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc value = d->AsDoc<ExprDoc>(eval->value, p->Attr("value"));
-        const auto* call = eval->value.as<CallNode>();
-        if (call && !call->op.same_as(tirx::builtin::buffer_data())) {
-          return ExprStmtDoc(value);
-        }
-        return ExprStmtDoc(TIR(d, "evaluate")->Call({value}));
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::Return>(
-      "", [](tirx::Return stmt, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc value = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
-        return ReturnDoc(value);
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::Bind>(
-      "", [](tirx::Bind stmt, AccessPath p, IRDocsifier d) -> Doc {
-        // Step 1. Type annotation
-        TVM_FFI_ICHECK(!stmt->var->ty.IsMissing())
-            << "Type annotation is required for variable: " << stmt->var->name;
-        ffi::Optional<ExprDoc> type_doc = d->AsDoc<ExprDoc>(stmt->var->ty,  //
-                                                            p->Attr("var")->Attr("ty"));
-        if (const auto* tuple_type = stmt->var->ty.as<TupleTypeNode>()) {
-          if (tuple_type->fields.empty()) {
-            type_doc = std::nullopt;
-          }
-        }
-        // Step 2. RHS
-        ExprDoc rhs = d->AsDoc<ExprDoc>(stmt->value, p->Attr("value"));
-        // Step 3. LHS - Bind is flat, define var if new, otherwise just assign
-        if (!d->IsVarDefined(stmt->var)) {
-          TVM_FFI_ICHECK(!d->frames.empty());
-          ExprDoc lhs = DefineVar(stmt->var, d->frames.back(), d);
-          ExprDoc let_ann = type_doc.has_value()
-                                ? ExprDoc(IndexDoc(TIR(d, "let"), {type_doc.value()}))
-                                : TIR(d, "let");
-          return AssignDoc(lhs, rhs, let_ann);
-        } else {
-          ExprDoc lhs = d->AsDoc<ExprDoc>(stmt->var, p->Attr("var"));
-          return AssignDoc(lhs, rhs, std::nullopt);
-        }
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::AssertStmt>(
-      "", [](tirx::AssertStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
-        // Always emit the canonical tuple form: assert cond, ("Kind", ["part0", "part1", ...])
-        ffi::Array<ExprDoc> parts;
-        auto parts_path = p->Attr("message_parts");
-        for (size_t i = 0; i < stmt->message_parts.size(); ++i) {
-          parts.push_back(d->AsDoc<ExprDoc>(stmt->message_parts[i], parts_path->ArrayItem(i)));
-        }
-        ExprDoc kind_doc = d->AsDoc<ExprDoc>(stmt->error_kind, p->Attr("error_kind"));
-        return AssertDoc(cond, TupleDoc({kind_doc, ListDoc(parts)}));
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::While>(
-      "", [](tirx::While stmt, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
-        With<TIRFrame> f(d, stmt);
-        AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-        return WhileDoc(cond, (*f)->stmts);
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::Break>(
-      "", [](tirx::Break stmt, AccessPath p, IRDocsifier d) -> Doc { return BreakDoc(); });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::Continue>(
-      "", [](tirx::Continue stmt, AccessPath p, IRDocsifier d) -> Doc { return ContinueDoc(); });
-}
-
-namespace {
-
-/*!
- * \brief Find the parent buffer named by a child's explicit data projection.
- * \param child The child buffer.
- * \param data The child's explicit source pointer, if any.
- * \param d The IRDocsifier.
- * \return A list of candidate parent buffers.
- */
-std::vector<tirx::BufferVar> FindParentBuffers(const tirx::BufferVar& child,
-                                               const ffi::Optional<Expr>& data,
-                                               const IRDocsifier& d) {
-  if (!data.has_value()) {
-    return {};
-  }
-  const auto* call = data.value().as<CallNode>();
-  if (call == nullptr || !call->op.same_as(tirx::builtin::buffer_data()) ||
-      call->args.size() != 1) {
-    return {};
-  }
-  auto parent_var = call->args[0].as<tirx::Var>();
-  if (!parent_var.has_value() || !parent_var.value()->ty.as<tirx::BufferTypeNode>()) {
-    return {};
-  }
-  tirx::BufferVar parent(parent_var.value());
-  if (parent.same_as(child) || !d->GetVarDoc(parent).has_value()) {
-    return {};
-  }
-  return {parent};
-}
-
-/*!
- * \brief Check if a layout is the default layout for a given shape.
- */
-bool IsDefaultLayout(const ffi::Optional<tirx::Layout>& layout, const ffi::Array<PrimExpr>& shape) {
-  if (!layout.has_value()) return false;
-  return StructuralEqual()(layout.value(), tirx::TileLayoutNode::DefaultLayout(shape));
-}
-
-/*!
- * \brief Try to produce a DeclBuffer sugar expression for the given child buffer
- *        with respect to a specific parent buffer.
- *
- * Returns std::nullopt if no sugar pattern matches.
- */
-ffi::Optional<ExprDoc> TryDeclBufferSugarWithParent(const tirx::BufferVar& child,
-                                                    const AccessPath& p, const IRDocsifier& d,
-                                                    const tirx::BufferVar& parent,
-                                                    bool require_same_layout) {
-  ffi::Optional<ExprDoc> parent_doc = d->GetVarDoc(parent);
-  if (!parent_doc.has_value()) return std::nullopt;
-  ExprDoc pdoc = parent_doc.value();
-
-  prim::ExprDeepEqual expr_equal;
-
-  // Check elem_offset equality
-  bool same_elem_offset = expr_equal(child->elem_offset, parent->elem_offset);
-  // Check dtype equality
-  bool same_dtype = (child->dtype == parent->dtype);
-  // Check shape equality
-  bool same_shape = (child->shape.size() == parent->shape.size());
-  if (same_shape) {
-    for (size_t i = 0; i < child->shape.size(); ++i) {
-      if (!expr_equal(child->shape[i], parent->shape[i])) {
-        same_shape = false;
-        break;
-      }
-    }
-  }
-  bool same_strides = (child->strides.size() == parent->strides.size());
-  if (same_strides) {
-    for (size_t i = 0; i < child->strides.size(); ++i) {
-      if (!expr_equal(child->strides[i], parent->strides[i])) {
-        same_strides = false;
-        break;
-      }
-    }
-  }
-
-  bool child_is_default = IsDefaultLayout(child->layout, child->shape);
-  bool parent_is_default = IsDefaultLayout(parent->layout, parent->shape);
-
-  // NOTE: an earlier sugar printed rank-preserving aliases with a different
-  // elem_offset as ``parent[slices]``. That print is not roundtrippable: it
-  // reparses as a TensorRegion, not a Buffer, so any later Buffer use of the
-  // alias (stores, views) breaks. Such aliases now print as plain
-  // T.decl_buffer, which reparses exactly.
-
-  // Differences in these Buffer fields cannot be expressed by the alias sugar
-  // below, so conservatively fall back to T.decl_buffer.
-  // Shape, strides, elem_offset, dtype, and layout are checked by each helper
-  // because those are the fields that individual transformations may change.
-  //
-  // The explicit data projection was checked by FindParentBuffers.  name/span
-  // do not participate in structural equality, and BufferTypeNode has no
-  // axis-separators field (unlike tir::Buffer).
-  bool same_common_metadata = child.scope() == parent.scope() &&
-                              child->data_alignment == parent->data_alignment &&
-                              child->offset_factor == parent->offset_factor &&
-                              StructuralEqual()(child->allocated_addr, parent->allocated_addr);
-  if (!same_common_metadata) return std::nullopt;
-
-  // --- (b) Local: parent has thread axes and child spans its physical storage ---
-  if (same_elem_offset && same_dtype && same_strides && !parent_is_default &&
-      parent->layout.has_value() && child->layout.has_value()) {
-    if (auto* parent_tile = parent->layout.value().as<tirx::TileLayoutNode>()) {
-      if (parent_tile->HasThreadAxis()) {
-        // Compute the raw physical storage span after filtering thread axes.
-        std::vector<tirx::Iter> storage_shard;
-        std::vector<tirx::Iter> storage_replica;
-        ffi::Map<tirx::Axis, PrimExpr> storage_offset;
-        for (const auto& iter : parent_tile->shard) {
-          if (!iter->axis->IsThreadAxis()) {
-            storage_shard.push_back(iter);
-          }
-        }
-        for (const auto& iter : parent_tile->replica) {
-          if (!iter->axis->IsThreadAxis()) {
-            storage_replica.push_back(iter);
-          }
-        }
-        for (const auto& [axis, off] : parent_tile->offset) {
-          if (!axis->IsThreadAxis()) {
-            storage_offset.Set(axis, off);
-          }
-        }
-        tirx::TileLayout expected_storage(
-            ffi::Array<tirx::Iter>(storage_shard.begin(), storage_shard.end()),
-            ffi::Array<tirx::Iter>(storage_replica.begin(), storage_replica.end()), storage_offset);
-
-        PrimExpr storage_span = expected_storage->GetSpan(ffi::Optional<ffi::String>());
-        PrimExpr storage_size = expected_storage->GetSize(ffi::Optional<ffi::String>());
-        PrimExpr child_total = IntImm::Int32(1);
-        for (const PrimExpr& dim : child->shape) {
-          child_total = child_total * dim;
-        }
-        sym::Analyzer analyzer;
-        bool default_physical =
-            child_is_default && analyzer->CanProveEqual(child_total, storage_span);
-        bool child_has_thread_axis = false;
-        if (const auto* child_tile = child->layout.value().as<tirx::TileLayoutNode>()) {
-          child_has_thread_axis = child_tile->HasThreadAxis();
-        }
-        bool explicit_override = !default_physical && !child_has_thread_axis;
-        if (default_physical || explicit_override) {
-          PrimExpr expected_extent = default_physical ? storage_span : storage_size;
-          bool auto_shape =
-              child->shape.size() == 1 && analyzer->CanProveEqual(child->shape[0], expected_extent);
-          ffi::Array<ExprDoc> args;
-          if (!auto_shape) {
-            for (size_t i = 0; i < child->shape.size(); ++i) {
-              args.push_back(d->AsDoc<ExprDoc>(child->shape[i],
-                                               p->Attr("buffer")->Attr("shape")->ArrayItem(i)));
-            }
-          }
-          ffi::Array<ffi::String> kwargs_keys;
-          ffi::Array<ExprDoc> kwargs_values;
-          if (explicit_override) {
-            kwargs_keys.push_back("layout");
-            kwargs_values.push_back(
-                d->AsDoc<ExprDoc>(child->layout.value(), p->Attr("buffer")->Attr("layout")));
-          }
-          return pdoc->Attr("local")->Call(args, kwargs_keys, kwargs_values);
-        }
-      }
-    }
-  }
-
-  // --- (c) View(dtype): different dtype, same elem_offset ---
-  if (same_elem_offset && !same_dtype && child->shape.size() == parent->shape.size()) {
-    // Verify shape compatibility with dtype reinterpret cast
-    int child_bits = child->dtype.bits();
-    int parent_bits = parent->dtype.bits();
-    bool shapes_compatible = true;
-    // All dims except last must match
-    for (size_t i = 0; i + 1 < child->shape.size(); ++i) {
-      if (!expr_equal(child->shape[i], parent->shape[i])) {
-        shapes_compatible = false;
-        break;
-      }
-    }
-    if (shapes_compatible && !child->shape.empty()) {
-      auto* child_last = child->shape.back().as<IntImmNode>();
-      auto* parent_last = parent->shape.back().as<IntImmNode>();
-      if (child_last && parent_last) {
-        if (child_bits > parent_bits) {
-          // Cast up: child_last = parent_last / ratio
-          int ratio = child_bits / parent_bits;
-          shapes_compatible = (parent_last->value == child_last->value * ratio);
-        } else {
-          // Cast down: child_last = parent_last * ratio
-          int ratio = parent_bits / child_bits;
-          shapes_compatible = (child_last->value == parent_last->value * ratio);
-        }
-      } else {
-        shapes_compatible = false;
-      }
-    }
-    // Also verify the parent's layout is compatible with the pack/unpack operation
-    if (shapes_compatible && parent->layout.has_value()) {
-      if (auto* ptile = parent->layout.value().as<tirx::TileLayoutNode>()) {
-        if (!ptile->shard.empty() && child_bits > parent_bits) {
-          // Cast up requires pack: last shard iter must have stride=1
-          // and extent divisible by ratio
-          const auto& last_iter = ptile->shard.back();
-          auto* last_stride = last_iter->stride.as<IntImmNode>();
-          auto* last_extent = last_iter->extent.as<IntImmNode>();
-          int ratio = child_bits / parent_bits;
-          if (!last_stride || last_stride->value != 1 || !last_extent ||
-              last_extent->value % ratio != 0) {
-            shapes_compatible = false;
-          }
-        }
-      }
-    }
-    if (shapes_compatible) {
-      ExprDoc dtype_doc =
-          LiteralDoc::Str(DType2Str(child->dtype->dtype), p->Attr("buffer")->Attr("dtype"));
-      return pdoc->Attr("view")->Call({dtype_doc});
-    }
-  }
-
-  // --- (d) Permute: child shape is a permutation of parent shape, same elem_offset ---
-  if (same_elem_offset && same_dtype && !same_shape &&
-      child->shape.size() == parent->shape.size()) {
-    // Try to find a permutation
-    std::vector<int> perm(child->shape.size(), -1);
-    std::vector<bool> used(parent->shape.size(), false);
-    bool is_permutation = true;
-    for (size_t i = 0; i < child->shape.size(); ++i) {
-      bool found = false;
-      for (size_t j = 0; j < parent->shape.size(); ++j) {
-        if (!used[j] && expr_equal(child->shape[i], parent->shape[j])) {
-          perm[i] = j;
-          used[j] = true;
-          found = true;
-          break;
-        }
-      }
-      if (!found) {
-        is_permutation = false;
-        break;
-      }
-    }
-    // Check it's not identity
-    bool is_identity = is_permutation;
-    if (is_permutation) {
-      for (size_t i = 0; i < perm.size(); ++i) {
-        if (perm[i] != static_cast<int>(i)) {
-          is_identity = false;
-          break;
-        }
-      }
-    }
-    if (is_permutation && !is_identity) {
-      // Verify the layout matches permutation by comparing shard iters directly
-      bool layout_matches = false;
-      if (parent->layout.has_value() && child->layout.has_value()) {
-        auto* parent_tile = parent->layout.value().as<tirx::TileLayoutNode>();
-        auto* child_tile = child->layout.value().as<tirx::TileLayoutNode>();
-        if (parent_tile && child_tile && parent_tile->shard.size() == child_tile->shard.size()) {
-          StructuralEqual seq;
-          layout_matches = true;
-          for (size_t i = 0; i < perm.size(); ++i) {
-            if (!seq(child_tile->shard[i], parent_tile->shard[perm[i]])) {
-              layout_matches = false;
-              break;
-            }
-          }
-          // Also check replica and offset are unchanged
-          if (layout_matches) {
-            layout_matches = seq(child_tile->replica, parent_tile->replica) &&
-                             seq(child_tile->offset, parent_tile->offset);
-          }
-        }
-      }
-      if (layout_matches) {
-        ffi::Array<ExprDoc> args;
-        for (int idx : perm) {
-          args.push_back(LiteralDoc::Int(idx, p->Attr("buffer")->Attr("shape")));
-        }
-        return pdoc->Attr("permute")->Call(args);
-      }
-    }
-  }
-
-  // --- (e) Partition: child has 2*parent_ndim dims with grid+tile strides ---
-  if (same_elem_offset && same_dtype && !parent->shape.empty() &&
-      child->shape.size() == 2 * parent->shape.size() && !child->strides.empty() &&
-      child->strides.size() == 2 * parent->shape.size()) {
-    size_t ndim = parent->shape.size();
-    // Compute parent's row-major strides
-    std::vector<int64_t> parent_rm_strides(ndim);
-    int64_t stride = 1;
-    bool all_const = true;
-    for (int i = static_cast<int>(ndim) - 1; i >= 0; --i) {
-      parent_rm_strides[i] = stride;
-      if (auto* s = parent->shape[i].as<IntImmNode>()) {
-        auto product = (stride * s->value).as<int64_t>();
-        if (!product.has_value()) {
-          all_const = false;
-          break;
-        }
-        stride = *product;
-      } else {
-        all_const = false;
-        break;
-      }
-    }
-    if (all_const) {
-      bool is_partition = true;
-      for (size_t i = 0; i < ndim; ++i) {
-        auto* grid_dim = child->shape[i].as<IntImmNode>();
-        auto* tile_dim = child->shape[ndim + i].as<IntImmNode>();
-        auto* parent_dim = parent->shape[i].as<IntImmNode>();
-        auto* grid_stride = child->strides[i].as<IntImmNode>();
-        auto* tile_stride = child->strides[ndim + i].as<IntImmNode>();
-        if (!grid_dim || !tile_dim || !parent_dim || !grid_stride || !tile_stride) {
-          is_partition = false;
-          break;
-        }
-        // grid × tile == parent dim
-        if (grid_dim->value * tile_dim->value != parent_dim->value) {
-          is_partition = false;
-          break;
-        }
-        // inner strides match parent's row-major strides
-        if (tile_stride->value != parent_rm_strides[i]) {
-          is_partition = false;
-          break;
-        }
-        // grid stride == tile_dim × inner stride
-        if (grid_stride->value != tile_dim->value * tile_stride->value) {
-          is_partition = false;
-          break;
-        }
-      }
-      if (is_partition) {
-        ffi::Array<ExprDoc> tuple_elems;
-        for (size_t i = 0; i < ndim; ++i) {
-          tuple_elems.push_back(
-              d->AsDoc<ExprDoc>(child->shape[i], p->Attr("buffer")->Attr("shape")->ArrayItem(i)));
-        }
-        return pdoc->Attr("partition")->Call({}, {"num_tiles"}, {TupleDoc(tuple_elems)});
-      }
-    }
-  }
-
-  // --- (f) View(*shape, layout=L): different shape/layout, same dtype and elem_offset ---
-  if (same_elem_offset && same_dtype && !same_shape) {
-    // Buffer.view(...) copies the parent's strides onto the child (see
-    // python/tvm/tirx/buffer.py:view). If parent has strides but child
-    // doesn't (or vice versa), the sugar can't faithfully round-trip
-    // through view — fall back to T.decl_buffer where strides is an
-    // explicit kwarg.
-    if (!same_strides) return std::nullopt;
-
-    ffi::Array<ExprDoc> args;
-    ffi::Array<ffi::String> kwargs_keys;
-    ffi::Array<ExprDoc> kwargs_values;
-    for (size_t i = 0; i < child->shape.size(); ++i) {
-      args.push_back(
-          d->AsDoc<ExprDoc>(child->shape[i], p->Attr("buffer")->Attr("shape")->ArrayItem(i)));
-    }
-    // Check if layout differs
-    bool same_layout = false;
-    if (child->layout.has_value() && parent->layout.has_value()) {
-      same_layout = StructuralEqual()(child->layout.value(), parent->layout.value());
-    } else if (!child->layout.has_value() && !parent->layout.has_value()) {
-      same_layout = true;
-    }
-    // First pass prefers a parent whose layout matches structurally, so the
-    // sugar prints as a bare reshape instead of restating the layout.
-    if (require_same_layout && !same_layout) return std::nullopt;
-    // Default layouts are shape-specific objects, but a default-to-default
-    // reshape is still represented by view(*shape) without an explicit layout.
-    if (!same_layout && !(child_is_default && parent_is_default)) {
-      // Buffer.view(..., layout=None) means "inherit the parent layout", so it
-      // cannot reconstruct a layout-less child from a laid-out parent.
-      if (!child->layout.has_value()) return std::nullopt;
-      kwargs_keys.push_back("layout");
-      kwargs_values.push_back(
-          d->AsDoc<ExprDoc>(child->layout.value(), p->Attr("buffer")->Attr("layout")));
-    }
-    return pdoc->Attr("view")->Call(args, kwargs_keys, kwargs_values);
-  }
-
+  d->Emit(OpCallDoc(NamespaceDoc("tirx")->Attr(scope)->Attr(name), args, dict(stmt->workspace),
+                    dict(stmt->config), dispatch),
+          ffi::GetRef<ffi::ObjectRef>(stmt));
   return std::nullopt;
 }
 
-/*!
- * \brief Try to produce a DeclBuffer sugar expression, trying all parent buffer candidates.
- */
-ffi::Optional<ExprDoc> TryDeclBufferSugar(const tirx::BufferVar& child, const AccessPath& p,
-                                          const ffi::Optional<Expr>& data, const IRDocsifier& d) {
-  auto parents = FindParentBuffers(child, data, d);
-  for (const auto& parent : parents) {
-    if (auto sugar = TryDeclBufferSugarWithParent(child, p, d, parent,
-                                                  /*require_same_layout=*/true)) {
-      return sugar;
-    }
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::TilePrimitiveCallNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TilePrimitiveCallDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> EvaluateDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::EvaluateNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  ExprDoc value = d->Translate(stmt->value).value();
+  if (auto call = stmt->value.as<CallNode>();
+      call && !call->op.same_as(tirx::builtin::buffer_data())) {
+    d->Emit(ExprStmtDoc(value), ffi::GetRef<ffi::ObjectRef>(stmt));
+  } else {
+    d->Emit(ExprStmtDoc(NamespaceDoc("tirx")->Attr("evaluate")->Call({value})),
+            ffi::GetRef<ffi::ObjectRef>(stmt));
   }
-  for (const auto& parent : parents) {
-    if (auto sugar = TryDeclBufferSugarWithParent(child, p, d, parent,
-                                                  /*require_same_layout=*/false)) {
-      return sugar;
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::EvaluateNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&EvaluateDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> ReturnDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                          const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ReturnNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  d->Emit(ReturnDoc(d->Translate(stmt->value).value()), ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::ReturnNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&ReturnDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> BindDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                        const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::BindNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  d->VarGetOrAllocId(stmt->var, false);
+  bool existing = !d->GetImplicitDefs().count(stmt->var);
+  IdDoc lhs = VarDoc(d, stmt->var);
+  auto rhs = d->Translate(stmt->value, stmt->var);
+  // None means the child completed emission. A returned expression is still
+  // an RHS, so this binding owns the one remaining assignment.
+  if (!rhs.has_value()) return std::nullopt;
+  ffi::Optional<ExprDoc> annotation = std::nullopt;
+  if (!existing) {
+    ExprDoc type = d->Translate(stmt->var->ty).value();
+    if (auto primitive = stmt->var->ty.as<PrimType>();
+        primitive && primitive.value().IsScalableVector()) {
+      type = TypeValue(d, stmt->var->ty);
+    }
+    annotation = NamespaceDoc("tirx")->Attr("let")[{type}];
+  }
+  d->Emit(AssignDoc(lhs, rhs.value(), annotation), ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::BindNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BindDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> AssertStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::AssertStmtNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  ffi::Array<ExprDoc> parts;
+  for (const StringImm& part : stmt->message_parts) {
+    parts.push_back(LiteralDoc::Str(part->value, std::nullopt));
+  }
+  d->Emit(
+      AssertDoc(d->Translate(stmt->condition).value(),
+                TupleDoc({LiteralDoc::Str(stmt->error_kind->value, std::nullopt), ListDoc(parts)})),
+      ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::AssertStmtNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&AssertStmtDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> WhileDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                         const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::WhileNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  d->Emit(WhileDoc(d->Translate(stmt->condition).value(), Body(stmt->body, d)),
+          ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::WhileNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&WhileDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> BreakDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                         const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::BreakNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  d->Emit(BreakDoc(), ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::BreakNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BreakDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> ContinueDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ContinueNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  d->Emit(ContinueDoc(), ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::ContinueNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&ContinueDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> IfThenElseDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::IfThenElseNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  ExprDoc condition = d->Translate(stmt->condition).value();
+  ffi::Array<StmtDoc> then_body = Body(stmt->then_case, d);
+  ffi::Array<StmtDoc> else_body;
+  if (stmt->else_case.has_value()) else_body = Body(stmt->else_case.value(), d);
+  d->Emit(IfDoc(condition, then_body, else_body), ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::IfThenElseNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&IfThenElseDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::SeqStmtNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  for (size_t i = 0; i < stmt->seq.size(); ++i) {
+    d->Translate(stmt->seq[i]);
+    if (i + 1 == stmt->seq.size()) continue;
+    const auto* alloc = stmt->seq[i].as<tirx::BindNode>();
+    const auto* allocation = alloc ? alloc->value.as<CallNode>() : nullptr;
+    const auto* store = stmt->seq[i + 1].as<tirx::BufferStoreNode>();
+    auto docs = d->CurrentScopeDocs();
+    if (!allocation || !allocation->op.same_as(tirx::builtin::alloc_tensor()) || !store ||
+        !alloc->var.same_as(store->buffer) || docs.empty())
+      continue;
+    auto scalar = docs.back().as<AssignDoc>();
+    if (!IsScalarBuffer(d, alloc->var) || !scalar.has_value() ||
+        !std::all_of(store->indices.begin(), store->indices.end(), tvm::prim::is_zero))
+      continue;
+    bool reads_allocation = false;
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+        store->value, [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
+          reads_allocation |= var.same_as(alloc->var);
+          return ffi::WalkResult::Advance();
+        });
+    if (reads_allocation) continue;
+    size_t before = docs.size();
+    d->Translate(stmt->seq[++i]);
+    // Only combine a plain adjacent store. Translation may emit prerequisites.
+    if (docs.size() == before + 1) {
+      if (auto initialization = docs.back().as<AssignDoc>()) {
+        scalar.value()->rhs = initialization.value()->rhs;
+        // Preserve both statement origins using ordinary annotation/assignment
+        // occurrences while retaining the value's more precise child origin.
+        d->RecordOrigin(scalar.value()->annotation.value(), ffi::GetRef<tirx::Bind>(alloc));
+        d->RecordOrigin(scalar.value(), ffi::GetRef<tirx::BufferStore>(store));
+        docs.pop_back();
+      }
     }
   }
   return std::nullopt;
 }
 
-Doc DeclBufferDoc(tirx::DeclBuffer stmt, AccessPath p, IRDocsifier d,
-                  BufferVarDefinition var_definitions) {
-  // Try sugar detection when syntax_sugar is enabled
-  if (d->cfg->syntax_sugar) {
-    if (auto sugar = TryDeclBufferSugar(stmt->buffer, p, stmt->data, d)) {
-      ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
-      return AssignDoc(lhs, sugar.value(), std::nullopt);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::SeqStmtNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&SeqStmtDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> AttrStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                            const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::AttrStmtNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  ffi::Optional<ExprDoc> lhs = std::nullopt;
+  ExprDoc rhs(ffi::UnsafeInit{});
+  tirx::Stmt body = stmt->body;
+  if (stmt->attr_key == "thread_extent" || stmt->attr_key == tirx::attr::virtual_thread) {
+    if (auto iter = stmt->node.as<tirx::IterVar>()) {
+      d->VarGetOrAllocId(iter.value()->var, false);
+      if (!d->GetImplicitDefs().count(iter.value()->var)) {
+        rhs = NamespaceDoc("tirx")
+                  ->Attr("launch_thread")
+                  ->Call(
+                      {d->Translate(iter.value()->var).value(), d->Translate(stmt->value).value()});
+      } else {
+        lhs = VarDoc(d, iter.value()->var);
+        rhs = NamespaceDoc("tirx")
+                  ->Attr("launch_thread")
+                  ->Call({LiteralDoc::Str(iter.value()->thread_tag, std::nullopt),
+                          d->Translate(stmt->value).value()});
+      }
     }
   }
-  ExprDoc rhs = BufferDecl(stmt->buffer, "decl_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
-                           var_definitions, stmt->data);
-  ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
-  return AssignDoc(lhs, rhs, std::nullopt);
-}
-}  // namespace
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::DeclBuffer>(  //
-      "", [](tirx::DeclBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
-        return DeclBufferDoc(stmt, p, d, BufferVarDefinition::None);
-      });
-}
-
-namespace {
-Doc AllocBufferDoc(tirx::AllocBuffer stmt, AccessPath p, IRDocsifier d) {
-  if (d->cfg->syntax_sugar && stmt->buffer.IsScalar(true)) {
-    ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
-    ExprDoc type_ann = TIR(d, DType2Str(stmt->buffer->dtype->dtype));
-    return AssignDoc(lhs, std::nullopt, type_ann);
-  }
-  ExprDoc rhs = BufferDecl(stmt->buffer, "alloc_buffer", {}, p->Attr("buffer"), d->frames.back(), d,
-                           BufferVarDefinition::DataPointer);
-  // alloc_buffer carries an `annotations` field on the IR node that BufferDecl
-  // doesn't know about. When non-empty, append it as an `annotations=...`
-  // kwarg on the emitted call so round-trip preserves the annotation map.
-  if (!stmt->annotations.empty()) {
-    if (const auto* call = rhs.as<CallDocNode>()) {
-      ffi::Array<ffi::String> new_keys = call->kwargs_keys;
-      ffi::Array<ExprDoc> new_values = call->kwargs_values;
-      new_keys.push_back("annotations");
-      new_values.push_back(d->AsDoc<ExprDoc>(stmt->annotations, p->Attr("annotations")));
-      rhs = CallDoc(call->callee, call->args, new_keys, new_values);
+  if (stmt->attr_key == "tirx_hint") {
+    if (auto attrs = stmt->node.as<ffi::Map<ffi::String, ffi::Any>>()) {
+      ffi::Array<ExprDoc> args;
+      ffi::Array<ffi::String> keys;
+      ffi::Array<ExprDoc> values;
+      for (const auto& [key, value] : attrs.value()) {
+        if (key == "message")
+          args.push_back(AnyValue(d, value));
+        else {
+          keys.push_back(key);
+          values.push_back(AnyValue(d, value));
+        }
+      }
+      rhs = NamespaceDoc("tirx")->Attr("hint")->Call(args, keys, values);
     }
   }
-  ExprDoc lhs = DefineBuffer(stmt->buffer, d->frames.back(), d);
-  return AssignDoc(lhs, rhs, std::nullopt);
+  if (!rhs.defined()) {
+    if (auto zero = stmt->node.as<int64_t>(); zero.has_value() && zero.value() == 0) {
+      ffi::Array<ExprDoc> keys;
+      ffi::Array<ExprDoc> values;
+      auto current = ffi::GetRef<tirx::AttrStmt>(stmt);
+      while (true) {
+        keys.push_back(LiteralDoc::Str(current->attr_key, std::nullopt));
+        values.push_back(d->Translate(current->value).value());
+        auto next = current->body.as<tirx::AttrStmt>();
+        if (!next.has_value()) break;
+        auto next_zero = next.value()->node.as<int64_t>();
+        if (!next_zero.has_value() || next_zero.value() != 0) break;
+        current = next.value();
+      }
+      body = current->body;
+      rhs = NamespaceDoc("tirx")->Attr("attr")->Call({DictDoc(keys, values)});
+    } else {
+      ExprDoc node = AnyValue(d, stmt->node);
+      rhs = NamespaceDoc("tirx")->Attr("attr")->Call(
+          {node, LiteralDoc::Str(stmt->attr_key, std::nullopt), d->Translate(stmt->value).value()});
+    }
+  }
+  d->Emit(ScopeDoc(lhs, rhs, Body(body, d), /*allow_concise_scoping=*/true),
+          ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::AttrStmtNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&AttrStmtDocTranslate>());
 }
 
 }  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::AllocBuffer>(  //
-      "", [](tirx::AllocBuffer stmt, AccessPath p, IRDocsifier d) -> Doc {
-        return AllocBufferDoc(stmt, p, d);
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::IfThenElse>(  //
-      "", [](tirx::IfThenElse stmt, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc cond = d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"));
-        ffi::Array<StmtDoc> then_branch;
-        ffi::Array<StmtDoc> else_branch;
-        if (stmt->then_case.defined()) {
-          With<TIRFrame> f(d, stmt->then_case);
-          AsDocBody(stmt->then_case, p->Attr("then_case"), f->get(), d);
-          then_branch = (*f)->stmts;
-        }
-        if (stmt->else_case.has_value()) {
-          With<TIRFrame> f(d, stmt->else_case.value());
-          AsDocBody(stmt->else_case.value(), p->Attr("else_case"), f->get(), d);
-          else_branch = (*f)->stmts;
-        }
-        return IfDoc(cond, then_branch, else_branch);
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::SeqStmt>(
-      "", [](tirx::SeqStmt stmt, AccessPath p, IRDocsifier d) -> Doc {
-        With<TIRFrame> f(d, stmt);
-        AsDocBody(stmt, p, f->get(), d);
-        return StmtBlockDoc((*f)->stmts);
-      });
-}
-
-void InsertEnvThread(const tirx::IterVar& iter_var, const AccessPath& iter_var_p,
-                     const IRDocsifier& d) {
-  Frame f = FindLowestVarDef(iter_var->var, d).value();
-  DefineVar(iter_var->var, f, d);
-  ExprDoc rhs = TIR(d, "env_thread")
-                    ->Call({LiteralDoc::Str(iter_var->thread_tag,  //
-                                            iter_var_p->Attr("thread_tag"))});
-  ExprDoc lhs = d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var"));
-  f->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
-}
-
-ExprDoc DocsifyLaunchThread(const tirx::AttrStmt& attr_stmt, const AccessPath& attr_stmt_p,
-                            ffi::Optional<tirx::Var>* define_var, const IRDocsifier& d) {
-  tirx::IterVar iter_var = attr_stmt->node.as_or_throw<tirx::IterVar>();
-  AccessPath iter_var_p = attr_stmt_p->Attr("node");
-
-  ExprDoc var_doc{ffi::UnsafeInit()};
-  if (d->IsVarDefined(iter_var->var)) {
-    var_doc = d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var"));
-  } else if (IsAncestorOfAllVarUse(attr_stmt, iter_var->var, d)) {
-    var_doc = LiteralDoc::Str(iter_var->thread_tag, iter_var_p->Attr("thread_tag"));
-    *define_var = iter_var->var;
-  } else {
-    InsertEnvThread(iter_var, iter_var_p, d);
-    var_doc = d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var"));
-  }
-  return TIR(d, "launch_thread")
-      ->Call({
-          var_doc,
-          d->AsDoc<ExprDoc>(attr_stmt->value, attr_stmt_p->Attr("value")),
-      });
-}
-
-/*! \brief Check whether an AttrStmt has node=0 (the dict-attr pattern). */
-static bool IsDictAttrPattern(const tirx::AttrStmt& stmt) {
-  if (auto int_value = stmt->node.as<int64_t>()) {
-    return int_value.value() == 0;
-  }
-  return false;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::AttrStmt>(  //
-      "", [](tirx::AttrStmt stmt, AccessPath stmt_p, IRDocsifier d) -> Doc {
-        bool concise = AllowConciseScoping(d, stmt);
-        ffi::Optional<ExprDoc> lhs = std::nullopt;
-        ffi::Optional<ExprDoc> rhs = std::nullopt;
-        ffi::Optional<tirx::Var> define_var = std::nullopt;
-        tirx::Stmt body = stmt->body;
-        AccessPath body_p = stmt_p->Attr("body");
-        if (stmt->attr_key == "thread_extent" ||
-            stmt->attr_key == tvm::tirx::attr::virtual_thread) {
-          if (stmt->node.as<tirx::IterVarNode>()) {
-            rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
-          }
-        }
-        if (stmt->attr_key == "tirx_hint") {
-          if (auto map_node = stmt->node.as<ffi::Map<ffi::String, ffi::Any>>()) {
-            ffi::Array<ExprDoc> args;
-            ffi::Array<ffi::String> kwargs_keys;
-            ffi::Array<ExprDoc> kwargs_values;
-            for (const auto& [k, v] : map_node.value()) {
-              if (k == "message") {
-                auto s = v.as<ffi::String>().value();
-                args.push_back(LiteralDoc::Str(s, stmt_p->Attr("node")));
-              } else {
-                kwargs_keys.push_back(k);
-                kwargs_values.push_back(d->AsDoc<ExprDoc>(v, stmt_p->Attr("node")));
-              }
-            }
-            rhs = TIR(d, "hint")->Call(args, kwargs_keys, kwargs_values);
-          }
-        }
-        if (!rhs.has_value()) {
-          // Try to collapse consecutive dict-attr-pattern AttrStmts into T.attr({...})
-          if (IsDictAttrPattern(stmt)) {
-            ffi::Array<ExprDoc> keys;
-            ffi::Array<ExprDoc> values;
-            tirx::AttrStmt cur = stmt;
-            AccessPath cur_p = stmt_p;
-            while (true) {
-              keys.push_back(LiteralDoc::Str(cur->attr_key, cur_p->Attr("attr_key")));
-              values.push_back(d->AsDoc<ExprDoc>(cur->value, cur_p->Attr("value")));
-              if (auto next = cur->body.as<tirx::AttrStmt>()) {
-                if (IsDictAttrPattern(next.value())) {
-                  cur = next.value();
-                  cur_p = cur_p->Attr("body");
-                  continue;
-                }
-              }
-              body = cur->body;
-              body_p = cur_p->Attr("body");
-              break;
-            }
-            rhs = TIR(d, "attr")->Call({DictDoc(keys, values)});
-          } else {
-            rhs = TIR(d, "attr")->Call({
-                d->AsDoc<ExprDoc>(stmt->node, stmt_p->Attr("node")),
-                LiteralDoc::Str(stmt->attr_key, stmt_p->Attr("attr_key")),
-                d->AsDoc<ExprDoc>(stmt->value, stmt_p->Attr("value")),
-            });
-          }
-        }
-        With<TIRFrame> f(d, stmt);
-        if (define_var.has_value()) {
-          lhs = DefineVar(define_var.value(), *f, d);
-        }
-        AsDocBody(body, body_p, f->get(), d);
-        return DoConciseScoping(lhs, rhs.value(), &(*f)->stmts, concise);
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<tirx::BindNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::AttrStmtNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::AssertStmtNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::WhileNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::AllocBufferNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::ReturnNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::BreakNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::ContinueNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::DeclBufferNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::SeqStmtNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::IfThenElseNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::EvaluateNode>(ReprPrintTIR);
-}
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

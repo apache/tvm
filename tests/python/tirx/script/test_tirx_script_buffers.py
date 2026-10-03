@@ -18,6 +18,7 @@
 """TIRx script buffers."""
 
 import math
+import sys
 
 import pytest
 import tvm_ffi
@@ -50,18 +51,18 @@ def test_roundtrip_layout():
 
     # fmt: off
     @T.prim_func
-    def test(_: T.Buffer((64,), 'float32', scope='global')) -> None:
+    def test(_: T.Tensor((64,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
         warp_id = T.warp_id([1])
         lane_id = T.lane_id([32])
-        C = T.alloc_buffer([128, 128], dtype="float16", scope="shared", layout=get_layout3())
-        D = T.alloc_buffer([128, 32], dtype="float16", scope="shared", layout=get_layout4())
-        A_warp = T.alloc_buffer([64, 64], dtype="float16", scope="shared", layout=get_layout1())
-        B_warp = T.alloc_buffer([64, 64], dtype="float16", scope="shared", layout=get_layout2())
+        C = T.alloc_tensor([128, 128], dtype="float16", scope="shared", layout=get_layout3())
+        D = T.alloc_tensor([128, 32], dtype="float16", scope="shared", layout=get_layout4())
+        A_warp = T.alloc_tensor([64, 64], dtype="float16", scope="shared", layout=get_layout1())
+        B_warp = T.alloc_tensor([64, 64], dtype="float16", scope="shared", layout=get_layout2())
 
-        E = T.alloc_buffer([64, 256], dtype="float16", scope="shared", layout=get_layout5())
+        E = T.alloc_tensor([64, 256], dtype="float16", scope="shared", layout=get_layout5())
         T.evaluate(A_warp[0, 0] + B_warp[0, 0] + C[0, 0] + D[0, 0] + E[0, 0])
         # fmt: on
 
@@ -96,10 +97,10 @@ def test_roundtrip_layout_replica_and_offset():
     @T.prim_func
     def test() -> None:
         T.device_entry()
-        A = T.alloc_buffer([8], dtype="float16", scope="shared", layout=get_shard_replica())
-        B = T.alloc_buffer([8], dtype="float16", scope="shared", layout=get_shard_offset_single())
-        C = T.alloc_buffer([8], dtype="float16", scope="shared", layout=get_shard_offset_multi())
-        D = T.alloc_buffer([32], dtype="float16", scope="shared", layout=get_full())
+        A = T.alloc_tensor([8], dtype="float16", scope="shared", layout=get_shard_replica())
+        B = T.alloc_tensor([8], dtype="float16", scope="shared", layout=get_shard_offset_single())
+        C = T.alloc_tensor([8], dtype="float16", scope="shared", layout=get_shard_offset_multi())
+        D = T.alloc_tensor([32], dtype="float16", scope="shared", layout=get_full())
         T.evaluate(A[0] + B[0] + C[0] + D[0])
         # fmt: on
 
@@ -113,7 +114,7 @@ def test_roundtrip_buffer_view_get1():
     @T.prim_func
     def test() -> None:
         T.device_entry()
-        A = T.alloc_buffer([2], dtype="float16", scope="local")
+        A = T.alloc_tensor([2], dtype="float16", scope="local")
         A_layout = T.TileLayout(T.S[(1, 2) : (2, 1)])
         A_warp_layout = A_layout.tile(L_LANE, (8, 4), (1, 2))
         A_warp = A.view(8, 8, layout=A_warp_layout)
@@ -132,14 +133,14 @@ L_LANE = T.TileLayout(T.S[32 : 1 @ laneid])
 def test_roundtrip_buffer_view_get2():
     # fmt: off
     @T.prim_func
-    def test(out: T.Buffer(2, 'float32', scope='global')) -> None:
+    def test(out: T.Tensor(2, 'float32', scope='global')) -> None:
 
         T.device_entry()
         bx, by, bz = T.cta_id([32, 32, 1])
         tx, ty, tz = T.thread_id([16, 8, 1])
         warp_id = T.warp_id([4])
         lane_id = T.lane_id([32])
-        A = T.alloc_buffer([2,], dtype="float16", scope="local")
+        A = T.alloc_tensor([2,], dtype="float16", scope="local")
         A_layout = T.TileLayout(T.S[(1, 2) : (2, 1)])
         B_layout = A_layout.tile(L_LANE, (8, 4), (1, 2))
         B = A.view(8, 8, layout=B_layout)
@@ -156,7 +157,7 @@ def test_roundtrip_buffer_view_get3():
     @T.prim_func
     def test() -> None:
         T.device_entry()
-        A = T.alloc_buffer([8, 8], dtype="float32", scope="local")
+        A = T.alloc_tensor([8, 8], dtype="float32", scope="local")
         A_f16 = A.view("float16")
         A_f64 = A.view("float64")
         A_f16[0, 0] = T.float16(0)
@@ -174,7 +175,7 @@ def test_roundtrip_allocated_addr():
     @T.prim_func
     def test():
         T.device_entry()
-        A = T.alloc_buffer([10], "float32", scope="trn.sbuf", allocated_addr=1024)
+        A = T.alloc_tensor([10], "float32", scope="trn.sbuf", allocated_addr=1024)
         for i in T.serial(2):
             Tx.memset(A[i*5:i*5+5], T.float32(0.0))
 
@@ -187,7 +188,7 @@ def test_roundtrip_allocated_addr():
 def test_roundtrip_implicit_buffer_region():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((10, 10, 10), 'float32', layout=T.TileLayout(T.S[10, 10, 10]))):
+    def test(A: T.Tensor((10, 10, 10), 'float32', layout=T.TileLayout(T.S[10, 10, 10]))):
 
         T.device_entry()
         Tx.memset(A[0], T.float32(0.0))
@@ -204,7 +205,7 @@ def test_roundtrip_alloc_under_any_scope():
     def test():
         T.device_entry()
         for i in T.serial(10):
-            A = T.alloc_buffer([100], "float32", scope="trn.sbuf", allocated_addr=1024)
+            A = T.alloc_tensor([100], "float32", scope="trn.sbuf", allocated_addr=1024)
             Tx.memset(A[i*10:i*10+10], T.float32(0.0))
 
         # fmt: on
@@ -246,13 +247,13 @@ def test_alloc_apis():
                 # scalar buffer (alloc)
         C = T.shared_scalar("float16")
         D: T.float16
-        pool = T.alloc_buffer([10], "uint8", scope="shared.dyn")
+        pool = T.alloc_tensor([10], "uint8", scope="shared.dyn")
                 # scalar buffer (decl)
         E = T.decl_scalar("float16", pool.data, "shared.dyn", 0)
                 # normal 1-dim buffer with shape (1,)
         F = T.alloc_local((1,), "float16")
         Ta: T.float16
-        inner_pool = T.decl_buffer(shape=[10], data=pool.data, dtype="uint8", scope="shared.dyn")
+        inner_pool = T.decl_tensor(shape=[10], data=pool.data, dtype="uint8", scope="shared.dyn")
         test = Test(Ta, inner_pool)  # noqa: F821
         test.init()
         A[0] = C
@@ -283,7 +284,7 @@ def test_alloc_apis():
 
 def test_alloc_apis_reject_name_argument():
     with pytest.raises(TypeError):
-        T.alloc_buffer((1,), "int32", name="buf")
+        T.alloc_tensor((1,), "int32", name="buf")
 
     with pytest.raises(TypeError):
         T.local_scalar("int32", name="idx")
@@ -293,25 +294,25 @@ def test_buffer():
     # fmt: off
     @T.prim_func(private=True)
     def test(
-        A: T.Buffer((10, 11), "float32", layout=None),
-        B: T.Buffer((10, 11), "float32", scope="global"),
-        C: T.Buffer((10, 11), "float32", layout="default"),
-        D: T.Buffer((10, 11), "float32", layout=T.TileLayout(T.S[(10, 11) : (1, 10)])),
-        _E: T.Buffer([10, 11], 'float16', layout=None),
-        _F: T.Buffer([10, 11], 'float16', scope='global'),
-        _G: T.Buffer([10, 11], 'float16', layout='default'),
-        _H: T.Buffer([10, 11], 'float16', layout=T.TileLayout(T.S[(10, 11):(1, 10)])),
+        A: T.Tensor((10, 11), "float32", layout=None),
+        B: T.Tensor((10, 11), "float32", scope="global"),
+        C: T.Tensor((10, 11), "float32", layout="default"),
+        D: T.Tensor((10, 11), "float32", layout=T.TileLayout(T.S[(10, 11) : (1, 10)])),
+        _E: T.Tensor([10, 11], 'float16', layout=None),
+        _F: T.Tensor([10, 11], 'float16', scope='global'),
+        _G: T.Tensor([10, 11], 'float16', layout='default'),
+        _H: T.Tensor([10, 11], 'float16', layout=T.TileLayout(T.S[(10, 11):(1, 10)])),
     ):
 
 
-        _A0 = T.decl_buffer((10, 11), "float32", data=A.data, layout=None)
-        _B0 = T.decl_buffer((10, 11), "float32", data=B.data, scope="global")
-        _C0 = T.decl_buffer((10, 11), "float32", data=C.data, layout="default")
-        _D0 = T.decl_buffer((10, 11), "float32", data=D.data, layout=T.TileLayout(T.S[(10, 11) : (1, 10)]))  # noqa: E501
-        _A1 = T.alloc_buffer((10, 11), "float32", layout=None)
-        _B1 = T.alloc_buffer((10, 11), "float32", scope="global")
-        _C1 = T.alloc_buffer((10, 11), "float32", layout="default")
-        _D1 = T.alloc_buffer((10, 11), "float32", layout=T.TileLayout(T.S[(10, 11) : (1, 10)]))
+        _A0 = T.decl_tensor((10, 11), "float32", data=A.data, layout=None)
+        _B0 = T.decl_tensor((10, 11), "float32", data=B.data, scope="global")
+        _C0 = T.decl_tensor((10, 11), "float32", data=C.data, layout="default")
+        _D0 = T.decl_tensor((10, 11), "float32", data=D.data, layout=T.TileLayout(T.S[(10, 11) : (1, 10)]))  # noqa: E501
+        _A1 = T.alloc_tensor((10, 11), "float32", layout=None)
+        _B1 = T.alloc_tensor((10, 11), "float32", scope="global")
+        _C1 = T.alloc_tensor((10, 11), "float32", layout="default")
+        _D1 = T.alloc_tensor((10, 11), "float32", layout=T.TileLayout(T.S[(10, 11) : (1, 10)]))
 
         pass
     # fmt: on
@@ -320,13 +321,14 @@ def test_buffer():
     assert_structural_equal(test, from_source(code))
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_buffer_shape_repeated_var_prints_out_of_line():
     n = tvm.tirx.Var("n", "int32")
-    buffer = tvm.tirx.decl_buffer((n + n,), name="A")
+    buffer = tvm.tirx.decl_tensor((n + n,), name="A")
     func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(0))
 
-    code = func.script(extra_config={"script.use_pep695": False})
-    assert 'n = I.dynamic("n", dtype="int32")' in code
+    code = func.script()
+    assert "def main[n: T.int32](" in code
     assert_structural_equal(func, from_source(code))
 
 
@@ -371,14 +373,14 @@ def test_scalar_allocbuffer_annotation_sugar():
     # fmt: off
     @T.prim_func
     def test():
-        x = T.alloc_buffer((1,), "int32", scope="local")
+        x = T.alloc_tensor((1,), "int32", scope="local")
         x[0] = T.int32(0)
         T.evaluate(x[0])
     # fmt: on
 
     code = test.script()
     assert "x: T.int32 = 0" in code
-    assert "x = T.alloc_buffer" not in code
+    assert "x = T.alloc_tensor" not in code
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
 
@@ -388,7 +390,7 @@ def test_roundtrip_buffer_permute():
     @T.prim_func
     def test() -> None:
         T.device_entry()
-        A = T.alloc_buffer([8, 4], dtype="float16", scope="local",
+        A = T.alloc_tensor([8, 4], dtype="float16", scope="local",
                             layout=T.TileLayout(T.S[(8, 4) : (4, 1)]))
         B = A.permute(1, 0)
         B[0, 0] = T.float16(0)
@@ -403,7 +405,7 @@ def test_roundtrip_buffer_local_auto():
     @T.prim_func
     def test() -> None:
         T.device_entry()
-        A = T.alloc_buffer([2], dtype="float16", scope="local")
+        A = T.alloc_tensor([2], dtype="float16", scope="local")
         A_layout = T.TileLayout(T.S[(1, 2) : (2, 1)])
         B = A.view(8, 8, layout=A_layout.tile(L_LANE, (8, 4), (1, 2)))
         B_local = B.local()
@@ -421,7 +423,7 @@ def test_buffer_local_ir():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([2], dtype="float16", scope="local")
+        A = T.alloc_tensor([2], dtype="float16", scope="local")
         A_layout = T.TileLayout(T.S[(1, 2) : (2, 1)])
         B = A.view(8, 8, layout=A_layout.tile(L_LANE, (8, 4), (1, 2)))
         B_local = B.local()
@@ -441,9 +443,21 @@ def test_buffer_local_ir():
 
     # Round-trip
     code = func.script()
-    assert "buffer_1 = buffer.local()" in code
+    assert (
+        'v_1 = T.decl_tensor((2,), "float16", data=v.data, '
+        'scope="local", layout="default")'
+    ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
+
+
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
 
 
 def _collect_buffers(func):
@@ -451,8 +465,8 @@ def _collect_buffers(func):
     buffers = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.DeclBuffer | tvm.tirx.AllocBuffer):
-            buffers.append(node.buffer)
+        if _is_buffer_binding(node, "tirx.alloc_tensor", "tirx.decl_tensor"):
+            buffers.append(node.var)
 
     tvm_ffi.structural_walk(func.body, visit)
     return buffers
@@ -463,8 +477,8 @@ def _buffer_source(func, buffer):
     sources = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.DeclBuffer) and node.buffer.same_as(buffer):
-            sources.append(node.data)
+        if _is_buffer_binding(node, "tirx.decl_tensor") and node.var.same_as(buffer):
+            sources.append(node.value.args[0])
 
     tvm_ffi.structural_walk(func.body, visit)
     assert len(sources) == 1
@@ -479,7 +493,7 @@ def test_buffer_local_physical_order():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([32], dtype="float32", scope="local")
+        A = T.alloc_tensor([32], dtype="float32", scope="local")
         B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
         B_flat = B.local()
         B_2d = B.local(4, 8)
@@ -505,8 +519,14 @@ def test_buffer_local_physical_order():
     assert int(flat_offset) == int(reshaped_offset) == 2
 
     code = func.script()
-    assert "buffer_1 = buffer.local()" in code
-    assert "buffer_2 = buffer.local(4, 8)" in code
+    assert (
+        'v_1 = T.decl_tensor((32,), "float32", data=v.data, '
+        'scope="local", layout="default")'
+    ) in code
+    assert (
+        'v_2 = T.decl_tensor((4, 8), "float32", data=v.data, '
+        'scope="local", layout="default")'
+    ) in code
     assert from_source(code).script() == code
     assert_structural_equal(func, from_source(code))
 
@@ -519,7 +539,7 @@ def test_buffer_local_layout_overrides_roundtrip():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([32], dtype="float32", scope="local")
+        A = T.alloc_tensor([32], dtype="float32", scope="local")
         B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
         B_storage = B.local(layout=B.layout.storage())
         # An explicit layout is an escape hatch and may describe a smaller
@@ -535,10 +555,15 @@ def test_buffer_local_layout_overrides_roundtrip():
     assert not b_custom.ty.layout.is_trivial()
 
     code = func.script()
-    storage_line = next(line for line in code.splitlines() if "buffer_1 =" in line)
-    custom_line = next(line for line in code.splitlines() if "buffer_2 =" in line)
-    assert ".local(layout=" in storage_line
-    assert ".local(2, 4, layout=" in custom_line
+    storage_line = next(line for line in code.splitlines() if "v_1 =" in line)
+    custom_line = next(line for line in code.splitlines() if "v_2 =" in line)
+    assert (
+        'T.decl_tensor((32,), "float32", data=v.data, scope="local", layout='
+    ) in storage_line
+    assert (
+        'T.decl_tensor((2, 4), "float32", data=v.data, scope="local", '
+        'layout='
+    ) in custom_line
     assert_structural_equal(func, from_source(code))
     assert from_source(code).script() == code
 
@@ -550,7 +575,7 @@ def test_buffer_local_explicit_layout_without_parent_layout():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer((4,), dtype="float32", scope="local", layout=None)
+        A = T.alloc_tensor((4,), dtype="float32", scope="local", layout=None)
         B = A.local(4, layout=T.TileLayout(T.S[4]))
         B[0] = T.float32(1)
         # fmt: on
@@ -571,7 +596,7 @@ def test_buffer_local_compose_layout_printer_roundtrip():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer(
+        A = T.alloc_tensor(
             (8, 8),
             dtype="float32",
             scope="local",
@@ -585,8 +610,8 @@ def test_buffer_local_compose_layout_printer_roundtrip():
     assert [int(dim) for dim in b_buf.ty.shape] == [64]
     assert b_buf.ty.layout.is_trivial()
     code = func.script()
-    local_line = next(line for line in code.splitlines() if "buffer =" in line)
-    assert ".view(64, layout=" in local_line
+    local_line = next(line for line in code.splitlines() if "v =" in line)
+    assert 'T.decl_tensor((64,), "float32", data=A.data, scope="local", layout=' in local_line
     parsed = from_source(code)
     assert_structural_equal(func, parsed)
     assert parsed.script() == code
@@ -600,7 +625,7 @@ def test_buffer_local_inference_without_parent_layout_has_clear_diagnostic():
         @T.prim_func
         def func() -> None:
             T.device_entry()
-            A = T.alloc_buffer((4,), dtype="float32", scope="local", layout=None)
+            A = T.alloc_tensor((4,), dtype="float32", scope="local", layout=None)
             B = A.local(layout=T.TileLayout(T.S[4]))
             B[0] = T.float32(1)
 
@@ -612,7 +637,7 @@ def test_buffer_local_physical_span_includes_gaps_and_offset():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([6], dtype="float32", scope="local")
+        A = T.alloc_tensor([6], dtype="float32", scope="local")
         B = A.view(32, 2, layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)] + 3))
         B_flat = B.local()
         B_2d = B.local(2, 3)
@@ -638,8 +663,8 @@ def test_buffer_local_physical_span_includes_gaps_and_offset():
     assert int(b_storage.ty.layout.apply(1, shape=list(b_storage.ty.shape))["m"]) == 5
 
     code = func.script()
-    storage_line = next(line for line in code.splitlines() if "buffer_3 =" in line)
-    assert ".local(layout=" in storage_line
+    storage_line = next(line for line in code.splitlines() if "v_3 =" in line)
+    assert 'T.decl_tensor((2,), "float32", data=v.data, scope="local", layout=' in storage_line
     assert_structural_equal(func, from_source(code))
     assert from_source(code).script() == code
 
@@ -652,7 +677,7 @@ def test_buffer_local_printer_is_stable_with_multiple_aliases():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([32], dtype="float32", scope="local")
+        A = T.alloc_tensor([32], dtype="float32", scope="local")
         B = A.view(64, 64, layout=tcgen05_atom_layout("16x256b", (64, 64), "float32"))
         B_flat = B.local()
         B_2d = B.local(4, 8)
@@ -661,10 +686,18 @@ def test_buffer_local_printer_is_stable_with_multiple_aliases():
         # fmt: on
 
     expected = func.script()
-    assert "buffer_1 = buffer.local()" in expected
-    assert "buffer_2 = buffer.local(4, 8)" in expected
-    storage_line = next(line for line in expected.splitlines() if "buffer_3 =" in line)
-    assert ".local(layout=" in storage_line
+    assert (
+        'v_1 = T.decl_tensor((32,), "float32", data=v.data, '
+        'scope="local", layout="default")'
+    ) in expected
+    assert (
+        'v_2 = T.decl_tensor((4, 8), "float32", data=v.data, '
+        'scope="local", layout="default")'
+    ) in expected
+    storage_line = next(line for line in expected.splitlines() if "v_3 =" in line)
+    assert (
+        'T.decl_tensor((32,), "float32", data=v.data, scope="local", layout='
+    ) in storage_line
     for _ in range(20):
         parsed = from_source(expected)
         assert parsed.script() == expected
@@ -678,14 +711,14 @@ def test_buffer_local_printer_preserves_inherited_metadata():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer(
+        A = T.alloc_tensor(
             [32, 2],
             dtype="float32",
             elem_offset=8,
             scope="local",
             layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)]),
         )
-        B_align = T.decl_buffer(
+        B_align = T.decl_tensor(
             (2,),
             dtype="float32",
             data=A.data,
@@ -693,7 +726,7 @@ def test_buffer_local_printer_preserves_inherited_metadata():
             scope="local",
             align=128,
         )
-        B_factor = T.decl_buffer(
+        B_factor = T.decl_tensor(
             (2,),
             dtype="float32",
             data=A.data,
@@ -707,8 +740,8 @@ def test_buffer_local_printer_preserves_inherited_metadata():
     code = func.script()
     align_line = next(line for line in code.splitlines() if "B_align =" in line)
     factor_line = next(line for line in code.splitlines() if "B_factor =" in line)
-    assert "T.decl_buffer" in align_line and "align=128" in align_line
-    assert "T.decl_buffer" in factor_line and "offset_factor=8" in factor_line
+    assert "T.decl_tensor" in align_line and "align=128" in align_line
+    assert "T.decl_tensor" in factor_line and "offset_factor=8" in factor_line
     assert ".local(" not in align_line
     assert ".local(" not in factor_line
     parsed = from_source(code)
@@ -724,7 +757,7 @@ def test_buffer_local_rejects_shape_that_does_not_match_physical_span():
         @T.prim_func
         def func() -> None:
             T.device_entry()
-            A = T.alloc_buffer([6], dtype="float32", scope="local")
+            A = T.alloc_tensor([6], dtype="float32", scope="local")
             B = A.view(32, 2, layout=T.TileLayout(T.S[(32, 2) : (1 @ laneid, 2)] + 3))
             B_local = B.local(2)
             B_local[0] = T.float32(0)
@@ -737,7 +770,7 @@ def test_buffer_permute_ir():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([8, 4], dtype="float16", scope="local",
+        A = T.alloc_tensor([8, 4], dtype="float16", scope="local",
                             layout=T.TileLayout(T.S[(8, 4) : (4, 1)]))
         B = A.permute(1, 0)
         B[0, 0] = T.float16(0)
@@ -761,7 +794,7 @@ def test_buffer_rearrange_allows_arbitrary_axis_names():
     @T.prim_func
     def ordinary_axis() -> None:
         T.device_entry()
-        A = T.alloc_buffer(
+        A = T.alloc_tensor(
             (8, 4),
             "float16",
             scope="local",
@@ -773,7 +806,7 @@ def test_buffer_rearrange_allows_arbitrary_axis_names():
     @T.prim_func
     def buf_axis() -> None:
         T.device_entry()
-        A = T.alloc_buffer(
+        A = T.alloc_tensor(
             (8, 4),
             "float16",
             scope="local",
@@ -785,7 +818,7 @@ def test_buffer_rearrange_allows_arbitrary_axis_names():
     @T.prim_func
     def self_axis() -> None:
         T.device_entry()
-        A = T.alloc_buffer(
+        A = T.alloc_tensor(
             (8, 4),
             "float16",
             scope="local",
@@ -797,7 +830,7 @@ def test_buffer_rearrange_allows_arbitrary_axis_names():
     @T.prim_func
     def pattern_axis() -> None:
         T.device_entry()
-        A = T.alloc_buffer(
+        A = T.alloc_tensor(
             (8, 4),
             "float16",
             scope="local",
@@ -809,7 +842,7 @@ def test_buffer_rearrange_allows_arbitrary_axis_names():
     @T.prim_func
     def keyword_pattern() -> None:
         T.device_entry()
-        A = T.alloc_buffer(
+        A = T.alloc_tensor(
             (8, 4),
             "float16",
             scope="local",
@@ -834,7 +867,7 @@ def test_buffer_permute_compose_layout_ir():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer(
+        A = T.alloc_tensor(
             [4, 4, 4, 64], dtype="bfloat16", scope="shared.dyn",
             layout=T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(4, 4, 4, 64) : (1024, 256, 64, 1)])),
         )
@@ -867,7 +900,7 @@ def test_buffer_sub_multi_iter_dim_ir():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([8, 16], dtype="float16", scope="local",
+        A = T.alloc_tensor([8, 16], dtype="float16", scope="local",
                            layout=T.TileLayout(T.S[(2, 4, 16) : (1024, 64, 1)]))
         B = A.sub[5]
         B[0] = T.float16(0)
@@ -884,7 +917,7 @@ def test_buffer_sub_multi_iter_dim_ir():
 
 
 def test_buffer_sub_multi_iter_misaligned_rejected():
-    buf = tvm.tirx.decl_buffer(
+    buf = tvm.tirx.decl_tensor(
         (8, 16), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(2, 4, 16) : (1024, 64, 1)])
     )
     # sub[2:6] narrows the multi-iter dim 0 at a misaligned offset.
@@ -901,7 +934,7 @@ def test_buffer_sub_ir():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([4, 8, 16], dtype="float16", scope="local",
+        A = T.alloc_tensor([4, 8, 16], dtype="float16", scope="local",
                            layout=T.TileLayout(T.S[(4, 8, 16) : (256, 16, 1)]))
         B = A.sub[1, 2:6]
         B[0, 0] = T.float16(0)
@@ -928,10 +961,10 @@ def test_buffer_sub_ir():
 def test_buffer_view_surgery_static_bounds_rejected():
     """Statically-known out-of-range sub arguments must be rejected loudly
     (review finding: OOB offsets were silent)."""
-    buf = tvm.tirx.decl_buffer(
+    buf = tvm.tirx.decl_tensor(
         (10,), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(10,) : (1,)])
     )
-    grid = tvm.tirx.decl_buffer(
+    grid = tvm.tirx.decl_tensor(
         (4, 8), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(4, 8) : (8, 1)])
     )
     # int index: static bounds
@@ -980,7 +1013,7 @@ def test_buffer_sub_swizzle_commutation():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([4, 1024], dtype="bfloat16", scope="shared.dyn", layout=compose)
+        A = T.alloc_tensor([4, 1024], dtype="bfloat16", scope="shared.dyn", layout=compose)
         B = A.sub[1]  # offset 1024 = 2 * period: folds into elem_offset
         B[0] = T.bfloat16(0)
         C = A.sub[:, 512:1024]  # offset 512 = period: folds into elem_offset
@@ -1006,7 +1039,7 @@ def test_buffer_sub_swizzle_commutation():
     @T.prim_func
     def func2() -> None:
         T.device_entry()
-        A = T.alloc_buffer([2, 16, 8], dtype="float16", scope="shared.dyn", layout=compose2)
+        A = T.alloc_tensor([2, 16, 8], dtype="float16", scope="shared.dyn", layout=compose2)
         B = A.sub[:, 1]  # offset 8
         B[0, 0] = T.float16(0)
         C = A.sub[:, :, 1]  # offset 1
@@ -1053,7 +1086,7 @@ def test_buffer_sub_swizzle_commutation():
     @T.prim_func
     def func3() -> None:
         T.device_entry()
-        A = T.alloc_buffer([64], dtype="bfloat16", scope="shared.dyn", layout=compose3)
+        A = T.alloc_tensor([64], dtype="bfloat16", scope="shared.dyn", layout=compose3)
         B = A.sub[8:16]
         B[0] = T.bfloat16(0)
         # fmt: on
@@ -1072,7 +1105,7 @@ def test_buffer_tile_ir():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([3, 64, 512], dtype="float16", scope="shared",
+        A = T.alloc_tensor([3, 64, 512], dtype="float16", scope="shared",
                            layout=T.TileLayout(T.S[(3, 64, 512) : (64 * 512, 512, 1)]))
         for w in T.serial(4):
             B = A.tile((1, (-1, 4, 4)))[:, w, :]
@@ -1091,7 +1124,7 @@ def test_buffer_tile_ir():
     @T.prim_func
     def func_multi() -> None:
         T.device_entry()
-        A = T.alloc_buffer([64, 128], dtype="float16", scope="shared",
+        A = T.alloc_tensor([64, 128], dtype="float16", scope="shared",
                            layout=T.TileLayout(T.S[(64, 128) : (128, 1)]))
         for wx in T.serial(4):
             for wy in T.serial(2):
@@ -1104,7 +1137,7 @@ def test_buffer_tile_ir():
     @T.prim_func
     def func_multipick() -> None:
         T.device_entry()
-        A = T.alloc_buffer([128, 16], dtype="float16", scope="shared",
+        A = T.alloc_tensor([128, 16], dtype="float16", scope="shared",
                            layout=T.TileLayout(T.S[(128, 16) : (16, 1)]))
         for a in T.serial(2):
             for b in T.serial(4):
@@ -1132,7 +1165,7 @@ def test_buffer_tile_ir():
 
 
 def test_buffer_tile_rejected():
-    buf = tvm.tirx.decl_buffer(
+    buf = tvm.tirx.decl_tensor(
         (3, 64, 512),
         "float16",
         layout=tvm.tirx.layout.TileLayout(T.S[(3, 64, 512) : (64 * 512, 512, 1)]),
@@ -1161,10 +1194,10 @@ def test_buffer_chunk_ir():
     the hand-written a*k:(a+1)*k slice — no reshape, no extra dim."""
 
     compose = T.ComposeLayout(3, 3, 3, T.TileLayout(T.S[(4, 512) : (512, 1)]))
-    A = tvm.tirx.decl_buffer(
+    A = tvm.tirx.decl_tensor(
         (4, 8, 16), "float16", layout=tvm.tirx.layout.TileLayout(T.S[(4, 8, 16) : (128, 16, 1)])
     )
-    C = tvm.tirx.decl_buffer((4, 512), "bfloat16", layout=compose)
+    C = tvm.tirx.decl_tensor((4, 512), "bfloat16", layout=compose)
 
     # chunk((None, None, 2))[:, :, 1] narrows dim 2 (extent 16) to chunk 1 of 2
     # → [8:16] (k = 16 // 2 = 8); rank preserved, dims 0/1 pass through as ':'.
@@ -1209,7 +1242,7 @@ def test_buffer_view_dtype_ir():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        A = T.alloc_buffer([8, 8], dtype="float16", scope="local")
+        A = T.alloc_tensor([8, 8], dtype="float16", scope="local")
         B = A.view("float32")
         B[0, 0] = T.float32(0)
         # fmt: on
@@ -1229,9 +1262,9 @@ def test_buffer_view_dtype_ir():
 
 
 def test_buffer_slice_region():
-    """Verify A[slice] returns BufferRegion (not DeclBuffer)."""
+    """Verify A[slice] returns BufferRegion (not DeclTensor)."""
 
-    buf = tvm.tirx.decl_buffer((128, 64), "float16")
+    buf = tvm.tirx.decl_tensor((128, 64), "float16")
     br = buf[32:64, 0:32]
     assert isinstance(br, TensorRegion)
     assert br.source.same_as(buf)
@@ -1277,9 +1310,9 @@ def test_global_call_realizes_buffer_elements():
 
         @T.prim_func
         def main(
-            A: T.Buffer((16,), "float32"),
-            B: T.Buffer((16,), "float32"),
-            C: T.Buffer((16,), "float32"),
+            A: T.Tensor((16,), "float32"),
+            B: T.Tensor((16,), "float32"),
+            C: T.Tensor((16,), "float32"),
         ):
             for i in range(16):
                 C[i] = Module.add(A[i], B[i])
@@ -1296,17 +1329,17 @@ def test_buffer_sub_tmem_offset_uses_physical_columns():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        Q = T.decl_buffer(
+        Q = T.decl_tensor(
             (2, 64, 288), "bfloat16", scope="tmem", allocated_addr=256,
             layout=T.TileLayout(T.S[(2, 64, 288) : (64 @ TLane, 1 @ TLane, 1 @ TCol)]),
         )
         Q_tail = Q.sub[:, :, 256:288]
-        F8 = T.decl_buffer(
+        F8 = T.decl_tensor(
             (64, 128), "float8_e4m3fn", scope="tmem", allocated_addr=32,
             layout=T.TileLayout(T.S[(64, 128) : (1 @ TLane, 1 @ TCol)]),
         )
         F8_tail = F8.sub[:, 64:96]
-        F32 = T.decl_buffer(
+        F32 = T.decl_tensor(
             (64, 128), "float32", scope="tmem", allocated_addr=64,
             layout=T.TileLayout(T.S[(64, 128) : (1 @ TLane, 1 @ TCol)]),
         )
@@ -1336,7 +1369,7 @@ def test_buffer_sub_tmem_rejects_partial_column_offset():
         @T.prim_func
         def func() -> None:
             T.device_entry()
-            A = T.decl_buffer(
+            A = T.decl_tensor(
                 (64, 16), "bfloat16", scope="tmem", allocated_addr=0, layout=buf_layout,
             )
             _ = A.sub[:, 1:3]
@@ -1349,7 +1382,7 @@ def test_buffer_sub_tmem_rejects_partial_column_offset():
 
 
 def test_roundtrip_tmem_decl_buffer():
-    """DeclBuffer with tmem scope: data kwarg must be suppressed, allocated_addr
+    """DeclTensor with tmem scope: data kwarg must be suppressed, allocated_addr
     must print as Expr (not Array), and scalar buffer index must not get
     a .source suffix."""
 
@@ -1359,8 +1392,8 @@ def test_roundtrip_tmem_decl_buffer():
         with T.launch_thread("blockIdx.x", 1):
             T.launch_thread("threadIdx.x", 128)
             addr = T.alloc_shared((1,), "uint32", layout=None)
-            addr_alias = T.decl_buffer((1,), "uint32", data=addr.data, scope="shared")
-            buf = T.decl_buffer((64,), scope="tmem", layout=None, allocated_addr=addr_alias[0])
+            addr_alias = T.decl_tensor((1,), "uint32", data=addr.data, scope="shared")
+            buf = T.decl_tensor((64,), scope="tmem", layout=None, allocated_addr=addr_alias[0])
     # fmt: on
 
     code = func.script()
@@ -1369,9 +1402,9 @@ def test_roundtrip_tmem_decl_buffer():
     decls = []
     tvm_ffi.structural_walk(
         func.body,
-        lambda node: decls.append(node) if isinstance(node, tvm.tirx.DeclBuffer) else None,
+        lambda node: decls.append(node) if _is_buffer_binding(node, "tirx.decl_tensor") else None,
     )
     # The shared alias has an explicit definition before the tensor-memory use.
     assert len(decls) == 2
-    tmem_decl = next(decl for decl in decls if decl.buffer.scope() == "tmem")
-    assert tmem_decl.data.op.name == "tirx.reinterpret"
+    tmem_decl = next(decl for decl in decls if decl.var.scope() == "tmem")
+    assert tmem_decl.value.args[0].op.name == "tirx.reinterpret"

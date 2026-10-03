@@ -355,7 +355,7 @@ def test_vm_kill_object():
     @I.ir_module
     class TestKillObject:
         @Ts.prim_func
-        def full(T_full: T.Buffer((T.int64(4),), "float32")):
+        def full(T_full: T.Tensor((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
                 with Ts.sblock("T_full"):
@@ -365,7 +365,7 @@ def test_vm_kill_object():
                     T_full[v_ax0] = T.float32(0)
 
         @Ts.prim_func
-        def full1(T_full: T.Buffer((T.int64(4),), "float32")):
+        def full1(T_full: T.Tensor((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full1", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
                 with Ts.sblock("T_full"):

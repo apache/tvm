@@ -66,10 +66,10 @@ class CallTIRMutator : public ExprMutator {
     Expr expr = VisitExprPostOrder_(call);
     call = expr.as<CallNode>();
 
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
-    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
-    static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
+    static const Op call_dps_packed_op = Op::Get("relax.call_dps_packed");
+    static const Op alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     if (call->op.same_as(call_tir_op) || call->op.same_as(call_tir_inplace_op) ||
         call->op.same_as(call_dps_packed_op)) {
       bool is_inplace = call->op.same_as(call_tir_inplace_op);
@@ -137,7 +137,7 @@ class CallTIRMutator : public ExprMutator {
             }
           }
         }
-        builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
+        builder_->Emit(Call::Unchecked(Type::Missing(), call->args[0], args), "_");
       } else {
         if (!is_inplace) {
           args = outs;
@@ -145,7 +145,7 @@ class CallTIRMutator : public ExprMutator {
         } else {
           args.push_back(call->args[1]);
         }
-        builder_->Emit(Call(Type::Missing(), call->args[0], args), "_");
+        builder_->Emit(Call::Unchecked(Type::Missing(), call->args[0], args), "_");
       }
 
       if (tuple_output_type.has_value()) {
@@ -174,11 +174,11 @@ class CallTIRMutator : public ExprMutator {
       dev_index = GetDeviceIndexByScope(mod_, scope);
     }
 
-    return builder_->Emit(Call(Type::Missing(), alloc_tensor_op,
-                               {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
-                                DataTypeImm(tensor_ty->dtype.value()->dtype),
-                                IntImm::Int64(dev_index), StringImm(scope)},
-                               Attrs(), {tensor_ty}),
+    return builder_->Emit(Call::Unchecked(Type::Missing(), alloc_tensor_op,
+                                          {tensor_ty->shape.value().as_or_throw<ShapeExpr>(),
+                                           DataTypeImm(tensor_ty->dtype.value()->dtype),
+                                           IntImm::Int64(dev_index), StringImm(scope)},
+                                          Attrs(), {tensor_ty}),
                           "alloc");
   }
 

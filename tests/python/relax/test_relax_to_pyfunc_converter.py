@@ -48,7 +48,7 @@ class ComprehensiveTestModule:
 
     @Ts.prim_func
     def add_tir(
-        x: T.Buffer((5,), "float32"), y: T.Buffer((5,), "float32"), out: T.Buffer((5,), "float32")
+        x: T.Tensor((5,), "float32"), y: T.Tensor((5,), "float32"), out: T.Tensor((5,), "float32")
     ):
         """TIR function for addition."""
 
@@ -57,9 +57,9 @@ class ComprehensiveTestModule:
 
     @Ts.prim_func
     def mul_tir(
-        x: T.Buffer((3, 4), "float32"),
-        y: T.Buffer((3, 4), "float32"),
-        out: T.Buffer((3, 4), "float32"),
+        x: T.Tensor((3, 4), "float32"),
+        y: T.Tensor((3, 4), "float32"),
+        out: T.Tensor((3, 4), "float32"),
     ):
         """TIR function for multiplication."""
 
@@ -883,9 +883,9 @@ class TestDLPackAndTupleSupport:
         class DLPackTestModule:
             @Ts.prim_func
             def test_tir(
-                x: T.Buffer((4,), "float32"),
-                y: T.Buffer((4,), "float32"),
-                out: T.Buffer((4,), "float32"),
+                x: T.Tensor((4,), "float32"),
+                y: T.Tensor((4,), "float32"),
+                out: T.Tensor((4,), "float32"),
             ):
                 for i in range(4):
                     out[i] = x[i] + y[i]
@@ -937,9 +937,9 @@ class TestDLPackAndTupleSupport:
         class RuntimeAPITestModule:
             @Ts.prim_func
             def test_tir(
-                x: T.Buffer((3,), "float32"),
-                y: T.Buffer((3,), "float32"),
-                out: T.Buffer((3,), "float32"),
+                x: T.Tensor((3,), "float32"),
+                y: T.Tensor((3,), "float32"),
+                out: T.Tensor((3,), "float32"),
             ):
                 for i in range(3):
                     out[i] = x[i] * y[i]
@@ -996,9 +996,9 @@ class TestDLPackAndTupleSupport:
         class MixedOpsTestModule:
             @Ts.prim_func
             def add_tir(
-                x: T.Buffer((4,), "float32"),
-                y: T.Buffer((4,), "float32"),
-                out: T.Buffer((4,), "float32"),
+                x: T.Tensor((4,), "float32"),
+                y: T.Tensor((4,), "float32"),
+                out: T.Tensor((4,), "float32"),
             ):
                 for i in range(4):
                     out[i] = x[i] + y[i]

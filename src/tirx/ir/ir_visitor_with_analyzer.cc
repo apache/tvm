@@ -48,6 +48,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const ForNode* op) {
 }
 
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const BindNode* op) {
+  if (!op->value.as<PrimExpr>()) return StmtExprVisitor::Visit_(op);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   if (ffi::Optional<PrimExpr> value = op->value.as<PrimExpr>()) {
     analyzer_->Bind(op->var, value.value());
@@ -99,7 +100,7 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AssertStmtNode
 
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const CallNode* op) {
   // add condition context to if_then_else
-  static const Op& if_then_else_op = Op::Get("prim.if_then_else");
+  static const Op if_then_else_op = Op::Get("prim.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
     PrimExpr cond = op->args[0].as_or_throw<PrimExpr>();
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(cond));

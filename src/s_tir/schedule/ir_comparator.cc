@@ -22,8 +22,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/tirx/builtin.h>
-
-#include "../../tirx/analysis/check_contains.h"
+#include <tvm/tirx/stmt_functor.h>
 
 namespace tvm {
 
@@ -38,7 +37,15 @@ bool IsVScaleCall(const PrimExpr& expr) {
 
 // File-local helper: true if `expr` contains a call to prim::builtin::vscale().
 bool ContainsVscaleCall(const PrimExpr& expr) {
-  return tirx::CheckContains::ExprContains(expr, IsVScaleCall);
+  struct VScaleFinder : tirx::StmtExprVisitor {
+    ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+      if (auto expr = value.as<PrimExpr>(); expr && IsVScaleCall(*expr)) {
+        return VisitInterrupt();
+      }
+      return StmtExprVisitor::Visit(value);
+    }
+  };
+  return ffi::make_object<VScaleFinder>()->Visit(expr).has_value();
 }
 }  // namespace
 
@@ -507,7 +514,7 @@ bool TensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& r
     equal = (*it).second.same_as(lhs);
   } else {
     // Remap the buffer variable definition without recursively comparing its
-    // BufferType.  Tensorization intentionally matches a region of a larger
+    // TensorType.  Tensorization intentionally matches a region of a larger
     // workload buffer against the intrinsic's smaller descriptor buffer.
     auto data_it = equal_map_.find(lhs.var());
     if (data_it != equal_map_.end()) {

@@ -29,15 +29,6 @@ from tvm.tirx.script.ir_builder.op import _dtype_forward, _op_wrapper
 # pylint: disable=protected-access
 
 
-def _s_tir_ldg32(reg, guard, addr, local_addr):
-    if is_buffer_var(addr):
-        addr = addr[0]
-    return _tir_op.call_intrin(reg.ty, "tirx.s_tir.ldg32", reg, guard, addr, local_addr)
-
-
-_s_tir_ldg32.__tir_op_name__ = "s_tir.ldg32"
-
-
 class _CpAsyncRaw:
     """The raw cp.async node's printer surface."""
 
@@ -60,7 +51,7 @@ class _CpAsyncRaw:
             return tvm.ir.Call(
                 tvm.ir.Op.get("tirx.s_tir.cp_async_raw"),
                 [dst, dst_off, src, src_off, cp_size],
-                ret_ty=tvm.ir.PrimType(elem_dtype),
+                ty=tvm.ir.PrimType(elem_dtype),
             )
         raise TypeError(
             "T.s_tir.cp_async_raw only accepts the printed 6-arg raw form; "
@@ -71,14 +62,13 @@ class _CpAsyncRaw:
 class STIRNamespace:
     """Nodes the s_tir pipeline's own passes build.
 
-    Nothing here is meant to be written by hand: ``InjectPTXLDG32`` and
-    ``InjectPTXAsyncCopy`` construct these, later passes match on them, and
+    Nothing here is meant to be written by hand: ``InjectPTXAsyncCopy``
+    constructs these, later passes match on them, and
     codegen turns them into asm. They have a script spelling only so printed
     IR round-trips.
     """
 
     def __init__(self):
-        self.ldg32 = _s_tir_ldg32
         self.cp_async_raw = _CpAsyncRaw()
 
 

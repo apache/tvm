@@ -53,7 +53,7 @@ def _check_block_signature_remap(lhs: SBlock, rhs: SBlock):
 def test_simple():
     @Ts.prim_func
     # Buffer A should be remapped
-    def elementwise(A: T.Buffer((128, 128), "float32")):
+    def elementwise(A: T.Tensor((128, 128), "float32")):
         # Buffer B should be remapped
         B = Ts.sblock_alloc_buffer((128, 128), "float32")
         # i, j should be remapped
@@ -92,7 +92,7 @@ def test_match_buffer():
 
     @Ts.prim_func(check_well_formed=False)
     # A and B should be remapped
-    def func_match_buffer(A: T.Buffer((128, 128), "float32"), B: T.Buffer((128, 128), "float32")):
+    def func_match_buffer(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
         with Ts.sblock("root"):
             # A0 should be remapped
             A0 = Ts.match_buffer(
@@ -139,7 +139,7 @@ def test_undefined_buffer():
     @Ts.prim_func
     def access_alloc():
         # Buffer A should be remapped
-        A = T.alloc_buffer((128,), "float16")
+        A = T.alloc_tensor((128,), "float16")
         T.evaluate(A.data)
         for i in range(128):
             A[i] = A[i] + T.float16(1.0)
@@ -148,11 +148,11 @@ def test_undefined_buffer():
     f2 = tvm.s_tir.renew_defs(f1)
     tvm.ir.assert_structural_equal(f1, f2)
 
-    # AllocBuffer is now a flat statement in SeqStmt
-    assert f1.body.seq[0].buffer.data != f2.body.seq[0].buffer.data
+    # AllocTensor is now a flat statement in SeqStmt
+    assert f1.body.seq[0].var.data != f2.body.seq[0].var.data
 
     def _get_buffer_store_buffer(f):
-        # SeqStmt: [AllocBuffer, Evaluate, For]; For body has the BufferStore
+        # SeqStmt: [AllocTensor, Evaluate, For]; For body has the BufferStore
         return f.body.seq[2].body.buffer
 
     _check_buffer_decl(_get_buffer_store_buffer(f1), _get_buffer_store_buffer(f2))
@@ -162,7 +162,7 @@ def test_symbolic_func():
     m = T.dynamic("m", "int32")
 
     @Ts.prim_func
-    def symbolic_func(A: T.Buffer((n, m)), B: T.Buffer((n, m * 2)), n: T.int32):  # noqa: F821
+    def symbolic_func(A: T.Tensor((n, m)), B: T.Tensor((n, m * 2)), n: T.int32):  # noqa: F821
         for i, j in T.grid(n, m):
             B[i, j * 2] = A[i, j]
             B[i, j * 2 + 1] = A[i, j]
@@ -176,7 +176,7 @@ def test_buffer_params():
     m = T.dynamic("m")
 
     @Ts.prim_func
-    def main(A: T.Buffer((m * 2,)), B: T.Buffer((m, 2))):
+    def main(A: T.Tensor((m * 2,)), B: T.Tensor((m, 2))):
         for i, j in T.grid(m, 2):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -190,7 +190,7 @@ def test_buffer_params():
 
 def test_compound_buffer_param_shape_var():
     n = tvm.tirx.Var("n", "int32")
-    A = tvm.tirx.decl_buffer((tvm.tirx.max(n, 1),), layout=None)
+    A = tvm.tirx.decl_tensor((tvm.tirx.max(n, 1),), layout=None)
     f1 = tvm.tirx.PrimFunc([A], tvm.tirx.Evaluate(n))
     f2 = tvm.s_tir.renew_defs(f1)
 
@@ -202,9 +202,9 @@ def test_compound_buffer_param_shape_var():
 def test_gather():
     @Ts.prim_func(private=True)
     def take(
-        A: T.Buffer((4096, 4096), "float16"),
-        B: T.Buffer((1,), "int32"),
-        T_take: T.Buffer((1, 4096), "float16"),
+        A: T.Tensor((4096, 4096), "float16"),
+        B: T.Tensor((1,), "int32"),
+        T_take: T.Tensor((1, 4096), "float16"),
     ):
         for ax0, ax1 in T.grid(1, 4096):
             with Ts.sblock("T_take"):

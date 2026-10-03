@@ -158,14 +158,10 @@ class PrimFuncSpecializer : public StmtExprMutator {
 
    private:
     ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-      if (op->ty.as<BufferTypeNode>()) {
+      if (op->ty.as<TensorTypeNode>()) {
         if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
           const BufferVar buffer = GetBufferVar(op);
-          specializer_->MutateAllocBuffer(buffer);
-          // Structural extension nodes expose buffer definitions without a native
-          // statement hook. Plan their metadata as uses after defining the buffer.
-          return this->WithDefRegionKind(kTVMFFIDefRegionKindNone,
-                                         [&]() { return VisitBufferMetadata(buffer); });
+          specializer_->MutateAllocTensor(buffer);
         } else {
           specializer_->ValidateBufferUse(GetBufferVar(op));
         }
@@ -173,16 +169,16 @@ class PrimFuncSpecializer : public StmtExprMutator {
       return StmtExprVisitor::Visit_(op);
     }
 
-    ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-      return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
-                                     [&]() { return this->Visit(op->buffer); });
-    }
-
-    ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-      // The declaration establishes the buffer before visiting its data expression.
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
-          kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->buffer); }));
-      return Visit(op->data);
+    ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+      if (const auto* call = op->value.as<CallNode>();
+          call &&
+          (call->op.same_as(builtin::alloc_tensor()) || call->op.same_as(builtin::decl_tensor()))) {
+        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+            kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->var); }));
+        if (call->op.same_as(builtin::decl_tensor())) return Visit(call->args[0]);
+        return std::nullopt;
+      }
+      return StmtExprVisitor::Visit_(op);
     }
 
     PrimFuncSpecializer* specializer_;
@@ -299,7 +295,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
         buffer->strides.same_as(strides) && !layout_changed && !storage_scope_changed) {
       return buffer;
     } else {
-      auto n = CopyBufferType(buffer);
+      auto n = CopyTensorType(buffer);
       n->elem_offset = std::move(elem_offset);
       n->shape = std::move(shape);
       n->strides = std::move(strides);
@@ -313,7 +309,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     }
   }
 
-  void MutateAllocBuffer(const BufferVar& alloc_buf) {
+  void MutateAllocTensor(const BufferVar& alloc_buf) {
     TVM_FFI_ICHECK(defined_buffers_.insert(alloc_buf.get()).second)
         << "Multiple points of definition found for buffer " << alloc_buf;
     VarRemapSet(alloc_buf, MutateBuffer(alloc_buf));
@@ -331,9 +327,9 @@ class PrimFuncSpecializer : public StmtExprMutator {
         << "mutation must occur at the buffer's point of definition "
         << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
         << "Please add a definition for this buffer, "
-        << "either as a BufferType-annotated PrimFunc parameter, "
+        << "either as a TensorType-annotated PrimFunc parameter, "
         << "in a block's buffer allocations, "
-        << "or in a DeclBuffer statement.";
+        << "or in a DeclTensor statement.";
   }
 
   /*! \brief Definition identities used only to validate declaration order. */
@@ -353,14 +349,14 @@ class PrimFuncSpecializer : public StmtExprMutator {
  * \param var_map The var mapping to be updated.
  * \note This function will match target buffer's shape, strides and element_offset
  *   For example, we define a buffer in PrimFunc:
- *   A: T.Buffer([m, n])
+ *   A: T.Tensor([m, n])
  *
- *   Then we match it with a buffer B =  tirx.decl_buffer((8, 16))
+ *   Then we match it with a buffer B =  tirx.decl_tensor((8, 16))
  *
  *   It means we have two var mappings here: m = 8 and n = 16
  *
  *   If the buffer signature is not a Var, the mapping will fail.
- *   e.g. A: T.Buffer([m * 2, n + 1])
+ *   e.g. A: T.Tensor([m * 2, n + 1])
  */
 void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const BufferVar& specific_buf,
                             VarMap* var_map) {
@@ -369,7 +365,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
 
   auto opt_buffer = param.as<BufferVar>();
   TVM_FFI_CHECK(opt_buffer, ValueError)
-      << "specialize expects param to have a BufferType annotation";
+      << "specialize expects param to have a TensorType annotation";
   const BufferVar& buf_to_specialize = opt_buffer.value();
 
   // build var mapping using specific_buf's parameters
@@ -444,7 +440,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Expr& 
       << "Specialize expects param to be in PrimFunc's params";
   // Specialize a scalar parameter rather than a buffer parameter.
   TVM_FFI_CHECK(!param.as<BufferVar>(), ValueError)
-      << "Specialize expects param to not have a BufferType annotation";
+      << "Specialize expects param to not have a TensorType annotation";
   // build var mapping using specific_expr
   (*var_map)[param] = specific_expr;
 }

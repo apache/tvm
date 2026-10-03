@@ -56,16 +56,16 @@ def test_native_concise_scopes_unwind_with_their_parent():
 
 
 def test_tir_buffer_annotation():
-    buffer_0 = T.Buffer((128, 128), "float32")
+    buffer_0 = T.Tensor((128, 128), "float32")
     assert (
-        tirx.is_buffer_var(buffer_0)
+        isinstance(buffer_0, tirx.TensorType)
         and list(buffer_0.shape) == [128, 128]
         and buffer_0.dtype == ir.PrimType("float32")
     )
 
-    buffer_1 = T.Buffer((64, 64, 64), "int32")
+    buffer_1 = T.Tensor((64, 64, 64), "int32")
     assert (
-        tirx.is_buffer_var(buffer_1)
+        isinstance(buffer_1, tirx.TensorType)
         and list(buffer_1.shape) == [64, 64, 64]
         and buffer_1.dtype == ir.PrimType("int32")
     )
@@ -260,15 +260,18 @@ def test_pointer_expression_assignment_uses_bind():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        buf = T.alloc_buffer((4,), "uint32", scope="shared")
+        buf = T.alloc_tensor((4,), "uint32", scope="shared")
         ptr = buf.ptr_to([1])
         T.evaluate(T.reinterpret("uint64", ptr))
     # fmt: on
 
     binds = []
-    tvm_ffi.structural_walk(
-        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
-    )
+
+    def collect_pointer_bind(node):
+        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+            binds.append(node)
+
+    tvm_ffi.structural_walk(func.body, collect_pointer_bind)
     assert len(binds) == 1
     assert isinstance(binds[0].var.ty, PointerType)
     assert_structural_equal(binds[0].var.ty, binds[0].value.ty)
@@ -287,7 +290,7 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     @T.prim_func
     def func() -> None:
         T.device_entry()
-        buf = T.alloc_buffer((4,), "uint32", scope="shared")
+        buf = T.alloc_tensor((4,), "uint32", scope="shared")
         ptr = buf.ptr_to([0])
         ptr = buf.ptr_to([1])
         T.evaluate(T.reinterpret("uint64", ptr))
@@ -296,7 +299,7 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     bindings, uses = [], []
 
     def collect(node):
-        if isinstance(node, tvm.tirx.Bind):
+        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
             bindings.append(node)
         elif isinstance(node, tvm.tirx.Evaluate):
             uses.append(node)
@@ -315,17 +318,20 @@ def test_pointer_expression_assignment_can_shadow_extra_var():
 @T.prim_func
 def func() -> None:
     T.device_entry()
-    buf = T.alloc_buffer((4,), "uint32", scope="shared")
+    buf = T.alloc_tensor((4,), "uint32", scope="shared")
     ptr = buf.ptr_to([1])
-    view = T.decl_buffer((3,), "uint32", data=ptr, scope="shared")
+    view = T.decl_tensor((3,), "uint32", data=ptr, scope="shared")
     view[0] = T.uint32(0)
 """
     func = tvm.script.from_source(source, extra_vars={"T": T, "ptr": object()})
 
     binds = []
-    tvm_ffi.structural_walk(
-        func.body, lambda node: binds.append(node) if isinstance(node, tvm.tirx.Bind) else None
-    )
+
+    def collect_pointer_bind(node):
+        if isinstance(node, tvm.tirx.Bind) and isinstance(node.var.ty, PointerType):
+            binds.append(node)
+
+    tvm_ffi.structural_walk(func.body, collect_pointer_bind)
     assert len(binds) == 1
     assert_structural_equal(func, from_source(func.script()))
 
@@ -335,7 +341,7 @@ def test_roundtrip_unary_inplace():
 
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((128,), "float32", scope="global")) -> None:
+    def test(A: T.Tensor((128,), "float32", scope="global")) -> None:
         T.device_entry()
         cta_id = T.cta_id([1])
         warp_id = T.warp_id([1])
@@ -363,8 +369,8 @@ def test_roundtrip_unary_different_dst_src():
     # fmt: off
     @T.prim_func
     def test(
-        A: T.Buffer((128,), "float32", scope="global"),
-        B: T.Buffer((128,), "float32", scope="global"),
+        A: T.Tensor((128,), "float32", scope="global"),
+        B: T.Tensor((128,), "float32", scope="global"),
     ) -> None:
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -566,7 +572,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
 def test_roundtrip_break_for():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((10,), 'int32')):
+    def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
         for i in T.serial(10):
@@ -582,10 +588,10 @@ def test_roundtrip_break_for():
 def test_roundtrip_break_while():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((10,), 'int32')):
+    def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
-        i = T.alloc_buffer((1,), "int32", scope="local")
+        i = T.alloc_tensor((1,), "int32", scope="local")
         i[0] = 0
         while i[0] < 10:
             A[i[0]] = i[0] * 2
@@ -601,10 +607,10 @@ def test_roundtrip_break_while():
 def test_roundtrip_break_nested():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((9,), 'int32')):
+    def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
-        idx = T.alloc_buffer((1,), "int32", scope="local")
+        idx = T.alloc_tensor((1,), "int32", scope="local")
         idx[0] = 0
         for i in T.serial(3):
             for j in T.serial(3):
@@ -621,7 +627,7 @@ def test_roundtrip_break_nested():
 def test_roundtrip_continue_for():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((10,), 'int32')):
+    def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
         for i in T.serial(10):
@@ -637,10 +643,10 @@ def test_roundtrip_continue_for():
 def test_roundtrip_continue_while():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((10,), 'int32')):
+    def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
-        i = T.alloc_buffer((1,), "int32", scope="local")
+        i = T.alloc_tensor((1,), "int32", scope="local")
         i[0] = 0
         while i[0] < 10:
             if (i[0] % 2) == 1:
@@ -657,10 +663,10 @@ def test_roundtrip_continue_while():
 def test_roundtrip_continue_nested():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((9,), 'int32')):
+    def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
-        idx = T.alloc_buffer((1,), dtype="int32", scope="local")
+        idx = T.alloc_tensor((1,), dtype="int32", scope="local")
         idx[0] = 0
         for i in T.serial(3):
             for j in T.serial(3):
@@ -677,7 +683,7 @@ def test_roundtrip_continue_nested():
 def test_roundtrip_break_and_continue():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((10,), 'int32')):
+    def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
         for i in T.serial(10):
@@ -695,7 +701,7 @@ def test_roundtrip_break_and_continue():
 def test_roundtrip_unreachable_after_break():
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((5,), 'int32')):
+    def test(A: T.Tensor((5,), 'int32')):
 
         T.device_entry()
         for i in T.serial(5):
@@ -714,7 +720,7 @@ def test_roundtrip_serial_unroll_false():
 
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -726,7 +732,7 @@ def test_roundtrip_serial_unroll_false():
 
     code = test.script()
     assert "unroll=False" in code, f"printer should emit unroll=False, got:\n{code}"
-    assert "annotations" not in code, "printer should NOT emit annotations dict"
+    assert "annotations=" not in code, "printer should NOT emit annotations dict"
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
 
@@ -736,7 +742,7 @@ def test_roundtrip_serial_unroll_true():
 
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -748,7 +754,7 @@ def test_roundtrip_serial_unroll_true():
 
     code = test.script()
     assert "unroll=True" in code, f"printer should emit unroll=True, got:\n{code}"
-    assert "annotations" not in code, "printer should NOT emit annotations dict"
+    assert "annotations=" not in code, "printer should NOT emit annotations dict"
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
 
@@ -758,7 +764,7 @@ def test_roundtrip_serial_unroll_count():
 
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -770,7 +776,7 @@ def test_roundtrip_serial_unroll_count():
 
     code = test.script()
     assert "unroll=2" in code, f"printer should emit unroll=2, got:\n{code}"
-    assert "annotations" not in code, "printer should NOT emit annotations dict"
+    assert "annotations=" not in code, "printer should NOT emit annotations dict"
     assert from_source(code).script() == code
     assert_structural_equal(test, from_source(code))
 
@@ -780,7 +786,7 @@ def test_roundtrip_serial_unroll_false_with_other_annotations():
 
     # fmt: off
     @T.prim_func
-    def test(A: T.Buffer((128,), 'float32', scope='global')) -> None:
+    def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -799,7 +805,7 @@ def test_roundtrip_serial_unroll_false_with_other_annotations():
 def test_loop_var_dtype_uint32():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((128,), 'float32')):
+    def func(A: T.Tensor((128,), 'float32')):
 
         for i in T.serial(128, dtype="uint32"):
             A[i] = T.float32(1)
@@ -821,7 +827,7 @@ def _assert_roundtrip(func):
 def test_loop_var_dtype_uint32_with_step():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((128,), 'float32')):
+    def func(A: T.Tensor((128,), 'float32')):
 
         for i in T.serial(4, 128, step=2, dtype="uint32"):
             A[i] = T.float32(1)
@@ -839,7 +845,7 @@ def test_loop_var_dtype_uint32_with_step():
 def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((4,), 'float32')):
+    def func(A: T.Tensor((4,), 'float32')):
 
         for i in getattr(T, for_kind)(4, dtype="uint32"):
             A[i] = T.float32(1)
@@ -852,7 +858,7 @@ def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
 def test_grid_loop_var_dtype_uint32():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((8, 16), 'float32')):
+    def func(A: T.Tensor((8, 16), 'float32')):
 
         for i, j in T.grid(8, 16, dtype="uint32"):
             A[i, j] = T.float32(1)
@@ -867,7 +873,7 @@ def test_grid_loop_var_dtype_uint32():
 def test_loop_var_dtype_defaults_to_int32():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((128,), 'float32')):
+    def func(A: T.Tensor((128,), 'float32')):
 
         for i in range(128):
             A[i] = T.float32(1)
@@ -882,7 +888,7 @@ def test_loop_var_dtype_inferred_from_unsigned_extent():
 
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((128,), 'float32'), n: T.uint32):
+    def func(A: T.Tensor((128,), 'float32'), n: T.uint32):
 
         for i in range(n):
             A[i] = T.float32(1)
@@ -897,7 +903,7 @@ def test_loop_var_dtype_casts_mismatched_bound():
 
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((128,), 'float32'), n: T.int32):
+    def func(A: T.Tensor((128,), 'float32'), n: T.int32):
 
         for i in T.serial(n, dtype="uint32"):
             A[i] = T.float32(1)

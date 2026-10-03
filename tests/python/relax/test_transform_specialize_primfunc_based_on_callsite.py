@@ -99,8 +99,8 @@ def test_single_arg_return():
 
         @Ts.prim_func(private=True)
         def max_pool2d_opencl(
-            gv: T.Buffer((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
-            pool_max: T.Buffer(
+            gv: T.Tensor((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
+            pool_max: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
             ),
         ):
@@ -140,8 +140,8 @@ def test_single_arg_return():
 
         @Ts.prim_func(private=True)
         def te_layout_transform(
-            x: T.Buffer((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float32"),
-            te_layout_transform: T.Buffer(
+            x: T.Tensor((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float32"),
+            te_layout_transform: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"
             ),
         ):
@@ -161,10 +161,10 @@ def test_single_arg_return():
 
         @Ts.prim_func(private=True)
         def te_layout_transform2(
-            lv2: T.Buffer(
+            lv2: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
             ),
-            te_layout_transform: T.Buffer(
+            te_layout_transform: T.Tensor(
                 (T.int64(2), T.int64(4), T.int64(13), T.int64(13)), "float32"
             ),
         ):
@@ -228,9 +228,9 @@ def test_multi_arg_return():
 
         @Ts.prim_func(private=True)
         def conv2d_NCHWc_OIHWo_opencl(
-            lv: T.Buffer((T.int64(2), T.int64(4), T.int64(28), T.int64(28), T.int64(4)), "float32"),
-            lv1: T.Buffer((T.int64(1), T.int64(16), T.int64(3), T.int64(3), T.int64(4)), "float32"),
-            conv2d_NCHWc_OIHWo: T.Buffer(
+            lv: T.Tensor((T.int64(2), T.int64(4), T.int64(28), T.int64(28), T.int64(4)), "float32"),
+            lv1: T.Tensor((T.int64(1), T.int64(16), T.int64(3), T.int64(3), T.int64(4)), "float32"),
+            conv2d_NCHWc_OIHWo: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"
             ),
         ):
@@ -238,11 +238,11 @@ def test_multi_arg_return():
 
         @Ts.prim_func(private=True)
         def fused_relu_concatenate_split(
-            gv: T.Buffer((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
-            T_split_sections_intermediate: T.Buffer(
+            gv: T.Tensor((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
+            T_split_sections_intermediate: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"
             ),
-            T_split_sections_intermediate_1: T.Buffer(
+            T_split_sections_intermediate_1: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"
             ),
         ):
@@ -251,8 +251,8 @@ def test_multi_arg_return():
 
         @Ts.prim_func(private=True)
         def te_layout_transform(
-            x: T.Buffer((T.int64(2), T.int64(16), T.int64(28), T.int64(28)), "float32"),
-            te_layout_transform: T.Buffer(
+            x: T.Tensor((T.int64(2), T.int64(16), T.int64(28), T.int64(28)), "float32"),
+            te_layout_transform: T.Tensor(
                 (T.int64(2), T.int64(4), T.int64(28), T.int64(28), T.int64(4)), "float32"
             ),
         ):
@@ -260,8 +260,8 @@ def test_multi_arg_return():
 
         @Ts.prim_func(private=True)
         def te_layout_transform1(
-            w: T.Buffer((T.int64(4), T.int64(16), T.int64(3), T.int64(3)), "float32"),
-            te_layout_transform: T.Buffer(
+            w: T.Tensor((T.int64(4), T.int64(16), T.int64(3), T.int64(3)), "float32"),
+            te_layout_transform: T.Tensor(
                 (T.int64(1), T.int64(16), T.int64(3), T.int64(3), T.int64(4)), "float32"
             ),
         ):
@@ -269,10 +269,10 @@ def test_multi_arg_return():
 
         @Ts.prim_func(private=True)
         def te_layout_transform2(
-            lv3: T.Buffer(
+            lv3: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"
             ),
-            te_layout_transform: T.Buffer(
+            te_layout_transform: T.Tensor(
                 (T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float32"
             ),
         ):

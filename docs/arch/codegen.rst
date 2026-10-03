@@ -152,7 +152,7 @@ backend (x86, ARM, NVPTX, AMDGPU, etc.).
   ``Cast`` → LLVM type conversions, ``Call`` → intrinsic or extern function calls.
 - **Statements** (``VisitStmt_``) emit LLVM IR side effects:
   ``BufferStore`` → store instructions, ``For`` → loop basic blocks with branches,
-  ``IfThenElse`` → conditional branches, ``AllocBuffer`` → stack or heap allocation.
+  ``IfThenElse`` → conditional branches, ``tirx.alloc_tensor`` calls → stack or heap allocation.
 
 The key methods on ``CodeGenLLVM`` are:
 
@@ -245,7 +245,12 @@ exposes it as callable ``PackedFunc``\ s.
      - How Code Is Executed
    * - ``LLVMModule``
      - LLVM IR (in-memory ``llvm::Module``)
-     - JIT-compiled on first call (MCJIT or ORC). Function pointers cached for subsequent calls.
+     - JIT-compiled on first call by the separately installed ``apache-tvm-ffi-orcjit`` package.
+       TVM emits an object in memory and transfers it to the package-backed JITDylib through FFI;
+       it has no local execution engine or fallback. Install it with
+       ``pip install apache-tvm-ffi-orcjit==0.1.2``. Because this boundary transfers an object
+       file, TVM and the package do not need to use the same LLVM version. MCJIT is no longer
+       supported.
    * - ``CUDAModule``
      - PTX or cubin binary
      - Loaded via CUDA driver API (``cuModuleLoad``). Kernels launched via ``cuLaunchKernel``.

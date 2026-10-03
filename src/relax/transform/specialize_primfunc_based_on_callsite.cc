@@ -69,7 +69,7 @@ class SpecializeTIRCallArgs : ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) override {
     auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     if (call->op.same_as(call_tir_op)) {
       return SpecializeTirPrimFunc(call);
     }
@@ -100,7 +100,7 @@ class SpecializeTIRCallArgs : ExprMutator {
         name = std::string({static_cast<char>('A' + i)});
       }
 
-      const BufferVar& buffer = tirx::decl_buffer(GetShapeFromTensorType(tensor_ty),
+      const BufferVar& buffer = tirx::decl_tensor(GetShapeFromTensorType(tensor_ty),
                                                   tensor_ty->dtype.value(), name, scope);
       param_map.Set(pfunc->params[i], buffer);
     }
@@ -112,7 +112,7 @@ class SpecializeTIRCallArgs : ExprMutator {
         scope = ty->vdevice.value()->memory_scope;
       }
       const BufferVar& buffer =
-          tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(), "ret_val", scope);
+          tirx::decl_tensor(GetShapeFromTensorType(ty), ty->dtype.value(), "ret_val", scope);
       param_map.Set(pfunc->params[pfunc->params.size() - 1], buffer);
     } else {
       TVM_FFI_ICHECK(out_ty->IsInstance<TupleTypeNode>())
@@ -133,7 +133,7 @@ class SpecializeTIRCallArgs : ExprMutator {
           scope = ty->vdevice.value()->memory_scope;
         }
 
-        const BufferVar& buffer = tirx::decl_buffer(GetShapeFromTensorType(ty), ty->dtype.value(),
+        const BufferVar& buffer = tirx::decl_tensor(GetShapeFromTensorType(ty), ty->dtype.value(),
                                                     "ret_val_" + std::to_string(index), scope);
         param_map.Set(pfunc->params[args.size() + index], buffer);
         index++;

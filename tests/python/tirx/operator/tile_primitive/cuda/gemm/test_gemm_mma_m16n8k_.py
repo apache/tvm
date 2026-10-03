@@ -110,24 +110,24 @@ def _build_tiled(Mt, Nt, Kt, kinst, *, beta=0.0, dtype="float16", store=False):
             _cta = T.cta_id([1])
             _warp = T.warp_id([1])
             _lane = T.lane_id([32])
-            A = T.alloc_buffer((M, K), dtype, scope="local", layout=Al)
-            B = T.alloc_buffer((K, N), dtype, scope="local", layout=Bl)
-            C = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
-            D = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
+            A = T.alloc_tensor((M, K), dtype, scope="local", layout=Al)
+            B = T.alloc_tensor((K, N), dtype, scope="local", layout=Bl)
+            C = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
+            D = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
             Tx.warp.gemm(D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=beta)
 
         return gemm
 
     @T.prim_func
-    def gemm(D_g: T.Buffer((M, N), "float32")):
+    def gemm(D_g: T.Tensor((M, N), "float32")):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])
         lane = T.lane_id([32])
-        A = T.alloc_buffer((M, K), dtype, scope="local", layout=Al)
-        B = T.alloc_buffer((K, N), dtype, scope="local", layout=Bl)
-        C = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
-        D = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
+        A = T.alloc_tensor((M, K), dtype, scope="local", layout=Al)
+        B = T.alloc_tensor((K, N), dtype, scope="local", layout=Bl)
+        C = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
+        D = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
         Tx.warp.gemm(D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=beta)
         # Decode D's per-thread registers (c = ((mt*Nt + nt)*2 + rM)*2 + rN)
         # back to logical (M, N) and store, exercising the whole tiling.
@@ -150,10 +150,10 @@ def _build_gemm(alpha=1.0, beta=0.0, dtype="bfloat16"):
         T.device_entry()
         _cta = T.cta_id([1])
         _tid = T.thread_id([32])
-        D = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
-        C = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
-        A = T.alloc_buffer((16, 16), dtype, scope="local", layout=A_FRAG)
-        B = T.alloc_buffer((16, 8), dtype, scope="local", layout=B_FRAG)
+        D = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
+        C = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
+        A = T.alloc_tensor((16, 16), dtype, scope="local", layout=A_FRAG)
+        B = T.alloc_tensor((16, 8), dtype, scope="local", layout=B_FRAG)
         Tx.warp.gemm(D, A, B, C, transpose_A=False, transpose_B=False, alpha=alpha, beta=beta)
 
     return gemm_min
@@ -174,10 +174,10 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
             _cta = T.cta_id([1])
             _warp = T.warp_id([1])
             _lane = T.lane_id([32])
-            A = T.alloc_buffer(A_shape, "float16", scope="local", layout=Al)
-            B = T.alloc_buffer(B_shape, "float16", scope="local", layout=Bl)
-            C = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
-            D = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
+            A = T.alloc_tensor(A_shape, "float16", scope="local", layout=Al)
+            B = T.alloc_tensor(B_shape, "float16", scope="local", layout=Bl)
+            C = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
+            D = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
             Tx.warp.gemm(
                 D,
                 A,
@@ -192,15 +192,15 @@ def _build_transpose(transpose_A, transpose_B, *, store=False):
         return gemm
 
     @T.prim_func
-    def gemm(D_g: T.Buffer((16, 8), "float32")):
+    def gemm(D_g: T.Tensor((16, 8), "float32")):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])
         lane = T.lane_id([32])
-        A = T.alloc_buffer(A_shape, "float16", scope="local", layout=Al)
-        B = T.alloc_buffer(B_shape, "float16", scope="local", layout=Bl)
-        C = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
-        D = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
+        A = T.alloc_tensor(A_shape, "float16", scope="local", layout=Al)
+        B = T.alloc_tensor(B_shape, "float16", scope="local", layout=Bl)
+        C = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
+        D = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         Tx.warp.gemm(
             D,
             A,
@@ -226,10 +226,10 @@ def _build_dtypes(a_dtype, b_dtype, c_dtype, d_dtype):
         T.device_entry()
         _cta = T.cta_id([1])
         _tid = T.thread_id([32])
-        D = T.alloc_buffer((16, 8), d_dtype, scope="local", layout=D_FRAG)
-        C = T.alloc_buffer((16, 8), c_dtype, scope="local", layout=D_FRAG)
-        A = T.alloc_buffer((16, 16), a_dtype, scope="local", layout=A_FRAG)
-        B = T.alloc_buffer((16, 8), b_dtype, scope="local", layout=B_FRAG)
+        D = T.alloc_tensor((16, 8), d_dtype, scope="local", layout=D_FRAG)
+        C = T.alloc_tensor((16, 8), c_dtype, scope="local", layout=D_FRAG)
+        A = T.alloc_tensor((16, 16), a_dtype, scope="local", layout=A_FRAG)
+        B = T.alloc_tensor((16, 8), b_dtype, scope="local", layout=B_FRAG)
         Tx.warp.gemm(D, A, B, C, transpose_A=False, transpose_B=False, alpha=1.0, beta=0.0)
 
     return gemm_min
@@ -253,19 +253,19 @@ def _build_tiled_numeric(Mt, Nt, Kt, kinst, beta, dtype):
 
     @T.prim_func
     def gemm(
-        A_g: T.Buffer((M, K), dtype),
-        B_g: T.Buffer((K, N), dtype),
-        C_g: T.Buffer((M, N), "float32"),
-        D_g: T.Buffer((M, N), "float32"),
+        A_g: T.Tensor((M, K), dtype),
+        B_g: T.Tensor((K, N), dtype),
+        C_g: T.Tensor((M, N), "float32"),
+        D_g: T.Tensor((M, N), "float32"),
     ):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])
         lane = T.lane_id([32])
-        A_f = T.alloc_buffer((M, K), dtype, scope="local", layout=Al)
-        B_f = T.alloc_buffer((K, N), dtype, scope="local", layout=Bl)
-        C_f = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
-        D_f = T.alloc_buffer((M, N), "float32", scope="local", layout=Dl)
+        A_f = T.alloc_tensor((M, K), dtype, scope="local", layout=Al)
+        B_f = T.alloc_tensor((K, N), dtype, scope="local", layout=Bl)
+        C_f = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
+        D_f = T.alloc_tensor((M, N), "float32", scope="local", layout=Dl)
         A_reg = A_f.local(Mt, Kt, kHi_n, 2, KP)
         for mt, kt, kHi, rM, kp in T.grid(Mt, Kt, kHi_n, 2, KP):
             A_reg[mt, kt, kHi, rM, kp] = A_g[
@@ -306,17 +306,17 @@ def _build_transpose_numeric(transpose_A, transpose_B, dtype="float16"):
 
     @T.prim_func
     def gemm(
-        A_g: T.Buffer(A_shape, dtype),
-        B_g: T.Buffer(B_shape, dtype),
-        D_g: T.Buffer((16, 8), "float32"),
+        A_g: T.Tensor(A_shape, dtype),
+        B_g: T.Tensor(B_shape, dtype),
+        D_g: T.Tensor((16, 8), "float32"),
     ):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])
         lane = T.lane_id([32])
-        A_f = T.alloc_buffer(A_shape, dtype, scope="local", layout=Al)
-        B_f = T.alloc_buffer(B_shape, dtype, scope="local", layout=Bl)
-        D_f = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
+        A_f = T.alloc_tensor(A_shape, dtype, scope="local", layout=Al)
+        B_f = T.alloc_tensor(B_shape, dtype, scope="local", layout=Bl)
+        D_f = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(2, 2, 2)
         if transpose_A:
             # A_KM_FRAG: buffer is [K, M].
@@ -441,17 +441,17 @@ def test_cuda_gemm_mma_numerical(dtype):
 
     @T.prim_func
     def gemm(
-        A_g: T.Buffer((16, 16), dtype),
-        B_g: T.Buffer((16, 8), dtype),
-        D_g: T.Buffer((16, 8), "float32"),
+        A_g: T.Tensor((16, 16), dtype),
+        B_g: T.Tensor((16, 8), dtype),
+        D_g: T.Tensor((16, 8), "float32"),
     ):
         T.device_entry()
         _cta = T.cta_id([1])
         _warp = T.warp_id([1])
         lane = T.lane_id([32])
-        A_f = T.alloc_buffer((16, 16), dtype, scope="local", layout=A_FRAG)
-        B_f = T.alloc_buffer((16, 8), dtype, scope="local", layout=B_FRAG)
-        D_f = T.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
+        A_f = T.alloc_tensor((16, 16), dtype, scope="local", layout=A_FRAG)
+        B_f = T.alloc_tensor((16, 8), dtype, scope="local", layout=B_FRAG)
+        D_f = T.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(8)
         for s in T.unroll(8):
             # Physical register order: s = 4*kHi + 2*rM + kp.

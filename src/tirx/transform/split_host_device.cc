@@ -220,7 +220,7 @@ class HostDeviceSplitter : public StmtExprMutator {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
             bool is_handle =
-                var->ty.as<PointerTypeNode>() != nullptr || var->ty.as<BufferTypeNode>() != nullptr;
+                var->ty.as<PointerTypeNode>() != nullptr || var->ty.as<TensorTypeNode>() != nullptr;
             return std::tuple{
                 !is_handle,
                 var->name,
@@ -242,14 +242,14 @@ class HostDeviceSplitter : public StmtExprMutator {
 
     // Buffer Vars are compiler-side values, not ABI values.  Thread their
     // physical pointer projection through the kernel call and recover the
-    // typed buffer at the kernel entry with an explicit DeclBuffer source.
+    // typed buffer at the kernel entry with an explicit DeclTensor source.
     ffi::Array<Var> kernel_params;
     ffi::Array<Expr> call_args;
     ffi::Map<Var, Var> buffer_data_params;
     auto kernel_rewriter = ffi::make_object<StmtExprMutator>();
     for (const Var& param : params) {
-      if (param->ty.as<BufferTypeNode>()) {
-        BufferVar buffer(param);
+      if (param->ty.as<TensorTypeNode>()) {
+        BufferVar buffer = param.as_or_throw<BufferVar>();
         BufferVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
         Var data_param(buffer.name() + "_ptr", buffer.DataPointerType());
         kernel_params.push_back(data_param);
@@ -287,7 +287,13 @@ class HostDeviceSplitter : public StmtExprMutator {
           << "Undefined buffer " << buf.name() << " was not captured as a kernel parameter";
       TVM_FFI_ICHECK(kernel_buffer != nullptr);
       body = SeqStmt::Flatten(
-          DeclBuffer(kernel_buffer.as_or_throw<BufferVar>(), data_param.value()), std::move(body));
+          Bind(kernel_buffer.as_or_throw<BufferVar>(),
+               Call(kernel_buffer.as_or_throw<BufferVar>().type(), builtin::decl_tensor(),
+                    {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<BufferVar>()->shape),
+                     DataTypeImm(kernel_buffer.as_or_throw<BufferVar>()->dtype->dtype),
+                     StringImm(kernel_buffer.as_or_throw<BufferVar>().scope())},
+                    {})),
+          std::move(body));
     }
     auto launch_bounds_attr = ffi::make_object<LaunchBoundsAttrExtractor>();
     body = launch_bounds_attr->Extract(std::move(body));
@@ -480,6 +486,9 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(builtin::alloc_tensor()))
+      return DispatchAllocTensor(op, call);
     // Track Bind definitions so that thread_extent values and
     // dyn_shmem_size expressions that reference locally-bound
     // variables (e.g. CSE variables) can be inlined back to
@@ -545,8 +554,9 @@ class DeviceInfoCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    auto storage_scope = runtime::StorageScope::Create(op->buffer.scope());
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    auto storage_scope = runtime::StorageScope::Create(scope);
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {
       TVM_FFI_ICHECK(!saw_dyn_shared_alloc_)
           << "Only one dynamic shared memory allocation is allowed.";
@@ -556,12 +566,15 @@ class DeviceInfoCollector : public StmtExprVisitor {
       // no tirx.dyn_smem_bytes declaration is present (e.g. s_tir schedules
       // allocate shared.dyn with a concrete extent). A zero extent is a
       // pool-style extern placeholder and carries no size information.
-      TVM_FFI_ICHECK_GT(op->buffer->shape.size(), 0);
+      tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+      DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+      PrimType element_type(dtype);
+      TVM_FFI_ICHECK_GT(shape->fields.size(), 0);
       PrimExpr dyn_size = IntImm::Int32(1);
-      for (const auto& extent : op->buffer->shape) {
-        dyn_size *= extent;
+      for (const auto& extent : shape->fields) {
+        dyn_size *= extent.as_or_throw<PrimExpr>();
       }
-      dyn_size *= IntImm::Int64(static_cast<int64_t>(op->buffer->dtype.StorageBytes()));
+      dyn_size *= IntImm::Int64(static_cast<int64_t>(element_type.StorageBytes()));
       if (bind_map_.size()) {
         auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
           if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));

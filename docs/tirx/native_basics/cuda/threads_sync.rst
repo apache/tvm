@@ -46,7 +46,7 @@ A complete, runnable example — a warp all-reduce via ``Tx.tvm_warp_shuffle_xor
 .. code-block:: python
 
     @Tx.prim_func
-    def warp_reduce(A: Tx.Buffer((32,), "float32", align=16)):
+    def warp_reduce(A: Tx.Tensor((32,), "float32", align=16)):
 
         Tx.device_entry()
         cta_id = Tx.cta_id([1])
@@ -86,7 +86,7 @@ source string with ``Tx.cuda.func_call(name, *args, source_code=..., return_type
 
 
     @Tx.prim_func
-    def k(A: Tx.Buffer((256,), "float32"), B: Tx.Buffer((256,), "float32")):
+    def k(A: Tx.Tensor((256,), "float32"), B: Tx.Tensor((256,), "float32")):
 
         Tx.device_entry()
         bx = Tx.cta_id([1])

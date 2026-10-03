@@ -29,6 +29,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/transform.h>
 
@@ -47,9 +48,9 @@ std::string GetStorageScope(const Var& var) {
 }
 
 /*!
- * \brief Allocation calculator for AllocBufferNode.
+ * \brief Allocation calculator for buffer allocation bindings.
  */
-class AllocBufferCalculator : public StmtExprVisitor {
+class AllocTensorCalculator : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
 
@@ -63,15 +64,25 @@ class AllocBufferCalculator : public StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) override {
-    std::string storage_scope = op->buffer.scope();
-    auto search = _current_size.find(storage_scope);
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return DispatchAllocTensor(op, call);
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
+    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    auto search = _current_size.find(scope);
     if (search == _current_size.end()) {
-      _current_size[storage_scope] = 0;
-      _max_size[storage_scope] = 0;
+      _current_size[scope] = 0;
+      _max_size[scope] = 0;
     }
     int64_t size = 1;
-    for (const PrimExpr& e : op->buffer->shape) {
+    for (const Expr& e : shape->fields) {
       if (auto* imm = e.as<IntImmNode>()) {
         size = static_cast<int64_t>(size * imm->value);
       } else {
@@ -79,9 +90,9 @@ class AllocBufferCalculator : public StmtExprVisitor {
         break;
       }
     }
-    size *= static_cast<int64_t>(op->buffer->dtype.StorageBytes());
-    _current_size[storage_scope] += size;
-    _max_size[storage_scope] = std::max(_current_size[storage_scope], _max_size[storage_scope]);
+    size *= static_cast<int64_t>(PrimType(dtype).StorageBytes());
+    _current_size[scope] += size;
+    _max_size[scope] = std::max(_current_size[scope], _max_size[scope]);
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override {
@@ -109,7 +120,7 @@ class AllocBufferCalculator : public StmtExprVisitor {
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
     const PrimFunc& func) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
-  auto alloc_buffer_result = ffi::make_object<AllocBufferCalculator>()->operator()(func);
+  auto alloc_buffer_result = ffi::make_object<AllocTensorCalculator>()->operator()(func);
   results.Set("main", alloc_buffer_result);
   return results;
 }
@@ -121,7 +132,7 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAlloca
     if (auto prim_func = kv.second.as<tirx::PrimFunc>()) {
       ffi::String func_name = kv.first->name_hint;
       auto alloc_buffer_result =
-          ffi::make_object<AllocBufferCalculator>()->operator()(prim_func.value());
+          ffi::make_object<AllocTensorCalculator>()->operator()(prim_func.value());
       results.Set(func_name, alloc_buffer_result);
     }
   }

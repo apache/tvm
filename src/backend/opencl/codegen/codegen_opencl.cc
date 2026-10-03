@@ -47,8 +47,8 @@ const VarNode* TryUnwrapTextureVar(const Expr& texture) {
       call && call->op.same_as(tirx::builtin::buffer_data())) {
     TVM_FFI_ICHECK_EQ(call->args.size(), 1U);
     const auto* buffer = call->args[0].as<VarNode>();
-    TVM_FFI_ICHECK(buffer && buffer->ty.as<BufferTypeNode>())
-        << "buffer_data expects a Var with BufferType";
+    TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
+        << "buffer_data expects a Var with TensorType";
     return buffer;
   }
   return nullptr;
@@ -92,10 +92,13 @@ class InferTextureAccess : public StmtExprVisitor {
     }
     return storage_scope_qualifiers;
   }
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-    if (const VarNode* source = TryUnwrapTextureVar(op->data)) {
-      auto it = buffer_data_map_.find(source);
-      buffer_data_map_[op->buffer.get()] = it == buffer_data_map_.end() ? source : it->second;
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::decl_tensor())) {
+      if (const VarNode* source = TryUnwrapTextureVar(call->args[0])) {
+        auto it = buffer_data_map_.find(source);
+        buffer_data_map_[op->var.get()] = it == buffer_data_map_.end() ? source : it->second;
+      }
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -445,16 +448,26 @@ std::string CodeGenOpenCL::CastTo(std::string value, const PrimType& target) {
   }
 }
 
-void CodeGenOpenCL::Dispatch_(const AllocBufferNode* op) {
+void CodeGenOpenCL::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+  }
+  CodeGenC::Dispatch_(op);
+}
+
+void CodeGenOpenCL::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
   // Compute constant_size from buffer shape
   size_t constant_size = 1;
-  for (const auto& dim : op->buffer->shape) {
+  for (const auto& dim : shape->fields) {
     const IntImmNode* dim_imm = dim.as<IntImmNode>();
     TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation for now";
     constant_size *= dim_imm->value.as<size_t>().value();
   }
-  allocation_size_.insert({op->buffer.get(), constant_size * op->buffer->dtype.lanes()});
-  CodeGenC::Dispatch_(op);
+  allocation_size_.insert({buffer.get(), constant_size * PrimType(dtype).lanes()});
+  CodeGenC::DispatchAllocTensor(op, buffer_call);
 }
 
 void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {

@@ -32,7 +32,7 @@ shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store
 .. code-block:: python
 
     @Tx.prim_func
-    def dtypes(A: Tx.Buffer((256,), "float32"), O: Tx.Buffer((256,), "float32")):
+    def dtypes(A: Tx.Tensor((256,), "float32"), O: Tx.Tensor((256,), "float32")):
 
         Tx.device_entry()
         bx = Tx.cta_id([1])
@@ -100,8 +100,8 @@ Pointers (``handle``)
 A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
 **immutable** (a pointer is never reassigned). That shapes how you obtain one:
 
-- ``Tx.alloc_buffer(...)`` allocates storage **and** defines its ``data`` pointer.
-- ``Tx.decl_buffer(..., data=ptr)`` declares a buffer over an existing pointer
+- ``Tx.alloc_tensor(...)`` allocates storage **and** defines its ``data`` pointer.
+- ``Tx.decl_tensor(..., data=ptr)`` declares a buffer over an existing pointer
   ``Var`` ``ptr``.
 - To back a buffer with a pointer **expression** — e.g. ``Tx.ptx.mapa`` giving
   another cluster CTA's shared address — convert the ``uint64`` address the
@@ -118,7 +118,7 @@ A buffer's ``data`` — its pointer — is a ``Var`` of pointer type, and it is
       Tx.ptx.mapa.u64(mapped[0], mbar.ptr_to([0]), Tx.uint32(0))
       ptr_ty = PointerType(PrimType("uint64"), "shared")
       ptr = Tx.reinterpret(ptr_ty, mapped[0])
-      remote_mbar = Tx.decl_buffer([1], "uint64", data=ptr, scope="shared")
+      remote_mbar = Tx.decl_tensor([1], "uint64", data=ptr, scope="shared")
 
   Pointer bindings cannot be reassigned; use a new name for a different
   pointer value.

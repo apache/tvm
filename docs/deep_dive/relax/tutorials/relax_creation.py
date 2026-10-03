@@ -77,7 +77,7 @@ m = T.dynamic("m", "int64")
 @I.ir_module
 class RelaxModuleWithTIR:
     @Ts.prim_func
-    def relu(X: T.Buffer((n, m), "float32"), Y: T.Buffer((n, m), "float32")):
+    def relu(X: T.Tensor((n, m), "float32"), Y: T.Tensor((n, m), "float32")):
         for i, j in T.grid(n, m):
             with Ts.sblock("relu"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -170,10 +170,10 @@ K = T.dynamic("K", "int64")
 
 @Ts.prim_func
 def tir_linear(
-    X: T.Buffer((M, K), "float32"),
-    W: T.Buffer((N, K), "float32"),
-    B: T.Buffer((N,), "float32"),
-    Z: T.Buffer((M, N), "float32"),
+    X: T.Tensor((M, K), "float32"),
+    W: T.Tensor((N, K), "float32"),
+    B: T.Tensor((N,), "float32"),
+    Z: T.Tensor((M, N), "float32"),
 ):
     for i, j, k in T.grid(M, N, K):
         with Ts.sblock("linear"):

@@ -30,6 +30,7 @@
 #include <tvm/s_tir/transform.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 
 #include <queue>
 #include <unordered_map>
@@ -344,7 +345,12 @@ class HoistInfoCollector : public StmtExprVisitor {
     if (active_loops.size()) {
       int non_bind_count = 0;
       for (size_t i = 0; i < op->seq.size(); ++i) {
-        if (!op->seq[i].as<BindNode>()) {
+        const auto* bind = op->seq[i].as<BindNode>();
+        if (!bind) {
+          non_bind_count++;
+        } else if (const auto* call = bind->value.as<CallNode>();
+                   call && (call->op.same_as(tirx::builtin::alloc_tensor()) ||
+                            call->op.same_as(tirx::builtin::decl_tensor()))) {
           non_bind_count++;
         }
       }

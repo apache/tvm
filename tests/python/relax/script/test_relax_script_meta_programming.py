@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TypeVar
 
 import pytest
@@ -60,8 +61,8 @@ def test_emit_te_primfunc_attrs():
     class TestModule:
         @Ts.prim_func(private=True)
         def plus_one(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"some_attr": "foo", "another_attr": True, "tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -172,7 +173,7 @@ def test_inline_prim_func():
             def f(x: R.Tensor((128, 128), "float32"), y: R.Tensor((128, 128), "float32")):
                 @Ts.prim_func
                 def my_matmul(
-                    A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+                    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
                 ) -> None:
                     for i, j, k in T.grid(128, 128, 128):
                         with Ts.sblock():
@@ -241,9 +242,9 @@ def test_context_aware_parsing(monkeypatch):
     class Module:
         @Ts.prim_func
         def add(
-            X: T.Buffer([T.int64(2), T.int64(4)], "float32"),
-            Y: T.Buffer((), "float32"),
-            Z: T.Buffer([T.int64(2), T.int64(4)], "float32"),
+            X: T.Tensor([T.int64(2), T.int64(4)], "float32"),
+            Y: T.Tensor((), "float32"),
+            Z: T.Tensor([T.int64(2), T.int64(4)], "float32"),
         ):
             T.evaluate(0)
 
@@ -425,6 +426,7 @@ def test_define_relax_function_using_global_var():
     tvm.ir.assert_structural_equal(DefinedAllAtOnce, MainDefinedLater)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_shared_meta_var_uses_ordinary_relax_bindings():
     """Identity calls retain ordinary fresh Relax bindings and strict roundtrip."""
 

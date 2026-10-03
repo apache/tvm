@@ -211,12 +211,12 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   void Dispatch_(const BreakNode* op) override;
   void Dispatch_(const ContinueNode* op) override;
   void Dispatch_(const IfThenElseNode* op) override;
-  void Dispatch_(const AllocBufferNode* op) override;
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const EvaluateNode* op) override;
   void Dispatch_(const SeqStmtNode* op) override;
-  void Dispatch_(const DeclBufferNode* op) override;
+  void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
 
   /*!
    * \brief Print expr representing the thread tag

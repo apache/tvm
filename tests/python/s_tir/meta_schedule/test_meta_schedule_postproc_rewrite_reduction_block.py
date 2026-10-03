@@ -51,7 +51,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 @tvm.script.ir_module
 class Matmul_before_rewrite:
     @Ts.prim_func
-    def main(A: T.Buffer([512, 512], dtype='float32'), B: T.Buffer([512, 512], dtype='float32'), C: T.Buffer([512, 512], dtype='float32')) -> None:
+    def main(A: T.Tensor([512, 512], dtype='float32'), B: T.Tensor([512, 512], dtype='float32'), C: T.Tensor([512, 512], dtype='float32')) -> None:
 
         C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
         A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
@@ -100,7 +100,7 @@ class Matmul_before_rewrite:
 @tvm.script.ir_module
 class Matmul_after_rewrite:
     @Ts.prim_func
-    def main(A: T.Buffer([512, 512], dtype='float32'), B: T.Buffer([512, 512], dtype='float32'), C: T.Buffer([512, 512], dtype='float32')) -> None:
+    def main(A: T.Tensor([512, 512], dtype='float32'), B: T.Tensor([512, 512], dtype='float32'), C: T.Tensor([512, 512], dtype='float32')) -> None:
 
         C_local = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="local")
         A_shared = Ts.sblock_alloc_buffer([512, 512], dtype="float32", scope="shared")
@@ -154,7 +154,7 @@ class Matmul_after_rewrite:
 @tvm.script.ir_module
 class Softmax_cross_thread_reduction:
     @Ts.prim_func
-    def main(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
+    def main(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T_softmax_maxelem_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
         T_softmax_expsum_shared = Ts.sblock_alloc_buffer([256], dtype="float32", scope="shared")
         for i0 in T.serial(256):
@@ -177,7 +177,7 @@ class Softmax_cross_thread_reduction:
                         Ts.writes(T_softmax_expsum_shared[i0_2])
                         with Ts.init():
                             T_softmax_expsum_shared[i0_2] = T.float32(0)
-                        T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32")
+                        T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(A[i0_2, k] - T_softmax_maxelem_shared[i0_2])
             for i1_0 in T.serial(8):
                 for i1_1 in T.thread_binding(32, thread="threadIdx.x"):
                     with Ts.sblock("T_softmax_norm"):
@@ -186,7 +186,7 @@ class Softmax_cross_thread_reduction:
                         Ts.reads(A[i0_3, i1], T_softmax_maxelem_shared[i0_3], T_softmax_expsum_shared[i0_3])
                         Ts.writes(T_softmax_norm[i0_3, i1])
                         Ts.sblock_attr({"axis":1})
-                        T_softmax_norm[i0_3, i1] = T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3], dtype="float32") / T_softmax_expsum_shared[i0_3]
+                        T_softmax_norm[i0_3, i1] = T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3]) / T_softmax_expsum_shared[i0_3]
 
 # pylint: enable=no-member,invalid-name,unused-variable,no-self-argument,line-too-long,chained-comparison,not-callable,too-many-nested-blocks
 # fmt: on

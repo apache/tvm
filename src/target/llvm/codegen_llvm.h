@@ -244,13 +244,13 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   void Dispatch_(const BreakNode* op) override;
   void Dispatch_(const ContinueNode* op) override;
   void Dispatch_(const IfThenElseNode* op) override;
-  void Dispatch_(const AllocBufferNode* op) override;
+  void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const BindNode* op) override;
   void Dispatch_(const SeqStmtNode* op) override;
   void Dispatch_(const EvaluateNode* op) override;
-  void Dispatch_(const DeclBufferNode* op) override;
+  void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
 
   // Get constant string
   llvm::Constant* GetConstString(const std::string& str);
@@ -563,7 +563,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
   // The definition of local variable.
   std::unordered_map<const VarNode*, llvm::Value*> var_map_;
-  // Canonical physical storage identity for DeclBuffer aliases.
+  // Canonical physical storage identity for DeclTensor aliases.
   std::unordered_map<const VarNode*, const VarNode*> buffer_physical_root_;
   // global strings
   std::unordered_map<std::string, llvm::Constant*> str_map_;

@@ -147,10 +147,10 @@ ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const Pri
   auto buffer_access_map = visitor->GetAccessedBufferRegions();
   ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> ret;
   for (auto& var : func->params) {
-    if (!var->ty.as<BufferTypeNode>()) {
+    if (!var->ty.as<TensorTypeNode>()) {
       continue;
     }
-    BufferVar buffer(var);
+    BufferVar buffer = var.as_or_throw<BufferVar>();
     auto& access = buffer_access_map[buffer.get()];
     ffi::Array<ffi::Array<IntSet>> loads, stores, combined;
     for (std::vector<IntSet>& touch : std::get<LoadAccess>(access).set) {

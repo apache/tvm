@@ -68,15 +68,15 @@ A single thread reduces a 4-element ``float32`` local vector to a scalar
 
     @Tx.prim_func
     def test_func(
-        A: Tx.Buffer([4], "float32", layout=TileLayout(S[4,])),
-        B: Tx.Buffer([1], "float32", layout=TileLayout(S[1,])),
+        A: Tx.Tensor([4], "float32", layout=TileLayout(S[4,])),
+        B: Tx.Tensor([1], "float32", layout=TileLayout(S[1,])),
     ):
 
         Tx.device_entry()
         Tx.cta_id([1])
         Tx.thread_id([1])
-        A_local = Tx.alloc_buffer([4], "float32", scope="local")
-        B_local = Tx.alloc_buffer([1], "float32", scope="local")
+        A_local = Tx.alloc_tensor([4], "float32", scope="local")
+        B_local = Tx.alloc_tensor([1], "float32", scope="local")
         for i in Tx.serial(4):
             A_local[i] = A[i]
         Tx.tile.sum(B_local, A_local, accum=False)  # reduction local dispatch

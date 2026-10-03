@@ -16,560 +16,439 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/device_api.h>  // For `kAllocAlignment`
-#include <tvm/s_tir/stmt.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ir/op.h>
+#include <tvm/ir/prim/op.h>
+#include <tvm/ir/prim/vector_expr.h>
+#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/layout.h>
 
 #include <algorithm>
+#include <optional>
 #include <utility>
+#include <vector>
 
-#include "./utils.h"
+#include "../../../script/printer/ir/utils.h"
+#include "utils.h"
 
 namespace tvm {
 namespace script {
-
 namespace printer {
+namespace details {
 
-ffi::Map<ffi::String, ExprDoc> BufferAttrs(tirx::BufferVar buffer, const AccessPath& buffer_p,
-                                           const Frame& frame, const IRDocsifier& d,
-                                           BufferVarDefinition var_definitions,
-                                           ffi::Optional<Expr> data = std::nullopt) {
-  using tvm::tirx::Var;
-  using tvm::tirx::VarNode;
-  ffi::Map<ffi::String, ExprDoc> kwargs;
-  ffi::Array<ExprDoc> var_def_lhs;
-  ffi::Array<ExprDoc> var_def_rhs;
+bool IsScalarBuffer(DocTranslatorObj* d, const Expr& source) {
+  auto var = source.as<Var>();
+  if (!var.has_value()) return false;
+  IdDoc id = d->VarGetOrAllocId(var.value(), false);
+  auto column = d->GetOrCreateExtraState<ffi::Dict<IdDoc, bool>>("tirx.buffer_as_mutable_var");
+  auto found = column.find(id);
+  return found != column.end() && (*found).second;
+}
 
-  // Step 0. Set up statistics
-  std::unordered_map<const ffi::Object*, int> use_count;
-  std::unordered_set<const ffi::Object*> def_seen;
-  auto count_buffer_var = [&](const Var& var,
-                              TVMFFIDefRegionKind kind) -> ffi::Expected<ffi::WalkResult> {
-    if (kind != kTVMFFIDefRegionKindNone) {
-      if (!def_seen.insert(var.get()).second) {
-        return ffi::WalkResult::Skip();
-      }
-      return ffi::WalkResult::Advance();
-    }
-    ++use_count[var.get()];
-    return ffi::WalkResult::Advance();
-  };
-  ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buffer, count_buffer_var);
-  if (data.has_value()) {
-    auto count_data_var = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-      ++use_count[var.get()];
-      return ffi::WalkResult::Advance();
-    };
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(data.value(), count_data_var);
+namespace {
+
+ffi::Optional<ExprDoc> BufferOperationDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                   const ffi::Object* destination) {
+  const auto* call =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
+  // Surface buffer constructors emit a binding, so they cannot replace an
+  // allocation expression nested inside another Call or statement.
+  if (!destination) return RawCall(d, call);
+  TVM_FFI_CHECK(destination->IsInstance<VarNode>(), TypeError)
+      << "Buffer operation destination must be a variable";
+  auto var = ffi::GetRef<Var>(static_cast<const VarNode*>(destination));
+  if (!ffi::StructuralEqual()(var->ty, call->ty)) return RawCall(d, call);
+  bool is_alloc = call->op.same_as(tirx::builtin::alloc_tensor());
+  size_t shape_index = is_alloc ? 0 : 1;
+  auto buffer = call->ty.as<tirx::TensorType>();
+  if (!buffer || call->args.size() != shape_index + 3 || !call->ty_args.empty() ||
+      call->attrs.defined() != is_alloc ||
+      (call->attrs.defined() && !call->attrs.as<DictAttrsNode>())) {
+    return RawCall(d, call);
   }
-  auto is_new_var = [&](const Expr& e) { return e->IsInstance<VarNode>() && !d->IsVarDefined(e); };
-  auto add_out_of_line_var_def = [&](const Var& var, const AccessPath& var_p) {
-    TVM_FFI_ICHECK(!d->IsVarDefined(var));
-    ExprDoc lhs = DefineVar(var, frame, d);
-    lhs->source_paths.push_back(var_p);
-    var_def_lhs.push_back(lhs);
-    var_def_rhs.push_back(PrintVarCreation(var, var_p, d));
-  };
-  auto try_inline_def = [&](const Expr& e, const AccessPath& e_p,
-                            std::function<ExprDoc()> inline_f) {
-    TVM_FFI_ICHECK(is_new_var(e));
-    Var var = e.as_or_throw<Var>();
-    if (use_count[var.get()] == 1) {
-      d->Define(e, frame, inline_f);
-      return true;
-    } else {
-      add_out_of_line_var_def(var, e_p);
-      return false;
-    }
-  };
-  // Step 1. Handle `buffer.shape`
-  {
-    const ffi::Array<PrimExpr>& shape = buffer->shape;
-    AccessPath shape_p = buffer_p->Attr("shape");
-    int n = shape.size();
-    ffi::Array<ExprDoc> results;
-    results.reserve(n);
-    for (int i = 0; i < n; ++i) {
-      PrimExpr e = shape[i];
-      AccessPath e_p = shape_p->ArrayItem(i);
-      bool was_undefined = is_new_var(e);
-      if (was_undefined) {
-        add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
-      }
-      results.push_back(d->AsDoc<ExprDoc>(e, e_p));
-    }
-    kwargs.Set("shape", TupleDoc(results));
+  auto shape = call->args[shape_index].as<TupleNode>();
+  auto dtype = call->args[shape_index + 1].as<DataTypeImmNode>();
+  auto scope = call->args[shape_index + 2].as<StringImmNode>();
+  if (!shape || !dtype || !scope || !ffi::StructuralEqual()(shape->fields, buffer.value()->shape) ||
+      dtype->value != buffer.value()->dtype->dtype ||
+      scope->value != buffer.value()->storage_scope || scope->value.empty() ||
+      buffer.value()->data_alignment <= 0 || buffer.value()->offset_factor == 0) {
+    return RawCall(d, call);
   }
-  // Step 2. Handle `buffer.dtype`
-  {
-    DLDataType default_buf_dtype = d->cfg->buffer_dtype;
-    if (buffer->dtype->dtype != default_buf_dtype) {
-      kwargs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, buffer_p->Attr("dtype")));
+  ffi::Map<ffi::String, ffi::Any> annotations;
+  if (is_alloc) annotations = call->attrs.as_or_throw<DictAttrs>()->dict;
+  for (const auto& [key, value] : annotations) {
+    if (value.type_index() == ffi::TypeIndex::kTVMFFIInt ||
+        value.type_index() == ffi::TypeIndex::kTVMFFIBool ||
+        value.type_index() == ffi::TypeIndex::kTVMFFIFloat) {
+      return RawCall(d, call);
     }
   }
-  // Step 3. Handle `buffer.data`
-  // For tmem scope, DeclBuffer does not accept `data` (it auto-creates the data var).
-  bool is_tmem_scope = buffer.scope() == "tmem";
-  bool is_inline_data = false;
-  if (!is_tmem_scope && data.has_value()) {
-    Expr source = data.value();
-    if (is_new_var(source)) {
-      if (var_definitions >= BufferVarDefinition::DataPointer) {
-        is_inline_data = try_inline_def(source, buffer_p->Attr("data"), [=]() {
-          return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("data");
-        });
-      } else {
-        add_out_of_line_var_def(source.as_or_throw<Var>(), buffer_p->Attr("data"));
-      }
+  ffi::Optional<Expr> data = is_alloc ? std::nullopt : ffi::Optional<Expr>(call->args[0]);
+  if (!buffer.value()->allocated_addr.empty() &&
+      (!ffi::StructuralEqual()(buffer.value()->elem_offset,
+                               IntImm(PrimType(buffer.value()->DefaultIndexType()), 0)) ||
+       buffer.value()->offset_factor != 1 || (!is_alloc && scope->value != "tmem"))) {
+    return RawCall(d, call);
+  }
+  if (!is_alloc && scope->value == "tmem") {
+    const auto* pointer = data.value().as<CallNode>();
+    if (buffer.value()->allocated_addr.size() != 1 || !pointer ||
+        !pointer->op.same_as(tirx::builtin::reinterpret()) || pointer->args.size() != 1 ||
+        pointer->attrs.defined() || !pointer->ty_args.empty() ||
+        !ffi::StructuralEqual()(pointer->ty, buffer.value()->DataPointerType()) ||
+        !ffi::StructuralEqual()(pointer->args[0], buffer.value()->allocated_addr[0])) {
+      return RawCall(d, call);
     }
-    if (!is_inline_data) {
-      kwargs.Set("data", d->AsDoc<ExprDoc>(source, buffer_p->Attr("data")));
-    }
+    data = std::nullopt;
+  } else if (!is_alloc) {
+    const auto* pointer = data.value()->ty.as<PointerTypeNode>();
+    if (!pointer || pointer->storage_scope != scope->value) return RawCall(d, call);
   }
-  // Step 4. Handle `buffer.strides`
-  if (!buffer->strides.empty()) {
-    const ffi::Array<PrimExpr>& strides = buffer->strides;
-    AccessPath strides_p = buffer_p->Attr("strides");
-    int n = strides.size();
-    ffi::Array<ExprDoc> results;
-    results.reserve(n);
-    for (int i = 0; i < n; ++i) {
-      PrimExpr e = strides[i];
-      AccessPath e_p = strides_p->ArrayItem(i);
-      if (is_new_var(e)) {
-        add_out_of_line_var_def(e.as_or_throw<Var>(), e_p);
-      }
-      results.push_back(d->AsDoc<ExprDoc>(e, e_p));
-    }
-    kwargs.Set("strides", TupleDoc(results));
-  }
-  // Step 5. Handle `buffer.elem_offset`
-  bool needs_print_factor = false;
-  if (const auto* int_imm = buffer->elem_offset.as<IntImmNode>()) {
-    if (int_imm->value != 0 ||
-        int_imm->ty.as_or_throw<PrimType>()->dtype != buffer->DefaultIndexType()) {
-      kwargs.Set("elem_offset",
-                 d->AsDoc<ExprDoc>(buffer->elem_offset, buffer_p->Attr("elem_offset")));
-    }
-  } else if (is_new_var(buffer->elem_offset)) {
-    try_inline_def(buffer->elem_offset, buffer_p->Attr("elem_offset"),
-                   [=]() { return d->AsDoc<ExprDoc>(buffer, buffer_p)->Attr("elem_offset"); });
-    needs_print_factor = true;
-  } else {
-    kwargs.Set("elem_offset",
-               d->AsDoc<ExprDoc>(buffer->elem_offset, buffer_p->Attr("elem_offset")));
-  }
-  // Step 6. Handle `buffer.scope`
-  {
-    ffi::String scope = buffer.scope();
-    if (scope != "global") {
-      kwargs.Set("scope",
-                 LiteralDoc::Str(scope, buffer_p->Attr("data")->Attr("ty")->Attr("storage_scope")));
-    }
-  }
-  // Step 7. Handle `buffer.data_alignment`
-  if (buffer->data_alignment != runtime::kAllocAlignment) {
-    kwargs.Set("align", LiteralDoc::Int(buffer->data_alignment, buffer_p->Attr("data_alignment")));
-  }
-  // Step 8. Handle `buffer.offset_factor`
-  if (needs_print_factor || buffer->offset_factor != 1) {
-    kwargs.Set("offset_factor",
-               LiteralDoc::Int(buffer->offset_factor, buffer_p->Attr("offset_factor")));
-  }
-  // Step 9. Handle `buffer.layout`. Track the enclosing PrimFunc's `s_tir`
-  // attr: S-TIR construction uses layout=None by default, while TIRx
-  // construction uses DefaultLayout(shape). Mirror
-  // that here so the implicit default is omitted and the non-default value
-  // is emitted explicitly (round-trips safely under `StructuralEqual`).
-  bool enclosing_s_tir = false;
-  for (const auto& f : d->frames) {
-    if (const auto* tir_f = f.as<TIRFrameNode>()) {
-      if (auto func = tir_f->tirx.as<tirx::PrimFuncNode>()) {
-        if (func->attrs->dict.count(tvm::attr::kSTir)) {
-          enclosing_s_tir = true;
-        }
+  CallDoc rhs = d->Translate(buffer.value()).value().as_or_throw<CallDoc>();
+  if (rhs->callee.as_or_throw<AttrAccessDoc>()->name != "Tensor") return RawCall(d, call);
+  ffi::String method = is_alloc ? "alloc_tensor" : "decl_tensor";
+  if (is_alloc && (scope->value == "local" || scope->value == "shared")) {
+    method = scope->value == "local" ? "alloc_local" : "alloc_shared";
+    for (size_t i = 0; i < rhs->kwargs_keys.size(); ++i) {
+      if (rhs->kwargs_keys[i] == "scope") {
+        rhs->kwargs_keys.erase(rhs->kwargs_keys.begin() + i);
+        rhs->kwargs_values.erase(rhs->kwargs_values.begin() + i);
         break;
       }
     }
   }
+  rhs->callee = NamespaceDoc("tirx")->Attr(method);
+  if (data.has_value()) {
+    rhs->kwargs_keys.insert(rhs->kwargs_keys.begin(), "data");
+    rhs->kwargs_values.insert(rhs->kwargs_values.begin(), d->Translate(data.value()).value());
+  }
+  if (!annotations.empty()) {
+    CallDoc doc = rhs.as_or_throw<CallDoc>();
+    doc->kwargs_keys.push_back("annotations");
+    doc->kwargs_values.push_back(AnyValue(d, annotations));
+  }
+  IdDoc lhs = VarDoc(d, var);
+  AssignDoc allocation(lhs, rhs, std::nullopt);
+  if (is_alloc && d->GetExtraConfig<bool>("tirx.scalar_buffer_as_mutable_var", true) &&
+      annotations.empty() && scope->value == "local" && buffer.value()->IsScalar(true)) {
+    ExprDoc annotation = d->Translate(buffer.value()->dtype).value();
+    // T.bool is a type annotation but has no mutable-declaration syntax.
+    if (annotation.as<AttrAccessDoc>() && !buffer.value()->dtype.MatchesCode(kDLBool)) {
+      auto scalars = d->GetOrCreateExtraState<ffi::Dict<IdDoc, bool>>("tirx.buffer_as_mutable_var");
+      scalars.Set(d->VarGetOrAllocId(var, true), true);
+      allocation->rhs = std::nullopt;
+      allocation->annotation = annotation;
+    }
+  }
+  d->Emit(allocation, ffi::GetRef<Call>(call));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  for (const char* name : {"tirx.alloc_tensor", "tirx.decl_tensor"}) {
+    OpDef(name).set_attr<FDocTranslate>(kOpCallDocTranslate,
+                                        FDocTranslate::FromNative<&BufferOperationDocTranslate>());
+  }
+}
+
+ffi::Optional<ExprDoc> TensorTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* buffer =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TensorTypeNode>(input);
+  bool default_offset =
+      ffi::StructuralEqual()(buffer->elem_offset, IntImm(PrimType(buffer->DefaultIndexType()), 0));
+  // The buffer type constructor normalizes these fields and constrains allocated addresses.
+  // Keep the explicit type constructor when that normalization would change the IR.
+  if (buffer->storage_scope.empty() || buffer->data_alignment <= 0 || buffer->offset_factor == 0 ||
+      (!buffer->allocated_addr.empty() && (!default_offset || buffer->offset_factor != 1))) {
+    return NamespaceDoc("ir")
+        ->Attr("make_node")
+        ->Call({LiteralDoc::Str("tirx.TensorType", std::nullopt)},
+               {"dtype", "storage_scope", "shape", "strides", "elem_offset", "data_alignment",
+                "offset_factor", "layout", "allocated_addr"},
+               {TypeValue(d, buffer->dtype, false),
+                LiteralDoc::Str(buffer->storage_scope, std::nullopt), AnyValue(d, buffer->shape),
+                AnyValue(d, buffer->strides), d->Translate(buffer->elem_offset).value(),
+                LiteralDoc::Int(buffer->data_alignment, std::nullopt),
+                LiteralDoc::Int(buffer->offset_factor, std::nullopt),
+                buffer->layout.has_value() ? d->Translate(buffer->layout.value()).value()
+                                           : LiteralDoc::None(std::nullopt),
+                AnyValue(d, buffer->allocated_addr)});
+  }
+  ffi::Array<ExprDoc> shape;
+  for (const PrimExpr& extent : buffer->shape) shape.push_back(d->Translate(extent).value());
+  ffi::Array<ffi::String> keys;
+  ffi::Array<ExprDoc> values;
+  if (buffer->storage_scope != "global") {
+    keys.push_back("scope");
+    values.push_back(LiteralDoc::Str(buffer->storage_scope, std::nullopt));
+  }
+  if (!buffer->strides.empty()) {
+    ffi::Array<ExprDoc> strides;
+    for (const PrimExpr& stride : buffer->strides) strides.push_back(d->Translate(stride).value());
+    keys.push_back("strides");
+    values.push_back(TupleDoc(strides));
+  }
+  // A nondefault offset_factor makes an omitted offset symbolic in the parser.
+  if (buffer->allocated_addr.empty() && (!default_offset || buffer->offset_factor != 1)) {
+    keys.push_back("elem_offset");
+    values.push_back(d->Translate(buffer->elem_offset).value());
+  }
+  if (buffer->data_alignment != 64) {
+    keys.push_back("align");
+    values.push_back(LiteralDoc::Int(buffer->data_alignment, std::nullopt));
+  }
+  if (buffer->allocated_addr.empty() && buffer->offset_factor != 1) {
+    keys.push_back("offset_factor");
+    values.push_back(LiteralDoc::Int(buffer->offset_factor, std::nullopt));
+  }
   if (buffer->layout.has_value()) {
-    bool is_default =
-        ffi::StructuralEqual()(buffer->layout, tirx::TileLayoutNode::DefaultLayout(buffer->shape));
-    if (!is_default) {
-      kwargs.Set("layout", d->AsDoc<ExprDoc>(buffer->layout, buffer_p->Attr("layout")));
+    keys.push_back("layout");
+    if (ffi::StructuralEqual()(buffer->layout.value(),
+                               tirx::TileLayoutNode::DefaultLayout(buffer->shape))) {
+      values.push_back(LiteralDoc::Str("default", std::nullopt));
+    } else {
+      values.push_back(d->Translate(buffer->layout.value()).value());
     }
-  } else if (!enclosing_s_tir) {
-    kwargs.Set("layout", LiteralDoc::None(buffer_p->Attr("layout")));
   }
-  // Step 10. Handle `buffer.allocated_addr`
+  if (!buffer->layout.has_value()) {
+    bool defaults_to_none = d->GetOrCreateExtraState<bool>("tirx.buffer_default_layout_none") ||
+                            buffer->storage_scope == "trn.sbuf" ||
+                            buffer->storage_scope == "trn.psum";
+    if (!defaults_to_none) {
+      keys.push_back("layout");
+      values.push_back(LiteralDoc::None(std::nullopt));
+    }
+  }
   if (!buffer->allocated_addr.empty()) {
-    if (buffer->allocated_addr.size() == 1) {
-      // Unwrap single-element array: DeclBuffer expects Optional<PrimExpr>, not Array.
-      // Use the normal expression printer so a bound scalar alias stays a scalar
-      // load, while an ordinary buffer load retains its indices.
-      kwargs.Set("allocated_addr",
-                 d->AsDoc<ExprDoc>(buffer->allocated_addr[0],
-                                   buffer_p->Attr("allocated_addr")->ArrayItem(0)));
-    } else {
-      ffi::Array<ExprDoc> addresses;
-      for (size_t i = 0; i < buffer->allocated_addr.size(); ++i) {
-        addresses.push_back(d->AsDoc<ExprDoc>(buffer->allocated_addr[i],
-                                              buffer_p->Attr("allocated_addr")->ArrayItem(i)));
-      }
-      kwargs.Set("allocated_addr", TupleDoc(addresses));
+    ffi::Array<ExprDoc> addresses;
+    for (const PrimExpr& address : buffer->allocated_addr) {
+      addresses.push_back(d->Translate(address).value());
     }
+    keys.push_back("allocated_addr");
+    values.push_back(addresses.size() == 1 ? addresses[0] : ExprDoc(TupleDoc(addresses)));
   }
-
-  if (var_def_lhs.size() == 1) {
-    frame->stmts.push_back(AssignDoc(var_def_lhs[0], var_def_rhs[0], std::nullopt));
-  } else if (var_def_lhs.size() > 1) {
-    frame->stmts.push_back(AssignDoc(TupleDoc(var_def_lhs), TupleDoc(var_def_rhs), std::nullopt));
-  }
-  return kwargs;
+  return NamespaceDoc("tirx")->Attr("Tensor")->Call(
+      {TupleDoc(shape), LiteralDoc::DataType(buffer->dtype->dtype, std::nullopt)}, keys, values);
 }
 
-ExprDoc BufferCall(const ExprDoc& prefix, const ffi::Map<ffi::String, ExprDoc>& attrs,
-                   ffi::Array<ExprDoc> args) {
-  ffi::Array<ffi::String> kwargs_keys;
-  ffi::Array<ExprDoc> kwargs_values;
-  for (ffi::String s : {"shape", "dtype"}) {
-    if (ffi::Optional<ExprDoc> doc = attrs.Get(s)) {
-      args.push_back(doc.value());
-    }
-  }
-  for (ffi::String s : {"data", "strides", "elem_offset", "scope", "align", "offset_factor",
-                        "layout", "allocated_addr"}) {
-    if (ffi::Optional<ExprDoc> doc = attrs.Get(s)) {
-      kwargs_keys.push_back(s);
-      kwargs_values.push_back(doc.value());
-    }
-  }
-  return prefix->Call(args, kwargs_keys, kwargs_values);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TensorTypeDocTranslate>());
 }
 
-ExprDoc BufferDecl(const tirx::BufferVar& buffer, const ffi::String& method,
-                   const ffi::Array<ExprDoc>& args, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d, BufferVarDefinition var_definitions,
-                   ffi::Optional<Expr> data) {
-  auto prefix = (method == "sblock_alloc_buffer" || method == "match_buffer") ? STIR(d, method)
-                                                                              : TIR(d, method);
-  auto attrs = BufferAttrs(buffer, p, frame, d, var_definitions, data);
-  if (method == "alloc_buffer") {
-    if (buffer.IsScalar()) {
-      // The buffer can be allocated by the alloc_scalar function
-      auto dtype = d->AsDoc<ExprDoc>(buffer->dtype, p->Attr("dtype"));
-      if (buffer.scope() == "shared") {
-        // shared_scalar
-        prefix = TIR(d, "shared_scalar");
-        attrs = ffi::Map<ffi::String, ExprDoc>({{"dtype", dtype}});
-      } else if (buffer.scope() == "local") {
-        // local_scalar
-        prefix = TIR(d, "local_scalar");
-        attrs = ffi::Map<ffi::String, ExprDoc>({{"dtype", dtype}});
-      } else {
-        // alloc_scalar
-        prefix = TIR(d, "alloc_scalar");
-        auto scope = d->AsDoc<ExprDoc>(buffer.scope(), p->Attr("scope"));
-        attrs = ffi::Map<ffi::String, ExprDoc>({{"dtype", dtype}, {"scope", scope}});
-      }
-    } else {
-      if (buffer.scope() == "shared") {
-        // alloc_shared
-        prefix = TIR(d, "alloc_shared");
-        attrs.erase("scope");
-      } else if (buffer.scope() == "local") {
-        // alloc_local
-        prefix = TIR(d, "alloc_local");
-        attrs.erase("scope");
-      }
-    }
-  } else if (method == "decl_buffer") {
-    if (buffer.IsScalar(false)) {
-      // decl_scalar
-      prefix = TIR(d, "decl_scalar");
-      auto dtype = d->AsDoc<ExprDoc>(buffer->dtype, p->Attr("dtype"));
-      auto scope = d->AsDoc<ExprDoc>(buffer.scope(), p->Attr("scope"));
-      auto elem_offset = d->AsDoc<ExprDoc>(buffer->elem_offset, p->Attr("elem_offset"));
-      attrs = ffi::Map<ffi::String, ExprDoc>(
-          {{"dtype", dtype}, {"scope", scope}, {"elem_offset", elem_offset}});
-      if (data.has_value()) {
-        attrs.Set("data", d->AsDoc<ExprDoc>(data.value(), p->Attr("data")));
-      }
-    }
-  }
-  return BufferCall(prefix, attrs, args);
-}
+}  // namespace
 
-ExprDoc BufferAttn(const tirx::BufferVar& buffer, const AccessPath& p, const Frame& frame,
-                   const IRDocsifier& d) {
-  ffi::Map<ffi::String, ExprDoc> attrs =
-      BufferAttrs(buffer, p, frame, d, BufferVarDefinition::MatchBuffer);
-  if (!attrs.count("dtype")) {
-    attrs.Set("dtype", LiteralDoc::DataType(buffer->dtype->dtype, p->Attr("dtype")));
-  }
-  return BufferCall(TIR(d, "Buffer"), attrs, {});
-}
+namespace {
 
-ffi::Array<Doc> BufferIndices(const ffi::Array<PrimExpr>& indices, const AccessPath& p,
-                              const IRDocsifier& d) {
-  int n = indices.size();
-  ffi::Array<Doc> indices_doc;
-  indices_doc.reserve(n);
-  for (int i = 0; i < n; ++i) {
-    if (const auto* ramp = indices[i].as<prim::RampNode>()) {
+ffi::Array<Doc> BufferIndices(DocTranslatorObj* d, const ffi::Array<PrimExpr>& indices,
+                              bool store = false) {
+  ffi::Array<Doc> docs;
+  for (const PrimExpr& index : indices) {
+    if (const auto* ramp = index.as<prim::RampNode>(); store && ramp) {
       if (const auto* stride = ramp->stride.as<IntImmNode>()) {
-        AccessPath ramp_p = p->Attr("indices")->ArrayItem(i);
-        AccessPath stride_p = ramp_p->Attr("stride");
-        ExprDoc start = d->AsDoc<ExprDoc>(ramp->base,  //
-                                          ramp_p->Attr("base"));
-        ExprDoc stop = d->AsDoc<ExprDoc>(ramp->base + ramp->lanes * ramp->stride,  //
-                                         ramp_p->Attr("lanes"));
         ffi::Optional<ExprDoc> step = std::nullopt;
-        if (stride->value != 1) {
-          step = d->AsDoc<ExprDoc>(ramp->stride, ramp_p->Attr("stride"));
-        }
-        indices_doc.push_back(SliceDoc(start, stop, step));
+        if (stride->value != 1) step = d->Translate(ramp->stride).value();
+        SliceDoc slice(d->Translate(ramp->base).value(),
+                       d->Translate(ramp->base + ramp->lanes * ramp->stride).value(), step);
+        d->RecordOrigin(slice, index);
+        docs.push_back(slice);
         continue;
       }
     }
-    indices_doc.push_back(d->AsDoc<ExprDoc>(indices[i], p->Attr("indices")->ArrayItem(i)));
+    docs.push_back(d->Translate(index).value());
   }
-  return indices_doc;
+  return docs;
 }
 
-ffi::Array<Doc> BufferLoadIndices(const ffi::Array<PrimExpr>& indices, const AccessPath& p,
-                                  const IRDocsifier& d) {
-  ffi::Array<Doc> indices_doc;
-  indices_doc.reserve(indices.size());
-  for (size_t i = 0; i < indices.size(); ++i) {
-    indices_doc.push_back(d->AsDoc<ExprDoc>(indices[i], p->Attr("indices")->ArrayItem(i)));
-  }
-  return indices_doc;
-}
+}  // namespace
 
-ffi::Array<Doc> BufferSlices(const ffi::Array<Range>& region, const AccessPath& p,
-                             const IRDocsifier& d) {
-  int n = region.size();
-  ffi::Array<Doc> indices;
-  indices.reserve(n);
-  for (int i = 0; i < n; ++i) {
-    Range range = region[i];
-    AccessPath range_p = p->ArrayItem(i);
-    ExprDoc min = d->AsDoc<ExprDoc>(range->min, range_p->Attr("min"));
-    if (tvm::prim::is_one(range->extent)) {
-      indices.push_back(min);
+ExprDoc TensorRegionValue(DocTranslatorObj* d, const TensorRegionNode* region,
+                          bool require_region) {
+  ffi::Array<Doc> slices;
+  for (const Range& range : region->region) {
+    ExprDoc start = d->Translate(range->min).value();
+    if (const auto* extent = range->extent.as<IntImmNode>();
+        !require_region && extent && extent->value == 1) {
+      slices.push_back(start);
     } else {
-      ExprDoc max = d->AsDoc<ExprDoc>(range->min + range->extent, range_p->Attr("extent"));
-      indices.push_back(SliceDoc(min, max, std::nullopt));
-    }
-  }
-  return indices;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tvm::TensorRegion>(
-      "", [](tvm::TensorRegion buffer_region, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc prefix = d->AsDoc<ExprDoc>(buffer_region->source, p->Attr("source"));
-        return prefix[BufferSlices(buffer_region->region, p->Attr("region"), d)];
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::BufferStore>(  //
-      "", [](tirx::BufferStore store, AccessPath p, IRDocsifier d) -> Doc {
-        ExprDoc buffer = d->AsDoc<ExprDoc>(store->buffer, p->Attr("buffer"));
-        ExprDoc value = d->AsDoc<ExprDoc>(store->value, p->Attr("value"));
-
-        // special case for scalar buffers
-        if (store->buffer.IsScalar(true) || store->buffer.IsScalar(false)) {
-          // TVM_FFI_ICHECK(store->indices.size() == 1 && tvm::prim::is_zero(store->indices[0]))
-          //     << "1-dim buffer with shape (1,) store with indices other than [0] is not "
-          //        "supported";
-          ffi::Optional<ExprDoc> doc = d->GetVarDoc(store->buffer);
-          TVM_FFI_ICHECK(doc.has_value())
-              << "buffer is not defined in the environment: " << store->buffer;
-          return AssignDoc(doc.value(), value, std::nullopt);
+      ExprDoc end = [&]() -> ExprDoc {
+        auto lower = range->min.as<IntImmNode>();
+        auto length = range->extent.as<IntImmNode>();
+        if (lower && length) {
+          auto last = (lower->value + length->value).as<int64_t>();
+          if (last) {
+            return LiteralDoc::Int(*last, std::nullopt);
+          }
         }
+        return OperationDoc(OperationDocNode::Kind::kAdd,
+                            {start, d->Translate(range->extent).value()});
+      }();
+      slices.push_back(SliceDoc(start, end, std::nullopt));
+    }
+  }
+  return d->Translate(region->source).value()[slices];
+}
 
-        return AssignDoc(
-            /*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
-            /*rhs=*/value, std::nullopt);
-      });
+namespace {
+
+ffi::Optional<ExprDoc> TensorRegionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                const ffi::Object*) {
+  const auto* region =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorRegionNode>(input);
+  return TensorRegionValue(d, region, false);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<TensorLoad>(  //
-      "", [](TensorLoad load, AccessPath p, IRDocsifier d) -> Doc {
-        tvm::tirx::BufferVar source = load->source.as_or_throw<tvm::tirx::BufferVar>();
-        ExprDoc buffer = d->AsDoc<ExprDoc>(source, p->Attr("source"));
+  ffi::reflection::TypeAttrDef<TensorRegionNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TensorRegionDocTranslate>());
+}
 
-        // special case for scalar
-        if (source.IsScalar(true) || source.IsScalar(false)) {
-          // TVM_FFI_ICHECK(load->indices.size() == 1 && tvm::prim::is_zero(load->indices[0]))
-          //     << "Scalar buffer load with indices other than [0] is not supported";
-          ffi::Optional<ExprDoc> doc = d->GetVarDoc(source);
-          TVM_FFI_ICHECK(doc.has_value())
-              << "Scalar buffer is not defined in the environment: " << source;
-          return doc.value();
-        }
-
-        return buffer[BufferLoadIndices(load->indices, p->Attr("indices"), d)];
-      });
+ffi::Optional<ExprDoc> BufferStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                               const ffi::Object* destination) {
+  const auto* store =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::BufferStoreNode>(
+          input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  bool scalar = IsScalarBuffer(d, store->buffer);
+  ExprDoc buffer = scalar ? ExprDoc(VarDoc(d, store->buffer.as<Var>().value(), false))
+                          : d->Translate(store->buffer).value();
+  ExprDoc value = d->Translate(store->value).value();
+  ExprDoc lhs = scalar ? buffer : ExprDoc(IndexDoc(buffer, BufferIndices(d, store->indices, true)));
+  d->Emit(AssignDoc(lhs, value, std::nullopt), ffi::GetRef<ffi::ObjectRef>(store));
+  return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::Axis>(
-      "", [](tirx::Axis axis, AccessPath p, IRDocsifier d) -> Doc {
-        return LiteralDoc::Str(axis.name(), p->Attr("name"));
-      });
+  ffi::reflection::TypeAttrDef<tirx::BufferStoreNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&BufferStoreDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> BufferLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* load =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
+  if (IsScalarBuffer(d, load->source)) {
+    return VarDoc(d, load->source.as<Var>().value(), false);
+  }
+  ExprDoc source = d->Translate(load->source).value();
+  return IndexDoc(source, BufferIndices(d, load->indices));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<tirx::Iter>(
-      "", [](tirx::Iter iter, AccessPath p, IRDocsifier d) -> Doc {
-        return TIR(d, "Iter")->Call({d->AsDoc<ExprDoc>(iter->extent, p->Attr("extent")),
-                                     d->AsDoc<ExprDoc>(iter->stride, p->Attr("stride")),
-                                     d->AsDoc<ExprDoc>(iter->axis.name(), p->Attr("axis"))},
-                                    {}, {});
-      });
+  ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
+      kTensorLoadDocTranslate, FDocTranslate::FromNative<&BufferLoadDocTranslate>());
 }
 
-Doc PrintTileLayout(tirx::TileLayout layout, IRDocsifier d, AccessPath p) {
-  using OpKind = OperationDocNode::Kind;
-
-  // `value @ Axis.<name>`, but elide `@m` (the default memory axis).
-  auto bind_axis = [&](ExprDoc value, const tirx::Axis& axis) -> ExprDoc {
-    if (axis.name() == "m") return value;
-    return OperationDoc(OpKind::kMatMul, {value, IdDoc("Axis")->Attr(axis.name())});
-  };
-
-  // Build `head[(e0, e1, ...) : (s0@a0, s1@a1, ...)]` (or 1D shorthand
-  // `head[e : s@a]`) from a list of Iters.
-  auto iters_to_index = [&](ExprDoc head, const ffi::Array<tirx::Iter>& iters) -> ExprDoc {
-    ffi::Array<ExprDoc> extents;
-    ffi::Array<ExprDoc> strides;
-    for (const auto& iter : iters) {
-      extents.push_back(d->AsDoc<ExprDoc>(iter->extent, p->Attr("extent")));
-      ExprDoc s = d->AsDoc<ExprDoc>(iter->stride, p->Attr("stride"));
-      strides.push_back(bind_axis(s, iter->axis));
-    }
-    ExprDoc start = (extents.size() == 1) ? extents[0] : ExprDoc(TupleDoc(extents));
-    ExprDoc stop = (strides.size() == 1) ? strides[0] : ExprDoc(TupleDoc(strides));
-    return IndexDoc(head, {SliceDoc(start, stop, std::nullopt)});
-  };
-
-  // Degenerate case: no shard / replica iters. Fall back to from_iters so the
-  // offset (if any) still round-trips.
-  if (layout->shard.size() == 0 && layout->replica.size() == 0) {
-    ffi::Array<ffi::String> keys;
-    ffi::Array<ExprDoc> values;
-    if (layout->offset.size() > 0) {
-      ffi::Array<ExprDoc> offset_keys, offset_values;
-      for (const auto& [axis, off] : layout->offset) {
-        offset_keys.push_back(LiteralDoc::Str(axis.name(), p->Attr("axis")));
-        offset_values.push_back(d->AsDoc<ExprDoc>(off, p->Attr("offset")));
-      }
-      keys.push_back("offset");
-      values.push_back(DictDoc(offset_keys, offset_values));
-    }
-    return TIR(d, "TileLayout")->Attr("from_iters")->Call({}, keys, values);
+ffi::Optional<ExprDoc> TensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object* destination) {
+  const auto* load =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
+  static ffi::reflection::TypeAttrColumn column(kTensorLoadDocTranslate);
+  ffi::AnyView hook = column[load->source->ty->type_index()];
+  ffi::Any value = ffi::GetRef<TensorLoad>(load);
+  if (hook.type_index() == ffi::TypeIndex::kTVMFFIOpaquePtr) {
+    return ffi::details::ExpectedUnsafe::MoveFromTVMFFIAny<ffi::Optional<ExprDoc>>(
+               reinterpret_cast<decltype(DocTranslatorVTable::translate)>(hook.cast<void*>())(
+                   d, value, destination))
+        .value();
   }
+  if (hook.type_index() == ffi::TypeIndex::kTVMFFIFunction) {
+    ffi::Any binder = destination ? ffi::Any(ffi::GetRef<ffi::ObjectRef>(destination)) : nullptr;
+    return hook.cast<ffi::Function>()
+        .CallExpected<ffi::Optional<ExprDoc>>(d, value, binder)
+        .value();
+  }
+  TVM_FFI_CHECK(hook.type_index() == ffi::TypeIndex::kTVMFFINone, TypeError)
+      << "TensorLoad type hook must be a native pointer or ffi.Function";
+  return IndexDoc(d->Translate(load->source).value(), BufferIndices(d, load->indices));
+}
 
-  // Compose `Tx.S[..] [+ Tx.R[..]] [+ offset_expr]`.
-  auto add_term = [&](ffi::Optional<ExprDoc>& acc, ExprDoc term) {
-    if (acc) {
-      acc = ExprDoc(OperationDoc(OpKind::kAdd, {acc.value(), term}));
-    } else {
-      acc = term;
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<TensorLoadNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TensorLoadDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> IterDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                        const ffi::Object*) {
+  const auto* iter =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::IterNode>(input);
+  ExprDoc axis = LiteralDoc::Str(iter->axis.name(), std::nullopt);
+  d->RecordOrigin(axis, iter->axis);
+  return NamespaceDoc("tirx")->Attr("Iter")->Call(
+      {d->Translate(iter->extent).value(), d->Translate(iter->stride).value(), axis});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::IterNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&IterDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> TileLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* layout =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TileLayoutNode>(input);
+  auto iters = [&](const ffi::Array<tirx::Iter>& source) {
+    ffi::Array<ExprDoc> docs;
+    for (const tirx::Iter& iter : source) {
+      docs.push_back(d->Translate(iter).value());
     }
+    return ListDoc(docs);
   };
-
-  ffi::Optional<ExprDoc> spec;
-  if (layout->shard.size() > 0) {
-    add_term(spec, iters_to_index(TIR(d, "S"), layout->shard));
-  }
-  if (layout->replica.size() > 0) {
-    add_term(spec, iters_to_index(TIR(d, "R"), layout->replica));
-  }
-  if (layout->offset.size() > 0) {
-    // Sort by axis name so the printed text is deterministic across builds
-    // (`ffi::Map` iteration order is implementation-defined).
-    std::vector<std::pair<tirx::Axis, PrimExpr>> sorted_offset(layout->offset.begin(),
-                                                               layout->offset.end());
-    std::sort(sorted_offset.begin(), sorted_offset.end(),
+  ffi::Array<ffi::String> keys = {"shard", "replica"};
+  ffi::Array<ExprDoc> values = {iters(layout->shard), iters(layout->replica)};
+  if (!layout->offset.empty()) {
+    std::vector<std::pair<tirx::Axis, PrimExpr>> sorted(layout->offset.begin(),
+                                                        layout->offset.end());
+    std::sort(sorted.begin(), sorted.end(),
               [](const auto& a, const auto& b) { return a.first.name() < b.first.name(); });
-
-    // Build the offset as a single arithmetic expression first, then add it
-    // to the spec in one `+`. Chaining `spec + term1 + term2` would re-enter
-    // `_LayoutSpec.__add__` with the second term and overwrite the offset
-    // (see `python/tvm/tirx/layout.py::_LayoutSpec.__add__`), silently
-    // dropping all but the last axis term. Combining the terms first lets
-    // `_OnAxis.__add__` / `_OffsetExpr.__add__` accumulate them correctly.
-    ffi::Optional<ExprDoc> off_doc;
-    for (const auto& [axis, off] : sorted_offset) {
-      ExprDoc term = bind_axis(d->AsDoc<ExprDoc>(off, p->Attr("offset")), axis);
-      if (off_doc) {
-        off_doc = ExprDoc(OperationDoc(OpKind::kAdd, {off_doc.value(), term}));
-      } else {
-        off_doc = term;
-      }
+    ffi::Array<ExprDoc> offset_keys;
+    ffi::Array<ExprDoc> offset_values;
+    for (const auto& [axis, offset] : sorted) {
+      offset_keys.push_back(LiteralDoc::Str(axis.name(), std::nullopt));
+      offset_values.push_back(d->Translate(offset).value());
     }
-    add_term(spec, off_doc.value());
+    keys.push_back("offset");
+    values.push_back(DictDoc(offset_keys, offset_values));
   }
-
-  return TIR(d, "TileLayout")->Call({spec.value()}, {}, {});
+  return NamespaceDoc("tirx")->Attr("TileLayout")->Attr("from_iters")->Call({}, keys, values);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable()  //
-      .set_dispatch<tirx::TileLayout>(
-          "", [](tirx::TileLayout layout, AccessPath p, IRDocsifier d) -> Doc {
-            return PrintTileLayout(layout, d, p);
-          });
+  ffi::reflection::TypeAttrDef<tirx::TileLayoutNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TileLayoutDocTranslate>());
+}
+
+ffi::Optional<ExprDoc> ComposeLayoutDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                 const ffi::Object*) {
+  const auto* layout =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::ComposeLayoutNode>(
+          input);
+  ffi::Array<ffi::String> keys;
+  ffi::Array<ExprDoc> values;
+  if (!layout->swizzle_inner) {
+    keys.push_back("swizzle_inner");
+    values.push_back(LiteralDoc::Boolean(false, std::nullopt));
+  }
+  return NamespaceDoc("tirx")
+      ->Attr("ComposeLayout")
+      ->Call({LiteralDoc::Int(layout->per_element, std::nullopt),
+              LiteralDoc::Int(layout->swizzle_len, std::nullopt),
+              LiteralDoc::Int(layout->atom_len, std::nullopt),
+              d->Translate(layout->tile_layout).value()},
+             keys, values);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable()  //
-      .set_dispatch<tirx::ComposeLayout>(
-          "", [](tirx::ComposeLayout layout, AccessPath p, IRDocsifier d) -> Doc {
-            auto per_element = LiteralDoc::Int(layout->per_element, p->Attr("per_element"));
-            auto swizzle_len = LiteralDoc::Int(layout->swizzle_len, p->Attr("swizzle_len"));
-            auto atom_len = LiteralDoc::Int(layout->atom_len, p->Attr("atom_len"));
-            auto tile_doc = d->AsDoc<ExprDoc>(layout->tile_layout, p->Attr("tile_layout"));
-            ffi::Array<ffi::String> kwargs_keys;
-            ffi::Array<ExprDoc> kwargs_values;
-            if (!layout->swizzle_inner) {
-              kwargs_keys.push_back("swizzle_inner");
-              kwargs_values.push_back(
-                  LiteralDoc::Boolean(layout->swizzle_inner, p->Attr("swizzle_inner")));
-            }
-            return TIR(d, "ComposeLayout")
-                ->Call({per_element, swizzle_len, atom_len, tile_doc}, kwargs_keys, kwargs_values);
-          });
+  ffi::reflection::TypeAttrDef<tirx::ComposeLayoutNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&ComposeLayoutDocTranslate>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  IRDocsifier::vtable().set_dispatch<s_tir::MatchBufferRegion>(
-      "", [](s_tir::MatchBufferRegion stmt, AccessPath p, IRDocsifier d) -> Doc {
-        Frame frame = d->frames.back();
-        ExprDoc lhs = DefineBuffer(stmt->buffer, frame, d);
-        ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
-        ExprDoc rhs = BufferDecl(stmt->buffer, "match_buffer", {src_buffer}, p->Attr("buffer"),
-                                 d->frames.back(), d, BufferVarDefinition::MatchBuffer);
-        return AssignDoc(lhs, rhs, std::nullopt);
-      });
-}
+}  // namespace
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  TVMScriptPrinter::Register<tvm::TensorRegionNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<TensorLoadNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::BufferStoreNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::BufferTypeNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::IterNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::TileLayoutNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<tirx::ComposeLayoutNode>(ReprPrintTIR);
-  TVMScriptPrinter::Register<s_tir::MatchBufferRegionNode>(ReprPrintTIR);
-}
-
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

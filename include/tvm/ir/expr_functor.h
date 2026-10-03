@@ -511,6 +511,19 @@ class TVM_DLL ExprMutator : public ObjectMutator {
 
  protected:
   /*!
+   * \brief Reinfer the result type of a Call after ordinary mutation.
+   * \param mutated The ordinary mutation result, or Unchanged for the original Call.
+   * \param original The borrowed Call before ordinary mutation.
+   * \param inplace_mode Permission to modify the original Call in place.
+   * \return The combined mutation result, preserving Unchanged when possible.
+   * \note A unique replacement Call may be updated in place even when the original
+   *       could not be. Inference errors propagate to the caller.
+   */
+  static UnchangedOr<Expr> ReinferMutatedCallType(UnchangedOr<Expr> mutated,
+                                                  const CallNode* original,
+                                                  InplaceMode inplace_mode);
+
+  /*!
    * \brief Construct a mutator with an extended native dispatch table.
    * \param vtable The finalized table, which must outlive this mutator.
    */

@@ -143,7 +143,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   BufferVar tgt_buffer = buf_store->buffer;
   std::string layout = tgt_buffer.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
   BufferVar new_src_buffer(
-      /*name=*/"src", BufferType(/*storage_scope=*/src_buffer.scope(),
+      /*name=*/"src", TensorType(/*storage_scope=*/src_buffer.scope(),
                                  /*dtype=*/dtype,
                                  /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
                                  /*strides=*/{PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
@@ -151,7 +151,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                                  /*data_alignment=*/64,
                                  /*offset_factor=*/16));
   BufferVar new_tgt_buffer(
-      /*name=*/"tgt", BufferType(/*storage_scope=*/tgt_buffer.scope(),
+      /*name=*/"tgt", TensorType(/*storage_scope=*/tgt_buffer.scope(),
                                  /*dtype=*/dtype,
                                  /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
                                  /*strides=*/{},
@@ -160,7 +160,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                                  /*offset_factor=*/16));
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
-  static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+  static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},
       /*predicate=*/IntImm::Bool(true),
@@ -253,16 +253,16 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   const PrimType& dtype = dtype_ty;
 
   BufferVar new_src_buffer(
-      "src", BufferType(src_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)}, {},
+      "src", TensorType(src_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)}, {},
                         PrimVar("src_elem_offset", int32_ty), 64, 16));
   BufferVar new_tgt_buffer(
-      "tgt", BufferType(tgt_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)},
+      "tgt", TensorType(tgt_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)},
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                         PrimVar("tgt_elem_offset", int32_ty), 64, 16));
 
   ffi::Array<Range> read_region = RelaxIndices(buf_load->indices, src_buffer->shape, var_dom);
   ffi::Array<Range> write_region = RelaxIndices(buf_store->indices, tgt_buffer->shape, var_dom);
-  static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+  static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
   Stmt wmma_body = SBlockRealize(
       /*iter_values=*/{},  //
       /*predicate=*/IntImm::Bool(true),
@@ -356,7 +356,7 @@ Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   // Step 1. add a shared memory cache
   std::tie(body, seq) = InsertCacheStage(std::move(body), true, "shared.dyn", compute_location,
                                          constraints.outer_loops, &cache_buffer);
-  output->alloc_buffer.push_back(cache_buffer);
+  output->alloc_tensor.push_back(cache_buffer);
   output->padding_min.Set(cache_buffer, 8);
   // Step 2. do coalesced rewrite and tensor core rewrite respectively for 2 parts
   auto rewriter = ffi::make_object<WmmaToGlobalRewriter>(seq.get(), constraints);
@@ -480,10 +480,10 @@ Stmt RewriteMmaStore(Stmt stmt) {
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
   BufferVar new_src_buffer(
-      "src", BufferType(src_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)}, {},
+      "src", TensorType(src_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)}, {},
                         PrimVar("src_elem_offset", int32_ty), 64, 8));
   BufferVar new_tgt_buffer(
-      "tgt", BufferType(tgt_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)},
+      "tgt", TensorType(tgt_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)},
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                         PrimVar("tgt_elem_offset", int32_ty), 64, 8));
 
@@ -573,7 +573,7 @@ Stmt MmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   // Step 1. add a shared memory cache
   std::tie(body, seq) = InsertCacheStage(std::move(body), true, "shared.dyn", compute_location,
                                          constraints.outer_loops, &cache_buffer);
-  output->alloc_buffer.push_back(cache_buffer);
+  output->alloc_tensor.push_back(cache_buffer);
   output->padding_min.Set(cache_buffer, 8);
   // Step 2. do coalesced rewrite and tensor core rewrite respectively for 2 parts
   auto rewriter = ffi::make_object<MmaToGlobalRewriter>(seq.get(), constraints);

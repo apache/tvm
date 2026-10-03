@@ -25,7 +25,7 @@ from tvm.testing import env
 
 
 @T.prim_func
-def ptx_griddepcontrol(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
+def ptx_griddepcontrol(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")
     tx = T.env_thread("threadIdx.x")

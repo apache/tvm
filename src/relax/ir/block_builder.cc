@@ -659,7 +659,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
       call = ffi::GetRef<Call>(op);
     } else {
-      call = Call(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
+      call = Call::Unchecked(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
     }
 
     if (call->ty.IsMissing()) {
@@ -680,6 +680,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       }
     }
 
+    // TVMScript uses a builder with FNormalize disabled so it can construct
+    // intentionally ill-formed IR for a later check_well_formed call.
+    if (apply_f_normalize_) {
+      if (auto op = call->op.as<Op>()) op.value().Validate(call.get());
+    }
     return call;
   }
 
@@ -825,7 +830,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   // Helper function to infer the type of a Call.
   Type InferType(const Call& call) {
     if (auto* op_ptr = call->op.as<OpNode>()) {
-      // Case 1: the op field is a primitive op, look up FInferType attribute
+      // Case 1: the op field is a primitive op, look up FInferTypeWithBuilder attribute
       Op op = ffi::GetRef<Op>(op_ptr);
       bool is_dist_op = false;
       for (const auto& arg : call->args) {
@@ -840,11 +845,20 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
               << "Distributed operator must take DTensor instead of Tensor as input";
         }
         TVM_FFI_ICHECK(op_map_dist_infer_ty.count(op))
-            << " Cannot find the dist.FInferType attribute registered to op: " << op->name;
+            << " Cannot find the dist.FInferTypeWithBuilder attribute registered to op: "
+            << op->name;
         return op_map_dist_infer_ty[op](call, ffi::GetRef<BlockBuilder>(this));
       }
-      TVM_FFI_ICHECK(op_map_infer_ty.count(op))
-          << " Cannot find the FInferType attribute registered to op: " << op->name;
+      bool has_context_free = op_map_context_free_infer_ty.count(op);
+      bool has_contextual = op_map_infer_ty.count(op);
+      TVM_FFI_ICHECK(!(has_context_free && has_contextual))
+          << "Operator " << op->name << " registers both FInferType and FInferTypeWithBuilder";
+      if (has_context_free) {
+        return Call::ReinferType(call.get());
+      }
+      TVM_FFI_ICHECK(has_contextual)
+          << " Cannot find the FInferType or FInferTypeWithBuilder attribute registered to op: "
+          << op->name;
       return op_map_infer_ty[op](call, ffi::GetRef<BlockBuilder>(this));
     } else {
       // derive using function parameters
@@ -1029,8 +1043,12 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   /*! \brief Operator type inference map. */
-  tvm::OpAttrMap<FInferType> op_map_infer_ty = Op::GetAttrMap<FInferType>("FInferType");
-  tvm::OpAttrMap<FInferType> op_map_dist_infer_ty = Op::GetAttrMap<FInferType>("dist.FInferType");
+  tvm::OpAttrMap<FInferType> op_map_context_free_infer_ty =
+      Op::GetAttrMap<FInferType>("FInferType");
+  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_infer_ty =
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+  tvm::OpAttrMap<FInferTypeWithBuilder> op_map_dist_infer_ty =
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.dist.FInferTypeWithBuilder");
   /*! \brief Operator normalization function */
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
 

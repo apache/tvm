@@ -36,14 +36,14 @@ Expr view(Expr x, ffi::Optional<Expr> shape, ffi::Optional<Expr> dtype,
           ffi::Optional<Expr> relative_byte_offset) {
   Tuple void_expr(ffi::Array<Expr>{});
 
-  static const Op& op = Op::Get("relax.memory.view");
-  return Call(Type::Missing(), op,
-              {
-                  x,
-                  shape.value_or(void_expr),
-                  dtype.value_or(void_expr),
-                  relative_byte_offset.value_or(void_expr),
-              });
+  static const Op op = Op::Get("relax.memory.view");
+  return Call::Unchecked(Type::Missing(), op,
+                         {
+                             x,
+                             shape.value_or(void_expr),
+                             dtype.value_or(void_expr),
+                             relative_byte_offset.value_or(void_expr),
+                         });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -108,7 +108,7 @@ Type InferTypeView(const Call& call, const BlockBuilder& ctx) {
       }
     }
 
-    static const Op& null_value_op = Op::Get("relax.null_value");
+    static const Op null_value_op = Op::Get("relax.null_value");
     if (const CallNode* call_node = arg_value.as<CallNode>()) {
       if (call_node->op.same_as(null_value_op)) {
         // No datatype change is applied.  This is the non-void
@@ -338,7 +338,7 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
       }
     }
 
-    static const Op& null_value_op = Op::Get("relax.null_value");
+    static const Op null_value_op = Op::Get("relax.null_value");
     if (const CallNode* call_node = arg.as<CallNode>()) {
       return call_node->op.same_as(null_value_op);
     }
@@ -389,24 +389,25 @@ Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
 
   ExternFunc runtime_view_func("runtime.TVMTensorCreateView", runtime_view_ty);
 
-  return Call(Type::Missing(), runtime_view_func, {data, shape, dtype, relative_byte_offset});
+  return Call::Unchecked(Type::Missing(), runtime_view_func,
+                         {data, shape, dtype, relative_byte_offset});
 }
 
-TVM_REGISTER_OP("relax.memory.view")
-    .set_num_inputs(4)
-    .add_argument("x", "Tensor", "The input tensor.")
-    .add_argument("shape", "Shape", "The view's shape.")
-    .add_argument("dtype", "DataType", "The view's data type.")
-    .add_argument("relative_byte_offset", "Prim(\"int64\")",
-                  "The view's byte offset, relative to the input tensor's byte offset.")
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FInferType>("FInferType", InferTypeView)
-    .set_attr<bool>("FPurity", true)
-    .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinView);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.memory.view")
+      .signature(sig::arg("x", "The input tensor."), sig::arg("shape", "The view's shape."),
+                 sig::arg("dtype", "The view's data type."),
+                 sig::arg("relative_byte_offset",
+                          "The view's byte offset, relative to the input tensor's byte offset."))
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder", InferTypeView)
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinView);
+}
 
 Expr ensure_zero_offset(const Expr& x) {
-  static const Op& op = Op::Get("relax.memory.ensure_zero_offset");
-  return Call(Type::Missing(), op, {x});
+  static const Op op = Op::Get("relax.memory.ensure_zero_offset");
+  return Call::Unchecked(Type::Missing(), op, {x});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -414,7 +415,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.memory.ensure_zero_offset", ensure_zero_offset);
 }
 
-Type InferTypeEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeEnsureZeroOffset(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 1) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "Operator " << call->op << " should receive 1 argument, "
@@ -425,16 +427,18 @@ Type InferTypeEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
 
 Expr LowerBuiltinEnsureZeroOffset(const BlockBuilder& bb, const Call& call) {
   const ExternFunc builtin_ensure_zero_offset_{"vm.builtin.ensure_zero_offset"};
-  return Call(Type::Missing(), builtin_ensure_zero_offset_, call->args, Attrs(), {GetType(call)});
+  return Call::Unchecked(Type::Missing(), builtin_ensure_zero_offset_, call->args, Attrs(),
+                         {GetType(call)});
 }
 
-TVM_REGISTER_OP("relax.memory.ensure_zero_offset")
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "The input tensor.")
-    .set_attr<bool>("RequiresArgumentShapes", false)
-    .set_attr<FInferType>("FInferType", InferTypeEnsureZeroOffset)
-    .set_attr<bool>("FPurity", true)
-    .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinEnsureZeroOffset);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.memory.ensure_zero_offset")
+      .signature(sig::arg("x", "The input tensor."))
+      .set_attr<bool>("RequiresArgumentShapes", false)
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeEnsureZeroOffset>())
+      .set_attr<bool>("FPurity", true)
+      .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinEnsureZeroOffset);
+}
 
 }  // namespace relax
 }  // namespace tvm

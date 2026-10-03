@@ -197,12 +197,12 @@ def test_tirx_jit_specializes_captured_shape_and_value():
     width = 4
 
     @T.jit(private=True)
-    def fill(output: T.Buffer((width,), "int32"), *, value: T.constexpr):
+    def fill(output: T.Tensor((width,), "int32"), *, value: T.constexpr):
         for index in range(width):
             output[index] = value
 
     @T.prim_func(private=True)
-    def expected(output: T.Buffer((4,), "int32")):
+    def expected(output: T.Tensor((4,), "int32")):
         for index in range(4):
             output[index] = 3
 
@@ -262,8 +262,8 @@ def test_jit_does_not_retain_ordinary_decorator_owners(jit_language):
 @pytest.mark.parametrize("postponed", [False, True])
 def test_jit_initial_alias_preserves_annotation_forms(tmp_path, postponed):
     source = """@Script.jit(private=True)
-def kernel(output: Script.Buffer((1,), "int32"), *, value: Script.constexpr,
-           optional: Script.Optional(Script.Buffer((1,), "int32"))):
+def kernel(output: Script.Tensor((1,), "int32"), *, value: Script.constexpr,
+           optional: Script.Optional(Script.Tensor((1,), "int32"))):
     output[0] = value
 """
     if postponed:

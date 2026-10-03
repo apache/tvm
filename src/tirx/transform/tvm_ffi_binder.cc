@@ -494,7 +494,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
 
 Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index) {
   // ── Type check: accept handle-like types ───────────────────
-  std::string expected_type = params_[param_index]->ty.as<BufferTypeNode>() ? "Tensor" : "pointer";
+  std::string expected_type = params_[param_index]->ty.as<TensorTypeNode>() ? "Tensor" : "pointer";
   EmitTypeIndexCheck(param_index,
                      type_index == ffi::TypeIndex::kTVMFFINone ||
                          type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
@@ -565,7 +565,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   ffi::reflection::AccessPath param_path =
       ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
 
-  if (param->ty.as<BufferTypeNode>()) {
+  if (param->ty.as<TensorTypeNode>()) {
     Var handle(param->name + ".handle", PointerType::VoidPointerTy());
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     BindPointer(handle, handle_value, param_path, true);
@@ -620,7 +620,12 @@ void TVMFFIABIBuilder::DecodeAllParams() {
                                                    ->Attr(ffi::String(buffer.value().name()));
       Expr data = DecodeParamDLTensor(buffer.value(), device_type_, device_id_, handle,
                                       func_name_ + "." + param->name, param_path);
-      decl_buffers_.push_back(DeclBuffer(buffer.value(), data));
+      decl_buffers_.push_back(
+          Bind(buffer.value(),
+               Call(buffer.value().type(), builtin::decl_tensor(),
+                    {data, tvm::Tuple(buffer.value()->shape),
+                     DataTypeImm(buffer.value()->dtype->dtype), StringImm(buffer.value().scope())},
+                    {})));
     }
   }
 }

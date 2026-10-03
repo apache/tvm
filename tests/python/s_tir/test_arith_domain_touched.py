@@ -27,7 +27,7 @@ m = T.dynamic("m", "int32")
 
 
 @Ts.prim_func
-def scalar_func(A: T.Buffer((100, m)), B: T.Buffer((100, m))):
+def scalar_func(A: T.Tensor((100, m)), B: T.Tensor((100, m))):
     for i, j in T.grid(100, m):
         A[i, j] = B[i - 1, j + 1] + A[i - 1, j - 1]
 
@@ -75,7 +75,7 @@ def test_domain_touched_vector():
     m = tvm.runtime.convert(128)
 
     @Ts.prim_func
-    def func(A: T.Buffer((n * m,)), B: T.Buffer((n * m,)), n: T.int32):  # noqa: F821
+    def func(A: T.Tensor((n * m,)), B: T.Tensor((n * m,)), n: T.int32):  # noqa: F821
         for i in T.serial(n):
             A[i * m : (i + 1) * m : 1] = A[i * m : (i + 1) * m : 1] + B[i * m : (i + 1) * m : 1]
 

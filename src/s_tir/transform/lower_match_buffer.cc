@@ -104,16 +104,16 @@ class MatchBufferLower : public StmtExprMutator {
     if ((op->op.same_as(tirx::builtin::masked_load()) ||
          op->op.same_as(tirx::builtin::masked_store())) &&
         !op->args.empty()) {
-      if (auto var = op->args[0].as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
-        BufferVar buffer(var.value());
+      if (auto var = op->args[0].as<Var>(); var && var.value()->ty.as<TensorTypeNode>()) {
+        BufferVar buffer = var.value().as_or_throw<BufferVar>();
         TVM_FFI_ICHECK(!match_buffers_.count(buffer))
             << "Predicated buffer access is not currently supported in lower match buffer pass.";
       }
     }
     if (op->op.same_as(tirx::builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
-          var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
-        auto it = match_buffers_.find(BufferVar(var.value()));
+          var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
+        auto it = match_buffers_.find(var.value().as_or_throw<BufferVar>());
         if (it != match_buffers_.end()) {
           return (*it).second->source.as_or_throw<tvm::tirx::BufferVar>().data();
         }

@@ -75,13 +75,13 @@ def _shared_scratch_copy_kernel(num_bytes: int):
     ld_chain, st_chain = f"ld.shared.{tail}", f"st.shared.{tail}"
 
     @T.prim_func
-    def func(out: T.Buffer((nelems,), smem_dtype)):
+    def func(out: T.Tensor((nelems,), smem_dtype)):
         T.device_entry()
         T.cta_id([1])
         T.warp_id([1])
         lane = T.lane_id([32])
-        src_buf = T.alloc_buffer((nelems,), smem_dtype, scope="shared")
-        dst_buf = T.alloc_buffer((nelems,), smem_dtype, scope="shared")
+        src_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
+        dst_buf = T.alloc_tensor((nelems,), smem_dtype, scope="shared")
         tmp = T.alloc_local((lanes,), reg_dtype)
         if fill_offset is not None:
             if lane < nelems:
@@ -110,14 +110,14 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
 
     # fmt: off
     @T.prim_func
-    def copy_kernel(D: T.Buffer((4,), 'uint32')) -> None:
+    def copy_kernel(D: T.Tensor((4,), 'uint32')) -> None:
 
         T.device_entry()
         T.warp_id([4])
         T.cta_id([1])
         T.warpgroup_id([1])
         tid_in_wg = T.thread_id_in_wg([128])
-        smem = T.alloc_buffer((4,), "uint32", scope="shared")
+        smem = T.alloc_tensor((4,), "uint32", scope="shared")
         reg = T.alloc_local((4,), "uint32")
         if tid_in_wg == 0:
             T.ptx.st.shared.v4.u32(smem.ptr_to([0]), reg[0], reg[1], reg[2], reg[3])
@@ -139,10 +139,10 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
 
 def test_ptx_ld_st_raw_shared_address_codegen():
     @T.prim_func
-    def main(out: T.Buffer((2,), "uint64")):
+    def main(out: T.Tensor((2,), "uint64")):
         T.device_entry()
         tx = T.thread_id([32])
-        smem = T.alloc_buffer((2,), "uint64", scope="shared")
+        smem = T.alloc_tensor((2,), "uint64", scope="shared")
         values = T.alloc_local((4,), "uint32")
         if tx == 0:
             raw_addr: T.uint32 = T.cuda.cvta_generic_to_shared(smem.data)
@@ -165,7 +165,7 @@ def test_ptx_ld_st_immediate_offset_codegen():
     """An immediate displacement must stay inside the PTX memory operand."""
 
     @T.prim_func
-    def main(src: T.Buffer((4,), "uint64"), out: T.Buffer((4,), "uint64")):
+    def main(src: T.Tensor((4,), "uint64"), out: T.Tensor((4,), "uint64")):
         T.device_entry()
         tx = T.thread_id([32])
         values = T.alloc_local((2,), "uint64")
@@ -180,11 +180,15 @@ def test_ptx_ld_st_immediate_offset_codegen():
     assert "st.global.v2.b64 [%0+16], {%1, %2};" in src
 
 
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="256-bit ld.global.nc.v8 requires CUDA compute >= 10.0",
+)
 def test_ptx_ld_global_nc_v8_codegen():
     """FlashMLA index loads need ``ld.global.nc`` with a 256B prefetch."""
 
     @T.prim_func
-    def copy_kernel(src: T.Buffer((8,), "int32"), out: T.Buffer((8,), "int32")) -> None:
+    def copy_kernel(src: T.Tensor((8,), "int32"), out: T.Tensor((8,), "int32")) -> None:
         T.device_entry()
         tx = T.thread_id([32])
         tmp = T.alloc_local((8,), "int32")
@@ -203,11 +207,15 @@ def test_ptx_ld_global_nc_v8_codegen():
     assert "{%0, %1, %2, %3, %4, %5, %6, %7}, [%8];" in src
 
 
+@pytest.mark.skipif(
+    not env.has_cuda_compute(10),
+    reason="256-bit ld.global.nc.v4.u64 requires CUDA compute >= 10.0",
+)
 def test_ptx_ld_global_nc_v4_u64_256b_codegen():
     """FlashMLA 32-byte index loads may use four 64-bit PTX outputs."""
 
     @T.prim_func
-    def copy_kernel(src: T.Buffer((4,), "uint64"), out: T.Buffer((4,), "uint64")) -> None:
+    def copy_kernel(src: T.Tensor((4,), "uint64"), out: T.Tensor((4,), "uint64")) -> None:
         T.device_entry()
         tx = T.thread_id([32])
         tmp = T.alloc_local((4,), "uint64")
@@ -230,7 +238,7 @@ def test_ptx_ld_vector_scatter_dst_codegen():
     """Vector loads may write independent destination pointers."""
 
     @T.prim_func
-    def copy_kernel(src: T.Buffer((4,), "int32"), out: T.Buffer((4,), "int32")) -> None:
+    def copy_kernel(src: T.Tensor((4,), "int32"), out: T.Tensor((4,), "int32")) -> None:
         T.device_entry()
         tx = T.thread_id([32])
         tmp0 = T.alloc_local((1,), "int32")

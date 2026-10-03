@@ -37,7 +37,7 @@ py_print = print  # pylint: disable=invalid-name
 def register_gradient(
     op_name: str,
     fgradient: Callable[[Var, Call, Var, "BlockBuilder"], list[Expr]] | None = None,
-    level: int = 10,
+    override: bool = False,
 ):
     """Register operator gradient function for a relax operator.
 
@@ -50,10 +50,16 @@ def register_gradient(
          -> partials: List[Expr]
         The gradient function being used.
 
-    level: int
-        The priority level
+    override: bool, optional
+        Replace an existing gradient if True; duplicate registration otherwise
+        raises ValueError.
+
+    Returns
+    -------
+    result : callable
+        The registered gradient, or a decorator if fgradient is not supplied.
     """
-    return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, level)
+    return tvm.ir.register_op_attr(op_name, "FPrimalGradient", fgradient, override)
 
 
 def null_value() -> Call:

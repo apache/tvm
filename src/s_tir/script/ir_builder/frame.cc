@@ -17,7 +17,6 @@
  * under the License.
  */
 #include <tvm/s_tir/script/ir_builder/frame.h>
-#include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/function.h>
 
 #include "./script_complete.h"
@@ -27,22 +26,6 @@ namespace tvm {
 namespace script {
 namespace ir_builder {
 namespace s_tir {
-namespace {
-
-// Annotations may have been evaluated before entering this frame. Normalize
-// their buffer layouts and all matching body references during finalization.
-class STirBufferLayoutNormalizer : public tvm::s_tir::StmtExprMutator {
- public:
-  using tvm::s_tir::StmtExprMutator::Mutate;
-  using tvm::s_tir::StmtExprMutator::Mutate_;
-  void Register(const tvm::tirx::BufferVar& old_buf, const tvm::tirx::BufferVar& new_buf) {
-    VarRemapSet(old_buf, new_buf);
-  }
-  bool Empty() const { return var_remap_.empty(); }
-};
-
-}  // namespace
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   PrimFuncFrameNode::RegisterReflection();
   SBlockFrameNode::RegisterReflection();
@@ -66,39 +49,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 tvm::tirx::PrimFunc PrimFuncFrameNode::FinalizeFunction(tvm::tirx::PrimFunc func) {
   TVM_FFI_CHECK(!is_declaration || root_alloc_buffers.empty(), ValueError)
       << "A function declaration cannot allocate buffers";
-  auto normalizer = ffi::make_object<STirBufferLayoutNormalizer>();
-  auto normalize = [&](tvm::tirx::BufferVar buffer) {
-    if (buffer->layout.has_value()) {
-      auto type = tvm::tirx::CopyBufferType(buffer);
-      type->layout = std::nullopt;
-      auto replacement = tvm::tirx::RebuildBufferVar(buffer, std::move(type));
-      normalizer->Register(buffer, replacement);
-      return replacement;
-    }
-    return buffer;
-  };
-  ffi::Array<tvm::tirx::Var> params;
-  for (const auto& param : func->params) {
-    if (auto buffer = param.as<tvm::tirx::BufferVar>()) {
-      params.push_back(normalize(buffer.value()).var());
-    } else {
-      params.push_back(param);
-    }
-  }
-  ffi::Array<tvm::tirx::BufferVar> alloc_buffers;
-  for (const auto& buffer : root_alloc_buffers) {
-    alloc_buffers.push_back(normalize(buffer));
-  }
-  if (!normalizer->Empty()) {
-    auto* n = func.CopyOnWrite();
-    n->params = params;
-    if (!is_declaration) {
-      n->body = normalizer->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(n->body);
-    }
-  }
   if (!is_declaration) {
     func = WithAttr(std::move(func), tvm::attr::kSTir, true);
-    func = tvm::s_tir::ScriptComplete(std::move(func), alloc_buffers);
+    func = tvm::s_tir::ScriptComplete(std::move(func), root_alloc_buffers);
   }
   return func;
 }

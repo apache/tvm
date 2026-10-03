@@ -32,16 +32,18 @@ namespace distributed {
 
 namespace {
 
-TVMFFIAny DTensorTypeVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> DTensorTypeVisit(
+    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const DTensorTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DTensorTypeNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->device_mesh));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->placement));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->tensor_ty));
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+  return std::nullopt;
 }
 
-TVMFFIAny DTensorTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> DTensorTypeMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const DTensorTypeNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DTensorTypeNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<DeviceMesh>, mapped_device_mesh,
@@ -53,17 +55,17 @@ TVMFFIAny DTensorTypeMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView val
   if (mapped_device_mesh.UnchangedOrSameAs(self->device_mesh) &&
       mapped_placement.UnchangedOrSameAs(self->placement) &&
       mapped_tensor_ty.UnchangedOrSameAs(self->tensor_ty)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   ffi::ObjectPtr<DTensorTypeNode> copy = ffi::make_object<DTensorTypeNode>(*self);
   copy->device_mesh = std::move(mapped_device_mesh).ValueOrUnchanged(std::move(copy->device_mesh));
   copy->placement = std::move(mapped_placement).ValueOrUnchanged(std::move(copy->placement));
   copy->tensor_ty = std::move(mapped_tensor_ty).ValueOrUnchanged(std::move(copy->tensor_ty));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+  return ffi::Any(std::move(copy));
 }
 
-TVMFFIAny DTensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                        ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> DTensorTypeMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   DTensorTypeNode* self = const_cast<DTensorTypeNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const DTensorTypeNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
@@ -84,7 +86,7 @@ TVMFFIAny DTensorTypeMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
   if (!mapped_tensor_ty.UnchangedOrSameAs(self->tensor_ty)) {
     self->tensor_ty = std::move(mapped_tensor_ty).ValueUnchecked();
   }
-  return ffi::Unchanged().CopyToTVMFFIAny();
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -201,10 +203,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   DTensorTypeNode::RegisterReflection();
   refl::TypeAttrDef<DTensorTypeNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&DTensorTypeVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&DTensorTypeMutate))
+      .attr(refl::type_attr::kStructuralVisit,
+            ffi::FStructuralVisit::FromNative<&DTensorTypeVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&DTensorTypeMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&DTensorTypeMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&DTensorTypeMaybeInplaceMutate>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

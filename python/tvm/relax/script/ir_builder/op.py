@@ -278,7 +278,7 @@ def call_packed(
     if kwargs or not is_default:
         attrs = tvm.ir.attrs.make_node(attrs_type_key, **kwargs)
 
-    return Call(op, args, attrs=attrs, ty_args=ty_args)
+    return Call.unchecked(op, args, attrs=attrs, ty_args=ty_args)
 
 
 def call_py_func(
@@ -369,7 +369,7 @@ def emit_with_type(
         The created Relax Call
     """
     builtin_call = tvm.ir.Op.get(op)
-    return Call(builtin_call, args, attrs=None, ty_args=ty_args)
+    return Call.unchecked(builtin_call, args, attrs=None, ty_args=ty_args)
 
 
 def _logical_pair(lhs, rhs, operation, primitive, python_operation):

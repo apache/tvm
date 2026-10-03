@@ -24,6 +24,15 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def test_vthread():
     """Test virtual thread injection with vthread"""
     n = 100
@@ -34,12 +43,12 @@ def test_vthread():
     class Module:
         @Ts.prim_func
         def main(A: T.handle("float32"), C: T.handle("float32")):
-            A_buf = T.decl_buffer((n * nthread,), "float32", data=A)
-            C_buf = T.decl_buffer((n * nthread,), "float32", data=C)
+            A_buf = T.decl_tensor((n * nthread,), "float32", data=A)
+            C_buf = T.decl_tensor((n * nthread,), "float32", data=C)
             for i in range(n):
                 vt_x = T.launch_thread("vthread", nthread)
                 vt_y = T.launch_thread("vthread", nthread)
-                B = T.alloc_buffer((m,), scope="shared")
+                B = T.alloc_tensor((m,), scope="shared")
                 B[i] = A_buf[i * nthread + vt_x]
                 T.evaluate(
                     T.call_extern(
@@ -60,12 +69,12 @@ def test_vthread():
     allocates = []
 
     def find_allocates(node):
-        if isinstance(node, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(node, "tirx.alloc_tensor"):
             allocates.append(node)
 
     tvm_ffi.structural_walk(stmt.body, find_allocates)
     assert len(allocates) == 1
-    assert list(allocates[0].buffer.ty.shape) == [B_expected_alloc]
+    assert list(allocates[0].var.ty.shape) == [B_expected_alloc]
 
 
 def test_vthread_extern():
@@ -82,9 +91,9 @@ def test_vthread_extern():
             for i in range(n):
                 vt_x = T.launch_thread("vthread", nthread)
                 vt_y = T.launch_thread("vthread", nthread)
-                A = T.alloc_buffer((m,), scope="shared")
-                B = T.alloc_buffer((m,), scope="shared")
-                C = T.alloc_buffer((m,), scope="shared")
+                A = T.alloc_tensor((m,), scope="shared")
+                B = T.alloc_tensor((m,), scope="shared")
+                C = T.alloc_tensor((m,), scope="shared")
                 A[vt_x] = T.Cast("float32", vt_x) + T.float32(1)
                 B[vt_y] = T.Cast("float32", vt_y) + T.float32(1)
                 T.evaluate(
@@ -109,13 +118,13 @@ def test_vthread_extern():
     allocates = []
 
     def find_allocates(node):
-        if isinstance(node, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(node, "tirx.alloc_tensor"):
             allocates.append(node)
 
     tvm_ffi.structural_walk(stmt.body, find_allocates)
     assert len(allocates) == 3
     # Check that we have the expected extents (order may vary)
-    extents = sorted([int(a.buffer.ty.shape[0]) for a in allocates])
+    extents = sorted([int(a.var.ty.shape[0]) for a in allocates])
     assert extents == sorted([A_expected_alloc, A_expected_alloc, C_expected_alloc])
 
 
@@ -128,10 +137,10 @@ def test_vthread_if_then_else():
         @Ts.prim_func
         def main(A: T.handle("float32")):
             T.func_attr({"global_symbol": "main"})
-            A_buf = T.decl_buffer((100 * nthread,), "float32", data=A)
+            A_buf = T.decl_tensor((100 * nthread,), "float32", data=A)
             for i in range(100):
                 vt = T.launch_thread("vthread", nthread)
-                B = T.alloc_buffer((128,), scope="shared")
+                B = T.alloc_tensor((128,), scope="shared")
                 if i == 0:
                     B[i] = A_buf[i * nthread + vt]
                 else:
@@ -167,12 +176,12 @@ def test_vthread_simplified():
     def before_func():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
-        B = T.alloc_buffer((4,), "int32", scope="shared")
+        B = T.alloc_tensor((4,), "int32", scope="shared")
         B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
     @Ts.prim_func
     def expected_func():
-        B = T.alloc_buffer((16,), "int32", scope="shared")
+        B = T.alloc_tensor((16,), "int32", scope="shared")
         # The indices for B should each be a single Ramp node, and
         # should not be the sum of a Ramp and Broadcast node.
         B[T.ramp(T.Mul(0, 4), 1, 4)] = T.broadcast(0, 4)
@@ -194,7 +203,7 @@ def test_vthread_vectorized():
     def before_func():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 4)
-        B = T.alloc_buffer((4,), "int32", scope="shared")
+        B = T.alloc_tensor((4,), "int32", scope="shared")
         B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
     before_mod = tvm.IRModule.from_expr(before_func.with_attr("global_symbol", "main"))
@@ -207,13 +216,13 @@ def test_vthread_vectorized():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tirx.AllocBuffer) and "shared" in str(op.buffer.data.ty):
+        if _is_buffer_binding(op, "tirx.alloc_tensor") and "shared" in str(op.var.data.ty):
             allocate_node = op
 
     tvm_ffi.structural_walk(after_func.body, visitor)
     assert allocate_node is not None
-    assert list(allocate_node.buffer.ty.shape) == [4]
-    assert allocate_node.buffer.ty.dtype == "int32x4"
+    assert list(allocate_node.var.ty.shape) == [4]
+    assert allocate_node.var.ty.dtype == "int32x4"
 
 
 def test_vthread_rewrites_masked_accesses():
@@ -221,7 +230,7 @@ def test_vthread_rewrites_masked_accesses():
     def before_func():
         vthread = T.env_thread("vthread")
         T.launch_thread(vthread, 2)
-        B = T.alloc_buffer((4,), "float32", scope="shared")
+        B = T.alloc_tensor((4,), "float32", scope="shared")
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
         loaded = T.meta_var(T.masked_load("float32x4", B, T.Ramp(0, 1, 4), mask))
         value = T.meta_var(loaded + T.Broadcast(T.Cast("float32", vthread), 4))

@@ -114,9 +114,9 @@ class CodeGenRunner : ExprMutator {
         ffi::Array<Expr> new_args({extern_func});
         new_args.push_back(Tuple(call_node->args.Map([this](Expr arg) { return VisitExpr(arg); })));
 
-        static const Op& call_op = Op::Get("relax.call_dps_packed");
+        static const Op call_op = Op::Get("relax.call_dps_packed");
 
-        return Call(Type::Missing(), call_op, new_args, tvm::Attrs(), {ret_ty});
+        return Call::Unchecked(Type::Missing(), call_op, new_args, tvm::Attrs(), {ret_ty});
       };
 
       auto ret_ty = GetType(call);
@@ -147,7 +147,9 @@ class CodeGenRunner : ExprMutator {
     if (call_node->ty.as<PrimTypeNode>()) {
       if (auto op = call_node->op.as<Op>()) {
         static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
-        if (!infer_type_map.count(op.value())) {
+        static auto infer_type_with_builder_map =
+            Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+        if (!infer_type_map.count(op.value()) && !infer_type_with_builder_map.count(op.value())) {
           ret_ty = call_node->ty.as_or_throw<Type>();
         }
       }

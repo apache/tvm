@@ -29,7 +29,7 @@ with one block of 256 threads.
 
 
     @Tx.prim_func
-    def scale(A: Tx.Buffer((256,), "float32"), B: Tx.Buffer((256,), "float32")):
+    def scale(A: Tx.Tensor((256,), "float32"), B: Tx.Tensor((256,), "float32")):
 
         Tx.device_entry()  # everything below runs on the device
         bx = Tx.cta_id([1])  # 1 block  (blockIdx)

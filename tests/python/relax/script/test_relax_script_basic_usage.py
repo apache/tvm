@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 import tvm
@@ -79,8 +81,8 @@ def test_simple_module():
     class TestModule:
         @Ts.prim_func(private=True)
         def tir_func(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -118,8 +120,8 @@ def test_module_with_attr_and_global_info():
 
         @Ts.prim_func(private=True)
         def tir_func(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -168,8 +170,8 @@ def test_global_info_vdevice():
 
         @Ts.prim_func(private=True)
         def tir_func(
-            x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-            y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+            y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -614,7 +616,7 @@ def test_call_tir_with_grad():
     @I.ir_module
     class Module:
         @Ts.prim_func
-        def identity_tir(A: T.Buffer([54, 96]), B: T.Buffer([54, 96])) -> None:
+        def identity_tir(A: T.Tensor([54, 96]), B: T.Tensor([54, 96])) -> None:
             for i, j in T.grid(54, 96):
                 with Ts.sblock("compute"):
                     vi, vj = Ts.axis.remap("SS", [i, j])
@@ -640,9 +642,9 @@ def test_call_tir_inplace():
     class Module:
         @Ts.prim_func
         def copy(
-            A: T.Buffer((2, 3), "int32"),
-            B: T.Buffer((2, 3), "int32"),
-            out1: T.Buffer((2, 3), "int32"),
+            A: T.Tensor((2, 3), "int32"),
+            B: T.Tensor((2, 3), "int32"),
+            out1: T.Tensor((2, 3), "int32"),
         ):
             # copies the contents of B into A and out1
             T.func_attr({"tirx.noalias": True})
@@ -878,6 +880,7 @@ def test_empty_tuple():
     _check(foo, bb.get()["foo"])
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_arith_operators():
     m = T.dynamic("m")
     n = T.dynamic("n")
@@ -932,6 +935,7 @@ def test_arith_operators():
     _check(foo, bb.get()["foo"])
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_memory_ops():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
@@ -949,6 +953,7 @@ def test_memory_ops():
     _check(foo)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_vm_ops():
     m = T.dynamic("m", "int64")
     n = T.dynamic("n", "int64")
@@ -964,6 +969,7 @@ def test_vm_ops():
     _check(foo)
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_builtin_ops():
     m = T.dynamic("m")
     n = T.dynamic("n")

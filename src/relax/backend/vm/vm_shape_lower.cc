@@ -84,8 +84,11 @@ static bool IsRelaxOwnedCall(const CallNode* call) {
   auto op = call->op.as<Op>();
   if (!op) return true;
   static auto infer_type_map = Op::GetAttrMap<FInferType>("FInferType");
+  static auto infer_type_with_builder_map =
+      Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
   static auto legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
-  return infer_type_map.count(op.value()) || legalize_map.count(op.value());
+  return infer_type_map.count(op.value()) || infer_type_with_builder_map.count(op.value()) ||
+         legalize_map.count(op.value());
 }
 
 // Collector to collect PrimExprSlotMap
@@ -266,7 +269,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
  * \code
  *
  * @T.prim_func
- * def shape_func(H: T.Buffer([3], "int64")):
+ * def shape_func(H: T.Tensor([3], "int64")):
  *     H[1] = H[2] + 1
  *
  * \endcode
@@ -437,8 +440,9 @@ class VMShapeLowerMutator
     auto [code, rvalue] = MakeMatchArgs(slot->expr, false);
     ffi::Array<Expr> args = {runtime_var, shape_heap_, IntImm::Int64(static_cast<int>(code)),
                              rvalue, GetErrContext(err_ctx)};
-    builder_->Emit(Call(Type::Missing(), builtin_match_prim_value_, args, Attrs(), {void_ty_}),
-                   "_");
+    builder_->Emit(
+        Call::Unchecked(Type::Missing(), builtin_match_prim_value_, args, Attrs(), {void_ty_}),
+        "_");
     this->EmitOutstandingPrimExprCompute();
   }
 
@@ -711,7 +715,7 @@ class VMShapeLowerMutator
     TVM_FFI_ICHECK_GT(heap_size_->value, 0);
     // construct a PrimFunc that compute the shape.
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
-    tirx::BufferVar buffer = tirx::decl_buffer(buffer_shape, PrimType(ShapeDType()), "H", "global");
+    tirx::BufferVar buffer = tirx::decl_tensor(buffer_shape, PrimType(ShapeDType()), "H", "global");
 
     ffi::Map<tirx::Var, PrimExpr> var_map;
     for (const auto& [expr, slot] : slot_map_) {
@@ -751,7 +755,7 @@ class VMShapeLowerMutator
           WithAttr<tirx::PrimFunc>(std::move(shape_func), tvm::tirx::attr::kIsHostFunc, true);
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
-    builder_->Emit(Call(Type::Missing(), shape_func_var, {shape_heap_}), "_");
+    builder_->Emit(Call::Unchecked(Type::Missing(), shape_func_var, {shape_heap_}), "_");
     return to_compute.size();
   }
   //-------------------------------------------------------
@@ -792,8 +796,8 @@ class VMShapeLowerMutator
   void VisitType_(const StringTypeNode* op, Expr value, bool always_check, bool dynamic_only,
                   const ffi::String& err_ctx, std::vector<MatchShapeTodoItem>* match_todos) final {
     if (always_check || !IsBaseOf(StringType(), GetType(value))) {
-      builder_->Emit(Call(Type::Missing(), ExternFunc("vm.builtin.check_string_info"),
-                          {value, GetErrContext(err_ctx)}, Attrs(), {void_ty_}),
+      builder_->Emit(Call::Unchecked(Type::Missing(), ExternFunc("vm.builtin.check_string_info"),
+                                     {value, GetErrContext(err_ctx)}, Attrs(), {void_ty_}),
                      "_");
     }
   }
@@ -839,8 +843,9 @@ class VMShapeLowerMutator
     }
     if (always_check || !IsBaseOf(TensorType(op->dtype, op->ndim), GetType(value))) {
       // check_tensor_info(value, ndim, dtype, err_ctx)
-      Expr dtype_arg = op->IsUnknownDtype() ? Expr(Call(Type::Missing(), null_value_op_, {}))
-                                            : Expr(DataTypeImm(op->dtype.value()->dtype));
+      Expr dtype_arg = op->IsUnknownDtype()
+                           ? Expr(Call::Unchecked(Type::Missing(), null_value_op_, {}))
+                           : Expr(DataTypeImm(op->dtype.value()->dtype));
       Call call(Type::Missing(), builtin_check_tensor_info_,
                 {value, IntImm::Int64(op->ndim), dtype_arg, GetErrContext(err_ctx)}, Attrs(),
                 {void_ty_});
@@ -933,8 +938,8 @@ class VMShapeLowerMutator
    */
   std::vector<PrimExprSlot*> ready_vars_;
   // call builtin cop
-  const Op& call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
-  const Op& null_value_op_ = Op::Get("relax.null_value");
+  const Op call_builtin_with_ctx_op_ = Op::Get("relax.call_builtin_with_ctx");
+  const Op null_value_op_ = Op::Get("relax.null_value");
   // common type
   const Type object_ty_ = AnyType();
   const Type void_ty_ = TupleType(ffi::Array<Type>({}));

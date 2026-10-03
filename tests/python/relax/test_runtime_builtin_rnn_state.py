@@ -216,10 +216,10 @@ def rnn_state_get(
 
     @Ts.prim_func
     def _rnn_state_get(
-        storage: T.Buffer((reserved_nseq, max_history, *shape), dtype),
-        seq_slot_ids: T.Buffer((batch_size,), 'int32'),
-        history_slot_ids: T.Buffer((batch_size,), 'int32'),
-        output: T.Buffer((batch_size, *shape), dtype),
+        storage: T.Tensor((reserved_nseq, max_history, *shape), dtype),
+        seq_slot_ids: T.Tensor((batch_size,), 'int32'),
+        history_slot_ids: T.Tensor((batch_size,), 'int32'),
+        output: T.Tensor((batch_size, *shape), dtype),
     ):
 
         for i in range(batch_size):
@@ -247,10 +247,10 @@ def rnn_state_set(
 
     @Ts.prim_func
     def _rnn_state_set(
-        storage: T.Buffer((reserved_nseq, max_history, *shape), dtype),
-        seq_slot_ids: T.Buffer((batch_size,), 'int32'),
-        history_slot_ids: T.Buffer((batch_size,), 'int32'),
-        data: T.Buffer((batch_size, *shape), dtype),
+        storage: T.Tensor((reserved_nseq, max_history, *shape), dtype),
+        seq_slot_ids: T.Tensor((batch_size,), 'int32'),
+        history_slot_ids: T.Tensor((batch_size,), 'int32'),
+        data: T.Tensor((batch_size, *shape), dtype),
     ):
 
         for i in range(batch_size):

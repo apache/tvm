@@ -44,8 +44,8 @@ Expr sort(Expr data, int axis, bool descending) {
   attrs->axis = std::move(axis);
   attrs->descending = std::move(descending);
 
-  static const Op& op = Op::Get("relax.sort");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  static const Op op = Op::Get("relax.sort");
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -53,16 +53,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.sort", sort);
 }
 
-Type InferTypeSort(const Call& call, const BlockBuilder& ctx) {
-  return GetUnaryInputTensorType(call, ctx);
+Type InferTypeSort(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  return GetUnaryInputTensorType(call);
 }
 
-TVM_REGISTER_OP("relax.sort")
-    .set_attrs_type<SortAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeSort)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.sort")
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<SortAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeSort>())
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.argsort */
 
@@ -72,8 +73,8 @@ Expr argsort(Expr data, int axis, bool descending, ffi::Optional<DLDataType> dty
   attrs->descending = std::move(descending);
   attrs->dtype = std::move(dtype);
 
-  static const Op& op = Op::Get("relax.argsort");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  static const Op op = Op::Get("relax.argsort");
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -81,8 +82,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.argsort", argsort);
 }
 
-Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeArgsort(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* attrs = call->attrs.as<ArgsortAttrs>();
   ffi::Optional<PrimType> out_type = attrs->dtype.has_value()
                                          ? ffi::Optional<PrimType>(PrimType(attrs->dtype.value()))
@@ -93,12 +95,12 @@ Type InferTypeArgsort(const Call& call, const BlockBuilder& ctx) {
   return TensorType(out_type, data_ty->ndim, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.argsort")
-    .set_attrs_type<ArgsortAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeArgsort)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.argsort")
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<ArgsortAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeArgsort>())
+      .set_attr<bool>("FPurity", true);
+}
 
 /* relax.topk */
 
@@ -111,8 +113,8 @@ Expr topk(Expr data, int k, int axis, ffi::String ret_type, bool largest,
   attrs->largest = std::move(largest);
   attrs->dtype = std::move(dtype);
 
-  static const Op& op = Op::Get("relax.topk");
-  return Call(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
+  static const Op op = Op::Get("relax.topk");
+  return Call::Unchecked(Type::Missing(), op, {std::move(data)}, Attrs{attrs}, {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -120,8 +122,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.topk", topk);
 }
 
-Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
-  TensorType data_ty = GetUnaryInputTensorType(call, ctx);
+Type InferTypeTopK(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
+  TensorType data_ty = GetUnaryInputTensorType(call);
   const auto* data_shape = data_ty->shape.as<ShapeExprNode>();
   const auto* attrs = call->attrs.as<TopKAttrs>();
   ffi::Optional<PrimType> indices_type =
@@ -161,12 +164,12 @@ Type InferTypeTopK(const Call& call, const BlockBuilder& ctx) {
   TVM_FFI_UNREACHABLE();
 }
 
-TVM_REGISTER_OP("relax.topk")
-    .set_attrs_type<TopKAttrs>()
-    .set_num_inputs(1)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .set_attr<FInferType>("FInferType", InferTypeTopK)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.topk")
+      .signature(sig::arg("data", "The input tensor."), sig::call_attrs<TopKAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeTopK>())
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

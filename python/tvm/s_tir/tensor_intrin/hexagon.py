@@ -31,8 +31,8 @@ def generate_dma_load_intrin(
 
     @Ts.prim_func
     def sync_dma_load_desc(
-        A: T.Buffer(size, dtype, offset_factor=1, scope="global"),
-        C: T.Buffer(size, dtype, offset_factor=1, scope="global.vtcm"),
+        A: T.Tensor(size, dtype, offset_factor=1, scope="global"),
+        C: T.Tensor(size, dtype, offset_factor=1, scope="global.vtcm"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:size])
@@ -44,8 +44,8 @@ def generate_dma_load_intrin(
 
     @Ts.prim_func
     def sync_dma_load_impl(
-        A: T.Buffer(size, dtype, offset_factor=1, scope="global"),
-        C: T.Buffer(size, dtype, offset_factor=1, scope="global.vtcm"),
+        A: T.Tensor(size, dtype, offset_factor=1, scope="global"),
+        C: T.Tensor(size, dtype, offset_factor=1, scope="global.vtcm"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:size])
@@ -54,26 +54,23 @@ def generate_dma_load_intrin(
                 T.tvm_call_packed(
                     "device_api.hexagon.dma_copy_dltensor",
                     T.tvm_stack_make_array(
-                        T.address_of(C[0], dtype="handle"),
-                        T.tvm_stack_make_shape(size, dtype="handle"),
+                        T.address_of(C[0]),
+                        T.tvm_stack_make_shape(size),
                         0,
                         1,
                         C.dtype,
                         0,
-                        dtype="handle",
                     ),
                     T.tvm_stack_make_array(
-                        T.address_of(A[0], dtype="handle"),
-                        T.tvm_stack_make_shape(size, dtype="handle"),
+                        T.address_of(A[0]),
+                        T.tvm_stack_make_shape(size),
                         0,
                         1,
                         A.dtype,
                         0,
-                        dtype="handle",
                     ),
                     T.cast(size, dtype="int"),
                     False,  # Do not use experimental bypass mode.
-                    dtype="int32",
                 )
             )
 
@@ -83,9 +80,9 @@ def generate_dma_load_intrin(
 def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
     @Ts.prim_func
     def dot_product_32x4_u8u8i32_desc(
-        A: T.Buffer((4,), "uint8", offset_factor=1, scope=mem_scope),
-        B: T.Buffer((32, 4), "uint8", offset_factor=1, scope=mem_scope),
-        C: T.Buffer((32,), "int32", offset_factor=1, scope=mem_scope),
+        A: T.Tensor((4,), "uint8", offset_factor=1, scope=mem_scope),
+        B: T.Tensor((32, 4), "uint8", offset_factor=1, scope=mem_scope),
+        C: T.Tensor((32,), "int32", offset_factor=1, scope=mem_scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
@@ -98,9 +95,9 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
 
     @Ts.prim_func
     def dot_product_32x4_u8u8i32_vrmpy(
-        A: T.Buffer((4,), "uint8", offset_factor=1, scope=mem_scope),
-        B: T.Buffer((32, 4), "uint8", offset_factor=1, scope=mem_scope),
-        C: T.Buffer((32,), "int32", offset_factor=1, scope=mem_scope),
+        A: T.Tensor((4,), "uint8", offset_factor=1, scope=mem_scope),
+        B: T.Tensor((32, 4), "uint8", offset_factor=1, scope=mem_scope),
+        C: T.Tensor((32,), "int32", offset_factor=1, scope=mem_scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
@@ -126,9 +123,9 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
 def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
     @Ts.prim_func
     def dot_product_32x4_u8i8i32_desc(
-        A: T.Buffer((4,), "uint8", offset_factor=1, scope=mem_scope),
-        B: T.Buffer((32, 4), "int8", offset_factor=1, scope=mem_scope),
-        C: T.Buffer((32,), "int32", offset_factor=1, scope=mem_scope),
+        A: T.Tensor((4,), "uint8", offset_factor=1, scope=mem_scope),
+        B: T.Tensor((32, 4), "int8", offset_factor=1, scope=mem_scope),
+        C: T.Tensor((32,), "int32", offset_factor=1, scope=mem_scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
@@ -141,9 +138,9 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
 
     @Ts.prim_func
     def dot_product_32x4_u8i8i32_vrmpy(
-        A: T.Buffer((4,), "uint8", offset_factor=1, scope=mem_scope),
-        B: T.Buffer((32, 4), "int8", offset_factor=1, scope=mem_scope),
-        C: T.Buffer((32,), "int32", offset_factor=1, scope=mem_scope),
+        A: T.Tensor((4,), "uint8", offset_factor=1, scope=mem_scope),
+        B: T.Tensor((32, 4), "int8", offset_factor=1, scope=mem_scope),
+        C: T.Tensor((32,), "int32", offset_factor=1, scope=mem_scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:4], B[0:32, 0:4])
@@ -169,9 +166,9 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
 def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
     @Ts.prim_func
     def dot_product_32x2_i16i16i32_desc(
-        A: T.Buffer((2,), "int16", offset_factor=1, scope=mem_scope),
-        B: T.Buffer((32, 2), "int16", offset_factor=1, scope=mem_scope),
-        C: T.Buffer((32,), "int32", offset_factor=1, scope=mem_scope),
+        A: T.Tensor((2,), "int16", offset_factor=1, scope=mem_scope),
+        B: T.Tensor((32, 2), "int16", offset_factor=1, scope=mem_scope),
+        C: T.Tensor((32,), "int32", offset_factor=1, scope=mem_scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:2], B[0:32, 0:2])
@@ -184,9 +181,9 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
 
     @Ts.prim_func
     def dot_product_32x2_i16i16i32_vdmpy(
-        A: T.Buffer((2,), "int16", offset_factor=1, scope=mem_scope),
-        B: T.Buffer((32, 2), "int16", offset_factor=1, scope=mem_scope),
-        C: T.Buffer((32,), "int32", offset_factor=1, scope=mem_scope),
+        A: T.Tensor((2,), "int16", offset_factor=1, scope=mem_scope),
+        B: T.Tensor((32, 2), "int16", offset_factor=1, scope=mem_scope),
+        C: T.Tensor((32,), "int32", offset_factor=1, scope=mem_scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:32], A[0:2], B[0:32, 0:2])

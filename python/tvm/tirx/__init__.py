@@ -29,10 +29,10 @@ from tvm.runtime import const
 from .buffer import (
     Buffer,
     BufferAccessKind,
-    BufferType,
+    TensorType,
     buffer_data,
     buffer_data_pointer_type,
-    decl_buffer,
+    decl_tensor,
     is_buffer_var,
 )
 from .type import TensorMapType
@@ -46,10 +46,10 @@ from .expr import CallEffectKind, Let, IterVar, CommReducer
 
 from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Continue
 
-# Legacy alias: LetStmt was folded into Bind (which now accepts an optional body)
+# Legacy alias: LetStmt was folded into the body-less Bind statement.
 LetStmt = Bind
 
-from .stmt import BufferStore, AllocBuffer, AttrStmt, DeclBuffer
+from .stmt import BufferStore, AttrStmt
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list

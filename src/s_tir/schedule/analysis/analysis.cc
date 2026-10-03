@@ -1325,8 +1325,8 @@ std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& b
       continue;
     }
     // Try to find the buffer in `allloc_buffers`
-    for (const BufferVar& alloc_buffer : block->alloc_buffers) {
-      if (buffer.same_as(alloc_buffer)) {
+    for (const BufferVar& alloc_tensor : block->alloc_buffers) {
+      if (buffer.same_as(alloc_tensor)) {
         return {ffi::GetRef<StmtSRef>(defining_site_sref), true};
       }
     }
@@ -1399,7 +1399,7 @@ bool HasIfThenElse(const Stmt& stmt) {
     return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
   };
   auto visit_call = [](const Call& call) -> ffi::Expected<ffi::WalkResult> {
-    static const Op& if_then_else_op = Op::Get("prim.if_then_else");
+    static const Op if_then_else_op = Op::Get("prim.if_then_else");
     if (call->op.same_as(if_then_else_op)) {
       return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
     }

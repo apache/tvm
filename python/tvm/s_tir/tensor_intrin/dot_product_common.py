@@ -31,9 +31,9 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
 
     @Ts.prim_func
     def dp4a_desc(
-        A: T.Buffer((4,), dtype_a, offset_factor=1, align=4, scope="shared"),
-        B: T.Buffer((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
-        C: T.Buffer((1,), dtype_c, offset_factor=1, align=4, scope="local"),
+        A: T.Tensor((4,), dtype_a, offset_factor=1, align=4, scope="shared"),
+        B: T.Tensor((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
+        C: T.Tensor((1,), dtype_c, offset_factor=1, align=4, scope="local"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0], A[0:4], B[0:4])
@@ -45,9 +45,9 @@ def get_dp4a_intrin(dtype_a, dtype_b, dtype_c):
 
     @Ts.prim_func
     def dp4a_impl(
-        A: T.Buffer((4,), dtype_a, offset_factor=1, align=4, scope="shared"),
-        B: T.Buffer((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
-        C: T.Buffer((1,), dtype_c, offset_factor=1, align=4, scope="local"),
+        A: T.Tensor((4,), dtype_a, offset_factor=1, align=4, scope="shared"),
+        B: T.Tensor((4,), dtype_b, offset_factor=1, align=4, scope="shared"),
+        C: T.Tensor((1,), dtype_c, offset_factor=1, align=4, scope="local"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0], A[0:4], B[0:4])

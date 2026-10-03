@@ -272,8 +272,8 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
   }
 
   for (const Var& param : func->params) {
-    TVM_FFI_ICHECK(!param->ty.as<tirx::BufferTypeNode>())
-        << "Cannot codegen BufferType-annotated parameter " << param << "; please lower it first";
+    TVM_FFI_ICHECK(!param->ty.as<tirx::TensorTypeNode>())
+        << "Cannot codegen TensorType-annotated parameter " << param << "; please lower it first";
   }
 
   std::vector<llvm::Type*> param_types;
@@ -1904,7 +1904,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const TensorLoadNode* op) {
 
 llvm::Value* CodeGenLLVM::CreateMaskedLoad(const CallNode* op) {
   TVM_FFI_ICHECK_GE(op->args.size(), 3U);
-  BufferVar buffer(op->args[0].as_or_throw<Var>());
+  BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
   ffi::Array<PrimExpr> indices;
   for (size_t i = 1; i + 1 < op->args.size(); ++i) {
     indices.push_back(op->args[i].as_or_throw<PrimExpr>());
@@ -1934,7 +1934,7 @@ llvm::Value* CodeGenLLVM::CreateMaskedLoad(const CallNode* op) {
 
 llvm::Value* CodeGenLLVM::CreateMaskedStore(const CallNode* op) {
   TVM_FFI_ICHECK_GE(op->args.size(), 4U);
-  BufferVar buffer(op->args[0].as_or_throw<Var>());
+  BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
   PrimExpr value_expr = op->args[1].as_or_throw<PrimExpr>();
   ffi::Array<PrimExpr> indices;
   for (size_t i = 2; i + 1 < op->args.size(); ++i) {
@@ -2208,32 +2208,36 @@ void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {
   builder_->SetInsertPoint(end_block);
 }
 
-void CodeGenLLVM::Dispatch_(const AllocBufferNode* op) {
+void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
+  tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
+  DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   EmitDebugLocation(op);
-  TVM_FFI_ICHECK_EQ(op->buffer->shape.size(), 1)
+  TVM_FFI_ICHECK_EQ(shape->fields.size(), 1)
       << "LLVM codegen only supports flat 1-d buffer allocation, but allocation of "
-      << op->buffer.name() << " is " << op->buffer->shape << "-d";
+      << buffer.name() << " is " << shape->fields << "-d";
 
   llvm::Value* buf = nullptr;
 
-  const IntImmNode* dim_imm = op->buffer->shape[0].as<IntImmNode>();
+  const IntImmNode* dim_imm = shape->fields[0].as<IntImmNode>();
   TVM_FFI_ICHECK(dim_imm) << "Can only handle constant size stack allocation";
   int64_t constant_size = static_cast<int64_t>(dim_imm->value);
   TVM_FFI_ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation";
 
-  StorageInfo& info = alloc_storage_info_[op->buffer.get()];
+  StorageInfo& info = alloc_storage_info_[buffer.get()];
   // Use buffer's data_alignment if specified, otherwise compute from shape.
-  if (op->buffer->data_alignment > 0) {
-    info.alignment = op->buffer->data_alignment;
+  if (buffer->data_alignment > 0) {
+    info.alignment = buffer->data_alignment;
   } else if (constant_size % 4 == 0 && info.alignment == 0) {
-    info.alignment = GetTempAllocaAlignment(op->buffer->dtype, constant_size);
+    info.alignment = GetTempAllocaAlignment(PrimType(dtype), constant_size);
   }
   // maximum necessary alignment in the NV devices
   if (info.alignment > 16) {
     info.alignment = 16;
   }
   llvm::AllocaInst* alloca = WithFunctionEntry([&]() {
-    return builder_->CreateAlloca(DTypeToLLVMType(op->buffer->dtype), ConstInt64(constant_size));
+    return builder_->CreateAlloca(DTypeToLLVMType(PrimType(dtype)), ConstInt64(constant_size));
   });
   auto alignment = static_cast<unsigned>(alloca->getAlign().value());
   if (alignment < static_cast<unsigned>(info.alignment)) {
@@ -2243,15 +2247,15 @@ void CodeGenLLVM::Dispatch_(const AllocBufferNode* op) {
 
   buf = alloca;
 
-  buf =
-      builder_->CreatePointerCast(buf, llvmGetPointerTo(DTypeToLLVMType(op->buffer->dtype),
-                                                        buf->getType()->getPointerAddressSpace()));
-  AddDebugInformation(buf, op->buffer.var());
+  buf = builder_->CreatePointerCast(
+      buf,
+      llvmGetPointerTo(DTypeToLLVMType(PrimType(dtype)), buf->getType()->getPointerAddressSpace()));
+  AddDebugInformation(buf, buffer.var());
 
-  TVM_FFI_ICHECK(!var_map_.count(op->buffer.get()));
-  var_map_[op->buffer.get()] = buf;
-  if (op->annotations.count(tirx::attr::kVolatile)) {
-    volatile_buf_.insert(op->buffer.get());
+  TVM_FFI_ICHECK(!var_map_.count(buffer.get()));
+  var_map_[buffer.get()] = buf;
+  if (annotations->dict.count(tirx::attr::kVolatile)) {
+    volatile_buf_.insert(buffer.get());
   }
 }
 
@@ -2284,6 +2288,10 @@ void CodeGenLLVM::Dispatch_(const AssertStmtNode* op) {
 }
 
 void CodeGenLLVM::Dispatch_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>(); call) {
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+  }
   EmitDebugLocation(op);
   const VarNode* v = op->var.get();
   TVM_FFI_ICHECK(!var_map_.count(v));
@@ -2329,36 +2337,40 @@ void CodeGenLLVM::Dispatch_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenLLVM::Dispatch_(const DeclBufferNode* op) {
+void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
+  Expr data = buffer_call->args[0];
+  DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+  ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
+  BufferVar buffer = op->var.as_or_throw<BufferVar>();
   EmitDebugLocation(op);
-  const VarNode* buffer = op->buffer.get();
-  TVM_FFI_ICHECK(!var_map_.count(buffer));
+  const VarNode* buffer_var = buffer.get();
+  TVM_FFI_ICHECK(!var_map_.count(buffer_var));
   if (!is_restricted_) {
-    alias_var_set_.insert(buffer);
+    alias_var_set_.insert(buffer_var);
   }
 
-  llvm::Value* value = MakeValue(op->data);
-  const VarNode* source = op->data.as<VarNode>();
-  if (const auto* call = op->data.as<CallNode>();
+  llvm::Value* value = MakeValue(data);
+  const VarNode* source = data.as<VarNode>();
+  if (const auto* call = data.as<CallNode>();
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     source = call->args[0].as<VarNode>();
   }
   if (source) {
-    buffer_physical_root_[buffer] = GetBufferPhysicalRoot(source);
+    buffer_physical_root_[buffer_var] = GetBufferPhysicalRoot(source);
   }
 
-  llvm::Type* expected_type = GetLLVMType(op->buffer.DataPointerType());
+  llvm::Type* expected_type = GetLLVMType(PointerType(PrimType(dtype), scope));
   if (value->getType() != expected_type) {
-    value->setName((op->buffer.name() + "_source_ptr").c_str());
+    value->setName((buffer.name() + "_source_ptr").c_str());
     value = builder_->CreatePointerCast(value, expected_type);
   }
 
-  AddDebugInformation(value, op->buffer.var());
-  var_map_[buffer] = value;
-  const VarNode* physical_root = GetBufferPhysicalRoot(buffer);
+  AddDebugInformation(value, buffer.var());
+  var_map_[buffer_var] = value;
+  const VarNode* physical_root = GetBufferPhysicalRoot(buffer_var);
   if (alloc_storage_info_.count(physical_root) &&
       alloc_storage_info_[physical_root].alignment > 1) {
-    builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(buffer),
+    builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(buffer_var),
                                         alloc_storage_info_[physical_root].alignment);
   }
 }
@@ -2451,9 +2463,9 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
   if (!di_subprogram_) return;
 
   Type debug_type = tir_var->ty;
-  if (const auto* buffer_type = debug_type.as<BufferTypeNode>()) {
+  if (const auto* buffer_type = debug_type.as<TensorTypeNode>()) {
     // A BufferVar is a compiler-side identity.  Its LLVM value is the physical
-    // data pointer installed by AllocBuffer or DeclBuffer.
+    // data pointer installed by AllocTensor or DeclTensor.
     debug_type = buffer_type->DataPointerType();
   }
   auto dbg_dtype = GetDebugType(debug_type);

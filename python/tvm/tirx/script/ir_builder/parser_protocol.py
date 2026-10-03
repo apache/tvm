@@ -166,7 +166,7 @@ def device_entry() -> None:
 
         @T.prim_func
         def kernel(...):
-            A = T.Buffer(...)
+            A = T.Tensor(...)
             T.device_entry()           # device region starts here
             bx = T.cta_id([SM_COUNT])  # standalone scope-id def
             ...
@@ -503,24 +503,6 @@ def attr(
         return _ffi_api.Attr(node_or_dict, attr_key, value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def hint(message: str = "", **attrs) -> frame.HintFrame:
-    """Universal directive primitive for the sketch language.
-
-    Parameters
-    ----------
-    message : str
-        Free-form directive string that the agent interprets.
-    **attrs
-        Optional structured key-value attributes for known patterns.
-
-    Returns
-    -------
-    res : frame.HintFrame
-        Usable as context manager (with T.hint("msg"):) or bare statement (T.hint("msg")).
-    """
-    return _ffi_api.Hint(message, attrs or {})  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def buffer_store(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
     value: Expr,
@@ -653,7 +635,9 @@ def while_(condition: Any, *, span: _Span = None) -> frame.WhileFrame:
 def range_(*args: Any, annotations: dict[str, Any] | None = None) -> frame.ForFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.range_`."""
     if len(args) == 1:
-        args = (0, args[0], None)
+        # serial constructs the omitted zero in the stop expression's dtype.
+        # A Python zero would promote narrow typed bounds to int32.
+        return serial(args[0], annotations=annotations)
     elif len(args) == 2:
         args = (*args, None)
     elif len(args) != 3:
@@ -1079,7 +1063,6 @@ __all__ = [
     "ge_",
     "grid",
     "gt_",
-    "hint",
     "if_",
     "if_then_else_",
     "launch_thread",

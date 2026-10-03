@@ -35,7 +35,7 @@ namespace te {
 namespace {
 
 const Op& TensorLoadOp() {
-  static const Op& op = Op::Get("te.tensor_load");
+  static const Op op = Op::Get("te.tensor_load");
   return op;
 }
 
@@ -63,16 +63,19 @@ ffi::Array<PrimExpr> ValidateTensorLoad(const Call& call, Tensor* tensor_out) {
   return indices;
 }
 
-TVMFFIAny TensorVisit(ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TensorVisit(
+    ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
+  return std::nullopt;
 }
 
-TVMFFIAny TensorMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorMutate(ffi::StructuralMutatorObj*,
+                                                                      ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
-TVMFFIAny TensorMaybeInplaceMutate(ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
-  return ffi::Unchanged().CopyToTVMFFIAny();
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TensorMaybeInplaceMutate(
+    ffi::StructuralMutatorObj*, ffi::AnyView) noexcept {
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -97,8 +100,12 @@ IterVar reduce_axis(Range dom, std::string name) {
 
 PrimVar var(std::string name_hint, PrimType t) { return PrimVar(name_hint, t); }
 
-TVM_REGISTER_OP("te.tensor_load")
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kReadState));
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("te.tensor_load")
+      .signature(sig::arg("tensor", "The input tensor."), sig::var_args("args"))
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kReadState));
+}
 
 // Tensor
 inline PrimExpr Tensor::IndexTensor(ffi::Array<PrimExpr> indices,
@@ -167,10 +174,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   TensorNode::RegisterReflection();
   refl::TypeAttrDef<TensorNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TensorVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TensorMutate))
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TensorVisit>())
+      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TensorMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TensorMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&TensorMaybeInplaceMutate>());
 }
 
 bool IsTensorLoad(const Expr& expr) {
@@ -194,12 +201,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       "te.Tensor", [](ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index) {
         return Tensor(shape, dtype, op, value_index);
       });
-}
 
-// Pattern A (RM): auto-default repr from reflection.
+  // Pattern A (RM): auto-default repr from reflection.
 
-// Other tensor ops.
-TVM_FFI_STATIC_INIT_BLOCK() {
+  // Other tensor ops.
+
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("te.TensorEqual", &Tensor::operator==)

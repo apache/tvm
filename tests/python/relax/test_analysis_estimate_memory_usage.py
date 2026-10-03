@@ -29,43 +29,43 @@ def test_basic():
     class Module:
         @Ts.prim_func
         def add(
-            rxplaceholder: T.Buffer(T.int64(8), "float32"),
-            rxplaceholder_1: T.Buffer((), "float32"),
-            T_add: T.Buffer(T.int64(8), "float32"),
+            rxplaceholder: T.Tensor(T.int64(8), "float32"),
+            rxplaceholder_1: T.Tensor((), "float32"),
+            T_add: T.Tensor(T.int64(8), "float32"),
         ):
             T.evaluate(0)
 
         @Ts.prim_func
         def reshape(
-            rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"),
-            T_reshape: T.Buffer(T.int64(8), "float32"),
+            rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"),
+            T_reshape: T.Tensor(T.int64(8), "float32"),
         ):
             T.evaluate(0)
 
         @Ts.prim_func
         def relu(
-            rxplaceholder: T.Buffer(T.int64(8), "float32"), compute: T.Buffer(T.int64(8), "float32")
+            rxplaceholder: T.Tensor(T.int64(8), "float32"), compute: T.Tensor(T.int64(8), "float32")
         ):
             T.evaluate(0)
 
         @Ts.prim_func
         def log(
-            rxplaceholder: T.Buffer(T.int64(10), "float32"),
-            compute: T.Buffer(T.int64(10), "float32"),
+            rxplaceholder: T.Tensor(T.int64(10), "float32"),
+            compute: T.Tensor(T.int64(10), "float32"),
         ):
             T.evaluate(0)
 
         @Ts.prim_func
         def exp(
-            rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"),
-            compute: T.Buffer((T.int64(2), T.int64(4)), "float32"),
+            rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"),
+            compute: T.Tensor((T.int64(2), T.int64(4)), "float32"),
         ):
             T.evaluate(0)
 
         @Ts.prim_func
         def pad(
-            rxplaceholder: T.Buffer(T.int64(8), "float32"),
-            PadInput: T.Buffer(T.int64(10), "float32"),
+            rxplaceholder: T.Tensor(T.int64(8), "float32"),
+            PadInput: T.Tensor(T.int64(10), "float32"),
         ):
             T.evaluate(0)
 

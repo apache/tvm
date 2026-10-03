@@ -503,8 +503,10 @@ class StringImm(Constant):
 class Call(_CallableExprWithOp):
     """Core function call node.
 
-    When ``ret_ty`` is omitted, use a missing type for subsequent normalization.
+    When ``ty`` is omitted, use a missing type for subsequent normalization.
     Builders may supply a known result type explicitly.
+    Operator validation runs during construction. Use :meth:`unchecked` for a
+    provisional call that will be checked after normalization.
     """
 
     op: Expr
@@ -520,8 +522,14 @@ class Call(_CallableExprWithOp):
         attrs: "tvm.ir.Attrs | dict | None" = None,
         ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
         span: Span | None = None,
-        ret_ty: "tvm.ir.Type | str | None" = None,
+        ty: "tvm.ir.Type | str | None" = None,
     ) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.Call, *self._normalize_constructor_args(op, args, attrs, ty_args, span, ty)
+        )
+
+    @staticmethod
+    def _normalize_constructor_args(op, args, attrs, ty_args, span, ty):
         # pylint: disable=import-outside-toplevel
         from .attrs import DictAttrs
         from .op import Op
@@ -531,15 +539,67 @@ class Call(_CallableExprWithOp):
             op = Op.get(op)
         if attrs is not None and isinstance(attrs, dict):
             attrs = DictAttrs(attrs)
-        if ret_ty is None:
-            ret_ty = Type.missing()
-        if isinstance(ret_ty, str) and ret_ty == "handle":
-            ret_ty = PointerType(PrimType("void"))
-        elif ret_ty is not None and not isinstance(ret_ty, Type):
-            ret_ty = PrimType(ret_ty)
+        if ty is None:
+            ty = Type.missing()
+        if isinstance(ty, str) and ty == "handle":
+            ty = PointerType(PrimType("void"))
+        elif ty is not None and not isinstance(ty, Type):
+            ty = PrimType(ty)
         if ty_args is None:
             ty_args = []
-        self.__init_handle_by_constructor__(_ffi_api.Call, ret_ty, op, args, attrs, ty_args, span)
+        return ty, op, args, attrs, ty_args, span
+
+    @staticmethod
+    def unchecked(
+        op: Expr | str,
+        args: list[Expr] | tuple[Expr, ...],
+        attrs: "tvm.ir.Attrs | dict | None" = None,
+        ty_args: list["tvm.ir.Type"] | tuple["tvm.ir.Type", ...] | None = None,
+        span: Span | None = None,
+        ty: "tvm.ir.Type | str | None" = None,
+    ) -> "Call":
+        """Construct a provisional Call without invoking its Op validator.
+
+        Use this for inputs that cannot be checked until type deduction or
+        normalization. Op validation is skipped at construction, so callers
+        must arrange a later check before relying on the Call. For Relax Calls,
+        operator-specific normalization and :func:`tvm.relax.analysis.well_formed`
+        provide validation paths. Ordinary ``Call(...)`` validates immediately.
+
+        Parameters
+        ----------
+        op : Expr or str
+            Callee expression or the name of a registered Op.
+        args : list[Expr] or tuple[Expr, ...]
+            Positional value arguments.
+        attrs : tvm.ir.Attrs, dict, or None
+            Call attributes. A dict is converted to ``DictAttrs``.
+        ty_args : list[tvm.ir.Type], tuple[tvm.ir.Type, ...], or None
+            Explicit type arguments; ``None`` gives an empty list.
+        span : Span or None
+            Source location of the Call.
+        ty : tvm.ir.Type, str, or None
+            Result type. ``None`` uses ``Type.missing()`` for later inference;
+            ``"handle"`` becomes a void pointer type and other strings become
+            primitive types.
+
+        Returns
+        -------
+        Call
+            The provisional, unvalidated Call.
+        """
+        return _ffi_api.CallUnchecked(
+            *Call._normalize_constructor_args(op, args, attrs, ty_args, span, ty)
+        )
+
+
+def reinfer_type(call: Call) -> "tvm.ir.Type":
+    """Derive a Call's result type from its current inputs without changing the Call.
+
+    The operator must register a fixed return type or a context-free inference
+    rule. This does not invoke the operator's validator.
+    """
+    return _ffi_api.reinfer_type(call)
 
 
 @tvm_ffi.register_object("ir.TensorRegion")

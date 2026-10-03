@@ -105,7 +105,7 @@ class NotSingleReadWriteBuffer : public ScheduleErrorContextObj {
       if (buffer == read_buffer) {
         continue;
       }
-      if (buffer_writers.count(BufferVar(ffi::GetRef<Var>(buffer))) > 0) {
+      if (buffer_writers.count(ffi::GetRef<Var>(buffer).as_or_throw<BufferVar>()) > 0) {
         if (read_buffer != nullptr) {
           throw MakeScheduleError<NotSingleReadWriteBuffer>(self->mod, true, block);
         }
@@ -115,7 +115,7 @@ class NotSingleReadWriteBuffer : public ScheduleErrorContextObj {
     if (read_buffer == nullptr) {
       throw MakeScheduleError<NotSingleReadWriteBuffer>(self->mod, true, block);
     }
-    return BufferVar(ffi::GetRef<Var>(read_buffer));
+    return ffi::GetRef<Var>(read_buffer).as_or_throw<BufferVar>();
   }
 
   static BufferVar GetSingleWrite(const ScheduleState& self, const SBlock& block) {
@@ -411,7 +411,7 @@ class BaseInliner : public StmtExprMutator {
 
   /*!
    * \brief Update the following block signature:
-   * 1) T.alloc_buffer, if the block is scope root
+   * 1) T.alloc_tensor, if the block is scope root
    * 2) T.reads, if the block is not scope root
    * 3) T.writes, if the block is not scope root
    * \param block The block to be updated
@@ -423,9 +423,9 @@ class BaseInliner : public StmtExprMutator {
     ffi::Array<BufferVar> alloc_buffers;
     if (is_scope_root) {
       alloc_buffers.reserve(block->alloc_buffers.size());
-      for (const BufferVar& alloc_buffer : block->alloc_buffers) {
-        if (!alloc_buffer.same_as(inlined_buffer_)) {
-          alloc_buffers.push_back(alloc_buffer);
+      for (const BufferVar& alloc_tensor : block->alloc_buffers) {
+        if (!alloc_tensor.same_as(inlined_buffer_)) {
+          alloc_buffers.push_back(alloc_tensor);
         }
       }
     } else {
@@ -1328,7 +1328,7 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
   // In most cases, there's one additional buffer (e.g., bias buffer)
   if (!extractor->other_buffers.empty()) {
     const VarNode* first_buffer = *extractor->other_buffers.begin();
-    epilogue_addend_buffer_ = BufferVar(ffi::GetRef<Var>(first_buffer));
+    epilogue_addend_buffer_ = ffi::GetRef<Var>(first_buffer).as_or_throw<BufferVar>();
     // Find the read region from epilogue block reads
     for (const TensorRegion& read : epilogue_block_->reads) {
       if (read->source.as_or_throw<tvm::tirx::BufferVar>().get() == first_buffer) {

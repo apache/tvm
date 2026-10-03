@@ -80,7 +80,7 @@ class BaseCompactTest:
 
 class TestElemwise(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def before(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 Ts.reads(A[i, 0:16])
@@ -98,7 +98,7 @@ class TestElemwise(BaseCompactTest):
                         C[i, j] = B[i, j] * 2.0
 
     @Ts.prim_func
-    def expected(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def expected(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 Ts.reads(A[i, 0:16])
@@ -118,7 +118,7 @@ class TestElemwise(BaseCompactTest):
 
 class TestUnschedulableFunc(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def before(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 Ts.reads(A[i, 0:16])
@@ -135,7 +135,7 @@ class TestUnschedulableFunc(BaseCompactTest):
 
 class TestParamBufferAccess(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((20, 20), "float32"), B: T.Buffer((20, 20), "float32")) -> None:
+    def before(A: T.Tensor((20, 20), "float32"), B: T.Tensor((20, 20), "float32")) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 Ts.reads(A[i, 0:16])
@@ -151,7 +151,7 @@ class TestParamBufferAccess(BaseCompactTest):
 
 class TestSharedMem(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def before(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i0 in T.thread_binding(0, 2, thread="blockIdx.x"):
             for i1 in T.thread_binding(0, 2, thread="vthread"):
                 for i2 in T.thread_binding(0, 4, thread="threadIdx.x"):
@@ -171,7 +171,7 @@ class TestSharedMem(BaseCompactTest):
                                 C[i0 * 8 + i1 * 4 + i2, j] = B[i0 * 8 + i1 * 4 + i2, j] * 2.0
 
     @Ts.prim_func
-    def expected(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def expected(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i0 in T.thread_binding(0, 2, thread="blockIdx.x"):
             for i1 in T.thread_binding(0, 2, thread="vthread"):
                 for i2 in T.thread_binding(0, 4, thread="threadIdx.x"):
@@ -193,7 +193,7 @@ class TestSharedMem(BaseCompactTest):
 
 class TestWrapMem(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def before(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i0 in T.thread_binding(0, 2, thread="blockIdx.x"):
             for i1 in T.thread_binding(0, 2, thread="vthread"):
                 for i2 in T.thread_binding(0, 4, thread="threadIdx.x"):
@@ -213,7 +213,7 @@ class TestWrapMem(BaseCompactTest):
                                 C[i0 * 8 + i1 * 4 + i2, j] = B[i0 * 8 + i1 * 4 + i2, j] * 2.0
 
     @Ts.prim_func
-    def expected(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def expected(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i0 in T.thread_binding(0, 2, thread="blockIdx.x"):
             for i1 in T.thread_binding(0, 2, thread="vthread"):
                 for i2 in T.thread_binding(0, 4, thread="threadIdx.x"):
@@ -236,8 +236,8 @@ class TestWrapMem(BaseCompactTest):
 class TestSymbolic(BaseCompactTest):
     @Ts.prim_func
     def before(
-        A: T.Buffer((n * 8,), "float32"),  # noqa: F821
-        C: T.Buffer((n * 8,), "float32"),  # noqa: F821
+        A: T.Tensor((n * 8,), "float32"),  # noqa: F821
+        C: T.Tensor((n * 8,), "float32"),  # noqa: F821
         n: T.int32,
     ) -> None:
         for i in range(0, n):
@@ -258,8 +258,8 @@ class TestSymbolic(BaseCompactTest):
 
     @Ts.prim_func
     def expected(
-        A: T.Buffer((n * 8,), "float32"),  # noqa: F821
-        C: T.Buffer((n * 8,), "float32"),  # noqa: F821
+        A: T.Tensor((n * 8,), "float32"),  # noqa: F821
+        C: T.Tensor((n * 8,), "float32"),  # noqa: F821
         n: T.int32,
     ) -> None:
         for i in range(0, n):
@@ -281,7 +281,7 @@ class TestSymbolic(BaseCompactTest):
 
 class TestComplexFunc(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((8, 8), "float32"), C: T.Buffer((8, 8), "float32"), n: T.int32) -> None:
+    def before(A: T.Tensor((8, 8), "float32"), C: T.Tensor((8, 8), "float32"), n: T.int32) -> None:
         for i in range(0, 8):
             with Ts.sblock():
                 Ts.reads(A[0, 8])
@@ -309,7 +309,7 @@ class TestComplexFunc(BaseCompactTest):
 
     @Ts.prim_func
     def expected(
-        A: T.Buffer((8, 8), "float32"), C: T.Buffer((8, 8), "float32"), n: T.int32
+        A: T.Tensor((8, 8), "float32"), C: T.Tensor((8, 8), "float32"), n: T.int32
     ) -> None:
         for i in range(0, 8):
             with Ts.sblock():
@@ -341,7 +341,7 @@ class TestMatchBuffer(BaseCompactTest):
     is_lower_order_free = False
 
     @Ts.prim_func
-    def before(A: T.Buffer((16, 16)), C: T.Buffer((16, 16))) -> None:
+    def before(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 A0 = Ts.match_buffer(A[i, 0:16], (16))
@@ -361,7 +361,7 @@ class TestMatchBuffer(BaseCompactTest):
                         C1[()] = B2[()] * 2.0
 
     @Ts.prim_func
-    def expected(A: T.Buffer((16, 16)), C: T.Buffer((16, 16))) -> None:
+    def expected(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 A0 = Ts.match_buffer(A[i, 0:16], (16))
@@ -383,7 +383,7 @@ class TestMatchBuffer(BaseCompactTest):
 
 class TestStorageAlign(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def before(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 Ts.reads(A[i, 0:16])
@@ -402,7 +402,7 @@ class TestStorageAlign(BaseCompactTest):
                         C[i, j] = B[i, j] * 2.0
 
     @Ts.prim_func
-    def expected(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def expected(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i in range(0, 16):
             with Ts.sblock():
                 Ts.reads(A[i, 0:16])
@@ -423,7 +423,7 @@ class TestStorageAlign(BaseCompactTest):
 
 class TestPaddingPattern(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((16, 16), "float32"), C: T.Buffer((20, 20), "float32")) -> None:
+    def before(A: T.Tensor((16, 16), "float32"), C: T.Tensor((20, 20), "float32")) -> None:
         with Ts.sblock():
             B = Ts.sblock_alloc_buffer((20, 20), dtype="float32")
             for i, j in T.grid(16, 16):
@@ -435,12 +435,11 @@ class TestPaddingPattern(BaseCompactTest):
                         2 <= i and i < 18 and 2 <= j and j < 18,
                         B[i - 2, j - 2],
                         0.0,
-                        dtype="float32",
                     )
 
     @Ts.prim_func
     def expected(
-        A: T.Buffer([16, 16], dtype="float32"), C: T.Buffer([20, 20], dtype="float32")
+        A: T.Tensor([16, 16], dtype="float32"), C: T.Tensor([20, 20], dtype="float32")
     ) -> None:
         with Ts.sblock():
             B = Ts.sblock_alloc_buffer([16, 16], dtype="float32")
@@ -453,14 +452,13 @@ class TestPaddingPattern(BaseCompactTest):
                         2 <= i and i < 18 and 2 <= j and j < 18,
                         B[i - 2, j - 2],
                         0.0,
-                        dtype="float32",
                     )
 
 
 class TestPaddingPatternInlined(BaseCompactTest):
     @Ts.prim_func
     def before(
-        X: T.Buffer([224, 224], dtype="float32"), Y: T.Buffer([224, 224], dtype="float32")
+        X: T.Tensor([224, 224], dtype="float32"), Y: T.Tensor([224, 224], dtype="float32")
     ) -> None:
         cache = Ts.sblock_alloc_buffer([224, 224], dtype="float32")
         for h, w in T.grid(224, 224):
@@ -471,18 +469,17 @@ class TestPaddingPatternInlined(BaseCompactTest):
                 Y[h, w] = T.max(
                     Y[h, w],
                     T.if_then_else(
-                        T.likely(1 <= h + kh, dtype="bool")
-                        and T.likely(h + kh < 225, dtype="bool")
-                        and T.likely(1 <= w + kw, dtype="bool")
-                        and T.likely(w + kw < 225, dtype="bool"),
+                        T.likely(1 <= h + kh)
+                        and T.likely(h + kh < 225)
+                        and T.likely(1 <= w + kw)
+                        and T.likely(w + kw < 225),
                         cache[h + kh - 1, w + kw - 1],
                         0.0,
-                        dtype="float32",
                     ),
                 )
 
     @Ts.prim_func
-    def expected(X: T.Buffer((224, 224), "float32"), Y: T.Buffer((224, 224), "float32")) -> None:
+    def expected(X: T.Tensor((224, 224), "float32"), Y: T.Tensor((224, 224), "float32")) -> None:
         cache = Ts.sblock_alloc_buffer([224, 224], dtype="float32")
         for h, w in T.grid(224, 224):
             with Ts.sblock("cache"):
@@ -492,20 +489,19 @@ class TestPaddingPatternInlined(BaseCompactTest):
                 Y[h, w] = T.max(
                     Y[h, w],
                     T.if_then_else(
-                        T.likely(1 <= h + kh, dtype="bool")
-                        and T.likely(h + kh < 225, dtype="bool")
-                        and T.likely(1 <= w + kw, dtype="bool")
-                        and T.likely(w + kw < 225, dtype="bool"),
+                        T.likely(1 <= h + kh)
+                        and T.likely(h + kh < 225)
+                        and T.likely(1 <= w + kw)
+                        and T.likely(w + kw < 225),
                         cache[h + kh - 1, w + kw - 1],
                         0.0,
-                        dtype="float32",
                     ),
                 )
 
 
 class TestMemAccessInBranch(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((224, 224), "float32")) -> None:
+    def before(A: T.Tensor((224, 224), "float32")) -> None:
         with Ts.sblock():
             B1 = Ts.sblock_alloc_buffer((224, 224), dtype="float32")
             B2 = Ts.sblock_alloc_buffer((224, 224), dtype="float32")
@@ -527,7 +523,7 @@ class TestMemAccessInBranch(BaseCompactTest):
                             B4[i, j] = A[i, j] + 3.0
 
     @Ts.prim_func
-    def expected(A: T.Buffer([224, 224], dtype="float32")) -> None:
+    def expected(A: T.Tensor([224, 224], dtype="float32")) -> None:
         with Ts.sblock():
             B1 = Ts.sblock_alloc_buffer([112, 112], dtype="float32")
             B2 = Ts.sblock_alloc_buffer([224, 224], dtype="float32")
@@ -551,7 +547,7 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
     is_lower_order_free = False
 
     @Ts.prim_func
-    def before(A: T.Buffer((1024,), "float32")) -> None:
+    def before(A: T.Tensor((1024,), "float32")) -> None:
         with Ts.sblock():
             B = Ts.sblock_alloc_buffer((1024,), dtype="float32")
             C = Ts.sblock_alloc_buffer((1024,), dtype="float32")
@@ -575,7 +571,7 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
                     C[i] = B[i]
 
     @Ts.prim_func
-    def expected(A: T.Buffer((1024,), "float32")) -> None:
+    def expected(A: T.Tensor((1024,), "float32")) -> None:
         with Ts.sblock():
             B = Ts.sblock_alloc_buffer((1024,), dtype="float32")
             C = Ts.sblock_alloc_buffer((520,), dtype="float32")
@@ -602,9 +598,9 @@ class TestAnnotatedOpaqueAccess(BaseCompactTest):
 class TestSparseReadCache(BaseCompactTest):
     @Ts.prim_func
     def before(
-        A_data: T.Buffer((819,), "float32"),
-        B: T.Buffer((128,), "float32"),
-        A_indptr: T.Buffer((129,), "int32"),
+        A_data: T.Tensor((819,), "float32"),
+        B: T.Tensor((128,), "float32"),
+        A_indptr: T.Tensor((129,), "int32"),
     ) -> None:
         for i in T.serial(128):
             with Ts.sblock("rowsum_outer"):
@@ -633,9 +629,9 @@ class TestSparseReadCache(BaseCompactTest):
 
     @Ts.prim_func
     def expected(
-        A_data: T.Buffer((819,), "float32"),
-        B: T.Buffer((128,), "float32"),
-        A_indptr: T.Buffer((129,), "int32"),
+        A_data: T.Tensor((819,), "float32"),
+        B: T.Tensor((128,), "float32"),
+        A_indptr: T.Tensor((129,), "int32"),
     ) -> None:
         for i in T.serial(128):
             with Ts.sblock("rowsum_outer"):
@@ -669,13 +665,13 @@ class TestDataDependentRegion(BaseCompactTest):
 
     @Ts.prim_func
     def before(
-        p0: T.Buffer((30,), "float32"),
-        p1: T.Buffer((1,), "int32"),
-        hybrid_nms: T.Buffer((30,), "float32"),
+        p0: T.Tensor((30,), "float32"),
+        p1: T.Tensor((1,), "int32"),
+        hybrid_nms: T.Tensor((30,), "float32"),
     ):
-        argsort_nms_cpu = T.decl_buffer([5], "int32", scope="global")
+        argsort_nms_cpu = T.decl_tensor([5], "int32", scope="global")
         for i in range(1):
-            nkeep = T.decl_buffer([1], "int32", scope="global")
+            nkeep = T.decl_tensor([1], "int32", scope="global")
             if 0 < p1[i]:
                 nkeep[0] = p1[i]
                 if 2 < nkeep[0]:
@@ -697,7 +693,7 @@ class TestDataDependentRegion(BaseCompactTest):
 
 class TestNarrowShape(BaseCompactTest):
     @Ts.prim_func
-    def before(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")) -> None:
+    def before(A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32")) -> None:
         B_cache = Ts.sblock_alloc_buffer(10, "float32")
         for j in T.serial(3):
             for k in T.serial(4):
@@ -708,7 +704,7 @@ class TestNarrowShape(BaseCompactTest):
             A[i] = B_cache[i] + T.float32(1)
 
     @Ts.prim_func
-    def expected(A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32")) -> None:
+    def expected(A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32")) -> None:
         B_cache = Ts.sblock_alloc_buffer([10], dtype="float32")
         for j, k in T.grid(3, 4):
             with Ts.sblock("B_cache"):
@@ -756,7 +752,7 @@ class TestNonIndexLetBinding(BaseCompactTest):
 
 class TestSpatialTiledPadPooling(BaseCompactTest):
     @Ts.prim_func
-    def before(X: T.Buffer((64, 112, 112), "int32"), Y: T.Buffer((64, 56, 56), "int32")) -> None:
+    def before(X: T.Tensor((64, 112, 112), "int32"), Y: T.Tensor((64, 56, 56), "int32")) -> None:
         for h_o, w_o in T.grid(14, 14):
             with Ts.sblock():
                 X_cache = Ts.sblock_alloc_buffer([112, 112, 64], dtype="int32")
@@ -779,22 +775,21 @@ class TestSpatialTiledPadPooling(BaseCompactTest):
                         Y[h_o * 4 + h_i, w_o * 4 + w_i, c] = T.max(
                             Y[h_o * 4 + h_i, w_o * 4 + w_i, c],
                             T.if_then_else(
-                                T.likely(1 <= (h_o * 4 + h_i) * 2 + kh, dtype="bool")
-                                and T.likely((h_o * 4 + h_i) * 2 + kh < 113, dtype="bool")
-                                and T.likely(1 <= (w_o * 4 + w_i) * 2 + kw, dtype="bool")
-                                and T.likely((w_o * 4 + w_i) * 2 + kw < 113, dtype="bool"),
+                                T.likely(1 <= (h_o * 4 + h_i) * 2 + kh)
+                                and T.likely((h_o * 4 + h_i) * 2 + kh < 113)
+                                and T.likely(1 <= (w_o * 4 + w_i) * 2 + kw)
+                                and T.likely((w_o * 4 + w_i) * 2 + kw < 113),
                                 X_cache[
                                     (h_o * 4 + h_i) * 2 + kh - 1,
                                     (w_o * 4 + w_i) * 2 + kw - 1,
                                     c,
                                 ],
                                 0,
-                                dtype="int32",
                             ),
                         )
 
     @Ts.prim_func
-    def expected(X: T.Buffer((64, 112, 112), "int32"), Y: T.Buffer((64, 56, 56), "int32")) -> None:
+    def expected(X: T.Tensor((64, 112, 112), "int32"), Y: T.Tensor((64, 56, 56), "int32")) -> None:
         for h_o, w_o in T.grid(14, 14):
             with Ts.sblock():
                 Ts.reads(X[0:64, h_o * 8 - 1 : h_o * 8 + 8, w_o * 8 - 1 : w_o * 8 + 8])
@@ -831,15 +826,14 @@ class TestSpatialTiledPadPooling(BaseCompactTest):
                         Y[h_o * 4 + h_i, w_o * 4 + w_i, c] = T.max(
                             Y[h_o * 4 + h_i, w_o * 4 + w_i, c],
                             T.if_then_else(
-                                T.likely(1 <= h_o * 8 + h_i * 2 + kh, dtype="bool")
-                                and T.likely(1 <= w_o * 8 + w_i * 2 + kw, dtype="bool"),
+                                T.likely(1 <= h_o * 8 + h_i * 2 + kh)
+                                and T.likely(1 <= w_o * 8 + w_i * 2 + kw),
                                 X_cache[
                                     h_o * 8 + h_i * 2 + kh - T.max(0, h_o * 8 - 1) - 1,
                                     w_o * 8 + w_i * 2 + kw - T.max(0, w_o * 8 - 1) - 1,
                                     c,
                                 ],
                                 0,
-                                dtype="int32",
                             ),
                         )
 
@@ -849,7 +843,7 @@ class TestComplexCase1(BaseCompactTest):
 
     # fmt: off
     @Ts.prim_func
-    def before(A: T.Buffer((960, 770), "float32"), B: T.Buffer((770, 2304), "float32"), C: T.Buffer((960, 2304), "float32")) -> None:
+    def before(A: T.Tensor((960, 770), "float32"), B: T.Tensor((770, 2304), "float32"), C: T.Tensor((960, 2304), "float32")) -> None:
         for bx in T.thread_binding(144, thread="blockIdx.x"):
             for vx in T.thread_binding(2, thread="vthread.x"):
                 for tx_p in T.thread_binding(256, thread="threadIdx.x"):
@@ -875,7 +869,7 @@ class TestComplexCase1(BaseCompactTest):
                                         C[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4] = C[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4] + A_shared[(((bx // 18 + 0) * 8 + tx_p // 32) * 8 + i_3) * 2 + i_4, (k_0 + k_1) * 4 + k_2] * B_shared[(k_0 + k_1) * 4 + k_2, ((bx % 18 * 2 + vx % 2) * 32 + tx_p % 32 + j_3) * 2 + j_4]
 
     @Ts.prim_func
-    def expected(A: T.Buffer((960, 770), "float32"), B: T.Buffer((770, 2304), "float32"), C: T.Buffer((960, 2304), "float32")) -> None:
+    def expected(A: T.Tensor((960, 770), "float32"), B: T.Tensor((770, 2304), "float32"), C: T.Tensor((960, 2304), "float32")) -> None:
         for bx in T.thread_binding(144, thread="blockIdx.x"):
             for vx in T.thread_binding(2, thread="vthread.x"):
                 for tx_p in T.thread_binding(256, thread="threadIdx.x"):
@@ -932,9 +926,9 @@ class TestDependentBufferIndicesOfPackedMatmul(BaseCompactTest):
 
     @Ts.prim_func
     def before(
-        A: T.Buffer((1020, 64), "float32"),
-        B: T.Buffer((1000, 64), "float32"),
-        C: T.Buffer((1020, 1000), "float32"),
+        A: T.Tensor((1020, 64), "float32"),
+        B: T.Tensor((1000, 64), "float32"),
+        C: T.Tensor((1020, 1000), "float32"),
     ):
         for i0, i1 in T.grid(4, 1):
             with Ts.sblock():
@@ -971,9 +965,9 @@ class TestDependentBufferIndicesOfPackedMatmul(BaseCompactTest):
 
     @Ts.prim_func
     def expected(
-        A: T.Buffer((1020, 64), "float32"),
-        B: T.Buffer((1000, 64), "float32"),
-        C: T.Buffer((1020, 1000), "float32"),
+        A: T.Tensor((1020, 64), "float32"),
+        B: T.Tensor((1000, 64), "float32"),
+        C: T.Tensor((1020, 1000), "float32"),
     ) -> None:
         for i0, i1 in T.grid(4, 1):
             with Ts.sblock():
@@ -1013,15 +1007,15 @@ class TestTileAwareCompaction(BaseCompactTest):
     def before(self):
         @Ts.prim_func
         def main(
-            A: T.Buffer((128, 128), "float32"),
-            B: T.Buffer((128, 128), "float32"),
-            C: T.Buffer((128, 128), "float32"),
+            A: T.Tensor((128, 128), "float32"),
+            B: T.Tensor((128, 128), "float32"),
+            C: T.Tensor((128, 128), "float32"),
         ):
             for i_0 in range(5, annotations={"pragma_loop_partition_hint": 1}):
                 for j_0 in range(5, annotations={"pragma_loop_partition_hint": 1}):
-                    A_local = T.decl_buffer((26, 128), scope="local")
-                    B_local = T.decl_buffer((128, 26), scope="local")
-                    C_local = T.decl_buffer((26, 26), scope="local")
+                    A_local = T.decl_tensor((26, 128), scope="local")
+                    B_local = T.decl_tensor((128, 26), scope="local")
+                    C_local = T.decl_tensor((26, 26), scope="local")
                     for ax0, ax1 in T.grid(26, 128):
                         if i_0 * 26 + ax0 < 128:
                             A_local[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
@@ -1051,15 +1045,15 @@ class TestTileAwareCompaction(BaseCompactTest):
 
     @Ts.prim_func
     def expected(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        C: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
+        C: T.Tensor((128, 128), "float32"),
     ):
         for i_0 in range(4):
             for j_0 in range(4):
-                A_local_tile0 = T.decl_buffer((26, 128), scope="local")
-                B_local_tile0 = T.decl_buffer((128, 26), scope="local")
-                C_local_tile0 = T.decl_buffer((26, 26), scope="local")
+                A_local_tile0 = T.decl_tensor((26, 128), scope="local")
+                B_local_tile0 = T.decl_tensor((128, 26), scope="local")
+                C_local_tile0 = T.decl_tensor((26, 26), scope="local")
                 for ax0, ax1 in T.grid(26, 128):
                     A_local_tile0[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
                 for ax0, ax1 in T.grid(128, 26):
@@ -1073,9 +1067,9 @@ class TestTileAwareCompaction(BaseCompactTest):
                 for ax0, ax1 in T.grid(26, 26):
                     C[i_0 * 26 + ax0, j_0 * 26 + ax1] = C_local_tile0[ax0, ax1]
 
-            A_local_tile1 = T.decl_buffer((26, 128), scope="local")
-            B_local_tile1 = T.decl_buffer((128, 24), scope="local")
-            C_local_tile1 = T.decl_buffer((26, 24), scope="local")
+            A_local_tile1 = T.decl_tensor((26, 128), scope="local")
+            B_local_tile1 = T.decl_tensor((128, 24), scope="local")
+            C_local_tile1 = T.decl_tensor((26, 24), scope="local")
             for ax0, ax1 in T.grid(26, 128):
                 A_local_tile1[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
             for ax0, ax1 in T.grid(128, 26):
@@ -1093,9 +1087,9 @@ class TestTileAwareCompaction(BaseCompactTest):
                     C[i_0 * 26 + ax0, ax1 + 104] = C_local_tile1[ax0, ax1]
 
         for j_0 in range(4):
-            A_local_tile2 = T.decl_buffer((24, 128), scope="local")
-            B_local_tile2 = T.decl_buffer((128, 26), scope="local")
-            C_local_tile2 = T.decl_buffer((24, 26), scope="local")
+            A_local_tile2 = T.decl_tensor((24, 128), scope="local")
+            B_local_tile2 = T.decl_tensor((128, 26), scope="local")
+            C_local_tile2 = T.decl_tensor((24, 26), scope="local")
             for ax0, ax1 in T.grid(26, 128):
                 if ax0 < 24:
                     A_local_tile2[ax0, ax1] = A[ax0 + 104, ax1]
@@ -1112,9 +1106,9 @@ class TestTileAwareCompaction(BaseCompactTest):
                 if ax0 < 24:
                     C[ax0 + 104, j_0 * 26 + ax1] = C_local_tile2[ax0, ax1]
 
-        A_local_tile3 = T.decl_buffer((24, 128), scope="local")
-        B_local_tile3 = T.decl_buffer((128, 24), scope="local")
-        C_local_tile3 = T.decl_buffer((24, 24), scope="local")
+        A_local_tile3 = T.decl_tensor((24, 128), scope="local")
+        B_local_tile3 = T.decl_tensor((128, 24), scope="local")
+        C_local_tile3 = T.decl_tensor((24, 24), scope="local")
         for ax0, ax1 in T.grid(26, 128):
             if ax0 < 24:
                 A_local_tile3[ax0, ax1] = A[ax0 + 104, ax1]
@@ -1138,9 +1132,9 @@ class TestNonStrictCompactionForPaddedMatmul(BaseCompactTest):
 
     @Ts.prim_func
     def before(
-        A: T.Buffer((127, 127), "float32"),
-        B: T.Buffer((127, 127), "float32"),
-        C: T.Buffer((127, 127), "float32"),
+        A: T.Tensor((127, 127), "float32"),
+        B: T.Tensor((127, 127), "float32"),
+        C: T.Tensor((127, 127), "float32"),
     ):
         """A mock workload where the intermediate buffer allocation is not enought originally"""
         for i_0, j_0 in T.grid(4, 4):
@@ -1176,9 +1170,9 @@ class TestNonStrictCompactionForPaddedMatmul(BaseCompactTest):
 
     @Ts.prim_func
     def expected(
-        A: T.Buffer((127, 127), "float32"),
-        B: T.Buffer((127, 127), "float32"),
-        C: T.Buffer((127, 127), "float32"),
+        A: T.Tensor((127, 127), "float32"),
+        B: T.Tensor((127, 127), "float32"),
+        C: T.Tensor((127, 127), "float32"),
     ):
         for i_0, j_0 in T.grid(4, 4):
             with Ts.sblock(""):
@@ -1217,9 +1211,9 @@ class TestNotCompactAliasBuffer(BaseCompactTest):
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
-        data = T.alloc_buffer((1024,), "int8")
-        A = T.decl_buffer([1024], "int8", data=data.data)
-        B = T.decl_buffer([512], "float16", data=data.data)
+        data = T.alloc_tensor((1024,), "int8")
+        A = T.decl_tensor([1024], "int8", data=data.data)
+        B = T.decl_tensor([512], "float16", data=data.data)
         for i in range(10):
             A[i] = A[i] + T.int8(1)
         for i in range(10):
@@ -1236,8 +1230,8 @@ class TestNotCompactBufferWithDifferentDtype(BaseCompactTest):
     def before():
         """Partially accessed buffer, but should not compact
         because existence of aliasing buffer B."""
-        data = T.alloc_buffer((1024,), "int8")
-        A = T.decl_buffer([256], "int32", data=data.data)
+        data = T.alloc_tensor((1024,), "int8")
+        A = T.decl_tensor([256], "int32", data=data.data)
         for i in range(10):
             A[i] = A[i] + 1
 
@@ -1250,14 +1244,14 @@ class TestNonBoolCondition(BaseCompactTest):
 
     @Ts.prim_func
     def before():
-        A = T.decl_buffer([12], "int32")
+        A = T.decl_tensor([12], "int32")
         for i in range(10):
             if i:
                 A[i] = A[i] + 1
 
     @Ts.prim_func
     def expected():
-        A = T.decl_buffer((9,), "int32")
+        A = T.decl_tensor((9,), "int32")
         for i in range(10):
             if i:
                 A[i - 1] = A[i - 1] + 1
@@ -1267,8 +1261,8 @@ def test_loop_var_does_not_escape_compacted_buffer_extent():
     n = T.dynamic("n")
 
     @Ts.prim_func(private=True)
-    def before(A: T.Buffer((n,), "int32")):
-        tmp = T.alloc_buffer((n,), "int32")
+    def before(A: T.Tensor((n,), "int32")):
+        tmp = T.alloc_tensor((n,), "int32")
         for i in range(n):
             length: T.let[T.int64] = T.ceildiv(n, T.shift_left(T.int64(1), i + 1))
             for j in range(length):
@@ -1283,8 +1277,8 @@ class TestCompactSymbolicBound0:
 
     @Ts.prim_func
     def before(
-        X: T.Buffer((T.int64(8), n * T.int64(32))),  # noqa: F821
-        Y: T.Buffer((T.int64(8), n * T.int64(32))),  # noqa: F821
+        X: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
+        Y: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
         n: T.int64,
     ):
         for i, k_0 in T.grid(T.int64(8), n):
@@ -1299,8 +1293,8 @@ class TestCompactSymbolicBound0:
 
     @Ts.prim_func
     def expected(
-        X: T.Buffer((T.int64(8), n * T.int64(32))),  # noqa: F821
-        Y: T.Buffer((T.int64(8), n * T.int64(32))),  # noqa: F821
+        X: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
+        Y: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
         n: T.int64,
     ):
         for i, k_0 in T.grid(T.int64(8), n):
@@ -1319,8 +1313,8 @@ class TestCompactSymbolicBound1:
 
     @Ts.prim_func
     def before(
-        X: T.Buffer((T.int64(8), n * T.int64(32))),  # noqa: F821
-        Y: T.Buffer((T.int64(8), n * T.int64(32))),  # noqa: F821
+        X: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
+        Y: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
         n: T.int64,
     ):
         for i, k_0 in T.grid(T.int64(8), n):
@@ -1335,8 +1329,8 @@ class TestCompactSymbolicBound1:
 
     @Ts.prim_func
     def expected(
-        X: T.Buffer((T.int64(8), n * T.int64(32))),  # noqa: F821
-        Y: T.Buffer((T.int64(8), n * T.int64(32))),  # noqa: F821
+        X: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
+        Y: T.Tensor((T.int64(8), n * T.int64(32))),  # noqa: F821
         n: T.int64,
     ):
         # with Ts.sblock("root"):
@@ -1355,7 +1349,7 @@ class TestSymbolicDiagMaskCase:
     """Test symbolic allocation not too complex"""
 
     @Ts.prim_func
-    def before(A: T.Buffer((1, 1, n, n)), n: T.int32):  # noqa: F821
+    def before(A: T.Tensor((1, 1, n, n)), n: T.int32):  # noqa: F821
         B = Ts.sblock_alloc_buffer((n, n))
         for i in T.thread_binding(256, thread="blockIdx.x"):
             for j in T.thread_binding(256, thread="threadIdx.x"):
@@ -1383,7 +1377,7 @@ class TestSymbolicDiagMaskCase:
                         ]
 
     @Ts.prim_func
-    def expected(A: T.Buffer((1, 1, n, n)), n: T.int32):  # noqa: F821
+    def expected(A: T.Tensor((1, 1, n, n)), n: T.int32):  # noqa: F821
         B = Ts.sblock_alloc_buffer((n, n))
         for i in T.thread_binding(256, thread="blockIdx.x"):
             for j in T.thread_binding(256, thread="threadIdx.x"):

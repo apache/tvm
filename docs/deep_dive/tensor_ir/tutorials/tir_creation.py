@@ -65,11 +65,11 @@ from tvm.script import tirx as T
 class MyModule:
     @Ts.prim_func
     def mm_relu(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        C: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
+        C: T.Tensor((128, 128), "float32"),
     ):
-        Y = T.alloc_buffer((128, 128), dtype="float32")
+        Y = T.alloc_tensor((128, 128), dtype="float32")
         for i in range(128):
             for j in range(128):
                 for k in range(128):
@@ -108,11 +108,11 @@ class MyModule:
 class ConciseModule:
     @Ts.prim_func
     def mm_relu(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        C: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
+        C: T.Tensor((128, 128), "float32"),
     ):
-        Y = T.alloc_buffer((128, 128), dtype="float32")
+        Y = T.alloc_tensor((128, 128), dtype="float32")
         for i, j, k in T.grid(128, 128, 128):
             with Ts.sblock("Y"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -147,11 +147,11 @@ dtype = "float32"
 class ConciseModuleFromPython:
     @Ts.prim_func
     def mm_relu(
-        A: T.Buffer((M, K), dtype),
-        B: T.Buffer((K, N), dtype),
-        C: T.Buffer((M, N), dtype),
+        A: T.Tensor((M, K), dtype),
+        B: T.Tensor((K, N), dtype),
+        C: T.Tensor((M, N), dtype),
     ):
-        Y = T.alloc_buffer((M, N), dtype)
+        Y = T.alloc_tensor((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
             with Ts.sblock("Y"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])
@@ -185,10 +185,10 @@ K = T.dynamic("K", "int32")
 @I.ir_module
 class DynamicShapeModule:
     @Ts.prim_func
-    def mm_relu(A: T.Buffer([M, K], dtype), B: T.Buffer([K, N], dtype), C: T.Buffer([M, N], dtype)):
+    def mm_relu(A: T.Tensor([M, K], dtype), B: T.Tensor([K, N], dtype), C: T.Tensor([M, N], dtype)):
         # Bind the input buffers with the dynamic shapes
 
-        Y = T.alloc_buffer((M, N), dtype)
+        Y = T.alloc_tensor((M, N), dtype)
         for i, j, k in T.grid(M, N, K):
             with Ts.sblock("Y"):
                 vi, vj, vk = Ts.axis.remap("SSR", [i, j, k])

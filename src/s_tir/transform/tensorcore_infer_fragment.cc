@@ -29,6 +29,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/builtin.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -59,9 +60,9 @@ class FragmentGetter : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
 
-    static const Op& tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
-    static const Op& tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
-    static const Op& tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
+    static const Op tvm_load_matrix_sync_op = Op::Get("tirx.tvm_load_matrix_sync");
+    static const Op tvm_store_matrix_sync_op = Op::Get("tirx.tvm_store_matrix_sync");
+    static const Op tvm_fill_fragment_op = Op::Get("tirx.tvm_fill_fragment");
     if (op->op.same_as(tvm_load_matrix_sync_op) || op->op.same_as(tvm_store_matrix_sync_op)) {
       // Get shape and layout information from load and store intrinsic
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
@@ -153,8 +154,8 @@ class FragmentChecker : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     // Check shape when calling tvm_mma_sync
-    static const Op& tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
-    static const Op& tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
+    static const Op tvm_mma_sync_op = Op::Get("tirx.tvm_mma_sync");
+    static const Op tvm_bmma_sync_op = Op::Get("tirx.tvm_bmma_sync");
     if (op->op.same_as(tvm_mma_sync_op) || op->op.same_as(tvm_bmma_sync_op)) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 8U);
       const VarNode* buffer_var_d = GetBufferVarFromData(op->args[0]);
@@ -205,26 +206,33 @@ class InferFragmenter : public s_tir::StmtExprMutator {
 
   explicit InferFragmenter(const FragmentGetter& getter) : fragment_getter(getter) {}
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    Stmt stmt =
-        s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    const VarNode* buffer = op->buffer.get();
-    if (fragment_getter.fragments.count(buffer)) {
-      FragmentInfo info = fragment_getter.fragments.at(buffer);
-
-      std::string shape =
-          std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k);
-      Expr shape_expr = StringImm(shape);
-      Stmt shape_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_shape, shape_expr, stmt);
-      if (info.layout != "") {
-        Stmt layout_attr = AttrStmt(op->buffer.var(), s_tir::attr::fragment_layout,
-                                    StringImm(info.layout), shape_attr);
-        return layout_attr;
-      } else {
-        return shape_attr;
-      }
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      auto it = fragment_getter.fragments.find(op->var.get());
+      if (it == fragment_getter.fragments.end()) return ffi::Unchanged();
+      const FragmentInfo& info = it->second;
+      DictAttrs attrs = call->attrs.as_or_throw<DictAttrs>();
+      auto annotations = attrs->dict;
+      auto set_annotation = [&](const char* key, const std::string& value) {
+        if (auto existing = annotations.Get(key)) {
+          auto str = existing.value().as<ffi::String>();
+          TVM_FFI_CHECK(str && str.value() == value, ValueError)
+              << "Conflicting " << key << " on fragment " << op->var->name;
+        } else {
+          annotations.Set(key, ffi::String(value));
+        }
+      };
+      set_annotation(
+          s_tir::attr::fragment_shape,
+          std::to_string(info.m) + ", " + std::to_string(info.n) + ", " + std::to_string(info.k));
+      if (!info.layout.empty()) set_annotation(s_tir::attr::fragment_layout, info.layout);
+      if (annotations.same_as(attrs->dict)) return ffi::Unchanged();
+      auto value = ffi::GetRef<Call>(call);
+      value.CopyOnWrite()->attrs = DictAttrs(std::move(annotations));
+      return Bind(op->var, std::move(value), op->span);
     }
-    return stmt;
+    return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:

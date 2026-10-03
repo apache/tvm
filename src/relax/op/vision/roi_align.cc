@@ -51,8 +51,8 @@ Expr roi_align(Expr data, Expr rois, ffi::Array<int64_t> pooled_size, double spa
   attrs->layout = layout;
   attrs->mode = mode;
 
-  static const Op& op = Op::Get("relax.vision.roi_align");
-  return Call(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
+  static const Op op = Op::Get("relax.vision.roi_align");
+  return Call::Unchecked(Type::Missing(), op, {std::move(data), std::move(rois)}, Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -60,7 +60,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("relax.op.vision.roi_align", roi_align);
 }
 
-Type InferTypeROIAlign(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeROIAlign(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 2) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "ROIAlign expects two arguments, while the given number of arguments is "
@@ -128,15 +129,17 @@ Type InferTypeROIAlign(const Call& call, const BlockBuilder& ctx) {
   return TensorType(ShapeExpr(out_shape), data_ty->dtype, data_ty->vdevice);
 }
 
-TVM_REGISTER_OP("relax.vision.roi_align")
-    .set_attrs_type<ROIAlignAttrs>()
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("rois", "Tensor",
-                  "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format.")
-    .set_attr<FInferType>("FInferType", InferTypeROIAlign)
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
-    .set_attr<bool>("FPurity", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.vision.roi_align")
+      .signature(
+          sig::arg("data", "The input tensor."),
+          sig::arg("rois",
+                   "The input rois with shape (num_roi, 5) in [batch_idx, x1, y1, x2, y2] format."),
+          sig::call_attrs<ROIAlignAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeROIAlign>())
+      .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

@@ -27,7 +27,7 @@ def test_buffer_store_predicate_not_supported():
     target = "c"
 
     @T.prim_func
-    def func(B: T.Buffer((8,), "float32")):
+    def func(B: T.Tensor((8,), "float32")):
         T.evaluate(
             T.call_intrin(
                 "void",
@@ -60,7 +60,7 @@ def test_buffer_store_predicate_not_supported_gpu(target):
         pytest.skip(f"{target} not enabled")
 
     @T.prim_func
-    def func(A: T.Buffer((2, 3), "float32"), B: T.Buffer((6,), "float32")):
+    def func(A: T.Tensor((2, 3), "float32"), B: T.Tensor((6,), "float32")):
         T.func_attr({"global_symbol": "main"})
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
             T.evaluate(
@@ -84,7 +84,7 @@ def test_buffer_load_predicate_not_supported():
     target = "c"
 
     @T.prim_func
-    def func(A: T.Buffer((8,), "float32"), B: T.Buffer((8,), "float32")):
+    def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in range(4):
             B.vstore(
                 [T.Ramp(0, 2, 4)],
@@ -118,7 +118,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
         pytest.skip(f"{target} not enabled")
 
     @T.prim_func
-    def func(A: T.Buffer((8,), "float32"), B: T.Buffer((8,), "float32")):
+    def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
             B.vstore(
                 [T.Ramp(0, 2, 4)],
@@ -152,8 +152,8 @@ def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
                 "tirx.noalias": True,
             }
         )
-        A = T.decl_buffer((8,), "float32", data=A_ptr)
-        B = T.decl_buffer((4,), "float32", data=T.address_of(A[4]))
+        A = T.decl_tensor((8,), "float32", data=A_ptr)
+        B = T.decl_tensor((4,), "float32", data=T.address_of(A[4]))
         B[0] = T.float32(1)
 
     mod = tvm.IRModule({"kernel": kernel})
@@ -170,9 +170,9 @@ def test_codegen_loop_step(target):
 
     @T.prim_func
     def test_loop_step(
-        A: T.Buffer((1024,), "float32"),
-        B: T.Buffer((1024,), "float32"),
-        C: T.Buffer((1024,), "float32"),
+        A: T.Tensor((1024,), "float32"),
+        B: T.Tensor((1024,), "float32"),
+        C: T.Tensor((1024,), "float32"),
     ):
         for i in T.serial(3, 1024, step=96):
             C[i] = A[i] + B[i]

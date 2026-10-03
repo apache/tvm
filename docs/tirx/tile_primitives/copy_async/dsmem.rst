@@ -84,7 +84,7 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
 
 
     @Tx.prim_func
-    def dsmem_copy(A: Tx.Buffer(shape, dtype), B: Tx.Buffer(shape, dtype)):
+    def dsmem_copy(A: Tx.Tensor(shape, dtype), B: Tx.Tensor(shape, dtype)):
 
         Tx.device_entry()
         cbx = Tx.cta_id_in_cluster([CLUSTER_N])
@@ -92,7 +92,7 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
         tid = Tx.thread_id([1])
         pool = Tx.SMEMPool()
         src_raw = pool.alloc([8192], dtype, align=128)
-        src_smem = Tx.decl_buffer(
+        src_smem = Tx.decl_tensor(
             list(shape),
             dtype,
             src_raw.data,
@@ -101,7 +101,7 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
             layout=src_layout,
         )
         dst_raw = pool.alloc([8192], dtype, align=128)
-        dst_smem = Tx.decl_buffer(
+        dst_smem = Tx.decl_tensor(
             list(shape),
             dtype,
             dst_raw.data,

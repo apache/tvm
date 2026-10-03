@@ -40,7 +40,7 @@ per-instruction generated or hand-written code:
 from tvm.backend.cuda.codegen.registry import register_codegen
 from tvm.backend.cuda.codegen.utils import parse_str
 from tvm.backend.cuda.op import cuda_cvta_generic_to_shared, cuda_func_call
-from tvm.ir import Call, TensorLoad
+from tvm.ir import Call, Op, TensorLoad
 from tvm.ir.op import register_op_attr
 from tvm.ir.type import PointerType, PrimType
 from tvm.runtime import const
@@ -92,6 +92,9 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # First attr call implicitly creates the Op registry entry. Effect
         # kind must exist before any side-effect analysis sees the op.
         register_op_attr(entry.op_name, "TCallEffectKind", _EFFECT_OPAQUE)
+        # Encoded variants have no shared named operand prefix; codegen checks
+        # each variant's operands, predicate, modifier tokens, and marker.
+        Op.get(entry.op_name).set_signature(var_args="operands")
         # The printer name is the *surface* path a user can type, which is the
         # mnemonic (several `mov_*` entries all answer to `T.ptx.mov`), not the
         # table key. Reparsing re-dispatches on the operand shape.
@@ -102,18 +105,23 @@ def register_table(table: dict[str, InstructionEntry]) -> None:
         # `PTXNamespace.__getattr__`. The escape is the identity for every
         # other family, and `gen_stubs` already spells the attribute this way.
         family = escape_token(entry.family)
-        register_op_attr(entry.op_name, "TScriptPrinterName", f"ptx.{family}", level=20)
+        register_op_attr(entry.op_name, "TScriptPrinterName", f"tirx.ptx.{family}")
         register_op_attr(entry.op_name, "TIRxOpCategory", "device_intrin")
         register_op_attr(entry.op_name, "TDeviceIntrinsicNamespace", "ptx")
+        register_op_attr(entry.op_name, "TFixedReturnType", PrimType("void"))
         register_codegen(f"ptx.{entry.name}")(_make_codegen(entry))
 
 
 def register_addr() -> None:
     """Register the pure address-expression op consumed by PTX instructions."""
     register_op_attr(_ADDR_OP_NAME, "TCallEffectKind", _EFFECT_PURE)
-    register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "ptx.addr", level=20)
+    op = Op.get(_ADDR_OP_NAME)
+    op.add_arg("base", "The base pointer.")
+    op.add_arg("byte_offset", "The offset in bytes.")
+    register_op_attr(_ADDR_OP_NAME, "TScriptPrinterName", "tirx.ptx.addr")
     register_op_attr(_ADDR_OP_NAME, "TIRxOpCategory", "device_intrin")
     register_op_attr(_ADDR_OP_NAME, "TDeviceIntrinsicNamespace", "ptx")
+    register_op_attr(_ADDR_OP_NAME, "FInferType", _infer_addr_type)
     register_codegen("ptx.addr")(_unconsumed_addr_codegen)
 
 
@@ -122,6 +130,10 @@ def _unconsumed_addr_codegen(*_args):
         "T.ptx.addr(...) must be consumed by a PTX address operand that supports "
         "immediate byte offsets"
     )
+
+
+def _infer_addr_type(call):
+    return call.args[0].ty
 
 
 # ---------------------------------------------------------------------------
@@ -807,7 +819,9 @@ class _InstrChain:
             # ascending order, to restore the operand positions) and then the
             # register-class tags, whose indices are those same positions.
             args = list(args)
-            for flag in sorted(f for f in flags if f.startswith("s")):
+            for flag in sorted(
+                (f for f in flags if f.startswith("s")), key=lambda flag: int(flag[1:])
+            ):
                 args.insert(int(flag[1:]), SINK)
             for flag in flags:
                 if flag.startswith("p") and flag != "pred":

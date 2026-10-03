@@ -500,7 +500,7 @@ class ElseFrame : public TIRFrame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
 };
 
-class DeclBufferFrameNode : public TIRFrameNode {
+class DeclTensorFrameNode : public TIRFrameNode {
  public:
   /*! \brief The declared buffer. */
   tvm::tirx::BufferVar buffer;
@@ -511,63 +511,24 @@ class DeclBufferFrameNode : public TIRFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferFrameNode>()
-        .def_ro("buffer", &DeclBufferFrameNode::buffer)
-        .def_ro("data", &DeclBufferFrameNode::data)
-        .def_ro("allocated", &DeclBufferFrameNode::allocated);
+    refl::ObjectDef<DeclTensorFrameNode>()
+        .def_ro("buffer", &DeclTensorFrameNode::buffer)
+        .def_ro("data", &DeclTensorFrameNode::data)
+        .def_ro("allocated", &DeclTensorFrameNode::allocated);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclBufferFrame", DeclBufferFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclTensorFrame", DeclTensorFrameNode,
                                     TIRFrameNode);
 
  public:
   void ExitWithScope() final;
 };
 
-class DeclBufferFrame : public TIRFrame {
+class DeclTensorFrame : public TIRFrame {
  public:
-  explicit DeclBufferFrame(ffi::ObjectPtr<DeclBufferFrameNode> data) : TIRFrame(data) {
+  explicit DeclTensorFrame(ffi::ObjectPtr<DeclTensorFrameNode> data) : TIRFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
-};
-
-/*!
- * \brief A frame that represents a hint directive for the sketch language.
- *
- * \sa HintFrame
- */
-class HintFrameNode : public TIRFrameNode {
- public:
-  /*! \brief The free-form hint message string. */
-  ffi::String message;
-  /*! \brief Optional structured key-value attributes. */
-  ffi::Map<ffi::String, ffi::Any> attrs;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<HintFrameNode>()
-        .def_ro("message", &HintFrameNode::message)
-        .def_ro("attrs", &HintFrameNode::attrs);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.HintFrame", HintFrameNode,
-                                    TIRFrameNode);
-
- public:
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to HintFrameNode.
- *
- * \sa HintFrameNode
- */
-class HintFrame : public TIRFrame {
- public:
-  explicit HintFrame(ffi::ObjectPtr<HintFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(HintFrame, TIRFrame, HintFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclTensorFrame, TIRFrame, DeclTensorFrameNode);
 };
 
 }  // namespace tirx

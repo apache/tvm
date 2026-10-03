@@ -88,7 +88,8 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, ffi::Map<DFPattern, Expr>)>>
       auto shape_arr = tir_out_ty->GetShape().value();
       auto new_ty = TensorType(ShapeExpr(shape_arr), tir_out_ty->dtype, vdev_attrs->dst_vdevice);
 
-      return Call(Type::Missing(), call_tir->op, call_tir->args, call_tir->attrs, {new_ty});
+      return Call::Unchecked(Type::Missing(), call_tir->op, call_tir->args, call_tir->attrs,
+                             {new_ty});
     }
     return expr;
   };
@@ -133,7 +134,7 @@ class CollectConsumerDetails : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     Tuple func_args;
 
     if (call->op.same_as(call_tir_op)) {

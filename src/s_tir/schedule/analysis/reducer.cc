@@ -21,6 +21,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
+#include <tvm/tirx/builtin.h>
 
 #include "../utils.h"
 
@@ -398,7 +399,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
     }
     const auto* bind = stmts[i].as<BindNode>();
-    if (bind == nullptr) {
+    if (bind == nullptr || !bind->value.as<PrimExpr>()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
     }
     let_values.push_back(bind->value.as_or_throw<PrimExpr>());
@@ -593,12 +594,15 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     }
     return ffi::WalkResult::Advance();
   };
-  auto visit_alloc = [&](const AllocBuffer& alloc) -> ffi::Expected<ffi::WalkResult> {
-    // Inline AllocBuffer statements (e.g. `T.local_scalar(...)` expansions)
+  auto visit_alloc = [&](const tirx::Bind& alloc) -> ffi::Expected<ffi::WalkResult> {
+    // Inline AllocTensor statements (e.g. `T.local_scalar(...)` expansions)
     // declare buffer-local scratch storage inside the block body; treat them
     // the same as block->alloc_buffers entries for the "write-without-signature"
     // check below.
-    buffer_allocated.insert(alloc->buffer.get());
+    if (const auto* call = alloc->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      buffer_allocated.insert(alloc->var.get());
+    }
     return ffi::WalkResult::Advance();
   };
   auto visit_store = [&](const BufferStore& store) -> ffi::Expected<ffi::WalkResult> {

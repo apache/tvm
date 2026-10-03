@@ -35,11 +35,11 @@ from tvm.tirx.cuda import iket
 
 
 @T.prim_func
-def canonical_iket_workload(out: T.Buffer((32,), "int32")):
+def canonical_iket_workload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     profiler = iket.IketProfiler()
     tx = T.thread_id([32])
-    token = profiler.sentinel_token("token")
+    token: T.uint32 = profiler.sentinel_token("token")
     profiler.range_end(token)
     token = profiler.range_start("token")
     profiler.mark("checkpoint")
@@ -51,7 +51,7 @@ def canonical_iket_workload(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def native_payload_workload(out: T.Buffer((32,), "int32")):
+def native_payload_workload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     profiler = iket.IketProfiler()
     tx = T.thread_id([32])
@@ -64,7 +64,7 @@ def native_payload_workload(out: T.Buffer((32,), "int32")):
     profiler.mark("bool_false_payload", tx != 0)
     profiler.mark("float32_payload", T.float32(-3.25))
     profiler.mark("float64_payload", T.float64(6.5))
-    token = profiler.range_start("token_payload", tx + 200)
+    token: T.uint32 = profiler.range_start("token_payload", tx + 200)
     profiler.range_end(token, tx + 300)
     profiler.range_push("stack_payload", tx + 400)
     profiler.range_pop()
@@ -72,7 +72,7 @@ def native_payload_workload(out: T.Buffer((32,), "int32")):
 
 
 @T.prim_func
-def extended_payload_workload(out: T.Buffer((32,), "int32")):
+def extended_payload_workload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     profiler = iket.IketProfiler()
     tx = T.thread_id([32])

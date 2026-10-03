@@ -144,8 +144,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def_option<int64_t>("opt-level")
       // LLVM command line flags, see below
       .def_option<ffi::Array<ffi::String>>("cl-opt")
-      // LLVM JIT engine mcjit/orcjit
-      .def_option<ffi::String>("jit")
       // TVM & LLVM custom vector bit width
       .def_option<int64_t>("vector-width")
       .set_default_keys({"cpu"})
@@ -191,7 +189,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_default_device_type(kDLCPU)  // line break
       .def_option<ffi::Array<Target>>(
           "devices",
-          ir::ConfigSchema::AttrValidator(ffi::TypedFunction<ffi::Any(ffi::Any)>(  //
+          ConfigSchema::AttrValidator(ffi::TypedFunction<ffi::Any(ffi::Any)>(  //
               [](ffi::Any val) -> ffi::Any {
                 // Allow elements to be strings or dicts, converting them to Target objects.
                 if (val.try_cast<ffi::Array<Target>>().has_value()) return val;

@@ -203,12 +203,12 @@ class TestDLPackIntegration:
 
         # Create a simple IRModule
         @Ts.prim_func
-        def identity_func(A: T.Buffer((3,), "float32"), B: T.Buffer((3,), "float32")):
+        def identity_func(A: T.Tensor((3,), "float32"), B: T.Tensor((3,), "float32")):
             for i in T.grid(3):
                 B[i] = A[i]
 
         @Ts.prim_func
-        def constant_func(B: T.Buffer((2,), "float32")):
+        def constant_func(B: T.Tensor((2,), "float32")):
             for i in T.grid(2):
                 B[i] = T.float32(5.0)
 

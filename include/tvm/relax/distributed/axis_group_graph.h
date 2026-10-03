@@ -73,17 +73,17 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
     extractor->Visit(prim_func->body);
     ffi::Map<BufferVar, Var> inverse_buffer_map;
     for (const Var& param : prim_func->params) {
-      if (param->ty.as<BufferTypeNode>()) {
-        inverse_buffer_map.Set(BufferVar(param), param);
+      if (param->ty.as<TensorTypeNode>()) {
+        inverse_buffer_map.Set(param.as_or_throw<BufferVar>(), param);
       }
     }
     std::vector<std::vector<TIRVarAxis>> tir_var_axis_group_list;
     std::unordered_set<BufferAxis, BufferAxisHash> visited;
     for (const Var& param : prim_func->params) {
-      if (!param->ty.as<BufferTypeNode>()) {
+      if (!param->ty.as<TensorTypeNode>()) {
         continue;
       }
-      BufferVar buffer(param);
+      BufferVar buffer = param.as_or_throw<BufferVar>();
       for (int i = 0; i < static_cast<int>(buffer->shape.size()); i++) {
         if (extractor->buffer_axis_graph_.count({buffer, i})) {
           std::vector<BufferAxis> buffer_axis_group;

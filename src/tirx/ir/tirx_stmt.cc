@@ -59,7 +59,8 @@ TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
 
 namespace {
 
-TVMFFIAny TilePrimitiveCallVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TilePrimitiveCallVisit(
+    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   // skips: op, dispatch, scope
   const TilePrimitiveCallNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
@@ -67,10 +68,11 @@ TVMFFIAny TilePrimitiveCallVisit(ffi::StructuralVisitorObj* visitor, ffi::AnyVie
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->args));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->workspace));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->config));
-  return ffi::AnyView(nullptr).CopyToTVMFFIAny();
+  return std::nullopt;
 }
 
-TVMFFIAny TilePrimitiveCallMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: op, dispatch, scope
   const TilePrimitiveCallNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
@@ -88,17 +90,17 @@ TVMFFIAny TilePrimitiveCallMutate(ffi::StructuralMutatorObj* mutator, ffi::AnyVi
   if (mapped_args.UnchangedOrSameAs(self->args) &&
       mapped_workspace.UnchangedOrSameAs(self->workspace) &&
       mapped_config.UnchangedOrSameAs(self->config)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   ffi::ObjectPtr<TilePrimitiveCallNode> copy = ffi::make_object<TilePrimitiveCallNode>(*self);
   copy->args = std::move(mapped_args).ValueOrUnchanged(std::move(copy->args));
   copy->workspace = std::move(mapped_workspace).ValueOrUnchanged(std::move(copy->workspace));
   copy->config = std::move(mapped_config).ValueOrUnchanged(std::move(copy->config));
-  return ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(ffi::Any(std::move(copy)));
+  return ffi::Any(std::move(copy));
 }
 
-TVMFFIAny TilePrimitiveCallMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator,
-                                              ffi::AnyView value) noexcept {
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   // skips: op, dispatch, scope
   TilePrimitiveCallNode* self = const_cast<TilePrimitiveCallNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
@@ -118,12 +120,12 @@ TVMFFIAny TilePrimitiveCallMaybeInplaceMutate(ffi::StructuralMutatorObj* mutator
   if (mapped_args.UnchangedOrSameAs(self->args) &&
       mapped_workspace.UnchangedOrSameAs(self->workspace) &&
       mapped_config.UnchangedOrSameAs(self->config)) {
-    return ffi::Unchanged().CopyToTVMFFIAny();
+    return ffi::Unchanged();
   }
   self->args = std::move(mapped_args).ValueOrUnchanged(std::move(self->args));
   self->workspace = std::move(mapped_workspace).ValueOrUnchanged(std::move(self->workspace));
   self->config = std::move(mapped_config).ValueOrUnchanged(std::move(self->config));
-  return ffi::Unchanged().CopyToTVMFFIAny();
+  return ffi::Unchanged();
 }
 
 }  // namespace
@@ -139,10 +141,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return TilePrimitiveCall(op, args, workspace, config, dispatch, scope);
       });
   refl::TypeAttrDef<TilePrimitiveCallNode>()
-      .attr(refl::type_attr::kStructuralVisit, reinterpret_cast<void*>(&TilePrimitiveCallVisit))
-      .attr(refl::type_attr::kStructuralMutate, reinterpret_cast<void*>(&TilePrimitiveCallMutate))
+      .attr(refl::type_attr::kStructuralVisit,
+            ffi::FStructuralVisit::FromNative<&TilePrimitiveCallVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&TilePrimitiveCallMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            reinterpret_cast<void*>(&TilePrimitiveCallMaybeInplaceMutate));
+            ffi::FStructuralMutate::FromNative<&TilePrimitiveCallMaybeInplaceMutate>());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

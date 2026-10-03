@@ -29,6 +29,17 @@ def test_tir_op_tvm_struct_get():
     assert expr.op.name == "tirx.tvm_struct_get"
 
 
+def test_scalar_integer_signature():
+    ptr = tirx.Var("ptr", ty="handle")
+    for dtype in ("int8", "uint32", "int64", "uint64"):
+        index = tirx.Var("index", dtype)
+        assert tirx.tvm_struct_get(ptr, index, 2, dtype="int32").args[1].same_as(index)
+    assert tirx.tvm_struct_get(ptr, 1 << 40, 2, dtype="int32").args[1].ty.dtype == "int64"
+    for dtype in ("float32", "bool", "int32x4", "int32xvscalex4"):
+        with pytest.raises(TypeError, match=rf"index.*expected `ir.IntExpr`.*\[ty={dtype}\]"):
+            tirx.tvm_struct_get(ptr, tirx.Var("index", dtype), 2, dtype="int32")
+
+
 def test_tir_op_tvm_struct_set():
     x = tirx.Var("x", ty="handle")
     expr = tirx.tvm_struct_set(x, 1, 2, 3)
@@ -36,11 +47,11 @@ def test_tir_op_tvm_struct_set():
 
 
 def test_tir_op_address_of():
-    buffer = tirx.decl_buffer((128), "float32")
+    buffer = tirx.decl_tensor((128), "float32")
     expr = tirx.address_of(buffer[0])
     assert expr.op.name == "tirx.address_of"
     storage = tirx.Var("storage", tvm.ir.PointerType(tvm.ir.PrimType("uint8"), "shared.dyn"))
-    pooled_buffer = tirx.decl_buffer((128), "float32", data=storage, scope="shared.dyn")
+    pooled_buffer = tirx.decl_tensor((128), "float32", data=storage, scope="shared.dyn")
     expected_ty = tvm.ir.PointerType(tvm.ir.PrimType("float32"), "shared.dyn")
     assert tirx.address_of(pooled_buffer).ty == expected_ty
     assert tirx.address_of(pooled_buffer[0]).ty == expected_ty
@@ -83,7 +94,7 @@ def test_tir_op_call_likely():
 
 def test_tir_op_tvm_thread_allreduce():
     x = tirx.Var("x", "int32")
-    buffer = tirx.decl_buffer((128), "float32")
+    buffer = tirx.decl_tensor((128), "float32")
     y = tirx.Var("y", "handle")
     z = tirx.Var("z", "int32")
     expr = tirx.tvm_thread_allreduce(x, buffer[0], True, y, z)
@@ -96,7 +107,7 @@ def test_tir_op_type_annotation():
 
 
 def test_tir_op_tvm_access_ptr():
-    buffer = tirx.decl_buffer((128), "float32")
+    buffer = tirx.decl_tensor((128), "float32")
     for ptype in ("float32", tvm.ir.PrimType("float32")):
         expr = tirx.tvm_access_ptr(ptype, buffer.data, 0, 1, 2)
         assert expr.op.name == "tirx.tvm_access_ptr"
@@ -113,33 +124,33 @@ def test_tir_op_tvm_throw_last_error():
 
 
 def test_tir_op_tvm_load_matrix_sync():
-    buffer = tirx.decl_buffer((16, 16), "float32")
+    buffer = tirx.decl_tensor((16, 16), "float32")
     x = tirx.Var("x", "handle")
     expr = tirx.tvm_load_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
     assert expr.op.name == "tirx.tvm_load_matrix_sync"
 
 
 def test_tir_op_tvm_store_matrix_sync():
-    buffer = tirx.decl_buffer((16, 16), "float32")
+    buffer = tirx.decl_tensor((16, 16), "float32")
     x = tirx.Var("x", "handle")
     expr = tirx.tvm_store_matrix_sync(buffer.data, 16, 16, 16, 0, x, 128, "row_major")
     assert expr.op.name == "tirx.tvm_store_matrix_sync"
 
 
 def test_tir_op_tvm_mma_sync():
-    buffer_0 = tirx.decl_buffer((16, 16), "float32")
-    buffer_1 = tirx.decl_buffer((16, 16), "float32")
-    buffer_2 = tirx.decl_buffer((16, 16), "float32")
-    buffer_3 = tirx.decl_buffer((16, 16), "float32")
+    buffer_0 = tirx.decl_tensor((16, 16), "float32")
+    buffer_1 = tirx.decl_tensor((16, 16), "float32")
+    buffer_2 = tirx.decl_tensor((16, 16), "float32")
+    buffer_3 = tirx.decl_tensor((16, 16), "float32")
     expr = tirx.tvm_mma_sync(buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0)
     assert expr.op.name == "tirx.tvm_mma_sync"
 
 
 def test_tir_op_tvm_bmma_sync():
-    buffer_0 = tirx.decl_buffer((16, 16), "float32")
-    buffer_1 = tirx.decl_buffer((16, 16), "float32")
-    buffer_2 = tirx.decl_buffer((16, 16), "float32")
-    buffer_3 = tirx.decl_buffer((16, 16), "float32")
+    buffer_0 = tirx.decl_tensor((16, 16), "float32")
+    buffer_1 = tirx.decl_tensor((16, 16), "float32")
+    buffer_2 = tirx.decl_tensor((16, 16), "float32")
+    buffer_3 = tirx.decl_tensor((16, 16), "float32")
     expr = tirx.tvm_bmma_sync(
         buffer_0.data, 0, buffer_1.data, 0, buffer_2.data, 0, buffer_3.data, 0
     )
@@ -147,15 +158,15 @@ def test_tir_op_tvm_bmma_sync():
 
 
 def test_tir_op_tvm_fill_fragment():
-    buffer = tirx.decl_buffer((16, 16), "float32")
+    buffer = tirx.decl_tensor((16, 16), "float32")
     expr = tirx.tvm_fill_fragment(buffer.data, 16, 16, 16, 0, 0)
     assert expr.op.name == "tirx.tvm_fill_fragment"
 
 
 def test_tir_op_ptx_mma():
-    buffer_a = tirx.decl_buffer([32], "int4", scope="local")
-    buffer_b = tirx.decl_buffer([16], "uint4", scope="local")
-    buffer_c = tirx.decl_buffer([4], "int32", scope="local")
+    buffer_a = tirx.decl_tensor([32], "int4", scope="local")
+    buffer_b = tirx.decl_tensor([16], "uint4", scope="local")
+    buffer_c = tirx.decl_tensor([4], "int32", scope="local")
     expr = _cuda_op.ptx_legacy_mma(
         "m8n8k32",
         "row",
@@ -177,8 +188,8 @@ def test_tir_op_ptx_mma():
 def test_tir_op_mma_store():
     x = tirx.Var("x", ty="int32")
     y = tirx.Var("y", ty="int32")
-    buffer_w = tirx.decl_buffer([16, 8], dtype="int32", scope="warp", offset_factor=1)
-    buffer = tirx.decl_buffer(
+    buffer_w = tirx.decl_tensor([16, 8], dtype="int32", scope="warp", offset_factor=1)
+    buffer = tirx.decl_tensor(
         [16, 16], dtype="int32", scope="global", offset_factor=1, strides=[x, y]
     )
     expr = _cuda_op.mma_store(
@@ -194,14 +205,14 @@ def test_tir_op_mma_store():
 
 
 def test_tir_op_mma_fill():
-    buffer_w = tirx.decl_buffer([16, 8], dtype="int32", scope="warp", offset_factor=1)
+    buffer_w = tirx.decl_tensor([16, 8], dtype="int32", scope="warp", offset_factor=1)
     expr = _cuda_op.mma_fill("int32", 8, buffer_w.data, buffer_w.ty.elem_offset)
     assert expr.op.name == "tirx.mma_fill"
 
 
 def test_op_ptx_cp_async():
-    buffer_shared = tirx.decl_buffer([16, 16], "float16", scope="shared")
-    buffer_local = tirx.decl_buffer([8], "float16", scope="local")
+    buffer_shared = tirx.decl_tensor([16, 16], "float16", scope="shared")
+    buffer_local = tirx.decl_tensor([8], "float16", scope="local")
     expr = _cuda_op.ptx_cp_async_legacy(buffer_shared.data, 0, buffer_local.data, 0, 16)
     assert expr.op.name == "tirx.s_tir.cp_async_raw"
 
@@ -218,14 +229,14 @@ def test_op_ptx_cp_async():
 
 
 def test_tir_op_vectorlow():
-    buffer = tirx.decl_buffer((4, 4), "int8", offset_factor=1)
+    buffer = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
     vec = buffer.vload([0, 0], dtype="int8x16")
     expr = tirx.vectorlow("int8x8", vec)
     assert expr.op.name == "tirx.vectorlow"
 
 
 def test_tir_op_vectorhigh():
-    buffer = tirx.decl_buffer((4, 4), "int8", offset_factor=1)
+    buffer = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
     vec = buffer.vload([0, 0], dtype="int8x16")
     expr = tirx.vectorhigh("int8x8", vec)
     assert expr.op.name == "tirx.vectorhigh"
@@ -240,7 +251,7 @@ def test_tir_op_dp4a():
 
 
 def test_tir_op_vectorcombine():
-    buffer = tirx.decl_buffer((4, 4), "int8", offset_factor=1)
+    buffer = tirx.decl_tensor((4, 4), "int8", offset_factor=1)
     vec = buffer.vload([0, 0], dtype="int8x16")
     expr = tirx.vectorcombine("int8x8", vec, vec)
     assert expr.op.name == "tirx.vectorcombine"
@@ -279,7 +290,7 @@ def test_tir_op_TVMBackendAllocWorkspace():
 
 
 def test_tir_op_TVMBackendFreeWorkspace():
-    buffer = tirx.decl_buffer((128), "float32")
+    buffer = tirx.decl_tensor((128), "float32")
     expr = tirx.TVMBackendFreeWorkspace(0, 1, buffer.data)
     assert expr.op.name == "tirx.TVMBackendFreeWorkspace"
 

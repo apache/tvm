@@ -44,8 +44,8 @@ Expr MakeCallTIRDist(Expr func, Tuple args, ffi::Array<distributed::DTensorType>
     out_ty = TupleType({out_ty_list.begin(), out_ty_list.end()});
   }
 
-  static const Op& op = Op::Get("relax.call_tir");
-  return Call(Type::Missing(), op, {func, args}, {}, {out_ty});
+  static const Op op = Op::Get("relax.call_tir");
+  return Call::Unchecked(Type::Missing(), op, {func, args}, {}, {out_ty});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

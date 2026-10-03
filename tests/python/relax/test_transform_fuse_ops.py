@@ -870,7 +870,7 @@ def test_edge_with_call_dps_packed():
             return R.tuple(b, c)
 
         @Ts.prim_func(private=True)
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
     # FuseOps should does no change to it.
@@ -891,7 +891,7 @@ def test_layer_norm_silu():
             return gv1
 
         @Ts.prim_func(private=True)
-        def layer_norm(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), gamma: T.Buffer((T.int64(64), T.int64(64)), "float32"), beta: T.Buffer((T.int64(64), T.int64(64)), "float32"), T_layer_norm: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
+        def layer_norm(A: T.Tensor((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), gamma: T.Tensor((T.int64(64), T.int64(64)), "float32"), beta: T.Tensor((T.int64(64), T.int64(64)), "float32"), T_layer_norm: T.Tensor((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
             rxplaceholder_red_temp_v0 = Ts.sblock_alloc_buffer([T.int64(64), T.int64(64)], dtype="float32")
             rxplaceholder_red_temp_v1 = Ts.sblock_alloc_buffer([T.int64(64), T.int64(64)], dtype="float32")
             for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(512), T.int64(64), T.int64(64)):
@@ -911,10 +911,10 @@ def test_layer_norm_silu():
                     ax0, ax1, ax2, ax3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
                     Ts.reads(A[ax0, ax1, ax2, ax3], rxplaceholder_red_temp_v0[ax0, ax1], rxplaceholder_red_temp_v1[ax0, ax1], gamma[ax2, ax3], beta[ax2, ax3])
                     Ts.writes(T_layer_norm[ax0, ax1, ax2, ax3])
-                    T_layer_norm[ax0, ax1, ax2, ax3] = (A[ax0, ax1, ax2, ax3] - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.05)) * T.rsqrt(rxplaceholder_red_temp_v1[ax0, ax1] * T.float32(0.05) - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.05) * (rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.05)) + T.float32(1e-05), dtype="float32") * gamma[ax2, ax3] + beta[ax2, ax3]
+                    T_layer_norm[ax0, ax1, ax2, ax3] = (A[ax0, ax1, ax2, ax3] - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.05)) * T.rsqrt(rxplaceholder_red_temp_v1[ax0, ax1] * T.float32(0.05) - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.05) * (rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.05)) + T.float32(1e-05)) * gamma[ax2, ax3] + beta[ax2, ax3]
 
         @Ts.prim_func(private=True)
-        def relu(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), B: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
+        def relu(A: T.Tensor((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), B: T.Tensor((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
             for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(512), T.int64(64), T.int64(64)):
                 with Ts.sblock("relu"):
                     v_i0, v_i1, v_i2, v_i3 = Ts.axis.remap("SSSS", [i0, i1, i2, i3])
@@ -925,7 +925,7 @@ def test_layer_norm_silu():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def layer_norm(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), gamma: T.Buffer((T.int64(64), T.int64(64)), "float32"), beta: T.Buffer((T.int64(64), T.int64(64)), "float32"), T_layer_norm: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
+        def layer_norm(A: T.Tensor((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), gamma: T.Tensor((T.int64(64), T.int64(64)), "float32"), beta: T.Tensor((T.int64(64), T.int64(64)), "float32"), T_layer_norm: T.Tensor((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 4})
             # with Ts.sblock("root"):
             rxplaceholder_red_temp_v0 = Ts.sblock_alloc_buffer((T.int64(64), T.int64(64)))
@@ -950,7 +950,7 @@ def test_layer_norm_silu():
                     T_layer_norm[ax0, ax1, ax2, ax3] = (A[ax0, ax1, ax2, ax3] - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.050000000000000003)) * T.rsqrt(rxplaceholder_red_temp_v1[ax0, ax1] * T.float32(0.050000000000000003) - rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.050000000000000003) * (rxplaceholder_red_temp_v0[ax0, ax1] * T.float32(0.050000000000000003)) + T.float32(1.0000000000000001e-05)) * gamma[ax2, ax3] + beta[ax2, ax3]
 
         @Ts.prim_func(private=True)
-        def relu(A: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), B: T.Buffer((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
+        def relu(A: T.Tensor((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32"), B: T.Tensor((T.int64(1), T.int64(512), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 0})
             # with Ts.sblock("root"):
             for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(512), T.int64(64), T.int64(64)):
@@ -1012,7 +1012,7 @@ def test_multiple_paths():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def add(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(1), T.int64(320), T.int64(1), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Tensor((T.int64(1), T.int64(320), T.int64(1), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(320), T.int64(64), T.int64(64)):
                 with Ts.sblock("T_add"):
@@ -1022,7 +1022,7 @@ def test_multiple_paths():
                     T_add[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[v_ax0, v_ax1, v_ax2, v_ax3] + rxplaceholder_1[T.int64(0), v_ax1, T.int64(0), T.int64(0)]
 
         @Ts.prim_func(private=True)
-        def add1(rxplaceholder: T.Buffer((T.int64(2), T.int64(320)), "float32"), rxplaceholder_1: T.Buffer((T.int64(320),), "float32"), T_add: T.Buffer((T.int64(2), T.int64(320)), "float32")):
+        def add1(rxplaceholder: T.Tensor((T.int64(2), T.int64(320)), "float32"), rxplaceholder_1: T.Tensor((T.int64(320),), "float32"), T_add: T.Tensor((T.int64(2), T.int64(320)), "float32")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(320)):
                 with Ts.sblock("T_add"):
@@ -1032,7 +1032,7 @@ def test_multiple_paths():
                     T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax1]
 
         @Ts.prim_func(private=True)
-        def add2(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(320), T.int64(1), T.int64(1)), "float32"), T_add: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
+        def add2(rxplaceholder: T.Tensor((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Tensor((T.int64(2), T.int64(320), T.int64(1), T.int64(1)), "float32"), T_add: T.Tensor((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(320), T.int64(64), T.int64(64)):
                 with Ts.sblock("T_add"):
@@ -1042,7 +1042,7 @@ def test_multiple_paths():
                     T_add[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[v_ax0, v_ax1, v_ax2, v_ax3] + rxplaceholder_1[v_ax0, v_ax1, T.int64(0), T.int64(0)]
 
         @Ts.prim_func(private=True)
-        def conv2d(rxplaceholder: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Buffer((T.int64(320), T.int64(320), T.int64(3), T.int64(3)), "float32"), conv2d_nchw: T.Buffer((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
+        def conv2d(rxplaceholder: T.Tensor((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32"), rxplaceholder_1: T.Tensor((T.int64(320), T.int64(320), T.int64(3), T.int64(3)), "float32"), conv2d_nchw: T.Tensor((T.int64(2), T.int64(320), T.int64(64), T.int64(64)), "float32")):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             pad_temp = Ts.sblock_alloc_buffer((T.int64(2), T.int64(320), T.int64(66), T.int64(66)))
             for i0, i1, i2, i3 in T.grid(T.int64(2), T.int64(320), T.int64(66), T.int64(66)):
@@ -1061,7 +1061,7 @@ def test_multiple_paths():
                     conv2d_nchw[v_nn, v_ff, v_yy, v_xx] = conv2d_nchw[v_nn, v_ff, v_yy, v_xx] + pad_temp[v_nn, v_rc, v_yy + v_ry, v_xx + v_rx] * rxplaceholder_1[v_ff, v_rc, v_ry, v_rx]
 
         @Ts.prim_func(private=True)
-        def matmul(rxplaceholder: T.Buffer((T.int64(2), T.int64(1280)), "float32"), rxplaceholder_1: T.Buffer((T.int64(1280), T.int64(320)), "float32"), matmul: T.Buffer((T.int64(2), T.int64(320)), "float32")):
+        def matmul(rxplaceholder: T.Tensor((T.int64(2), T.int64(1280)), "float32"), rxplaceholder_1: T.Tensor((T.int64(1280), T.int64(320)), "float32"), matmul: T.Tensor((T.int64(2), T.int64(320)), "float32")):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             for i0, i1, k in T.grid(T.int64(2), T.int64(320), T.int64(1280)):
                 with Ts.sblock("matmul"):
@@ -1073,7 +1073,7 @@ def test_multiple_paths():
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
 
         @Ts.prim_func(private=True)
-        def reshape(rxplaceholder: T.Buffer((T.int64(320),), "float32"), T_reshape: T.Buffer((T.int64(1), T.int64(320), T.int64(1), T.int64(1)), "float32")):
+        def reshape(rxplaceholder: T.Tensor((T.int64(320),), "float32"), T_reshape: T.Tensor((T.int64(1), T.int64(320), T.int64(1), T.int64(1)), "float32")):
             T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(320), T.int64(1), T.int64(1)):
                 with Ts.sblock("T_reshape"):
@@ -1083,7 +1083,7 @@ def test_multiple_paths():
                     T_reshape[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[(v_ax1 + v_ax2 + v_ax3) % T.int64(320)]
 
         @Ts.prim_func(private=True)
-        def reshape1(rxplaceholder: T.Buffer((T.int64(2), T.int64(320)), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(320), T.int64(1), T.int64(1)), "float32")):
+        def reshape1(rxplaceholder: T.Tensor((T.int64(2), T.int64(320)), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(320), T.int64(1), T.int64(1)), "float32")):
             T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(320), T.int64(1), T.int64(1)):
                 with Ts.sblock("T_reshape"):
@@ -1093,7 +1093,7 @@ def test_multiple_paths():
                     T_reshape[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[((v_ax1 + v_ax2 + v_ax3) // T.int64(320) + v_ax0) % T.int64(2), (v_ax1 + v_ax2 + v_ax3) % T.int64(320)]
 
         @Ts.prim_func(private=True)
-        def transpose(rxplaceholder: T.Buffer((T.int64(320), T.int64(1280)), "float32"), T_transpose: T.Buffer((T.int64(1280), T.int64(320)), "float32")):
+        def transpose(rxplaceholder: T.Tensor((T.int64(320), T.int64(1280)), "float32"), T_transpose: T.Tensor((T.int64(1280), T.int64(320)), "float32")):
             T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1280), T.int64(320)):
                 with Ts.sblock("T_transpose"):
@@ -1167,7 +1167,7 @@ def test_dead_group():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def add(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128),), "float32"), T_add: T.Buffer((T.int64(1), T.int64(128)), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Tensor((T.int64(128),), "float32"), T_add: T.Tensor((T.int64(1), T.int64(128)), "float32")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(1), T.int64(128)):
@@ -1178,7 +1178,7 @@ def test_dead_group():
                     T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax1]
 
         @Ts.prim_func(private=True)
-        def add1(rxplaceholder: T.Buffer((T.int64(1), T.int64(10)), "float32"), rxplaceholder_1: T.Buffer((T.int64(10),), "float32"), T_add: T.Buffer((T.int64(1), T.int64(10)), "float32")):
+        def add1(rxplaceholder: T.Tensor((T.int64(1), T.int64(10)), "float32"), rxplaceholder_1: T.Tensor((T.int64(10),), "float32"), T_add: T.Tensor((T.int64(1), T.int64(10)), "float32")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(1), T.int64(10)):
@@ -1189,7 +1189,7 @@ def test_dead_group():
                     T_add[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1] + rxplaceholder_1[v_ax1]
 
         @Ts.prim_func(private=True)
-        def matmul(rxplaceholder: T.Buffer((T.int64(1), T.int64(784)), "float32"), rxplaceholder_1: T.Buffer((T.int64(784), T.int64(128)), "float32"), matmul_1: T.Buffer((T.int64(1), T.int64(128)), "float32")):
+        def matmul(rxplaceholder: T.Tensor((T.int64(1), T.int64(784)), "float32"), rxplaceholder_1: T.Tensor((T.int64(784), T.int64(128)), "float32"), matmul_1: T.Tensor((T.int64(1), T.int64(128)), "float32")):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1, k in T.grid(T.int64(1), T.int64(128), T.int64(784)):
@@ -1202,7 +1202,7 @@ def test_dead_group():
                     matmul_1[v_i0, v_i1] = matmul_1[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
 
         @Ts.prim_func(private=True)
-        def matmul1(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Buffer((T.int64(128), T.int64(10)), "float32"), matmul: T.Buffer((T.int64(1), T.int64(10)), "float32")):
+        def matmul1(rxplaceholder: T.Tensor((T.int64(1), T.int64(128)), "float32"), rxplaceholder_1: T.Tensor((T.int64(128), T.int64(10)), "float32"), matmul: T.Tensor((T.int64(1), T.int64(10)), "float32")):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1, k in T.grid(T.int64(1), T.int64(10), T.int64(128)):
@@ -1215,7 +1215,7 @@ def test_dead_group():
                     matmul[v_i0, v_i1] = matmul[v_i0, v_i1] + rxplaceholder[v_i0, v_k] * rxplaceholder_1[v_k, v_i1]
 
         @Ts.prim_func(private=True)
-        def relu(rxplaceholder: T.Buffer((T.int64(1), T.int64(128)), "float32"), compute: T.Buffer((T.int64(1), T.int64(128)), "float32")):
+        def relu(rxplaceholder: T.Tensor((T.int64(1), T.int64(128)), "float32"), compute: T.Tensor((T.int64(1), T.int64(128)), "float32")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(1), T.int64(128)):
@@ -1226,7 +1226,7 @@ def test_dead_group():
                     compute[v_i0, v_i1] = T.max(rxplaceholder[v_i0, v_i1], T.float32(0))
 
         @Ts.prim_func(private=True)
-        def transpose(rxplaceholder: T.Buffer((T.int64(128), T.int64(784)), "float32"), T_transpose: T.Buffer((T.int64(784), T.int64(128)), "float32")):
+        def transpose(rxplaceholder: T.Tensor((T.int64(128), T.int64(784)), "float32"), T_transpose: T.Tensor((T.int64(784), T.int64(128)), "float32")):
             T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(784), T.int64(128)):
@@ -1237,7 +1237,7 @@ def test_dead_group():
                     T_transpose[v_ax0, v_ax1] = rxplaceholder[v_ax1, v_ax0]
 
         @Ts.prim_func(private=True)
-        def transpose1(rxplaceholder: T.Buffer((T.int64(10), T.int64(128)), "float32"), T_transpose: T.Buffer((T.int64(128), T.int64(10)), "float32")):
+        def transpose1(rxplaceholder: T.Tensor((T.int64(10), T.int64(128)), "float32"), T_transpose: T.Tensor((T.int64(128), T.int64(10)), "float32")):
             T.func_attr({"op_pattern": 2, "tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1 in T.grid(T.int64(128), T.int64(10)):
@@ -1387,9 +1387,9 @@ def test_symbolic_prim_arg_after_tensor_arg():
 
         @Ts.prim_func(private=True)
         def add_one(
-            x: T.Buffer((T.int64(1), add_one_n), "float32"),
+            x: T.Tensor((T.int64(1), add_one_n), "float32"),
             n: add_one_n,
-            out: T.Buffer((T.int64(1), add_one_n), "float32"),
+            out: T.Tensor((T.int64(1), add_one_n), "float32"),
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
@@ -1402,9 +1402,9 @@ def test_symbolic_prim_arg_after_tensor_arg():
 
         @Ts.prim_func(private=True)
         def exp(
-            x: T.Buffer((T.int64(1), exp_n), "float32"),
+            x: T.Tensor((T.int64(1), exp_n), "float32"),
             n: exp_n,
-            out: T.Buffer((T.int64(1), exp_n), "float32"),
+            out: T.Tensor((T.int64(1), exp_n), "float32"),
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
@@ -1465,8 +1465,8 @@ def test_symbolic_prim_arg_before_tensor_arg():
         @Ts.prim_func(private=True)
         def add_one(
             n: add_one_n,
-            x: T.Buffer((T.int64(1), add_one_n), "float32"),
-            out: T.Buffer((T.int64(1), add_one_n), "float32"),
+            x: T.Tensor((T.int64(1), add_one_n), "float32"),
+            out: T.Tensor((T.int64(1), add_one_n), "float32"),
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
@@ -1480,8 +1480,8 @@ def test_symbolic_prim_arg_before_tensor_arg():
         @Ts.prim_func(private=True)
         def exp(
             n: exp_n,
-            x: T.Buffer((T.int64(1), exp_n), "float32"),
-            out: T.Buffer((T.int64(1), exp_n), "float32"),
+            x: T.Tensor((T.int64(1), exp_n), "float32"),
+            out: T.Tensor((T.int64(1), exp_n), "float32"),
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
@@ -1541,11 +1541,11 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
 
         @Ts.prim_func(private=True)
         def add_one(
-            x: T.Buffer(
+            x: T.Tensor(
                 (T.int64(1), (add_one_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"
             ),
             n: add_one_n,
-            out: T.Buffer(
+            out: T.Tensor(
                 (T.int64(1), (add_one_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"
             ),
         ):
@@ -1560,9 +1560,9 @@ def test_symbolic_prim_arg_reused_from_derived_tensor_shape():
 
         @Ts.prim_func(private=True)
         def exp(
-            x: T.Buffer((T.int64(1), (exp_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"),
+            x: T.Tensor((T.int64(1), (exp_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"),
             n: exp_n,
-            out: T.Buffer((T.int64(1), (exp_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"),
+            out: T.Tensor((T.int64(1), (exp_n - T.int64(1)) // T.int64(4) + T.int64(1)), "float32"),
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
@@ -1622,10 +1622,10 @@ def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
 
         @Ts.prim_func(private=True)
         def add_one(
-            x: T.Buffer((T.int64(1), add_one_n + T.int64(1)), "float32"),
+            x: T.Tensor((T.int64(1), add_one_n + T.int64(1)), "float32"),
             n: add_one_n,
             m: T.int64,
-            out: T.Buffer((T.int64(1), add_one_n + T.int64(1)), "float32"),
+            out: T.Tensor((T.int64(1), add_one_n + T.int64(1)), "float32"),
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
@@ -1638,10 +1638,10 @@ def test_symbolic_prim_arg_not_bound_by_derived_tensor_shape():
 
         @Ts.prim_func(private=True)
         def exp(
-            x: T.Buffer((T.int64(1), exp_n + T.int64(1)), "float32"),
+            x: T.Tensor((T.int64(1), exp_n + T.int64(1)), "float32"),
             n: exp_n,
             m: T.int64,
-            out: T.Buffer((T.int64(1), exp_n + T.int64(1)), "float32"),
+            out: T.Tensor((T.int64(1), exp_n + T.int64(1)), "float32"),
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
@@ -1688,9 +1688,9 @@ def test_primitive_call_arg_not_inlined():
     class Before:
         @Ts.prim_func(private=True)
         def add_scalar(
-            x: T.Buffer((T.int64(4),), "int64"),
+            x: T.Tensor((T.int64(4),), "int64"),
             value: T.int64,
-            out: T.Buffer((T.int64(4),), "int64"),
+            out: T.Tensor((T.int64(4),), "int64"),
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
@@ -1700,7 +1700,7 @@ def test_primitive_call_arg_not_inlined():
                     out[vi] = x[vi] + value
 
         @Ts.prim_func(private=True)
-        def double(x: T.Buffer((T.int64(4),), "int64"), out: T.Buffer((T.int64(4),), "int64")):
+        def double(x: T.Tensor((T.int64(4),), "int64"), out: T.Tensor((T.int64(4),), "int64")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
             for i in range(4):
@@ -1752,7 +1752,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
-        def make(n: T.int64, out: T.Buffer((n,), "float32")):  # noqa: F821
+        def make(n: T.int64, out: T.Tensor((n,), "float32")):  # noqa: F821
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
             for i in range(n):
@@ -1761,7 +1761,7 @@ def test_primitive_call_arg_used_by_output_shape_not_inlined():
                     out[vi] = T.float32(1)
 
         @Ts.prim_func(private=True)
-        def double(x: T.Buffer((n,), "float32"), n: T.int64, out: T.Buffer((n,), "float32")):  # noqa: F821
+        def double(x: T.Tensor((n,), "float32"), n: T.int64, out: T.Tensor((n,), "float32")):  # noqa: F821
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
             for i in range(n):
@@ -1828,7 +1828,7 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
         make_n = T.int64()
 
         @Ts.prim_func(private=True)
-        def make(n: make_n, out: T.Buffer((make_n,), "float32")):
+        def make(n: make_n, out: T.Tensor((make_n,), "float32")):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
             for i in range(n):
@@ -1840,7 +1840,7 @@ def test_symbolic_prim_arg_used_only_by_output_shape():
 
         @Ts.prim_func(private=True)
         def double(
-            x: T.Buffer((double_n,), "float32"), n: double_n, out: T.Buffer((double_n,), "float32")
+            x: T.Tensor((double_n,), "float32"), n: double_n, out: T.Tensor((double_n,), "float32")
         ):
             T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
@@ -2067,9 +2067,9 @@ def test_call_tir_inplace():
     class Module:
         @Ts.prim_func(private=True)
         def add(
-            A: T.Buffer((T.int64(10), T.int64(20)), "float32"),
-            B: T.Buffer((), "float32"),
-            Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+            A: T.Tensor((T.int64(10), T.int64(20)), "float32"),
+            B: T.Tensor((), "float32"),
+            Out: T.Tensor((T.int64(10), T.int64(20)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
@@ -2080,7 +2080,7 @@ def test_call_tir_inplace():
                     Out[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[()]
 
         @Ts.prim_func(private=True)
-        def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
+        def exp_inplace(A: T.Tensor((T.int64(10), T.int64(20)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with Ts.sblock("compute"):
@@ -2090,7 +2090,7 @@ def test_call_tir_inplace():
                     A[v_i0, v_i1] = T.exp(A[v_i0, v_i1])
 
         @Ts.prim_func(private=True)
-        def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
+        def squeeze_inplace(A: T.Tensor((T.int64(10), T.int64(20)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with Ts.sblock("T_squeeze"):
@@ -2129,9 +2129,9 @@ def test_call_tir_inplace():
     class Expected:
         @Ts.prim_func(private=True)
         def add(
-            A: T.Buffer((T.int64(10), T.int64(20)), "float32"),
-            B: T.Buffer((), "float32"),
-            Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+            A: T.Tensor((T.int64(10), T.int64(20)), "float32"),
+            B: T.Tensor((), "float32"),
+            Out: T.Tensor((T.int64(10), T.int64(20)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True, "op_pattern": 0})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
@@ -2142,7 +2142,7 @@ def test_call_tir_inplace():
                     Out[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[()]
 
         @Ts.prim_func(private=True)
-        def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
+        def exp_inplace(A: T.Tensor((T.int64(10), T.int64(20)), "float32")):
             T.func_attr({"tirx.noalias": True, "op_pattern": 0})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with Ts.sblock("compute"):
@@ -2152,7 +2152,7 @@ def test_call_tir_inplace():
                     A[v_i0, v_i1] = T.exp(A[v_i0, v_i1])
 
         @Ts.prim_func(private=True)
-        def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
+        def squeeze_inplace(A: T.Tensor((T.int64(10), T.int64(20)), "float32")):
             T.func_attr({"tirx.noalias": True, "op_pattern": 0})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with Ts.sblock("T_squeeze"):
@@ -2208,7 +2208,7 @@ def test_packed_params():
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
-        def cast(lv: T.Buffer((T.int64(16), T.int64(16)), "float16"), compute: T.Buffer((T.int64(16), T.int64(16)), "float32")):
+        def cast(lv: T.Tensor((T.int64(16), T.int64(16)), "float16"), compute: T.Tensor((T.int64(16), T.int64(16)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(16), T.int64(16)):
@@ -2219,7 +2219,7 @@ def test_packed_params():
                     compute[v_i0, v_i1] = T.Cast("float32", lv[v_i0, v_i1])
 
         @Ts.prim_func(private=True)
-        def matmul(x: T.Buffer((T.int64(16), T.int64(16)), "float32"), lv2: T.Buffer((T.int64(16), T.int64(16)), "float32"), T_matmul: T.Buffer((T.int64(16), T.int64(16)), "float32")):
+        def matmul(x: T.Tensor((T.int64(16), T.int64(16)), "float32"), lv2: T.Tensor((T.int64(16), T.int64(16)), "float32"), T_matmul: T.Tensor((T.int64(16), T.int64(16)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0, ax1, k in T.grid(T.int64(16), T.int64(16), T.int64(16)):

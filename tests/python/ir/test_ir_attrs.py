@@ -57,6 +57,93 @@ def test_assert_structural_equal_reports_mismatch():
     assert "and rhs at" in message
 
 
+def test_op_set_signature_metadata_and_counts():
+    name = "test.python_set_signature"
+    tvm.ir._ffi_api.RegisterOp(name, "Python signature test")
+    op = tvm.ir.Op.get(name)
+    x = tvm.ir.Var("x", tvm.ir.AnyType())
+    ty = tvm.ir.AnyType()
+
+    op.set_signature(
+        ["lhs", ("rhs", "Second input")],
+        ty_args=[("T", "Result type")],
+        var_args=("rest", "Other inputs"),
+        var_ty_args="more_types",
+    )
+    assert [(info.name, info.doc) for info in op.args_info] == [
+        ("lhs", ""),
+        ("rhs", "Second input"),
+    ]
+    assert [(info.name, info.doc) for info in op.ty_args_info] == [("T", "Result type")]
+    assert (op.var_args_info.name, op.var_args_info.doc) == ("rest", "Other inputs")
+    assert op.var_ty_args_info.name == "more_types"
+    tvm.ir.Call(op, [x, x], ty_args=[ty])
+    tvm.ir.Call(op, [x, x, x], ty_args=[ty, ty])
+    with pytest.raises(TypeError, match=r"Call.args expected at least 2 arguments, got 1"):
+        tvm.ir.Call(op, [x], ty_args=[ty])
+    with pytest.raises(TypeError, match=r"Call.ty_args expected at least 1 type argument, got 0"):
+        tvm.ir.Call(op, [x, x])
+
+    op.set_signature(["only"])
+    assert [info.name for info in op.args_info] == ["only"]
+    assert op.var_args_info is None and op.var_ty_args_info is None
+    tvm.ir.Call(op, [x])
+    with pytest.raises(TypeError, match=r"Call.args expected 1 argument, got 2"):
+        tvm.ir.Call(op, [x, x])
+    with pytest.raises(TypeError, match=r"Call.ty_args expected 0 type arguments, got 1"):
+        tvm.ir.Call(op, [x], ty_args=[ty])
+    with pytest.raises(TypeError, match=r"args must be a name string or a \(name, doc\) tuple"):
+        op.set_signature(["new", ("bad", 7)])
+    with pytest.raises(TypeError, match=r"var_ty_args must be a name string"):
+        op.set_signature(["new"], var_ty_args=("bad", 7))
+    assert [info.name for info in op.args_info] == ["only"]
+    tvm.ir.Call(op, [x])
+
+
+def test_op_set_signature_preserves_custom_validator():
+    op = tvm.ir.Op.get("relax.call_pure_packed")
+    original_args = [(info.name, info.doc) for info in op.args_info]
+    original_ty_args = [(info.name, info.doc) for info in op.ty_args_info]
+    original_var_args = (op.var_args_info.name, op.var_args_info.doc)
+    original_var_ty_args = (op.var_ty_args_info.name, op.var_ty_args_info.doc)
+    try:
+        op.set_signature()
+        with pytest.raises(TypeError, match="call_pure_packed expects a function argument"):
+            tvm.ir.Call(op, [])
+    finally:
+        op.set_signature(
+            original_args,
+            ty_args=original_ty_args,
+            var_args=original_var_args,
+            var_ty_args=original_var_ty_args,
+        )
+
+
+def test_op_set_signature_checks_counts_without_types_or_attrs():
+    name = "test.python_set_signature.count_only"
+    tvm.ir._ffi_api.RegisterOp(name, "Count-only Python signature")
+    op = tvm.ir.Op.get(name)
+    op.set_signature(["value"], ty_args=["T"])
+
+    call = tvm.ir.Call(
+        op,
+        [tvm.ir.Var("x", tvm.ir.AnyType())],
+        attrs={"note": "permitted"},
+        ty_args=[tvm.ir.StringType()],
+    )
+    assert call.attrs is not None
+
+
+def test_ptx_ops_have_variadic_call_signature():
+    from tvm.backend.cuda.ptx import TABLE
+
+    op = tvm.ir.Op.get(next(iter(TABLE.values())).op_name)
+    assert not op.args_info
+    assert op.var_args_info.name == "operands"
+    tvm.ir.Call(op, [])
+    tvm.ir.Call(op, [tvm.ir.Var("x", tvm.ir.AnyType())])
+
+
 if __name__ == "__main__":
     test_dict_attrs()
     test_attrs_equal()

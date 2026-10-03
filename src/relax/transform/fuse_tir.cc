@@ -346,8 +346,8 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) {
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
     TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_))
         << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
@@ -558,8 +558,8 @@ class FusedTIRConstructor : public ExprVisitor {
 
   void VisitExpr_(const CallNode* call) final {
     ExprVisitor::VisitExpr_(call);
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
     TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_))
         << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
@@ -636,8 +636,8 @@ class FusedTIRConstructor : public ExprVisitor {
    * \return The number of outputs.
    */
   static ffi::Array<ffi::Array<PrimExpr>> GetCallTIROutputShapes(const CallNode* call) {
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
     TVM_FFI_ICHECK(call->op.same_as(call_tir_op_) || call->op.same_as(call_tir_inplace_op_));
     TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1);
     auto get_tensor_shape =
@@ -794,7 +794,7 @@ class FusedTIRConstructor : public ExprVisitor {
         return unique_name;
       };
       // Update buffer with new symbolic shape according to the ty
-      tirx::BufferType new_type(buffer->storage_scope, buffer->dtype, output_shapes[i],
+      tirx::TensorType new_type(buffer->storage_scope, buffer->dtype, output_shapes[i],
                                 buffer->strides, buffer->elem_offset, buffer->data_alignment,
                                 buffer->offset_factor, buffer->layout, buffer->allocated_addr);
       tirx::BufferVar new_buffer(unify_name_hints(), std::move(new_type), buffer.span());
@@ -833,10 +833,10 @@ class FusedTIRConstructor : public ExprVisitor {
       PrimType dtype = tensor->dtype.value();
       tirx::BufferVar buffer;
       if (tir_buffer_param.has_value()) {
-        buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint,
+        buffer = tirx::decl_tensor(shape_expr->values, dtype, name_hint,
                                    tir_buffer_param.value().scope());
       } else {
-        buffer = tirx::decl_buffer(shape_expr->values, dtype, name_hint);
+        buffer = tirx::decl_tensor(shape_expr->values, dtype, name_hint);
       }
       out->push_back(std::move(buffer));
 
@@ -1073,8 +1073,8 @@ class TIRFuseMutator : public ExprMutator {
   }
 
   Expr VisitExpr_(const CallNode* op) final {
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
 
     Call call = builder_->Normalize(ExprMutator::VisitExpr_(op)).as_or_throw<Call>();
 
@@ -1145,7 +1145,7 @@ class TIRFuseMutator : public ExprMutator {
       inplace_attrs->inplace_indices = replacement.inplace_indices;
       call_attrs = Attrs(inplace_attrs);
     }
-    return Call(Type::Missing(), call_op, call_args, call_attrs, {GetType(call)});
+    return Call::Unchecked(Type::Missing(), call_op, call_args, call_attrs, {GetType(call)});
   }
 
  private:

@@ -22,7 +22,7 @@ TIRx kernels use ``tvm.script.tirx`` for the parser and core IR builders::
 
    from tvm.script import tirx as Tx
 
-   Tx.alloc_buffer(...)
+   Tx.alloc_tensor(...)
 
 Tile primitives and backend-specific namespaces are documented separately in
 :doc:`tile`, :doc:`cuda`, and :doc:`ptx`.  For the relationship between these

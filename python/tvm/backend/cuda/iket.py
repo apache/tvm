@@ -38,7 +38,6 @@ import tempfile
 import threading
 import time
 import uuid
-import warnings
 from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -50,29 +49,11 @@ from typing import Any
 import tvm
 from tvm.script import tirx as T
 
-_PROFILE_ENV = "TVM_IKET_OFFICIAL_PROFILE"
 _INJECTED_CHILD_ENABLE_ENV = "TVM_IKET_INJECTED_CHILD_ENABLE"
-_DEFAULT_PROFILE = "cutlass-4.6.0"
 _POSTPROCESS_CHOICES = frozenset(("perfetto", "json", "html", "none", "all"))
 _INJECTION_ENV_VARS = ("CUDA_INJECTION64_PATH", "SMODEL_INJECTION_CONFIG")
 _OUTPUT_TAIL_LINES = 100
 _TERMINATION_GRACE_SECONDS = 5.0
-
-_OFFICIAL_PROFILES = {
-    "cutlass-4.6.0": {
-        "nvrtc_version": (13, 2),
-        "minimum_versions": {
-            "nvidia-cutlass-dsl": "4.6.0",
-            "nvidia-cutlass-dsl-libs-base": "4.6.0",
-            "nvidia-cutlass-dsl-libs-core": "4.6.0",
-            "nvidia-cutlass-dsl-libs-cu13": "4.6.0",
-        },
-        "exact_versions": {
-            "nvidia-cuda-nvdisasm": "13.3.73",
-            "nvidia-cuda-nvrtc": "13.2.78",
-        },
-    }
-}
 
 
 class IketProfileError(RuntimeError):
@@ -171,24 +152,14 @@ def _profile_error(message: str) -> IketProfileError:
     )
 
 
-def _is_newer_release(actual: str, expected: str) -> bool:
-    """Compare the numeric release versions published by NVIDIA wheels."""
-    try:
-        actual_parts = tuple(int(part) for part in actual.split("."))
-        expected_parts = tuple(int(part) for part in expected.split("."))
-    except ValueError:
-        return False
-    width = max(len(actual_parts), len(expected_parts))
-    return actual_parts + (0,) * (width - len(actual_parts)) > expected_parts + (0,) * (
-        width - len(expected_parts)
-    )
-
-
 def _validate_run_iket_entrypoint() -> str:
     executable = shutil.which("run-iket")
     if executable is None or not os.access(executable, os.X_OK):
         raise _profile_error("the run-iket executable is unavailable")
-    entry_points = metadata.distribution("nvidia-cutlass-dsl-libs-base").entry_points
+    try:
+        entry_points = metadata.distribution("nvidia-cutlass-dsl-libs-base").entry_points
+    except metadata.PackageNotFoundError as err:
+        raise _profile_error("the run-iket entry point metadata is unavailable") from err
     if not any(
         item.group == "console_scripts"
         and item.name == "run-iket"
@@ -201,49 +172,21 @@ def _validate_run_iket_entrypoint() -> str:
     return executable
 
 
-def _validate_nvrtc_version(expected_version: tuple[int, int]) -> None:
-    expected_label = ".".join(str(part) for part in expected_version)
+def _validate_nvrtc_available() -> None:
     try:
         from cuda.bindings import nvrtc
 
-        error, major, minor = nvrtc.nvrtcVersion()
+        error, _, _ = nvrtc.nvrtcVersion()
     except (ImportError, OSError, RuntimeError) as err:
-        raise _profile_error(f"CUDA NVRTC {expected_label} is unavailable") from err
-    actual_version = (int(major), int(minor))
-    if int(error) != 0 or actual_version != expected_version:
-        raise _profile_error(
-            f"CUDA NVRTC {expected_label} is required, got {actual_version[0]}.{actual_version[1]}"
-        )
+        raise _profile_error("CUDA NVRTC is unavailable") from err
+    if int(error) != 0:
+        raise _profile_error(f"CUDA NVRTC is unavailable (error {int(error)})")
 
 
-def _validate_official_installation(profile_name: str) -> str:
-    """Validate host-side package versions and return the official executable."""
-    if profile_name not in _OFFICIAL_PROFILES:
-        raise _profile_error(f"unsupported profile {profile_name!r}; expected {_DEFAULT_PROFILE!r}")
-    profile_config = _OFFICIAL_PROFILES[profile_name]
-    version_groups = (
-        (profile_config["minimum_versions"], True),
-        (profile_config["exact_versions"], False),
-    )
-    for versions, allow_newer in version_groups:
-        for distribution_name, expected_version in versions.items():
-            try:
-                distribution = metadata.distribution(distribution_name)
-            except metadata.PackageNotFoundError as err:
-                operator = ">=" if allow_newer else "=="
-                raise _profile_error(
-                    f"{distribution_name}{operator}{expected_version} is not installed"
-                ) from err
-            if distribution.version != expected_version and not (
-                allow_newer and _is_newer_release(distribution.version, expected_version)
-            ):
-                requirement = f"{expected_version} or newer" if allow_newer else expected_version
-                raise _profile_error(
-                    f"{distribution_name} must be {requirement}, got {distribution.version}"
-                )
-
+def _validate_official_installation() -> str:
+    """Check the required tools are available and return the official executable."""
     executable = _validate_run_iket_entrypoint()
-    _validate_nvrtc_version(profile_config["nvrtc_version"])
+    _validate_nvrtc_available()
     return executable
 
 
@@ -278,12 +221,7 @@ def _validate_injection_environment() -> None:
 
 def _validate_official_environment() -> str:
     """Validate the installation plus tracker/capture injection environment."""
-    profile_name = os.environ.get(_PROFILE_ENV)
-    if profile_name not in _OFFICIAL_PROFILES:
-        raise _profile_error(
-            f"{_PROFILE_ENV} must be set to {_DEFAULT_PROFILE}, got {profile_name!r}"
-        )
-    executable = _validate_official_installation(profile_name)
+    executable = _validate_official_installation()
     _validate_injection_environment()
     return executable
 
@@ -409,11 +347,7 @@ def _validate_profile_options(
     return timeout
 
 
-def _child_environment(
-    profile_name: str, env: Mapping[str, str | os.PathLike[str]] | None
-) -> dict[str, str]:
-    if not isinstance(profile_name, str):
-        raise TypeError("profile_name must be a string")
+def _child_environment(env: Mapping[str, str | os.PathLike[str]] | None) -> dict[str, str]:
     child_env = os.environ.copy()
     if env is not None:
         if not isinstance(env, Mapping):
@@ -424,15 +358,6 @@ def _child_environment(
             if not isinstance(normalized_key, str) or not isinstance(normalized_value, str):
                 raise TypeError("env keys and values must resolve to strings")
             child_env[normalized_key] = normalized_value
-    inherited_profile = child_env.get(_PROFILE_ENV)
-    if inherited_profile is not None and inherited_profile != profile_name:
-        warnings.warn(
-            f"Ignoring inherited {_PROFILE_ENV}={inherited_profile!r}; "
-            f"profile_name={profile_name!r} takes precedence",
-            RuntimeWarning,
-            stacklevel=3,
-        )
-    child_env[_PROFILE_ENV] = profile_name
     # LowerIket also requires the two run-iket injection variables before it
     # honors this marker.  This enables ordinary TIRx JIT compilation only in
     # children started by this validated profiling entry point.
@@ -696,7 +621,6 @@ def profile(
     command: Sequence[str | os.PathLike[str]],
     *,
     output_dir: str | os.PathLike[str],
-    profile_name: str = _DEFAULT_PROFILE,
     postprocess: str = "all",
     clobber: bool = False,
     cwd: str | os.PathLike[str] | None = None,
@@ -718,8 +642,8 @@ def profile(
     if _path_exists(target) and not clobber:
         raise FileExistsError(f"IKET output directory already exists: {target}")
 
-    child_env = _child_environment(profile_name, env)
-    executable = _validate_official_installation(profile_name)
+    child_env = _child_environment(env)
+    executable = _validate_official_installation()
     target.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{target.name}.staging-", dir=target.parent))
     published = False
@@ -863,7 +787,6 @@ def run(
     main,
     *,
     output_dir: str | os.PathLike[str],
-    profile_name: str = _DEFAULT_PROFILE,
     postprocess: str = "all",
     clobber: bool = False,
     cwd: str | os.PathLike[str] | None = None,
@@ -889,7 +812,6 @@ def run(
     return profile(
         command,
         output_dir=output_dir,
-        profile_name=profile_name,
         postprocess=postprocess,
         clobber=clobber,
         cwd=cwd,

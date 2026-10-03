@@ -59,9 +59,9 @@ def get_matmul_packed(m, n, k, lhs_type="int8", rhs_dtype="int8", acc_dtype="int
 class Matmul:
     @Ts.prim_func
     def main(
-        A: T.Buffer((1024, 1024), "float32"),
-        B: T.Buffer((1024, 1024), "float32"),
-        C: T.Buffer((1024, 1024), "float32"),
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        C: T.Tensor((1024, 1024), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main"})
 
@@ -76,9 +76,9 @@ class Matmul:
 class DuplicateMatmul:
     @Ts.prim_func
     def main(
-        A: T.Buffer((1024, 1024), "float32"),
-        B: T.Buffer((1024, 1024), "float32"),
-        C: T.Buffer((1024, 1024), "float32"),
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        C: T.Tensor((1024, 1024), "float32"),
     ) -> None:
         T.func_attr({"global_symbol": "main"})
 
@@ -96,7 +96,7 @@ class DuplicateMatmul:
 @tvm.script.ir_module
 class TrinityMatmul:
     @Ts.prim_func
-    def main(A: T.Buffer((1024, 1024), 'float32'), D: T.Buffer((1024, 1024), 'float32')) -> None:
+    def main(A: T.Tensor((1024, 1024), 'float32'), D: T.Tensor((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
 
         B = Ts.sblock_alloc_buffer((1024, 1024), "float32")
@@ -119,7 +119,7 @@ class TrinityMatmul:
 class TrinityMatmulProcessedForReference:
     @Ts.prim_func
     def main(
-        A: T.Buffer([1024, 1024], dtype="float32"), D: T.Buffer([1024, 1024], dtype="float32")
+        A: T.Tensor([1024, 1024], dtype="float32"), D: T.Tensor([1024, 1024], dtype="float32")
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main"})

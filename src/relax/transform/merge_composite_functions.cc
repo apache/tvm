@@ -469,7 +469,7 @@ class CompositeInliner : public ExprMutator {
           new_func = WithoutAttr(new_func, tvm::relax::attr::kPrimitive);
           inlined_functions_.Set(func, new_func);
         }
-        return Call(Type::Missing(), inlined_functions_[func], call->args);
+        return Call::Unchecked(Type::Missing(), inlined_functions_[func], call->args);
       }
     }
 
@@ -529,7 +529,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         // we call new var instead of the old one.
         // we don't have to update args since we are just updating the function to call,
         // without any change in the arguments.
-        return Call(Type::Missing(), new_var, call->args);
+        return Call::Unchecked(Type::Missing(), new_var, call->args);
       }
     }
     return ffi::GetRef<Call>(call);

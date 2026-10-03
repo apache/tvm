@@ -38,7 +38,7 @@ namespace tirx {
 namespace {
 
 bool IsPtxElectSyncCall(const CallNode* call) {
-  static const Op& ptx_elect_sync_op = Op::Get("tirx.cuda.elect_sync");
+  static const Op ptx_elect_sync_op = Op::Get("tirx.cuda.elect_sync");
   return call->op.same_as(ptx_elect_sync_op);
 }
 

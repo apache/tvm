@@ -130,7 +130,7 @@ def test_kernel_replace_point_is_builtin_marker_not_tile_primitive():
 
 def test_tile_shorthand_and_scoped_aliases_use_tile_ops():
     @T.prim_func(check_well_formed=False)
-    def tile_aliases(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+    def tile_aliases(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         T.tile.copy(A[0:16], B[0:16])
         Tx.cast(A[0:16], B[0:16])
         T.cta.cast(A[0:16], B[0:16])
@@ -171,7 +171,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     assert T.metal is builder_op.metal
     assert T.nki is builder_op.nki
 
-    buffer = tvm.tirx.decl_buffer((1,), "float32")
+    buffer = tvm.tirx.decl_tensor((1,), "float32")
     calls = [
         T.cuda.elect_sync(),
         T.cuda.thread_fence(),
@@ -289,10 +289,8 @@ def test_backend_load_updates_tirx_alias_and_script_facades(monkeypatch):
 
 def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     @T.prim_func
-    def device_namespaces(dst: T.handle, A: T.Buffer((1,), "float32")):
-        Result = T.alloc_buffer((1,), "float32", scope="local")
+    def device_namespaces(dst: T.handle, A: T.Tensor((1,), "float32")):
         T.cuda.cta_sync()
-        T.s_tir.ldg32(Result[0], 1, A[0], 0)
         T.metal.simd_shuffle(A[0], 0)
         T.metal.simd_shuffle_up(A[0], 1)
         T.metal.simd_shuffle_down(A[0], 1)
@@ -300,14 +298,12 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
     calls = _expr_calls(device_namespaces)
     assert [call.op.name for call in calls] == [
         "tirx.cuda.cta_sync",
-        "tirx.s_tir.ldg32",
         "tirx.metal.simd_shuffle",
         "tirx.metal.simd_shuffle_up",
         "tirx.metal.simd_shuffle_down",
     ]
     for op_name, namespace in [
         ("tirx.cuda.cta_sync", "cuda"),
-        ("tirx.s_tir.ldg32", "s_tir"),
         ("tirx.metal.simd_shuffle", "metal"),
         ("tirx.metal.simd_shuffle_up", "metal"),
         ("tirx.metal.simd_shuffle_down", "metal"),
@@ -318,7 +314,6 @@ def test_device_intrinsic_printer_roundtrips_canonical_namespaces():
 
     code = device_namespaces.script()
     assert "T.cuda.cta_sync(" in code
-    assert "T.s_tir.ldg32(" in code
     assert "T.metal.simd_shuffle(" in code
     assert "T.metal.simd_shuffle_up(" in code
     assert "T.metal.simd_shuffle_down(" in code
@@ -392,8 +387,8 @@ def test_registered_tirx_ops_have_exactly_one_category():
             assert device_namespace in device_namespaces, op_name
             printer_name = _op_attr(op_name, "TScriptPrinterName")
             assert printer_name is not None, op_name
-            assert printer_name.startswith(device_namespace + "."), op_name
-            assert _has_path(T, printer_name), op_name
+            assert printer_name.startswith("tirx." + device_namespace + "."), op_name
+            assert _has_path(T, printer_name.removeprefix("tirx.")), op_name
         else:
             assert category == "builtin"
             assert device_namespace is None, op_name

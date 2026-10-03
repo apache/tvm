@@ -17,9 +17,7 @@
 # ruff: noqa: E501, F841
 """S-TIR script printer."""
 
-import io
-import re
-import tokenize
+import sys
 
 import pytest
 from tvm_ffi.access_path import AccessPath
@@ -41,18 +39,19 @@ def _assert_print(obj, expected):
     assert obj.script(verbose_expr=True).strip() == expected.strip()
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_prim_func_symbolic_buffer_param_roundtrip():
     n = tirx.Var("n", "int32")
-    A = tirx.decl_buffer(shape=[n + 1, n], dtype="float32", name="A", layout=None)
+    A = tirx.decl_tensor(shape=[n + 1, n], dtype="float32", name="A", layout=None)
     func = (
         tirx.PrimFunc(params=[A], body=tirx.Evaluate(n))
         .with_attr("global_symbol", "main")
         .with_attr("s_tir", True)
     )
 
-    source = func.script(extra_config={"script.use_pep695": False})
-    assert "T.Buffer((n + 1, n)" in source
-    assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
+    source = func.script()
+    assert "T.Tensor((n + 1, n)" in source
+    assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
@@ -61,18 +60,19 @@ def test_prim_func_symbolic_buffer_param_roundtrip():
     )
 
 
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="PEP 695 requires Python 3.12")
 def test_prim_func_compound_buffer_shape_first_use_roundtrip():
     n = tirx.Var("n", "int32")
-    A = tirx.decl_buffer(shape=[tirx.max(n, 1)], dtype="float32", name="A", layout=None)
+    A = tirx.decl_tensor(shape=[tirx.max(n, 1)], dtype="float32", name="A", layout=None)
     func = (
         tirx.PrimFunc(params=[A], body=tirx.Evaluate(n))
         .with_attr("global_symbol", "main")
         .with_attr("s_tir", True)
     )
 
-    source = func.script(extra_config={"script.use_pep695": False})
-    assert "T.Buffer((T.max(n, 1),)" in source
-    assert source.index('n = I.dynamic("n", dtype="int32")') < source.index("T.evaluate(n)")
+    source = func.script()
+    assert "T.Tensor((T.max(n, 1),)" in source
+    assert source.index("def main[n: T.int32](") < source.index("T.evaluate(n)")
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
@@ -83,14 +83,31 @@ def test_prim_func_compound_buffer_shape_first_use_roundtrip():
 
 def test_prim_func_symbolic_alloc_buffer_roundtrip():
     size = tirx.Var("size", "int32")
-    buf = tirx.decl_buffer(shape=[size], dtype="float32", name="buf", layout=None)
+    buf = tirx.decl_tensor(shape=[size], dtype="float32", name="buf", layout=None)
     func = tirx.PrimFunc(
         params=[],
-        body=tirx.SeqStmt([tirx.AllocBuffer(buf), tirx.Evaluate(tirx.BufferLoad(buf, [0]))]),
+        body=tirx.SeqStmt(
+            [
+                tvm.tirx.Bind(
+                    buf,
+                    tvm.ir.Call(
+                        "tirx.alloc_tensor",
+                        [
+                            tvm.ir.Tuple(buf.shape),
+                            tvm.ir.DataTypeImm(tvm.DataType(buf.dtype)),
+                            tvm.ir.StringImm(buf.scope()),
+                        ],
+                        attrs=tvm.ir.DictAttrs({}),
+                        ty=buf.ty,
+                    ),
+                ),
+                tirx.Evaluate(tirx.BufferLoad(buf, [0])),
+            ]
+        ),
     ).with_attr("s_tir", True)
 
     source = func.script()
-    assert "T.alloc_buffer((size,))" in source
+    assert 'T.alloc_tensor((size,), "float32")' in source
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
             source,
@@ -102,8 +119,8 @@ def test_prim_func_symbolic_alloc_buffer_roundtrip():
 
 
 def test_prim_func():
-    A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A")
-    B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B")
+    A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A")
+    B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B")
     func = (
         tirx.PrimFunc(
             params=[A, B],
@@ -116,19 +133,20 @@ def test_prim_func():
     _assert_print(
         func,
         expected="""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
     T.evaluate(0)""",
     )
 
 
 def test_prim_func_buffer_data_use():
-    A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A")
-    B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B")
+    A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A")
+    B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B")
     func = (
         tirx.PrimFunc(
             params=[A, B],
@@ -141,21 +159,22 @@ def test_prim_func_buffer_data_use():
     _assert_print(
         func,
         expected="""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
     T.evaluate(A.data)
 """,
     )
 
 
 def test_prim_func_buffer_data_argument_is_scope_hint():
-    buffer_data = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A").data
-    A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A", data=buffer_data)
-    B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B", data=buffer_data)
+    buffer_data = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A").data
+    A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A", data=buffer_data)
+    B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B", data=buffer_data)
     func = (
         tirx.PrimFunc(
             params=[A, B],
@@ -168,12 +187,13 @@ def test_prim_func_buffer_data_argument_is_scope_hint():
     _assert_print(
         func,
         expected="""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
     T.evaluate(0)
 """,
     )
@@ -235,8 +255,8 @@ with Ts.sblock("block", no_realize=True):
 
 
 def test_match_buffer_region():
-    src = tirx.decl_buffer((128, 128), "float32", name="src")
-    tgt = tirx.decl_buffer((64, 64), "float32", name="tgt")
+    src = tirx.decl_tensor((128, 128), "float32", name="src")
+    tgt = tirx.decl_tensor((64, 64), "float32", name="tgt")
     obj = s_tir.MatchBufferRegion(
         tgt,
         tirx.BufferRegion(
@@ -250,8 +270,8 @@ def test_match_buffer_region():
     _assert_print(
         obj,
         """
-src = T.Buffer((128, 128))
-tgt = Ts.match_buffer(src[64:128, 64:128], (64, 64))
+src = T.Var("src", T.Tensor((128, 128), "float32", layout="default"))
+tgt = Ts.match_buffer(src[64:128, 64:128], (64, 64), "float32", layout="default")
 """,
     )
 
@@ -266,9 +286,8 @@ def test_bind():
     _assert_print(
         obj,
         """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func(private=True)
 def main():
@@ -302,22 +321,30 @@ def test_remap():
                 v4, v5 = Ts.axis.remap("RS", [i4, i5])
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
-    # with Ts.sblock("root"):
-    for i0, i1, i2, i3, i4, i5 in T.grid(128, 128, 128, 128, 128, 128):
-        with Ts.sblock("update"):
-            v = Ts.axis.spatial(128, i0 + 1)
-            v_1, v_2 = Ts.axis.remap("SR", [i1, i2])
-            v_3 = Ts.axis.spatial(128, i3 - 1)
-            v_4, v_5 = Ts.axis.remap("RS", [i4, i5])
-            Ts.reads()
-            Ts.writes()
-            T.evaluate(0)"""
+    with Ts.sblock("root"):
+        Ts.reads()
+        Ts.writes()
+        for i0 in range(128):
+            for i1 in range(128):
+                for i2 in range(128):
+                    for i3 in range(128):
+                        for i4 in range(128):
+                            for i5 in range(128):
+                                with Ts.sblock("update"):
+                                    v = Ts.axis.spatial(128, i0 + 1)
+                                    v_1 = Ts.axis.spatial(128, i1)
+                                    v_2 = Ts.axis.reduce(128, i2)
+                                    v_3 = Ts.axis.spatial(128, i3 - 1)
+                                    v_4 = Ts.axis.reduce(128, i4)
+                                    v_5 = Ts.axis.spatial(128, i5)
+                                    Ts.reads()
+                                    Ts.writes()
+                                    T.evaluate(0)"""
     _assert_print(block_with_remap_explicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(block_with_remap_implicitly.with_attr("global_symbol", "main"), expected_output)
 
@@ -341,27 +368,28 @@ def test_root_block():
                     TB.evaluate(0)
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
-    # with Ts.sblock("root"):
-    buffer = Ts.sblock_alloc_buffer((128, 128))
-    for i, j in T.grid(128, 128):
-        with Ts.sblock(""):
-            Ts.reads()
-            Ts.writes()
-            T.evaluate(0)
-    """
+    with Ts.sblock("root"):
+        Ts.reads()
+        Ts.writes()
+        v = Ts.sblock_alloc_buffer((128, 128), "float32")
+        for i in range(128):
+            for j in range(128):
+                with Ts.sblock(""):
+                    Ts.reads()
+                    Ts.writes()
+                    T.evaluate(0)"""
     _assert_print(root_block_implicitly.with_attr("global_symbol", "main"), expected_output)
     _assert_print(root_block_explicitly.with_attr("global_symbol", "main"), expected_output)
 
 
 def test_private_primfunc():
-    A = tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A")
-    B = tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B")
+    A = tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A")
+    B = tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B")
     func = tirx.PrimFunc(
         params=[A, B],
         ret_type=None,
@@ -370,12 +398,13 @@ def test_private_primfunc():
     _assert_print(
         func,
         expected="""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func(private=True)
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
     T.evaluate(0)""",
     )
 
@@ -384,69 +413,20 @@ def test_prim_func_different_symbol():
     from tvm.script import tirx as TB
 
     @Ts.prim_func
-    def main(A: TB.Buffer((128, 128), "float32"), B: TB.Buffer((256, 256), "float32")):
+    def main(A: TB.Tensor((128, 128), "float32"), B: TB.Tensor((256, 256), "float32")):
         TB.func_attr({"global_symbol": "func"})
         TB.evaluate(0)
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    T.evaluate(0)
-    """
+def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+    T.evaluate(0)"""
     _assert_print(main, expected_output)
-
-
-def test_variable_with_cpp_address():
-    """The show_object_address option displays the C++ addressess
-
-    Because the C++ address may vary with each execution, the output
-    produced with this option cannot be compared to a fixed string.
-    Instead, this test uses the normal script output to generate a
-    regular expression against with the test output must match.  The
-    regular expression validates that all names have been appended
-    with "_0x" followed by a hexadecimal number, and that the address
-    is the same for each variable.
-    """
-    from tvm.script import tirx as TB
-
-    # The test function has all named objects suffixed with "_name",
-    # to avoid spurious replacement when generating the expected
-    # regex.
-    N_name = I.dynamic("N_name")
-
-    @Ts.prim_func
-    def func(A_name: TB.Buffer(N_name, "float32")):
-        for i_name in range(N_name):
-            A_name[i_name] = A_name[i_name] + 1.0
-
-    without_address = func.script(show_object_address=False)
-    script = func.script(show_object_address=True)
-
-    # Address suffixes belong to identifiers, not display-name string literals
-    # passed to constructors such as I.dynamic("N_name").
-    names = {"a_name", "A_name", "N_name", "i_name"}
-    line_offsets = [0]
-    for line in without_address.splitlines(keepends=True):
-        line_offsets.append(line_offsets[-1] + len(line))
-    parts = []
-    seen = set()
-    cursor = 0
-    for token in tokenize.generate_tokens(io.StringIO(without_address).readline):
-        name = token.string
-        if token.type != tokenize.NAME or name not in names:
-            continue
-        start = line_offsets[token.start[0] - 1] + token.start[1]
-        end = line_offsets[token.end[0] - 1] + token.end[1]
-        parts.append(re.escape(without_address[cursor:start]))
-        parts.append(rf"(?P={name})" if name in seen else rf"(?P<{name}>{name}_0x[A-Fa-f0-9]+)")
-        seen.add(name)
-        cursor = end
-    parts.append(re.escape(without_address[cursor:]))
-    assert re.fullmatch("".join(parts), script)
 
 
 def test_return_statement():
@@ -464,7 +444,7 @@ def func():
     return 5
     """
     _assert_print(func, expected_output)
-    assert func.script(verbose_expr=True, syntax_sugar=False).strip() == expected_output.strip()
+    assert func.script(verbose_expr=True).strip() == expected_output.strip()
 
 
 CUSTOM_FLOAT_DTYPES = [
@@ -494,9 +474,8 @@ def test_custom_float_types(dtype):
         TB.evaluate(getattr(TB, dtype)(0.0))
 
     expected_output = f"""
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def func():
@@ -509,7 +488,7 @@ def test_predicated_load_store():
     from tvm.script import tirx as TB
 
     @Ts.prim_func
-    def main(A: TB.Buffer((128, 128), "float32"), B: TB.Buffer((256, 256), "float32")):
+    def main(A: TB.Tensor((128, 128), "float32"), B: TB.Tensor((256, 256), "float32")):
         TB.func_attr({"global_symbol": "func"})
         a_load = TB.meta_var(
             TB.call_intrin(
@@ -534,15 +513,15 @@ def test_predicated_load_store():
         )
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
     a_load: T.let[T.float32x4] = T.masked_load("float32x4", A, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4))
-    T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
-    """
+    T.masked_store(A, a_load, 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
     _assert_print(main, expected_output)
 
 
@@ -550,8 +529,8 @@ def test_predicated_buffer_load_store():
     a = tirx.Var("a", "handle")
     b = tirx.Var("b", "handle")
     buffers = {
-        a: tirx.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
-        b: tirx.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+        a: tirx.decl_tensor(shape=[128, 128], dtype="float32", name="A"),
+        b: tirx.decl_tensor(shape=[256, 256], dtype="float32", name="B"),
     }
     buffer_load = tirx.call_intrin(
         "float32x4",
@@ -579,14 +558,14 @@ def test_predicated_buffer_load_store():
     ).with_attr("s_tir", True)
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func(private=True)
-def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    T.masked_store(A, T.masked_load("float32x4", B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))
-    """
+def main(A: T.Tensor((128, 128), "float32", layout="default"), B: T.Tensor((256, 256), "float32", layout="default")):
+    T.masked_store(A, T.masked_load("float32x4", B, 0, T.Ramp(0, 4, 4), T.Broadcast(T.bool(False), 4)), 0, T.Ramp(0, 2, 4), T.Broadcast(T.bool(False), 4))"""
     _assert_print(func, expected_output)
 
 
@@ -594,7 +573,7 @@ def test_predicated_scalable_load_store():
     from tvm.script import tirx as TB
 
     @Ts.prim_func
-    def main(A: TB.Buffer((128, 128), "float32"), B: TB.Buffer((256, 256), "float32")):
+    def main(A: TB.Tensor((128, 128), "float32"), B: TB.Tensor((256, 256), "float32")):
         TB.func_attr({"global_symbol": "func"})
         mask = TB.meta_var(TB.get_active_lane_mask("uint1xvscalex4", 0, 13))
         a_load = TB.meta_var(
@@ -609,16 +588,17 @@ def test_predicated_scalable_load_store():
         )
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
-    mask: T.let[T.uint1xvscalex4] = T.get_active_lane_mask("uint1xvscalex4", 0, 13)
-    a_load: T.let[T.float32xvscalex4] = T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
+def func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((256, 256), "float32")):
+    mask: T.let["uint1xvscalex4"] = T.get_active_lane_mask("uint1xvscalex4", 0, 13)
+    a_load: T.let["float32xvscalex4"] = T.masked_load("float32xvscalex4", A, 0, T.Ramp(0, 4, T.vscale() * 4), mask)
     T.masked_store(A, a_load, 0, T.Ramp(0, 2, T.vscale() * 4), mask)
-    """
+"""
     _assert_print(main, expected_output)
 
 
@@ -627,11 +607,11 @@ def test_masked_load_prevents_scalar_allocation_init_fusion():
 
     @Ts.prim_func
     def main():
-        A = TB.alloc_buffer((1,), "float32x4")
+        A = TB.alloc_tensor((1,), "float32x4")
         A[0] = TB.masked_load("float32x4", A, 0, TB.Broadcast(TB.bool(True), 4))
 
     source = main.script()
-    assert "A = T.alloc_buffer" in source
+    assert "A = T.alloc_tensor" in source
     assert "A[0] = T.masked_load" in source
     tvm.ir.assert_structural_equal(
         tvm.script.from_source(
@@ -645,18 +625,18 @@ def test_vload_with_explicit_scalable_data_type():
     from tvm.script import tirx as TB
 
     @Ts.prim_func
-    def main(A: TB.Buffer((128,), "float32"), B: TB.Buffer((128,), "float32")):
+    def main(A: TB.Tensor((128,), "float32"), B: TB.Tensor((128,), "float32")):
         B[0 : TB.vscale() * 4] = A.vload([TB.Ramp(0, 1, TB.vscale() * 4)], dtype="float32xvscalex4")
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
-    B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]
-    """
+def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
+    B[0:T.vscale() * 4] = A[T.Ramp(0, 1, T.vscale() * 4)]"""
     _assert_print(main, expected_output)
 
 
@@ -664,20 +644,20 @@ def test_vectorize_llvm_pure_intrin():
     from tvm.script import tirx as TB
 
     @Ts.prim_func
-    def main(A: TB.Buffer((4,), "float32"), B: TB.Buffer((4,), "float32")):
+    def main(A: TB.Tensor((4,), "float32"), B: TB.Tensor((4,), "float32")):
         A[TB.Ramp(0, 1, 4)] = TB.call_llvm_pure_intrin(
             "float32x4", "llvm.sqrt", B[TB.Ramp(0, 1, 4)]
         )
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
-    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])
-    """
+def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
+    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", B[T.Ramp(0, 1, 4)])"""
     _assert_print(main, expected_output)
 
 
@@ -685,7 +665,7 @@ def test_func_with_loop_jumps():
     from tvm.script import tirx as TB
 
     @Ts.prim_func
-    def main(A: TB.Buffer((4,), "float32"), B: TB.Buffer((4,), "float32")):
+    def main(A: TB.Tensor((4,), "float32"), B: TB.Tensor((4,), "float32")):
         for i in range(1000):
             if i % 13 == 0:
                 A[1] = A[1] + 1
@@ -694,19 +674,19 @@ def test_func_with_loop_jumps():
                 break
 
     expected_output = """
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
+from __future__ import annotations
+
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
-def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
+def main(A: T.Tensor((4,), "float32"), B: T.Tensor((4,), "float32")):
     for i in range(1000):
         if i % 13 == 0:
             A[1] = A[1] + T.float32(1.0)
             continue
         if A[0] >= B[0]:
-            break
-    """
+            break"""
     _assert_print(main, expected_output)
 
 
@@ -717,19 +697,19 @@ def opt_gemm_lower():
     class Module:
         @Ts.prim_func
         def mmult(
-            A_1: T.Buffer([16384], elem_offset=0, align=64, offset_factor=1),
-            B_1: T.Buffer([1024, 1024], elem_offset=0, align=64, offset_factor=1),
-            C_1: T.Buffer([16384], elem_offset=0, align=64, offset_factor=1),
+            A_1: T.Tensor([16384], elem_offset=0, align=64, offset_factor=1),
+            B_1: T.Tensor([1024, 1024], elem_offset=0, align=64, offset_factor=1),
+            C_1: T.Tensor([16384], elem_offset=0, align=64, offset_factor=1),
         ) -> None:
             # function attr dict
             T.func_attr({"tirx.noalias": True})
             # body
-            packedB = T.alloc_buffer((32768,))
+            packedB = T.alloc_tensor((32768,))
             for x in T.parallel(0, 32):
                 for y in T.serial(0, 1024):
                     packedB[T.ramp(((x * 32768) + (y * 32)), 1, 32)] = B_1[y, T.ramp(x * 32, 1, 32)]
             for x_outer in T.parallel(0, 32):
-                C_global = T.alloc_buffer((1024,))
+                C_global = T.alloc_tensor((1024,))
                 for y_outer in T.serial(0, 32):
                     for x_c_init in T.serial(0, 32):
                         C_global[T.ramp((x_c_init * 32), 1, 32)] = T.broadcast(T.float32(0), 32)
@@ -774,16 +754,16 @@ def opt_conv_tensorcore_lower():
 
     @Ts.prim_func
     def func(
-        A: T.Buffer((16, 14, 14, 16, 16, 16), "float16"),
-        W: T.Buffer((3, 3, 16, 32, 16, 16), "float16"),
-        Conv: T.Buffer((16, 14, 14, 32, 16, 16), "float32"),
+        A: T.Tensor((16, 14, 14, 16, 16, 16), "float16"),
+        W: T.Tensor((3, 3, 16, 32, 16, 16), "float16"),
+        Conv: T.Tensor((16, 14, 14, 32, 16, 16), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
         # body
-        A_1 = T.decl_buffer([12845056], dtype="float16", data=A.data)
-        W_1 = T.decl_buffer([1179648], dtype="float16", data=W.data)
-        Conv_1 = T.decl_buffer([25690112], data=Conv.data)
+        A_1 = T.decl_tensor([12845056], dtype="float16", data=A.data)
+        W_1 = T.decl_tensor([1179648], dtype="float16", data=W.data)
+        Conv_1 = T.decl_tensor([25690112], data=Conv.data)
         bx = T.env_thread("blockIdx.x")
         by = T.env_thread("blockIdx.y")
         bz = T.env_thread("blockIdx.z")
@@ -791,25 +771,17 @@ def opt_conv_tensorcore_lower():
         ty = T.env_thread("threadIdx.y")
         tz = T.env_thread("threadIdx.z")
         T.launch_thread(bz, 196)
-        Conv_wmma_accumulator = T.alloc_buffer((2048,), scope="wmma.accumulator")
-        Apad_shared = T.alloc_buffer((12288,), "float16", scope="shared")
-        W_shared = T.alloc_buffer((12288,), "float16", scope="shared")
-        Apad_shared_wmma_matrix_a = T.alloc_buffer((512,), "float16", scope="wmma.matrix_a")
-        W_shared_wmma_matrix_b = T.alloc_buffer((1024,), "float16", scope="wmma.matrix_b")
+        Conv_wmma_accumulator = T.alloc_tensor((2048,), scope="wmma.accumulator")
+        Apad_shared = T.alloc_tensor((12288,), "float16", scope="shared")
+        W_shared = T.alloc_tensor((12288,), "float16", scope="shared")
+        Apad_shared_wmma_matrix_a = T.alloc_tensor((512,), "float16", scope="wmma.matrix_a")
+        W_shared_wmma_matrix_b = T.alloc_tensor((1024,), "float16", scope="wmma.matrix_b")
         T.launch_thread(bx, 2)
         T.launch_thread(by, 4)
         T.launch_thread(ty, 4)
         T.launch_thread(tz, 2)
-        T.evaluate(
-            T.tvm_fill_fragment(
-                Conv_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0), dtype="handle"
-            )
-        )
-        T.evaluate(
-            T.tvm_fill_fragment(
-                Conv_wmma_accumulator.data, 16, 16, 16, 7, T.float32(0), dtype="handle"
-            )
-        )
+        T.evaluate(T.tvm_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0)))
+        T.evaluate(T.tvm_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 7, T.float32(0)))
         for ic_outer in T.serial(0, 8):
             for kh in T.serial(0, 3):
                 for ax2 in T.serial(0, 3):
@@ -851,7 +823,6 @@ def opt_conv_tensorcore_lower():
                                     ),
                                 ],
                                 T.float16(0),
-                                dtype="float16",
                             )
                         )
                     T.launch_thread(tx, 32)
@@ -892,7 +863,6 @@ def opt_conv_tensorcore_lower():
                                 ),
                             ],
                             T.float16(0),
-                            dtype="float16",
                         )
                     )
                 with T.launch_thread(tx, 32):
@@ -947,11 +917,9 @@ def opt_conv_tensorcore_lower():
                                     (((ty * 3072) + (kw * 512)) + (ic_inner * 256)),
                                     256,
                                     1,
-                                    dtype="handle",
                                 ),
                                 16,
                                 "row_major",
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -967,11 +935,9 @@ def opt_conv_tensorcore_lower():
                                     ((((ty * 3072) + (kw * 512)) + (ic_inner * 256)) + 1536),
                                     256,
                                     1,
-                                    dtype="handle",
                                 ),
                                 16,
                                 "row_major",
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -987,11 +953,9 @@ def opt_conv_tensorcore_lower():
                                     (((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)),
                                     256,
                                     1,
-                                    dtype="handle",
                                 ),
                                 16,
                                 "row_major",
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -1007,11 +971,9 @@ def opt_conv_tensorcore_lower():
                                     ((((kw * 4096) + (ic_inner * 2048)) + (tz * 1024)) + 768),
                                     256,
                                     1,
-                                    dtype="handle",
                                 ),
                                 16,
                                 "row_major",
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -1024,7 +986,6 @@ def opt_conv_tensorcore_lower():
                                 0,
                                 Conv_wmma_accumulator.data,
                                 0,
-                                dtype="handle",
                             )
                         )
                         T.evaluate(
@@ -1037,7 +998,6 @@ def opt_conv_tensorcore_lower():
                                 3,
                                 Conv_wmma_accumulator.data,
                                 7,
-                                dtype="handle",
                             )
                         )
         T.evaluate(
@@ -1056,11 +1016,9 @@ def opt_conv_tensorcore_lower():
                     ),
                     256,
                     2,
-                    dtype="handle",
                 ),
                 16,
                 "row_major",
-                dtype="handle",
             )
         )
         T.evaluate(
@@ -1082,11 +1040,9 @@ def opt_conv_tensorcore_lower():
                     ),
                     256,
                     2,
-                    dtype="handle",
                 ),
                 16,
                 "row_major",
-                dtype="handle",
             )
         )
 
@@ -1099,7 +1055,7 @@ def opt_conv_tensorcore_mod_host():
     @Ts.prim_func
     def opt_conv_tensorcore_mod_host(
         args: T.handle,
-        arg_type_ids: T.Buffer((3,), "int32"),
+        arg_type_ids: T.Tensor((3,), "int32"),
         num_args: T.int32,
         out_ret_value: T.handle,
         out_ret_tcode: T.handle,
@@ -1115,11 +1071,9 @@ def opt_conv_tensorcore_mod_host():
             }
         )
         # body
-        stack_tcode_data: T.let[T.handle("int32")] = T.tvm_stack_alloca(
-            "arg_tcode", 10, dtype="handle"
-        )
-        stack_tcode = T.decl_buffer([9], "int32", data=stack_tcode_data)
-        stack_value: T.let[T.handle] = T.tvm_stack_alloca("arg_value", 10, dtype="handle")
+        stack_tcode_data: T.let[T.handle("int32")] = T.tvm_stack_alloca("arg_tcode", 10)
+        stack_tcode = T.decl_tensor([9], "int32", data=stack_tcode_data)
+        stack_value: T.let[T.handle] = T.tvm_stack_alloca("arg_value", 10)
         assert num_args == 3, "default_function: num_args should be 3"
         arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, dtype="handle")
         arg0_code: T.let[T.int32] = arg_type_ids[0]
@@ -1131,11 +1085,11 @@ def opt_conv_tensorcore_mod_host():
         arg0_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
             arg0, 0, 2, dtype=T.handle("int64").ty
         )
-        arg0_shape = T.decl_buffer([6], "int64", data=arg0_shape_data)
+        arg0_shape = T.decl_tensor([6], "int64", data=arg0_shape_data)
         arg0_strides_data: T.let[T.handle("int64")] = T.tvm_struct_get(
             arg0, 0, 3, dtype=T.handle("int64").ty
         )
-        arg0_strides = T.decl_buffer([6], "int64", data=arg0_strides_data)
+        arg0_strides = T.decl_tensor([6], "int64", data=arg0_strides_data)
 
         dev_id: T.let[T.int32] = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
@@ -1161,7 +1115,7 @@ def opt_conv_tensorcore_mod_host():
         assert 14 == T.cast(arg0_shape[1], "int32"), (
             "Argument arg0.shape[1] has an unsatisfied constraint"
         )
-        if not (T.isnullptr(arg0_strides.data, dtype="bool")):
+        if not (T.isnullptr(arg0_strides.data)):
             assert (
                 (
                     (
@@ -1193,46 +1147,38 @@ def opt_conv_tensorcore_mod_host():
         assert dev_id == T.tvm_struct_get(arg2, 0, 9, dtype="int32"), (
             "Argument arg2.device_id has an unsatisfied constraint"
         )
-        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, T.cast(2, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, T.cast(2, "int64")))
         stack_tcode[0] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, T.cast(dev_id, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, T.cast(dev_id, "int64")))
         stack_tcode[1] = 0
-        T.evaluate(
-            T.tvm_call_packed_lowered(
-                "__tvm_set_device", stack_value, stack_tcode.data, 0, 2, dtype="int32"
-            )
-        )
+        T.evaluate(T.tvm_call_packed_lowered("__tvm_set_device", stack_value, 0, 2))
         T.attr(0, "compute_scope", "default_function_compute_")
-        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, A, dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, A))
         stack_tcode[0] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, W, dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, W))
         stack_tcode[1] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 2, 12, Conv, dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 2, 12, Conv))
         stack_tcode[2] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 3, 12, T.cast(196, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 3, 12, T.cast(196, "int64")))
         stack_tcode[3] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 4, 12, T.cast(2, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 4, 12, T.cast(2, "int64")))
         stack_tcode[4] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 5, 12, T.cast(4, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 5, 12, T.cast(4, "int64")))
         stack_tcode[5] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 6, 12, T.cast(4, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 6, 12, T.cast(4, "int64")))
         stack_tcode[6] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 7, 12, T.cast(2, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 7, 12, T.cast(2, "int64")))
         stack_tcode[7] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 8, 12, T.cast(32, "int64"), dtype="int32"))
+        T.evaluate(T.tvm_struct_set(stack_value, 8, 12, T.cast(32, "int64")))
         stack_tcode[8] = 0
-        T.evaluate(
-            T.tvm_call_packed_lowered(
-                "default_function_kernel0", stack_value, stack_tcode.data, 0, 9, dtype="int32"
-            )
-        )
+        T.evaluate(T.tvm_call_packed_lowered("default_function_kernel0", stack_value, 0, 9))
 
     return opt_conv_tensorcore_mod_host
 
 
 def select():
     @Ts.prim_func
-    def select(A: T.Buffer((), "float32")) -> None:
+    def select(A: T.Tensor((), "float32")) -> None:
         A[()] = T.Select(True, 1, 2)
 
     return select
@@ -1240,7 +1186,7 @@ def select():
 
 def minmax():
     @Ts.prim_func
-    def minmax(A: T.Buffer((), "float32")) -> None:
+    def minmax(A: T.Tensor((), "float32")) -> None:
         A[()] = T.min(1, 2)
         A[()] = T.max(1, 2)
 
@@ -1249,7 +1195,7 @@ def minmax():
 
 def abs():
     @Ts.prim_func
-    def abs(A: T.Buffer((128, 128), "float32")) -> None:
+    def abs(A: T.Tensor((128, 128), "float32")) -> None:
         for i, j in T.grid(128, 128):
             with Ts.sblock("A"):
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1260,7 +1206,7 @@ def abs():
 
 def constant_folding():
     @Ts.prim_func
-    def constant_folding(A: T.Buffer((), "float32")) -> None:
+    def constant_folding(A: T.Tensor((), "float32")) -> None:
         A[()] = T.min(2.2, 5.2)
         A[()] = T.max(T.float32(2.2), T.float32(T.float32(5.2)))
         A[()] = T.min(2.2, 5.0)
@@ -1284,7 +1230,7 @@ def simplify_bracket():
 
 def var_with_same_name():
     @Ts.prim_func
-    def var_with_same_name(A: T.Buffer((16, 16), "float32")) -> None:
+    def var_with_same_name(A: T.Tensor((16, 16), "float32")) -> None:
         for i, j in T.grid(16, 16):
             with Ts.sblock():
                 vi, vj = Ts.axis.remap("SS", [i, j])
@@ -1310,16 +1256,17 @@ def test_same_name_var():
         },
     )
     tvm.ir.assert_structural_equal(func, rt_func)
-    assert out_str.count("for i, j in T.grid(16, 16)") == 2
-    assert out_str.find("i_") == -1
-    assert out_str.find("i_") == -1
+    assert out_str.count("for i in range(16):\n            for j in range(16):") == 1
+    assert out_str.count("for i_1 in range(16):\n            for j_1 in range(16):") == 1
+    assert out_str.find("i_2") == -1
+    assert out_str.find("j_2") == -1
 
 
 def primfunc_with_allocate_annotations():
     @Ts.prim_func
     def primfunc_with_allocate_annotations(
-        placeholder_29: T.Buffer([802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1),
-        T_cast_7: T.Buffer([200704], dtype="int16", elem_offset=0, align=64, offset_factor=1),
+        placeholder_29: T.Tensor([802816], dtype="uint8", elem_offset=0, align=64, offset_factor=1),
+        T_cast_7: T.Tensor([200704], dtype="int16", elem_offset=0, align=64, offset_factor=1),
     ) -> None:
         # function attr dict
         T.func_attr(
@@ -1327,7 +1274,7 @@ def primfunc_with_allocate_annotations():
         )
 
         # body
-        tensor_2 = T.alloc_buffer((200704,), "uint8", annotations={"attr1_key": "attr1_value"})
+        tensor_2 = T.alloc_tensor((200704,), "uint8", annotations={"attr1_key": "attr1_value"})
         for ax0_ax1_fused_4 in T.serial(0, 56):
             for ax2_4 in T.serial(0, 56):
                 for ax3_init in T.serial(0, 64):
@@ -1356,7 +1303,6 @@ def primfunc_with_allocate_annotations():
                                 )
                             ],
                             T.uint8(0),
-                            dtype="uint8",
                         ),
                     )
         for ax0_ax1_fused_5 in T.serial(0, 56):
@@ -1371,14 +1317,14 @@ def primfunc_with_allocate_annotations():
 def comm_reducer_single_reduce_group():
     @Ts.prim_func
     def comm_reducer_single_reduce_group(
-        A: T.Buffer([16384], dtype="float32"), b: T.handle
+        A: T.Tensor([16384], dtype="float32"), b: T.handle
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
 
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
-            reduce_temp0 = T.alloc_buffer((1,), scope="local")
+            reduce_temp0 = T.alloc_tensor((1,), scope="local")
             with T.attr(
                 T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.int32(0)
             ):
@@ -1389,7 +1335,6 @@ def comm_reducer_single_reduce_group():
                         True,
                         reduce_temp0.data,
                         threadIdx_x,
-                        dtype="handle",
                     )
                 )
 
@@ -1399,14 +1344,14 @@ def comm_reducer_single_reduce_group():
 def comm_reducer_multiple_reduce_groups():
     @Ts.prim_func
     def comm_reducer_multiple_reduce_groups(
-        A: T.Buffer([16384], dtype="float32"), b: T.handle
+        A: T.Tensor([16384], dtype="float32"), b: T.handle
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         threadIdx_x = T.env_thread("threadIdx.x")
 
         for i in T.serial(0, 128):
             T.launch_thread(threadIdx_x, 128)
-            reduce_temp0 = T.alloc_buffer((1,), scope="local")
+            reduce_temp0 = T.alloc_tensor((1,), scope="local")
             with T.attr(
                 T.comm_reducer(
                     lambda x0, x1, y0, y1: (
@@ -1425,7 +1370,6 @@ def comm_reducer_multiple_reduce_groups():
                         True,
                         reduce_temp0.data,
                         threadIdx_x,
-                        dtype="handle",
                     )
                 )
 
@@ -1436,10 +1380,10 @@ def multiple_commreducer():
     # normal_reduce_temp0 is treated as uninitialized value
     @Ts.prim_func(check_well_formed=False)
     def multiple_commreducer() -> None:
-        normal_reduce_temp0 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
-        normal_reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp0 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
+        normal_reduce_temp0 = T.buffer([1], dtype="float32", strides=[1], scope="local")
+        normal_reduce_temp1 = T.buffer([1], dtype="float32", strides=[1], scope="local")
+        reduce_temp0 = T.buffer([1], dtype="float32", strides=[1], scope="local")
+        reduce_temp1 = T.buffer([1], dtype="float32", strides=[1], scope="local")
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):
                 T.attr(
@@ -1454,7 +1398,6 @@ def multiple_commreducer():
                         True,
                         reduce_temp0.data,
                         ax0_1,
-                        dtype="handle",
                     )
                 )
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
@@ -1469,7 +1412,6 @@ def multiple_commreducer():
                         True,
                         reduce_temp1.data,
                         ax0_1,
-                        dtype="handle",
                     )
                 )
 
@@ -1557,7 +1499,7 @@ def func_T_ptr_let_statement():
     ) -> None:
         # The T.Ptr declaration in the parameter list should parse
         # correctly, and should be usable as the data pointer in a buffer.
-        arg_type_ids = T.decl_buffer([2], dtype="int32", data=arg_type_ids_handle)
+        arg_type_ids = T.decl_tensor([2], dtype="int32", data=arg_type_ids_handle)
 
         arg0: T.let[T.handle] = T.tvm_struct_get(args, 0, 12, dtype="handle")
         arg1: T.let[T.handle] = T.tvm_struct_get(args, 1, 12, dtype="handle")
@@ -1573,12 +1515,12 @@ def func_T_ptr_let_statement():
         # this function.  It should only be defined after the data pointer
         # has been defined, and should not be hoisted into the header of
         # the function as other buffer_decl statements can be.
-        A = T.decl_buffer([1024], dtype="float32", data=A_data)
+        A = T.decl_tensor([1024], dtype="float32", data=A_data)
         B_data: T.let[T.handle("float32")] = T.reinterpret(
             T.handle("float32").ty,
             T.tvm_struct_get(arg1, 0, 1, dtype="handle"),
         )
-        B = T.decl_buffer([1024], dtype="float32", data=B_data)
+        B = T.decl_tensor([1024], dtype="float32", data=B_data)
 
         B[0] = A[0]
 
@@ -1588,7 +1530,7 @@ def func_T_ptr_let_statement():
 def func_T_ptr_allocate():
     @Ts.prim_func
     def func_T_ptr_allocate() -> None:
-        A = T.alloc_buffer((1024,))
+        A = T.alloc_tensor((1024,))
         A[0] = 0.0
 
     return func_T_ptr_allocate
@@ -1596,7 +1538,7 @@ def func_T_ptr_allocate():
 
 def llvm_intrin_call():
     @Ts.prim_func
-    def ctpop(A: T.Buffer((16,), "uint8"), B: T.Buffer((16,), "uint8")) -> None:
+    def ctpop(A: T.Tensor((16,), "uint8"), B: T.Tensor((16,), "uint8")) -> None:
         for i in range(0, 16):
             with Ts.sblock("A"):
                 vi = Ts.axis.remap(
@@ -1635,10 +1577,10 @@ def string_annotation_escaping():
 def pointer_type():
     @Ts.prim_func
     def func_with_ptr_type_annotations(x: T.handle("int32"), y: T.handle("int32", "shared")):
-        xx = T.alloc_buffer((16,), "int32")
-        yy = T.alloc_buffer((16,), "int32", scope="shared")
-        a: T.let[T.handle("int32")] = T.address_of(xx[0], dtype="handle")
-        b: T.let[T.handle("int32", "shared")] = T.address_of(yy[0], dtype="handle")
+        xx = T.alloc_tensor((16,), "int32")
+        yy = T.alloc_tensor((16,), "int32", scope="shared")
+        a: T.let[T.handle("int32")] = T.address_of(xx[0])
+        b: T.let[T.handle("int32", "shared")] = T.address_of(yy[0])
         T.evaluate(T.call_extern("copy", a, b, dtype=""))
 
     return func_with_ptr_type_annotations
@@ -1647,9 +1589,9 @@ def pointer_type():
 def buffer_ramp_access_as_slice_index():
     @Ts.prim_func
     def buffer_ramp_access(
-        A: T.Buffer((128,), "float32"),
-        B: T.Buffer((128,), "float32"),
-        C: T.Buffer((128,), "float32"),
+        A: T.Tensor((128,), "float32"),
+        B: T.Tensor((128,), "float32"),
+        C: T.Tensor((128,), "float32"),
     ) -> None:
         for i in range(128):
             A[i : i + 1 : 1] = i
@@ -1671,7 +1613,7 @@ def ramp_int64():
 
 def scalable_vectors():
     @Ts.prim_func
-    def func(A: T.Buffer((200,), "float32")):
+    def func(A: T.Tensor((200,), "float32")):
         A[T.Ramp(11, 2, 4 * tirx.vscale())] = T.Broadcast(125, 4 * tirx.vscale())
 
     return func
@@ -1679,7 +1621,7 @@ def scalable_vectors():
 
 def predicated_buffer_load_store():
     @Ts.prim_func
-    def func(A: T.Buffer((4,), "float32"), B: T.Buffer((8,), "float32")):
+    def func(A: T.Tensor((4,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in range(4):
             load_a = T.meta_var(
                 T.call_intrin(
@@ -1773,12 +1715,12 @@ def void_ptr():
     return func
 
 
-def decl_buffer():
+def decl_tensor():
     @Ts.prim_func
-    def func(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")) -> None:
-        A_flattened = T.decl_buffer(data=A.data, shape=(256,), dtype="float32")
-        B_flattened = T.decl_buffer(data=B.data, shape=(256,), dtype="float32")
-        C_alias = T.decl_buffer(data=A_flattened.data, shape=(256,), dtype="float32")
+    def func(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")) -> None:
+        A_flattened = T.decl_tensor(data=A.data, shape=(256,), dtype="float32")
+        B_flattened = T.decl_tensor(data=B.data, shape=(256,), dtype="float32")
+        C_alias = T.decl_tensor(data=A_flattened.data, shape=(256,), dtype="float32")
         for i in range(256):
             B_flattened[i] = A_flattened[i] + C_alias[i] + T.float32(1.0)
 
@@ -1787,10 +1729,10 @@ def decl_buffer():
 
 def allocate_and_decl_buffer():
     @Ts.prim_func
-    def func(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")) -> None:
-        D = T.alloc_buffer((16,))
+    def func(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")) -> None:
+        D = T.alloc_tensor((16,))
         for i in range(4):
-            C = T.alloc_buffer((4,))
+            C = T.alloc_tensor((4,))
             for j in range(4):
                 C[j] = A[i * 4 + j] + T.float32(1.0)
             for j in range(4):
@@ -1803,8 +1745,8 @@ def allocate_and_decl_buffer():
 
 def alloc_buffer_example():
     @Ts.prim_func
-    def func(A: T.Buffer((128,), "float32"), C: T.Buffer((128,), "float32")):
-        B = T.alloc_buffer((128,), "float32")
+    def func(A: T.Tensor((128,), "float32"), C: T.Tensor((128,), "float32")):
+        B = T.alloc_tensor((128,), "float32")
         for i in range(128):
             B[i] = A[i] * T.float32(2)
         for i in range(128):
@@ -1816,7 +1758,7 @@ def alloc_buffer_example():
 def float_infinity():
     @Ts.prim_func
     def func(
-        placeholder: T.Buffer((1, 512, 768), "float32"), T_isinf: T.Buffer((1, 512, 768), "bool")
+        placeholder: T.Tensor((1, 512, 768), "float32"), T_isinf: T.Tensor((1, 512, 768), "bool")
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -1827,9 +1769,9 @@ def float_infinity():
                 ax0, ax1, ax2 = Ts.axis.remap("SSS", [i0, i1, i2])
                 Ts.reads(placeholder[ax0, ax1, ax2])
                 Ts.writes(T_isinf[ax0, ax1, ax2])
-                T_isinf[ax0, ax1, ax2] = T.fabs(
-                    placeholder[ax0, ax1, ax2], dtype="float32"
-                ) == T.float32("inf") and not (T.isnan(placeholder[ax0, ax1, ax2], dtype="bool"))
+                T_isinf[ax0, ax1, ax2] = T.fabs(placeholder[ax0, ax1, ax2]) == T.float32(
+                    "inf"
+                ) and not (T.isnan(placeholder[ax0, ax1, ax2]))
 
     return func
 
@@ -1884,7 +1826,7 @@ def nested_boolean_expressions():
     def make_ir_generator(name, expression):
         def inner():
             @Ts.prim_func
-            def func(A: T.Buffer(1, "bool"), i: T.bool, j: T.bool, k: T.bool):
+            def func(A: T.Tensor(1, "bool"), i: T.bool, j: T.bool, k: T.bool):
                 A[0] = expression(i, j, k)
 
             return func
@@ -1900,7 +1842,7 @@ def nested_boolean_expressions():
 
 def multi_env_threads():
     @Ts.prim_func
-    def func(A: T.Buffer(128, "float32"), C: T.Buffer(128, "float32")):
+    def func(A: T.Tensor(128, "float32"), C: T.Tensor(128, "float32")):
         B = Ts.sblock_alloc_buffer([128], dtype="float32")
         for i in T.thread_binding(128, thread="threadIdx.x"):
             B[i] = A[i] + 1.0
@@ -1930,29 +1872,29 @@ def tvm_shfl_builtins():
     ):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
-        A_warp = T.alloc_buffer((1,), scope="local")
-        B_warp = T.alloc_buffer((1,), scope="local")
-        red_buf0 = T.alloc_buffer((1,), scope="local")
-        A_warp_1 = T.decl_buffer((32,), data=A_warp.data, scope="local")
-        A_1 = T.decl_buffer((32,), data=A)  # A is a handle param
+        A_warp = T.alloc_tensor((1,), scope="local")
+        B_warp = T.alloc_tensor((1,), scope="local")
+        red_buf0 = T.alloc_tensor((1,), scope="local")
+        A_warp_1 = T.decl_tensor((32,), data=A_warp.data, scope="local")
+        A_1 = T.decl_tensor((32,), data=A)  # A is a handle param
         A_warp_1[0] = A_1[threadIdx_x]
-        B_warp_1 = T.decl_buffer((32,), data=B_warp.data, scope="local")
+        B_warp_1 = T.decl_tensor((32,), data=B_warp.data, scope="local")
         T.tvm_storage_sync("warp")
         B_warp_1[0] = T.tvm_warp_shuffle(
             T.tvm_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
         ) + T.float32(1)
-        red_buf0_1 = T.decl_buffer((1,), data=red_buf0.data, scope="local")
+        red_buf0_1 = T.decl_tensor((1,), data=red_buf0.data, scope="local")
         with T.attr(
             T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
             "reduce_scope",
             T.int32(0),
         ):
-            mask = T.alloc_buffer((1,), "uint32", scope="local")
-            t0 = T.alloc_buffer((1,), scope="local")
+            mask = T.alloc_tensor((1,), "uint32", scope="local")
+            t0 = T.alloc_tensor((1,), scope="local")
             red_buf0_1[0] = A_warp_1[0]
-            mask_1 = T.decl_buffer((1,), "uint32", data=mask.data, scope="local")
+            mask_1 = T.decl_tensor((1,), "uint32", data=mask.data, scope="local")
             mask_1[0] = T.tvm_warp_activemask()
-            t0_1 = T.decl_buffer((1,), data=t0.data, scope="local")
+            t0_1 = T.decl_tensor((1,), data=t0.data, scope="local")
             t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
             red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
             t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)
@@ -1967,9 +1909,9 @@ def tvm_shfl_builtins():
             # NOTE(Zihao): test tvm_warp_shuffle_up
             red_buf0_1[0] = T.tvm_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
         if threadIdx_x == 0:
-            C_1 = T.decl_buffer((1,), data=C)
+            C_1 = T.decl_tensor((1,), data=C)
             C_1[0] = red_buf0_1[0]
-        B_1 = T.decl_buffer((32,), data=B)
+        B_1 = T.decl_tensor((32,), data=B)
         B_1[threadIdx_x] = B_warp_1[0]
 
     return func
@@ -1977,7 +1919,7 @@ def tvm_shfl_builtins():
 
 def make_packed_api_result():
     @Ts.prim_func
-    def func(A: T.Buffer(64, "float32")):
+    def func(A: T.Tensor(64, "float32")):
         T.func_attr({"global_symbol": "main", "target": T.target("cuda")})
         bx = T.launch_thread("blockIdx.x", 64)
         T.evaluate(A[bx])
@@ -1997,7 +1939,7 @@ def tvm_struct_set_generated_in_cpp():
     @I.ir_module
     class Module:
         @Ts.prim_func
-        def tir_packed_call(A: T.Buffer(16)):
+        def tir_packed_call(A: T.Tensor(16)):
             T.attr(0, "device_id", 0)
             T.attr(0, "device_type", 0)
             T.evaluate(
@@ -2005,14 +1947,12 @@ def tvm_struct_set_generated_in_cpp():
                     "tvm_test_cpacked",
                     T.tvm_stack_make_array(
                         A.data,
-                        T.tvm_stack_make_shape(16, dtype="handle"),
+                        T.tvm_stack_make_shape(16),
                         T.reinterpret(T.uint64(0), dtype="handle"),
                         T.uint32(1),
                         T.Cast("float32", 0),
                         0,
-                        dtype="handle",
                     ),
-                    dtype="int32",
                 )
             )
 
@@ -2020,10 +1960,10 @@ def tvm_struct_set_generated_in_cpp():
 
 
 def undefined_data_ptr_in_decl_buffer():
-    """The T.decl_buffer syntax should not introduce an Allocate
+    """The T.decl_tensor syntax should not introduce an Allocate
 
-    While T.decl_buffer can be used to represent an
-    Allocate/DeclBuffer pair, performing a round-trip through
+    While T.decl_tensor can be used to represent an
+    Allocate/DeclTensor pair, performing a round-trip through
     TVMScript should not introduce an Allocate node.
     """
 
@@ -2031,7 +1971,7 @@ def undefined_data_ptr_in_decl_buffer():
     @Ts.prim_func(check_well_formed=False)
     def func():
         data_ptr = T.handle("float32")
-        buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr)
+        buf = T.decl_tensor(shape=[1], dtype="float32", data=data_ptr)
         T.evaluate(buf[0])
 
     return func
@@ -2087,7 +2027,7 @@ def op_of_literal():
 
 def test_address_of_buffer():
     @Ts.prim_func
-    def func(A: T.Buffer((128, 128), "float32")):
+    def func(A: T.Tensor((128, 128), "float32")):
         T.evaluate(T.address_of(A))
 
     assert "T.address_of(A[0, 0])" in func.script()
@@ -2116,9 +2056,8 @@ def test_annotation_multi_access_paths():
     )
     assert (
         result
-        == """# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
+        == """# from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
@@ -2144,9 +2083,8 @@ def test_annotate_from_multi_obj():
     )
     assert (
         result
-        == """# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
+        == """# from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
@@ -2168,7 +2106,7 @@ def test_disable_concise_scoping_when_scope_annotated():
         y: T.int32 = x + 1
         T.evaluate(y - 1)
 
-    # Explicit scalar declarations lower to AllocBuffer + BufferStore (local_scalar).
+    # Explicit scalar declarations lower to AllocTensor + BufferStore (local_scalar).
     # The printer fuses each pair into one line; annotate the allocation for y.
     result = _func.with_attr("global_symbol", "main").script(
         obj_to_annotate={
@@ -2177,9 +2115,8 @@ def test_disable_concise_scoping_when_scope_annotated():
     )
     assert (
         result
-        == """# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
-# from tvm.script import s_tir as Ts
+        == """# from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @Ts.prim_func
 def main():
@@ -2206,9 +2143,8 @@ def test_ir_module():
         mod,
         """
 # from tvm.script import ir as I
-# from tvm.script import tirx as T
-# from tvm.tirx.layout import Axis
 # from tvm.script import s_tir as Ts
+# from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
@@ -2219,9 +2155,9 @@ class Module:
 
 
 def test_str_metadata():
-    # This test is to check we reuse the existing metadata element for the same tvm.ir.StringImm
-    # So metadata["ir.StringImm"][0] will occur in the printed script for three times
-    str_imm = tvm.ir.StringImm("aaa\nbbb\n")
+    # This test is to check we reuse the existing metadata element for the same metadata-backed GenericConst
+    # So metadata["ir.GenericConst"][0] will occur in the printed script for three times
+    str_imm = tvm.ir.GenericConst(tvm.runtime.convert(["aaa\nbbb\n"]), tvm.ir.AnyType())
 
     @I.ir_module
     class Module:
@@ -2236,8 +2172,8 @@ def test_str_metadata():
 
     printed_str = Module.script(verbose_expr=True)
     assert (
-        printed_str.count('metadata["ir.StringImm"][0]') == 3
-        and printed_str.count('metadata["ir.StringImm"][1]') == 0
+        printed_str.count('metadata["ir.GenericConst"][0]') == 3
+        and printed_str.count('metadata["ir.GenericConst"][1]') == 0
     )
 
 
@@ -2319,7 +2255,7 @@ def test_roundtrip_expressions(ir_generator):
         scalable_vectors,
         predicated_buffer_load_store,
         void_ptr,
-        decl_buffer,
+        decl_tensor,
         allocate_and_decl_buffer,
         alloc_buffer_example,
         undefined_data_ptr_in_decl_buffer,
@@ -2369,7 +2305,7 @@ def test_roundtrip_metadata(ir_generator):
 # Import-time construction also checks the annotated S-TIR API.
 @Ts.prim_func
 def lowered_loop_split(
-    A: T.Buffer([128, 128], dtype="float32"), B: T.Buffer([128], dtype="float32")
+    A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
     reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
     normal_reduce_temp0 = Ts.sblock_alloc_buffer([1], dtype="float32", strides=[1], scope="local")
@@ -2398,7 +2334,6 @@ def lowered_loop_split(
                         True,
                         reduce_temp0.data,
                         ki,
-                        dtype="handle",
                     )
                 )
             with Ts.sblock("B_write_back"):

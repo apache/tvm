@@ -1292,7 +1292,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   }
 
   // Step 2: Infer the shape of the new buffer
-  auto new_buffer_type = CopyBufferType(old_buffer);
+  auto new_buffer_type = CopyTensorType(old_buffer);
   new_buffer_type->shape = index_map->MapShape(old_buffer->shape, analyzer);
   BufferVar new_buffer = RebuildBufferVar(old_buffer, std::move(new_buffer_type));
 

@@ -24,6 +24,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <string>
@@ -99,13 +100,6 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BufferStoreNode
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const DeclBufferNode* op) {
-  if (auto source = GetBufferDataVar(op->data)) {
-    buffer_aliases_.insert_or_assign(op->buffer.get(), ResolveBuffer(source.value()));
-  }
-  return StmtExprVisitor::Visit_(op);
-}
-
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* op) {
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
@@ -121,6 +115,17 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const EvaluateNode* o
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::decl_tensor())) {
+    if (auto source = GetBufferDataVar(call->args[0])) {
+      buffer_aliases_.insert_or_assign(op->var.as_or_throw<BufferVar>().get(),
+                                       ResolveBuffer(source.value()));
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+  if (const auto* call = op->value.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::alloc_tensor()))
+    return StmtExprVisitor::Visit_(op);
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
@@ -271,7 +276,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   if (op->op.same_as(tirx::builtin::masked_load()) ||
       op->op.same_as(tirx::builtin::masked_store())) {
     bool is_load = op->op.same_as(tirx::builtin::masked_load());
-    BufferVar buffer(op->args[0].as_or_throw<Var>());
+    BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
     PrimType value_dtype =
         is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
     Var buf = ResolveBuffer(buffer.var());
@@ -353,7 +358,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
 }
 
 StorageScope StorageAccessVisitor::GetScope(Var buffer_var) const {
-  if (auto buffer_type = buffer_var->ty.as<BufferType>()) {
+  if (auto buffer_type = buffer_var->ty.as<TensorType>()) {
     return StorageScope::Create(buffer_type.value()->storage_scope);
   }
   if (buffer_var->ty.as<PointerTypeNode>()) {

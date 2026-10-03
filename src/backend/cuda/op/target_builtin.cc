@@ -29,230 +29,461 @@
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 
+#include <initializer_list>
 #include <string>
+#include <utility>
 
 namespace tvm {
 namespace tirx {
 namespace builtin {
 
-#define TIRX_DEFINE_BUILTIN_FUNC(OpName)                                           \
-  OpRegEntry::RegisterOrGet("tirx." #OpName)                                       \
-      .set_name()                                                                  \
-      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(#OpName), 1) \
-      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"), /*plevel=*/1)
-
 namespace {
 void RegisterDeviceIntrinsicAliases();
+
+Type InferTypeCudaLdg(const CallNode* call) {
+  TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
+      << "CUDA load type inference requires a dtype operand";
+  return PrimType(ffi::StringToDLDataType(call->args[1].as_or_throw<StringImm>()->value));
 }
 
+template <size_t N>
+static Type InferTypeReturnArgType(const CallNode* call) {
+  TVM_FFI_CHECK_GT(call->args.size(), N, ValueError)
+      << "Return type inference requires argument " << N;
+  return call->args[N]->ty;
+}
+
+}  // namespace
+
 void RegisterCudaTargetBuiltins() {
-  // clang-format off
-static bool registered = false;
-if (registered) return;
-registered = true;
+  static bool registered = false;
+  if (registered) return;
+  registered = true;
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_load_matrix_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind",
-                               static_cast<int64_t>(CallEffectKind::kReadState));
+  OpDef("tirx.tvm_load_matrix_sync")
+      .signature(
+          sig::arg("fragment", "The matrix fragment."), sig::arg<IntExpr>("m", "The M dimension."),
+          sig::arg<IntExpr>("n", "The N dimension."), sig::arg<IntExpr>("k", "The K dimension."),
+          sig::arg<IntExpr>("index", "The index."), sig::arg("buffer_ptr", "The buffer pointer."),
+          sig::arg<IntExpr>("stride", "The stride."), sig::arg("layout", "The layout."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_load_matrix_sync"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kReadState));
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_mma_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.tvm_mma_sync")
+      .signature(sig::arg("fragment_d", "The D fragment."),
+                 sig::arg<IntExpr>("index_d", "The D fragment index."),
+                 sig::arg("fragment_a", "The A fragment."),
+                 sig::arg<IntExpr>("index_a", "The A fragment index."),
+                 sig::arg("fragment_b", "The B fragment."),
+                 sig::arg<IntExpr>("index_b", "The B fragment index."),
+                 sig::arg("fragment_c", "The C fragment."),
+                 sig::arg<IntExpr>("index_c", "The C fragment index."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_mma_sync"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_bmma_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.tvm_bmma_sync")
+      .signature(sig::arg("fragment_d", "The D fragment."),
+                 sig::arg<IntExpr>("index_d", "The D fragment index."),
+                 sig::arg("fragment_a", "The A fragment."),
+                 sig::arg<IntExpr>("index_a", "The A fragment index."),
+                 sig::arg("fragment_b", "The B fragment."),
+                 sig::arg<IntExpr>("index_b", "The B fragment index."),
+                 sig::arg("fragment_c", "The C fragment."),
+                 sig::arg<IntExpr>("index_c", "The C fragment index."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_bmma_sync"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_fill_fragment)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.tvm_fill_fragment")
+      .signature(
+          sig::arg("fragment", "The matrix fragment."), sig::arg<IntExpr>("m", "The M dimension."),
+          sig::arg<IntExpr>("n", "The N dimension."), sig::arg<IntExpr>("k", "The K dimension."),
+          sig::arg<IntExpr>("index", "The index."), sig::arg("value", "The value to use."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_fill_fragment"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(tvm_store_matrix_sync)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.tvm_store_matrix_sync")
+      .signature(
+          sig::arg("fragment", "The matrix fragment."), sig::arg<IntExpr>("m", "The M dimension."),
+          sig::arg<IntExpr>("n", "The N dimension."), sig::arg<IntExpr>("k", "The K dimension."),
+          sig::arg<IntExpr>("index", "The index."), sig::arg("buffer_ptr", "The buffer pointer."),
+          sig::arg<IntExpr>("stride", "The stride."), sig::arg("layout", "The layout."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_store_matrix_sync"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-// Siblings of mma_store / mma_fill that accept
-// (ptr_var, offset) pairs. Codegen emits `ptr + offset` C-pointer
-// arithmetic and lower_warp_memory rewrites the offset's group component
-// to its thread-local index. Used by the s_tir tensor_intrin tensorize
-// path so per-thread fragment offsets stay element-accurate.
-TIRX_DEFINE_BUILTIN_FUNC(mma_store_legacy)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  // Siblings of mma_store / mma_fill that accept
+  // (ptr_var, offset) pairs. Codegen emits `ptr + offset` C-pointer
+  // arithmetic and lower_warp_memory rewrites the offset's group component
+  // to its thread-local index. Used by the s_tir tensor_intrin tensorize
+  // path so per-thread fragment offsets stay element-accurate.
+  OpDef("tirx.mma_store_legacy")
+      .signature(sig::arg<IntExpr>("m", "The M dimension."),
+                 sig::arg<IntExpr>("n", "The N dimension."),
+                 sig::arg("dst_ptr", "The destination pointer."),
+                 sig::arg("src_ptr", "The source pointer."),
+                 sig::arg<IntExpr>("src_offset", "The source offset."),
+                 sig::arg<IntExpr>("dst_stride", "The destination stride."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_store_legacy"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(mma_fill_legacy)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.mma_fill_legacy")
+      .signature(sig::arg<IntExpr>("local_size", "The local allocation size."),
+                 sig::arg("local_ptr", "The local pointer."),
+                 sig::arg<IntExpr>("offset", "The offset."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_fill_legacy"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-OpRegEntry::RegisterOrGet("tirx.s_tir.ldg32")
-    .set_name()
-    .set_num_inputs(4)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
-    .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.ldg32"), 20)
-    .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"), 10)
-    .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"), 10);
+  // Raw legacy cp.async form emitted by InjectPTXAsyncCopy (and round-tripped by
+  // the T.s_tir.cp_async_raw.legacy 6-arg surface). It carries the element dtype in Call.dtype
+  // and prints it dtype-first; user-issued copies go through T.ptx instead.
+  OpDef("tirx.s_tir.cp_async_raw")
+      .signature(sig::arg("dst_ptr", "The destination pointer."),
+                 sig::arg<IntExpr>("dst_offset", "The destination offset."),
+                 sig::arg("src_ptr", "The source pointer."),
+                 sig::arg<IntExpr>("src_offset", "The source offset."),
+                 sig::arg<IntExpr>("cp_size", "The copy size."), sig::var_args("args"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.s_tir.cp_async_raw"))
+      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
-// Raw legacy cp.async form emitted by InjectPTXAsyncCopy (and round-tripped by
-// the T.s_tir.cp_async_raw.legacy 6-arg surface). It carries the element dtype in Call.dtype
-// and prints it dtype-first; user-issued copies go through T.ptx instead.
-OpRegEntry::RegisterOrGet("tirx.s_tir.cp_async_raw")
-    .set_name()
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-    .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
-    .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("s_tir"))
-    .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("s_tir.cp_async_raw"))
-    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+  OpDef("tirx.mma_store")
+      .signature(sig::arg<IntExpr>("m", "The M dimension."),
+                 sig::arg<IntExpr>("n", "The N dimension."),
+                 sig::arg("dst_ptr", "The destination pointer."),
+                 sig::arg("src_ptr", "The source pointer."),
+                 sig::arg<IntExpr>("src_offset", "The source offset."),
+                 sig::arg<IntExpr>("dst_stride", "The destination stride."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_store"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
-TIRX_DEFINE_BUILTIN_FUNC(mma_store)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+  OpDef("tirx.mma_fill")
+      .signature(sig::arg<IntExpr>("local_size", "The local allocation size."),
+                 sig::arg("local_ptr", "The local pointer."),
+                 sig::arg<IntExpr>("offset", "The offset."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.mma_fill"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
+      .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                           static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
-TIRX_DEFINE_BUILTIN_FUNC(mma_fill)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque))
-    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+  OpDef("tirx.timer_init_cuda")
+      .signature(sig::arg("profiler_buffer", "The profiler buffer."),
+                 sig::arg("profiler_tag", "The profiler tag."),
+                 sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
+                 sig::arg<IntExpr>("num_groups", "The number of groups."),
+                 sig::arg<IntExpr>("group_id", "The group identifier."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.timer_init"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(timer_init_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.timer_start_cuda")
+      .signature(sig::arg("event_type", "The event type."),
+                 sig::arg("profiler_buffer", "The profiler buffer."),
+                 sig::arg("profiler_tag", "The profiler tag."),
+                 sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
+                 sig::arg<IntExpr>("profiler_write_stride", "The profiler write stride."),
+                 sig::arg("leader_cond", "The leader condition."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.timer_start"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(timer_start_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.timer_end_cuda")
+      .signature(sig::arg("event_type", "The event type."),
+                 sig::arg("profiler_buffer", "The profiler buffer."),
+                 sig::arg("profiler_tag", "The profiler tag."),
+                 sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
+                 sig::arg<IntExpr>("profiler_write_stride", "The profiler write stride."),
+                 sig::arg("leader_cond", "The leader condition."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.timer_end"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(timer_end_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+  OpDef("tirx.timer_finalize_cuda")
+      .signature(sig::arg("profiler_buffer", "The profiler buffer."),
+                 sig::arg("profiler_tag", "The profiler tag."),
+                 sig::arg<IntExpr>("profiler_write_offset", "The profiler write offset."),
+                 sig::arg<IntExpr>("profiler_write_stride", "The profiler write stride."),
+                 sig::arg("leader_cond", "The leader condition."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.timer_finalize"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
-TIRX_DEFINE_BUILTIN_FUNC(timer_finalize_cuda)
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-RegisterDeviceIntrinsicAliases();
-  // clang-format on
+  RegisterDeviceIntrinsicAliases();
 }
 
 namespace {
 
-struct DeviceIntrinsicRegistration {
-  const char* name;
-  const char* namespace_name;
-  CallEffectKind effect_kind;
+struct DeviceIntrinsicNames {
+  std::string canonical;
+  std::string printer;
 };
 
-void RegisterDeviceIntrinsic(const DeviceIntrinsicRegistration& reg) {
-  std::string name(reg.name);
-  std::string namespace_name(reg.namespace_name);
+TVM_FFI_NO_INLINE DeviceIntrinsicNames MakeDeviceIntrinsicNames(const char* op_name,
+                                                                const char* op_namespace) {
+  std::string name(op_name);
+  std::string namespace_name(op_namespace);
   std::string prefix = namespace_name + "_";
   std::string suffix = name;
   if (suffix.rfind(prefix, 0) == 0) {
     suffix = suffix.substr(prefix.size());
   }
 
-  std::string canonical_op_name = "tirx." + namespace_name + "." + suffix;
-  ffi::String namespace_attr(namespace_name);
-  ffi::String printer_name(namespace_name + "." + suffix);
-  int64_t effect = static_cast<int64_t>(reg.effect_kind);
-
-  auto register_one = [&](const std::string& op_name) {
-    OpRegEntry::RegisterOrGet(op_name)
-        .set_name()
-        .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"),
-                                  /*plevel=*/15)
-        .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", namespace_attr,
-                                             /*plevel=*/15)
-        .set_attr<TCallEffectKind>("TCallEffectKind", effect, /*plevel=*/15)
-        .set_attr<TScriptPrinterName>("TScriptPrinterName", printer_name, /*plevel=*/15);
-  };
-
-  register_one(canonical_op_name);
+  std::string canonical = "tirx." + namespace_name + "." + suffix;
+  // Match the nested construction namespaces at the canonical registration site.
+  if (namespace_name == "cuda" &&
+      (suffix.rfind("tcgen05_", 0) == 0 || suffix.rfind("wgmma_", 0) == 0 ||
+       suffix.rfind("iket_", 0) == 0)) {
+    suffix[suffix.find('_')] = '.';
+  } else if (namespace_name == "nvshmem" &&
+             ((suffix.size() >= 6 && suffix.compare(suffix.size() - 6, 6, "_block") == 0) ||
+              (suffix.size() >= 5 && suffix.compare(suffix.size() - 5, 5, "_warp") == 0))) {
+    suffix[suffix.rfind('_')] = '.';
+  }
+  return {std::move(canonical), "tirx." + namespace_name + "." + suffix};
 }
 
-#define TIRX_DEVICE_INTRIN_ALIAS(OpName, Namespace, EffectKind) \
-  {#OpName, #Namespace, CallEffectKind::EffectKind}
+TVM_FFI_NO_INLINE void RegisterDeviceIntrinsicAttrs(OpDef& def, const char* op_namespace,
+                                                    CallEffectKind effect_kind,
+                                                    const std::string& printer_name) {
+  def.set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String(op_namespace))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(effect_kind))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String(printer_name));
+}
 
-const DeviceIntrinsicRegistration kDeviceIntrinsics[] = {
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_any_sync, cuda, kPure),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_atomic_add, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_atomic_cas, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_wait_until, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_ballot_sync, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_bfloat1622float2, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_bfloat162float, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_clock64, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_cluster_sync, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_cta_reduce, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_cta_sync, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_cvta_generic_to_shared, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_elect_sync, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_fadd2_rn, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_fdividef, cuda, kPure),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_ffs_u32, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_float22bfloat162_rn, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_float22bfloat162_rn_from_float2, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_float22half2, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_float2_x, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_float2_y, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_float8tohalf8, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_float_as_uint, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_fmul2_rn, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_fp8x4_e4m3_from_float4, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_func_call, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_get_tmem_addr, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_grid_sync, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_half2float, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_half8tofloat8, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_hmax2, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_hmin2, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_ldg, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_make_float2, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_mbarrier_wait, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_mbarrier_wait_acquire_cluster, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_mov_sreg, cuda, kPure),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_nano_sleep, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_printf, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_reduce_add_sync_u32, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_reduce_min_sync_u32, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_runtime_instr_desc, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_sm100_2sm_leader_smem_addr, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_smem_addr_from_uint64, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_syncthreads_and, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_syncthreads_or, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_tcgen05_encode_instr_descriptor, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_tcgen05_encode_instr_descriptor_block_scaled, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_tcgen05_encode_matrix_descriptor, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_thread_fence, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_thread_rank, cuda, kPure),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_trap_when_assert_failed, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_uint_as_float, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_warp_reduce, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_warp_sync, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_warpgroup_sync, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_wgmma_encode_matrix_descriptor, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(cuda_wgmma_noop_barrier, cuda, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_barrier_all, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_fence, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_getmem_nbi, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_getmem_nbi_block, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_getmem_nbi_warp, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_my_pe, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_n_pes, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_putmem_nbi, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_putmem_nbi_block, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_putmem_nbi_warp, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_putmem_signal_nbi, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_putmem_signal_nbi_block, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_putmem_signal_nbi_warp, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_quiet, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_signal_op, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(nvshmem_wait_until, nvshmem, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(ptx_legacy_ldmatrix, ptx_legacy, kOpaque),
-    TIRX_DEVICE_INTRIN_ALIAS(ptx_legacy_mma, ptx_legacy, kOpaque),
-};
+template <typename... Specs>
+void RegisterDeviceIntrinsic(const char* op_name, const char* op_namespace,
+                             CallEffectKind effect_kind, const Specs&... specs) {
+  DeviceIntrinsicNames names = MakeDeviceIntrinsicNames(op_name, op_namespace);
+  OpDef def(names.canonical);
+  def.signature(specs...);
+  RegisterDeviceIntrinsicAttrs(def, op_namespace, effect_kind, names.printer);
+}
 
 void RegisterDeviceIntrinsicAliases() {
-  for (const auto& reg : kDeviceIntrinsics) {
-    RegisterDeviceIntrinsic(reg);
+  RegisterDeviceIntrinsic("cuda_any_sync", "cuda", CallEffectKind::kPure, sig::arg<IntExpr>("mask"),
+                          sig::arg("pred"));
+  RegisterDeviceIntrinsic("cuda_atomic_add", "cuda", CallEffectKind::kOpaque, sig::arg("res_addr"),
+                          sig::arg("value"));
+  RegisterDeviceIntrinsic("cuda_atomic_cas", "cuda", CallEffectKind::kOpaque, sig::arg("ptr"),
+                          sig::arg("old_val"), sig::arg("new_val"));
+  RegisterDeviceIntrinsic("cuda_wait_until", "cuda", CallEffectKind::kOpaque, sig::arg("dst"),
+                          sig::arg("ptr"), sig::arg("condition"), sig::arg("scope"),
+                          sig::arg("space"), sig::arg("ptx_type"), sig::arg<IntExpr>("backoff_ns"));
+  RegisterDeviceIntrinsic("cuda_ballot_sync", "cuda", CallEffectKind::kOpaque,
+                          sig::arg<IntExpr>("mask"), sig::arg("pred"));
+  RegisterDeviceIntrinsic("cuda_bfloat1622float2", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("packed"));
+  RegisterDeviceIntrinsic("cuda_bfloat162float", "cuda", CallEffectKind::kOpaque, sig::arg("src"));
+  RegisterDeviceIntrinsic("cuda_clock64", "cuda", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("cuda_cluster_sync", "cuda", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("cuda_cta_reduce", "cuda", CallEffectKind::kOpaque, sig::arg("value"),
+                          sig::arg("op"), sig::arg<IntExpr>("num_warps"), sig::arg("scratch"));
+  RegisterDeviceIntrinsic("cuda_cta_sync", "cuda", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("cuda_cvta_generic_to_shared", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("ptr"));
+  RegisterDeviceIntrinsic("cuda_elect_sync", "cuda", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("cuda_fadd2_rn", "cuda", CallEffectKind::kOpaque, sig::arg("a"),
+                          sig::arg("b"));
+  RegisterDeviceIntrinsic("cuda_fdividef", "cuda", CallEffectKind::kPure, sig::arg("x"),
+                          sig::arg("y"));
+  RegisterDeviceIntrinsic("cuda_ffs_u32", "cuda", CallEffectKind::kOpaque,
+                          sig::arg<IntExpr>("value"));
+  RegisterDeviceIntrinsic("cuda_float22bfloat162_rn", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("v0"), sig::arg("v1"));
+  RegisterDeviceIntrinsic("cuda_float22bfloat162_rn_from_float2", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("packed"));
+  RegisterDeviceIntrinsic("cuda_float22half2", "cuda", CallEffectKind::kOpaque, sig::arg("dst"),
+                          sig::arg("src"));
+  RegisterDeviceIntrinsic("cuda_float2_x", "cuda", CallEffectKind::kOpaque, sig::arg("packed"));
+  RegisterDeviceIntrinsic("cuda_float2_y", "cuda", CallEffectKind::kOpaque, sig::arg("packed"));
+  RegisterDeviceIntrinsic("cuda_float8tohalf8", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("src_addr"), sig::arg("dst_addr"));
+  RegisterDeviceIntrinsic("cuda_float_as_uint", "cuda", CallEffectKind::kOpaque, sig::arg("x"));
+  RegisterDeviceIntrinsic("cuda_fmul2_rn", "cuda", CallEffectKind::kOpaque, sig::arg("a"),
+                          sig::arg("b"));
+  RegisterDeviceIntrinsic("cuda_fp8x4_e4m3_from_float4", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("x"), sig::arg("y"), sig::arg("z"), sig::arg("w"));
+  RegisterDeviceIntrinsic("cuda_func_call", "cuda", CallEffectKind::kOpaque, sig::arg("func_name"),
+                          sig::var_args("args"));
+  RegisterDeviceIntrinsic("cuda_get_tmem_addr", "cuda", CallEffectKind::kOpaque, sig::arg("addr"),
+                          sig::arg<IntExpr>("row_offset"), sig::arg<IntExpr>("col_offset"));
+  RegisterDeviceIntrinsic("cuda_grid_sync", "cuda", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("cuda_half2float", "cuda", CallEffectKind::kOpaque, sig::arg("src"));
+  RegisterDeviceIntrinsic("cuda_half8tofloat8", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("src_addr"), sig::arg("dst_addr"));
+  RegisterDeviceIntrinsic("cuda_hmax2", "cuda", CallEffectKind::kOpaque, sig::arg("a"),
+                          sig::arg("b"));
+  RegisterDeviceIntrinsic("cuda_hmin2", "cuda", CallEffectKind::kOpaque, sig::arg("a"),
+                          sig::arg("b"));
+  RegisterDeviceIntrinsic("cuda_ldg", "cuda", CallEffectKind::kOpaque, sig::var_args("args"));
+  RegisterDeviceIntrinsic("cuda_make_float2", "cuda", CallEffectKind::kOpaque, sig::arg("x"),
+                          sig::arg("y"));
+  RegisterDeviceIntrinsic("cuda_mbarrier_wait", "cuda", CallEffectKind::kOpaque, sig::arg("bar"),
+                          sig::arg<IntExpr>("phase"));
+  RegisterDeviceIntrinsic("cuda_mbarrier_wait_acquire_cluster", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("bar"), sig::arg<IntExpr>("phase"));
+  RegisterDeviceIntrinsic("cuda_mov_sreg", "cuda", CallEffectKind::kPure, sig::arg<IntExpr>("bits"),
+                          sig::arg("reg_name"));
+  RegisterDeviceIntrinsic("cuda_nano_sleep", "cuda", CallEffectKind::kOpaque,
+                          sig::arg<IntExpr>("time"));
+  RegisterDeviceIntrinsic("cuda_printf", "cuda", CallEffectKind::kOpaque, sig::arg("fmt"),
+                          sig::var_args("args"));
+  RegisterDeviceIntrinsic("cuda_reduce_add_sync_u32", "cuda", CallEffectKind::kOpaque,
+                          sig::arg<IntExpr>("mask"), sig::arg<IntExpr>("value"));
+  RegisterDeviceIntrinsic("cuda_reduce_min_sync_u32", "cuda", CallEffectKind::kOpaque,
+                          sig::arg<IntExpr>("mask"), sig::arg<IntExpr>("value"));
+  RegisterDeviceIntrinsic("cuda_runtime_instr_desc", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("desc"), sig::arg<IntExpr>("sf_id"));
+  RegisterDeviceIntrinsic("cuda_sm100_2sm_leader_smem_addr", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("ptr"));
+  RegisterDeviceIntrinsic("cuda_smem_addr_from_uint64", "cuda", CallEffectKind::kOpaque,
+                          sig::arg<IntExpr>("cluster_addr"));
+  RegisterDeviceIntrinsic("cuda_syncthreads_and", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("cond"));
+  RegisterDeviceIntrinsic("cuda_syncthreads_or", "cuda", CallEffectKind::kOpaque, sig::arg("cond"));
+  RegisterDeviceIntrinsic("cuda_tcgen05_encode_instr_descriptor", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("desc"), sig::arg("d_dtype"), sig::arg("a_dtype"),
+                          sig::arg("b_dtype"), sig::arg<IntExpr>("M"), sig::arg<IntExpr>("N"),
+                          sig::arg<IntExpr>("K"), sig::arg("trans_a"), sig::arg("trans_b"),
+                          sig::arg<IntExpr>("n_cta_groups"), sig::arg("neg_a"), sig::arg("neg_b"),
+                          sig::arg("sat_d"), sig::arg("is_sparse"));
+  RegisterDeviceIntrinsic("cuda_tcgen05_encode_instr_descriptor_block_scaled", "cuda",
+                          CallEffectKind::kOpaque, sig::arg("desc"), sig::arg("d_dtype"),
+                          sig::arg("a_dtype"), sig::arg("b_dtype"), sig::arg("sfa_dtype"),
+                          sig::arg("sfb_dtype"), sig::arg("sfa_tmem_addr"),
+                          sig::arg("sfb_tmem_addr"), sig::arg<IntExpr>("M"), sig::arg<IntExpr>("N"),
+                          sig::arg<IntExpr>("K"), sig::arg("trans_a"), sig::arg("trans_b"),
+                          sig::arg<IntExpr>("n_cta_groups"), sig::arg("neg_a"), sig::arg("neg_b"),
+                          sig::arg("is_sparse"));
+  RegisterDeviceIntrinsic("cuda_tcgen05_encode_matrix_descriptor", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("desc"), sig::arg("addr"), sig::arg<IntExpr>("ldo"),
+                          sig::arg<IntExpr>("sdo"), sig::arg<IntExpr>("swizzle"));
+  RegisterDeviceIntrinsic("cuda_thread_fence", "cuda", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("cuda_thread_rank", "cuda", CallEffectKind::kPure);
+  RegisterDeviceIntrinsic("cuda_trap_when_assert_failed", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("cond"));
+  RegisterDeviceIntrinsic("cuda_uint_as_float", "cuda", CallEffectKind::kOpaque,
+                          sig::arg<IntExpr>("bits"));
+  RegisterDeviceIntrinsic("cuda_warp_reduce", "cuda", CallEffectKind::kOpaque, sig::arg("value"),
+                          sig::arg("op"), sig::arg<IntExpr>("width"));
+  RegisterDeviceIntrinsic("cuda_warp_sync", "cuda", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("cuda_warpgroup_sync", "cuda", CallEffectKind::kOpaque,
+                          sig::arg<IntExpr>("bar_no"));
+  RegisterDeviceIntrinsic("cuda_wgmma_encode_matrix_descriptor", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("desc"), sig::arg("addr"), sig::arg<IntExpr>("ldo"),
+                          sig::arg<IntExpr>("sdo"), sig::arg<IntExpr>("swizzle"));
+  RegisterDeviceIntrinsic("cuda_wgmma_noop_barrier", "cuda", CallEffectKind::kOpaque,
+                          sig::arg("reg"));
+  RegisterDeviceIntrinsic("nvshmem_barrier_all", "nvshmem", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("nvshmem_fence", "nvshmem", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("nvshmem_getmem_nbi", "nvshmem", CallEffectKind::kOpaque, sig::arg("dst"),
+                          sig::arg("src"), sig::arg<IntExpr>("nelems"), sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_getmem_nbi_block", "nvshmem", CallEffectKind::kOpaque,
+                          sig::arg("dst"), sig::arg("src"), sig::arg<IntExpr>("nelems"),
+                          sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_getmem_nbi_warp", "nvshmem", CallEffectKind::kOpaque,
+                          sig::arg("dst"), sig::arg("src"), sig::arg<IntExpr>("nelems"),
+                          sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_my_pe", "nvshmem", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("nvshmem_n_pes", "nvshmem", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("nvshmem_putmem_nbi", "nvshmem", CallEffectKind::kOpaque, sig::arg("dst"),
+                          sig::arg("src"), sig::arg<IntExpr>("nelems"), sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_putmem_nbi_block", "nvshmem", CallEffectKind::kOpaque,
+                          sig::arg("dst"), sig::arg("src"), sig::arg<IntExpr>("nelems"),
+                          sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_putmem_nbi_warp", "nvshmem", CallEffectKind::kOpaque,
+                          sig::arg("dst"), sig::arg("src"), sig::arg<IntExpr>("nelems"),
+                          sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_putmem_signal_nbi", "nvshmem", CallEffectKind::kOpaque,
+                          sig::arg("dst"), sig::arg("src"), sig::arg<IntExpr>("nelems"),
+                          sig::arg("sig_addr"), sig::arg<IntExpr>("signal"), sig::arg("sig_op"),
+                          sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_putmem_signal_nbi_block", "nvshmem", CallEffectKind::kOpaque,
+                          sig::arg("dst"), sig::arg("src"), sig::arg<IntExpr>("nelems"),
+                          sig::arg("sig_addr"), sig::arg<IntExpr>("signal"), sig::arg("sig_op"),
+                          sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_putmem_signal_nbi_warp", "nvshmem", CallEffectKind::kOpaque,
+                          sig::arg("dst"), sig::arg("src"), sig::arg<IntExpr>("nelems"),
+                          sig::arg("sig_addr"), sig::arg<IntExpr>("signal"), sig::arg("sig_op"),
+                          sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_quiet", "nvshmem", CallEffectKind::kOpaque);
+  RegisterDeviceIntrinsic("nvshmem_signal_op", "nvshmem", CallEffectKind::kOpaque,
+                          sig::arg("sig_addr"), sig::arg<IntExpr>("signal"), sig::arg("sig_op"),
+                          sig::arg<IntExpr>("pe"));
+  RegisterDeviceIntrinsic("nvshmem_wait_until", "nvshmem", CallEffectKind::kOpaque,
+                          sig::arg("ivar"), sig::arg("cmp"), sig::arg<IntExpr>("cmp_value"),
+                          sig::arg("type"));
+  RegisterDeviceIntrinsic("ptx_legacy_ldmatrix", "ptx_legacy", CallEffectKind::kOpaque,
+                          sig::arg("trans"), sig::arg<IntExpr>("num"), sig::arg("dtype"),
+                          sig::arg("local_ptr"), sig::arg<IntExpr>("local_offset"),
+                          sig::arg("smem_ptr"), sig::arg<IntExpr>("smem_offset"));
+  RegisterDeviceIntrinsic(
+      "ptx_legacy_mma", "ptx_legacy", CallEffectKind::kOpaque, sig::arg("shape"),
+      sig::arg("a_layout"), sig::arg("b_layout"), sig::arg("a_dtype"), sig::arg("b_dtype"),
+      sig::arg("c_dtype"), sig::arg("a_ptr"), sig::arg<IntExpr>("a_offset"), sig::arg("b_ptr"),
+      sig::arg<IntExpr>("b_offset"), sig::arg("acc_ptr"), sig::arg<IntExpr>("c_offset"),
+      sig::arg("saturate"), sig::var_args("args"));
+
+  for (const char* name : {
+           "tirx.cuda.tcgen05_encode_matrix_descriptor",
+           "tirx.cuda.wgmma_encode_matrix_descriptor",
+           "tirx.cuda.tcgen05_encode_instr_descriptor",
+           "tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled",
+           "tirx.cuda.wgmma_noop_barrier",
+           "tirx.cuda.cluster_sync",
+           "tirx.cuda.cta_sync",
+           "tirx.cuda.grid_sync",
+           "tirx.cuda.warp_sync",
+           "tirx.cuda.thread_fence",
+           "tirx.cuda.mbarrier_wait",
+           "tirx.cuda.printf",
+           "tirx.cuda.nano_sleep",
+           "tirx.nvshmem.fence",
+           "tirx.nvshmem.quiet",
+           "tirx.nvshmem.barrier_all",
+           "tirx.nvshmem.getmem_nbi",
+           "tirx.nvshmem.getmem_nbi_warp",
+           "tirx.nvshmem.putmem_nbi",
+           "tirx.nvshmem.putmem_nbi_warp",
+           "tirx.nvshmem.putmem_nbi_block",
+           "tirx.nvshmem.signal_op",
+           "tirx.nvshmem.wait_until",
+           "tirx.nvshmem.putmem_signal_nbi",
+           "tirx.nvshmem.putmem_signal_nbi_warp",
+           "tirx.nvshmem.putmem_signal_nbi_block",
+       }) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   }
+  for (const char* name : {"tirx.cuda.syncthreads_and", "tirx.cuda.syncthreads_or"}) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(64));
+  }
+  for (const char* name : {"tirx.nvshmem.my_pe", "tirx.nvshmem.n_pes"}) {
+    OpDef(name).set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32));
+  }
+  OpDef("tirx.cuda.elect_sync").set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(32));
+  OpDef("tirx.cuda.ldg")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeCudaLdg>());
+  OpDef("tirx.cuda.atomic_add")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>());
+  OpDef("tirx.cuda.atomic_cas")
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<1>>());
 }
 
-#undef TIRX_DEVICE_INTRIN_ALIAS
-
 }  // namespace
-
-#undef TIRX_DEFINE_BUILTIN_FUNC
 
 TVM_FFI_STATIC_INIT_BLOCK() { RegisterCudaTargetBuiltins(); }
 

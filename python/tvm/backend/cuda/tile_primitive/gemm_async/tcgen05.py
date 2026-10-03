@@ -26,7 +26,7 @@ import functools
 import operator
 
 import tvm
-from tvm.ir import TensorRegion
+from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, TensorRegion, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
@@ -44,7 +44,7 @@ from tvm.tirx.layout import (
     tmem_mma_operand_layout,
 )
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
-from tvm.tirx.stmt import AllocBuffer, Evaluate, SeqStmt
+from tvm.tirx.stmt import Bind, Evaluate, SeqStmt
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
 from ...cpp.descriptors import (
@@ -1076,8 +1076,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     _krp = Evaluate(tirx_op.tvm_kernel_replace_point())
 
     def _make_lo_uniform(desc_buf):
-        desc_lo = tvm.tirx.decl_buffer((1,), "uint32", name=f"{desc_buf.name}_lo", scope="local")
-        desc_hi = tvm.tirx.decl_buffer((1,), "uint32", name=f"{desc_buf.name}_hi", scope="local")
+        desc_lo = tvm.tirx.decl_tensor((1,), "uint32", name=f"{desc_buf.name}_lo", scope="local")
+        desc_hi = tvm.tirx.decl_tensor((1,), "uint32", name=f"{desc_buf.name}_hi", scope="local")
         unpack = T.ptx.mov.b64(desc_lo[0], desc_hi[0], desc_buf[0])
         shuffle = T.ptx.shfl_sync.idx.b32(
             desc_lo[0],
@@ -1089,8 +1089,32 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         pack = T.ptx.mov.b64(desc_buf[0], desc_lo[0], desc_hi[0])
         return SeqStmt(
             [
-                AllocBuffer(desc_lo),
-                AllocBuffer(desc_hi),
+                Bind(
+                    desc_lo,
+                    Call(
+                        "tirx.alloc_tensor",
+                        [
+                            Tuple(desc_lo.ty.shape),
+                            DataTypeImm(desc_lo.ty.dtype.dtype),
+                            StringImm(desc_lo.scope()),
+                        ],
+                        attrs=DictAttrs({}),
+                        ty=desc_lo.ty,
+                    ),
+                ),
+                Bind(
+                    desc_hi,
+                    Call(
+                        "tirx.alloc_tensor",
+                        [
+                            Tuple(desc_hi.ty.shape),
+                            DataTypeImm(desc_hi.ty.dtype.dtype),
+                            StringImm(desc_hi.scope()),
+                        ],
+                        attrs=DictAttrs({}),
+                        ty=desc_hi.ty,
+                    ),
+                ),
                 Evaluate(unpack),
                 Evaluate(shuffle),
                 Evaluate(pack),
@@ -1102,7 +1126,7 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         # issuer, so make the descriptor low word uniform there.  A
         # single-thread caller is already elected: a full-mask shuffle in that
         # scope is invalid, and the same thread consumes the descriptor anyway.
-        desc_buf = tvm.tirx.decl_buffer((1,), "uint64", name=name, scope="local")
+        desc_buf = tvm.tirx.decl_tensor((1,), "uint64", name=name, scope="local")
         encode_call = tvm.tirx.call_intrin(
             "",
             "tirx.cuda.tcgen05_encode_matrix_descriptor",
@@ -1112,7 +1136,22 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
             sdo,
             swizzle_val,
         )
-        wrap_stmts = [AllocBuffer(desc_buf), Evaluate(encode_call)]
+        wrap_stmts = [
+            Bind(
+                desc_buf,
+                Call(
+                    "tirx.alloc_tensor",
+                    [
+                        Tuple(desc_buf.ty.shape),
+                        DataTypeImm(desc_buf.ty.dtype.dtype),
+                        StringImm(desc_buf.scope()),
+                    ],
+                    attrs=DictAttrs({}),
+                    ty=desc_buf.ty,
+                ),
+            ),
+            Evaluate(encode_call),
+        ]
         if warp_scope:
             wrap_stmts.append(_make_lo_uniform(desc_buf))
         wrap_stmts.append(_krp)

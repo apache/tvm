@@ -156,7 +156,7 @@ struct BufferPadding {
         shape.push_back(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i]);
       }
     }
-    result.padded_buffer = decl_buffer(shape, result.buffer->dtype, result.buffer.name() + "_pad",
+    result.padded_buffer = decl_tensor(shape, result.buffer->dtype, result.buffer.name() + "_pad",
                                        result.buffer.scope());
     return result;
   }

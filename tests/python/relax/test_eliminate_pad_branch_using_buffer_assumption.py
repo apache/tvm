@@ -34,15 +34,15 @@ from tvm.script import tirx as T
 class AddBefore:
     @Ts.prim_func(private=True)
     def add(
-        a: T.Buffer(
+        a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        b: T.Buffer(
+        b: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        compute: T.Buffer(
+        compute: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -131,15 +131,15 @@ class AddBefore:
 class AddExpected:
     @Ts.prim_func(private=True)
     def add(
-        a: T.Buffer(
+        a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        b: T.Buffer(
+        b: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        compute: T.Buffer(
+        compute: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -233,15 +233,15 @@ class AddExpected:
 class SubBefore:
     @Ts.prim_func(private=True)
     def sub(
-        a: T.Buffer(
+        a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        b: T.Buffer(
+        b: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        compute: T.Buffer(
+        compute: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -330,15 +330,15 @@ class SubBefore:
 class SubExpected:
     @Ts.prim_func(private=True)
     def sub(
-        a: T.Buffer(
+        a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        b: T.Buffer(
+        b: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        compute: T.Buffer(
+        compute: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -432,15 +432,15 @@ class SubExpected:
 class MulBefore:
     @Ts.prim_func(private=True)
     def mul(
-        a: T.Buffer(
+        a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        b: T.Buffer(
+        b: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        compute: T.Buffer(
+        compute: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -529,15 +529,15 @@ class MulBefore:
 class MulExpected:
     @Ts.prim_func(private=True)
     def mul(
-        a: T.Buffer(
+        a: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        b: T.Buffer(
+        b: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        compute: T.Buffer(
+        compute: T.Tensor(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),

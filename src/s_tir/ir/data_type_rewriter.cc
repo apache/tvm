@@ -168,8 +168,8 @@ ffi::Map<ffi::String, ffi::Any> IndexDataTypeNormalizer::VisitBlockAnnotations(
     if (obj == nullptr) {
       return obj;
     }
-    if (auto var = obj.as<Var>(); var && var.value()->ty.as<BufferTypeNode>()) {
-      BufferVar buffer(var.value());
+    if (auto var = obj.as<Var>(); var && var.value()->ty.as<TensorTypeNode>()) {
+      BufferVar buffer = var.value().as_or_throw<BufferVar>();
       if (BufferVar new_buffer = this->Mutate(buffer, InplaceMode::kDisallow)
                                      .as_or_throw<UnchangedOr<BufferVar>>()
                                      .ValueOrUnchanged(buffer);

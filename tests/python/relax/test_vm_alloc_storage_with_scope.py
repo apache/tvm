@@ -31,9 +31,9 @@ from tvm.script import tirx as T
 class Module:
     @Ts.prim_func
     def add(
-        arg0: T.Buffer((2, 2), "float32"),
-        arg1: T.Buffer((2, 2), "float32"),
-        output: T.Buffer((2, 2), "float32"),
+        arg0: T.Tensor((2, 2), "float32"),
+        arg1: T.Tensor((2, 2), "float32"),
+        output: T.Tensor((2, 2), "float32"),
     ):
         T.func_attr({"operator_name": "relax.add"})
         for ax0 in range(2):

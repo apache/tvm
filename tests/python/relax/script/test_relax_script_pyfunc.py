@@ -53,8 +53,8 @@ class TestPyFuncModule(BasePyModule):
 
     @Ts.prim_func
     def simple_tir_func(
-        A: T.Buffer((n,), "float32"),
-        B: T.Buffer((n,), "float32"),
+        A: T.Tensor((n,), "float32"),
+        B: T.Tensor((n,), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
 

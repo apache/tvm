@@ -40,7 +40,7 @@ def test_rewrite_cuda_graph():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -48,7 +48,7 @@ def test_rewrite_cuda_graph():
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
-                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
+                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1])
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):
@@ -80,7 +80,7 @@ def test_rewrite_cuda_graph():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             # body
@@ -92,7 +92,7 @@ def test_rewrite_cuda_graph():
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         Ts.reads(rxplaceholder[i0, i1])
                         Ts.writes(compute[i0, i1])
-                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
+                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1])
 
         @R.function(private=True)
         def cuda_graph_alloc() -> R.Tuple(R.Any, R.Any, R.Any):
@@ -150,7 +150,7 @@ def test_tuple():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             # body
@@ -162,7 +162,7 @@ def test_tuple():
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
                         Ts.reads(rxplaceholder[i0, i1])
                         Ts.writes(compute[i0, i1])
-                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
+                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1])
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2, 4), dtype="float32"):
@@ -192,7 +192,7 @@ def test_tuple():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -257,7 +257,7 @@ def test_vm_builtin():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             # function attr dict
             T.func_attr({"tirx.noalias": True, "global_symbol": "exp"})
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -265,7 +265,7 @@ def test_vm_builtin():
                     with Ts.sblock("compute"):
                         i0 = Ts.axis.spatial(T.int64(2), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) // T.int64(4))
                         i1 = Ts.axis.spatial(T.int64(4), (i0_i1_fused_0 * T.int64(8) + i0_i1_fused_1) % T.int64(4))
-                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1], dtype="float32")
+                        compute[i0, i1] = T.exp(rxplaceholder[i0, i1])
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((2,4), dtype="float32"):
@@ -292,7 +292,7 @@ def test_vm_builtin():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.func_attr({"global_symbol": "exp", "tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -392,9 +392,9 @@ def test_capture_fixed_inputs():
     class Expected:
         @Ts.prim_func
         def fused_conv2d_relu(
-            data: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
-            weight1: T.Buffer((T.int64(16), T.int64(3), T.int64(3), T.int64(16)), "float16"),
-            var_compute_intermediate: T.Buffer(
+            data: T.Tensor((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
+            weight1: T.Tensor((T.int64(16), T.int64(3), T.int64(3), T.int64(16)), "float16"),
+            var_compute_intermediate: T.Tensor(
                 (T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"
             ),
         ):
@@ -455,10 +455,10 @@ def test_capture_fixed_inputs():
 
         @Ts.prim_func
         def layer_norm(
-            A: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
-            B: T.Buffer((T.int64(16),), "float16"),
-            C: T.Buffer((T.int64(16),), "float16"),
-            T_layer_norm: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
+            A: T.Tensor((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
+            B: T.Tensor((T.int64(16),), "float16"),
+            C: T.Tensor((T.int64(16),), "float16"),
+            T_layer_norm: T.Tensor((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
         ):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -765,7 +765,7 @@ def test_dynamic_capture():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def add_one(x: T.Buffer((m_add_one,), "float32"), y: T.Buffer((m_add_one,), "float32")):
+        def add_one(x: T.Tensor((m_add_one,), "float32"), y: T.Tensor((m_add_one,), "float32")):
             # Use T.serial with explicit int64 min so the inner sblock iter_var
             # dom is all-int64 (matches what Expected emits via Ts.axis.spatial(m, i)).
             for i in T.serial(T.int64(0), m_add_one):
@@ -803,7 +803,7 @@ def test_dynamic_capture():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def add_one(x: T.Buffer((m_add_one,)), y: T.Buffer((m_add_one,))):
+        def add_one(x: T.Tensor((m_add_one,)), y: T.Tensor((m_add_one,))):
             # with Ts.sblock("root"):
             for i in T.serial(T.int64(0), m_add_one):
                 with Ts.sblock("add"):
@@ -1190,3 +1190,90 @@ def test_static_input_with_symbolic_shape():
 
 if __name__ == "__main__":
     tvm.testing.main()
+
+
+def test_match_cast_of_captured_value():
+    m = T.dynamic("m")
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((8,), "float16")):
+            R.func_attr({"relax.force_pure": True, "num_input": 1})
+            storage1 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
+            alloc1 = R.memory.alloc_tensor(storage1, 0, R.shape([8]), "float16")
+            _ = R.call_packed("dummy", x, alloc1, ty_args=(R.Tuple,))
+            storage2 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
+            alloc2 = R.memory.alloc_tensor(storage2, 0, R.shape([8]), "float16")
+            _1 = R.call_packed("dummy", alloc1, alloc2, ty_args=(R.Tuple,))
+            lv = R.reshape(alloc2, R.shape([2, 4]))
+            lv1 = R.match_cast(lv, R.Tensor((m, 4), "float16"))
+            storage3 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
+            alloc3 = R.memory.alloc_tensor(storage3, 0, R.shape([8]), "float16")
+            _2 = R.call_packed("dummy", lv1, alloc3, ty_args=(R.Tuple,))
+            gv = (alloc3,)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def cuda_graph_alloc() -> R.Tuple(R.Any, R.Any):
+            R.func_attr({"relax.force_pure": True})
+            storage1: R.Any = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            storage2: R.Any = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            gv: R.Tuple(R.Any, R.Any) = storage1, storage2
+            return gv
+
+        @R.function(private=True)
+        def main_cuda_graph_capture(
+            alloc1: R.Tensor((8,), dtype="float16"), alloc2: R.Tensor((8,), dtype="float16")
+        ) -> R.Tuple(R.Tensor((2, 4), dtype="float16")):
+            R.func_attr({"relax.force_pure": True})
+            R.call_packed("dummy", alloc1, alloc2, ty_args=(R.Tuple,))
+            lv: R.Tensor((2, 4), dtype="float16") = R.reshape(alloc2, R.shape([2, 4]))
+            gv: R.Tuple(R.Tensor((2, 4), dtype="float16")) = (lv,)
+            return gv
+
+        @R.function
+        def main(x: R.Tensor((8,), dtype="float16")) -> R.Tuple(R.Tensor((8,), dtype="float16")):
+            R.func_attr({"num_input": 1, "relax.force_pure": True})
+            cls = Expected
+            gv: R.Tuple(R.Any, R.Any) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.get_cached_alloc",
+                (cls.cuda_graph_alloc, R.prim_value(0)),
+                ty_args=(R.Tuple(R.Any, R.Any),),
+            )
+            storage1: R.Any = gv[0]
+            alloc1: R.Tensor((8,), dtype="float16") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([8]), R.dtype("float16")
+            )
+            R.call_packed("dummy", x, alloc1, ty_args=(R.Tuple,))
+            storage2: R.Any = gv[1]
+            alloc2: R.Tensor((8,), dtype="float16") = R.memory.alloc_tensor(
+                storage2, R.prim_value(0), R.shape([8]), R.dtype("float16")
+            )
+            gv1: R.Tuple(R.Tensor((2, 4), dtype="float16")) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (cls.main_cuda_graph_capture, (alloc1, alloc2), R.prim_value(0)),
+                ty_args=(R.Tuple(R.Tensor((2, 4), dtype="float16")),),
+            )
+            lv: R.Tensor((2, 4), dtype="float16") = gv1[0]
+            lv1: R.Tensor((m, 4), dtype="float16") = R.match_cast(
+                lv, R.Tensor((m, 4), dtype="float16")
+            )
+            storage3: R.Any = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            alloc3: R.Tensor((8,), dtype="float16") = R.memory.alloc_tensor(
+                storage3, R.prim_value(0), R.shape([8]), R.dtype("float16")
+            )
+            R.call_packed("dummy", lv1, alloc3, ty_args=(R.Tuple,))
+            gv_1: R.Tuple(R.Tensor((8,), dtype="float16")) = (alloc3,)
+            return gv_1
+
+    after = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)

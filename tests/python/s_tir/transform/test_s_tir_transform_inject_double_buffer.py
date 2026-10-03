@@ -25,6 +25,15 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
+def _is_buffer_binding(node, *op_names):
+    return (
+        isinstance(node, tvm.tirx.Bind)
+        and isinstance(node.value, tvm.ir.Call)
+        and isinstance(node.value.op, tvm.ir.Op)
+        and node.value.op.name in op_names
+    )
+
+
 def test_double_buffer():
     n = 100
     m = 4
@@ -33,11 +42,11 @@ def test_double_buffer():
     class Module:
         @Ts.prim_func
         def db(A: T.handle("float32"), C: T.handle("float32")):
-            A_buf = T.decl_buffer((n * m,), "float32", data=A)
-            C_buf = T.decl_buffer((m,), "float32", data=C)
+            A_buf = T.decl_tensor((n * m,), "float32", data=A)
+            C_buf = T.decl_tensor((m,), "float32", data=C)
             tx = T.launch_thread("threadIdx.x", 1)
             for i in range(n):
-                B = T.alloc_buffer((m,), "float32", scope="shared")
+                B = T.alloc_tensor((m,), "float32", scope="shared")
                 with T.attr(B.data, "double_buffer_scope", 1):
                     for j in range(m):
                         B[j] = A_buf[i * 4 + j]
@@ -59,12 +68,12 @@ def test_double_buffer():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tirx.AllocBuffer) and "B" in str(op.buffer.data):
+        if _is_buffer_binding(op, "tirx.alloc_tensor") and "B" in str(op.var.data):
             allocate_node = op
 
     tvm_ffi.structural_walk(stmt, visitor)
     assert allocate_node is not None
-    assert list(allocate_node.buffer.shape) == [m * 2]
+    assert list(allocate_node.var.shape) == [m * 2]
 
     f = tvm.s_tir.transform.ThreadSync("shared")(mod)["db"]
     count = [0]
@@ -88,9 +97,9 @@ def test_double_buffer_transform():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer([16, 32], "float32"), B: T.Buffer(16, "float32")):
+        def main(A: T.Tensor([16, 32], "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
-                cache = T.alloc_buffer((32,), "float32")
+                cache = T.alloc_tensor((32,), "float32")
 
                 T.attr(cache.data, "double_buffer_scope", 1)
 
@@ -107,12 +116,12 @@ def test_double_buffer_transform():
 
     def visitor(op):
         nonlocal allocate_node
-        if isinstance(op, tvm.tirx.AllocBuffer):
+        if _is_buffer_binding(op, "tirx.alloc_tensor"):
             allocate_node = op
 
     tvm_ffi.structural_walk(After["main"].body, visitor)
     assert allocate_node is not None
-    assert list(allocate_node.buffer.shape) == [64]
+    assert list(allocate_node.var.shape) == [64]
 
 
 def test_double_buffer_with_decl_buffer():
@@ -128,9 +137,9 @@ def test_double_buffer_with_decl_buffer():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((16, 32), "float32"), B: T.Buffer(16, "float32")):
+        def main(A: T.Tensor((16, 32), "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
-                cache = T.decl_buffer(32, "float32")
+                cache = T.decl_tensor(32, "float32")
                 T.attr(cache.data, "double_buffer_scope", 1)
 
                 for j in range(32):
@@ -143,8 +152,8 @@ def test_double_buffer_with_decl_buffer():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def main(A: T.Buffer((16, 32), "float32"), B: T.Buffer(16, "float32")):
-            cache = T.decl_buffer(64, "float32")
+        def main(A: T.Tensor((16, 32), "float32"), B: T.Tensor(16, "float32")):
+            cache = T.decl_tensor(64, "float32")
             for j in range(32):
                 cache[j] = A[0, j]
 

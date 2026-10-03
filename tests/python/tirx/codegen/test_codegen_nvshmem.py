@@ -77,7 +77,7 @@ def test_codegen_nvshmem():
 
         def test_thread_info(sess):
             @T.prim_func
-            def main(res: T.Buffer((2,), "int32")):
+            def main(res: T.Tensor((2,), "int32")):
                 T.device_entry()
                 cta_id = T.cta_id([1])
                 tid = T.thread_id([nwarps * 32])
@@ -97,7 +97,7 @@ def test_codegen_nvshmem():
 
             # fmt: off
             @T.prim_func
-            def main(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype)):
+            def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)):
                 T.device_entry()
                 cta_id = T.cta_id([1])
                 warp_id = T.warp_id([nwarps])
@@ -136,7 +136,7 @@ def test_codegen_nvshmem():
 
             # fmt: off
             @T.prim_func
-            def main(res: T.Buffer((1,), "uint64")):
+            def main(res: T.Tensor((1,), "uint64")):
                 T.device_entry()
                 cta_id = T.cta_id([1])
                 tid = T.thread_id([nwarps * 32])
@@ -170,9 +170,9 @@ def test_codegen_nvshmem():
 
             @T.prim_func
             def main(
-                A: T.Buffer(shape, dtype),
-                B: T.Buffer(shape, dtype),
-                signal_array: T.Buffer((1,), "uint64"),
+                A: T.Tensor(shape, dtype),
+                B: T.Tensor(shape, dtype),
+                signal_array: T.Tensor((1,), "uint64"),
             ):
                 T.device_entry()
                 cta_id = T.cta_id([1])
@@ -225,7 +225,7 @@ def test_codegen_nvshmem():
 
             # fmt: off
             @T.prim_func
-            def main(A: T.Buffer(shape, dtype), B: T.Buffer(shape, dtype), res: T.Buffer((1,), "uint64")):  # noqa: E501
+            def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype), res: T.Tensor((1,), "uint64")):  # noqa: E501
                 T.device_entry()
                 cta_id = T.cta_id([1])
                 warp_id = T.warp_id([nwarps])

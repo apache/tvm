@@ -124,26 +124,28 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     size_t num_physical_dimensions{0};
     // scope level
     size_t level{0};
-    // The AllocBuffer node that created this allocation.
-    const AllocBufferNode* alloc{nullptr};
+    // The AllocTensor node that created this allocation.
+    const BindNode* alloc{nullptr};
   };
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
+    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     size_t level = scope_.size();
-    const VarNode* buf = op->buffer.get();
-    buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
+    const VarNode* buf = op->var.get();
+    buffer_aliases_.Set(op->var, op->var);
 
     AllocEntry entry;
     entry.alloc = op;
     entry.level = level;
-    entry.num_physical_dimensions = op->buffer->shape.size();
+    entry.num_physical_dimensions = shape->fields.size();
     alloc_info_[buf] = entry;
 
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-    RegisterBufferAlias(op->buffer, op->data);
+  ffi::Optional<VisitInterrupt> DispatchDeclTensor(const BindNode* op,
+                                                   const CallNode* buffer_call) {
+    RegisterBufferAlias(op->var.as_or_throw<BufferVar>(), buffer_call->args[0]);
     return std::nullopt;
   }
 
@@ -198,9 +200,9 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* buf) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(buf);
     // Directly reference to the variable count as a read.
-    if (buf->ty.as<BufferTypeNode>()) {
+    if (buf->ty.as<TensorTypeNode>()) {
       Var var = ffi::GetRef<Var>(buf);
       buf = buffer_aliases_.Get(var).value_or(var).get();
     }
@@ -240,8 +242,6 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       in_thread_env_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
       in_thread_env_ = false;
-    } else if (op->attr_key == attr::extern_scope) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else if (op->attr_key == tvm::tirx::attr::virtual_thread) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else {
@@ -259,6 +259,10 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const AssertStmtNode* op) final { return VisitNewScope(op); }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+      if (call->op.same_as(builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+    }
     scope_.push_back(StmtEntry());
     // visit subexpr (the value may contain BufferLoad)
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -288,17 +292,17 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   std::vector<StmtEntry> linear_seq_;
   // The storage scope of each buffer
   std::unordered_map<const VarNode*, AllocEntry> alloc_info_;
-  // Physical roots of buffer aliases, flattened when each DeclBuffer is visited.
+  // Physical roots of buffer aliases, flattened when each DeclTensor is visited.
   ffi::Map<Var, Var> buffer_aliases_;
 
  private:
   void RegisterBufferAlias(BufferVar buffer, const Expr& data) {
     Var root = buffer.var();
     if (auto source = GetBufferDataVar(data);
-        source.has_value() && source.value()->ty.as<BufferTypeNode>()) {
+        source.has_value() && source.value()->ty.as<TensorTypeNode>()) {
       auto source_root = buffer_aliases_.Get(source.value());
       TVM_FFI_ICHECK(source_root.has_value()) << "Buffer alias source " << source.value()->name
-                                              << " must be registered before its DeclBuffer alias";
+                                              << " must be registered before its DeclTensor alias";
       root = source_root.value();
     }
     buffer_aliases_.Set(buffer.var(), root);
@@ -366,7 +370,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
-    if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+    if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
     // assume all opaque access is unsafe
     if (op == dst_ || op == src_) {
       result_ = false;
@@ -391,18 +395,17 @@ class InplaceOpVerifier : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    // always reject extern code
-    if (op->attr_key == attr::extern_scope) {
-      result_ = false;
-      return std::nullopt;
-    }
+  ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(builtin::alloc_tensor()))
+      return DispatchAllocTensor(op, call);
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op,
+                                                    const CallNode* buffer_call) {
     // reject inplace for volatile buffers
-    if (op->annotations.count(attr::kVolatile)) {
+    if (buffer_call->attrs.as<DictAttrsNode>()->dict.count(attr::kVolatile)) {
       result_ = false;
       return std::nullopt;
     }
@@ -485,11 +488,11 @@ class StoragePlanRewriter : public StmtExprMutator {
     buffer_aliases_ = std::move(finder->buffer_aliases_);
     this->PrepareNewAlloc();
     for (const auto& [var, entry] : alloc_map_) {
-      RemapBuffer(BufferVar(ffi::GetRef<Var>(var)), entry->alloc_var);
+      RemapBuffer(ffi::GetRef<Var>(var).as_or_throw<BufferVar>(), entry->alloc_var);
     }
     for (const auto& [var, root] : buffer_aliases_) {
       if (auto it = alloc_map_.find(root.get()); it != alloc_map_.end()) {
-        RemapBuffer(BufferVar(var), it->second->alloc_var);
+        RemapBuffer(var.as_or_throw<BufferVar>(), it->second->alloc_var);
       }
     }
     // start rewrite
@@ -544,10 +547,10 @@ class StoragePlanRewriter : public StmtExprMutator {
       return remapped;
     }
 
-    BufferVar backing(new_backing_array);
+    BufferVar backing = new_backing_array.as_or_throw<BufferVar>();
     BufferVar remapped = buf.same_as(backing)
                              ? buf
-                             : RebuildBufferVar(buf, CopyBufferType(buf), new_backing_array->name);
+                             : RebuildBufferVar(buf, CopyTensorType(buf), new_backing_array->name);
     VarRemapSet(buf, remapped);
     remapped_backing_[remapped.get()] = backing;
     return remapped;
@@ -579,7 +582,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     if (def_region_kind() == kTVMFFIDefRegionKindNone) {
       const VarNode* root = op;
-      if (op->ty.as<BufferTypeNode>()) {
+      if (op->ty.as<TensorTypeNode>()) {
         Var var = ffi::GetRef<Var>(op);
         root = buffer_aliases_.Get(var).value_or(var).get();
       }
@@ -597,13 +600,13 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (auto it = alloc_map_.find(root.get()); it != alloc_map_.end()) {
           // Visit the use for the merged-address diagnostic before selecting its backing.
           Mutate(var.value());
-          return BufferVar(it->second->alloc_var).data();
+          return it->second->alloc_var.as_or_throw<BufferVar>().data();
         }
       }
     }
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
-      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
       PrimExpr value;
       if (!is_load)
         value = this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
@@ -640,7 +643,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
       const VarNode* buffer = buffer_var.value().get();
-      if (buffer->ty.as<BufferTypeNode>()) {
+      if (buffer->ty.as<TensorTypeNode>()) {
         Var var = buffer_var.value();
         buffer = buffer_aliases_.Get(var).value_or(var).get();
       }
@@ -700,30 +703,53 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    // AllocBuffer combines allocation and buffer declaration.
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_tensor()))
+        return MutateAllocTensor(op, call, inplace_mode);
+      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, call, inplace_mode);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
+                                      InplaceMode inplace_mode) {
+    // AllocTensor combines allocation and buffer declaration.
     // Storage rewrite may merge this allocation with others.
-    if (auto it = alloc_map_.find(op->buffer.get()); it != alloc_map_.end()) {
-      if (it->second->alloc_var.get() == op->buffer.get()) {
-        // This is the "winner" allocation -- its AllocBuffer was already
+    if (auto it = alloc_map_.find(op->var.get()); it != alloc_map_.end()) {
+      if (it->second->alloc_var.get() == op->var.get()) {
+        // This is the "winner" allocation -- its AllocTensor was already
         // hoisted by PrepareNewAlloc.  Strip this one.
         return Evaluate(0);
       }
-      // This allocation was merged into another.  Emit a DeclBuffer
+      // This allocation was merged into another.  Emit a DeclTensor
       // aliasing the winner's data variable.
-      BufferVar buf = RemapBuffer(op->buffer, it->second->alloc_var);
-      return DeclBuffer(buf, BufferVar(it->second->alloc_var).data());
+      BufferVar buf = RemapBuffer(op->var.as_or_throw<BufferVar>(), it->second->alloc_var);
+      return Bind(
+          buf,
+          Call(buf.type(), builtin::decl_tensor(),
+               {it->second->alloc_var.as_or_throw<BufferVar>().data(), tvm::Tuple(buf->shape),
+                DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+               {}, buffer_call->ty_args, buffer_call->span),
+          op->span);
     }
     // If not in alloc_map (e.g. unused), strip entirely.
     return Evaluate(0);
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    const VarNode* root = buffer_aliases_.Get(op->buffer.var()).value_or(op->buffer.var()).get();
+  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
+                                     InplaceMode inplace_mode) {
+    const VarNode* root = buffer_aliases_.Get(op->var).value_or(op->var).get();
     auto it = alloc_map_.find(root);
     if (it != alloc_map_.end()) {
-      BufferVar buffer = RemapBuffer(op->buffer, it->second->alloc_var);
-      return DeclBuffer(buffer, BufferVar(it->second->alloc_var).data(), op->span);
+      BufferVar buffer = RemapBuffer(op->var.as_or_throw<BufferVar>(), it->second->alloc_var);
+      return Bind(
+          buffer,
+          Call(buffer.type(), builtin::decl_tensor(),
+               {it->second->alloc_var.as_or_throw<BufferVar>().data(), tvm::Tuple(buffer->shape),
+                DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+               buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+          op->span);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
@@ -743,10 +769,10 @@ class StoragePlanRewriter : public StmtExprMutator {
     // this is the number of extent dimensions.
     size_t ndim;
     // Allocs that shares this entry.
-    std::vector<const AllocBufferNode*> allocs;
+    std::vector<const BindNode*> allocs;
     // The children of this entry, not including itself.
     std::vector<StorageEntry*> merged_children;
-    // The replacement AllocBuffer, if any.
+    // The replacement AllocTensor, if any.
     std::vector<Stmt> alloc_nest;
     // The var expr of new allocation.
     Var alloc_var;
@@ -754,7 +780,9 @@ class StoragePlanRewriter : public StmtExprMutator {
     PrimType elem_type = PrimType::Void();
     // Whether any constituent allocation was marked volatile.
     bool is_volatile{false};
-    // This is non-zero if this alloc_buffer is folded into another one
+    // Fragment metadata belongs to this allocation, not interchangeable storage.
+    bool has_fragment_metadata{false};
+    // This is non-zero if this alloc_tensor is folded into another one
     // the address(in bits) becomes alloc_var + bits_offset;
     // can be effectively converted to the element type.
     // We need to convert bit_offset to offset of specific element type later.
@@ -767,6 +795,12 @@ class StoragePlanRewriter : public StmtExprMutator {
     // requirement fits into the max_simd_bits.
     uint64_t bits_offset{0};
   };
+
+  static bool HasFragmentMetadata(const CallNode* call) {
+    const auto& annotations = call->attrs.as_or_throw<DictAttrs>()->dict;
+    return annotations.count(s_tir::attr::fragment_shape) ||
+           annotations.count(s_tir::attr::fragment_layout);
+  }
 
   // Checks whether the storage_scope is especially tagged for a specific memory.
   // Special memory is all combined into a single allocation.
@@ -810,10 +844,10 @@ class StoragePlanRewriter : public StmtExprMutator {
       // try to find merge, for tagged memory
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
-        if (IsSpecialTaggedMemory(e->scope)) {
+        if (!e->has_fragment_metadata && IsSpecialTaggedMemory(e->scope)) {
           TVM_FFI_ICHECK_NE(e->const_nbits, 0U) << "Special tagged memory must be const size";
           for (size_t j = 0; j < i; ++j) {
-            if (e->scope == vec[j]->scope) {
+            if (!vec[j]->has_fragment_metadata && e->scope == vec[j]->scope) {
               vec[j]->merged_children.push_back(e);
               break;
             }
@@ -823,45 +857,66 @@ class StoragePlanRewriter : public StmtExprMutator {
       // Start allocation
       for (size_t i = 0; i < vec.size(); ++i) {
         StorageEntry* e = vec[i];
+        if (e->has_fragment_metadata) {
+          TVM_FFI_ICHECK_EQ(e->allocs.size(), 1U);
+          TVM_FFI_ICHECK(e->merged_children.empty());
+          e->alloc_var = e->allocs[0]->var;
+          e->alloc_nest.push_back(ffi::GetRef<Bind>(e->allocs[0]));
+          continue;
+        }
         // already merged
         if (e->bits_offset != 0) continue;
         if (e->merged_children.size() != 0) {
           NewAllocTagMerged(e);
           continue;
         }
-        if (e->allocs.size() == 1 && e->allocs[0]->buffer->dtype.IsScalableVector()) {
+        const auto* first_call = e->allocs[0]->value.as<CallNode>();
+        DLDataType first_dtype = first_call->args[1].as_or_throw<DataTypeImm>()->value;
+        PrimType first_type(first_dtype);
+        if (e->allocs.size() == 1 && first_type.IsScalableVector()) {
           // Scalable vector lanes are runtime-dependent.  Keep these allocations exact rather
           // than trying to compare or merge their compile-time bit size.
-          e->alloc_var = e->allocs[0]->buffer.var();
-          BufferVar buf = RemapBuffer(e->allocs[0]->buffer, e->alloc_var);
+          e->alloc_var = e->allocs[0]->var;
+          BufferVar buf = RemapBuffer(e->allocs[0]->var.as_or_throw<BufferVar>(), e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
             annotations.Set(attr::kVolatile, true);
           }
-          e->alloc_nest.push_back(AllocBuffer(buf, annotations));
+          e->alloc_nest.push_back(Bind(
+              buf.var(),
+              Call(buf.type(), tirx::builtin::alloc_tensor(),
+                   {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                   DictAttrs(annotations))));
           continue;
         }
         // Get the allocation size;
-        e->alloc_var = e->allocs[0]->buffer.var();
-        PrimType alloc_type = e->allocs[0]->buffer->dtype;
-        for (const AllocBufferNode* op : e->allocs) {
-          if (op->buffer->dtype.lanes() > alloc_type.lanes()) {
-            alloc_type = op->buffer->dtype;
+        e->alloc_var = e->allocs[0]->var;
+        PrimType alloc_type = first_type;
+        for (const BindNode* op : e->allocs) {
+          const auto* call = op->value.as<CallNode>();
+          DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+          PrimType element_type(dtype);
+          if (element_type.lanes() > alloc_type.lanes()) {
+            alloc_type = element_type;
           }
         }
 
-        bool all_allocs_identical = std::all_of(
-            e->allocs.begin() + 1, e->allocs.end(), [&](const AllocBufferNode* op) -> bool {
-              const AllocBufferNode* first = *e->allocs.begin();
-              if (op->buffer->dtype->dtype != first->buffer->dtype->dtype) {
+        bool all_allocs_identical =
+            std::all_of(e->allocs.begin() + 1, e->allocs.end(), [&](const BindNode* op) -> bool {
+              const auto* call = op->value.as<CallNode>();
+              DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+              if (dtype != first_dtype) {
                 return false;
               }
-              if (op->buffer->shape.size() != first->buffer->shape.size()) {
+              tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+              tvm::Tuple first_shape = first_call->args[0].as_or_throw<tvm::Tuple>();
+              if (shape->fields.size() != first_shape->fields.size()) {
                 return false;
               }
               prim::ExprDeepEqual expr_equal;
-              for (size_t i = 0; i < op->buffer->shape.size(); i++) {
-                if (!expr_equal(op->buffer->shape[i], first->buffer->shape[i])) {
+              for (size_t i = 0; i < shape->fields.size(); i++) {
+                if (!expr_equal(shape->fields[i].as_or_throw<PrimExpr>(),
+                                first_shape->fields[i].as_or_throw<PrimExpr>())) {
                   return false;
                 }
               }
@@ -869,25 +924,33 @@ class StoragePlanRewriter : public StmtExprMutator {
             });
 
         if (all_allocs_identical) {
-          // Emit AllocBuffer for the hoisted allocation.
-          BufferVar buf = RemapBuffer(e->allocs[0]->buffer, e->alloc_var);
+          // Emit AllocTensor for the hoisted allocation.
+          BufferVar buf = RemapBuffer(e->allocs[0]->var.as_or_throw<BufferVar>(), e->alloc_var);
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
             annotations.Set(attr::kVolatile, true);
           }
-          e->alloc_nest.push_back(AllocBuffer(buf, annotations));
+          e->alloc_nest.push_back(Bind(
+              buf.var(),
+              Call(buf.type(), tirx::builtin::alloc_tensor(),
+                   {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                   DictAttrs(annotations))));
         } else {
           // Build a merged allocation
           PrimExpr combo_size;
-          for (const AllocBufferNode* op : e->allocs) {
-            TVM_FFI_ICHECK_EQ(op->buffer->shape.size(), 1)
-                << "BufferVar var " << op->buffer.name()
-                << " was identified as a re-usable allocation, but has " << op->buffer->shape.size()
+          for (const BindNode* op : e->allocs) {
+            const auto* call = op->value.as<CallNode>();
+            tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+            DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+            PrimType element_type(dtype);
+            TVM_FFI_ICHECK_EQ(shape->fields.size(), 1)
+                << "BufferVar var " << op->var.as_or_throw<BufferVar>().name()
+                << " was identified as a re-usable allocation, but has " << shape->fields.size()
                 << " physical dimensions.  "
                 << "Currently, only flat 1-d memory spaces should be identified as re-usable "
                    "allocations.";
-            PrimExpr sz = op->buffer->shape[0];
-            auto nbits = op->buffer->dtype.bits() * op->buffer->dtype.lanes();
+            PrimExpr sz = shape->fields[0].as_or_throw<PrimExpr>();
+            auto nbits = element_type.bits() * element_type.lanes();
             if (const auto* imm = sz.as<IntImmNode>()) {
               if (imm->value > std::numeric_limits<int>::max() / nbits) {
                 LOG(WARNING) << "The allocation requires : " << imm->value << " * " << nbits
@@ -914,14 +977,18 @@ class StoragePlanRewriter : public StmtExprMutator {
             combo_size = combo_size + IntImm::Int32(1);
           }
           combo_size = analyzer_->Simplify(combo_size);
-          BufferVar buf(e->alloc_var->name, BufferType(e->scope.to_string(), alloc_type,
+          BufferVar buf(e->alloc_var->name, TensorType(e->scope.to_string(), alloc_type,
                                                        {combo_size}, {}, PrimExpr(), 0, 0));
           e->alloc_var = buf.var();
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
             annotations.Set(attr::kVolatile, true);
           }
-          e->alloc_nest.push_back(AllocBuffer(buf, annotations));
+          e->alloc_nest.push_back(Bind(
+              buf.var(),
+              Call(buf.type(), tirx::builtin::alloc_tensor(),
+                   {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                   DictAttrs(annotations))));
         }
       }
     }
@@ -939,7 +1006,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     if (total_bits % align != 0) {
       total_bits += align - (total_bits % align);
     }
-    e->alloc_var = e->allocs[0]->buffer.var();
+    e->alloc_var = e->allocs[0]->var;
     for (StorageEntry* child : e->merged_children) {
       TVM_FFI_ICHECK_NE(child->const_nbits, 0U);
       TVM_FFI_ICHECK_NE(total_bits, 0U);
@@ -951,9 +1018,11 @@ class StoragePlanRewriter : public StmtExprMutator {
       }
     }
     uint64_t type_bits = e->elem_type.bits() * e->elem_type.lanes();
-    PrimExpr alloc_size =
-        MakeConst(e->allocs[0]->buffer->shape[0].ty(), (total_bits + type_bits - 1) / type_bits);
-    BufferVar buf(e->alloc_var->name, BufferType(e->scope.to_string(), e->elem_type, {alloc_size},
+    const auto* call = e->allocs[0]->value.as<CallNode>();
+    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+    PrimExpr alloc_size = MakeConst(shape->fields[0].as_or_throw<PrimExpr>().ty(),
+                                    (total_bits + type_bits - 1) / type_bits);
+    BufferVar buf(e->alloc_var->name, TensorType(e->scope.to_string(), e->elem_type, {alloc_size},
                                                  {}, PrimExpr(), 0, 0));
     e->alloc_var = buf.var();
     for (StorageEntry* child : e->merged_children) {
@@ -967,7 +1036,11 @@ class StoragePlanRewriter : public StmtExprMutator {
     if (any_volatile) {
       annotations.Set(attr::kVolatile, true);
     }
-    e->alloc_nest.push_back(AllocBuffer(buf, annotations));
+    e->alloc_nest.push_back(
+        Bind(buf.var(),
+             Call(buf.type(), tirx::builtin::alloc_tensor(),
+                  {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
+                  DictAttrs(annotations))));
   }
   // Liveness analysis to find gen and kill point of each variable.
   void LivenessAnalysis(const std::vector<StmtEntry>& seq) {
@@ -1042,27 +1115,30 @@ class StoragePlanRewriter : public StmtExprMutator {
         for (const VarNode* var : it->second.gen) {
           TVM_FFI_ICHECK(alloc_info.count(var));
           const AllocEntry& entry = alloc_info.at(var);
-          const AllocBufferNode* alloc = entry.alloc;
-          auto storage_scope = StorageScope::Create(GetPtrStorageScope(ffi::GetRef<Var>(var)));
+          const BindNode* alloc = entry.alloc;
+          const auto* call = alloc->value.as<CallNode>();
+          ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+          auto storage_scope = StorageScope::Create(scope);
           StorageEntry* dst_entry = nullptr;
           // inplace detection
-          if (detect_inplace) {
+          if (detect_inplace && !HasFragmentMetadata(call)) {
+            DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+            PrimType element_type(dtype);
             // only one inplace var for s.stmt
             bool inplace_found = false;
             for (const VarNode* src : it->second.kill) {
               if (!inplace_flag.count(src) && alloc_map_.count(src)) {
                 auto visitor = ffi::make_object<InplaceOpVerifier>();
                 StorageEntry* src_entry = alloc_map_.at(src);
-                if (src_entry->scope == storage_scope &&
-                    src_entry->attach_scope_ == thread_scope_ &&
-                    !alloc->buffer->dtype.IsScalableVector() &&
-                    src_entry->elem_type == alloc->buffer->dtype.WithLanes(1) &&
+                if (!src_entry->has_fragment_metadata && src_entry->scope == storage_scope &&
+                    src_entry->attach_scope_ == thread_scope_ && !element_type.IsScalableVector() &&
+                    src_entry->elem_type == element_type.WithLanes(1) &&
                     visitor->Check(s.stmt, var, src)) {
-                  int64_t const_size = AllocBuffer(ffi::GetRef<AllocBuffer>(alloc))
-                                           .ConstantAllocationSize()
-                                           .value_or(0);
-                  uint64_t const_nbits = static_cast<uint64_t>(const_size) *
-                                         alloc->buffer->dtype.bits() * alloc->buffer->dtype.lanes();
+                  int64_t const_size =
+                      alloc->var->ty.as_or_throw<TensorType>()->ConstantAllocationSize().value_or(
+                          0);
+                  uint64_t const_nbits = static_cast<uint64_t>(const_size) * element_type.bits() *
+                                         element_type.lanes();
                   if (src_entry->const_nbits == const_nbits && !inplace_found) {
                     // successfully inplace
                     dst_entry = src_entry;
@@ -1079,7 +1155,8 @@ class StoragePlanRewriter : public StmtExprMutator {
                           enable_reuse, reuse_require_exact_matched_dtype);
           }
           dst_entry->allocs.emplace_back(alloc);
-          if (alloc->annotations.count(attr::kVolatile)) {
+          DictAttrs annotations = call->attrs.as_or_throw<DictAttrs>();
+          if (annotations->dict.count(attr::kVolatile)) {
             dst_entry->is_volatile = true;
           }
           alloc_map_[var] = dst_entry;
@@ -1091,8 +1168,6 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (op->attr_key == attr::thread_extent ||
             op->attr_key == tvm::tirx::attr::virtual_thread || attr::IsPragmaKey(op->attr_key)) {
           PlanNewScope(op);
-        } else {
-          TVM_FFI_ICHECK(op->attr_key == attr::extern_scope);
         }
       } else if (s.stmt->IsInstance<ForNode>()) {
         const auto* op = static_cast<const ForNode*>(s.stmt);
@@ -1117,32 +1192,38 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   // Allocate new storage entry.
-  StorageEntry* NewAlloc(const AllocBufferNode* op, const ffi::Object* attach_scope,
+  StorageEntry* NewAlloc(const BindNode* op, const ffi::Object* attach_scope,
                          const StorageScope& scope, size_t const_nbits) {
     TVM_FFI_ICHECK(op != nullptr);
+    const auto* call = op->value.as<CallNode>();
+    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    PrimType element_type(dtype);
     // Re-use not successful, allocate a new buffer.
     auto entry = std::make_unique<StorageEntry>();
     entry->attach_scope_ = attach_scope;
     entry->scope = scope;
-    entry->elem_type = op->buffer->dtype.WithLanes(1);
+    entry->elem_type = element_type.WithLanes(1);
     entry->const_nbits = const_nbits;
+    entry->has_fragment_metadata = HasFragmentMetadata(call);
     StorageEntry* e = entry.get();
     alloc_vec_.emplace_back(std::move(entry));
     return e;
   }
 
-  StorageEntry* FindAlloc(const AllocBufferNode* op, const ffi::Object* attach_scope,
+  StorageEntry* FindAlloc(const BindNode* op, const ffi::Object* attach_scope,
                           const StorageScope& scope, size_t num_physical_dimensions,
                           bool enable_reuse, bool reuse_require_exact_matched_dtype) {
     TVM_FFI_ICHECK(op != nullptr);
+    const auto* call = op->value.as<CallNode>();
+    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    PrimType element_type(dtype);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;
-    bool is_scalable_vector = op->buffer->dtype.IsScalableVector();
-    uint64_t op_elem_bits =
-        is_scalable_vector ? 0 : op->buffer->dtype.bits() * op->buffer->dtype.lanes();
+    bool is_scalable_vector = element_type.IsScalableVector();
+    uint64_t op_elem_bits = is_scalable_vector ? 0 : element_type.bits() * element_type.lanes();
     int64_t const_size =
-        AllocBuffer(ffi::GetRef<AllocBuffer>(op)).ConstantAllocationSize().value_or(0);
+        op->var->ty.as_or_throw<TensorType>()->ConstantAllocationSize().value_or(0);
     uint64_t const_nbits =
         is_scalable_vector ? 0 : static_cast<uint64_t>(const_size * op_elem_bits);
 
@@ -1160,7 +1241,8 @@ class StoragePlanRewriter : public StmtExprMutator {
     bool is_small_array = (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp ||
                                                         (is_known_size && const_nbits <= 32));
 
-    if (is_scalable_vector || !enable_reuse || is_small_array || !is_flat_memory_space) {
+    if (HasFragmentMetadata(call) || is_scalable_vector || !enable_reuse || is_small_array ||
+        !is_flat_memory_space) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
     }
 
@@ -1176,7 +1258,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (e->scope != scope) continue;
         // when not divided, no reuse, eg, float4 vs float3
         if (e->bits_offset % op_elem_bits != 0) continue;
-        if (reuse_require_exact_matched_dtype && e->elem_type != op->buffer->dtype) {
+        if (reuse_require_exact_matched_dtype && e->elem_type != element_type) {
           continue;
         }
         e->const_nbits = std::max(const_nbits, e->const_nbits);
@@ -1189,8 +1271,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         StorageEntry* e = it->second;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->buffer->dtype.WithLanes(1)) continue;
-        if (reuse_require_exact_matched_dtype && e->elem_type != op->buffer->dtype) {
+        if (e->elem_type != element_type.WithLanes(1)) continue;
+        if (reuse_require_exact_matched_dtype && e->elem_type != element_type) {
           continue;
         }
         e->const_nbits = std::max(const_nbits, e->const_nbits);
@@ -1203,7 +1285,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         StorageEntry* e = *it;
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
-        if (e->elem_type != op->buffer->dtype.WithLanes(1)) continue;
+        if (e->elem_type != element_type.WithLanes(1)) continue;
         sym_free_list_.erase(it);
         return e;
       }
@@ -1216,12 +1298,16 @@ class StoragePlanRewriter : public StmtExprMutator {
     TVM_FFI_ICHECK(it != alloc_map_.end());
     StorageEntry* e = it->second;
     TVM_FFI_ICHECK_NE(e->allocs.size(), 0U);
+    if (e->has_fragment_metadata) return;
 
     // disable reuse of small arrays, they will be lowered to registers in LLVM
     // This rules only apply if we are using non special memory
     if (e->scope.tag.length() == 0) {
+      const auto* call = e->allocs[0]->value.as<CallNode>();
+      DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+      PrimType element_type(dtype);
       // Disable sharing of local memory.
-      if (e->scope.rank >= StorageRank::kWarp || e->allocs[0]->buffer->dtype.IsScalableVector()) {
+      if (e->scope.rank >= StorageRank::kWarp || element_type.IsScalableVector()) {
         return;
       }
       // disable reuse of small arrays
@@ -1265,9 +1351,9 @@ struct BufferVarInfo {
   enum DeclarationLocation {
     kPrimFuncBufferParam = (1 << 0),
     kPrimFuncPointerParam = (1 << 1),
-    kAllocBufferNode = (1 << 2),
+    kAllocTensorCall = (1 << 2),
     kLetNode = (1 << 3),
-    kDeclBufferNode = (1 << 4),
+    kDeclTensorCall = (1 << 4),
   };
 
   // The tirx::Var that represents this buffer.
@@ -1279,7 +1365,7 @@ struct BufferVarInfo {
   /* The extent of the buffer.
    *
    * If multidimensional, the extent of the last dimension of the buffer.  If the
-   * size is unknown (e.g. pointer arguments to PrimFunc without a BufferType
+   * size is unknown (e.g. pointer arguments to PrimFunc without a TensorType
    * annotation), then extent is zero.
    */
   PrimExpr extent;
@@ -1396,7 +1482,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
-      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
       PrimType dtype =
           is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
       ffi::Array<PrimExpr> indices;
@@ -1424,21 +1510,27 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    buffer_aliases_.Set(op->buffer.var(), op->buffer.var());
-    const ffi::Array<PrimExpr>& shape = op->buffer->shape;
-    PrimExpr extent = shape.size() ? shape[shape.size() - 1] : PrimExpr(0);
-    OnArrayDeclaration(op->buffer.var(), op->buffer->dtype, extent,
-                       BufferVarInfo::kAllocBufferNode);
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
+    tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
+    PrimType element_type(dtype);
+    buffer_aliases_.Set(op->var, op->var);
+    PrimExpr extent =
+        shape->fields.size() ? shape->fields.back().as_or_throw<PrimExpr>() : PrimExpr(0);
+    OnArrayDeclaration(op->var, element_type, extent, BufferVarInfo::kAllocTensorCall);
 
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) final {
-    RegisterBufferAlias(op->buffer, op->data);
-    const ffi::Array<PrimExpr>& shape = op->buffer->shape;
-    PrimExpr extent = shape.size() ? shape.back() : PrimExpr(0);
-    OnArrayDeclaration(op->buffer.var(), op->buffer->dtype, extent, BufferVarInfo::kDeclBufferNode);
+  ffi::Optional<VisitInterrupt> DispatchDeclTensor(const BindNode* op,
+                                                   const CallNode* buffer_call) {
+    RegisterBufferAlias(op->var.as_or_throw<BufferVar>(), buffer_call->args[0]);
+    tvm::Tuple shape = buffer_call->args[1].as_or_throw<tvm::Tuple>();
+    DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
+    PrimType element_type(dtype);
+    PrimExpr extent =
+        shape->fields.size() ? shape->fields.back().as_or_throw<PrimExpr>() : PrimExpr(0);
+    OnArrayDeclaration(op->var, element_type, extent, BufferVarInfo::kDeclTensorCall);
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -1448,6 +1540,10 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+      if (call->op.same_as(builtin::decl_tensor())) return DispatchDeclTensor(op, call);
+    }
     HandleLetNode(op->var);
     return StmtExprVisitor::Visit_(op);
   }
@@ -1598,10 +1694,10 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
   void RegisterBufferAlias(BufferVar buffer, const Expr& data) {
     Var root = buffer.var();
     if (auto source = GetBufferDataVar(data);
-        source.has_value() && source.value()->ty.as<BufferTypeNode>()) {
+        source.has_value() && source.value()->ty.as<TensorTypeNode>()) {
       auto source_root = buffer_aliases_.Get(source.value());
       TVM_FFI_ICHECK(source_root.has_value()) << "Buffer alias source " << source.value()->name
-                                              << " must be registered before its DeclBuffer alias";
+                                              << " must be registered before its DeclTensor alias";
       root = source_root.value();
     }
     buffer_aliases_.Set(buffer.var(), root);
@@ -1656,14 +1752,14 @@ class VectorTypeRewriter : public StmtExprMutator {
    * @param checker The VectorTypeAccessChecker that has previously read out
    * information from the PrimFunc
    *
-   * @param rewrite_buffer_params Whether BufferType-annotated parameters should
+   * @param rewrite_buffer_params Whether TensorType-annotated parameters should
    * be rewritten from scalar element types to vectorized element types.
    *
    * @param rewrite_pointer_params Whether pointer-typed parameters should be
    * rewritten from scalar types to vectorized types.
    *
    * @param rewrite_alloc_buffer_node Whether the buffer variable associated with
-   * AllocBufferNodes should be rewritten from scalar types to vectorized types.
+   * BindNodes should be rewritten from scalar types to vectorized types.
    *
    * @param rewrite_indices Whether the indices to the Load and Store nodes
    * should be rewritten to correspond to the new buffer_var type.
@@ -1685,7 +1781,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       rewrite_mask |= BufferVarInfo::kPrimFuncPointerParam;
     }
     if (rewrite_alloc_buffer_node) {
-      rewrite_mask |= BufferVarInfo::kAllocBufferNode;
+      rewrite_mask |= BufferVarInfo::kAllocTensorCall;
     }
     if (rewrite_let_node) {
       rewrite_mask |= BufferVarInfo::kLetNode;
@@ -1697,9 +1793,9 @@ class VectorTypeRewriter : public StmtExprMutator {
       if (preferred != var_info.element_dtype && (rewrite_mask & var_info.declaration_location)) {
         Var old_buffer_var = var_info.var;
         Var new_buffer_var = [&]() -> Var {
-          if (old_buffer_var->ty.as<BufferTypeNode>()) {
-            BufferVar old_buffer(old_buffer_var);
-            auto type = CopyBufferType(old_buffer);
+          if (old_buffer_var->ty.as<TensorTypeNode>()) {
+            BufferVar old_buffer = old_buffer_var.as_or_throw<BufferVar>();
+            auto type = CopyTensorType(old_buffer);
             type->dtype = preferred;
             if (!type->shape.empty()) {
               PrimExpr last_dim = type->shape.back();
@@ -1854,7 +1950,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
   ffi::Optional<Expr> RewriteMaskedCall(const CallNode* op) {
     if (op->op.same_as(builtin::masked_load())) {
-      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
       ffi::Array<PrimExpr> indices;
       for (size_t i = 1; i + 1 < op->args.size(); ++i) {
         indices.push_back(this->Mutate(op->args[i].as_or_throw<PrimExpr>())
@@ -1870,7 +1966,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       return Call(modified->ty, op->op, args, op->attrs, op->ty_args, op->span);
     }
     if (op->op.same_as(builtin::masked_store())) {
-      BufferVar buffer(op->args[0].as_or_throw<Var>());
+      BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
       PrimExpr value = this->Mutate(op->args[1].as_or_throw<PrimExpr>())
                            .ValueOrUnchanged(op->args[1].as_or_throw<PrimExpr>());
       ffi::Array<PrimExpr> indices;
@@ -1891,6 +1987,11 @@ class VectorTypeRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>(); call) {
+      if (call->op.same_as(builtin::alloc_tensor()))
+        return MutateAllocTensor(op, call, inplace_mode);
+      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, call, inplace_mode);
+    }
     auto it = rewrite_map_.find(op->var.get());
     auto value_result = this->Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
@@ -1907,26 +2008,33 @@ class VectorTypeRewriter : public StmtExprMutator {
     return Bind(var, value);
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
-    BufferVar new_buf = RemapBuffer(op->buffer);
-    if (new_buf.same_as(op->buffer)) {
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, const CallNode* buffer_call,
+                                      InplaceMode inplace_mode) {
+    BufferVar new_buf = RemapBuffer(op->var.as_or_throw<BufferVar>());
+    if (new_buf.same_as(op->var.as_or_throw<BufferVar>())) {
       return ffi::Unchanged();
     }
-    if (inplace_mode == InplaceMode::kAllow) {
-      auto* n = const_cast<AllocBufferNode*>(op);
-      n->buffer = std::move(new_buf);
-      return ffi::Unchanged();
-    }
-    auto n = ffi::make_object<AllocBufferNode>(*op);
-    n->buffer = std::move(new_buf);
-    return Stmt(n);
+    return Bind(new_buf.var(),
+                Call(new_buf.type(), tirx::builtin::alloc_tensor(),
+                     {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
+                      DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
+                      StringImm(new_buf.scope(), buffer_call->args[2]->span)},
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                op->span);
   }
 
-  UnchangedOr<Stmt> Mutate_(const DeclBufferNode* op, InplaceMode inplace_mode) final {
-    Expr data = Mutate(op->data, inplace_mode).ValueOrUnchanged(op->data);
-    BufferVar buffer = RemapBuffer(op->buffer);
-    if (buffer.same_as(op->buffer) && data.same_as(op->data)) return ffi::Unchanged();
-    return DeclBuffer(buffer, data, op->span);
+  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, const CallNode* buffer_call,
+                                     InplaceMode inplace_mode) {
+    Expr data = Mutate(buffer_call->args[0], inplace_mode).ValueOrUnchanged(buffer_call->args[0]);
+    BufferVar buffer = RemapBuffer(op->var.as_or_throw<BufferVar>());
+    if (buffer.same_as(op->var.as_or_throw<BufferVar>()) && data.same_as(buffer_call->args[0]))
+      return ffi::Unchanged();
+    return Bind(buffer,
+                Call(buffer.type(), builtin::decl_tensor(),
+                     {data, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                      StringImm(buffer.scope())},
+                     buffer_call->attrs, buffer_call->ty_args, buffer_call->span),
+                op->span);
   }
 
   BufferVar RemapBuffer(BufferVar buf) {
@@ -1939,9 +2047,9 @@ class VectorTypeRewriter : public StmtExprMutator {
     if (info_it != rewrite_map_.end()) {
       auto& info = info_it->second;
       if (root.same_as(buf.var())) {
-        buf = BufferVar(info.new_buffer_var);
+        buf = info.new_buffer_var.as_or_throw<BufferVar>();
       } else {
-        auto type = CopyBufferType(buf);
+        auto type = CopyTensorType(buf);
         type->dtype = info.new_element_dtype;
         if (!type->shape.empty()) {
           PrimExpr last_dim = type->shape.back();
@@ -1963,8 +2071,8 @@ class VectorTypeRewriter : public StmtExprMutator {
     }
     if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
-          var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
-        return RemapBuffer(BufferVar(var.value())).data();
+          var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
+        return RemapBuffer(var.value().as_or_throw<BufferVar>()).data();
       }
     }
     if (op->op.same_as(builtin::tvm_access_ptr())) {
@@ -1996,8 +2104,8 @@ class VectorTypeRewriter : public StmtExprMutator {
       int factor = info.factor();
       extent = extent / MakeConst(extent.ty(), factor);
       index = index / MakeConst(index.ty(), factor);
-      Expr data = info.new_buffer_var->ty.as<BufferTypeNode>()
-                      ? BufferVar(info.new_buffer_var).data()
+      Expr data = info.new_buffer_var->ty.as<TensorTypeNode>()
+                      ? info.new_buffer_var.as_or_throw<BufferVar>().data()
                       : Expr(info.new_buffer_var);
       ffi::Array<Expr> acc_args{e_dtype, data, index, extent, flag};
       auto old_pointer_type = op->ty.as_or_throw<PointerType>();

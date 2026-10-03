@@ -84,7 +84,7 @@ class MatchBufferRegion : public ffi::ObjectRef {
  *      T.reads([buffer0[start:end, ...], ...])
  *      T.writes([buffer1[start:end, ...], ...])
  *      T.where(predicate)
- *      buffer2 = T.alloc_buffer(shape, dtype)
+ *      buffer2 = T.alloc_tensor(shape, dtype)
  *      buffer3 = Ts.match_buffer(source_buffer[start:end, ...])
  *      T.attr({attr_key: attr_value, ...})
  *      with T.init():
@@ -226,12 +226,12 @@ constexpr const char* double_buffer_scope = "double_buffer_scope";
 constexpr const char* double_buffer_write = "double_buffer_write";
 
 /*!
- * \brief Mark that the shape of TensorCore fragment
+ * \brief String-valued allocation Call attribute containing the TensorCore fragment shape
  */
 constexpr const char* fragment_shape = "fragment_shape";
 
 /*!
- * \brief Mark that the layout of TensorCore fragment
+ * \brief String-valued allocation Call attribute containing the TensorCore fragment layout
  */
 constexpr const char* fragment_layout = "fragment_layout";
 

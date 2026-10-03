@@ -48,7 +48,7 @@ using SubscriptSlice = ffi::Array<ffi::Variant<
     ffi::Tuple<ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>, ffi::Optional<PrimExpr>>,
     PrimExpr>>;
 
-BufferVar RebuildBufferVarFromType(const BufferVar& buffer, BufferType type,
+BufferVar RebuildBufferVarFromType(const BufferVar& buffer, TensorType type,
                                    ffi::String name_suffix = "") {
   return BufferVar(buffer.name() + name_suffix, std::move(type), buffer.span());
 }
@@ -61,7 +61,7 @@ ffi::ObjectRef RealizeBufferSubscript(
         slice,
     Span span) {
   BufferVar buffer = value.as_or_throw<BufferVar>();
-  BufferType buffer_ty = buffer.type();
+  TensorType buffer_ty = buffer.type();
   TVM_FFI_CHECK_LE(slice.size(), buffer_ty->shape.size(), IndexError)
       << "Too many indices for a " << buffer_ty->shape.size() << "-dimensional buffer";
 
@@ -203,7 +203,7 @@ TensorRegion BufferRegionFromPoint(BufferVar buffer, ffi::Array<PrimExpr> indice
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::TypeAttrDef<BufferTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
+  refl::TypeAttrDef<TensorTypeNode>().def("__subscript_expr_realize__", RealizeBufferSubscript);
   refl::TypeAttrDef<BufferRegionTypeNode>().def("__subscript_expr_realize__",
                                                 RealizeBufferRegionSubscript);
 }
@@ -215,9 +215,9 @@ ffi::Array<PrimExpr> SimplifyArray(sym::AnalyzerObj* ana, ffi::Array<PrimExpr> a
   return array;
 }
 
-BufferVar decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
+BufferVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String name,
                       ffi::String storage_scope, Span span) {
-  return BufferVar(name, BufferType(storage_scope, dtype, shape, {}, PrimExpr(), 0, 0), span);
+  return BufferVar(name, TensorType(storage_scope, dtype, shape, {}, PrimExpr(), 0, 0), span);
 }
 
 // Split the given expression w.r.t the add operator
@@ -419,10 +419,10 @@ ffi::Array<PrimExpr> BufferVar::OffsetOf(ffi::Array<PrimExpr> input_indices) con
 // The buffer offset in convention of number of elements of
 // original data ignoring number of lanes.
 // We also perform optimization to simplify the indexing expression.
-ffi::Array<PrimExpr> BufferTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indices,
+ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indices,
                                                 bool inner) const {
   TVM_FFI_ICHECK_EQ(shape.size(), input_indices.size())
-      << "BufferType is " << shape.size() << "-dimensional, cannot be indexed with the "
+      << "TensorType is " << shape.size() << "-dimensional, cannot be indexed with the "
       << input_indices.size() << "-dimensional indices provided.";
 
   if (strides.size()) {
@@ -453,7 +453,7 @@ ffi::Array<PrimExpr> BufferTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indic
   return SimplifyArray(ana.get(), {output_index});
 }
 
-inline ffi::Array<PrimExpr> BufferOffset(const BufferTypeNode* n, ffi::Array<PrimExpr> index,
+inline ffi::Array<PrimExpr> BufferOffset(const TensorTypeNode* n, ffi::Array<PrimExpr> index,
                                          PrimType dtype) {
   ffi::Array<PrimExpr> offsets = n->ElemOffset(index);
   // If the BufferVar has element type with more than one lane, scale to
@@ -501,14 +501,14 @@ BufferVar BufferVar::GetFlattenedBuffer() const {
     // (see test_tir_transform_flatten_buffer). Reset to the default layout
     // for the new shape so the buffer stays internally consistent.
     return RebuildBufferVarFromType(
-        *this, BufferType(self->storage_scope, self->dtype, output_shape, {}, self->elem_offset,
+        *this, TensorType(self->storage_scope, self->dtype, output_shape, {}, self->elem_offset,
                           self->data_alignment, self->offset_factor,
                           TileLayoutNode::DefaultLayout(output_shape), self->allocated_addr));
   }
 }
 
 PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype) const {
-  const BufferTypeNode* n = operator->();
+  const TensorTypeNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
   PrimType buffer_dtype(n->dtype);
   int value_lanes =
@@ -532,7 +532,7 @@ PrimExpr BufferVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype) cons
 }
 
 Stmt BufferVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const {
-  const BufferTypeNode* n = operator->();
+  const TensorTypeNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
   PrimType value_dtype = value.ty();
   PrimType buffer_dtype(n->dtype);
@@ -561,7 +561,7 @@ ffi::String BufferVar::scope() const { return (*this)->storage_scope; }
 BufferVar BufferVar::MakeStrideView() const {
   if ((*this)->strides.size() != 0) return *this;
   if ((*this)->shape.size() == 0) return *this;
-  const BufferTypeNode* self = operator->();
+  const TensorTypeNode* self = operator->();
   TVM_FFI_ICHECK(self != nullptr);
   PrimExpr acc = IntImm(PrimType(self->DefaultIndexType()), 1);
   std::vector<PrimExpr> temp;
@@ -574,13 +574,13 @@ BufferVar BufferVar::MakeStrideView() const {
     strides.push_back(temp[i - 1]);
   }
   return RebuildBufferVarFromType(
-      *this, BufferType(self->storage_scope, self->dtype, self->shape, std::move(strides),
+      *this, TensorType(self->storage_scope, self->dtype, self->shape, std::move(strides),
                         self->elem_offset, self->data_alignment, self->offset_factor, self->layout,
                         self->allocated_addr));
 }
 
 BufferVar BufferVar::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const {
-  const BufferTypeNode* n = operator->();
+  const TensorTypeNode* n = operator->();
   TVM_FFI_ICHECK(n != nullptr);
   sym::Analyzer ana;
   begins = SimplifyArray(ana.get(), begins);
@@ -607,14 +607,14 @@ BufferVar BufferVar::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr>
   }
   return RebuildBufferVarFromType(
       *this,
-      BufferType(n->storage_scope, n->dtype, extents, strides, elem_offset[0], n->data_alignment, 0,
+      TensorType(n->storage_scope, n->dtype, extents, strides, elem_offset[0], n->data_alignment, 0,
                  TileLayoutNode::DefaultLayout(extents)),
       "_slice");
 }
 
 Expr BufferVar::access_ptr(int access_mask, PointerType ptr_type, int content_lanes,
                            PrimExpr offset, ffi::Optional<PrimExpr> input_extent) const {
-  const BufferTypeNode* self = operator->();
+  const TensorTypeNode* self = operator->();
   TVM_FFI_ICHECK(self != nullptr);
   // An access pointer addresses the same allocation as the buffer data.  The
   // requested type controls its pointee, while the buffer controls its address
@@ -648,7 +648,7 @@ Expr BufferVar::access_ptr(int access_mask, PointerType ptr_type, int content_la
   return Call(ptr_type, tirx::builtin::tvm_access_ptr(), acc_args);
 }
 
-BufferVar::BufferVar(ffi::String name, BufferType type, Span span)
+BufferVar::BufferVar(ffi::String name, TensorType type, Span span)
     : Var(Var(std::move(name), std::move(type), std::move(span))) {}
 
 Expr BufferVar::data() const { return Call(DataPointerType(), builtin::buffer_data(), {var()}); }
@@ -664,13 +664,13 @@ tirx::BufferVar BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType d
   }
 
   return tirx::BufferVar(
-      name, BufferType(memory_scope, dtype, shape, {}, elem_offset, data_alignment, offset_factor));
+      name, TensorType(memory_scope, dtype, shape, {}, elem_offset, data_alignment, offset_factor));
 }
 
 BufferVar BufferVar::with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const {
   const auto* self = operator->();
   return RebuildBufferVarFromType(
-      *this, BufferType(self->storage_scope, self->dtype, self->shape, self->strides,
+      *this, TensorType(self->storage_scope, self->dtype, self->shape, self->strides,
                         self->elem_offset, self->data_alignment, self->offset_factor, self->layout,
                         std::move(allocated_addr)));
 }
@@ -678,7 +678,7 @@ BufferVar BufferVar::with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) co
 BufferVar BufferVar::with_dtype(PrimType dtype) const {
   const auto* self = operator->();
   return RebuildBufferVarFromType(
-      *this, BufferType(self->storage_scope, std::move(dtype), self->shape, self->strides,
+      *this, TensorType(self->storage_scope, std::move(dtype), self->shape, self->strides,
                         self->elem_offset, self->data_alignment, self->offset_factor, self->layout,
                         self->allocated_addr));
 }
@@ -688,20 +688,13 @@ PrimExpr BufferVar::OffsetOf_p(const Array<PrimExpr>& indices) const {
       .as_or_throw<PrimExpr>();
 }
 
-bool BufferVar::IsScalar(bool alloc_or_decl) const {
-  // TODO(@bohan): logical scope is not considered
-  return (*this)->shape.size() == 1 && is_one((*this)->shape[0]) && (*this)->strides.size() == 0 &&
-         (!alloc_or_decl || tvm::prim::is_zero((*this)->elem_offset)) &&
-         (*this)->data_alignment == 64 && (*this)->offset_factor == 1 &&
-         (*this)->allocated_addr.size() == 0 && (*this)->layout.has_value() &&
-         ffi::StructuralEqual()((*this)->layout.value(), TileLayoutNode::DefaultLayout({1}));
-}
+bool BufferVar::IsScalar(bool alloc_or_decl) const { return type()->IsScalar(alloc_or_decl); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.BufferVar",
-           [](ffi::String name, BufferType type, Span span) {
+           [](ffi::String name, TensorType type, Span span) {
              return BufferVar(std::move(name), std::move(type), std::move(span));
            })
       .def_method(

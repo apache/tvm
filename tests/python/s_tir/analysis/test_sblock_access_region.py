@@ -135,13 +135,13 @@ def opaque_access_with_tvm_access_ptr_func() -> None:
 
 @Ts.prim_func
 def decl_buffer_alias_func(
-    A: T.Buffer((16,), "float32"),
-    B: T.Buffer((16,), "float32"),
+    A: T.Tensor((16,), "float32"),
+    B: T.Tensor((16,), "float32"),
 ) -> None:
     with Ts.sblock("alias"):
         Ts.reads(A[0])
         Ts.writes(B[0])
-        A_view = T.decl_buffer((16,), "float32", data=A.data)
+        A_view = T.decl_tensor((16,), "float32", data=A.data)
         B[0] = A[0] + A_view[0]
 
 
@@ -153,7 +153,7 @@ def access_in_if_then_else_func() -> None:
         Ts.reads([A[0:5]])
         Ts.writes([B[0:8]])
         for i in T.serial(0, 8):
-            B[i] = T.if_then_else(i < 5, A[i], 0.0, dtype="float32")
+            B[i] = T.if_then_else(i < 5, A[i], 0.0)
 
 
 @Ts.prim_func
@@ -221,7 +221,7 @@ def access_of_padding_pattern() -> None:
             Ts.reads([X[vi - 2, vj - 2]])
             Ts.writes([X_pad[vi, vj]])
             X_pad[vi, vj] = T.if_then_else(
-                2 <= vi and vi < 30 and 2 <= vj and vj < 30, X[vi - 2, vj - 2], 0.0, dtype="float32"
+                2 <= vi and vi < 30 and 2 <= vj and vj < 30, X[vi - 2, vj - 2], 0.0
             )
         with Ts.sblock("padding_reverse"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -409,10 +409,10 @@ def test_access_of_decompose_reduction():
 def test_buffer_access_with_let_binding():
     @Ts.prim_func
     def func(
-        storage: T.Buffer((16, 16, 16), "float32"),
-        seq_slot_ids: T.Buffer((16,), "int32"),
-        history_slot_ids: T.Buffer((16,), "int32"),
-        output: T.Buffer((16, 16), "float32"),
+        storage: T.Tensor((16, 16, 16), "float32"),
+        seq_slot_ids: T.Tensor((16,), "int32"),
+        history_slot_ids: T.Tensor((16,), "int32"),
+        output: T.Tensor((16, 16), "float32"),
     ):
         for i, s in T.grid(16, 16):
             with Ts.sblock("copy"):
@@ -437,9 +437,9 @@ def test_buffer_access_with_let_binding():
 def test_buffer_access_with_nested_let_binding():
     @Ts.prim_func
     def func(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ):
         for i, s in T.grid(16, 16):
             with Ts.sblock("copy"):
@@ -497,8 +497,8 @@ def test_conditional_inequality_access_regions(case):
         "rounded": ([x], [(-20, 41)], tirx.all(x * 3 >= -7, x * 2 <= 9), [(-2, 7)]),
     }
     variables, domains, condition, expected = cases[case]
-    inside = tirx.decl_buffer([256] * len(variables), name="inside")
-    outside = tirx.decl_buffer([256] * len(variables), name="outside")
+    inside = tirx.decl_tensor([256] * len(variables), name="inside")
+    outside = tirx.decl_tensor([256] * len(variables), name="outside")
     body = tirx.SeqStmt(
         [
             tirx.IfThenElse(condition, tirx.Evaluate(inside[tuple(variables)]), None),

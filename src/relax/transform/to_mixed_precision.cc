@@ -432,7 +432,10 @@ class ToMixedPrecisionRewriter : public ExprMutator {
     // We rewrite the remapped var to the original dtype
     auto it = var_remap_.find(var);
     if (it != var_remap_.end()) {
-      return RewriteExpr(it->second, NTypeFrom(var));
+      if (IsNestedTensor(var)) {
+        return RewriteExpr(it->second, NTypeFrom(var));
+      }
+      return it->second;
     }
     return var;
   }
@@ -598,7 +601,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   ffi::Array<Var> params_;
   std::unordered_set<std::string> fp16_input_names_;
 
-  const Op& wrap_param_op = Op::Get("relax.wrap_param");
+  const Op wrap_param_op = Op::Get("relax.wrap_param");
 };
 
 Expr ToMixedPrecision(const Function& f, DLDataType out_dtype,

@@ -28,6 +28,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include <unordered_map>
@@ -139,7 +140,6 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockRealizeNode* op) override;
-  ffi::Optional<VisitInterrupt> Visit_(const DeclBufferNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) override;
@@ -177,7 +177,7 @@ ffi::Array<TensorRegion> BlockReadWriteDetector::CollectOpaques() {
 }
 
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const VarNode* op) {
-  if (def_region_kind() != kTVMFFIDefRegionKindNone) return std::nullopt;
+  if (def_region_kind() != kTVMFFIDefRegionKindNone) return StmtExprVisitor::Visit_(op);
   UpdateOpaque(ffi::GetRef<Var>(op));
   return std::nullopt;
 }
@@ -233,15 +233,13 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const IfThenElseNod
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const DeclBufferNode* op) {
-  // A DeclBuffer data expression defines the alias source.  It is not an
-  // opaque buffer access by the containing block.
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(
-      WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->buffer); }));
-  return VisitBufferMetadata(op->buffer);
-}
-
 ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BindNode* op) {
+  if (const auto* call = op->value.as<CallNode>();
+      call && call->op.same_as(tirx::builtin::decl_tensor())) {
+    // A DeclTensor data expression defines the alias source.  It is not an
+    // opaque buffer access by the containing block.
+    return WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() { return Visit(op->var); });
+  }
   if (auto value = op->value.as<PrimExpr>()) {
     let_bindings_[op->var.get()] = value.value();
   }
@@ -274,7 +272,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
   if (op->op.same_as(tirx::builtin::masked_load()) ||
       op->op.same_as(tirx::builtin::masked_store())) {
     bool is_load = op->op.same_as(tirx::builtin::masked_load());
-    BufferVar buffer(op->args[0].as_or_throw<Var>());
+    BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
     ffi::Array<PrimExpr> indices;
     for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {
       indices.push_back(op->args[i].as_or_throw<PrimExpr>());

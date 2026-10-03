@@ -144,12 +144,13 @@ class LegalizeMutator : public ExprMutator {
   }
 
   Call WrapPureCall(const Call& ret) {
-    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
+    static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
     ffi::Array<Expr> ret_args = {ret->op};
     for (auto arg : ret->args) {
       ret_args.push_back(arg);
     }
-    return Call(Type::Missing(), call_pure_packed_op, ret_args, ret->attrs, ret->ty_args);
+    return Call::Unchecked(Type::Missing(), call_pure_packed_op, ret_args, ret->attrs,
+                           ret->ty_args);
   }
 
   ffi::Optional<Target> GetTarget(const ffi::Array<Type>& types) {
@@ -242,9 +243,9 @@ class LegalizeMutator : public ExprMutator {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
     static const auto& requires_arg_shapes_map = Op::GetAttrMap<bool>("RequiresArgumentShapes");
-    static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
+    static const Op call_pure_packed_op = Op::Get("relax.call_pure_packed");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_dps_packed_op = Op::Get("relax.call_dps_packed");
     auto* op_node = visited_call->op.as<OpNode>();
 
     // Not an OpNode
@@ -336,8 +337,8 @@ class LegalizeMutator : public ExprMutator {
       // Third choice, use an explicit ffi::String replacement.  This does not require the shape
       ffi::String packed_func_name = call_packed_map[op];
       legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
-        return Call(Type::Missing(), ExternFunc(packed_func_name), call->args, Attrs(),
-                    {GetType(call)});
+        return Call::Unchecked(Type::Missing(), ExternFunc(packed_func_name), call->args, Attrs(),
+                               {GetType(call)});
       };
     } else {
       // No legalization.

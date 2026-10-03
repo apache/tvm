@@ -385,6 +385,9 @@ class Var : public Expr {
   /*! \brief Return a fresh ordinary Var with a new primitive type. */
   TVM_DLL Var CopyWithDType(PrimType dtype) const;
 
+  /*! \brief Return a fresh ordinary Var with a new type, retaining its metadata. */
+  TVM_DLL Var CopyWithType(Type type) const;
+
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
 };
 
@@ -510,8 +513,23 @@ class Call : public Expr {
   TVM_DLL Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
                ffi::Array<Type> ty_args = ffi::Array<Type>(), Span span = Span());
 
+  /*! \brief Construct a provisional Call without invoking its Op validator. */
+  TVM_DLL static Call Unchecked(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs = Attrs(),
+                                ffi::Array<Type> ty_args = ffi::Array<Type>(), Span span = Span());
+  /*! \brief Recompute a result type from the Call's current explicit inputs.
+   *
+   * This ignores the Call's stored result type and does not mutate the Call.
+   * The operator must register TFixedReturnType or a context-free FInferType hook.
+   * This does not invoke the operator's validator.
+   */
+  TVM_DLL static Type ReinferType(const CallNode* call);
+
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
+
+ private:
+  Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<Type> ty_args,
+       Span span, bool validate);
 };
 
 /*! \brief Base node for literal constants. */

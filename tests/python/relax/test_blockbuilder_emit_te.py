@@ -49,9 +49,9 @@ def test_emit_te_with_symbolic_arg():
     class Expected:
         @Ts.prim_func(private=True)
         def te_func(
-            A: T.Buffer((T.int64(10),), "float32"),
+            A: T.Tensor((T.int64(10),), "float32"),
             m: T.int64,
-            B: T.Buffer((T.int64(10),), "float32"),
+            B: T.Tensor((T.int64(10),), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i in range(T.int64(10)):
@@ -96,9 +96,9 @@ def test_symbolic_shape_in_prim_value():
     class Expected:
         @Ts.prim_func(private=True)
         def te_slice(
-            A: T.Buffer([T.int64(16), T.int64(16)], "float32"),
+            A: T.Tensor([T.int64(16), T.int64(16)], "float32"),
             row_index: T.int64,
-            Output: T.Buffer(T.int64(16), "float32"),
+            Output: T.Tensor(T.int64(16), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 

@@ -19,7 +19,7 @@
 import tvm_ffi
 
 from tvm.ir import Call, Op, is_prim_expr
-from tvm.tirx import Evaluate, Expr, Stmt, TilePrimitiveCall, Var, decl_buffer
+from tvm.tirx import Evaluate, Expr, Stmt, TilePrimitiveCall, Var, decl_tensor
 from tvm.tirx.buffer import Buffer, is_buffer_var
 from tvm.tirx.layout import Iter, TileLayout
 
@@ -111,7 +111,7 @@ class BufferReplacer:
         if unchanged:
             return buffer
 
-        new_buffer = decl_buffer(
+        new_buffer = decl_tensor(
             new_shape,
             buffer.ty.dtype,
             buffer.name,

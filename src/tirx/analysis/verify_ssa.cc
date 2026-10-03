@@ -72,17 +72,13 @@ class SSAVerifier final : public StmtExprVisitor {
     MarkDef(op->loop_var, op->loop_var);
     return StmtExprVisitor::Visit_(op);
   }
-  ffi::Optional<VisitInterrupt> Visit_(const AllocBufferNode* op) final {
-    MarkDef(op->buffer.var(), op->buffer.var());
-    return StmtExprVisitor::Visit_(op);
-  }
 
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* node) final {
     auto var = ffi::GetRef<Var>(node);
     if (match_scope_) {
       MarkDef(var, var, true);
     }
-    return std::nullopt;
+    return StmtExprVisitor::Visit_(node);
   }
 
   void Run(const PrimFunc& func) {
@@ -90,30 +86,12 @@ class SSAVerifier final : public StmtExprVisitor {
       MarkDef(param, param);
     }
 
-    for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>()) {
-        this->DefineBuffer(buffer.value());
-      }
-    }
-    this->Visit(func->body);
-  }
-
-  ffi::Optional<VisitInterrupt> DefineBuffer(const BufferVar& buffer) {
     match_scope_ = true;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer.var()));
-    for (size_t i = 0; i < buffer->shape.size(); ++i) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->shape[i]));
+    for (const Var& param : func->params) {
+      WithDefRegionKind(kTVMFFIDefRegionKindPattern, [&] { return Visit(param->ty); });
     }
-
-    if (buffer->strides.defined()) {
-      for (size_t i = 0; i < buffer->strides.size(); ++i) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->strides[i]));
-      }
-    }
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(buffer->elem_offset));
-
     match_scope_ = false;
-    return std::nullopt;
+    this->Visit(func->body);
   }
 
  private:

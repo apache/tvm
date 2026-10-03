@@ -55,7 +55,7 @@ def register_intrin_lowering(
     target,
     *,
     f=None,
-    level=10,
+    override=False,
 ):
     """Register Op lowering function
 
@@ -70,18 +70,19 @@ def register_intrin_lowering(
     f : function, optional
         The function to be registered.
 
-    level : int
-        The priority level
+    override : bool, optional
+        Replace an existing lowering if True; duplicate registration otherwise
+        raises ValueError.
 
     Returns
     -------
-    fregister : function
-        Register op lowering function if f is not specified.
+    result : function
+        The registered lowering, or a decorator if f is not supplied.
     """
 
     def _register(f):
         """internal register function"""
-        _ffi_api.RegisterOpLowerIntrinsic(op_name, f, target, level)
+        tvm.ir.register_op_attr(op_name, target + ".FLowerIntrinsic", f, override)
         return f
 
     return _register(f) if f is not None else _register
@@ -137,14 +138,14 @@ def _pack_buffer(buf, span=None):
         "tirx.tvm_stack_make_shape",
         buf.ty.shape,
         span=span,
-        ret_ty=PointerType(tvm.ir.PrimType("int64")),
+        ty=PointerType(tvm.ir.PrimType("int64")),
     )
     strides = (
         Call(
             "tirx.tvm_stack_make_shape",
             buf.ty.strides,
             span=span,
-            ret_ty=PointerType(tvm.ir.PrimType("int64")),
+            ty=PointerType(tvm.ir.PrimType("int64")),
         )
         if buf.ty.strides
         else 0
@@ -157,7 +158,7 @@ def _pack_buffer(buf, span=None):
         const(0, dtype=buf.ty.dtype),
         buf.ty.elem_offset,
     ]
-    return Call(Op.get("tirx.tvm_stack_make_array"), pack_args, span=span, ret_ty="handle")
+    return Call(Op.get("tirx.tvm_stack_make_array"), pack_args, span=span, ty="handle")
 
 
 def call_packed_lowered(*args, span=None):
@@ -189,7 +190,7 @@ def call_packed_lowered(*args, span=None):
         _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_packed_lowered")
         for x in args
     ]
-    return Call(Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span, ret_ty="int32")
+    return Call(Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span, ty="int32")
 
 
 def call_cpacked_lowered(*args, span=None):
@@ -218,7 +219,7 @@ def call_cpacked_lowered(*args, span=None):
         _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_cpacked_lowered")
         for x in args
     ]
-    return Call(Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span, ret_ty="int32")
+    return Call(Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span, ty="int32")
 
 
 def call_packed(*args, span=None):
@@ -252,7 +253,7 @@ def call_packed(*args, span=None):
         _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_packed")
         for x in args
     ]
-    return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ret_ty="int32")
+    return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ty="int32")
 
 
 @tvm_ffi.register_object("tirx.CallFFIKernelAttr")
@@ -277,7 +278,7 @@ def call_ffi_kernel(*args, launch_params, ret_ty="int32", span=None):
         "tirx.call_ffi_kernel",
         args,
         attrs=CallFFIKernelAttr(launch_params),
-        ret_ty=ret_ty,
+        ty=ret_ty,
         span=span,
     )
 
@@ -334,7 +335,7 @@ def tensormap_encode_tiled(
         attrs=TensorMapEncodeTiledAttr(
             descriptor_dtype, rank, interleave, swizzle, l2_promotion, oob_fill, force_cu_dtype
         ),
-        ret_ty="int32",
+        ty="int32",
         span=span,
     )
 
@@ -366,7 +367,7 @@ def call_cpacked(*args, span=None):
         _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_cpacked")
         for x in args
     ]
-    return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ret_ty="int32")
+    return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ty="int32")
 
 
 def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=None):
@@ -400,7 +401,7 @@ def call_intrin(dtype: str | tvm.ir.Type, func_name, *args, attrs=None, span=Non
     if isinstance(func_name, str):
         func_name = _canonical_device_intrin_name(func_name)
     args = tuple(_reject_buffer_region(arg, "call_intrin") for arg in args)
-    return Call(func_name, args, attrs=attrs, span=span, ret_ty=dtype)
+    return Call(func_name, args, attrs=attrs, span=span, ty=dtype)
 
 
 def call_pure_extern(dtype, func_name, *args, span=None):
@@ -429,7 +430,7 @@ def call_pure_extern(dtype, func_name, *args, span=None):
         Op.get("tirx.call_pure_extern"),
         [func_name, *(_reject_buffer_region(arg, "call_pure_extern") for arg in args)],
         span=span,
-        ret_ty=dtype,
+        ty=dtype,
     )
 
 
@@ -459,7 +460,7 @@ def call_extern(dtype, func_name, *args, span=None):
         Op.get("tirx.call_extern"),
         [func_name, *(_reject_buffer_region(arg, "call_extern") for arg in args)],
         span=span,
-        ret_ty=dtype,
+        ty=dtype,
     )
 
 
@@ -507,7 +508,9 @@ def call_llvm_intrin(dtype, name, *args, span=None):
     return call_intrin(
         dtype,
         Op.get("tirx.call_llvm_intrin"),
-        tvm.tirx.const(llvm_id, "uint32"),
+        name
+        if isinstance(name, IntImm)
+        else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         span=span,
     )
@@ -549,7 +552,9 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     return call_intrin(
         dtype,
         Op.get("tirx.call_llvm_pure_intrin"),
-        tvm.tirx.const(llvm_id, "uint32"),
+        name
+        if isinstance(name, IntImm)
+        else tvm.tirx.const(llvm_id, "int32" if isinstance(name, str) else "uint32"),
         *args,
         span=span,
     )
@@ -776,20 +781,20 @@ def address_of(obj: Buffer | TensorLoad | Var, span: Span | None = None) -> Expr
             "tirx.address_of",
             [buffer_load],
             span=span,
-            ret_ty=_buffer_element_pointer_type(obj),
+            ty=_buffer_element_pointer_type(obj),
         )
     elif isinstance(obj, Var):
         if _is_tensormap_var(obj):
             return call_intrin("uint64", "tirx.address_of", obj, span=span)
         if not isinstance(obj.ty, tvm.ir.PrimType):
             raise TypeError(f"address_of expects a scalar or TensorMap Var, but got {obj.ty}")
-        return Call("tirx.address_of", [obj], span=span, ret_ty=PointerType(obj.ty))
+        return Call("tirx.address_of", [obj], span=span, ty=PointerType(obj.ty))
     elif isinstance(obj, TensorLoad):
         return Call(
             "tirx.address_of",
             [obj],
             span=span,
-            ret_ty=_buffer_element_pointer_type(obj.source),
+            ty=_buffer_element_pointer_type(obj.source),
         )
     else:
         raise ValueError(f"Invalid object type: {type(obj)}")
@@ -828,7 +833,7 @@ def tvm_thread_invariant(cond):
     return call_intrin(_primexpr_ty(cond), "tirx.tvm_thread_invariant", cond)
 
 
-def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1):
+def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1, *, dtype="void"):
     """Perform synchronization in specified scope.
 
     Parameters
@@ -836,18 +841,31 @@ def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1):
     storage_scope : str
         The storage scope to perform synchronization.
 
-    is_load : bool
+    is_load : bool or Expr or None
         Whether to perform load synchronization. (for global sync only)
+        Set both ``is_load`` and ``num_blocks`` to None to omit these operands.
 
-    num_blocks : int
+    num_blocks : int or Expr or None
         The number of blocks to synchronize. (for global sync only)
+        Set to None to omit this operand.
+
+    dtype : str or tvm.ir.Type
+        The stored result type. Defaults to void.
 
     Returns
     -------
     call : Expr
         The call expression.
     """
-    return call_intrin("void", "tirx.tvm_storage_sync", storage_scope, is_load, num_blocks)
+    args = [storage_scope]
+    if is_load is None:
+        if num_blocks is not None:
+            raise ValueError("num_blocks must be None when is_load is omitted")
+    else:
+        args.append(is_load)
+        if num_blocks is not None:
+            args.append(num_blocks)
+    return call_intrin(dtype, "tirx.tvm_storage_sync", *args)
 
 
 def tvm_kernel_replace_point():

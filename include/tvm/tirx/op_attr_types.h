@@ -21,7 +21,7 @@
  * \file tvm/tirx/op_attr_types.h
  * \brief Attribute types in the Op registry for TIR ops.
  *
- * These attributes can be set via OpRegEntry::set_attr
+ * These attributes can be set via OpDef::set_attr
  *
  * \sa tvm/ir/op.h
  */
@@ -55,7 +55,7 @@ using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
 /*!
- * \brief The operator's name in TVMScript printer
+ * \brief The fully qualified TVMScript name, including its dialect namespace.
  */
 using TScriptPrinterName = ffi::String;
 

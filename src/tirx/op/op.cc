@@ -38,9 +38,8 @@
 #include <tvm/tirx/var.h>
 
 #include <cmath>
-// Shared primitive type matching and dtype predicates.
+// Shared primitive type matching.
 #include "../../ir/prim/op_utils.h"
-#include "../analysis/check_contains.h"
 
 namespace tvm::prim {
 
@@ -51,15 +50,16 @@ using tirx::TIRxOpCategory;
 using tirx::TScriptPrinterName;
 using tirx::TVectorizable;
 
+template <size_t N>
+static Type InferTypeReturnArgType(const CallNode* call) {
+  TVM_FFI_CHECK_GT(call->args.size(), N, ValueError)
+      << "Return type inference requires argument " << N;
+  return call->args[N]->ty;
+}
+
 // macro to register an unary op
-#define TVM_TIR_REGISTER_PURE_UNARY_OP(OpName)                             \
-  TVM_TIR_REGISTER_OP(OpName).set_num_inputs(1).set_attr<TCallEffectKind>( \
-      "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
 
 // macro to register an binary op
-#define TVM_TIR_REGISTER_PURE_BINARY_OP(OpName)                            \
-  TVM_TIR_REGISTER_OP(OpName).set_num_inputs(2).set_attr<TCallEffectKind>( \
-      "TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
 
 Type GetType(const PrimExpr& expr) {
   // TODO(tqchen): add recursive type inference for Call here
@@ -72,7 +72,7 @@ Type GetType(const PrimExpr& expr) {
     }
   }
 
-  static const Op& type_annotation_op = Op::Get("tirx.type_annotation");
+  static const Op type_annotation_op = Op::Get("tirx.type_annotation");
   if (auto* access = expr.as<CallNode>()) {
     if (access->op.same_as(tirx::builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK(access->args.size())
@@ -135,15 +135,6 @@ PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s, Span s
       .as_or_throw<PrimExpr>();
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.RegisterOpLowerIntrinsic",
-                        [](ffi::String name, ffi::Function f, ffi::String target, int plevel) {
-                          OpRegEntry::RegisterOrGet(name).set_attr<tirx::FLowerIntrinsic>(
-                              target + ".FLowerIntrinsic", f, plevel);
-                        });
-}
-
 PrimExpr thread_return(Span span) {
   return Call(PrimType::Void(), tirx::builtin::thread_return(), {}, {}, {}, span)
       .as_or_throw<PrimExpr>();
@@ -155,8 +146,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
-  TVM_FFI_ICHECK(IsFloatType(a.ty())) << a;
-  TVM_FFI_ICHECK(IsFloatType(b.ty())) << b;
+  TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << a;
+  TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << b;
   BinaryOpMatchTypes(a, b, span);
   PrimExpr exp_sum = add(exp(a), exp(b));
   PrimExpr log_exp_sum = log(exp_sum);
@@ -168,7 +159,7 @@ PrimExpr infinity(PrimType value_ty, Span span) {
   using namespace tirx;
   PrimType dtype = value_ty;
   TVM_FFI_ICHECK_EQ(dtype.lanes(), 1);
-  if (IsFloatType(dtype)) {
+  if (dtype.MatchesCode(DLDataTypeCode::kDLFloat)) {
     if (dtype.bits() == 64) {
       return FloatImm(value_ty, std::numeric_limits<double>::infinity(), span);
     } else if (dtype.bits() == 32 || dtype.bits() == 16) {
@@ -242,7 +233,7 @@ PrimExpr reinterpret(DLDataType t, PrimExpr value, Span span) {
 // pow
 PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
-  TVM_FFI_ICHECK(IsFloatType(x.ty())) << "power only applies to float";
+  TVM_FFI_ICHECK(x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << "power only applies to float";
 
   // If we detect pow(x, 3), suggest using x * x * x
   if (y.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
@@ -255,7 +246,7 @@ PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
                "`pow(x, 2) * pow(x, 2) ...`.";
       }
     }
-  } else if (IsFloatType(y.ty())) {
+  } else if (y.ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
     const FloatImmNode* fx = y.as<FloatImmNode>();
     if (fx) {
       if (fx->value >= 3.0) {
@@ -267,22 +258,29 @@ PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
     }
   }
 
-  static const Op& pow_op = Op::Get("tirx.pow");
+  static const Op pow_op = Op::Get("tirx.pow");
   return Call(x.ty(), pow_op, {x, y}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
-TVM_TIR_REGISTER_PURE_BINARY_OP("pow").set_attr<TVectorizable>("TVectorizable", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.pow")
+      .signature(sig::arg("x", "The input value."), sig::arg("y", "The second input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.pow"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+}
 
 // abs
 PrimExpr abs(PrimExpr x, Span span) {
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt)) {
     return prim::IntegerAbs(x, span);
-  } else if (IsFloatType(x.ty()) || IsBFloat16Type(x.ty())) {
+  } else if (x.ty().MatchesCode(DLDataTypeCode::kDLFloat, DLDataTypeCode::kDLBfloat)) {
     const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
       return FloatImm(x.ty(), std::fabs(fx->value), fx->span);
     }
-    static const Op& fabs_op = Op::Get("tirx.fabs");
+    static const Op fabs_op = Op::Get("tirx.fabs");
     return Call(x.ty(), fabs_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
   } else if (x.ty().MatchesCode(DLDataTypeCode::kDLUInt)) {
     return x;
@@ -293,7 +291,14 @@ PrimExpr abs(PrimExpr x, Span span) {
   }
 }
 
-TVM_TIR_REGISTER_PURE_UNARY_OP("fabs").set_attr<TVectorizable>("TVectorizable", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.fabs")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.fabs"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+}
 
 // isnan
 PrimExpr isnan(PrimExpr x, Span span) {
@@ -301,18 +306,18 @@ PrimExpr isnan(PrimExpr x, Span span) {
   PrimType bool_ty(t);
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return MakeConst(t, false);
-  } else if (IsFloatType(x.ty())) {
+  } else if (x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
     const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {
       return MakeConst(t, std::isnan(fx->value), fx->span);
     }
     if (x.ty().bits() == 16) {
-      static const Op& isnan_op = Op::Get("tirx.isnan");
+      static const Op isnan_op = Op::Get("tirx.isnan");
       PrimType f32_ty = PrimType::Float(32, t.lanes());
       return Call(bool_ty, isnan_op, {cast(f32_ty, std::move(x), span)}, {}, {}, span)
           .as_or_throw<PrimExpr>();
     } else {
-      static const Op& isnan_op = Op::Get("tirx.isnan");
+      static const Op isnan_op = Op::Get("tirx.isnan");
       return Call(bool_ty, isnan_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
     }
   } else {
@@ -326,7 +331,7 @@ PrimExpr isinf(PrimExpr x, Span span) {
   PrimType t = PrimType::Bool(x.ty().lanes());
   if (x.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
     return MakeConst(t, false, span);
-  } else if (IsFloatType(x.ty())) {
+  } else if (x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) {
     PrimExpr infX = infinity(x.ty(), span);
     return abs(x, span) == infX && !isnan(x, span);
   } else {
@@ -347,7 +352,9 @@ PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 }
 
 PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  type_check_boolean_args(source, "tvm::all");
+  TVM_FFI_ICHECK(source.ty().MatchesCode(DLDataTypeCode::kDLBool))
+      << "Expected boolean argument for tvm::all, but received " << source << " of type "
+      << source.ty();
   PrimVar x("x", source.ty(), span), y("y", source.ty());
   PrimExpr result = prim::And(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), true, span);
@@ -356,7 +363,9 @@ PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> ini
 }
 
 PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  type_check_boolean_args(source, "tvm::any");
+  TVM_FFI_ICHECK(source.ty().MatchesCode(DLDataTypeCode::kDLBool))
+      << "Expected boolean argument for tvm::any, but received " << source << " of type "
+      << source.ty();
   PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
   PrimExpr result = prim::Or(x, y, span);
   PrimExpr identity_element = MakeConst(source.ty(), false, span);
@@ -406,12 +415,18 @@ PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> in
 // fmod
 PrimExpr fmod(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
-  TVM_FFI_ICHECK(IsFloatType(x.ty())) << "fmod only applies to float";
-  static const Op& fmod_op = Op::Get("tirx.fmod");
+  TVM_FFI_ICHECK(x.ty().MatchesCode(DLDataTypeCode::kDLFloat)) << "fmod only applies to float";
+  static const Op fmod_op = Op::Get("tirx.fmod");
   return Call(x.ty(), fmod_op, {x, y}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
-TVM_TIR_REGISTER_PURE_UNARY_OP("fmod");
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.fmod")
+      .signature(sig::arg("x", "The input value."), sig::arg("y", "The second input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.fmod"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+}
 
 // floor
 PrimExpr floor(PrimExpr x, Span span) {
@@ -421,11 +436,18 @@ PrimExpr floor(PrimExpr x, Span span) {
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.ty(), std::floor(fx->value), fx->span);
-  static const Op& floor_op = Op::Get("tirx.floor");
+  static const Op floor_op = Op::Get("tirx.floor");
   return Call(x.ty(), floor_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
-TVM_TIR_REGISTER_PURE_UNARY_OP("floor").set_attr<TVectorizable>("TVectorizable", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.floor")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.floor"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+}
 
 // round
 PrimExpr round(PrimExpr x, Span span) {
@@ -435,11 +457,18 @@ PrimExpr round(PrimExpr x, Span span) {
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
-  static const Op& round_op = Op::Get("tirx.round");
+  static const Op round_op = Op::Get("tirx.round");
   return Call(x.ty(), round_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
-TVM_TIR_REGISTER_PURE_UNARY_OP("round").set_attr<TVectorizable>("TVectorizable", true);
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.round")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.round"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+}
 
 // nearbyint
 PrimExpr nearbyint(PrimExpr x, Span span) {
@@ -449,11 +478,17 @@ PrimExpr nearbyint(PrimExpr x, Span span) {
   }
   const FloatImmNode* fx = x.as<FloatImmNode>();
   if (fx) return FloatImm(x.ty(), std::nearbyint(fx->value), fx->span);
-  static const Op& nearbyint_op = Op::Get("tirx.nearbyint");
+  static const Op nearbyint_op = Op::Get("tirx.nearbyint");
   return Call(x.ty(), nearbyint_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
-TVM_TIR_REGISTER_PURE_UNARY_OP("nearbyint");
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.nearbyint")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.nearbyint"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+}
 
 // trunc
 PrimExpr trunc(PrimExpr x, Span span) {
@@ -466,80 +501,227 @@ PrimExpr trunc(PrimExpr x, Span span) {
     return FloatImm(x.ty(), (fx->value < 0 ? std::ceil(fx->value) : std::floor(fx->value)),
                     fx->span);
   }
-  static const Op& trunc_op = Op::Get("tirx.trunc");
+  static const Op trunc_op = Op::Get("tirx.trunc");
   return Call(x.ty(), trunc_op, {x}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 
-TVM_TIR_REGISTER_PURE_UNARY_OP("trunc").set_attr<TVectorizable>("TVectorizable", true);
-
-// unary op registration.
-TVM_TIR_REGISTER_PURE_UNARY_OP("exp").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("exp2").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("exp10").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("erf");
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("tanh").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("sigmoid").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("sqrt").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("rsqrt");
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("log").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("log1p");
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("log10").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("tan").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("cos").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("cosh").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("sin").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("sinh").set_attr<TVectorizable>("TVectorizable", true);
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("asin");
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("acos");
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("atan");
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("acosh");
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("asinh");
-
-TVM_TIR_REGISTER_PURE_UNARY_OP("atanh");
-
-// binary intrinsics
-TVM_TIR_REGISTER_PURE_BINARY_OP("atan2");
-
-TVM_TIR_REGISTER_PURE_BINARY_OP("nextafter");
-
-TVM_TIR_REGISTER_PURE_BINARY_OP("hypot");
-
-TVM_TIR_REGISTER_PURE_BINARY_OP("copysign");
-
-TVM_TIR_REGISTER_PURE_BINARY_OP("ldexp");
-
-TVM_TIR_REGISTER_OP("TVMBackendAllocWorkspace")
-    .set_num_inputs(5)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAllocWorkspace")
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
-    .set_num_inputs(3)
-    .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace")
-    .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
-
-// expose basic functions to node namespace
 TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.trunc")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.trunc"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  // unary op registration.
+
+  OpDef("tirx.exp")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.exp"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.exp2")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.exp2"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.exp10")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.exp10"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.erf")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.erf"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.tanh")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tanh"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.sigmoid")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.sigmoid"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.sqrt")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.sqrt"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.rsqrt")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.rsqrt"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.log")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.log"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.log1p")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.log1p"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.log10")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.log10"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.tan")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tan"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.cos")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cos"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.cosh")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cosh"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.sin")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.sin"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.sinh")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.sinh"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
+      .set_attr<TVectorizable>("TVectorizable", true);
+
+  OpDef("tirx.asin")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.asin"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.acos")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.acos"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.atan")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeReturnArgType<0>>())
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.atan"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.acosh")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.acosh"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.asinh")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.asinh"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.atanh")
+      .signature(sig::arg("x", "The input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.atanh"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  // binary intrinsics
+
+  OpDef("tirx.atan2")
+      .signature(sig::arg("x1", "The first input value."),
+                 sig::arg("x2", "The second input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.atan2"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.nextafter")
+      .signature(sig::arg("x1", "The first input value."),
+                 sig::arg("x2", "The second input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.nextafter"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.hypot")
+      .signature(sig::arg("x1", "The first input value."),
+                 sig::arg("x2", "The second input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.hypot"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.copysign")
+      .signature(sig::arg("x1", "The first input value."),
+                 sig::arg("x2", "The second input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.copysign"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.ldexp")
+      .signature(sig::arg("x1", "The first input value."),
+                 sig::arg("x2", "The second input value."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.ldexp"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure));
+
+  OpDef("tirx.TVMBackendAllocWorkspace")
+      .signature(sig::arg<IntExpr>("device_type", "The device type."),
+                 sig::arg<IntExpr>("device_id", "The device index."),
+                 sig::arg<IntExpr>("nbytes", "The number of bytes."),
+                 sig::arg<IntExpr>("dtype_code_hint", "The data type code hint."),
+                 sig::arg<IntExpr>("dtype_bits_hint", "The data type bit-width hint."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("tirx.TVMBackendAllocWorkspace"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendAllocWorkspace")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+  OpDef("tirx.TVMBackendFreeWorkspace")
+      .signature(sig::arg<IntExpr>("device_type", "The device type."),
+                 sig::arg<IntExpr>("device_id", "The device index."),
+                 sig::arg("ptr", "The pointer."))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("tirx.TVMBackendFreeWorkspace"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TGlobalSymbol>("TGlobalSymbol", "TVMBackendFreeWorkspace")
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+  // expose basic functions to node namespace
+
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.infinity", static_cast<PrimExpr (*)(PrimType, Span)>(&infinity))
@@ -553,9 +735,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("tirx.trunc", prim::trunc)
       .def("tirx.reinterpret",
            [](Type dtype, Expr value, Span span) { return prim::reinterpret(dtype, value, span); });
-}
 
-TVM_FFI_STATIC_INIT_BLOCK() {
   tvm::ffi::reflection::GlobalDef()
       .def("tirx._OpPow", [](PrimExpr a, PrimExpr b, Span span) { return pow(a, b, span); })
       .def("tirx._OpLogAddExp",

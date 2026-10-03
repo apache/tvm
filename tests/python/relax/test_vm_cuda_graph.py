@@ -55,7 +55,7 @@ class Module:
         return lv5
 
     @Ts.prim_func
-    def add(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
+    def add(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")):
         T.func_attr({"global_symbol": "add"})
         with Ts.sblock("root"):
             for i in T.thread_binding(16, thread="threadIdx.x"):

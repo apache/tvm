@@ -32,27 +32,27 @@ def test_basic():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def add(rxplaceholder: T.Buffer(T.int64(8), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_add: T.Buffer(T.int64(8), "float32")):
+        def add(rxplaceholder: T.Tensor(T.int64(8), "float32"), rxplaceholder_1: T.Tensor((), "float32"), T_add: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Buffer(T.int64(8), "float32")):
+        def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def relu(rxplaceholder: T.Buffer(T.int64(8), "float32"), compute: T.Buffer(T.int64(8), "float32")):
+        def relu(rxplaceholder: T.Tensor(T.int64(8), "float32"), compute: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def log(rxplaceholder: T.Buffer(T.int64(10), "float32"), compute: T.Buffer(T.int64(10), "float32")):
+        def log(rxplaceholder: T.Tensor(T.int64(10), "float32"), compute: T.Tensor(T.int64(10), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def pad(rxplaceholder: T.Buffer(T.int64(8), "float32"), PadInput: T.Buffer(T.int64(10), "float32")):
+        def pad(rxplaceholder: T.Tensor(T.int64(8), "float32"), PadInput: T.Tensor(T.int64(10), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -81,27 +81,27 @@ def test_basic():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def add(rxplaceholder: T.Buffer(T.int64(8), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_add: T.Buffer(T.int64(8), "float32")):
+        def add(rxplaceholder: T.Tensor(T.int64(8), "float32"), rxplaceholder_1: T.Tensor((), "float32"), T_add: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Buffer(T.int64(8), "float32")):
+        def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def relu(rxplaceholder: T.Buffer(T.int64(8), "float32"), compute: T.Buffer(T.int64(8), "float32")):
+        def relu(rxplaceholder: T.Tensor(T.int64(8), "float32"), compute: T.Tensor(T.int64(8), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def log(rxplaceholder: T.Buffer(T.int64(10), "float32"), compute: T.Buffer(T.int64(10), "float32")):
+        def log(rxplaceholder: T.Tensor(T.int64(10), "float32"), compute: T.Tensor(T.int64(10), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def pad(rxplaceholder: T.Buffer(T.int64(8), "float32"), PadInput: T.Buffer(T.int64(10), "float32")):
+        def pad(rxplaceholder: T.Tensor(T.int64(8), "float32"), PadInput: T.Tensor(T.int64(10), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -131,27 +131,27 @@ def test_basic():
     @I.ir_module
     class ExpectedLowered:
         @Ts.prim_func
-        def add(rxplaceholder: T.Buffer((T.int64(8),), "float32"), rxplaceholder_1: T.Buffer((), "float32"), T_add: T.Buffer((T.int64(8),), "float32")):
+        def add(rxplaceholder: T.Tensor((T.int64(8),), "float32"), rxplaceholder_1: T.Tensor((), "float32"), T_add: T.Tensor((T.int64(8),), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+        def exp(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), compute: T.Tensor((T.int64(2), T.int64(4)), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def log(rxplaceholder: T.Buffer((T.int64(10),), "float32"), compute: T.Buffer((T.int64(10),), "float32")):
+        def log(rxplaceholder: T.Tensor((T.int64(10),), "float32"), compute: T.Tensor((T.int64(10),), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def pad(rxplaceholder: T.Buffer((T.int64(8),), "float32"), PadInput: T.Buffer((T.int64(10),), "float32")):
+        def pad(rxplaceholder: T.Tensor((T.int64(8),), "float32"), PadInput: T.Tensor((T.int64(10),), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def relu(rxplaceholder: T.Buffer((T.int64(8),), "float32"), compute: T.Buffer((T.int64(8),), "float32")):
+        def relu(rxplaceholder: T.Tensor((T.int64(8),), "float32"), compute: T.Tensor((T.int64(8),), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Buffer((T.int64(8),), "float32")):
+        def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"), T_reshape: T.Tensor((T.int64(8),), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -196,17 +196,17 @@ def test_different_dtype():
     class Module:
         @Ts.prim_func
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
         @Ts.prim_func
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.evaluate(0)
 
@@ -232,17 +232,17 @@ def test_different_dtype():
     class Expected:
         @Ts.prim_func
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
         @Ts.prim_func
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.evaluate(0)
 
@@ -279,9 +279,9 @@ def test_dtype_bool():
     class Module:
         @Ts.prim_func
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "bool"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "bool"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "bool"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "bool"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "bool"),
         ):
             T.evaluate(0)
 
@@ -300,9 +300,9 @@ def test_dtype_bool():
     class Expected:
         @Ts.prim_func
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "bool"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "bool"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "bool"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "bool"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "bool"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "bool"),
         ):
             T.evaluate(0)
 
@@ -329,9 +329,9 @@ def test_same_dtype():
     class Module:
         @Ts.prim_func
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
@@ -357,9 +357,9 @@ def test_same_dtype():
     class Expected:
         @Ts.prim_func
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
@@ -392,11 +392,11 @@ def test_if_cond():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def all_less_than_zero(A: T.Buffer((2, 3), "float32"), B: T.Buffer((), "bool")):
+        def all_less_than_zero(A: T.Tensor((2, 3), "float32"), B: T.Tensor((), "bool")):
             T.evaluate(0)
 
         @Ts.prim_func
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -428,7 +428,7 @@ def test_if_then_else():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -457,7 +457,7 @@ def test_cross_block_use():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -496,7 +496,7 @@ def test_nested_tuple():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -552,7 +552,7 @@ def test_nested_tuple():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def exp(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -689,7 +689,7 @@ def test_symbolic_shape():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def exp(A: T.Buffer((m_exp, n_exp), "float32"), B: T.Buffer((m_exp, n_exp), "float32")):
+        def exp(A: T.Tensor((m_exp, n_exp), "float32"), B: T.Tensor((m_exp, n_exp), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -710,7 +710,7 @@ def test_symbolic_shape():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def exp(A: T.Buffer((m_exp, n_exp), "float32"), B: T.Buffer((m_exp, n_exp), "float32")):
+        def exp(A: T.Tensor((m_exp, n_exp), "float32"), B: T.Tensor((m_exp, n_exp), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -769,9 +769,9 @@ def test_reshape_param():
     class Module:
         @Ts.prim_func
         def add(
-            A: T.Buffer((T.int64(2), T.int64(25), T.int64(2)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(25), T.int64(2)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(25), T.int64(2)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(25), T.int64(2)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(25), T.int64(2)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(25), T.int64(2)), "float32"),
         ):
             T.evaluate(0)
 
@@ -799,17 +799,17 @@ def test_multiple_functions():
     class Module:
         @Ts.prim_func
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
         @Ts.prim_func
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.evaluate(0)
 
@@ -853,17 +853,17 @@ def test_multiple_functions():
     class Expected:
         @Ts.prim_func
         def add(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "float32"),
         ):
             T.evaluate(0)
 
         @Ts.prim_func
         def add1(
-            A: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            B: T.Buffer((T.int64(2), T.int64(3)), "int32"),
-            C: T.Buffer((T.int64(2), T.int64(3)), "int32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            B: T.Tensor((T.int64(2), T.int64(3)), "int32"),
+            C: T.Tensor((T.int64(2), T.int64(3)), "int32"),
         ):
             T.evaluate(0)
 
@@ -1763,14 +1763,14 @@ def test_match_cast_preserves_storage_liveness():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def copy(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        def copy(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             T.evaluate(0)
 
         @Ts.prim_func
         def add(
-            A: T.Buffer((16,), "float32"),
-            B: T.Buffer((16,), "float32"),
-            C: T.Buffer((16,), "float32"),
+            A: T.Tensor((16,), "float32"),
+            B: T.Tensor((16,), "float32"),
+            C: T.Tensor((16,), "float32"),
         ):
             T.evaluate(0)
 
@@ -1803,7 +1803,7 @@ def test_builtin_reshape_preserves_storage_liveness():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def copy(A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32")):
+        def copy(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             T.evaluate(0)
 
         @R.function
@@ -1875,6 +1875,115 @@ def test_with_dataflow():
 
     after = relax.transform.StaticPlanBlockMemory()(Before)
     tvm.ir.assert_structural_equal(after, Expected)
+
+
+def _count_alloc_storage(func):
+    alloc_storage_op = tvm.ir.Op.get("relax.memory.alloc_storage")
+    count = 0
+
+    def visit(expr):
+        nonlocal count
+        if isinstance(expr, relax.Call) and expr.op.same_as(alloc_storage_op):
+            count += 1
+
+    relax.analysis.post_order_visit(func, visit)
+    return count
+
+
+def test_if_branches_do_not_share_storage_var():
+    @I.ir_module
+    class Before:
+        @Ts.prim_func
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            if cond:
+                alloc = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(x, alloc)
+                out = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(alloc, out)
+                z = out
+            else:
+                alloc1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(x, alloc1)
+                out1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(alloc1, out1)
+                z = out1
+            return z
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert _count_alloc_storage(after["main"]) == 2
+
+
+def test_if_branch_storage_not_reused_after_if():
+    @I.ir_module
+    class Before:
+        @Ts.prim_func
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            if cond:
+                z = x
+            else:
+                alloc = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(x, alloc)
+                out = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(alloc, out)
+                z = out
+            alloc1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            cls.exp(z, alloc1)
+            out1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            cls.exp(alloc1, out1)
+            return out1
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert _count_alloc_storage(after["main"]) == 2
+
+
+def test_if_branches_share_storage_allocated_before_if():
+    @I.ir_module
+    class Before:
+        @Ts.prim_func
+        def exp(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
+            T.evaluate(0)
+
+        @R.function
+        def main(
+            cond: R.Tensor((), dtype="bool"), x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            alloc = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            cls.exp(x, alloc)
+            out = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+            cls.exp(alloc, out)
+            if cond:
+                alloc1 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(out, alloc1)
+                z = out
+            else:
+                alloc2 = R.builtin.alloc_tensor(R.shape([2, 3]), "float32", 0)
+                cls.exp(out, alloc2)
+                z = out
+            return z
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    assert relax.analysis.check_well_formed(after)
+    assert _count_alloc_storage(after["main"]) == 1
 
 
 if __name__ == "__main__":

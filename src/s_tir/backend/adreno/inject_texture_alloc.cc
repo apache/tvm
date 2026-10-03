@@ -26,6 +26,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
 #include "../../../s_tir/ir/ir_mutator_with_analyzer.h"
@@ -41,7 +42,7 @@ using runtime::DefaultTextureLayoutSeparator;
 using runtime::IsTextureStorage;
 
 /*!
- * \brief Inject Texture Alloc Intrinsic right after AllocBufferNode are realized.
+ * \brief Inject Texture Alloc Intrinsic right after buffer allocations are realized.
  */
 class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
  public:
@@ -60,29 +61,53 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
   explicit TextureAllocInjector(const sym::Analyzer& ana) : IRMutatorWithAnalyzer(ana) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
+                                       InplaceMode inplace_mode) {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    std::string storage_scope = op->buffer.scope();
-    if (IsTextureStorage(storage_scope)) {
-      op = stmt.as<AllocBufferNode>();
-      const auto& extents = op->buffer->shape;
+    ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
+    if (IsTextureStorage(scope)) {
+      op = stmt.as<BindNode>();
+      if (const auto* call = op ? op->value.as<CallNode>() : nullptr;
+          !call || !call->op.same_as(tirx::builtin::alloc_tensor())) {
+        TVM_FFI_THROW(InternalError) << "Expected an allocation binding after buffer mutation";
+      }
+      const auto* allocation = op->value.as<CallNode>();
+      tvm::Tuple shape = allocation->args[0].as_or_throw<tvm::Tuple>();
+      DLDataType dtype = allocation->args[1].as_or_throw<DataTypeImm>()->value;
+      ffi::Array<PrimExpr> extents =
+          shape->fields.Map([](const Expr& e) { return e.as_or_throw<PrimExpr>(); });
       TVM_FFI_ICHECK(extents.size() >= 3) << "Only 2D Array RGBA texture is currently supported";
-      const int data_bits = op->buffer->dtype.bits(),
+      const int data_bits = dtype.bits,
                 vec_length = extents.back().as<IntImmNode>()->value.as<int>().value();
       const int channel_size = data_bits * vec_length;
       TVM_FFI_ICHECK(channel_size == 128 || channel_size == 64)
           << "Invalid Channel Size: " << channel_size << " bits";
 
-      size_t axis = DefaultTextureLayoutSeparator(extents.size(), storage_scope);
+      size_t axis = DefaultTextureLayoutSeparator(extents.size(), scope);
       auto texture = ApplyTexture2DFlattening<PrimExpr>(extents, extents.size(), axis);
       ffi::Array<Expr> args;
-      args.push_back(StringImm(storage_scope));
+      args.push_back(StringImm(scope));
       args.push_back(IntImm::Int64(3));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
-      stmt = DeclBuffer(op->buffer, Call(op->buffer.DataPointerType(),
-                                         tirx::builtin::nd_mem_alloc_with_scope(), args));
+      stmt = Bind(op->var.as_or_throw<BufferVar>(),
+                  Call(op->var.as_or_throw<BufferVar>().type(), tirx::builtin::decl_tensor(),
+                       {Call(op->var.as_or_throw<BufferVar>().DataPointerType(),
+                             tirx::builtin::nd_mem_alloc_with_scope(), args),
+                        tvm::Tuple(op->var.as_or_throw<BufferVar>()->shape),
+                        DataTypeImm(op->var.as_or_throw<BufferVar>()->dtype->dtype),
+                        StringImm(op->var.as_or_throw<BufferVar>().scope())},
+                       {}, allocation->ty_args, allocation->span),
+                  op->span);
     }
     return stmt;
   }

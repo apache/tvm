@@ -27,7 +27,7 @@ def test_annotate_entry_func_single_primfunc():
     @tvm.script.ir_module
     class MockModule:
         @T.prim_func(private=True)
-        def func1(A: T.Buffer((16,), "float32")):
+        def func1(A: T.Tensor((16,), "float32")):
             for i in T.serial(16):
                 if i == 5:
                     if i == 5:
@@ -48,14 +48,14 @@ def test_annotate_entry_func_single_primfunc():
 @tvm.script.ir_module
 class MockModule:
     @T.prim_func(private=True)
-    def func1(A: T.Buffer((16,), "float32")):
+    def func1(A: T.Tensor((16,), "float32")):
         for i in T.serial(16):
             if i == 5:
                 if i == 5:
                     A[i] = 0.0
 
     @T.prim_func(private=True)
-    def func2(A: T.Buffer((32,), "float32")):
+    def func2(A: T.Tensor((32,), "float32")):
         for i in T.serial(32):
             if i == 15:
                 if i == 15:
@@ -239,9 +239,9 @@ def test_bind_target_with_device_host_call_same_func():
 
         @T.prim_func
         def main(
-            A: T.Buffer((128, 128), "int32"),
-            B: T.Buffer((128, 128), "int32"),
-            C: T.Buffer((128, 128), "int32"),
+            A: T.Tensor((128, 128), "int32"),
+            B: T.Tensor((128, 128), "int32"),
+            C: T.Tensor((128, 128), "int32"),
         ):
             T.func_attr({"global_symbol": "main"})
             length: T.let[T.int32] = Before.add(64, 64)  # Call from host
@@ -263,9 +263,9 @@ def test_bind_target_with_device_host_call_same_func():
 
         @T.prim_func
         def main(
-            A: T.Buffer((128, 128), "int32"),
-            B: T.Buffer((128, 128), "int32"),
-            C: T.Buffer((128, 128), "int32"),
+            A: T.Tensor((128, 128), "int32"),
+            B: T.Tensor((128, 128), "int32"),
+            C: T.Tensor((128, 128), "int32"),
         ):
             T.func_attr(
                 {
@@ -294,7 +294,7 @@ def test_bind_target_with_tirx_device_entry():
             return a + b
 
         @T.prim_func
-        def main(A: T.Buffer((1,), "int32")):
+        def main(A: T.Tensor((1,), "int32")):
             T.func_attr({"global_symbol": "main"})
             host_value: T.let[T.int32] = Before.add(1, 2)
             T.device_entry()
@@ -314,7 +314,7 @@ def test_bind_target_with_tirx_device_entry():
             return a + b
 
         @T.prim_func
-        def main(A: T.Buffer((1,), "int32")):
+        def main(A: T.Tensor((1,), "int32")):
             T.func_attr(
                 {
                     "global_symbol": "main",

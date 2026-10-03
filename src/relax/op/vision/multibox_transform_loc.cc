@@ -48,9 +48,10 @@ Expr multibox_transform_loc(Expr cls_pred, Expr loc_pred, Expr anchor, bool clip
   attrs->keep_background = keep_background;
   attrs->apply_softmax = apply_softmax;
 
-  static const Op& op = Op::Get("relax.vision.multibox_transform_loc");
-  return Call(Type::Missing(), op, {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
-              Attrs(attrs), {});
+  static const Op op = Op::Get("relax.vision.multibox_transform_loc");
+  return Call::Unchecked(Type::Missing(), op,
+                         {std::move(cls_pred), std::move(loc_pred), std::move(anchor)},
+                         Attrs(attrs), {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -67,7 +68,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * skips those N-based relations; other checks (ndim, dtype, loc dim divisible by 4, etc.)
  * still apply when their inputs are known.
  */
-Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
+Type InferTypeMultiboxTransformLoc(const CallNode* call_node) {
+  const Call call = ffi::GetRef<Call>(call_node);
   if (call->args.size() != 3) {
     TVM_FFI_VISIT_THROW(ValueError, call)
         << "multibox_transform_loc: expected 3 inputs (cls_pred, loc_pred, anchor), "
@@ -75,7 +77,7 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
         << call->args.size();
   }
 
-  ffi::Array<TensorType> input_ty = GetInputTensorType(call, ctx);
+  ffi::Array<TensorType> input_ty = GetInputTensorType(call);
   const auto cls_ty = input_ty[0];
   const auto loc_ty = input_ty[1];
   const auto anchor_ty = input_ty[2];
@@ -186,19 +188,19 @@ Type InferTypeMultiboxTransformLoc(const Call& call, const BlockBuilder& ctx) {
   return TupleType(fields);
 }
 
-TVM_REGISTER_OP("relax.vision.multibox_transform_loc")
-    .describe(
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("relax.vision.multibox_transform_loc",
         "Decode SSD/TFLite-style priors and offsets into boxes and class scores. If "
         "cls_pred shape is unknown, N-based loc/anchor shape checks are skipped in "
         "inference. Very large variances (w,h) can overflow exp in half box sizes.")
-    .set_attrs_type<MultiboxTransformLocAttrs>()
-    .set_num_inputs(3)
-    .add_argument("cls_pred", "Tensor", "[B,C,N] class logits or scores.")
-    .add_argument("loc_pred", "Tensor",
-                  "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh.")
-    .add_argument("anchor", "Tensor", "[1,N,4] priors as ltrb (left,top,right,bottom).")
-    .set_attr<FInferType>("FInferType", InferTypeMultiboxTransformLoc)
-    .set_attr<bool>("FPurity", true);
+      .signature(sig::arg("cls_pred", "[B,C,N] class logits or scores."),
+                 sig::arg("loc_pred",
+                          "[B,4*N] box encodings (x,y,w,h); TFLite yxhw order remapped to xywh."),
+                 sig::arg("anchor", "[1,N,4] priors as ltrb (left,top,right,bottom)."),
+                 sig::call_attrs<MultiboxTransformLocAttrs>())
+      .set_attr<FInferType>("FInferType", FInferType::FromNative<&InferTypeMultiboxTransformLoc>())
+      .set_attr<bool>("FPurity", true);
+}
 
 }  // namespace relax
 }  // namespace tvm

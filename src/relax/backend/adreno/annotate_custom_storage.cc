@@ -122,12 +122,12 @@
  * 3: DefineVDevice: Pass does injects hint_on_device for each argument. It also tries to update
  *    out Type containing VDevice information. This update for tirx calls is straight forward
  *    as ty_args in CallNode is meant for this purpose. This ty_args for other calls by
- *    design is invalid as we do this by "FInferType".
- *    Another issue we have with "FInferType" per op is they can't decide this
+ *    design is invalid as we do this by per-op type inference.
+ *    Another issue with type inference per op is that it cannot decide this
  *    memory scope information which is done by this pass based on consumer demand.
  *    Hence, we are going to use the ty_args to indicate this information.
- *    So, this pass attributes ty_args for regumar calls too and FInferType implmentation
- *    do take VDevice information fro this hint. This also solves the issue of mixed VDevice
+ *    So, this pass attributes ty_args for regular calls too, and type inference implementations
+ *    take VDevice information from this hint. This also solves the issue of mixed VDevice
  *    for arguments of an op.
  * After these steps the mod looks like
  *
@@ -337,7 +337,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   }
 
   void VisitExpr_(const CallNode* call) final {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     GlobalVar gv;
     ffi::Array<Attrs> op_attrs;
     ffi::Optional<int64_t> op_pattern = static_cast<int64_t>(OpPatternKind::kOpaque);
@@ -495,19 +495,24 @@ class CollectProducerScopeInfo : public ExprVisitor {
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     ExprVisitor::VisitBinding_(binding, call);
 
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
     Type out_ty = Type::Missing();
 
     if (call->op.same_as(call_tir_op)) {
       out_ty = call->ty_args[0];
     } else {
-      tvm::OpAttrMap<FInferType> op_map_infer_ty = Op::GetAttrMap<FInferType>("FInferType");
-
       auto* op_ptr = call->op.as<OpNode>();
       Op op = ffi::GetRef<Op>(op_ptr);
-      TVM_FFI_ICHECK(op_map_infer_ty.count(op))
-          << " Cannot find the FInferType attribute registered to op: " << op->name;
-      out_ty = op_map_infer_ty[op](ffi::GetRef<Call>(call), builder_);
+      static auto op_map_context_free = Op::GetAttrMap<FInferType>("FInferType");
+      if (op_map_context_free.count(op)) {
+        out_ty = Call::ReinferType(call);
+      } else {
+        static auto op_map_infer_ty =
+            Op::GetAttrMap<FInferTypeWithBuilder>("relax.FInferTypeWithBuilder");
+        TVM_FFI_ICHECK(op_map_infer_ty.count(op))
+            << " Cannot find a type inference attribute registered to op: " << op->name;
+        out_ty = op_map_infer_ty[op](ffi::GetRef<Call>(call), builder_);
+      }
     }
 
     std::unordered_map<ffi::String, int> scope_count;
@@ -621,7 +626,7 @@ class DefineVDevice : ExprMutator {
 
   Expr VisitExpr_(const CallNode* call_node) override {
     auto call = ExprMutator::VisitExpr_(call_node).as_or_throw<Call>();
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op call_tir_op = Op::Get("relax.call_tir");
 
     GlobalVar gv;
     Tuple func_args;
@@ -693,11 +698,11 @@ class DefineVDevice : ExprMutator {
     }
 
     if (call->op.same_as(call_tir_op)) {
-      return builder_->Normalize(
-          Call(Type::Missing(), call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_ty}));
+      return builder_->Normalize(Call::Unchecked(
+          Type::Missing(), call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_ty}));
     } else {
       return builder_->Normalize(
-          Call(Type::Missing(), call->op, new_args, call->attrs, {updated_ret_ty}));
+          Call::Unchecked(Type::Missing(), call->op, new_args, call->attrs, {updated_ret_ty}));
     }
   }
 
@@ -733,7 +738,8 @@ class DefineVDevice : ExprMutator {
     attrs->index = vdev->vdevice_id;
     attrs->memory_scope = vdev->memory_scope;
 
-    Expr new_arg = Call(Type::Missing(), hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
+    Expr new_arg =
+        Call::Unchecked(Type::Missing(), hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
 
     return new_arg;
   }
@@ -749,7 +755,7 @@ class DefineVDevice : ExprMutator {
     return std::nullopt;
   }
 
-  const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
+  const Op hint_on_device_op_ = Op::Get("relax.hint_on_device");
   IRModule mod_;
   IRModule updates_;
   Target target_;

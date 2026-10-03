@@ -88,12 +88,18 @@ class Int32DTypeNarrowerBase : public Normalizer {
     return ffi::Unchanged();
   }
 
-  UnchangedOr<Stmt> Mutate_(const AllocBufferNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(builtin::alloc_tensor()))
+      return MutateAllocTensor(op, inplace_mode);
+    return Normalizer::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
     auto result = Normalizer::Mutate_(op, inplace_mode);
-    auto alloc = std::move(result)
-                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                     .template as_or_throw<AllocBuffer>();
-    CheckAllocatedBuffer(alloc->buffer);
+    auto alloc =
+        std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).template as_or_throw<Bind>();
+    CheckAllocatedBuffer(alloc->var.template as_or_throw<BufferVar>());
     return alloc;
   }
 

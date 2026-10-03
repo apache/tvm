@@ -16,21 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_SCRIPT_PRINTER_DIALECT_PREFIX_H_
-#define TVM_SCRIPT_PRINTER_DIALECT_PREFIX_H_
+#ifndef SRC_S_TIR_SCRIPT_PRINTER_UTILS_H_
+#define SRC_S_TIR_SCRIPT_PRINTER_UTILS_H_
 
-#include <tvm/ffi/string.h>
+#include <tvm/script/printer/doc_translator.h>
+#include <tvm/tirx/function.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
+namespace details {
 
-// Register during dialect static initialization so configuration can validate
-// and reserve the prefix before any docsifier assigns variable names.
-void RegisterDialectPrefix(const ffi::String& key, const ffi::String& default_prefix);
+void PrintSTirPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func);
 
+}  // namespace details
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm
 
-#endif  // TVM_SCRIPT_PRINTER_DIALECT_PREFIX_H_
+#endif  // SRC_S_TIR_SCRIPT_PRINTER_UTILS_H_

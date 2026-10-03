@@ -48,8 +48,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
-  DeclBufferFrameNode::RegisterReflection();
-  HintFrameNode::RegisterReflection();
+  DeclTensorFrameNode::RegisterReflection();
 }
 
 namespace {
@@ -277,33 +276,32 @@ void ElseFrameNode::ExitWithScope() {
   FindIfFrame("T.else_")->else_stmts = stmts;
 }
 
-void DeclBufferFrameNode::ExitWithScope() {
+void DeclTensorFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   if (allocated) {
-    AddToParent(tvm::tirx::SeqStmt::Flatten(tvm::tirx::DeclBuffer(buffer, data, source_span),
-                                            AsStmt(stmts)),
+    AddToParent(tvm::tirx::SeqStmt::Flatten(
+                    tvm::tirx::Bind(buffer,
+                                    tvm::Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
+                                              {data, tvm::Tuple(buffer->shape),
+                                               tvm::DataTypeImm(buffer->dtype->dtype),
+                                               tvm::StringImm(buffer.scope())},
+                                              {}, {}, source_span),
+                                    source_span),
+                    AsStmt(stmts)),
                 source_span);
   } else {
-    // data is undefined in `decl_buffer(...)`, lower to `alloc_buffer(...)`.
+    // data is undefined in `decl_tensor(...)`, lower to `alloc_tensor(...)`.
     AddToParent(
-        tvm::tirx::SeqStmt::Flatten(tvm::tirx::AllocBuffer(buffer, {}, source_span), AsStmt(stmts)),
+        tvm::tirx::SeqStmt::Flatten(
+            tvm::tirx::Bind(buffer.var(),
+                            Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
+                                 {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                  StringImm(buffer.scope())},
+                                 DictAttrs(), {}, source_span),
+                            source_span),
+            AsStmt(stmts)),
         source_span);
   }
-}
-
-void HintFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  // Always store attrs as a structured Map in the node field
-  ffi::Map<ffi::String, Any> full_attrs;
-  if (!message.empty()) {
-    full_attrs.Set("message", ffi::String(message));
-  }
-  for (const auto& [k, v] : attrs) {
-    full_attrs.Set(k, v);
-  }
-  AddToParent(
-      tvm::tirx::AttrStmt(full_attrs, "tirx_hint", IntImm::Int32(1), AsStmt(stmts), source_span),
-      source_span);
 }
 
 }  // namespace tirx

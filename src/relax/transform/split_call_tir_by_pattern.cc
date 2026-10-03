@@ -411,7 +411,7 @@ class TIRPatternMatcher {
       ffi::Array<Var> pattern_symbolic_vars;
       int buffer_count = 0;
       while (buffer_count < static_cast<int>(pattern_func->params.size()) &&
-             pattern_func->params[buffer_count]->ty.as<tirx::BufferTypeNode>()) {
+             pattern_func->params[buffer_count]->ty.as<tirx::TensorTypeNode>()) {
         ++buffer_count;
       }
       for (int i = buffer_count; i < static_cast<int>(pattern_func->params.size()); i++) {
@@ -725,8 +725,8 @@ class SplitMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* op) final {
     Call call = ExprMutator::VisitExpr_(op).as_or_throw<Call>();
-    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
-    static const Op& call_dps_packed_ = Op::Get("relax.call_dps_packed");
+    static const Op call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op call_dps_packed_ = Op::Get("relax.call_dps_packed");
     if (!call->op.same_as(call_tir_op_)) return call;
     // the first argument is the function to be called
     const auto* gv_ptr = call->args[0].as<GlobalVarNode>();
@@ -781,7 +781,7 @@ class SplitMutator : public ExprMutator {
     return call2;
   }
 
-  const Op& call_dps_packed_ = Op::Get("relax.call_dps_packed");
+  const Op call_dps_packed_ = Op::Get("relax.call_dps_packed");
   tvm::IRModule mod_;
   ffi::Array<TIRPattern> patterns_;
   FCodegen fcodegen_;

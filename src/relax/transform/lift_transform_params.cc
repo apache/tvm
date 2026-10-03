@@ -302,7 +302,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
 
       using ExprMutator::VisitExpr_;
       Expr VisitExpr_(const CallNode* call) override {
-        static const Op& stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
+        static const Op stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
         if (call->op.same_as(stop_lift_params_op)) {
           return VisitExpr(call->args[0]);
         } else {
@@ -342,7 +342,7 @@ class BaseLiftableBindingCollector : public ExprVisitor {
 
     // Cond 2. Do not lift regarding the "builtin.stop_lift_params" op.
     if (const auto* call = value.as<CallNode>()) {
-      static const Op& stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
+      static const Op stop_lift_params_op = Op::Get("relax.builtin.stop_lift_params");
       if (call->op.same_as(stop_lift_params_op)) {
         return false;
       }
@@ -636,7 +636,7 @@ inline bool ends_with(const std::string& value, const std::string& ending) {
 class ConsumeBundledParams : public ExprMutator {
  public:
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* tuple_get_item) final {
-    static const auto& call_pure_packed = Op::Get("relax.call_pure_packed");
+    static const auto call_pure_packed = Op::Get("relax.call_pure_packed");
     static const auto& builtin_tuple_reset_item = ExternFunc("vm.builtin.tuple_reset_item");
     if (tuple_get_item->tuple.same_as(params_)) {
       if (auto it = param_remap_.find(tuple_get_item->index); it != param_remap_.end()) {
@@ -646,10 +646,10 @@ class ConsumeBundledParams : public ExprMutator {
       ExprMutator::VisitBinding_(binding, tuple_get_item);
       auto new_var = VisitExpr(binding->var);
       param_remap_[tuple_get_item->index] = new_var;
-      builder_->Emit(
-          Call(Type::Missing(), call_pure_packed,
-               {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
-               tvm::Attrs(), {TupleType(ffi::Array<Type>{})}));
+      builder_->Emit(Call::Unchecked(
+          Type::Missing(), call_pure_packed,
+          {builtin_tuple_reset_item, tuple_get_item->tuple, PrimExpr(tuple_get_item->index)},
+          tvm::Attrs(), {TupleType(ffi::Array<Type>{})}));
     } else {
       ExprMutator::VisitBinding_(binding, tuple_get_item);
     }

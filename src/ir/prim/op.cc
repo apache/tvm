@@ -30,6 +30,39 @@ using prim::is_const_int;
 using prim::MakeConst;
 using namespace prim::detail;
 namespace {
+TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
+  // Avoid PrimExpr::ty() ObjectRef materialization on binary operator hot paths.
+  const auto* node = expr.get();
+  TVM_FFI_DCHECK(node != nullptr);
+  TVM_FFI_DCHECK(!node->ExprNode::ty.IsMissing());
+  const auto* prim_ty = node->ExprNode::ty.as<PrimTypeNode>();
+  TVM_FFI_DCHECK(prim_ty != nullptr);
+  return prim_ty;
+}
+
+TVM_FFI_INLINE bool IsFloatType(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat);
+}
+
+TVM_FFI_INLINE bool IsBFloat16Type(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLBfloat);
+}
+
+TVM_FFI_INLINE bool IsFloat8Type(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat8_e3m4, DLDataTypeCode::kDLFloat8_e4m3,
+                        DLDataTypeCode::kDLFloat8_e4m3b11fnuz, DLDataTypeCode::kDLFloat8_e4m3fn,
+                        DLDataTypeCode::kDLFloat8_e4m3fnuz, DLDataTypeCode::kDLFloat8_e5m2,
+                        DLDataTypeCode::kDLFloat8_e5m2fnuz, DLDataTypeCode::kDLFloat8_e8m0fnu);
+}
+
+TVM_FFI_INLINE bool IsFloat6Type(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat6_e2m3fn, DLDataTypeCode::kDLFloat6_e3m2fn);
+}
+
+TVM_FFI_INLINE bool IsFloat4Type(const PrimType& ty) {
+  return ty.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn);
+}
+
 // File-local helper: true if `expr` is a call to prim::builtin::vscale().
 bool IsVScaleCall(const PrimExpr& expr) {
   if (const auto* call = expr.as<CallNode>()) {
@@ -543,21 +576,33 @@ PrimExpr not_equal(PrimExpr a, PrimExpr b, Span span) {
 
 PrimExpr operator&&(PrimExpr a, PrimExpr b) { return logical_and(a, b); }
 PrimExpr logical_and(PrimExpr a, PrimExpr b, Span span) {
-  type_check_boolean_args(a, b, "&& operator (logical AND)");
+  TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLBool))
+      << "Expected boolean argument as LHS of && operator (logical AND), but received " << a
+      << " of type " << a.ty();
+  TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLBool))
+      << "Expected boolean argument as RHS of && operator (logical AND), but received " << b
+      << " of type " << b.ty();
   if (auto ret = prim::detail::TryConstFold<prim::And>(a, b)) return ret.value();
   return prim::And(a, b, span);
 }
 
 PrimExpr operator||(PrimExpr a, PrimExpr b) { return logical_or(a, b); }
 PrimExpr logical_or(PrimExpr a, PrimExpr b, Span span) {
-  type_check_boolean_args(a, b, "|| operator (logical OR)");
+  TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLBool))
+      << "Expected boolean argument as LHS of || operator (logical OR), but received " << a
+      << " of type " << a.ty();
+  TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLBool))
+      << "Expected boolean argument as RHS of || operator (logical OR), but received " << b
+      << " of type " << b.ty();
   if (auto ret = prim::detail::TryConstFold<prim::Or>(a, b)) return ret.value();
   return prim::Or(a, b, span);
 }
 
 PrimExpr operator!(PrimExpr a) { return logical_not(a); }
 PrimExpr logical_not(PrimExpr a, Span span) {
-  type_check_boolean_args(a, "! operator (logical NOT)");
+  TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLBool))
+      << "Expected boolean argument for ! operator (logical NOT), but received " << a << " of type "
+      << a.ty();
   if (auto ret = prim::detail::TryConstFold<prim::Not>(a)) return ret.value();
   return prim::Not(a, span);
 }
@@ -566,7 +611,12 @@ PrimExpr logical_not(PrimExpr a, Span span) {
 PrimExpr operator>>(PrimExpr a, PrimExpr b) { return right_shift(a, b); }
 
 PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
-  type_check_integer_args(a, b, ">> operator (right shift)");
+  TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
+      << "Expected integer argument as LHS of >> operator (right shift), but received " << a
+      << " of type " << a.ty();
+  TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
+      << "Expected integer argument as RHS of >> operator (right shift), but received " << b
+      << " of type " << b.ty();
 
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
@@ -589,7 +639,12 @@ PrimExpr right_shift(PrimExpr a, PrimExpr b, Span span) {
 // shift left
 PrimExpr operator<<(PrimExpr a, PrimExpr b) { return left_shift(a, b); }
 PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
-  type_check_integer_args(a, b, "<< operator (left shift)");
+  TVM_FFI_ICHECK(a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
+      << "Expected integer argument as LHS of << operator (left shift), but received " << a
+      << " of type " << a.ty();
+  TVM_FFI_ICHECK(b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt))
+      << "Expected integer argument as RHS of << operator (left shift), but received " << b
+      << " of type " << b.ty();
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
@@ -612,7 +667,14 @@ PrimExpr left_shift(PrimExpr a, PrimExpr b, Span span) {
 // bitwise and
 PrimExpr operator&(PrimExpr a, PrimExpr b) { return bitwise_and(a, b); }
 PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
-  type_check_int_or_bool_args(a, b, "& operator (bitwise AND)");
+  TVM_FFI_ICHECK(
+      a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
+      << "Expected integer argument as LHS of & operator (bitwise AND), but received " << a
+      << " of type " << a.ty();
+  TVM_FFI_ICHECK(
+      b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
+      << "Expected integer argument as RHS of & operator (bitwise AND), but received " << b
+      << " of type " << b.ty();
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
@@ -624,7 +686,14 @@ PrimExpr bitwise_and(PrimExpr a, PrimExpr b, Span span) {
 // bitwise_or
 PrimExpr operator|(PrimExpr a, PrimExpr b) { return bitwise_or(a, b); }
 PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
-  type_check_int_or_bool_args(a, b, "| operator (bitwise OR)");
+  TVM_FFI_ICHECK(
+      a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
+      << "Expected integer argument as LHS of | operator (bitwise OR), but received " << a
+      << " of type " << a.ty();
+  TVM_FFI_ICHECK(
+      b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
+      << "Expected integer argument as RHS of | operator (bitwise OR), but received " << b
+      << " of type " << b.ty();
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
@@ -636,7 +705,14 @@ PrimExpr bitwise_or(PrimExpr a, PrimExpr b, Span span) {
 // bitwise_xor
 PrimExpr operator^(PrimExpr a, PrimExpr b) { return bitwise_xor(a, b); }
 PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
-  type_check_int_or_bool_args(a, b, "^ operator (bitwise XOR)");
+  TVM_FFI_ICHECK(
+      a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
+      << "Expected integer argument as LHS of ^ operator (bitwise XOR), but received " << a
+      << " of type " << a.ty();
+  TVM_FFI_ICHECK(
+      b.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
+      << "Expected integer argument as RHS of ^ operator (bitwise XOR), but received " << b
+      << " of type " << b.ty();
   BinaryOpMatchTypes(a, b, span);
   TVM_PRIM_INDEX_CONST_PROPAGATION({
     PrimType result_ty = a.ty();
@@ -649,7 +725,10 @@ PrimExpr bitwise_xor(PrimExpr a, PrimExpr b, Span span) {
 PrimExpr operator~(PrimExpr a) { return bitwise_neg(a); }
 
 PrimExpr bitwise_neg(PrimExpr a, Span span) {
-  type_check_int_or_bool_args(a, "~ operator (bitwise NOT)");
+  TVM_FFI_ICHECK(
+      a.ty().MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt, DLDataTypeCode::kDLBool))
+      << "Expected integer or boolean argument for ~ operator (bitwise NOT), but received " << a
+      << " of type " << a.ty();
   return prim::BitwiseNot(a, span);
 }
 

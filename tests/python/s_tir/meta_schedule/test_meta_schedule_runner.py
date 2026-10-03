@@ -73,9 +73,9 @@ MATMUL_M = 32
 class MatmulModule:
     @Ts.prim_func
     def main(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -91,9 +91,9 @@ class MatmulModule:
 class MatmulReluModule:
     @Ts.prim_func
     def main(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        D: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        D: T.Tensor((16, 16), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -114,7 +114,7 @@ class MatmulReluModule:
 class BatchMatmulModule:
     @Ts.prim_func
     def main(
-        A: T.Buffer([16, 32, 32]), B: T.Buffer([16, 32, 32]), C: T.Buffer([16, 32, 32])
+        A: T.Tensor([16, 32, 32]), B: T.Tensor([16, 32, 32]), C: T.Tensor([16, 32, 32])
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -130,7 +130,7 @@ class BatchMatmulModule:
 class AddModule:
     @Ts.prim_func
     def main(
-        A: T.Buffer([32], "float32"), B: T.Buffer([32], "float32"), C: T.Buffer([32], "float32")
+        A: T.Tensor([32], "float32"), B: T.Tensor([32], "float32"), C: T.Tensor([32], "float32")
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -145,9 +145,9 @@ class AddModule:
 class MatmulHugeModule:
     @Ts.prim_func
     def main(
-        A: T.Buffer((4096, 4096), "float32"),
-        B: T.Buffer((4096, 4096), "float32"),
-        C: T.Buffer((4096, 4096), "float32"),
+        A: T.Tensor((4096, 4096), "float32"),
+        B: T.Tensor((4096, 4096), "float32"),
+        C: T.Tensor((4096, 4096), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
