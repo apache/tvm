@@ -364,5 +364,21 @@ def test_workgroup_allocation_uses_target_limit():
     _build_webgpu(Module, {"kind": "webgpu", "max_shared_memory_per_block": 65536})
 
 
+def test_grid_pack_guard_rejects_id_equal_to_workgroup_count():
+    """The runtime pads the launch when it folds x into z, so id == packGridDimX must return."""
+
+    @I.ir_module(s_tir=True)
+    class Module:
+        @T.prim_func(s_tir=True)
+        def main(B: T.Buffer((8,), "int32")):
+            for i in T.thread_binding(8, thread="blockIdx.x"):
+                for j in T.thread_binding(1, thread="threadIdx.x"):
+                    B[i] = i
+
+    executable = tvm.compile(Module, target="webgpu")
+    source = executable.mod.imports[0].inspect_source("wgsl")
+    assert re.search(r"blockIdx\.x >= \w+\.packGridDimX\) \{ return; \}", source)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
