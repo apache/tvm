@@ -277,6 +277,7 @@ namespace transform {
 
 Pass RemoveNoOp() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     RemoveNoOpConfig config =
         ctx->GetConfig<RemoveNoOpConfig>("tirx.RemoveNoOp")
             .value_or(tvm::transform::PassConfigWithDefaults<RemoveNoOpConfig>());
@@ -289,7 +290,7 @@ Pass RemoveNoOp() {
     {
       auto* write_ptr = f.CopyOnWrite();
       write_ptr->body =
-          NoOpRemover::Apply(std::move(write_ptr->body), analyzer, ignore_profiler_call);
+          NoOpRemover::Apply(std::move(write_ptr->body).value(), analyzer, ignore_profiler_call);
     }
     return f;
   };

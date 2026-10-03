@@ -128,7 +128,7 @@ class CuTensorMapDedupAnalyzer : public StmtExprVisitor {
             if (ffi::StructuralEqual()(kv.first, key)) {
               const Var& canonical = kv.second;
               if (!canonical.same_as(v)) {
-                tensormap_var_remap_[v] = canonical;
+                tensormap_var_remap_.insert_or_assign(v, canonical);
               }
               found = true;
               break;

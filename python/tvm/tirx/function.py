@@ -44,8 +44,8 @@ class PrimFunc(BaseFunc, Scriptable):
     params: List[Union[tvm.tirx.Var, tvm.tirx.Buffer]]
         List of input parameters to the function.
 
-    body: tvm.tirx.Stmt
-        The body of the function.
+    body: Optional[tvm.tirx.Stmt]
+        The body of the function, or None for a declaration.
 
     ret_type: tvm.ir.Type
         The return type annotation of the function.
@@ -89,8 +89,8 @@ class PrimFunc(BaseFunc, Scriptable):
 
         Parameters
         ----------
-        new_body : Stmt
-            The new body.
+        new_body : Optional[Stmt]
+            The new body, or None for a declaration.
 
         span : Optional[Span]
             The location of this itervar in the source code.

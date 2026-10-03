@@ -53,9 +53,7 @@ using prim::MakeConst;
 TVM_FFI_STATIC_INIT_BLOCK() { IntervalSetNode::RegisterReflection(); }
 
 IntervalSet::IntervalSet(PrimExpr min_value, PrimExpr max_value) {
-  auto node = ffi::make_object<IntervalSetNode>();
-  node->min_value = std::move(min_value);
-  node->max_value = std::move(max_value);
+  auto node = ffi::make_object<IntervalSetNode>(std::move(min_value), std::move(max_value));
   data_ = std::move(node);
 }
 
@@ -124,7 +122,7 @@ template <typename Op, typename OpNode>
 inline IntervalSet Combine(AnalyzerObj* analyzer, IntervalSet a, IntervalSet b, const OpNode* op) {
   PrimType dtype = op->ty.template as_or_throw<PrimType>();
   if (a->IsSinglePoint() && b->IsSinglePoint()) {
-    PrimExpr expr;
+    PrimExpr expr{ffi::UnsafeInit{}};
     if (auto res = TryConstFold<Op>(a->min_value, b->min_value)) {
       expr = res.value();
     } else {
@@ -777,7 +775,7 @@ std::function<void()> IntSetAnalyzer::Impl::EnterConstraint(const PrimExpr& cons
   size_t new_size = dom_constraints_.size();
   auto frecover = [old_size, new_size, this]() {
     TVM_FFI_ICHECK_EQ(dom_constraints_.size(), new_size);
-    dom_constraints_.resize(old_size);
+    dom_constraints_.erase(dom_constraints_.begin() + old_size, dom_constraints_.end());
   };
   return frecover;
 }
@@ -968,34 +966,32 @@ IntSet UnionLowerBound(const ffi::Array<IntSet>& sets) {
   if (sets.size() == 0) return IntSet::Nothing();
   if (sets.size() == 1) return sets[0];
   Analyzer analyzer;
-  bool is_first_interval = true;
-  PrimExpr min_inclusive{nullptr};
-  PrimExpr max_inclusive(nullptr);
+  ffi::Optional<PrimExpr> min_inclusive;
+  ffi::Optional<PrimExpr> max_inclusive;
   for (const IntSet& int_set : sets) {
     if (int_set.IsNothing()) continue;
     if (const auto* interval_set = int_set.as<IntervalSetNode>()) {
       PrimExpr new_min_inclusive = interval_set->min_value;
       PrimExpr new_max_inclusive = interval_set->max_value;
-      if (is_first_interval) {
-        is_first_interval = false;
+      if (!min_inclusive.has_value()) {
         min_inclusive = std::move(new_min_inclusive);
         max_inclusive = std::move(new_max_inclusive);
         continue;
       }
-      bool bound_1 = is_neg_inf(new_min_inclusive) || is_pos_inf(max_inclusive) ||
-                     analyzer->CanProve(new_min_inclusive <= max_inclusive + 1);
-      bool bound_2 = is_neg_inf(min_inclusive) || is_pos_inf(new_max_inclusive) ||
-                     analyzer->CanProve(min_inclusive <= new_max_inclusive + 1);
+      bool bound_1 = is_neg_inf(new_min_inclusive) || is_pos_inf(max_inclusive.value()) ||
+                     analyzer->CanProve(new_min_inclusive <= max_inclusive.value() + 1);
+      bool bound_2 = is_neg_inf(min_inclusive.value()) || is_pos_inf(new_max_inclusive) ||
+                     analyzer->CanProve(min_inclusive.value() <= new_max_inclusive + 1);
       if (bound_1 && bound_2) {
-        min_inclusive = min(min_inclusive, new_min_inclusive);
-        max_inclusive = max(max_inclusive, new_max_inclusive);
+        min_inclusive = min(min_inclusive.value(), new_min_inclusive);
+        max_inclusive = max(max_inclusive.value(), new_max_inclusive);
       }
     }
   }
-  if (is_first_interval) {
+  if (!min_inclusive.has_value()) {
     return IntSet::Nothing();
   }
-  return IntSet::Interval(min_inclusive, max_inclusive);
+  return IntSet::Interval(min_inclusive.value(), max_inclusive.value());
 }
 
 ffi::Array<IntSet> UnionRegionLowerBound(const ffi::Array<ffi::Array<IntSet>>& nd_int_sets) {

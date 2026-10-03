@@ -666,13 +666,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ScopeIdDefStmtMaybeInpl
 TVM_FFI_STATIC_INIT_BLOCK() { StmtNode::RegisterReflection(); }
 
 // Bind
-Bind::Bind(Var var, Expr value, Span span) {
+Bind::Bind(Var var, Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(ffi::StructuralEqual()(value->ty, var->ty));
 
-  ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
-  node->var = std::move(var);
-  node->value = std::move(value);
+  ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>(std::move(var), std::move(value));
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -691,12 +689,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // AttrStmt
-AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span) {
-  auto n = ffi::make_object<AttrStmtNode>();
+AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<AttrStmtNode>(std::move(value), std::move(body));
   n->node = node;
   n->attr_key = std::move(attr_key);
-  n->value = std::move(value);
-  n->body = std::move(body);
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -719,7 +716,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // AssertStmt
 AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
-                       ffi::Array<StringImm> message_parts, Span span) {
+                       ffi::Array<StringImm> message_parts, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   PrimType condition_ty = condition.ty();
   TVM_FFI_ICHECK(condition_ty.MatchesCode(DLDataTypeCode::kDLBool))
@@ -727,9 +725,8 @@ AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
       << "but received " << condition << " with dtype " << condition_ty;
   TVM_FFI_ICHECK(error_kind.defined());
 
-  ffi::ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
-  node->condition = std::move(condition);
-  node->error_kind = std::move(error_kind);
+  ffi::ObjectPtr<AssertStmtNode> node =
+      ffi::make_object<AssertStmtNode>(std::move(condition), std::move(error_kind));
   node->message_parts = std::move(message_parts);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -755,7 +752,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // For
 For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
          ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations,
-         ffi::Optional<PrimExpr> step, Span span) {
+         ffi::Optional<PrimExpr> step, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(loop_var.defined());
   TVM_FFI_ICHECK(min.defined());
   TVM_FFI_ICHECK(extent.defined());
@@ -804,12 +802,9 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt bod
         << loop_var.ty() << " vs " << step.value().ty();
   }
 
-  ffi::ObjectPtr<ForNode> node = ffi::make_object<ForNode>();
-  node->loop_var = std::move(loop_var);
-  node->min = std::move(min);
-  node->extent = std::move(extent);
+  ffi::ObjectPtr<ForNode> node = ffi::make_object<ForNode>(std::move(loop_var), std::move(min),
+                                                           std::move(extent), std::move(body));
   node->kind = kind;
-  node->body = std::move(body);
   node->thread_binding = std::move(thread_binding);
   node->annotations = std::move(annotations);
   node->step = std::move(step);
@@ -859,14 +854,13 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
 }
 
 // While
-While::While(PrimExpr condition, Stmt body, Span span) {
+While::While(PrimExpr condition, Stmt body, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(condition.ty().IsScalar());
   TVM_FFI_ICHECK(body.defined());
 
-  ffi::ObjectPtr<WhileNode> node = ffi::make_object<WhileNode>();
-  node->condition = std::move(condition);
-  node->body = std::move(body);
+  ffi::ObjectPtr<WhileNode> node =
+      ffi::make_object<WhileNode>(std::move(condition), std::move(body));
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -886,11 +880,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Return
-Return::Return(Expr value, Span span) {
+Return::Return(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
 
-  ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>();
-  node->value = std::move(value);
+  ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>(std::move(value));
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -908,7 +901,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Break
-Break::Break(Span span) {
+Break::Break(Span span) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<BreakNode> node = ffi::make_object<BreakNode>();
   node->span = std::move(span);
   data_ = std::move(node);
@@ -927,7 +920,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Continue
-Continue::Continue(Span span) {
+Continue::Continue(Span span) : Stmt(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<ContinueNode> node = ffi::make_object<ContinueNode>();
   node->span = std::move(span);
   data_ = std::move(node);
@@ -947,7 +940,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // SeqStmt
-SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) {
+SeqStmt::SeqStmt(ffi::Array<Stmt> seq, Span span) : Stmt(ffi::UnsafeInit{}) {
   bool requires_flattening = std::any_of(
       seq.begin(), seq.end(), [](const Stmt& stmt) { return stmt->IsInstance<SeqStmtNode>(); });
 
@@ -989,14 +982,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // IfThenElse
-IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> else_case,
-                       Span span) {
+IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> else_case, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(then_case.defined());
   // else_case may be null.
-  ffi::ObjectPtr<IfThenElseNode> node = ffi::make_object<IfThenElseNode>();
-  node->condition = std::move(condition);
-  node->then_case = std::move(then_case);
+  ffi::ObjectPtr<IfThenElseNode> node =
+      ffi::make_object<IfThenElseNode>(std::move(condition), std::move(then_case));
   node->else_case = std::move(else_case);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -1013,21 +1005,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&IfThenElseMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.IfThenElse",
-                        [](PrimExpr condition, Stmt then_case, Stmt else_case, Span span) {
-                          return IfThenElse(condition, then_case, else_case, span);
-                        });
+  refl::GlobalDef().def("tirx.IfThenElse", [](PrimExpr condition, Stmt then_case,
+                                              ffi::Optional<Stmt> else_case, Span span) {
+    return IfThenElse(condition, then_case, else_case, span);
+  });
 }
 
 // Evaluate
-Evaluate::Evaluate(Expr value, Span span) {
+Evaluate::Evaluate(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(!(value->IsInstance<VarNode>() && value->ty.as<TensorTypeNode>()))
       << "A buffer variable cannot be used as a scalar Evaluate value; "
       << "use buffer.data to evaluate its physical pointer";
 
-  ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>();
-  node->value = std::move(value);
+  ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>(std::move(value));
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -1051,8 +1042,8 @@ TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
   return ty.IsScalableVector() ? ty.VScaleFactor() : ty.lanes();
 }
 
-BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
-                         Span span) {
+BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
       << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -1100,9 +1091,8 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
                              << "`, but RHS's dtype is `" << value_ty << "`";
   }
 
-  ffi::ObjectPtr<BufferStoreNode> node = ffi::make_object<BufferStoreNode>();
-  node->buffer = std::move(buffer);
-  node->value = std::move(value);
+  ffi::ObjectPtr<BufferStoreNode> node =
+      ffi::make_object<BufferStoreNode>(std::move(buffer), std::move(value));
   node->indices = std::move(indices);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -1125,7 +1115,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // ScopeIdDefStmt
-ScopeIdDefStmt::ScopeIdDefStmt(ScopeIdDef def, Span span) {
+ScopeIdDefStmt::ScopeIdDefStmt(ScopeIdDef def, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(def.defined());
   ffi::ObjectPtr<ScopeIdDefStmtNode> node = ffi::make_object<ScopeIdDefStmtNode>();
   node->def = std::move(def);

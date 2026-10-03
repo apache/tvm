@@ -318,7 +318,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inpl
     auto body = scope_.WithNewScope(
         [&]() -> Stmt { return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body); });
 
-    Stmt output;
+    Stmt output = ffi::GetRef<Stmt>(op);
     if (new_iter_var.get() == iter_var && body.same_as(op->body) && value_unchanged) {
       output = ffi::GetRef<Stmt>(op);
     } else {

@@ -105,8 +105,8 @@ class CodeGenCPU : public CodeGenLLVM {
  private:
   // the parallel group information
   struct ParallelEnv {
-    Var task_id;
-    Var num_task;
+    ffi::Optional<Var> task_id;
+    ffi::Optional<Var> num_task;
     bool stride_pattern{false};
     bool in_parallel_loop{false};
     int parallel_loop_count{0};

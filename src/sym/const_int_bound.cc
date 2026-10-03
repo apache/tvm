@@ -102,7 +102,6 @@ class ConstIntBoundAnalyzer::Impl
     /*! \brief The additional bound */
     Entry bound;
 
-    BoundInfo() {}
     BoundInfo(PrimExpr expr, Entry bound) : expr(expr), bound(bound) {}
   };
 
@@ -527,7 +526,7 @@ class ConstIntBoundAnalyzer::Impl
     additional_info_.insert(additional_info_.end(), info.begin(), info.end());
     auto frecover = [old_size, this]() {
       if (additional_info_.size() > old_size) {
-        additional_info_.resize(old_size);
+        additional_info_.erase(additional_info_.begin() + old_size, additional_info_.end());
       }
     };
     return frecover;

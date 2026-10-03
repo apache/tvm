@@ -249,7 +249,9 @@ class BaseFuncNode : public ExprNode {
  */
 class BaseFunc : public Expr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BaseFunc, Expr, BaseFuncNode);
+  explicit BaseFunc(ffi::ObjectPtr<BaseFuncNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BaseFunc, Expr, BaseFuncNode);
 };
 
 }  // namespace tvm

@@ -42,7 +42,7 @@ struct NKIInstructionCtx {
   int buffer_index = -1;
   int used_var_cnt = 0;
   PrimType dst_dtype = PrimType::Void();
-  PrimExpr mask;
+  ffi::Optional<PrimExpr> mask;
   bool tensorizing = false;
 };
 

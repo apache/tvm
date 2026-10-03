@@ -248,7 +248,7 @@ class ComputeLegalizer : public StmtExprMutator {
       BufferVar original = op->args[0].as_or_throw<BufferVar>();
       BufferVar buffer = GetRemappedBuffer(original);
       ffi::Array<Expr> args{buffer.var()};
-      PrimExpr value;
+      ffi::Optional<PrimExpr> value;
       if (!is_load) {
         value = this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       }
@@ -267,14 +267,14 @@ class ComputeLegalizer : public StmtExprMutator {
         return Call(type, op->op, args, op->attrs, op->ty_args, op->span);
       }
       if (MatchType(buffer->dtype)) {
-        value = CastTargetToDType(value, BufferLoad(buffer, indices).ty());
+        value = CastTargetToDType(value.value(), BufferLoad(buffer, indices).ty());
       }
       PrimType storage_dtype = BufferLoad(buffer, indices).ty();
-      if (value.ty() != storage_dtype) {
-        TVM_FFI_ICHECK(MatchType(value.ty()));
-        value = DTypeConversion(value, storage_dtype);
+      if (value.value().ty() != storage_dtype) {
+        TVM_FFI_ICHECK(MatchType(value.value().ty()));
+        value = DTypeConversion(value.value(), storage_dtype);
       }
-      args.push_back(value);
+      args.push_back(value.value());
       for (const PrimExpr& index : indices) args.push_back(index);
       args.push_back(predicate);
       return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
@@ -633,14 +633,14 @@ class StorageLegalizer : public StmtExprMutator {
       bool is_load = op->op.same_as(builtin::masked_load());
       BufferVar buffer = GetRemappedBuffer(op->args[0].as_or_throw<BufferVar>());
       ffi::Array<Expr> args{buffer.var()};
-      PrimExpr value;
+      ffi::Optional<PrimExpr> value;
       if (!is_load) {
         PrimExpr original_value = op->args[1].as_or_throw<PrimExpr>();
         value = this->ChangeToUInt(this->Mutate(original_value).ValueOrUnchanged(original_value));
         if (MatchType(original_value.ty())) {
           TVM_FFI_ICHECK(buffer->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
         }
-        args.push_back(value);
+        args.push_back(value.value());
       }
       ffi::Array<PrimExpr> indices;
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {

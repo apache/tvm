@@ -24,7 +24,7 @@ namespace tvm {
 namespace tirx {
 
 const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) {
-  GlobalVar result;
+  ffi::Optional<GlobalVar> result, last_gvar;
   // Priority 1: PrimFunc marked as `tirx::attr::kIsEntryFunc`
   int num_prim_func = 0;
   const tirx::PrimFuncNode* main_func = nullptr;
@@ -34,6 +34,7 @@ const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) 
     BaseFunc base_func = kv.second;
     if (const auto* func = base_func.as<tirx::PrimFuncNode>()) {
       last_func = func;
+      last_gvar = gv;
       if (func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
         if (result_g_var != nullptr) {
           *result_g_var = gv;
@@ -50,14 +51,14 @@ const PrimFuncNode* FindEntryFunc(const IRModule& mod, GlobalVar* result_g_var) 
   // Priority 2: PrimFunc whose name is `main`
   if (main_func != nullptr) {
     if (result_g_var != nullptr) {
-      *result_g_var = result;
+      *result_g_var = result.value();
     }
     return main_func;
   }
   // Priority 3: The only PrimFunc in the IRModule
   if (num_prim_func == 1) {
     if (result_g_var != nullptr) {
-      *result_g_var = result;
+      *result_g_var = last_gvar.value();
     }
     return last_func;
   }

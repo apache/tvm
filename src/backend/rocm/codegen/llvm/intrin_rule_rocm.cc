@@ -87,7 +87,7 @@ inline PrimExpr DispatchShuffle(const PrimExpr& e) {
 
   // compute lane to get from
   PrimExpr width = args[3];
-  PrimExpr index;
+  PrimExpr index{ffi::UnsafeInit{}};
   if (call->op.same_as(tirx::builtin::tvm_warp_shuffle())) {
     PrimExpr src_lane = args[2];
     index = src_lane + (self & ~(width - 1));

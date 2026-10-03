@@ -140,7 +140,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     auto body_result =
         specializer->Mutate(f->body, f.unique() ? InplaceMode::kAllow : InplaceMode::kDisallow);
     bool body_unchanged = body_result.UnchangedOrSameAs(f->body);
-    Stmt body = std::move(body_result).ValueOrUnchanged(f->body);
+    auto body = std::move(body_result).ValueOrUnchanged(f->body);
 
     if (param_updated || !body_unchanged) {
       return PrimFunc(params, body, f->ret_type, f->attrs, f->span);
@@ -389,7 +389,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Buffer
             << "The assigned value of var " << var << " mismatched. " << it->second << " vs. "
             << new_expr << ".";
       } else {
-        (*var_map)[var] = new_expr;
+        var_map->insert_or_assign(var, new_expr);
       }
     }
   };
@@ -442,7 +442,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Expr& 
   TVM_FFI_CHECK(!param.as<BufferVar>(), ValueError)
       << "Specialize expects param to not have a TensorType annotation";
   // build var mapping using specific_expr
-  (*var_map)[param] = specific_expr;
+  var_map->insert_or_assign(param, specific_expr);
 }
 
 /**************** Implementation ****************/

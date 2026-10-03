@@ -39,7 +39,7 @@ class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer
   static PrimFunc RewriteDataType(PrimFunc func) {
     // The TIRX normalizer does not rewrite S-TIR block iterators, regions, or match buffers, so
     // narrowing a function that still contains blocks would leave their index types inconsistent.
-    if (ContainsNode<s_tir::SBlockRealizeNode>(func->body)) {
+    if (func->body.has_value() && ContainsNode<s_tir::SBlockRealizeNode>(func->body.value())) {
       TVM_FFI_THROW(ValueError)
           << "tirx.transform.ForceNarrowIndexToInt32 requires a function without S-TIR blocks. "
           << "Use s_tir.transform.ForceNarrowIndexToInt32 before block lowering.";

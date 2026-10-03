@@ -358,10 +358,9 @@ std::pair<PrimExpr, PrimExpr> GetThread(const std::string& tag, const LaunchPara
 }
 
 PrimExpr GetLinearThreadIndex(const LaunchParams& params) {
-  PrimExpr tx, ty, tz, ex, ey, ez;
-  std::tie(tx, ex) = GetThread("threadIdx.x", params, true);
-  std::tie(ty, ey) = GetThread("threadIdx.y", params, true);
-  std::tie(tz, ez) = GetThread("threadIdx.z", params, true);
+  auto [tx, ex] = GetThread("threadIdx.x", params, true);
+  auto [ty, ey] = GetThread("threadIdx.y", params, true);
+  auto [tz, ez] = GetThread("threadIdx.z", params, true);
   return tx + ty * ex + tz * ex * ey;
 }
 
@@ -423,10 +422,9 @@ ffi::Array<PrimExpr> ResolveCuda(ScopeBinding binding,
     }
     case ScopeBinding::kClusterCtaPair: {
       TVM_FFI_ICHECK_EQ(out_dim, 1) << "ValueError: cluster->cta_pair must be 1D";
-      PrimExpr cbx, cby, cbz, ex, ey, ez;
-      std::tie(cbx, ex) = GetThread("clusterCtaIdx.x", params, true);
-      std::tie(cby, ey) = GetThread("clusterCtaIdx.y", params, true);
-      std::tie(cbz, ez) = GetThread("clusterCtaIdx.z", params, true);
+      auto [cbx, ex] = GetThread("clusterCtaIdx.x", params, true);
+      auto [cby, ey] = GetThread("clusterCtaIdx.y", params, true);
+      auto [cbz, ez] = GetThread("clusterCtaIdx.z", params, true);
       return {ana->Simplify(prim::FloorMod(cbx + cby * ex + cbz * ex * ey, 2))};
     }
   }

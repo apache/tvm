@@ -552,7 +552,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                              ? buf
                              : RebuildBufferVar(buf, CopyTensorType(buf), new_backing_array->name);
     VarRemapSet(buf, remapped);
-    remapped_backing_[remapped.get()] = backing;
+    remapped_backing_.insert_or_assign(remapped.get(), backing);
     return remapped;
   }
 
@@ -607,7 +607,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
       BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
-      PrimExpr value;
+      ffi::Optional<PrimExpr> value;
       if (!is_load)
         value = this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       ffi::Array<PrimExpr> indices;
@@ -625,7 +625,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                            .as_or_throw<Expr>());
         return Call(access->ty, op->op, args, op->attrs, op->ty_args, op->span);
       } else {
-        BufferStore access(buffer, value, indices, op->span);
+        BufferStore access(buffer, value.value(), indices, op->span);
         access = VisitBufferAccess(std::move(access));
         ffi::Array<Expr> args{access->buffer.var(), access->value};
         for (const PrimExpr& index : access->indices) args.push_back(index);
@@ -775,7 +775,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The replacement AllocTensor, if any.
     std::vector<Stmt> alloc_nest;
     // The var expr of new allocation.
-    Var alloc_var;
+    Var alloc_var{ffi::UnsafeInit{}};
     // The allocation element type.
     PrimType elem_type = PrimType::Void();
     // Whether any constituent allocation was marked volatile.
@@ -937,7 +937,7 @@ class StoragePlanRewriter : public StmtExprMutator {
                    DictAttrs(annotations))));
         } else {
           // Build a merged allocation
-          PrimExpr combo_size;
+          ffi::Optional<PrimExpr> max_size;
           for (const BindNode* op : e->allocs) {
             const auto* call = op->value.as<CallNode>();
             tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
@@ -962,12 +962,13 @@ class StoragePlanRewriter : public StmtExprMutator {
             }
             // transform to bits
             auto sz_nbits = sz * nbits;
-            if (combo_size.defined()) {
-              combo_size = max(combo_size, sz_nbits);
+            if (max_size.defined()) {
+              max_size = max(max_size.value(), sz_nbits);
             } else {
-              combo_size = sz_nbits;
+              max_size = sz_nbits;
             }
           }
+          PrimExpr combo_size = max_size.value();
           // transform to alloc bytes
           auto type_bits = alloc_type.bits() * alloc_type.lanes();
           bool divided = analyzer_->CanProve(indexmod(combo_size, type_bits) == 0);
@@ -978,7 +979,7 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           combo_size = analyzer_->Simplify(combo_size);
           BufferVar buf(e->alloc_var->name, TensorType(e->scope.to_string(), alloc_type,
-                                                       {combo_size}, {}, PrimExpr(), 0, 0));
+                                                       {combo_size}, {}, std::nullopt, 0, 0));
           e->alloc_var = buf.var();
           ffi::Map<ffi::String, ffi::Any> annotations;
           if (e->is_volatile) {
@@ -1023,7 +1024,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     PrimExpr alloc_size = MakeConst(shape->fields[0].as_or_throw<PrimExpr>().ty(),
                                     (total_bits + type_bits - 1) / type_bits);
     BufferVar buf(e->alloc_var->name, TensorType(e->scope.to_string(), e->elem_type, {alloc_size},
-                                                 {}, PrimExpr(), 0, 0));
+                                                 {}, std::nullopt, 0, 0));
     e->alloc_var = buf.var();
     for (StorageEntry* child : e->merged_children) {
       child->alloc_var = e->alloc_var;
@@ -2234,6 +2235,7 @@ namespace transform {
 
 Pass StorageRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     bool enable_reuse = true;
     bool reuse_require_exact_matched_dtype = false;
     bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem", false).value();
@@ -2251,8 +2253,9 @@ Pass StorageRewrite() {
       reuse_require_exact_matched_dtype = true;
     }
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<StoragePlanRewriter>()->Rewrite(
-        std::move(n->body), n->params, true, enable_reuse, reuse_require_exact_matched_dtype);
+    n->body = ffi::make_object<StoragePlanRewriter>()->Rewrite(std::move(n->body).value(),
+                                                               n->params, true, enable_reuse,
+                                                               reuse_require_exact_matched_dtype);
     // Parameters may not be rewritten, but internal allocations may.
     return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true, false);
   };
@@ -2266,6 +2269,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Pass PointerValueTypeRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     return PointerValueTypeRewrite(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.PointerValueTypeRewrite", {});

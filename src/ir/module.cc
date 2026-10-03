@@ -228,9 +228,8 @@ IRModule IRModule::FromExpr(const Expr& expr,
   ffi::String gv_name;
 
   // All global definitions must be functions.
-  BaseFunc func;
-  if (auto func_node = expr.as<BaseFunc>()) {
-    func = func_node.value();
+  BaseFunc func = expr.as_or_throw<BaseFunc>();
+  {
     if (auto opt = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
       // Function literal has been annotated with it's required global symbol.
       gv_name = opt.value();
@@ -239,7 +238,7 @@ IRModule IRModule::FromExpr(const Expr& expr,
 
   UniqueNameSupply global_names(mod->functions.begin(), mod->functions.end(),
                                 [](const auto& kv) { return kv.first->name_hint; });
-  GlobalVar main_gv;
+  GlobalVar main_gv{ffi::UnsafeInit{}};
   if (gv_name.empty()) {
     // Bind function to 'main' (though rename if would clash with existing 'main').
     main_gv = GlobalVar(global_names->FreshName("main", false));

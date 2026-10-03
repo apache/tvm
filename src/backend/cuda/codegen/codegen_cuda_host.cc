@@ -85,13 +85,17 @@ class CodeGenCUDAHost : public CodeGenCHost {
   }
 
   void AddFunction(const GlobalVar& gvar, const PrimFunc& func) override {
+    if (!func->body.has_value()) {
+      DeclareFunction(gvar, func);
+      return;
+    }
     // A guard destructor may report a CUDA error on any return path. Keep it
     // inside the FFI exception boundary along with device selection and setup.
     InitFuncState(func);
     PrintFunctionSignature(GetFunctionName(gvar), func, stream);
     stream << " {\n  TVM_FFI_SAFE_CALL_BEGIN();\n  try {\n";
     int scope = BeginScope();
-    PrintStmt(func->body);
+    PrintStmt(func->body.value());
     EndScope(scope);
     // CUDADeviceGuard reports errors by throwing. Clear the reported CUDA
     // last-error state so a subsequent successful launch is not blamed for it.
