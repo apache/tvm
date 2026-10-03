@@ -611,5 +611,31 @@ def test_call_tir_with_primitive_args_not_folded():
     tvm.ir.assert_structural_equal(after, Module)
 
 
+def test_fold_tensor_to_shape_int32():
+    @I.ir_module
+    class Module:
+        @R.function
+        def before(
+            data: R.Tensor((6,), "float32"), shape_data: R.Tensor((2,), "int32")
+        ):
+            with R.dataflow():
+                shape: R.Shape(ndim=2) = R.tensor_to_shape(shape_data)
+                out: R.Tensor(ndim=2, dtype="float32") = R.reshape(data, shape)
+                R.output(out)
+            return out
+
+        @R.function
+        def expected(data: R.Tensor((6,), "float32")) -> R.Tensor((2, 3), "float32"):
+            with R.dataflow():
+                out = R.reshape(data, R.shape([2, 3]))
+                R.output(out)
+            return out
+
+    before = gen_mod(Module, "before", {"shape_data": np.array([2, 3], dtype="int32")})
+    expected = gen_mod(Module, "expected", {})
+    after = relax.transform.FoldConstant()(before)
+    tvm.ir.assert_structural_equal(after, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

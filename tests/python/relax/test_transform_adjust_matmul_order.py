@@ -1030,5 +1030,22 @@ class TestAdjustMatmulOrderAttentionBlock:
         np.testing.assert_array_equal(out_after, expected)
 
 
+def test_rank_one_middle_operand_is_not_reassociated():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            a: R.Tensor((2, 2), "float32"),
+            b: R.Tensor((2,), "float32"),
+            c: R.Tensor((2, 2), "float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            inner = R.matmul(a, b)
+            return R.matmul(inner, c)
+
+    after = relax.transform.AdjustMatmulOrder()(Before)
+    tvm.ir.assert_structural_equal(after, Before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

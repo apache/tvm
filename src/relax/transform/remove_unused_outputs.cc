@@ -95,6 +95,19 @@ class PartialTupleUsageCollector : ExprVisitor {
     known_bindings_.Set(binding->var, GetBoundValue(binding));
   }
 
+  void VisitExpr_(const CallNode* op) override {
+    ExprVisitor::VisitExpr_(op);
+
+    static const Op make_closure_op = Op::Get("relax.make_closure");
+    if (op->op.same_as(make_closure_op) && !op->args.empty()) {
+      if (auto callee = op->args[0].as<GlobalVar>()) {
+        if (auto it = output_usage_mask_.find(callee.value()); it != output_usage_mask_.end()) {
+          std::fill(it->second.begin(), it->second.end(), true);
+        }
+      }
+    }
+  }
+
   void VisitExpr_(const TupleGetItemNode* op) override {
     if (auto* usage_mask_ptr = GetCalleeUsageMask(op->tuple)) {
       auto& used_indices = *usage_mask_ptr;

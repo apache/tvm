@@ -150,5 +150,28 @@ def test_return_tuple():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
+def test_closure_callee_outputs_are_preserved():
+    @I.ir_module
+    class Before:
+        @R.function(private=True)
+        def outputs(
+            value: R.Tensor((2,), "float32"), env: R.Tensor((2,), "float32")
+        ) -> R.Tuple(R.Tensor((2,), "float32"), R.Tensor((2,), "float32")):
+            return value, R.add(value, env)
+
+        @R.function
+        def main(x: R.Tensor((2,), "float32"), y: R.Tensor((2,), "float32")):
+            closure = R.make_closure(Before.outputs, (x,))
+            result = R.invoke_pure_closure(
+                closure,
+                (y,),
+                ty_args=R.Tuple(R.Tensor((2,), "float32"), R.Tensor((2,), "float32")),
+            )
+            return result[0]
+
+    after = tvm.relax.transform.RemoveUnusedOutputs()(Before)
+    tvm.ir.assert_structural_equal(after, Before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
