@@ -2120,29 +2120,31 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             relax.op.split(x=x, indices_or_sections=n_sections, axis=dim)
         )
 
+    def _cumulative_dtype(self, x: relax.Expr, node: fx.Node) -> str | None:
+        """The output dtype of torch.cumsum / torch.cumprod for ``x``.
+
+        With no ``dtype`` argument torch accumulates every integral and bool input in
+        int64 -- ``uint8 [200, 100].cumsum(0)`` is int64 ``[200, 300]``, not a uint8 that
+        wraps to ``[200, 44]`` -- and keeps floating inputs as they are.
+        """
+        if "dtype" in node.kwargs:
+            return self._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        dtype = x.ty.dtype
+        if dtype.matches_code(DataTypeCode.INT, DataTypeCode.UINT) or str(dtype) == "bool":
+            return "int64"
+        return None
+
     def _cumprod(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        if "dtype" in node.kwargs:
-            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
-        else:
-            dtype = None
-
-        return self.block_builder.emit(relax.op.cumprod(x, dim, dtype))
+        return self.block_builder.emit(relax.op.cumprod(x, dim, self._cumulative_dtype(x, node)))
 
     def _cumsum(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        if "dtype" in node.kwargs:
-            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
-        else:
-            dtype = None
         if "out" in node.kwargs:
             raise ValueError("specifying out for cumsum is not supported yet")
-
-        return self.block_builder.emit(relax.op.cumsum(x, dim, dtype))
+        return self.block_builder.emit(relax.op.cumsum(x, dim, self._cumulative_dtype(x, node)))
 
     def _expand(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)

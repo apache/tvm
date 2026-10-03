@@ -5037,6 +5037,59 @@ def test_cumsum():
     verify_model(Cumsum(), example_args, {}, expected1)
 
 
+def test_cumsum_integer_input_accumulates_in_int64():
+    # With no dtype argument torch accumulates every integral and bool input in int64.
+    # Keeping the input dtype instead makes the running sum wrap: uint8 [200, 100, 50]
+    # is [200, 44, 94] rather than [200, 300, 350].
+    class Cumsum(Module):
+        def forward(self, x):
+            return torch.cumsum(x, dim=1)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="uint8")) -> R.Tuple(R.Tensor((2, 3), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="int64") = R.cumsum(x, axis=1, dtype="int64")
+                gv: R.Tuple(R.Tensor((2, 3), dtype="int64")) = (lv,)
+                R.output(gv)
+            return gv
+
+    x = torch.tensor([[200, 100, 50], [2, 3, 4]], dtype=torch.uint8)
+    verify_model(Cumsum(), (x,), {}, expected)
+
+
+@pytest.mark.parametrize("dtype", [torch.bool, torch.uint8, torch.int8, torch.int32, torch.int64])
+def test_cumsum_cumprod_integer_values(dtype):
+    class Cumsum(Module):
+        def forward(self, x):
+            return torch.cumsum(x, dim=1)
+
+    class Cumprod(Module):
+        def forward(self, x):
+            return torch.cumprod(x, dim=1)
+
+    class CumsumFloat(Module):
+        def forward(self, x):
+            return torch.cumsum(x, dim=0, dtype=torch.float32)
+
+    if dtype is torch.bool:
+        x = torch.tensor([[True, True, False], [True, True, True]])
+    elif dtype is torch.uint8:
+        x = torch.tensor([[200, 100, 50], [2, 3, 4]], dtype=dtype)
+    elif dtype is torch.int8:
+        x = torch.tensor([[100, 100, 50], [2, 3, 4]], dtype=dtype)
+    else:
+        x = torch.tensor([[2**30, 2**30, 5], [2, 3, 4]], dtype=dtype)
+    for model in (Cumsum(), Cumprod(), CumsumFloat()):
+        with torch.no_grad():
+            want = model(x)
+        mod = from_exported_program(export(model, (x,)))
+        got_dtype = str(mod["main"].ret_ty.fields[0].dtype)
+        assert got_dtype == str(want.dtype).replace("torch.", "")
+        verify_model_numerically(model, (x,))
+
+
 def test_expand():
     class Expand1(Module):
         def forward(self, x):
