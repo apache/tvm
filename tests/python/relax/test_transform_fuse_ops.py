@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax, topi
@@ -1956,6 +1958,151 @@ def test_shape_expr_arg():
             return gv, lv
 
     _check(Before, Expected)
+
+
+@pytest.mark.parametrize("match_tensor", [False, True])
+def test_match_cast_shape_dependency(match_tensor):
+    """A symbol used only in call_tir's output type still depends on match_cast."""
+
+    @I.ir_module(s_tir=True)
+    class Before:
+        @T.prim_func(private=True, s_tir=True)
+        def copy(x: T.Buffer((8,), "float32"), out_handle: T.handle):
+            T.func_attr({"op_pattern": 8, "tirx.noalias": True})
+            n = T.int64()
+            out = T.match_buffer(out_handle, (n,), "float32")
+            for i in range(n):
+                with T.sblock("copy"):
+                    vi = T.axis.spatial(n, i)
+                    out[vi] = x[vi]
+
+        @R.function
+        def main(x: R.Tensor((8,), "float32"), shape: R.Shape(ndim=1)):
+            s = T.int64()
+            with R.dataflow():
+                positive = R.nn.relu(x)
+                positive2 = R.nn.relu(positive)
+                bound = R.match_cast(
+                    positive if match_tensor else shape,
+                    R.Tensor((s,), "float32") if match_tensor else R.Shape([s]),
+                )
+                copied = R.call_tir(Before.copy, (x,), out_ty=R.Tensor((s,), "float32"))
+                reshaped = R.reshape(copied, (8,))
+                out = R.add(positive2, reshaped)
+                R.output(out)
+            return out
+
+    mod = relax.transform.LegalizeOps()(Before)
+    mod = relax.transform.AnnotateTIROpPattern()(mod)
+    mod = relax.transform.FuseOps(fuse_opt_level=2)(mod)
+    assert relax.analysis.check_well_formed(mod)
+    bindings = mod["main"].body.blocks[0].bindings
+    match_index = next(i for i, b in enumerate(bindings) if isinstance(b, relax.MatchCast))
+    copy_index = next(
+        i
+        for i, b in enumerate(bindings)
+        if isinstance(b.value, relax.Call)
+        and b.value.op == tvm.ir.Op.get("relax.call_tir")
+        and b.value.args[0].name_hint == "copy"
+    )
+    assert match_index < copy_index
+    # If match_cast consumes the first Relu, fusing it with Add would create a
+    # cycle through the copy's shape dependency.  The second Relu can still fuse.
+    fused_name = "fused_relu_add" if match_tensor else "fused_relu_relu_add"
+    assert any(gv.name_hint.startswith(fused_name) for gv in mod.get_global_vars())
+    mod = relax.transform.FuseTIR()(mod)
+    assert relax.analysis.check_well_formed(mod)
+
+
+@pytest.mark.parametrize(
+    "symbol_source", ["match_cast", "parameter", "tensor_parameter", "function_type", "outer_block"]
+)
+@pytest.mark.parametrize("use_shape", [False, True])
+def test_match_cast_symbol_scope(symbol_source, use_shape):
+    """Keep the original definition across repeated casts, blocks, and functions."""
+    bb = relax.BlockBuilder()
+    for name in ["main", "other"]:
+        # Symbols with the same name must be tracked by identity.
+        m = tvm.tirx.Var("s", "int64")
+        n = tvm.tirx.Var("s", "int64")
+        x = relax.Var("x", R.Tensor((8,), "float32"))
+        shape = relax.Var(
+            "shape", R.Shape([m, n]) if symbol_source == "parameter" else R.Shape(ndim=2)
+        )
+        params = [x, shape]
+        if symbol_source == "tensor_parameter":
+            params.append(relax.Var("known_shape", R.Tensor((m, n), "float32")))
+        if symbol_source == "function_type":
+            # These symbols are bound inside the callable's signature and must
+            # not hide the caller's match_cast definitions, even if shared.
+            tensor_ty = R.Tensor((m, n), "float32")
+            params.append(relax.Var("callback", relax.FuncType([tensor_ty], tensor_ty)))
+        with bb.function(name, params):
+            if symbol_source == "outer_block":
+                with bb.dataflow():
+                    bound = bb.match_cast(shape, R.Shape([m, n]))
+                    bb.emit_output(bound)
+                bb.emit(relax.op.shape_of(x))
+            with bb.dataflow():
+                positive = bb.emit(relax.op.nn.relu(x))
+                positive2 = bb.emit(relax.op.nn.relu(positive))
+                if symbol_source in ["match_cast", "function_type"]:
+                    bb.match_cast(shape, R.Shape([m, n]))
+                arg = relax.ShapeExpr([m * n]) if use_shape else m + n
+                value = bb.emit(
+                    relax.call_pure_packed(
+                        "test.symbolic_arg", arg, ty_args=R.Tensor((8,), "float32")
+                    )
+                )
+                # This cast only checks existing symbols.  Treating it as a new
+                # producer would create a cycle with the fused Relu/Add group.
+                bb.match_cast(positive, R.Tensor((m * n,), "float32"))
+                bb.match_cast(shape, R.Shape([m, n]))
+                out = bb.emit_output(relax.op.add(positive2, value))
+            bb.emit_func_output(out)
+
+    mod = relax.transform.LegalizeOps()(bb.get())
+    mod = relax.transform.AnnotateTIROpPattern()(mod)
+    mod = relax.transform.FuseOps(fuse_opt_level=2)(mod)
+    assert relax.analysis.check_well_formed(mod)
+    for name in ["main", "other"]:
+        if symbol_source == "outer_block":
+            assert len(mod[name].body.blocks) == 3
+        bindings = [binding for block in mod[name].body.blocks for binding in block.bindings]
+        calls = [b for b in bindings if isinstance(b.value, relax.Call)]
+        symbolic_call = next(
+            b for b in calls if b.value.op == tvm.ir.Op.get("relax.call_pure_packed")
+        )
+        if symbol_source in ["match_cast", "function_type", "outer_block"]:
+            assert any(
+                isinstance(b, relax.MatchCast) for b in bindings[: bindings.index(symbolic_call)]
+            )
+        assert sum(isinstance(b, relax.MatchCast) for b in bindings) == (
+            3 if symbol_source in ["match_cast", "function_type", "outer_block"] else 2
+        )
+
+
+def test_match_cast_symbol_scope_in_if():
+    """Branch-local symbols must not become producers for later bindings."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((8,), "float32"), shape: R.Shape(ndim=1), cond: R.Tensor((), "bool")):
+            n = T.int64()
+            if cond:
+                true_bound = R.match_cast(shape, R.Shape([n]))
+                branch_out = x
+            else:
+                false_bound = R.match_cast(shape, R.Shape([n]))
+                branch_out = x
+            with R.dataflow():
+                bound = R.match_cast(shape, R.Shape([n]))
+                out = R.call_pure_packed("test.symbolic_arg", n, ty_args=R.Tensor((8,), "float32"))
+                R.output(out)
+            return out
+
+    _check(Before, Before)
 
 
 def test_skipping_match_cast():

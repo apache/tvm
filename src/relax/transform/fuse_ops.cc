@@ -28,6 +28,7 @@
  */
 
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -107,6 +108,110 @@ constexpr uint32_t kMaxFusedOps = 256;
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.FuseOps.max_depth", int64_t);
 
+// Shape symbols are not ordinary dataflow variables.  Record the match_cast that
+// first defines each symbol, so both partitioning and scheduling see its uses.
+class SymbolicDependencyCollector {
+ public:
+  using DependencyMap = std::unordered_map<const VarNode*, std::vector<Var>>;
+  using VisitResult = ffi::Expected<ffi::Optional<ffi::VisitInterrupt>>;
+
+  static DependencyMap Collect(const Function& func) {
+    SymbolicDependencyCollector collector;
+    ffi::StructuralVisit(
+        func,
+        [&](const Function& function, ffi::StructuralVisitorObj* visitor) -> VisitResult {
+          auto saved_producers = collector.producers_;
+          auto saved_binding = collector.current_binding_;
+          collector.current_binding_ = nullptr;
+          for (const Var& param : function->params) {
+            // Scalar parameters can themselves be used as shape symbols.
+            collector.producers_.emplace(param.get(), nullptr);
+            collector.DefineSymbols(GetType(param));
+          }
+          auto result = visitor->VisitExpected(function->body);
+          collector.current_binding_ = saved_binding;
+          collector.producers_ = std::move(saved_producers);
+          return result;
+        },
+        [&](const If& if_expr, ffi::StructuralVisitorObj* visitor) -> VisitResult {
+          visitor->Visit(if_expr->cond);
+          auto saved_producers = collector.producers_;
+          auto saved_binding = collector.current_binding_;
+          // Branch-local definitions are invisible to the other branch and to
+          // the enclosing binding, including uses in the branch result type.
+          collector.current_binding_ = nullptr;
+          visitor->Visit(if_expr->true_branch);
+          collector.producers_ = saved_producers;
+          visitor->Visit(if_expr->false_branch);
+          collector.producers_ = std::move(saved_producers);
+          collector.current_binding_ = saved_binding;
+          return visitor->VisitExpected(GetType(if_expr));
+        },
+        [&](const Binding& binding, ffi::StructuralVisitorObj* visitor) -> VisitResult {
+          auto saved_binding = collector.current_binding_;
+          collector.current_binding_ = binding->var.get();
+          visitor->Visit(GetBoundValue(binding));
+          visitor->Visit(GetType(binding->var));
+          if (const auto* match_cast = binding.as<MatchCastNode>()) {
+            // Existing symbols in the value or target type are uses, not redefinitions.
+            visitor->Visit(match_cast->ty);
+            collector.DefineSymbols(match_cast->ty);
+          }
+          collector.current_binding_ = saved_binding;
+          return std::nullopt;
+        },
+        [&](const Var& var, ffi::StructuralVisitorObj* visitor) -> VisitResult {
+          collector.UseVar(var);
+          return visitor->VisitExpected(GetType(var));
+        },
+        [](const FuncType&, ffi::StructuralVisitorObj*) -> VisitResult {
+          // Function-type symbols are locally bound, not caller dependencies.
+          return std::nullopt;
+        });
+    return collector.dependencies_;
+  }
+
+ private:
+  void UseVar(const Var& var) {
+    auto it = producers_.find(var.get());
+    if (current_binding_ && it != producers_.end() && it->second &&
+        it->second != current_binding_) {
+      auto& deps = dependencies_[current_binding_];
+      Var producer = ffi::GetRef<Var>(it->second);
+      if (std::none_of(deps.begin(), deps.end(),
+                       [&](const Var& dep) { return dep.same_as(producer); })) {
+        deps.push_back(producer);
+      }
+    }
+  }
+
+  void DefineSymbols(const Type& ty) {
+    auto define_shape = [&](const ffi::Array<PrimExpr>& values) {
+      for (const PrimExpr& value : values) {
+        // Only a bare symbol is definable; compound expressions are constraints.
+        if (const auto* var = value.as<tirx::VarNode>()) {
+          producers_.emplace(var, current_binding_);
+        }
+      }
+    };
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
+        ty,
+        [](const FuncType&) -> ffi::Expected<ffi::WalkResult> { return ffi::WalkResult::Skip(); },
+        [&](const ShapeType& shape) -> ffi::Expected<ffi::WalkResult> {
+          if (shape->values.has_value()) define_shape(shape->values.value());
+          return ffi::WalkResult::Skip();
+        },
+        [&](const ShapeExpr& shape) -> ffi::Expected<ffi::WalkResult> {
+          define_shape(shape->values);
+          return ffi::WalkResult::Skip();
+        });
+  }
+
+  const VarNode* current_binding_{nullptr};
+  std::unordered_map<const VarNode*, const VarNode*> producers_;
+  DependencyMap dependencies_;
+};
+
 class GraphCreator : public ExprVisitor {
  public:
   /*!
@@ -131,7 +236,9 @@ class GraphCreator : public ExprVisitor {
           func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
         continue;
       }
-      creator(ffi::GetRef<Function>(func));
+      auto function = ffi::GetRef<Function>(func);
+      creator.symbolic_deps_ = SymbolicDependencyCollector::Collect(function);
+      creator(function);
     }
 
     // The algorithm of the graph creator ensures that each created node will be added to the
@@ -168,7 +275,8 @@ class GraphCreator : public ExprVisitor {
 
   void VisitBinding_(const MatchCastNode* binding) final {
     IndexedForwardGraph::Node* node = CreateNode(binding->var.get());
-    SetNodePattern(node, OpPatternKind::kOpaque);
+    VisitUnsupportedNode(binding->value, node);
+    AddSymbolicDependencies(binding->var, node);
     AddToPostDFSOrder(node, binding->var.get());
   }
 
@@ -191,10 +299,17 @@ class GraphCreator : public ExprVisitor {
       // Case 3. The type of the expression is not fusion-supported.
       // In this case, we skip adding edges, adding an empty node into graph.
     }
+    AddSymbolicDependencies(binding->var, node);
     AddToPostDFSOrder(node, binding->var.get());
   }
 
   /********** Non-Leaf Expression Nodes **********/
+
+  void AddSymbolicDependencies(const Var& var, IndexedForwardGraph::Node* node) {
+    for (const Var& producer : symbolic_deps_[var.get()]) {
+      AddEdge(graph_.node_map.at(producer.get()), node, OpPatternKind::kOpaque);
+    }
+  }
 
   void VisitCall(const CallNode* call, IndexedForwardGraph::Node* binding_var_node) {
     TVM_FFI_ICHECK_NOTNULL(binding_var_node);
@@ -382,6 +497,8 @@ class GraphCreator : public ExprVisitor {
   std::unordered_set<IndexedForwardGraph::Node*> initialized_nodes_;
   /*! \brief The model params in the function input */
   std::unordered_set<const VarNode*> input_params_;
+  /*! \brief Dependencies on bindings that define shape symbols. */
+  SymbolicDependencyCollector::DependencyMap symbolic_deps_;
 };
 
 /*!
@@ -840,6 +957,7 @@ class OperatorFusor : public ExprMutator {
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive) &&
           !func->GetAttr<ffi::String>(attr::kCodegen).has_value()) {
         outer_bindings_ = AnalyzeVar2Value(func);
+        symbolic_deps_ = SymbolicDependencyCollector::Collect(func.as_or_throw<Function>());
         auto updated_func = VisitExpr(func).as_or_throw<Function>();
         builder_->UpdateFunction(gv, updated_func);
         outer_bindings_ = {};
@@ -863,6 +981,7 @@ class OperatorFusor : public ExprMutator {
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) final {
     group2func_.clear();
+    group_deps_.clear();
 
     // Step 1. Collect the bindings for each grouped function.
     CollectFuncBindings(block->bindings);
@@ -1012,20 +1131,11 @@ class OperatorFusor : public ExprMutator {
       // - If the var's group is same as the binding's, the var is defined in the same group
       // - If the var's group is different with the binding's, the var must be the output from
       //   another group. Mark it to be the group output.
-      auto update_boundary = [this, binding, &cur_group](const Expr& e) {
+      auto update_boundary = [this, &cur_group](const Expr& e) {
         if (e->IsInstance<VarNode>() && obj2group_.count(e.get())) {
           const Var& used_var = e.as_or_throw<Var>();
           Group* producer_group = GetGroupFromVar(used_var);
-          // Only check those group defined before.
-          // Skip the vars from input or groups with single binding.
-          if (producer_group != cur_group) {
-            for (Group* depgroup : group_deps_[producer_group]) {
-              TVM_FFI_ICHECK(depgroup != cur_group)
-                  << "A cyclic dependency detected between the groups " << binding->var->name
-                  << " and " << used_var->name << " are in.";
-            }
-            group_deps_[cur_group].push_back(producer_group);
-          }
+          AddGroupDependency(cur_group, producer_group);
 
           if (auto producer = group2func_.find(producer_group);
               producer_group != cur_group && producer != group2func_.end()) {
@@ -1041,6 +1151,21 @@ class OperatorFusor : public ExprMutator {
         TVM_FFI_ICHECK_NOTNULL(match_cast);
         PostOrderVisit(match_cast->value, update_boundary);
       }
+
+      // Shape dependencies constrain scheduling without adding tensor outputs or
+      // parameters to the grouped functions.
+      for (const Var& producer : symbolic_deps_[binding->var.get()]) {
+        if (obj2group_.count(producer.get())) {
+          AddGroupDependency(cur_group, GetGroupFromVar(producer));
+        }
+      }
+    }
+  }
+
+  void AddGroupDependency(Group* consumer, Group* producer) {
+    auto& deps = group_deps_[consumer];
+    if (consumer != producer && std::find(deps.begin(), deps.end(), producer) == deps.end()) {
+      deps.push_back(producer);
     }
   }
 
@@ -1095,14 +1220,18 @@ class OperatorFusor : public ExprMutator {
     }
 
     std::unordered_set<Group*> visited;
+    std::unordered_set<Group*> visiting;
 
     std::function<void(Group*, std::function<void(Group*)>)> dfs_visit;
-    dfs_visit = [this, &visited, &dfs_visit](Group* g, auto leaf_fun) {
+    dfs_visit = [this, &visited, &visiting, &dfs_visit](Group* g, auto leaf_fun) {
       if (!visited.count(g)) {
-        visited.insert(g);
+        TVM_FFI_ICHECK(visiting.insert(g).second)
+            << "A cyclic dependency detected between fusion groups.";
         for (auto dep : group_deps_[g]) {
           dfs_visit(dep, leaf_fun);
         }
+        visiting.erase(g);
+        visited.insert(g);
         leaf_fun(g);
       }
     };
@@ -1130,6 +1259,8 @@ class OperatorFusor : public ExprMutator {
   std::unordered_map<Group*, FunctionCreator> group2func_;
   /*! \brief Bindings visible while rewriting the current Relax function. */
   ffi::Map<Var, Expr> outer_bindings_;
+  /*! \brief Dependencies on bindings that define shape symbols. */
+  SymbolicDependencyCollector::DependencyMap symbolic_deps_;
   /*!
    * \brief A map from a group to its dependent groups, used to detect cyclic dependencies.
    * \note Use vector so we can be deterministic, there won't be a lot of dep groups so
