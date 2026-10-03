@@ -20,19 +20,39 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/distributed/global_info.h>
 
+#include <limits>
+#include <optional>
+
 namespace tvm {
 namespace relax {
 namespace distributed {
 
 TVM_FFI_STATIC_INIT_BLOCK() { DeviceMeshNode::RegisterReflection(); }
 
-DeviceMesh::DeviceMesh(ffi::Shape shape, ffi::Array<int64_t> device_ids) {
-  int prod = 1;
-  for (int i = 0; i < static_cast<int>(shape.size()); i++) {
-    prod *= shape[i];
+namespace {
+
+int64_t MeshSize(const ffi::Shape& shape) {
+  bool empty = false;
+  for (int64_t dim : shape) {
+    TVM_FFI_CHECK_GE(dim, 0, ValueError) << "Device mesh dimensions must be non-negative";
+    empty |= dim == 0;
   }
+  if (empty) return 0;
+  int64_t size = 1;
+  for (int64_t dim : shape) {
+    TVM_FFI_CHECK_LE(size, std::numeric_limits<int64_t>::max() / dim, ValueError)
+        << "Device mesh shape product exceeds int64";
+    size *= dim;
+  }
+  return size;
+}
+
+}  // namespace
+
+DeviceMesh::DeviceMesh(ffi::Shape shape, ffi::Array<int64_t> device_ids) {
+  int64_t size = MeshSize(shape);
   ffi::ObjectPtr<DeviceMeshNode> n = ffi::make_object<DeviceMeshNode>();
-  TVM_FFI_ICHECK_EQ(prod, static_cast<int>(device_ids.size()))
+  TVM_FFI_ICHECK_EQ(static_cast<uint64_t>(size), device_ids.size())
       << "The number of device ids must match the product of the shape";
   n->shape = std::move(shape);
   n->device_ids = std::move(device_ids);
@@ -42,17 +62,25 @@ DeviceMesh::DeviceMesh(ffi::Shape shape, ffi::Array<int64_t> device_ids) {
 DeviceMesh::DeviceMesh(ffi::Shape shape, Range device_range) {
   ffi::ObjectPtr<DeviceMeshNode> n = ffi::make_object<DeviceMeshNode>();
   ffi::Array<int64_t> device_ids;
-  int range_start = device_range->min.as<IntImmNode>()->value.as<int>().value();
-  int range_extent = device_range->extent.as<IntImmNode>()->value.as<int>().value();
-  for (int i = range_start; i < range_start + range_extent; i++) {
-    device_ids.push_back(i);
-  }
-  int prod = 1;
-  for (int i = 0; i < static_cast<int>(shape.size()); i++) {
-    prod *= shape[i];
-  }
-  TVM_FFI_ICHECK_EQ(prod, static_cast<int>(device_ids.size()))
+  const auto* start = device_range->min.as<IntImmNode>();
+  const auto* extent = device_range->extent.as<IntImmNode>();
+  auto range_start_value = start ? start->value.as<int64_t>() : std::nullopt;
+  auto range_extent_value = extent ? extent->value.as<int64_t>() : std::nullopt;
+  TVM_FFI_CHECK(range_start_value.has_value() && range_extent_value.has_value(), ValueError)
+      << "Device mesh range must be a constant that fits in int64";
+  int64_t range_start = *range_start_value;
+  int64_t range_extent = *range_extent_value;
+  TVM_FFI_CHECK_GE(range_extent, 0, ValueError) << "Device mesh range extent must be non-negative";
+  TVM_FFI_ICHECK_EQ(MeshSize(shape), range_extent)
       << "The number of device ids must match the product of the shape";
+  if (range_extent > 0) {
+    TVM_FFI_CHECK_LE(range_start, std::numeric_limits<int64_t>::max() - (range_extent - 1),
+                     ValueError)
+        << "Device mesh range exceeds int64";
+  }
+  for (int64_t i = 0; i < range_extent; ++i) {
+    device_ids.push_back(range_start + i);
+  }
   n->device_ids = std::move(device_ids);
   n->shape = std::move(shape);
   n->device_range = std::move(device_range);
