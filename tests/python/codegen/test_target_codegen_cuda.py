@@ -952,7 +952,7 @@ def _min_max_nan_module(op, dt, n=8, vectorize=False, composite=False):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((n,), dt), B: T.Buffer((n,), dt), C: T.Buffer((n,), dt)):
+        def main(A: T.Tensor((n,), dt), B: T.Tensor((n,), dt), C: T.Tensor((n,), dt)):
             T.func_attr({"tirx.noalias": True})
             for i0 in T.thread_binding(2, thread="blockIdx.x"):
                 if T.constexpr(composite):
@@ -1075,9 +1075,9 @@ def test_min_max_chained_statements_cuda():
     class Module:
         @T.prim_func
         def main(
-            A: T.Buffer((n,), "float32"),
-            B: T.Buffer((n,), "float32"),
-            C: T.Buffer((n,), "float32"),
+            A: T.Tensor((n,), "float32"),
+            B: T.Tensor((n,), "float32"),
+            C: T.Tensor((n,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i in T.thread_binding(n, thread="threadIdx.x"):
@@ -1124,7 +1124,7 @@ def test_min_max_float_imm_operand_cuda(op, const_side, const_nan, form):
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(B: T.Buffer((n,), "float32"), C: T.Buffer((n,), "float32")):
+        def main(B: T.Tensor((n,), "float32"), C: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             if T.constexpr(form == "scalar" and const_side == "lhs"):
                 for i in T.thread_binding(n, thread="threadIdx.x"):
@@ -1225,7 +1225,7 @@ def test_min_max_float_imm_operand_nested_cuda():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(B: T.Buffer((n,), "float32"), C: T.Buffer((n,), "float32")):
+        def main(B: T.Tensor((n,), "float32"), C: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i in T.thread_binding(n, thread="threadIdx.x"):
                 C[i] = T.max(T.float32(0.0), B[i]) + T.float32(1.0)
