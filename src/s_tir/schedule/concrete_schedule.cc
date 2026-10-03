@@ -38,7 +38,7 @@ Schedule Schedule::Concrete(IRModule mod, LinearCongruentialEngine::TRandState s
   n->symbol_table_ = {};
   n->analyzer_ = sym::Analyzer();
   n->Seed(seed);
-  GlobalVar gv;
+  GlobalVar gv{ffi::UnsafeInit{}};
   if (FindEntryFunc(mod, &gv) != nullptr) {
     n->func_working_on_ = gv;
   } else {
@@ -258,14 +258,13 @@ ExprRV ConcreteScheduleNode::SampleCategorical(const ffi::Array<int64_t>& candid
   throw;
 }
 
-ffi::Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(
+ffi::Array<ffi::Optional<ExprRV>> ConcreteScheduleNode::SamplePerfectTile(
     const LoopRV& loop_rv, int n, int max_innermost_factor,
     ffi::Optional<ffi::Array<int64_t>> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   // use None RV object to denotes auto-infer tile factors.
-  return CreateRV(s_tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
-                                           max_innermost_factor, &decision),
-                  /*convert_negone_to_none=*/true);
+  return CreateOptionalRV(s_tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
+                                                   max_innermost_factor, &decision));
   TVM_TIR_SCHEDULE_END("sample-perfect-tile", this->error_render_level_);
   throw;
 }
@@ -329,7 +328,7 @@ SBlockRV ConcreteScheduleNode::GetSBlock(const ffi::String& name,
     IRModule mod_;
     ffi::Array<SBlock> blocks_;
   };
-  GlobalVar gv;
+  GlobalVar gv{ffi::UnsafeInit{}};
   if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
   } else if (func_working_on_.has_value()) {

@@ -59,8 +59,8 @@ class BufferAxisHash {
  * \param analyzer The analyzer
  * \return The iter var whose extent to be changed
  */
-Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
-                            const sym::Analyzer& analyzer);
+ffi::Optional<Var> GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
+                                           const sym::Analyzer& analyzer);
 
 /*!
  * \brief Construct an axis group graph from a PrimFunc. Two buffer axis are connected if they
@@ -73,14 +73,14 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
     extractor->Visit(prim_func->body);
     ffi::Map<BufferVar, Var> inverse_buffer_map;
     for (const Var& param : prim_func->params) {
-      if (param->ty.as<BufferTypeNode>()) {
+      if (param->ty.as<TensorTypeNode>()) {
         inverse_buffer_map.Set(param.as_or_throw<BufferVar>(), param);
       }
     }
     std::vector<std::vector<TIRVarAxis>> tir_var_axis_group_list;
     std::unordered_set<BufferAxis, BufferAxisHash> visited;
     for (const Var& param : prim_func->params) {
-      if (!param->ty.as<BufferTypeNode>()) {
+      if (!param->ty.as<TensorTypeNode>()) {
         continue;
       }
       BufferVar buffer = param.as_or_throw<BufferVar>();
@@ -152,8 +152,8 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
         !intset_b.MatchRange(Range::FromMinExtent(0, buffer_shape_b))) {
       return false;
     }
-    Var matched_var = GetShardingVarFromIndex(b, iter_var_range_, analyzer);
-    if (!matched_var.same_as(var)) {
+    auto matched_var = GetShardingVarFromIndex(b, iter_var_range_, analyzer);
+    if (!matched_var.has_value() || !matched_var.value().same_as(var)) {
       return false;
     }
     return true;

@@ -205,6 +205,11 @@ class ForFrame : public TIRFrame {
  */
 class AssertFrameNode : public TIRFrameNode {
  public:
+  explicit AssertFrameNode(ffi::UnsafeInit tag) : condition(tag), error_kind(tag) {}
+
+  AssertFrameNode(PrimExpr condition, tvm::StringImm error_kind)
+      : condition(std::move(condition)), error_kind(std::move(error_kind)) {}
+
   /*! \brief The PrimExpr to test. */
   PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
@@ -250,6 +255,10 @@ class AssertFrame : public TIRFrame {
  */
 class LaunchThreadFrameNode : public TIRFrameNode {
  public:
+  explicit LaunchThreadFrameNode(ffi::UnsafeInit tag) : extent(tag) {}
+
+  explicit LaunchThreadFrameNode(PrimExpr extent) : extent(std::move(extent)) {}
+
   /*! \brief The extent of environment thread. */
   PrimExpr extent;
   /*! \brief The attribute key, could be either virtual_thread or thread_extent. */
@@ -297,6 +306,10 @@ class LaunchThreadFrame : public TIRFrame {
  */
 class AttrFrameNode : public TIRFrameNode {
  public:
+  explicit AttrFrameNode(ffi::UnsafeInit tag) : value(tag) {}
+
+  explicit AttrFrameNode(Expr value) : value(std::move(value)) {}
+
   /*! \brief The node to annotate the attribute. */
   Any node;
   /*! \brief Attribute type key. */
@@ -343,6 +356,10 @@ class AttrFrame : public TIRFrame {
  */
 class WhileFrameNode : public TIRFrameNode {
  public:
+  explicit WhileFrameNode(ffi::UnsafeInit tag) : condition(tag) {}
+
+  explicit WhileFrameNode(PrimExpr condition) : condition(std::move(condition)) {}
+
   /*! \brief The termination condition of while. */
   PrimExpr condition;
 
@@ -382,6 +399,10 @@ class WhileFrame : public TIRFrame {
  */
 class IfFrameNode : public TIRFrameNode {
  public:
+  explicit IfFrameNode(ffi::UnsafeInit tag) : condition(tag) {}
+
+  explicit IfFrameNode(PrimExpr condition) : condition(std::move(condition)) {}
+
   /*! \brief The condition of the if statement. */
   PrimExpr condition;
   /*! \brief The statements in the true branch. */
@@ -500,35 +521,39 @@ class ElseFrame : public TIRFrame {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
 };
 
-class DeclBufferFrameNode : public TIRFrameNode {
+class DeclTensorFrameNode : public TIRFrameNode {
  public:
+  explicit DeclTensorFrameNode(ffi::UnsafeInit tag) : buffer(tag) {}
+
+  explicit DeclTensorFrameNode(tvm::tirx::BufferVar buffer) : buffer(std::move(buffer)) {}
+
   /*! \brief The declared buffer. */
   tvm::tirx::BufferVar buffer;
   /*! \brief Physical pointer expression backing the declaration. */
-  Expr data;
+  ffi::Optional<Expr> data;
   /*! \brief The buffer allocated or not. */
   bool allocated;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclBufferFrameNode>()
-        .def_ro("buffer", &DeclBufferFrameNode::buffer)
-        .def_ro("data", &DeclBufferFrameNode::data)
-        .def_ro("allocated", &DeclBufferFrameNode::allocated);
+    refl::ObjectDef<DeclTensorFrameNode>()
+        .def_ro("buffer", &DeclTensorFrameNode::buffer)
+        .def_ro("data", &DeclTensorFrameNode::data)
+        .def_ro("allocated", &DeclTensorFrameNode::allocated);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclBufferFrame", DeclBufferFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclTensorFrame", DeclTensorFrameNode,
                                     TIRFrameNode);
 
  public:
   void ExitWithScope() final;
 };
 
-class DeclBufferFrame : public TIRFrame {
+class DeclTensorFrame : public TIRFrame {
  public:
-  explicit DeclBufferFrame(ffi::ObjectPtr<DeclBufferFrameNode> data) : TIRFrame(data) {
+  explicit DeclTensorFrame(ffi::ObjectPtr<DeclTensorFrameNode> data) : TIRFrame(data) {
     TVM_FFI_ICHECK(data != nullptr);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclBufferFrame, TIRFrame, DeclBufferFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclTensorFrame, TIRFrame, DeclTensorFrameNode);
 };
 
 }  // namespace tirx

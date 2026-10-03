@@ -199,7 +199,7 @@ def test_print():
 
         @T.prim_func
         def add_func(
-            A: T.Buffer((M,), dtype_str), B: T.Buffer((M,), dtype_str), C: T.Buffer((M,), dtype_str)
+            A: T.Tensor((M,), dtype_str), B: T.Tensor((M,), dtype_str), C: T.Tensor((M,), dtype_str)
         ) -> None:
             for i in T.thread_binding(M, thread="threadIdx.x"):
                 C[i] = A[i] + B[i]
@@ -219,9 +219,9 @@ def test_print():
 
         @T.prim_func
         def add_func(
-            A: T.Buffer((M, N), dtype_str),
-            B: T.Buffer((M, N), dtype_str),
-            C: T.Buffer((M, N), dtype_str),
+            A: T.Tensor((M, N), dtype_str),
+            B: T.Tensor((M, N), dtype_str),
+            C: T.Tensor((M, N), dtype_str),
         ) -> None:
             for i in T.thread_binding(M, thread="threadIdx.x"):
                 for j in T.thread_binding(N, thread="threadIdx.y"):
@@ -242,9 +242,9 @@ def test_print():
 
         @T.prim_func
         def add_func(
-            A: T.Buffer((M, N, K), dtype_str),
-            B: T.Buffer((M, N, K), dtype_str),
-            C: T.Buffer((M, N, K), dtype_str),
+            A: T.Tensor((M, N, K), dtype_str),
+            B: T.Tensor((M, N, K), dtype_str),
+            C: T.Tensor((M, N, K), dtype_str),
         ) -> None:
             for i in T.thread_binding(M, thread="threadIdx.x"):
                 for j in T.thread_binding(N, thread="threadIdx.y"):
@@ -266,7 +266,7 @@ def test_print():
 
         @T.prim_func
         def add_func(
-            A: T.Buffer((M,), dtype_str), B: T.Buffer((M,), dtype_str), C: T.Buffer((M,), dtype_str)
+            A: T.Tensor((M,), dtype_str), B: T.Tensor((M,), dtype_str), C: T.Tensor((M,), dtype_str)
         ) -> None:
             Ten: T.let = T.IntImm(dtype_str, 10)
 
@@ -288,7 +288,7 @@ def test_print():
 
         @T.prim_func
         def add_func(
-            A: T.Buffer((M,), dtype_str), B: T.Buffer((M,), dtype_str), C: T.Buffer((M,), dtype_str)
+            A: T.Tensor((M,), dtype_str), B: T.Tensor((M,), dtype_str), C: T.Tensor((M,), dtype_str)
         ) -> None:
             string_var = tvm.ir.StringImm(test_string)
 

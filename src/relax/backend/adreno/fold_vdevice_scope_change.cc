@@ -135,13 +135,8 @@ class CollectConsumerDetails : public ExprVisitor {
 
   void VisitExpr_(const CallNode* call) final {
     static const Op call_tir_op = Op::Get("relax.call_tir");
-    Tuple func_args;
-
-    if (call->op.same_as(call_tir_op)) {
-      func_args = call->args[1].as_or_throw<Tuple>();
-    } else {
-      func_args = Tuple(call->args);
-    }
+    Tuple func_args =
+        call->op.same_as(call_tir_op) ? call->args[1].as_or_throw<Tuple>() : Tuple(call->args);
 
     for (auto arg : func_args->fields) {
       auto ty = GetType(arg);

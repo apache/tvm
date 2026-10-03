@@ -783,12 +783,9 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
 
     PrimExpr all_match = VisitType(lhs->ret, rhs->ret);
 
-    PrimExpr param_check;
-    if (lhs->params.has_value()) {
-      param_check = ArrayCheck(lhs->params.value(), rhs->params.value());
-    } else {
-      param_check = IntImm::Bool(true);
-    }
+    PrimExpr param_check = lhs->params.has_value()
+                               ? ArrayCheck(lhs->params.value(), rhs->params.value())
+                               : IntImm::Bool(true);
 
     PrimExpr ret_check = VisitType(lhs->ret, rhs->ret);
 

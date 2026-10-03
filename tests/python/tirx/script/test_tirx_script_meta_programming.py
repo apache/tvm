@@ -33,7 +33,7 @@ def test_meta_class_constructor_rejects_unowned_resource():
     @T.meta_class
     class Bad:
         def __init__(self):
-            tmp = T.alloc_buffer((1,), "int32", scope="local")
+            tmp = T.alloc_tensor((1,), "int32", scope="local")
 
     with pytest.raises(ValueError):
 
@@ -50,14 +50,14 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
     class Holder:
         def __init__(self, external):
             self.external = external
-            self.buf = T.alloc_buffer((2,), "int32", scope="local")
+            self.buf = T.alloc_tensor((2,), "int32", scope="local")
             self.scalar = T.local_scalar("int32")
             instances.append(self)
 
     @T.prim_func(private=True)
     def test():
         T.device_entry()
-        external = T.alloc_buffer((2,), "int32", scope="local")
+        external = T.alloc_tensor((2,), "int32", scope="local")
         first = Holder(external)
         second = Holder(external)
         T.evaluate(
@@ -255,17 +255,17 @@ def test_prim_func_closure_shape():
 
     def f(M=16):
         @T.prim_func
-        def func(A: T.Buffer((M,), "float32")):
+        def func(A: T.Tensor((M,), "float32")):
             T.evaluate(0)
 
         return func
 
     @T.prim_func
-    def expected_16(A: T.Buffer((16,), "float32")):
+    def expected_16(A: T.Tensor((16,), "float32")):
         T.evaluate(0)
 
     @T.prim_func
-    def expected_32(A: T.Buffer((32,), "float32")):
+    def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))
@@ -282,17 +282,17 @@ def test_prim_func_closure_dtype():
 
     def f(dtype="float32"):
         @T.prim_func
-        def func(A: T.Buffer((16,), dtype)):
+        def func(A: T.Tensor((16,), dtype)):
             T.evaluate(0)
 
         return func
 
     @T.prim_func
-    def expected_f32(A: T.Buffer((16,), "float32")):
+    def expected_f32(A: T.Tensor((16,), "float32")):
         T.evaluate(0)
 
     @T.prim_func
-    def expected_f16(A: T.Buffer((16,), "float16")):
+    def expected_f16(A: T.Tensor((16,), "float16")):
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(_normalize(f("float32")), _normalize(expected_f32))
@@ -311,7 +311,7 @@ def test_prim_func_nested_closure():
     def outer(M=16):
         def middle(N=8):
             @T.prim_func
-            def func(A: T.Buffer((M, N), "float32")):
+            def func(A: T.Tensor((M, N), "float32")):
                 T.evaluate(0)
 
             return func
@@ -319,11 +319,11 @@ def test_prim_func_nested_closure():
         return middle()
 
     @T.prim_func
-    def expected_16_8(A: T.Buffer((16, 8), "float32")):
+    def expected_16_8(A: T.Tensor((16, 8), "float32")):
         T.evaluate(0)
 
     @T.prim_func
-    def expected_32_8(A: T.Buffer((32, 8), "float32")):
+    def expected_32_8(A: T.Tensor((32, 8), "float32")):
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(_normalize(outer(16)), _normalize(expected_16_8))
@@ -337,17 +337,17 @@ def test_ir_module_closure():
         @I.ir_module
         class Mod:
             @T.prim_func
-            def main(A: T.Buffer((M,), "float32")):
+            def main(A: T.Tensor((M,), "float32")):
                 T.evaluate(0)
 
         return Mod
 
     @T.prim_func
-    def expected_16(A: T.Buffer((16,), "float32")):
+    def expected_16(A: T.Tensor((16,), "float32")):
         T.evaluate(0)
 
     @T.prim_func
-    def expected_32(A: T.Buffer((32,), "float32")):
+    def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(0)
 
     tvm.ir.assert_structural_equal(_normalize(f(16)["main"]), _normalize(expected_16))
@@ -359,17 +359,17 @@ def test_mixed_closure_usage():
 
     def f(M=16):
         @T.prim_func
-        def func(A: T.Buffer((M,), "float32")):
+        def func(A: T.Tensor((M,), "float32")):
             T.evaluate(M)
 
         return func
 
     @T.prim_func
-    def expected_16(A: T.Buffer((16,), "float32")):
+    def expected_16(A: T.Tensor((16,), "float32")):
         T.evaluate(16)
 
     @T.prim_func
-    def expected_32(A: T.Buffer((32,), "float32")):
+    def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(32)
 
     tvm.ir.assert_structural_equal(_normalize(f(16)), _normalize(expected_16))

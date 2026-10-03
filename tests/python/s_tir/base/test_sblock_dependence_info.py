@@ -36,7 +36,7 @@ from tvm.tirx import PrimFunc
 
 
 @Ts.prim_func
-def elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
+def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -54,7 +54,7 @@ def elementwise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "flo
 
 @Ts.prim_func
 def war_dependency(
-    A: T.Buffer((128, 128)), B: T.Buffer((128, 128)), C: T.Buffer((128, 128))
+    A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
 ) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("C"):
@@ -66,7 +66,7 @@ def war_dependency(
 
 
 @Ts.prim_func
-def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])

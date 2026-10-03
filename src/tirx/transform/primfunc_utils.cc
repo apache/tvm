@@ -70,11 +70,12 @@ transform::Pass AnnotateEntryFunc() {
 }
 
 transform::Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond) {
-  auto fpass = [fcond](tirx::PrimFunc f, IRModule m, transform::PassContext ctx) {
+  auto fpass = [fcond](tirx::PrimFunc f, IRModule m,
+                       transform::PassContext ctx) -> ffi::Optional<PrimFunc> {
     if (fcond(f)) {
       return f;
     } else {
-      return tirx::PrimFunc(nullptr);
+      return std::nullopt;
     }
   };
   return tirx::transform::CreatePrimFuncPass(fpass, 0, "tirx.Filter", {});

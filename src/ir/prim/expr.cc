@@ -381,7 +381,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
  * explicitly invoked.
  */
 #define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                        \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                 \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {   \
     using T = Name::ContainerType;                                                \
     TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                 \
     TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                 \
@@ -389,16 +389,14 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
     const PrimTypeNode* b_ty = GetPrimTypeNode(b);                                \
     TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                          \
         << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n"; \
-    ffi::ObjectPtr<T> node = ffi::make_object<T>();                               \
+    ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                           \
     node->ExprNode::ty = a.get()->ExprNode::ty;                                   \
-    node->a = std::move(a);                                                       \
-    node->b = std::move(b);                                                       \
     node->span = std::move(span);                                                 \
     data_ = std::move(node);                                                      \
   }
 
 #define TVM_DEFINE_BITWISE_CONSTRUCTOR(Name, AllowBool)                                     \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                           \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {             \
     using T = Name::ContainerType;                                                          \
     TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                           \
     TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                           \
@@ -410,16 +408,14 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
                       (AllowBool && a.ty().MatchesCode(DLDataTypeCode::kDLBool)),           \
                   TypeError)                                                                \
         << #Name << " requires integer" << (AllowBool ? " or boolean" : "") << " operands"; \
-    ffi::ObjectPtr<T> node = ffi::make_object<T>();                                         \
+    ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                                     \
     node->ExprNode::ty = a.get()->ExprNode::ty;                                             \
-    node->a = std::move(a);                                                                 \
-    node->b = std::move(b);                                                                 \
     node->span = std::move(span);                                                           \
     data_ = std::move(node);                                                                \
   }
 
 #define TVM_DEFINE_CMPOP_CONSTRUCTOR(Name)                                        \
-  Name::Name(PrimExpr a, PrimExpr b, Span span) {                                 \
+  Name::Name(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {   \
     using T = Name::ContainerType;                                                \
     TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined\n";                 \
     TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined\n";                 \
@@ -427,10 +423,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> LetMaybeInplaceMutate(
     const PrimTypeNode* b_ty = GetPrimTypeNode(b);                                \
     TVM_FFI_CHECK(a_ty->dtype == b_ty->dtype, TypeError)                          \
         << "mismatched types. " << a_ty->dtype << " vs. " << b_ty->dtype << "\n"; \
-    ffi::ObjectPtr<T> node = ffi::make_object<T>();                               \
+    ffi::ObjectPtr<T> node = ffi::make_object<T>(a, b);                           \
     node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});     \
-    node->a = std::move(a);                                                       \
-    node->b = std::move(b);                                                       \
     node->span = std::move(span);                                                 \
     data_ = std::move(node);                                                      \
   }
@@ -443,13 +437,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Cast
-Cast::Cast(PrimType value_ty, PrimExpr value, Span span) {
+Cast::Cast(PrimType value_ty, PrimExpr value, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   PrimType value_expr_ty = value.ty();
   TVM_FFI_ICHECK_EQ(value_ty->dtype.lanes, value_expr_ty->dtype.lanes);
-  ffi::ObjectPtr<CastNode> node = ffi::make_object<CastNode>();
+  ffi::ObjectPtr<CastNode> node = ffi::make_object<CastNode>(value);
   node->ExprNode::ty = std::move(value_ty);
-  node->value = std::move(value);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -809,7 +802,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // And
-And::And(PrimExpr a, PrimExpr b, Span span) {
+And::And(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined";
   PrimType a_ty = a.ty();
@@ -818,10 +811,8 @@ And::And(PrimExpr a, PrimExpr b, Span span) {
   TVM_FFI_ICHECK(b_ty.MatchesCode(DLDataTypeCode::kDLBool));
   TVM_FFI_CHECK(a_ty == b_ty, TypeError) << "mismatched types";
 
-  ffi::ObjectPtr<AndNode> node = ffi::make_object<AndNode>();
+  ffi::ObjectPtr<AndNode> node = ffi::make_object<AndNode>(a, b);
   node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
-  node->a = std::move(a);
-  node->b = std::move(b);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -841,7 +832,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Or
-Or::Or(PrimExpr a, PrimExpr b, Span span) {
+Or::Or(PrimExpr a, PrimExpr b, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   TVM_FFI_CHECK(b.defined(), ValueError) << "b is undefined";
   PrimType a_ty = a.ty();
@@ -850,10 +841,8 @@ Or::Or(PrimExpr a, PrimExpr b, Span span) {
   TVM_FFI_ICHECK(b_ty.MatchesCode(DLDataTypeCode::kDLBool));
   TVM_FFI_CHECK(a_ty == b_ty, TypeError) << "mismatched types";
 
-  ffi::ObjectPtr<OrNode> node = ffi::make_object<OrNode>();
+  ffi::ObjectPtr<OrNode> node = ffi::make_object<OrNode>(a, b);
   node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
-  node->a = std::move(a);
-  node->b = std::move(b);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -873,14 +862,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Not
-Not::Not(PrimExpr a, Span span) {
+Not::Not(PrimExpr a, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   PrimType a_ty = a.ty();
   TVM_FFI_ICHECK(a_ty.MatchesCode(DLDataTypeCode::kDLBool));
 
-  ffi::ObjectPtr<NotNode> node = ffi::make_object<NotNode>();
+  ffi::ObjectPtr<NotNode> node = ffi::make_object<NotNode>(a);
   node->ExprNode::ty = PrimType(DLDataType{kDLBool, 8, a_ty->dtype.lanes});
-  node->a = std::move(a);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -898,7 +886,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // BitwiseNot
-BitwiseNot::BitwiseNot(PrimExpr a, Span span) {
+BitwiseNot::BitwiseNot(PrimExpr a, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(a.defined(), ValueError) << "a is undefined";
   PrimType a_ty = a.ty();
   TVM_FFI_CHECK(a_ty.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt) ||
@@ -906,9 +894,8 @@ BitwiseNot::BitwiseNot(PrimExpr a, Span span) {
                 TypeError)
       << "BitwiseNot requires an integer or boolean operand";
 
-  ffi::ObjectPtr<BitwiseNotNode> node = ffi::make_object<BitwiseNotNode>();
+  ffi::ObjectPtr<BitwiseNotNode> node = ffi::make_object<BitwiseNotNode>(a);
   node->ExprNode::ty = a_ty;
-  node->a = std::move(a);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -929,7 +916,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Select
-Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span) {
+Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Span span)
+    : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(condition.defined(), ValueError) << "condition is undefined";
   TVM_FFI_CHECK(true_value.defined(), ValueError) << "true_value is undefined";
   TVM_FFI_CHECK(false_value.defined(), ValueError) << "true_value is undefined";
@@ -943,11 +931,9 @@ Select::Select(PrimExpr condition, PrimExpr true_value, PrimExpr false_value, Sp
       << "mismatched types. "
       << "False type: " << false_ty->dtype << "; True type: " << true_ty->dtype;
 
-  ffi::ObjectPtr<SelectNode> node = ffi::make_object<SelectNode>();
+  ffi::ObjectPtr<SelectNode> node =
+      ffi::make_object<SelectNode>(condition, true_value, false_value);
   node->ExprNode::ty = true_ty;
-  node->condition = std::move(condition);
-  node->true_value = std::move(true_value);
-  node->false_value = std::move(false_value);
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -968,16 +954,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Let
-Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) {
+Let::Let(Var var, PrimExpr value, PrimExpr body, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(body.defined());
   TVM_FFI_ICHECK(value.ty() == var->ty.as_or_throw<PrimType>());
 
-  ffi::ObjectPtr<LetNode> node = ffi::make_object<LetNode>();
+  ffi::ObjectPtr<LetNode> node = ffi::make_object<LetNode>(var, value, body);
   node->ExprNode::ty = body.ty();
-  node->var = std::move(var);
-  node->value = std::move(value);
-  node->body = std::move(body);
   node->span = std::move(span);
   data_ = std::move(node);
 }

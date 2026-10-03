@@ -565,7 +565,7 @@ class DistributedIRBuilder : public ExprMutator {
         new_value = InsertRedistribute(new_value, device_mesh, placements[0]);
       }
       if (const auto* var = new_value.as<VarNode>()) {
-        var_remap_[binding->var] = ffi::GetRef<Var>(var);
+        var_remap_.insert_or_assign(binding->var, ffi::GetRef<Var>(var));
       } else {
         ReEmitBinding(binding, builder_->Normalize(new_value));
       }
@@ -573,7 +573,7 @@ class DistributedIRBuilder : public ExprMutator {
       const auto* inferred_tuple_ty = new_call->ty.as<TupleTypeNode>();
       TVM_FFI_ICHECK(inferred_tuple_ty) << new_call;
       Var new_var = builder_->Emit(new_call);
-      var_remap_[binding->var] = new_var;
+      var_remap_.insert_or_assign(binding->var, new_var);
       for (int i = 0; i < static_cast<int>(inferred_tuple_ty->fields.size()); i++) {
         if (!ffi::StructuralEqual()(
                 DTensorType(inferred_tuple_ty->fields[i].as_or_throw<DTensorType>()->tensor_ty,
@@ -581,7 +581,7 @@ class DistributedIRBuilder : public ExprMutator {
                 inferred_tuple_ty->fields[i])) {
           Var redistribute_var = builder_->Emit(
               InsertRedistribute(TupleGetItem(new_var, i), device_mesh, placements[i]));
-          tuple_getitem_remap_[TupleGetItem(binding->var, i)] = redistribute_var;
+          tuple_getitem_remap_.insert_or_assign(TupleGetItem(binding->var, i), redistribute_var);
         }
       }
     }
@@ -589,7 +589,8 @@ class DistributedIRBuilder : public ExprMutator {
 
   void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
     if (tuple_getitem_remap_.count(ffi::GetRef<TupleGetItem>(val))) {
-      var_remap_[binding->var] = tuple_getitem_remap_[ffi::GetRef<TupleGetItem>(val)];
+      var_remap_.insert_or_assign(binding->var,
+                                  tuple_getitem_remap_.at(ffi::GetRef<TupleGetItem>(val)));
     } else {
       ExprMutator::VisitBinding_(binding, val);
     }
@@ -599,7 +600,7 @@ class DistributedIRBuilder : public ExprMutator {
     Var var_ref = ffi::GetRef<Var>(var);
     auto it = input_tensor_remap_.find(var_ref);
     if (it != input_tensor_remap_.end()) {
-      var_remap_[var_ref] = (*it).second;
+      var_remap_.insert_or_assign(var_ref, (*it).second);
     }
     return ExprMutator::VisitExpr_(var);
   }

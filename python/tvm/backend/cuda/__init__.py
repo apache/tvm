@@ -73,7 +73,7 @@ def register_backend():
         pass
     register_device_target_detector("cuda", _detect_target_from_device)
     for name, namespace in script_namespaces().items():
-        builder_op.register_script_namespace(name, namespace, register_printer_names=name != "cuda")
+        builder_op.register_script_namespace(name, namespace, canonical_op_names=name == "cuda")
 
     # script_namespaces() above pulls in ptx, which only imports the shared
     # codegen layer -- not the device-helper modules. This import is the sole

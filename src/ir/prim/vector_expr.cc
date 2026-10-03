@@ -208,7 +208,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ShuffleMaybeInplaceMuta
 
 }  // namespace
 // Ramp
-Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
+Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span)
+    : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(base.defined());
   TVM_FFI_ICHECK(stride.defined());
   PrimType base_ty = base.ty();
@@ -219,7 +220,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
     stride = prim::cast(base_ty, stride);
   }
 
-  ffi::ObjectPtr<RampNode> node = ffi::make_object<RampNode>();
+  ffi::ObjectPtr<RampNode> node = ffi::make_object<RampNode>(base, stride, lanes);
   auto* lanes_as_int = lanes.as<IntImmNode>();
   if (lanes_as_int) {
     int lanes = lanes_as_int->value.as<int>().value();
@@ -237,8 +238,6 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span) {
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->base = base;
-  node->stride = stride;
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -258,12 +257,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Broadcast
-Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
+Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   PrimType value_ty = value.ty();
   TVM_FFI_ICHECK(value_ty.IsScalar());
 
-  ffi::ObjectPtr<BroadcastNode> node = ffi::make_object<BroadcastNode>();
+  ffi::ObjectPtr<BroadcastNode> node = ffi::make_object<BroadcastNode>(value, lanes);
   auto* lanes_int = lanes.as<IntImmNode>();
   if (lanes_int) {
     int lanes = lanes_int->value.as<int>().value();
@@ -281,7 +280,6 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->value = std::move(value);
   node->span = std::move(span);
   data_ = node;
 }
@@ -302,7 +300,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // Shuffle
-Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span) {
+Shuffle::Shuffle(ffi::Array<PrimExpr> vectors, ffi::Array<PrimExpr> indices, Span span)
+    : PrimExpr(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK_NE(vectors.size(), 0U);
   TVM_FFI_ICHECK_NE(indices.size(), 0U);
 

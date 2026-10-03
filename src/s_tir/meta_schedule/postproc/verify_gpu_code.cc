@@ -162,7 +162,8 @@ class VerifyGPUCodeNode : public PostprocNode {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
       if (const auto* prim_func = base_func.as<tirx::PrimFuncNode>()) {
-        if (!s_tir::ThreadExtentChecker::Check(prim_func->body, thread_warp_size_)) {
+        if (prim_func->body.has_value() &&
+            !s_tir::ThreadExtentChecker::Check(prim_func->body.value(), thread_warp_size_)) {
           return false;
         }
         IRModule lowered{ffi::UnsafeInit()};

@@ -152,11 +152,11 @@ class VarTouchedAnalysis : public StmtExprVisitor {
   }
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op, call);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return DispatchAllocTensor(op, call);
     }
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_buffer()))
+        call && call->op.same_as(tirx::builtin::decl_tensor()))
       return StmtExprVisitor::Visit_(op);
     expr_touched_->Reset(false);
     expr_touched_->Visit(op->value);
@@ -189,7 +189,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     }
     return std::nullopt;
   }
-  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     expr_touched_->Reset(false);
     tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     for (const Expr& extent : shape->fields) {
@@ -299,7 +299,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         op->op.same_as(tirx::builtin::masked_store())) {
       bool is_load = op->op.same_as(tirx::builtin::masked_load());
       BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
-      PrimExpr value;
+      ffi::Optional<PrimExpr> value;
       if (!is_load)
         value = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       ffi::Array<PrimExpr> indices;
@@ -317,7 +317,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         args.push_back(predicate);
         return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
       }
-      BufferStore access = VisitBufferAccess(BufferStore(buffer, value, indices, op->span));
+      BufferStore access = VisitBufferAccess(BufferStore(buffer, value.value(), indices, op->span));
       ffi::Array<Expr> args{access->buffer.var(), access->value};
       for (const PrimExpr& index : access->indices) args.push_back(index);
       args.push_back(predicate);
@@ -345,7 +345,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       PrimExpr stride = it->second / prim::MakeConst(offset.ty(), dtype.lanes());
       offset = RewriteIndex(offset, stride);
       Expr data =
-          buffer.value()->ty.as<BufferTypeNode>()
+          buffer.value()->ty.as<TensorTypeNode>()
               ? GetRemappedBuffer(buffer.value().as_or_throw<BufferVar>(), it->second).data()
               : op->args[1];
 
@@ -420,7 +420,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
 
     TVM_FFI_ICHECK_EQ(buf->shape.size(), 1)
         << "Expected buffers being rewritten to already be flattened.";
-    auto writer = CopyBufferType(buf);
+    auto writer = CopyTensorType(buf);
     writer->shape = {buf->shape[0] * alloc_extent};
     buf = RebuildBufferVar(buf, std::move(writer));
 
@@ -449,11 +449,11 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   // Bind
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, call, inplace_mode);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
     }
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_buffer()))
+        call && call->op.same_as(tirx::builtin::decl_tensor()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
     auto value_result = this->Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
@@ -591,8 +591,8 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     return SeqStmt(new_seq);
   }
   // Allocate
-  // AllocBuffer
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+  // AllocTensor
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     ffi::Array<PrimExpr> original_shape = shape->fields.as_or_throw<ffi::Array<PrimExpr>>();
@@ -612,18 +612,18 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
       PrimExpr stride = new_shape[0];
       new_shape = {stride * num_threads_};
-      alloc_remap_[op->var.as_or_throw<BufferVar>().get()] = stride;
+      alloc_remap_.insert_or_assign(op->var.as_or_throw<BufferVar>().get(), stride);
     }
 
     if (new_shape.same_as(original_shape)) {
       return ffi::Unchanged();
     } else {
-      auto type = CopyBufferType(op->var.as_or_throw<BufferVar>());
+      auto type = CopyTensorType(op->var.as_or_throw<BufferVar>());
       type->shape = new_shape;
       BufferVar new_buffer = RebuildBufferVar(op->var.as_or_throw<BufferVar>(), std::move(type));
       VarRemapSet(op->var.as_or_throw<BufferVar>(), new_buffer);
       return Bind(new_buffer.var(),
-                  Call(new_buffer.type(), tirx::builtin::alloc_buffer(),
+                  Call(new_buffer.type(), tirx::builtin::alloc_tensor(),
                        {tvm::Tuple(new_buffer->shape, call->args[0]->span),
                         DataTypeImm(new_buffer->dtype->dtype, call->args[1]->span),
                         StringImm(new_buffer.scope(), call->args[2]->span)},
@@ -737,14 +737,15 @@ namespace transform {
 
 Pass InjectVirtualThread() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
 
     sym::Analyzer analyzer;
 
     n->body = ffi::make_object<VirtualThreadInjector>(analyzer)
-                  ->Mutate(n->body, InplaceMode::kAllow)
-                  .ValueOrUnchanged(std::move(n->body));
-    n->body = s_tir::ConvertSSA(std::move(n->body));
+                  ->Mutate(n->body.value(), InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body).value());
+    n->body = s_tir::ConvertSSA(std::move(n->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectVirtualThread", {});

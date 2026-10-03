@@ -33,7 +33,7 @@ ffi::Optional<ExprDoc> CpAsyncRawDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   // This constructor takes an element dtype followed by the five stored operands.
   // The dtype is carried by the Call itself, not derived from a pointer argument.
   if (!CanTranslateExplicitResultCall(call) || call->args.size() != 5) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   ffi::Array<ExprDoc> args = {TypeValue(d, call->ty)};
   for (const Expr& arg : call->args) {

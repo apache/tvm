@@ -38,9 +38,9 @@ from tvm.script import tirx as T
 class MatmulModule:
     @Ts.prim_func
     def main(  # type: ignore
-        A: T.Buffer((1024, 1024), "float32"),
-        B: T.Buffer((1024, 1024), "float32"),
-        C: T.Buffer((1024, 1024), "float32"),
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        C: T.Tensor((1024, 1024), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -56,9 +56,9 @@ class MatmulModule:
 class MatmulReluModule:
     @Ts.prim_func
     def main(  # type: ignore
-        A: T.Buffer((1024, 1024), "float32"),
-        B: T.Buffer((1024, 1024), "float32"),
-        D: T.Buffer((1024, 1024), "float32"),
+        A: T.Tensor((1024, 1024), "float32"),
+        B: T.Tensor((1024, 1024), "float32"),
+        D: T.Tensor((1024, 1024), "float32"),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -79,9 +79,9 @@ class MatmulReluModule:
 class BatchMatmulModule:
     @Ts.prim_func
     def main(  # type: ignore
-        A: T.Buffer([16, 128, 128]),
-        B: T.Buffer([16, 128, 128]),
-        C: T.Buffer([16, 128, 128]),
+        A: T.Tensor([16, 128, 128]),
+        B: T.Tensor([16, 128, 128]),
+        C: T.Tensor([16, 128, 128]),
     ) -> None:  # pylint: disable=no-self-argument
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 

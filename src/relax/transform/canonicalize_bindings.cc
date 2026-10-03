@@ -28,12 +28,15 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
+#include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
 #include <tvm/relax/utils.h>
 #include <tvm/tirx/stmt_functor.h>
+
+#include "../op/op_common.h"
 
 namespace tvm {
 namespace relax {
@@ -50,6 +53,68 @@ class SymbolicVarCanonicalizer : public ExprMutator {
   PrimExpr VisitTypePrimExprField(const PrimExpr& expr) final {
     if (!canonicalize_shape_values_) return expr;
     return CanonicalizeShapeValue(expr);
+  }
+
+  Expr VisitExpr_(const CallNode* op) final {
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    static const Op& call_tir_inplace_op = Op::Get("relax.call_tir_inplace");
+    static const Op& call_tir_with_grad_op = Op::Get("relax.call_tir_with_grad");
+    bool is_call_tir = op->op.same_as(call_tir_op) || op->op.same_as(call_tir_inplace_op) ||
+                       op->op.same_as(call_tir_with_grad_op);
+    if (!is_call_tir || op->args.size() != 2 || op->ty_args.size() != 1) {
+      return ExprMutator::VisitExpr_(op);
+    }
+    // The out_ty of a call_tir is checked against the argument types. Canonicalizing the
+    // two independently can leave them mentioning different variables for the same value,
+    // so the parts of the canonical out_ty that no longer follow from the arguments are
+    // replaced by what the arguments imply.
+    Expr new_op = this->VisitExpr(op->op);
+    ffi::Array<Expr> new_args =
+        op->args.Map([this](const Expr& arg) { return this->VisitExpr(arg); });
+    Type out_ty = this->VisitExprDepTypeField(op->ty_args[0]);
+    ffi::Optional<ffi::Array<int64_t>> inplace_indices;
+    if (const auto* attrs = op->attrs.as<CallTIRInplaceAttrs>()) {
+      inplace_indices = attrs->inplace_indices;
+    }
+    auto implied = InferCallTIROutputTypeFromArguments(GetType(new_args[0]), GetType(new_args[1]),
+                                                       inplace_indices);
+    if (implied.has_value()) {
+      out_ty = ReconcileOutType(implied.value(), out_ty);
+    }
+    bool unchanged =
+        new_op.same_as(op->op) && new_args.same_as(op->args) && out_ty.same_as(op->ty_args[0]);
+    if (unchanged) {
+      return ffi::GetRef<Expr>(op);
+    }
+    return Call(Type::Missing(), new_op, new_args, op->attrs, {out_ty}, op->span);
+  }
+
+  /*!
+   * \brief Keep each output of out_ty that follows from the implied type. For a tensor that
+   * does not, take the implied shape and keep the dtype and vdevice, since the PrimFunc
+   * signature carries no vdevice and erases the shape of an output with a dimension the
+   * arguments do not determine.
+   */
+  static Type ReconcileOutType(const Type& implied, const Type& out_ty) {
+    if (IsBaseOf(implied, out_ty)) {
+      return out_ty;
+    }
+    const auto* implied_tuple = implied.as<TupleTypeNode>();
+    const auto* out_tuple = out_ty.as<TupleTypeNode>();
+    if (implied_tuple && out_tuple && implied_tuple->fields.size() == out_tuple->fields.size()) {
+      ffi::Array<Type> fields;
+      for (size_t i = 0; i < out_tuple->fields.size(); ++i) {
+        fields.push_back(ReconcileOutType(implied_tuple->fields[i], out_tuple->fields[i]));
+      }
+      return TupleType(fields, out_tuple->span);
+    }
+    const auto* implied_tensor = implied.as<TensorTypeNode>();
+    const auto* out_tensor = out_ty.as<TensorTypeNode>();
+    if (implied_tensor && out_tensor && implied_tensor->shape.has_value()) {
+      return TensorType(implied_tensor->shape.value(), out_tensor->dtype, out_tensor->vdevice,
+                        out_tensor->span);
+    }
+    return implied;
   }
 
   Expr VisitExpr_(const ShapeExprNode* op) final {
@@ -90,7 +155,8 @@ class SymbolicVarCanonicalizer : public ExprMutator {
             << ", while the later definition of Relax variable " << binding->var
             << " instead implies that TIR variable " << tir_var.value() << " is " << prim_expr;
       } else {
-        known_values_[tir_var.value()] = KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)};
+        known_values_.insert_or_assign(tir_var.value(),
+                                       KnownValue{prim_expr, ffi::GetRef<MatchCast>(binding)});
       }
     }
     // A MatchCast that defines a runtime-used symbolic variable cannot be folded away.
@@ -552,7 +618,7 @@ class BindingCanonicalizer : public ExprMutator {
         // if the current var is an output and has not been disqualified,
         // then include it in the candidate map
         if (!disqualified_set.count(df_var) && output_vars.count(df_var)) {
-          candidates[df_var] = value;
+          candidates.insert_or_assign(df_var, value);
         }
       } else {
         // The LHS is an output binding.

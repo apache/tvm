@@ -62,7 +62,8 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
   }
 
   Stmt InjectPTX(const TensorLoadNode* load, const BufferStoreNode* store, bool predicated = false,
-                 PrimExpr predicate_value = PrimExpr()) {
+                 ffi::Optional<PrimExpr> predicate_value = std::nullopt) {
+    TVM_FFI_ICHECK(!predicated || predicate_value.has_value());
     if (load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "global") {
       TVM_FFI_ICHECK(load->indices.size() == 1 && store->indices.size() == 1);
       TVM_FFI_ICHECK(load->indices[0].ty().lanes() == store->indices[0].ty().lanes());
@@ -101,7 +102,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
                                    src_offset, PrimExpr(bytes)};
           // use arguments size to indicate whether or not to use predicated cp.async
           if (predicated) {
-            args.push_back(predicate_value);
+            args.push_back(predicate_value.value());
           }
           static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
           return Evaluate(
@@ -111,14 +112,14 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
         // Predicated load don't support vectorized indexing.
         if (!predicated) {
           // Only some vectorized indexing patterns are supported for now.
-          auto src_offset = [=]() -> PrimExpr {
+          auto src_offset = [=]() -> ffi::Optional<PrimExpr> {
             if (load->indices[0]->IsInstance<prim::RampNode>()) {
               return load->indices[0].as<prim::RampNode>()->base;
             }
-            return PrimExpr();
+            return std::nullopt;
           }();
 
-          auto dst_offset = [=]() -> PrimExpr {
+          auto dst_offset = [=]() -> ffi::Optional<PrimExpr> {
             if (store->indices[0].as<prim::RampNode>()) {
               return store->indices[0].as<prim::RampNode>()->base;
             } else if (store->indices[0].as<prim::AddNode>()) {
@@ -126,31 +127,32 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
               // shared memory.
               // A_shared.dyn[(ramp(...), 1, 8) + x8(17408))] = A_global[ramp(...),1, 8)]
               auto* add = store->indices[0].as<prim::AddNode>();
-              if (!add->a->IsInstance<prim::RampNode>()) return PrimExpr();
-              if (!add->b->IsInstance<prim::BroadcastNode>()) return PrimExpr();
+              if (!add->a->IsInstance<prim::RampNode>()) return std::nullopt;
+              if (!add->b->IsInstance<prim::BroadcastNode>()) return std::nullopt;
               return prim::Add(add->a.as<prim::RampNode>()->base,
                                add->b.as<prim::BroadcastNode>()->value);
             }
-            return PrimExpr();
+            return std::nullopt;
           }();
-          if (src_offset.defined() && dst_offset.defined()) {
+          if (src_offset.has_value() && dst_offset.has_value()) {
             static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-            return Evaluate(Call(store->buffer->dtype, ptx_cp_async_op,
-                                 {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
-                                  load->source.as_or_throw<tvm::tirx::BufferVar>().data(),
-                                  src_offset, PrimExpr(bytes)})
-                                .as_or_throw<PrimExpr>());
+            return Evaluate(
+                Call(store->buffer->dtype, ptx_cp_async_op,
+                     {store->buffer.data(), mul(dst_offset.value(), PrimExpr(index_factor)),
+                      load->source.as_or_throw<tvm::tirx::BufferVar>().data(), src_offset.value(),
+                      PrimExpr(bytes)})
+                    .as_or_throw<PrimExpr>());
           }
         } else {
           // Only some vectorized indexing patterns are supported for now.
-          auto src_offset = [=]() -> PrimExpr {
+          auto src_offset = [=]() -> ffi::Optional<PrimExpr> {
             if (load->indices[0]->IsInstance<prim::RampNode>()) {
               return load->indices[0].as<prim::RampNode>()->base;
             }
-            return PrimExpr();
+            return std::nullopt;
           }();
 
-          auto dst_offset = [=]() -> PrimExpr {
+          auto dst_offset = [=]() -> ffi::Optional<PrimExpr> {
             if (store->indices[0].as<prim::RampNode>()) {
               return store->indices[0].as<prim::RampNode>()->base;
             } else if (store->indices[0].as<prim::AddNode>()) {
@@ -158,21 +160,22 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
               // shared memory.
               // A_shared.dyn[(ramp(...), 1, 8) + x8(17408))] = A_global[ramp(...),1, 8)]
               auto* add = store->indices[0].as<prim::AddNode>();
-              if (!add->a->IsInstance<prim::RampNode>()) return PrimExpr();
-              if (!add->b->IsInstance<prim::BroadcastNode>()) return PrimExpr();
+              if (!add->a->IsInstance<prim::RampNode>()) return std::nullopt;
+              if (!add->b->IsInstance<prim::BroadcastNode>()) return std::nullopt;
               return prim::Add(add->a.as<prim::RampNode>()->base,
                                add->b.as<prim::BroadcastNode>()->value);
             }
-            return PrimExpr();
+            return std::nullopt;
           }();
 
-          if (src_offset.defined() && dst_offset.defined()) {
+          if (src_offset.has_value() && dst_offset.has_value()) {
             static const Op ptx_cp_async_op = Op::Get("tirx.s_tir.cp_async_raw");
-            return Evaluate(Call(store->buffer->dtype, ptx_cp_async_op,
-                                 {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
-                                  load->source.as_or_throw<tvm::tirx::BufferVar>().data(),
-                                  src_offset, PrimExpr(bytes), predicate_value})
-                                .as_or_throw<PrimExpr>());
+            return Evaluate(
+                Call(store->buffer->dtype, ptx_cp_async_op,
+                     {store->buffer.data(), mul(dst_offset.value(), PrimExpr(index_factor)),
+                      load->source.as_or_throw<tvm::tirx::BufferVar>().data(), src_offset.value(),
+                      PrimExpr(bytes), predicate_value.value()})
+                    .as_or_throw<PrimExpr>());
           }
         }
       }

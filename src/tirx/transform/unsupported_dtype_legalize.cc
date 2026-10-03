@@ -85,12 +85,12 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(builtin::alloc_buffer()))
-      return DispatchAllocBuffer(op, call);
+        call && call->op.same_as(builtin::alloc_tensor()))
+      return DispatchAllocTensor(op, call);
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
     PrimType alloc_dtype(dtype);
     // Select intermediate buffers with an unsupported element type.
@@ -230,7 +230,7 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(builtin::alloc_buffer()) || op->op.same_as(builtin::decl_buffer())) {
+    if (op->op.same_as(builtin::alloc_tensor()) || op->op.same_as(builtin::decl_tensor())) {
       Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                       .as_or_throw<Call>();
@@ -248,7 +248,7 @@ class ComputeLegalizer : public StmtExprMutator {
       BufferVar original = op->args[0].as_or_throw<BufferVar>();
       BufferVar buffer = GetRemappedBuffer(original);
       ffi::Array<Expr> args{buffer.var()};
-      PrimExpr value;
+      ffi::Optional<PrimExpr> value;
       if (!is_load) {
         value = this->Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       }
@@ -267,14 +267,14 @@ class ComputeLegalizer : public StmtExprMutator {
         return Call(type, op->op, args, op->attrs, op->ty_args, op->span);
       }
       if (MatchType(buffer->dtype)) {
-        value = CastTargetToDType(value, BufferLoad(buffer, indices).ty());
+        value = CastTargetToDType(value.value(), BufferLoad(buffer, indices).ty());
       }
       PrimType storage_dtype = BufferLoad(buffer, indices).ty();
-      if (value.ty() != storage_dtype) {
-        TVM_FFI_ICHECK(MatchType(value.ty()));
-        value = DTypeConversion(value, storage_dtype);
+      if (value.value().ty() != storage_dtype) {
+        TVM_FFI_ICHECK(MatchType(value.value().ty()));
+        value = DTypeConversion(value.value(), storage_dtype);
       }
-      args.push_back(value);
+      args.push_back(value.value());
       for (const PrimExpr& index : indices) args.push_back(index);
       args.push_back(predicate);
       return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);
@@ -532,7 +532,7 @@ class StorageLegalizer : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
   PrimFunc Legalize(PrimFunc func) {
     for (const Var& param : func->params) {
-      TVM_FFI_ICHECK(!param->ty.as<BufferTypeNode>())
+      TVM_FFI_ICHECK(!param->ty.as<TensorTypeNode>())
           << "This pass must be called after MakePackedAPI";
     }
     auto* n = func.CopyOnWrite();
@@ -559,7 +559,7 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
-    if (op->value->ty.as<BufferTypeNode>()) {
+    if (op->value->ty.as<TensorTypeNode>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     auto value_result = Mutate(op->value, inplace_mode);
@@ -616,11 +616,11 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(builtin::alloc_buffer()) || op->op.same_as(builtin::decl_buffer())) {
+    if (op->op.same_as(builtin::alloc_tensor()) || op->op.same_as(builtin::decl_tensor())) {
       Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
                       .as_or_throw<Call>();
-      int dtype_index = op->op.same_as(builtin::alloc_buffer()) ? 1 : 2;
+      int dtype_index = op->op.same_as(builtin::alloc_tensor()) ? 1 : 2;
       auto dtype = call->args[dtype_index].as_or_throw<DataTypeImm>();
       if (MatchType(PrimType(dtype->value))) {
         call.CopyOnWrite()->args.Set(
@@ -633,14 +633,14 @@ class StorageLegalizer : public StmtExprMutator {
       bool is_load = op->op.same_as(builtin::masked_load());
       BufferVar buffer = GetRemappedBuffer(op->args[0].as_or_throw<BufferVar>());
       ffi::Array<Expr> args{buffer.var()};
-      PrimExpr value;
+      ffi::Optional<PrimExpr> value;
       if (!is_load) {
         PrimExpr original_value = op->args[1].as_or_throw<PrimExpr>();
         value = this->ChangeToUInt(this->Mutate(original_value).ValueOrUnchanged(original_value));
         if (MatchType(original_value.ty())) {
           TVM_FFI_ICHECK(buffer->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
         }
-        args.push_back(value);
+        args.push_back(value.value());
       }
       ffi::Array<PrimExpr> indices;
       for (size_t i = is_load ? 1 : 2; i + 1 < op->args.size(); ++i) {

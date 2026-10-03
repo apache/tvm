@@ -44,6 +44,7 @@ using namespace tvm::prim;
 
 /*! \brief A slot used in PrimExpr lowering. */
 struct PrimExprSlot {
+  PrimExprSlot(PrimExpr expr, int index) : expr(std::move(expr)), index(index) {}
   /*! \brief The existing */
   PrimExpr expr;
   /*! \brief The slot index */
@@ -164,9 +165,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
           << "VM shape expressions cannot compile a Relax-owned Call: " << ffi::GetRef<Call>(call);
     }
     if (slot_map_->count(expr) == 0) {
-      auto slot = std::make_unique<PrimExprSlot>();
-      slot->expr = expr;
-      slot->index = static_cast<int>(slot_vec_->size());
+      auto slot = std::make_unique<PrimExprSlot>(expr, static_cast<int>(slot_vec_->size()));
       slot_map_->emplace(expr, slot.get());
       slot_vec_->emplace_back(std::move(slot));
     }
@@ -269,7 +268,7 @@ class PrimExprSlotCollector : public ExprVisitor, public TypeVisitor {
  * \code
  *
  * @T.prim_func
- * def shape_func(H: T.Buffer([3], "int64")):
+ * def shape_func(H: T.Tensor([3], "int64")):
  *     H[1] = H[2] + 1
  *
  * \endcode
@@ -652,12 +651,11 @@ class VMShapeLowerMutator
 
       ffi::Array<Expr> args = {item.input, shape_heap_};
 
-      Expr match_op;
+      Expr match_op = item.input->ty.as<PrimTypeNode>() ? Expr(builtin_match_prim_value_)
+                                                        : Expr(builtin_match_shape_);
       if (item.input->ty.as<PrimTypeNode>()) {
-        match_op = builtin_match_prim_value_;
         TVM_FFI_ICHECK_EQ(item.pattern.size(), 1);
       } else {
-        match_op = builtin_match_shape_;
         args.push_back(IntImm::Int64(item.pattern.size()));
       }
 
@@ -715,7 +713,7 @@ class VMShapeLowerMutator
     TVM_FFI_ICHECK_GT(heap_size_->value, 0);
     // construct a PrimFunc that compute the shape.
     ffi::Array<PrimExpr> buffer_shape{heap_size_};
-    tirx::BufferVar buffer = tirx::decl_buffer(buffer_shape, PrimType(ShapeDType()), "H", "global");
+    tirx::BufferVar buffer = tirx::decl_tensor(buffer_shape, PrimType(ShapeDType()), "H", "global");
 
     ffi::Map<tirx::Var, PrimExpr> var_map;
     for (const auto& [expr, slot] : slot_map_) {
@@ -823,11 +821,7 @@ class VMShapeLowerMutator
       builder_->Emit(call, "_");
     }
     if (op->values.has_value()) {
-      MatchShapeTodoItem item;
-      item.input = value;
-      item.pattern = op->values.value();
-      item.err_ctx = err_ctx;
-      match_todos->push_back(item);
+      match_todos->push_back(MatchShapeTodoItem{value, op->values.value(), err_ctx});
     }
   }
 
@@ -853,11 +847,7 @@ class VMShapeLowerMutator
     }
 
     if (shape_expr != nullptr) {
-      MatchShapeTodoItem item;
-      item.input = value;
-      item.pattern = shape_expr->values;
-      item.err_ctx = err_ctx;
-      match_todos->push_back(item);
+      match_todos->push_back(MatchShapeTodoItem{value, shape_expr->values, err_ctx});
     } else if (op->shape.as<VarNode>()) {
       // NOTE: This part of the logic is left empty for future support as it is less common.
       // Future implementors: we can emit a binding here and assert here.
@@ -924,9 +914,9 @@ class VMShapeLowerMutator
   /*! \brief whether to emit error context, can be turned off for testing purposes. */
   bool emit_err_ctx_{true};
   /*! \brief heap ptr to store the PrimExpr slots. */
-  Var shape_heap_;
+  Var shape_heap_{ffi::UnsafeInit{}};
   /*! \brief heap size. */
-  IntImm heap_size_;
+  IntImm heap_size_{ffi::UnsafeInit{}};
   /*! \brief index => slot. */
   std::vector<std::unique_ptr<PrimExprSlot>> slot_vec_;
   /*! \brief Expr => slot. */

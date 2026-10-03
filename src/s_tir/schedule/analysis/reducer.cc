@@ -64,7 +64,7 @@ class PatternMatcher : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     auto it = filled_map_.find(op);
     if (it == filled_map_.end()) {
-      filled_map_[op] = expr_to_match_;
+      filled_map_.insert_or_assign(op, expr_to_match_);
     } else {
       if (it->second.same_as(expr_to_match_) ||
           ffi::StructuralEqual()(it->second, expr_to_match_)) {
@@ -310,7 +310,7 @@ class PatternMatcher : public StmtExprVisitor {
  private:
   bool match_success_{true};
   ffi::Array<PrimExpr> pattern_;
-  Expr expr_to_match_;
+  Expr expr_to_match_{ffi::UnsafeInit{}};
   std::unordered_map<const VarNode*, Expr> filled_map_;
 };
 
@@ -595,12 +595,12 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     return ffi::WalkResult::Advance();
   };
   auto visit_alloc = [&](const tirx::Bind& alloc) -> ffi::Expected<ffi::WalkResult> {
-    // Inline AllocBuffer statements (e.g. `T.local_scalar(...)` expansions)
+    // Inline AllocTensor statements (e.g. `T.local_scalar(...)` expansions)
     // declare buffer-local scratch storage inside the block body; treat them
     // the same as block->alloc_buffers entries for the "write-without-signature"
     // check below.
     if (const auto* call = alloc->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
       buffer_allocated.insert(alloc->var.get());
     }
     return ffi::WalkResult::Advance();

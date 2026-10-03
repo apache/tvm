@@ -26,7 +26,7 @@ def test_lift_tx_beyond_local():
     n = T.dynamic("n", "int32")
 
     @Ts.prim_func
-    def before(A: T.Buffer((32, 1, 128)), B: T.Buffer((32, n, 128)), C: T.Buffer((32, 1, n))):
+    def before(A: T.Tensor((32, 1, 128)), B: T.Tensor((32, n, 128)), C: T.Tensor((32, 1, n))):
 
         for ax0_ax1_fused in T.thread_binding(n * 32, thread="blockIdx.x"):
             with Ts.sblock(""):
@@ -80,7 +80,7 @@ def test_lift_tx_beyond_local():
     n = T.dynamic("n", "int32")
 
     @Ts.prim_func
-    def expected(A: T.Buffer((32, 1, 128), "float32"), B: T.Buffer((32, n, 128)), C: T.Buffer((32, 1, n))):
+    def expected(A: T.Tensor((32, 1, 128), "float32"), B: T.Tensor((32, n, 128)), C: T.Tensor((32, 1, n))):
 
         # with Ts.sblock("root"):
         for blockIdx_x in T.thread_binding(n * 32, thread="blockIdx.x"):

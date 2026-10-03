@@ -216,7 +216,7 @@ class BoundDeducer : public tvm::ExprFunctor<void(const Expr&)> {
     this->Dispatch(op->a);
   }
 
-  PrimExpr result_;
+  PrimExpr result_{ffi::UnsafeInit{}};
   CompareOp comp_op{kGreater};
   bool success_{true};
 

@@ -37,13 +37,13 @@ using namespace tvm::prim;
 
 // Linear equation, the components can be undefined.
 struct LinearEqEntry {
-  PrimExpr base;
-  PrimExpr coeff;
+  ffi::Optional<PrimExpr> base;
+  ffi::Optional<PrimExpr> coeff;
 };
 
 struct IntervalEntry {
-  PrimExpr min_value;
-  PrimExpr max_value;
+  ffi::Optional<PrimExpr> min_value;
+  ffi::Optional<PrimExpr> max_value;
 };
 
 class LinearEqDetector : public tvm::ExprFunctor<LinearEqEntry(const Expr&, const PrimExpr&)> {
@@ -53,10 +53,10 @@ class LinearEqDetector : public tvm::ExprFunctor<LinearEqEntry(const Expr&, cons
   bool Detect(const PrimExpr& e, LinearEqEntry* ret) {
     *ret = Dispatch(e, e);
     if (fail_) return false;
-    if (!ret->base.defined()) {
+    if (!ret->base.has_value()) {
       ret->base = IntImm(var_->ty.as_or_throw<PrimType>(), 0);
     }
-    if (!ret->coeff.defined()) {
+    if (!ret->coeff.has_value()) {
       ret->coeff = IntImm(var_->ty.as_or_throw<PrimType>(), 0);
     }
     return true;
@@ -86,10 +86,10 @@ class LinearEqDetector : public tvm::ExprFunctor<LinearEqEntry(const Expr&, cons
     if (fail_) return LinearEqEntry();
     LinearEqEntry a = Dispatch(op->a, op->a);
     LinearEqEntry b = Dispatch(op->b, op->b);
-    if (a.coeff.defined()) {
+    if (a.coeff.has_value()) {
       std::swap(a, b);
     }
-    if (a.coeff.defined()) {
+    if (a.coeff.has_value()) {
       fail_ = true;
       return LinearEqEntry();
     }
@@ -128,21 +128,21 @@ class LinearEqDetector : public tvm::ExprFunctor<LinearEqEntry(const Expr&, cons
   PrimVar var_;
   bool fail_{false};
   // Combine by add
-  PrimExpr AddCombine(PrimExpr a, PrimExpr b) {
-    if (!a.defined()) return b;
-    if (!b.defined()) return a;
-    return a + b;
+  ffi::Optional<PrimExpr> AddCombine(ffi::Optional<PrimExpr> a, ffi::Optional<PrimExpr> b) {
+    if (!a.has_value()) return b;
+    if (!b.has_value()) return a;
+    return a.value() + b.value();
   }
-  PrimExpr SubCombine(PrimExpr a, PrimExpr b) {
+  ffi::Optional<PrimExpr> SubCombine(ffi::Optional<PrimExpr> a, ffi::Optional<PrimExpr> b) {
     // Check b first in case they are both undefined
-    if (!b.defined()) return a;
-    if (!a.defined()) return -b;
-    return a - b;
+    if (!b.has_value()) return a;
+    if (!a.has_value()) return -b.value();
+    return a.value() - b.value();
   }
-  PrimExpr MulCombine(PrimExpr a, PrimExpr b) {
-    if (!a.defined()) return a;
-    if (!b.defined()) return b;
-    return a * b;
+  ffi::Optional<PrimExpr> MulCombine(ffi::Optional<PrimExpr> a, ffi::Optional<PrimExpr> b) {
+    if (!a.has_value()) return a;
+    if (!b.has_value()) return b;
+    return a.value() * b.value();
   }
 };
 
@@ -155,8 +155,8 @@ ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<Pr
     if (!LinearEqDetector(v).Detect(base, &ret)) {
       return ffi::Array<PrimExpr>();
     }
-    coeff.push_back(ret.coeff);
-    base = std::move(ret.base);
+    coeff.push_back(ret.coeff.value());
+    base = std::move(ret.base).value();
   }
 
   std::unordered_set<const VarNode*> vset;
@@ -181,7 +181,7 @@ ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<Pr
 bool DetectClipBound(const PrimExpr& cond,
                      std::unordered_map<const VarNode*, IntervalEntry>* bmap) {
   int flag = 0;
-  PrimVar var;
+  ffi::Optional<PrimVar> var;
   auto fvisit = [&bmap, &flag, &var](const Var& v) -> ffi::Expected<ffi::WalkResult> {
     if (auto prim_var = v.as<PrimVar>()) {
       const VarNode* var_node = prim_var->get();
@@ -190,7 +190,7 @@ bool DetectClipBound(const PrimExpr& cond,
           var = *prim_var;
           flag = 1;
         } else if (flag == 1) {
-          if (!var.same_as(*prim_var)) {
+          if (!var.value().same_as(*prim_var)) {
             flag = -1;
           }
         }
@@ -202,7 +202,7 @@ bool DetectClipBound(const PrimExpr& cond,
   if (flag != 1) return false;
   // canonical form: exp >= 0
   bool is_eq = false;
-  PrimExpr canonical;
+  PrimExpr canonical{ffi::UnsafeInit{}};
   if (const prim::LTNode* op = cond.as<prim::LTNode>()) {
     PrimType a_ty = op->a.ty();
     if (!a_ty.MatchesCode(DLDataTypeCode::kDLInt)) return false;
@@ -226,19 +226,19 @@ bool DetectClipBound(const PrimExpr& cond,
   }
   LinearEqEntry ret;
   Analyzer analyzer;
-  if (!LinearEqDetector(var).Detect(canonical, &ret)) return false;
-  ret.coeff = analyzer->Simplify(ret.coeff);
-  IntervalEntry& p = (*bmap)[var.get()];
+  if (!LinearEqDetector(var.value()).Detect(canonical, &ret)) return false;
+  ret.coeff = analyzer->Simplify(ret.coeff.value());
+  IntervalEntry& p = bmap->at(var.value().get());
 
   ffi::Optional<PrimExpr> min_value;
   ffi::Optional<PrimExpr> max_value;
-  if (is_const_int(ret.coeff, 1)) {
+  if (is_const_int(ret.coeff.value(), 1)) {
     // var + shift >=0 -> var >= -shift
-    min_value = -ret.base;
+    min_value = -ret.base.value();
     if (is_eq) {
       max_value = min_value;
     }
-  } else if (is_const_int(ret.coeff, -1)) {
+  } else if (is_const_int(ret.coeff.value(), -1)) {
     // -var + shift >=0 -> var <= shift
     max_value = ret.base;
     if (is_eq) {
@@ -249,15 +249,15 @@ bool DetectClipBound(const PrimExpr& cond,
     return false;
   }
   if (min_value.has_value()) {
-    if (p.min_value.defined()) {
-      p.min_value = max(p.min_value, min_value.value());
+    if (p.min_value.has_value()) {
+      p.min_value = max(p.min_value.value(), min_value.value());
     } else {
       p.min_value = min_value.value();
     }
   }
   if (max_value.has_value()) {
-    if (p.max_value.defined()) {
-      p.max_value = min(p.max_value, max_value.value());
+    if (p.max_value.has_value()) {
+      p.max_value = min(p.max_value.value(), max_value.value());
     } else {
       p.max_value = max_value.value();
     }
@@ -277,7 +277,8 @@ void SplitCommExpr(const PrimExpr& e, std::vector<PrimExpr>* ret) {
 
 // Detect the lower and upper bound from the expression.
 // e must be connected by and.
-ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<PrimVar>& vars) {
+ffi::Array<ffi::Optional<PrimExpr>> DetectClipBound(const PrimExpr& e,
+                                                    const ffi::Array<PrimVar>& vars) {
   std::vector<PrimExpr> splits;
   Analyzer analyzer;
   SplitCommExpr<prim::AndNode>(analyzer->Simplify(e), &splits);
@@ -286,16 +287,16 @@ ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<PrimVar
     rmap[v.get()] = IntervalEntry();
   }
   for (PrimExpr cond : splits) {
-    if (!DetectClipBound(cond, &rmap)) return ffi::Array<PrimExpr>();
+    if (!DetectClipBound(cond, &rmap)) return ffi::Array<ffi::Optional<PrimExpr>>();
   }
-  ffi::Array<PrimExpr> ret;
+  ffi::Array<ffi::Optional<PrimExpr>> ret;
   for (PrimVar v : vars) {
     IntervalEntry e = rmap[v.get()];
-    if (e.min_value.defined()) {
-      e.min_value = analyzer->Simplify(e.min_value);
+    if (e.min_value.has_value()) {
+      e.min_value = analyzer->Simplify(e.min_value.value());
     }
-    if (e.max_value.defined()) {
-      e.max_value = analyzer->Simplify(e.max_value);
+    if (e.max_value.has_value()) {
+      e.max_value = analyzer->Simplify(e.max_value.value());
     }
     ret.push_back(e.min_value);
     ret.push_back(e.max_value);

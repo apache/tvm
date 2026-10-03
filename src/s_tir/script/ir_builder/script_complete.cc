@@ -64,8 +64,8 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockNode* op, InplaceMode inplace_mode) final {
     // Buffers allocated in the block can be accessed by its body.
-    for (const auto& alloc_buffer : op->alloc_buffers) {
-      buffer_var_map_->Set(alloc_buffer.var(), alloc_buffer);
+    for (const auto& alloc_tensor : op->alloc_buffers) {
+      buffer_var_map_->Set(alloc_tensor.var(), alloc_tensor);
     }
     for (const auto& match_buffer : op->match_buffers) {
       const BufferVar& target_buffer = match_buffer->buffer;
@@ -80,8 +80,8 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     this->is_root_block_ = is_root_block;
 
     // Remove buffers allocated inside block to detect its access region
-    for (const auto& alloc_buffer : op->alloc_buffers) {
-      buffer_var_map_->erase(alloc_buffer.var());
+    for (const auto& alloc_tensor : op->alloc_buffers) {
+      buffer_var_map_->erase(alloc_tensor.var());
     }
     for (const auto& match_buffer : op->match_buffers) {
       const BufferVar& target_buffer = match_buffer->buffer;
@@ -131,6 +131,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
 };
 
 PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocates) {
+  if (!func->body.has_value()) return func;
   ffi::Map<Var, BufferVar> buffer_var_map;
   for (const Var& param : func->params) {
     if (auto buffer = param.as<BufferVar>()) {
@@ -141,7 +142,7 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
     buffer_var_map.Set(alloc.var(), alloc);
   }
 
-  Stmt res = func->body;
+  Stmt res = func->body.value();
 
   // Generate root block automatically.  This is done before
   // ScriptCompleter, in order to fill the root block's Ts.reads() and
@@ -154,7 +155,7 @@ PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocat
     if (block_realize && block_realize->block->iter_vars.size()) {
       return true;
     }
-    if (!block_realize && ContainsNode<s_tir::SBlockRealizeNode>(func->body)) {
+    if (!block_realize && ContainsNode<s_tir::SBlockRealizeNode>(func->body.value())) {
       return true;
     }
     return false;

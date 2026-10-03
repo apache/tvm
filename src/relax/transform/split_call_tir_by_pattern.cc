@@ -111,7 +111,7 @@ class ForMatcher : public TensorizeComparator {
             if (value.has_value()) {
               if (!analyzer_->CanProveEqual(lhs, value.value())) return false;
             } else {
-              evaluated_symbols.back()[rhs_var] = lhs;
+              evaluated_symbols.back().insert_or_assign(rhs_var, lhs);
             }
             return true;
           } else {
@@ -133,7 +133,8 @@ class ForMatcher : public TensorizeComparator {
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->b.ty(), 1);
+          evaluated_symbols.back().insert_or_assign(pattern_var,
+                                                    MakeConstScalar(rhs_ptr->b.ty(), 1));
           return true;
         }
       }
@@ -146,7 +147,8 @@ class ForMatcher : public TensorizeComparator {
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->a.ty(), 1);
+          evaluated_symbols.back().insert_or_assign(pattern_var,
+                                                    MakeConstScalar(rhs_ptr->a.ty(), 1));
           return true;
         }
       }
@@ -164,7 +166,8 @@ class ForMatcher : public TensorizeComparator {
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->b.ty(), 0);
+          evaluated_symbols.back().insert_or_assign(pattern_var,
+                                                    MakeConstScalar(rhs_ptr->b.ty(), 0));
           return true;
         }
       }
@@ -177,7 +180,8 @@ class ForMatcher : public TensorizeComparator {
         evaluated_symbols.pop_back();
         if (match) {
           evaluated_symbols.back().insert(symbol_map.begin(), symbol_map.end());
-          evaluated_symbols.back()[pattern_var] = MakeConstScalar(rhs_ptr->a.ty(), 0);
+          evaluated_symbols.back().insert_or_assign(pattern_var,
+                                                    MakeConstScalar(rhs_ptr->a.ty(), 0));
           return true;
         }
       }
@@ -342,7 +346,7 @@ class ForMatcher : public TensorizeComparator {
       equal =
           DefEqual(lhs.var(), rhs.var()) && lhs->dtype == rhs->dtype && lhs.scope() == rhs.scope();
       if (equal) {
-        rhs_buffer_map_[rhs] = lhs;
+        rhs_buffer_map_.insert_or_assign(rhs, lhs);
       }
     }
     return equal;
@@ -411,7 +415,7 @@ class TIRPatternMatcher {
       ffi::Array<Var> pattern_symbolic_vars;
       int buffer_count = 0;
       while (buffer_count < static_cast<int>(pattern_func->params.size()) &&
-             pattern_func->params[buffer_count]->ty.as<tirx::BufferTypeNode>()) {
+             pattern_func->params[buffer_count]->ty.as<tirx::TensorTypeNode>()) {
         ++buffer_count;
       }
       for (int i = buffer_count; i < static_cast<int>(pattern_func->params.size()); i++) {
@@ -422,7 +426,8 @@ class TIRPatternMatcher {
         // We have found a match
         ffi::Array<PrimExpr> symbol_values;
         for (int i = buffer_count; i < static_cast<int>(pattern_func->params.size()); i++) {
-          symbol_values.push_back(block_matcher.evaluated_symbols.back()[pattern_func->params[i]]);
+          symbol_values.push_back(
+              block_matcher.evaluated_symbols.back().at(pattern_func->params[i]));
         }
         match_results_.push_back(
             MatchResult(pattern, symbol_values, block_matcher.evaluated_buffers));
@@ -480,7 +485,7 @@ class FunctionPartitioner : public s_tir::StmtExprVisitor {
   std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> input2;
   /*! \brief The output buffer for the first function, which is also the input buffer for the second
   function */
-  BufferVar intermediate_buffer;
+  ffi::Optional<BufferVar> intermediate_buffer;
   /*! \brief Indicate whether we have failed. If failed, we will not do any further analysis and
   directly return the original one. */
   bool fail = false;
@@ -489,8 +494,8 @@ class FunctionPartitioner : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     block_counter_++;
     bool is_matching_ = block_counter_ <= num_matched_ops_;
-    if (block_counter_ == num_matched_ops_) {
-      allocs1.erase(intermediate_buffer);
+    if (block_counter_ == num_matched_ops_ && intermediate_buffer.has_value()) {
+      allocs1.erase(intermediate_buffer.value());
     }
     for (const auto& read : op->reads) {
       if (is_matching_) {
@@ -613,7 +618,7 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
   }
   auto partitioner = ffi::make_object<FunctionPartitioner>(num_matched_ops);
   partitioner->Visit(body);
-  if (partitioner->fail) {
+  if (partitioner->fail || !partitioner->intermediate_buffer.has_value()) {
     return {func, std::nullopt};
   }
   bool has_second_func = false;
@@ -628,10 +633,10 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     return {WithAttr(func, kLibraryKernel, library_code), std::nullopt};
   }
   // Step 2. Split the function into two functions.
-  Stmt body1 = BlockRemover::RemoveBlockByPartition(func->body, partitioner->block_partition,
-                                                    partitioner->allocs1, true);
-  Stmt body2 = BlockRemover::RemoveBlockByPartition(func->body, partitioner->block_partition,
-                                                    partitioner->allocs2, false);
+  Stmt body1 = BlockRemover::RemoveBlockByPartition(
+      func->body.value(), partitioner->block_partition, partitioner->allocs1, true);
+  Stmt body2 = BlockRemover::RemoveBlockByPartition(
+      func->body.value(), partitioner->block_partition, partitioner->allocs2, false);
   // Step 3. Craft the first function.
   ffi::Array<Var> new_params1;
   std::vector<int> arg_partition1;
@@ -648,13 +653,13 @@ std::pair<PrimFunc, ffi::Optional<PrimFunc>> SplitFunctions(
     }
   }
   arg_partition->push_back(arg_partition1);
-  new_params1.push_back(partitioner->intermediate_buffer.var());
+  new_params1.push_back(partitioner->intermediate_buffer.value().var());
   PrimFunc func1 = PrimFunc(new_params1, body1, func->ret_type, func->attrs);
   func1 = WithAttr(func1, kLibraryKernel, library_code);
   // Step 4. Craft the second function.
   ffi::Array<Var> new_params2;
   std::vector<int> arg_partition2;
-  new_params2.push_back(partitioner->intermediate_buffer.var());
+  new_params2.push_back(partitioner->intermediate_buffer.value().var());
   for (int i = 0; i < static_cast<int>(func->params.size()); i++) {
     Var param = func->params[i];
     auto param_buffer = param.as<tirx::BufferVar>();

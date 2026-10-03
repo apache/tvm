@@ -80,7 +80,7 @@ class PaddingInfoAnalyzer {
       throw MakeScheduleError<PaddingPatternMatchError>(mod, realize->block,
                                                         padding_analyzer.error_msg_);
     }
-    return padding_analyzer.info_;
+    return padding_analyzer.info_.value();
   }
 
  private:
@@ -94,7 +94,7 @@ class PaddingInfoAnalyzer {
     std::unordered_map<const VarNode*, PrimExpr> iter_values;
     for (size_t i = 0; i < realize->iter_values.size(); ++i) {
       Var block_var = block->iter_vars[i]->var;
-      iter_values[block_var.get()] = realize->iter_values[i];
+      iter_values.insert_or_assign(block_var.get(), realize->iter_values[i]);
     }
     const BufferStoreNode* store = block->body.as<BufferStoreNode>();
     if (!store) {
@@ -143,10 +143,8 @@ class PaddingInfoAnalyzer {
     }
 
     // Step 4. Update result information.
-    info_.in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
-    info_.in_bound_region = in_bound_region;
-    info_.in_bound_predicate = in_bound_predicate;
-    info_.pad_value = pad_value;
+    info_ = PaddingSBlockInfo{in_bound_region, if_then_else->args[1].as_or_throw<PrimExpr>(),
+                              in_bound_predicate, pad_value};
     return true;
   }
 
@@ -202,7 +200,7 @@ class PaddingInfoAnalyzer {
   void SetError(const std::string& msg) { error_msg_ = msg; }
 
   /*! \brief padding info analyse result. */
-  PaddingSBlockInfo info_;
+  std::optional<PaddingSBlockInfo> info_;
   /*! \brief current error message. */
   std::string error_msg_;
   /*! \brief arithmetic analyzer. */
@@ -421,7 +419,7 @@ class DecomposePaddingBlockReplacer : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    Stmt new_loop;
+    Stmt new_loop{ffi::UnsafeInit{}};
     if (op == desc_.in_bound_filling_pos.get()) {
       // position to rewrite inbound filling code
       new_loop = desc_.in_bound_filling_loop;
@@ -467,7 +465,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
   bool found_const_filling_pos = false;
   bool found_in_bound_filling_pos = false;
   For const_filling_pos = ffi::GetRef<For>(loop_sref->StmtAs<ForNode>());
-  For in_bound_filling_pos{nullptr};
+  ffi::Optional<For> in_bound_filling_pos;
   for (auto it = loop_srefs.rbegin(); it != loop_srefs.rend(); ++it) {
     For cur_loop = ffi::GetRef<For>((*it)->StmtAs<ForNode>());
     Range range = Range::FromMinExtent(cur_loop->min, cur_loop->extent);
@@ -491,7 +489,7 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
       }
     }
   }
-  TVM_FFI_ICHECK(in_bound_filling_pos.defined());
+  TVM_FFI_ICHECK(in_bound_filling_pos.has_value());
   if (!found_const_filling_pos) {
     throw MakeScheduleError<LoopPositionError>(self->mod, const_filling_pos,
                                                ffi::GetRef<SBlock>(block), "decompose_padding");
@@ -503,13 +501,13 @@ StmtSRef DecomposePaddingImpl(ScheduleState self, const StmtSRef& block_sref,
 
   // IR Manipulation
   // Step 1. Create const pad value filling part and in-bound value filling part.
-  DecomposePaddingBlockReplacer::ReplaceDesc replace_desc;
-  replace_desc.const_filling_pos = const_filling_pos;
-  replace_desc.in_bound_filling_pos = in_bound_filling_pos;
-  std::tie(replace_desc.const_filling_loop, replace_desc.const_filling_block) =
+  auto [const_loop, const_block] =
       CreateConstBlock(realize, info, loops, const_filling_pos, analyzer.get());
-  std::tie(replace_desc.in_bound_filling_loop, replace_desc.in_bound_filling_block) =
-      CreateInBoundBlock(realize, info, loops, in_bound_filling_pos, analyzer.get());
+  auto [in_bound_loop, in_bound_block] =
+      CreateInBoundBlock(realize, info, loops, in_bound_filling_pos.value(), analyzer.get());
+  DecomposePaddingBlockReplacer::ReplaceDesc replace_desc{
+      const_filling_pos, in_bound_filling_pos.value(), const_loop, in_bound_loop, const_block,
+      in_bound_block};
 
   // Step 2. Execute IR replacement.
   SBlock old_scope_root_block = ffi::GetRef<SBlock>(scope_root_sref->StmtAs<SBlockNode>());

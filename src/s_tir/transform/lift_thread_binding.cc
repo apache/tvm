@@ -84,7 +84,7 @@ FindLoopLCA(const Stmt& root) {
           break;
         }
       }
-      path.resize(i);
+      path.erase(path.begin() + i, path.end());
     }
 
     std::unordered_map<std::string, std::vector<Stmt>> lca;

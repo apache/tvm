@@ -101,7 +101,7 @@ TEST(Simplify, AssumeConstraintKeepsBufferLoadStable) {
   using namespace tvm;
 
   sym::Analyzer analyzer;
-  tirx::BufferVar buffer = tirx::decl_buffer({1}, PrimType::Int(32));
+  tirx::BufferVar buffer = tirx::decl_tensor({1}, PrimType::Int(32));
   PrimExpr load = tirx::BufferLoad(buffer, {IntImm::Int32(0)});
   PrimExpr constraint = load > 0;
 

@@ -45,7 +45,7 @@ using PMap = std::unordered_map<T, U, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 PMap<GlobalVar, PSet<GlobalVar>> CollectCallMap(const IRModule& mod) {
   struct Visitor : StmtExprVisitor {
-    GlobalVar current;
+    GlobalVar current{ffi::UnsafeInit{}};
     PMap<GlobalVar, PSet<GlobalVar>> caller_lookup;
 
     ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
@@ -118,7 +118,7 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
   // We do not currently support inlining of functions that accept
   // buffer arguments.
   for (const Var& param : prim_func->params) {
-    if (param->ty.as<BufferTypeNode>()) return false;
+    if (param->ty.as<TensorTypeNode>()) return false;
   }
 
   // Generalize the old SBlockRealize exclusion to all non-native statement roots:
@@ -133,7 +133,9 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
     }
   };
   static const auto native_stmts = NativeStmtTable::Make();
-  if (!native_stmts.CanDispatch(prim_func->body.get())) return false;
+  if (!prim_func->body.has_value() || !native_stmts.CanDispatch(prim_func->body.get())) {
+    return false;
+  }
 
   return true;
 }
@@ -243,9 +245,9 @@ class PrimFuncInliner : public StmtExprMutator {
         << ")";
 
     for (const Var& param : callee->params) {
-      TVM_FFI_ICHECK(!param->ty.as<BufferTypeNode>())
+      TVM_FFI_ICHECK(!param->ty.as<TensorTypeNode>())
           << "Inlining of PrimFuncs with buffer arguments is not yet supported, "
-          << "but callee " << gvar << " has BufferType-annotated parameter " << param;
+          << "but callee " << gvar << " has TensorType-annotated parameter " << param;
     }
 
     ffi::Map<Var, ffi::Variant<tirx::BufferVar, tvm::Expr>> param_map;
@@ -255,7 +257,7 @@ class PrimFuncInliner : public StmtExprMutator {
 
     callee = Specialize(callee, param_map);
 
-    return callee->body;
+    return callee->body.value();
   }
 
   // Map from GlobalVar to PrimFuncs which may be inlined.

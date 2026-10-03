@@ -44,6 +44,10 @@ namespace tirx {
  */
 class LambdaExprNode : public ffi::Object {
  public:
+  explicit LambdaExprNode(ffi::UnsafeInit tag) : pred(tag) {}
+
+  explicit LambdaExprNode(PrimExpr pred) : pred(std::move(pred)) {}
+
   /*! \brief The bound variables of the lambda. */
   Array<Var> vars;
   /*! \brief The lambda body over ``vars``. */
@@ -92,7 +96,7 @@ constexpr const char* kDeviceInitStmt = "device_init_stmt";
  *  which will be inserted at the beginning of the kernel
  */
 constexpr const char* kHostInitStmt = "host_init_stmt";
-/*! \brief Statements to be inserted after a specific buffer's definition (DeclBuffer/AllocBuffer).
+/*! \brief Statements to be inserted after a specific buffer's definition (DeclTensor/AllocTensor).
  *  Stored as Map<BufferVar, ffi::Array<Stmt>>.
  */
 constexpr const char* kPostBufferDefStmt = "post_buffer_def_stmt";
@@ -246,7 +250,9 @@ class TilePrimitiveCall : public Stmt {
 
   static bool IsValidOpCallArgType(const ffi::Any& arg);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
+  explicit TilePrimitiveCall(ffi::ObjectPtr<TilePrimitiveCallNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TilePrimitiveCallNode);
 };
 

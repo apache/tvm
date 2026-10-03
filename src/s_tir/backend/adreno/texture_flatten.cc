@@ -130,7 +130,7 @@ class TextureFlattener : public TextureLoweringBase {
   ffi::Array<Expr> GetTextureAccessArgs(const T* op, const BufferVar& buffer) {
     ffi::Array<Expr> args;
     if (let_binding_.count(buffer.var())) {
-      args.push_back(let_binding_[buffer.var()]);
+      args.push_back(let_binding_.at(buffer.var()));
     } else {
       args.push_back(buffer.data());
     }

@@ -318,7 +318,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inpl
     auto body = scope_.WithNewScope(
         [&]() -> Stmt { return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body); });
 
-    Stmt output;
+    Stmt output = ffi::GetRef<Stmt>(op);
     if (new_iter_var.get() == iter_var && body.same_as(op->body) && value_unchanged) {
       output = ffi::GetRef<Stmt>(op);
     } else {
@@ -376,7 +376,7 @@ Stmt ConvertSSA(Stmt stmt) {
 }
 
 ffi::String GetPtrStorageScope(Var buffer_var) {
-  if (const auto* buffer_type = buffer_var->ty.as<BufferTypeNode>()) {
+  if (const auto* buffer_type = buffer_var->ty.as<TensorTypeNode>()) {
     return buffer_type->storage_scope;
   }
   const auto* ptr_type = buffer_var->ty.as<PointerTypeNode>();

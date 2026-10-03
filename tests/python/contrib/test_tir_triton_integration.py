@@ -71,9 +71,9 @@ def test_tir_triton_integration():
     class Module:
         @Ts.prim_func
         def add(
-            x: T.Buffer((add_m,), "float32"),
-            y: T.Buffer((add_m,), "float32"),
-            output: T.Buffer((add_m,), "float32"),
+            x: T.Tensor((add_m,), "float32"),
+            y: T.Tensor((add_m,), "float32"),
+            output: T.Tensor((add_m,), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "add"})
 
@@ -110,7 +110,7 @@ def test_tir_triton_integration():
     @I.ir_module
     class Parsed:
         @Ts.prim_func
-        def add(x: T.Buffer((m,)), y: T.Buffer((m,)), output: T.Buffer((m,))):
+        def add(x: T.Tensor((m,)), y: T.Tensor((m,)), output: T.Tensor((m,))):
             with Ts.sblock("root"):
                 Ts.reads(x[0:m], y[0:m])
                 Ts.writes(output[0:m])

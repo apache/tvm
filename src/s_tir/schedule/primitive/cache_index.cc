@@ -51,7 +51,7 @@ struct IndexInfo {
   /*! \brief The index to insert the cache stage. */
   size_t loc_pos;
   /*! \brief The cache stage to be inserted. */
-  Stmt cache_stage;
+  Stmt cache_stage{ffi::UnsafeInit{}};
   /*! \brief The map used for ScheduleStateNode::Replace. */
   ffi::Map<SBlock, SBlock> block_reuse;
 };
@@ -283,7 +283,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
           sym::EvalSet(info->var_binding.at(it), sym::AsIntSet(info->range_map)).max() + 1);
     }
     info->cache_buffer.push_back(BufferVar(
-        index_buffer_name, BufferType(storage_scope, data_ty, buffer_shape, {1}, {0}, 0, 0)));
+        index_buffer_name, TensorType(storage_scope, data_ty, buffer_shape, {1}, {0}, 0, 0)));
 
     // Create loop vars and block vars' binding_value
     std::vector<PrimVar> loop_vars;

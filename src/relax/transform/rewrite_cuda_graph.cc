@@ -76,7 +76,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("relax.backend.use_cuda_graph", bool);
  */
 struct LiftedFunctionRewritePlan {
   // The lifted function for allocation or capturing
-  Function func;
+  Function func{ffi::UnsafeInit{}};
   // Whether the lifted function is for allocation or capturing
   bool is_alloc;
   // The binding var before which the lifted function should be invoked
@@ -132,7 +132,7 @@ class FuncBuilder : public ExprMutator {
       ffi::Array<PrimExpr> tir_vars;
       for (const PrimVar& var : shape_expr_inputs_) {
         PrimVar new_var = var.CopyWithSuffix("");
-        var_remap_[var] = new_var;
+        var_remap_.insert_or_assign(var, new_var);
         tir_vars.push_back(new_var);
       }
       shape_expr = Var("shape_expr", ShapeType(tir_vars));
@@ -140,7 +140,7 @@ class FuncBuilder : public ExprMutator {
     // Set up the parameters
     for (const auto* input : inputs_) {
       auto new_var = Var(input->name, VisitExprDepTypeField(input->ty.as_or_throw<Type>()));
-      var_remap_[ffi::GetRef<Var>(input)] = new_var;
+      var_remap_.insert_or_assign(ffi::GetRef<Var>(input), new_var);
       params.push_back(new_var);
     }
     if (shape_expr) {
@@ -800,56 +800,58 @@ class CUDAGraphRewriter : public ExprMutator {
     static const auto& builtin_get_cached_alloc =
         ExternFunc("vm.builtin.cuda_graph.get_cached_alloc");
 
-    Expr launch_subgraph;
-    if (plan->is_alloc) {
-      // Storage allocation should be fully static and shouldn't depend on any symbolic variables.
-      TVM_FFI_ICHECK(!plan->propogated_tir_vars.has_value());
-      TVM_FFI_ICHECK(plan->inputs.empty());
-      auto gv_alloc = gv_global_alloc_.value();
-      auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
-      launch_subgraph =
-          Call::Unchecked(Type::Missing(), call_builtin_with_ctx_op,
-                          {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})},
-                          Attrs(), {ret_ty});
-    } else {
-      auto gv_func = builder_->AddFunction(
-          plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
-      Type call_ty = plan->func->ret_ty;
-      // Arguments of the lifted function
-      ffi::Array<Expr> args;
-      for (const auto& arg : plan->inputs) {
-        args.push_back(VisitExpr_(arg));
-      }
-      if (plan->propogated_tir_vars.has_value()) {
-        ShapeExpr propogated_tir_vars = plan->propogated_tir_vars.value();
-        args.push_back(propogated_tir_vars);
-        // The ret_ty of the lifted function can contain symbolic variables. We need to
-        // bind the symbolic parameters to the actual values.
-        const auto& shape_expr = plan->func->params.back();
-        auto symbolic_params = shape_expr->ty.as_or_throw<ShapeType>()->values.value();
-        ffi::Map<Var, Expr> var_remap;
-        TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
-        for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
-          var_remap.Set(symbolic_params[i].as_or_throw<PrimVar>(), propogated_tir_vars->values[i]);
+    Expr launch_subgraph = [&]() -> Expr {
+      if (plan->is_alloc) {
+        // Storage allocation should be fully static and shouldn't depend on any symbolic variables.
+        TVM_FFI_ICHECK(!plan->propogated_tir_vars.has_value());
+        TVM_FFI_ICHECK(plan->inputs.empty());
+        auto gv_alloc = gv_global_alloc_.value();
+        auto ret_ty = gv_alloc->ty.as_or_throw<FuncType>()->ret;
+        return Call::Unchecked(
+            Type::Missing(), call_builtin_with_ctx_op,
+            {builtin_get_cached_alloc, Tuple({gv_alloc, PrimExpr(IntImm::Int64(0))})}, Attrs(),
+            {ret_ty});
+      } else {
+        auto gv_func = builder_->AddFunction(
+            plan->func, current_func_.value()->name_hint + "_cuda_graph_capture");
+        Type call_ty = plan->func->ret_ty;
+        // Arguments of the lifted function
+        ffi::Array<Expr> args;
+        for (const auto& arg : plan->inputs) {
+          args.push_back(VisitExpr_(arg));
         }
-        call_ty = Bind(call_ty, var_remap);
+        if (plan->propogated_tir_vars.has_value()) {
+          ShapeExpr propogated_tir_vars = plan->propogated_tir_vars.value();
+          args.push_back(propogated_tir_vars);
+          // The ret_ty of the lifted function can contain symbolic variables. We need to
+          // bind the symbolic parameters to the actual values.
+          const auto& shape_expr = plan->func->params.back();
+          auto symbolic_params = shape_expr->ty.as_or_throw<ShapeType>()->values.value();
+          ffi::Map<Var, Expr> var_remap;
+          TVM_FFI_ICHECK_EQ(symbolic_params.size(), propogated_tir_vars->values.size());
+          for (int i = 0; i < static_cast<int>(symbolic_params.size()); ++i) {
+            var_remap.Set(symbolic_params[i].as_or_throw<PrimVar>(),
+                          propogated_tir_vars->values[i]);
+          }
+          call_ty = Bind(call_ty, var_remap);
+        }
+        // Arguments of builtin_run_or_capture
+        ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
+                                          PrimExpr(IntImm::Int64(index_capture_++))};
+        if (plan->propogated_tir_vars.has_value()) {
+          // The shape expr is explicitly passed twice, one as the last argument of the lifted
+          // function, one as the last argument of builtin_run_or_capture as the cache key.
+          // Explicitly passing it twice simplifies the handling during the capture phase.
+          tuple_arg_fields.push_back(plan->propogated_tir_vars.value());
+        }
+        return Call::Unchecked(Type::Missing(), call_builtin_with_ctx_op,
+                               {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(),
+                               {call_ty});
       }
-      // Arguments of builtin_run_or_capture
-      ffi::Array<Expr> tuple_arg_fields{gv_func, Tuple(args),
-                                        PrimExpr(IntImm::Int64(index_capture_++))};
-      if (plan->propogated_tir_vars.has_value()) {
-        // The shape expr is explicitly passed twice, one as the last argument of the lifted
-        // function, one as the last argument of builtin_run_or_capture as the cache key. Explicitly
-        // passing it twice simplifies the handling during the capture phase.
-        tuple_arg_fields.push_back(plan->propogated_tir_vars.value());
-      }
-      launch_subgraph =
-          Call::Unchecked(Type::Missing(), call_builtin_with_ctx_op,
-                          {builtin_run_or_capture, Tuple(tuple_arg_fields)}, Attrs(), {call_ty});
-    }
+    }();
     Expr ret_value = builder_->Emit(launch_subgraph);
     for (const auto& [var, tuple_index] : plan->outputs) {
-      var_redef_[var] = TupleGetItem(ret_value, tuple_index);
+      var_redef_.insert_or_assign(var, TupleGetItem(ret_value, tuple_index));
     }
     std::transform(plan->lifted_bindings.begin(), plan->lifted_bindings.end(),
                    std::inserter(lifted_binding_vars_, lifted_binding_vars_.end()),
@@ -887,7 +889,7 @@ class CUDAGraphRewriter : public ExprMutator {
 
   Var EmitRedef(const VarNode* var, const Expr& redef) {
     auto new_var = builder_->Emit(redef, var->name);
-    var_remap_[ffi::GetRef<Var>(var)] = new_var;
+    var_remap_.insert_or_assign(ffi::GetRef<Var>(var), new_var);
     return new_var;
   }
 

@@ -290,8 +290,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *
  * For dynamic shapes, it is not always possible to infer the output
  * of a TIR PrimFunc from its inputs.  For example, a PrimFunc that
- * accepts input buffer `T.Buffer([16], "float32")` and output buffer
- * `T.Buffer([M, N], "float32")` infers the values of `M` and `N` from
+ * accepts input buffer `T.Tensor([16], "float32")` and output buffer
+ * `T.Tensor([M, N], "float32")` infers the values of `M` and `N` from
  * the shape of the provided output buffer.
  *
  * If the arguments provided are not compatible with the PrimFunc's
@@ -309,7 +309,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  * \return The `arg_ty`, if it can be inferred from the arguments.
  *     Otherwise, std::nullopt.
  */
-static ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
+ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
     Type func_ty, Type arg_ty, ffi::Optional<ffi::Array<int64_t>> opt_inplace_indices) {
   auto opt_callee_ty = func_ty.as<FuncType>();
   TVM_FFI_CHECK(opt_callee_ty, TypeError)

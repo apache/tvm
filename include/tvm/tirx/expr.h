@@ -40,29 +40,29 @@ namespace tirx {
 class Stmt;
 
 /*!
- * \brief Checked zero-state view over an ordinary VarNode with BufferType.
+ * \brief Checked zero-state view over an ordinary VarNode with TensorType.
  *
  * BufferVar does not introduce a runtime object or a second identity.  It
  * safely widens to Var, and get() returns the underlying VarNode used by
- * identity-sensitive maps.  operator-> exposes the immutable BufferType
+ * identity-sensitive maps.  operator-> exposes the immutable TensorType
  * access contract for concise compiler-side metadata access.
  */
 class BufferVar : public Var {
  public:
-  /*! \brief Construct a fresh buffer variable from an explicit BufferType. */
-  TVM_DLL explicit BufferVar(ffi::String name, BufferType type, Span span = Span());
+  /*! \brief Construct a fresh buffer variable from an explicit TensorType. */
+  TVM_DLL explicit BufferVar(ffi::String name, TensorType type, Span span = Span());
 
   /*! \brief Create a checked buffer view over an existing ordinary Var. */
   explicit BufferVar(Var var) : Var(std::move(var)) {
-    TVM_FFI_ICHECK(get() != nullptr && get()->ty.as<BufferTypeNode>())
-        << "Expected a non-null Var with BufferType";
+    TVM_FFI_ICHECK(get() != nullptr && get()->ty.as<TensorTypeNode>())
+        << "Expected a non-null Var with TensorType";
   }
 
   /*! \brief Return the ordinary variable view over the same identity. */
   Var var() const { return ffi::GetRef<Var>(get()); }
 
   /*! \brief Return the buffer type carried by the ordinary variable. */
-  BufferType type() const { return get()->ty.as_or_throw<BufferType>(); }
+  TensorType type() const { return get()->ty.as_or_throw<TensorType>(); }
 
   /*! \brief Return the buffer's diagnostic name. */
   const ffi::String& name() const { return get()->name; }
@@ -117,7 +117,7 @@ class BufferVar : public Var {
    *
    * If flattening changes the type, the result is a fresh BufferVar.  Callers
    * that use it as a view over this buffer must bind the returned variable with
-   * a `Bind` of `flattened` to a `decl_buffer` Call over `this->data()`.
+   * a `Bind` of `flattened` to a `decl_tensor` Call over `this->data()`.
    */
   BufferVar GetFlattenedBuffer() const;
 
@@ -164,17 +164,16 @@ class BufferVar : public Var {
   /*! \return type of the physical pointer projected by buffer_data. */
   PointerType DataPointerType() const { return (*this)->DataPointerType(); }
 
-  BufferVar() = default;
-  explicit BufferVar(ffi::ObjectPtr<VarNode> n) : Var(std::move(n)) {}
+  explicit BufferVar(ffi::ObjectPtr<VarNode> node) : Var(std::move(node)) {}
   explicit BufferVar(ffi::UnsafeInit tag) : Var(tag) {}
   TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(BufferVar);
 
-  const BufferTypeNode* operator->() const {
+  const TensorTypeNode* operator->() const {
     const auto* var_node = static_cast<const VarNode*>(data_.get());
     TVM_FFI_ICHECK(var_node != nullptr);
-    const auto* type_node = var_node->ty.as<BufferTypeNode>();
+    const auto* type_node = var_node->ty.as<TensorTypeNode>();
     TVM_FFI_ICHECK(type_node != nullptr)
-        << "Expected a Var with BufferType, but " << var_node->name << " has type " << var_node->ty;
+        << "Expected a Var with TensorType, but " << var_node->name << " has type " << var_node->ty;
     return type_node;
   }
 
@@ -194,13 +193,13 @@ inline bool operator!=(const BufferVar& lhs, const BufferVar& rhs) { return !lhs
 /*! \brief Recover a checked buffer view from an ordinary VarNode pointer. */
 inline BufferVar GetBufferVar(const VarNode* var) { return BufferVar(ffi::GetRef<Var>(var)); }
 
-inline ffi::ObjectPtr<BufferTypeNode> CopyBufferType(const BufferVar& var) {
-  return ffi::make_object<BufferTypeNode>(*var.operator->());
+inline ffi::ObjectPtr<TensorTypeNode> CopyTensorType(const BufferVar& var) {
+  return ffi::make_object<TensorTypeNode>(*var.operator->());
 }
 
-inline BufferVar RebuildBufferVar(const BufferVar& var, ffi::ObjectPtr<BufferTypeNode> type,
+inline BufferVar RebuildBufferVar(const BufferVar& var, ffi::ObjectPtr<TensorTypeNode> type,
                                   ffi::Optional<ffi::String> name = std::nullopt) {
-  return BufferVar(name.value_or(var.name()), BufferType(std::move(type)), var.span());
+  return BufferVar(name.value_or(var.name()), TensorType(std::move(type)), var.span());
 }
 
 /*!
@@ -213,7 +212,7 @@ inline BufferVar RebuildBufferVar(const BufferVar& var, ffi::ObjectPtr<BufferTyp
  * \return The created buffer.
  * \sa BufferVar for complete constructor.
  */
-TVM_DLL BufferVar decl_buffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+TVM_DLL BufferVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                               ffi::String name = "buffer", ffi::String storage_scope = "",
                               Span span = Span());
 
@@ -277,7 +276,7 @@ struct TypeTraits<tirx::BufferVar> : public ObjectRefTypeTraitsBase<tirx::Buffer
     }
     const auto* var = static_cast<const tirx::VarNode*>(
         details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj).get());
-    return details::AnyUnsafe::CheckAnyStrict<tirx::BufferType>(var->ExprNode::ty);
+    return details::AnyUnsafe::CheckAnyStrict<tirx::TensorType>(var->ExprNode::ty);
   }
 
   TVM_FFI_INLINE static std::optional<tirx::BufferVar> TryCastFromAnyView(const TVMFFIAny* src) {

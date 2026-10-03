@@ -86,16 +86,16 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
 
 
     @Tx.prim_func
-    def k(A: Tx.Buffer((32, 8), "float32"), B: Tx.Buffer((32, 8), "float32")):
+    def k(A: Tx.Tensor((32, 8), "float32"), B: Tx.Tensor((32, 8), "float32")):
 
         Tx.device_entry()
         Tx.cta_id([1])
         Tx.lane_id([32])
         tid = Tx.thread_id([32])
-        A_smem = Tx.alloc_buffer((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
+        A_smem = Tx.alloc_tensor((32, 8), "float32", scope="shared", layout=TileLayout(S[(32, 8)]))
         Tx.tile.warp.copy(A_smem[fs], A[fs])
         Tx.cuda.cta_sync()
-        R = Tx.alloc_buffer((32, 8), "float32", scope="local", layout=r_layout)
+        R = Tx.alloc_tensor((32, 8), "float32", scope="local", layout=r_layout)
         Tx.tile.warp.copy(R[fs], A_smem[fs])
         Tx.tile.warp.sqrt(R[fs], R[fs])  # elementwise reg dispatch
         Tx.tile.warp.copy(A_smem[fs], R[fs])

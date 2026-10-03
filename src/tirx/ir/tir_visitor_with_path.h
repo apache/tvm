@@ -203,7 +203,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   template <typename T>
   class DefContext {
    public:
-    DefContext(DefContext&& other) { swap(std::move(other)); }
+    DefContext(DefContext&& other) : obj_(other.obj_) { swap(std::move(other)); }
     DefContext& operator=(DefContext&& other) {
       swap(std::move(other));
       return *this;

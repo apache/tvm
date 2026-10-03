@@ -272,8 +272,8 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
   }
 
   for (const Var& param : func->params) {
-    TVM_FFI_ICHECK(!param->ty.as<tirx::BufferTypeNode>())
-        << "Cannot codegen BufferType-annotated parameter " << param << "; please lower it first";
+    TVM_FFI_ICHECK(!param->ty.as<tirx::TensorTypeNode>())
+        << "Cannot codegen TensorType-annotated parameter " << param << "; please lower it first";
   }
 
   std::vector<llvm::Type*> param_types;
@@ -322,6 +322,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
   this->InitFuncState();
 
   function_ = DeclareFunctionInternal(gvar, f);
+  if (!f->body.has_value()) return;
 
   // set var map and align information
   auto arg_it = function_->arg_begin();
@@ -340,7 +341,7 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   llvm::BasicBlock* entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(entry);
-  this->Dispatch(f->body);
+  this->Dispatch(f->body.value());
 
   // Add alignment attribute if needed.
   for (size_t i = 0; i < f->params.size(); ++i) {
@@ -2208,7 +2209,7 @@ void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {
   builder_->SetInsertPoint(end_block);
 }
 
-void CodeGenLLVM::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   BufferVar buffer = op->var.as_or_throw<BufferVar>();
@@ -2289,8 +2290,8 @@ void CodeGenLLVM::Dispatch_(const AssertStmtNode* op) {
 
 void CodeGenLLVM::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
-    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
   }
   EmitDebugLocation(op);
   const VarNode* v = op->var.get();
@@ -2337,7 +2338,7 @@ void CodeGenLLVM::Dispatch_(const SeqStmtNode* op) {
   }
 }
 
-void CodeGenLLVM::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
   DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
@@ -2463,9 +2464,9 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
   if (!di_subprogram_) return;
 
   Type debug_type = tir_var->ty;
-  if (const auto* buffer_type = debug_type.as<BufferTypeNode>()) {
+  if (const auto* buffer_type = debug_type.as<TensorTypeNode>()) {
     // A BufferVar is a compiler-side identity.  Its LLVM value is the physical
-    // data pointer installed by AllocBuffer or DeclBuffer.
+    // data pointer installed by AllocTensor or DeclTensor.
     debug_type = buffer_type->DataPointerType();
   }
   auto dbg_dtype = GetDebugType(debug_type);

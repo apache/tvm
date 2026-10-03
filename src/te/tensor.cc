@@ -160,7 +160,8 @@ Tensor Operation::output(size_t i) const {
   return Tensor((*this)->output_shape(i), (*this)->output_dtype(i), *this, static_cast<int>(i));
 }
 
-Tensor::Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index) {
+Tensor::Tensor(ffi::Array<PrimExpr> shape, PrimType dtype, Operation op, int value_index)
+    : OpaqueExpr(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<TensorNode>();
   n->ExprNode::ty = OpaqueType();
   n->shape = std::move(shape);
@@ -186,9 +187,8 @@ bool IsTensorLoad(const Expr& expr) {
 }
 
 Tensor GetTensorFromLoad(const Call& call) {
-  Tensor tensor;
-  ValidateTensorLoad(call, &tensor);
-  return tensor;
+  ValidateTensorLoad(call, nullptr);
+  return call->args[0].as_or_throw<Tensor>();
 }
 
 ffi::Array<PrimExpr> GetTensorLoadIndices(const Call& call) {

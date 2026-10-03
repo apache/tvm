@@ -138,7 +138,7 @@ def stft(
 
             return ib.get()
 
-    output_buf = tirx.decl_buffer(output_shape, data.dtype, "output_buf", layout=None)
+    output_buf = tirx.decl_tensor(output_shape, data.dtype, "output_buf", layout=None)
     loop_kind = "vectorize"
     if ir.is_prim_var(output_shape[2]):  # any_dim
         loop_kind = "serial"

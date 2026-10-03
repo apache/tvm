@@ -40,13 +40,14 @@ ffi::Array<PrimExpr> GetStrides(const BufferVar& buffer) {
   if (ndim == 0) {
     return {};
   }
-  ffi::Array<PrimExpr> strides(ndim, PrimExpr{nullptr});
+  std::vector<PrimExpr> strides;
+  strides.reserve(ndim);
   PrimExpr stride = IntImm(PrimType(buffer->DefaultIndexType()), 1);
   for (int i = ndim - 1; i >= 0; --i) {
-    strides.Set(i, stride);
+    strides.push_back(stride);
     stride = stride * buffer->shape[i];
   }
-  return strides;
+  return ffi::Array<PrimExpr>(strides.rbegin(), strides.rend());
 }
 
 /*!

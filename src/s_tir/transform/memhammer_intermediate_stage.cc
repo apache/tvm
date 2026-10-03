@@ -27,14 +27,14 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 Stmt CopyLoopChain(const std::vector<const ForNode*> loops, const Stmt& inner_body, int ith = -1,
-                   Stmt* ith_loop = nullptr) {
+                   ffi::Optional<For>* ith_loop = nullptr) {
   Stmt ret = inner_body;
   for (int i = static_cast<int>(loops.size() - 1); i >= 0; i--) {
     ffi::ObjectPtr<ForNode> new_loop = ffi::make_object<ForNode>(*loops[i]);
     new_loop->body = ret;
     ret = For(new_loop);
     if (ith == i) {
-      *ith_loop = ret;
+      *ith_loop = ret.as_or_throw<For>();
     }
   }
   return ret;
@@ -46,7 +46,7 @@ Stmt CopyLoopChain(const std::vector<const ForNode*> loops, const Stmt& inner_bo
  * \return a pair. The first is the transformed stmt.
  *         The second is the lowest thread binding loop.
  */
-std::pair<Stmt, For> LiftThreadBindingLoops(Stmt stmt) {
+std::pair<Stmt, ffi::Optional<For>> LiftThreadBindingLoops(Stmt stmt) {
   std::vector<const ForNode*> normal_loops;
   std::vector<const ForNode*> thread_binding_loops;
   Stmt body = stmt;
@@ -59,7 +59,7 @@ std::pair<Stmt, For> LiftThreadBindingLoops(Stmt stmt) {
     body = loop->body;
   }
   body = CopyLoopChain(normal_loops, body);
-  For compute_location;
+  ffi::Optional<For> compute_location;
   body = CopyLoopChain(thread_binding_loops, body,
                        static_cast<int>(thread_binding_loops.size()) - 1, &compute_location);
 
@@ -234,14 +234,14 @@ class BufferLoadReplacer : public StmtExprMutator {
  * \param storage_scope the storage scope of the new cache
  * \param compute_location the compute location.
  * \param outer_loops the outer loops of this stmt
- * \param alloc_buffer the new cache block
+ * \param alloc_tensor the new cache block
  * \return a pair. The first is the stmt after transformation.
  *         The second is the SeqStmt that contains 2 stages (one original and another inserted).
  */
 std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::String storage_scope,
                                           ffi::Optional<For> compute_location,
                                           const ffi::Array<For>& outer_loops,
-                                          BufferVar* alloc_buffer) {
+                                          BufferVar* alloc_tensor) {
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
   std::vector<const ForNode*> loops_under_compute_location;
@@ -259,7 +259,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     } else {
       loops.push_back(loop);
     }
-    if (loop == compute_location.value_or(For()).get()) {
+    if (compute_location.has_value() && loop == compute_location.value().get()) {
       need_relax = true;
     }
     if (loop->kind == ForKind::kVectorized) {
@@ -374,7 +374,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, map_var).as_or_throw<PrimExpr>());
   }
 
-  BufferVar new_buffer;
+  BufferVar new_buffer{ffi::UnsafeInit{}};
   if (is_write_cache) {
     // this is needed for global <- cast(load(wmma))
     // shared stage should have the same dtype as wmma
@@ -383,12 +383,12 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   } else {
     new_buffer = WithScope(buf_store->buffer, storage_scope);
   }
-  ffi::ObjectPtr<BufferTypeNode> buffer_type = CopyBufferType(new_buffer);
+  ffi::ObjectPtr<TensorTypeNode> buffer_type = CopyTensorType(new_buffer);
   buffer_type->shape = new_shape;
   new_buffer = RebuildBufferVar(new_buffer, std::move(buffer_type));
-  *alloc_buffer = new_buffer;
+  *alloc_tensor = new_buffer;
 
-  Stmt generate_body;
+  Stmt generate_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
     // copy from wmma to new cache buffer
     TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
@@ -434,7 +434,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     new_loop->annotations = {};
     generate_body = For(new_loop);
   }
-  Stmt rewrite_body;
+  Stmt rewrite_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
     TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
     rewrite_body =
@@ -452,7 +452,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     new_loop->body = rewrite_body;
     rewrite_body = For(new_loop);
   }
-  SeqStmt insert_location;
+  SeqStmt insert_location{ffi::UnsafeInit{}};
   if (is_write_cache) {
     generate_body = insert_location = SeqStmt({rewrite_body, generate_body});
   } else {
@@ -464,16 +464,12 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
 
 Stmt CreateLocalStage::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                                OutputSet* output) const {
-  Stmt body;
-  For compute_location;
-  std::tie(body, compute_location) = LiftThreadBindingLoops(std::move(stmt));
-  BufferVar cache_buffer;
+  auto [body, compute_location] = LiftThreadBindingLoops(stmt);
+  BufferVar cache_buffer{ffi::UnsafeInit{}};
   Stmt after_caching = InsertCacheStage(body, false, "local", compute_location,
                                         constraints.outer_loops, &cache_buffer)
                            .first;
-  if (cache_buffer.defined()) {
-    output->alloc_buffer.push_back(cache_buffer);
-  }
+  output->alloc_tensor.push_back(cache_buffer);
   return after_caching;
 }
 

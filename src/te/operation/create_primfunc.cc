@@ -332,14 +332,14 @@ ffi::Array<BufferVar> GenerateOutputBuffers(const te::ComputeOp& compute_op, Cre
   // Step 2. Prepare buffers for compute outputs
   //  - Declare buffers
   //  - Update `op2buffers`
-  //  - Add the non-argument tensors to `alloc_buffer` of the root block
+  //  - Add the non-argument tensors to `alloc_tensor` of the root block
   ffi::Array<BufferVar> buffers;
   for (const te::Tensor& tensor : tensors) {
-    BufferVar buffer = decl_buffer(tensor->shape, tensor->dtype, tensor->GetNameHint(), "global");
-    info->tensor2buffers[tensor] = buffer;
+    BufferVar buffer = decl_tensor(tensor->shape, tensor->dtype, tensor->GetNameHint(), "global");
+    info->tensor2buffers.insert_or_assign(tensor, buffer);
     buffers.push_back(buffer);
     if (!info->IsArg(tensor)) {
-      info->root_alloc.push_back(info->tensor2buffers[tensor]);
+      info->root_alloc.push_back(info->tensor2buffers.at(tensor));
     }
   }
   return buffers;
@@ -399,8 +399,6 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
                info->transformer->Mutate(e).ValueOrUnchanged(e), f_substitute)
         .as_or_throw<PrimExpr>();
   };
-  ffi::Optional<Stmt> init = std::nullopt;
-  Stmt body;
   int n_buffers = buffers.size();
   ffi::Array<Stmt> init_stmts;
   init_stmts.reserve(n_buffers);
@@ -435,7 +433,6 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
                info->transformer->Mutate(e).ValueOrUnchanged(e), f_substitute)
         .as_or_throw<PrimExpr>();
   };
-  Stmt body;
   if (const auto* reduce = expr_body.as<te::ReduceNode>()) {
     // Case 1. Reduce compute
     int n_buffers = buffers.size();
@@ -468,17 +465,17 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
     //   we then store the value of the variables into the target buffer positions.
     for (int i = 0; i < n_buffers; ++i) {
       const BufferVar& buffer = buffers[i];
-      PrimExpr value{nullptr};
-      if (n_buffers > 1) {
-        temp_vars.push_back(Var("v_" + buffer.name(), lhs[i].ty()));
-        value = temp_vars.back().as_or_throw<PrimExpr>();
-      } else {
+      PrimExpr value = [&]() -> PrimExpr {
+        if (n_buffers > 1) {
+          temp_vars.push_back(Var("v_" + buffer.name(), lhs[i].ty()));
+          return temp_vars.back().as_or_throw<PrimExpr>();
+        }
         PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
-        value = f_transform_and_remap(combined);
-      }
+        return f_transform_and_remap(combined);
+      }();
       body_stmts.push_back(BufferStore(buffer, value, indices));
     }
-    body = SeqStmt::Flatten(body_stmts);
+    Stmt body = SeqStmt::Flatten(body_stmts);
     if (n_buffers > 1) {
       // When there are multiple buffers, we wrap the body with Bind stmts.
       ffi::Array<Stmt> bind_stmts;
@@ -489,13 +486,13 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Buff
       bind_stmts.push_back(body);
       body = SeqStmt(bind_stmts);
     }
+    return body;
   } else {
     // Case 2. Data parallel compute
     TVM_FFI_ICHECK_EQ(buffers.size(), 1);
     const PrimExpr& compute_body = f_transform_and_remap(expr_body);
-    body = BufferStore(buffers[0], analyzer->Simplify(compute_body), indices);
+    return BufferStore(buffers[0], analyzer->Simplify(compute_body), indices);
   }
-  return body;
 }
 
 /*! \brief Record loops, block vars and binding in the single level scope. */
@@ -712,8 +709,8 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     const te::Tensor& input_tensor = extern_op->inputs[i];
     auto it = info->tensor2buffers.find(input_tensor);
     TVM_FFI_ICHECK(it != info->tensor2buffers.end());
-    var_map[placeholder.get()] = it->second.var();
-    input_buffer_map[placeholder.get()] = it->second;
+    var_map.insert_or_assign(placeholder.get(), it->second.var());
+    input_buffer_map.insert_or_assign(placeholder.get(), it->second);
   }
 
   // Step 2. Update info with its output tensor and placeholder buffer.
@@ -725,16 +722,16 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
     if (!info->IsArg(output_tensor)) {
       PrimExpr zero_offset = IntImm(placeholder->elem_offset.ty(), 0);
       if (auto offset_var = placeholder->elem_offset.as<PrimVar>()) {
-        var_map[offset_var.value().get()] = zero_offset;
+        var_map.insert_or_assign(offset_var.value().get(), zero_offset);
       }
-      ffi::ObjectPtr<BufferTypeNode> type = CopyBufferType(output_buffer);
+      ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(output_buffer);
       type->elem_offset = zero_offset;
       output_buffer = RebuildBufferVar(output_buffer, std::move(type));
-      input_buffer_map[placeholder.get()] = output_buffer;
+      input_buffer_map.insert_or_assign(placeholder.get(), output_buffer);
       info->root_alloc.push_back(output_buffer);
     }
-    var_map[placeholder.get()] = output_buffer.var();
-    info->tensor2buffers[output_tensor] = output_buffer;
+    var_map.insert_or_assign(placeholder.get(), output_buffer.var());
+    info->tensor2buffers.insert_or_assign(output_tensor, output_buffer);
   }
 
   // The access region does not need to be collected here, as it will
@@ -794,7 +791,7 @@ void InitializeBufferBinds(const ffi::Array<te::Operation>& ordered_ops, CreateF
       for (size_t i = 0; i < extern_op->inputs.size(); ++i) {
         const te::Tensor& input = extern_op->inputs[i];
         const BufferVar& buffer = extern_op->input_placeholders[i];
-        info->tensor2buffers[input] = buffer;
+        info->tensor2buffers.insert_or_assign(input, buffer);
       }
     }
   }
@@ -815,8 +812,8 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
     // buffer declaration recorded in the tensor2buffer binds map
     if (info->tensor2buffers.count(tensor) == 0) {
       const BufferVar& buffer =
-          decl_buffer(placeholder->shape, placeholder->dtype, placeholder->name, "global");
-      info->tensor2buffers[tensor] = buffer;
+          decl_tensor(placeholder->shape, placeholder->dtype, placeholder->name, "global");
+      info->tensor2buffers.insert_or_assign(tensor, buffer);
     }
   } else if (auto compute_op = op.as<te::ComputeOp>()) {
     // Case 2. ComputeOp (te.compute)

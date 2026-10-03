@@ -362,7 +362,7 @@ def _emit_reduction_local_view(
             # the mediated layout explicitly.  Bare local() is physical-order.
             src_local = src.local(*src_local_shape, layout=src.layout.storage())
             dst_local = dst.local(*dst_local_shape, layout=dst.layout.storage())
-            old_val = T.alloc_buffer([1], dtype, scope="local")
+            old_val = T.alloc_tensor([1], dtype, scope="local")
 
             for spa in T.serial(dst_local_total):
                 dst_idx = T.meta_var(get_indices(spa, dst_local_st, dst_local_ext))

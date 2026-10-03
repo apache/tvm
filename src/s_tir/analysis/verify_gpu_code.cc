@@ -70,13 +70,13 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return DispatchAllocBuffer(op, call);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return DispatchAllocTensor(op, call);
     }
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
     DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
@@ -347,9 +347,10 @@ std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
     }
   }
 
-  return verifier->Verify(func->body, max_local_memory_per_block, max_shared_memory_per_block,
-                          max_threads_per_block, max_thread_x, max_thread_y, max_thread_z,
-                          max_vthread, max_vector_bytes, max_kernels);
+  if (!func->body.has_value()) return {};
+  return verifier->Verify(func->body.value(), max_local_memory_per_block,
+                          max_shared_memory_per_block, max_threads_per_block, max_thread_x,
+                          max_thread_y, max_thread_z, max_vthread, max_vector_bytes, max_kernels);
 }
 
 bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constraints) {

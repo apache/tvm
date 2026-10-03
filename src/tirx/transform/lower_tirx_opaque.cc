@@ -21,7 +21,7 @@
  * \file lower_tirx_opaque.cc
  * \brief Lower opaque constructs in TIRX programs. This is the tirx-specific
  *        counterpart of s_tirx::LowerOpaqueBlock, handling only the non-SBlock
- *        parts: AllocBuffer lowering, For(thread_binding) → AttrStmt(thread_extent),
+ *        parts: AllocTensor lowering, For(thread_binding) → AttrStmt(thread_extent),
  *        unit loop elimination, and pragma annotation handling.
  */
 
@@ -37,7 +37,7 @@ namespace tirx {
 using namespace tvm::prim;
 
 /*!
- * \brief Lower opaque constructs for TIRX: AllocBuffer, thread bindings, unit loops.
+ * \brief Lower opaque constructs for TIRX: AllocTensor, thread bindings, unit loops.
  *
  * Unlike s_tirx::LowerOpaqueBlock, this pass does NOT handle SBlock/SBlockRealize,
  * since TIRX programs do not contain SBlock nodes.
@@ -115,7 +115,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
     } else {
       LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
                  << " not supported";
-      return Expr();
     }
   }
 
@@ -161,8 +160,9 @@ namespace transform {
 
 Pass LowerTIRxOpaque() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto fptr = f.CopyOnWrite();
-    fptr->body = TIRxOpaqueLower::Rewrite(std::move(fptr->body));
+    fptr->body = TIRxOpaqueLower::Rewrite(std::move(fptr->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTIRxOpaque", {});

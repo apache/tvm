@@ -96,6 +96,9 @@ class CommReducer : public ffi::ObjectRef {
 /*! \brief Reduction operator */
 class ReduceNode : public OpaqueExprNode {
  public:
+  explicit ReduceNode(PrimExpr condition) : condition(std::move(condition)) {}
+  explicit ReduceNode(ffi::UnsafeInit) : condition(ffi::UnsafeInit{}) {}
+
   /*! \brief The commutative combiner */
   CommReducer combiner;
   /*! \brief The source operand */
@@ -132,9 +135,11 @@ class ReduceNode : public OpaqueExprNode {
 class Reduce : public PrimExpr {
  public:
   TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<tirx::IterVar> rdom,
-                 PrimExpr condition, int value_index, ffi::Array<PrimExpr> init,
+                 ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
                  Span span = Span());
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Reduce, PrimExpr, ReduceNode);
+  explicit Reduce(ffi::ObjectPtr<ReduceNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Reduce, PrimExpr, ReduceNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
 };
@@ -352,6 +357,9 @@ class ScanOp : public Operation {
  */
 class ExternOpNode : public OperationNode {
  public:
+  explicit ExternOpNode(Stmt body) : body(std::move(body)) {}
+  explicit ExternOpNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
+
   /*! \brief The input tensors */
   ffi::Array<Tensor> inputs;
   /*! \brief Symbolic placeholder representation of inputs */
@@ -361,8 +369,6 @@ class ExternOpNode : public OperationNode {
   /*! \brief the statement that generates the computation. */
   Stmt body;
 
-  /*! \brief constructor */
-  ExternOpNode() {}
   // override functions
   int num_outputs() const final;
   PrimType output_dtype(size_t i) const final;

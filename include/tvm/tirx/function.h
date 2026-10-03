@@ -52,8 +52,8 @@ class PrimFuncNode : public BaseFuncNode {
   ffi::Array<tirx::Var> params;
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
-  /*! \brief The body of the function */
-  tirx::Stmt body;
+  /*! \brief The body of the function, absent for a declaration. */
+  ffi::Optional<tirx::Stmt> body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -109,7 +109,7 @@ class PrimFunc : public BaseFunc {
    *
    * \param params The parameters of the function.
    *
-   * \param body The body of the function.
+   * \param body The body of the function, or std::nullopt for a declaration.
    *
    * \param ret_type The return type of the function.
    *
@@ -117,10 +117,12 @@ class PrimFunc : public BaseFunc {
    *
    * \param span The location of this object in the source code.
    */
-  TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type = VoidType(),
-                   DictAttrs attrs = DictAttrs(), Span span = Span());
+  TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body,
+                   Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(), Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
+  explicit PrimFunc(ffi::ObjectPtr<PrimFuncNode> node) : BaseFunc(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);
 };
 
@@ -135,7 +137,7 @@ class PrimFunc : public BaseFunc {
  *  from __future__ import annotations
  *
  *  @Ts.prim_func
- *  def mem_copy(A: T.Buffer((m, n), "float32"), B: T.Buffer((m, n), "float32"),
+ *  def mem_copy(A: T.Tensor((m, n), "float32"), B: T.Tensor((m, n), "float32"),
  *               m: T.int32, n: T.int32) -> None:
  *      for i, j in T.grid(m, n):
  *          with Ts.sblock():
@@ -147,15 +149,15 @@ class PrimFunc : public BaseFunc {
  *
  * \code{.py}
  *  a, _, m, n = mem_copy.params
- *  func = mem_copy.specialize({a: tirx.decl_buffer((16, 16))})
+ *  func = mem_copy.specialize({a: tirx.decl_tensor((16, 16))})
  *  # or
  *  func = mem_copy.specialize({n: 16, m: 16})
  * \endcode
  *
  * \code{.py}
  *  @Ts.prim_func
- *  def mem_copy_16_16(A: T.Buffer((16, 16), "float32"),
- *                     B: T.Buffer((16, 16), "float32")) -> None:
+ *  def mem_copy_16_16(A: T.Tensor((16, 16), "float32"),
+ *                     B: T.Tensor((16, 16), "float32")) -> None:
  *      for i, j in T.grid(16, 16):
  *          with Ts.sblock():
  *              vi, vj = Ts.axis.remap("SS", [i, j])

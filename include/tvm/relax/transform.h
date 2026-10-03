@@ -431,6 +431,9 @@ class FusionPattern : public ffi::ObjectRef {
  */
 class PatternCheckContextNode : public ffi::Object {
  public:
+  explicit PatternCheckContextNode(Expr matched_expr) : matched_expr(std::move(matched_expr)) {}
+  explicit PatternCheckContextNode(ffi::UnsafeInit) : matched_expr(ffi::UnsafeInit{}) {}
+
   /*!
    * \brief The expression that's matched with the FusionPattern::pattern.
    */

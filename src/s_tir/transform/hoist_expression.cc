@@ -271,7 +271,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    Var var;
+    Var var{ffi::UnsafeInit{}};
     if (const auto* node_iter_var = op->node.as<IterVarNode>()) {
       var = node_iter_var->var;
     } else if (auto opt = op->node.as<Var>()) {
@@ -349,8 +349,8 @@ class HoistInfoCollector : public StmtExprVisitor {
         if (!bind) {
           non_bind_count++;
         } else if (const auto* call = bind->value.as<CallNode>();
-                   call && (call->op.same_as(tirx::builtin::alloc_buffer()) ||
-                            call->op.same_as(tirx::builtin::decl_buffer()))) {
+                   call && (call->op.same_as(tirx::builtin::alloc_tensor()) ||
+                            call->op.same_as(tirx::builtin::decl_tensor()))) {
           non_bind_count++;
         }
       }
@@ -503,7 +503,7 @@ class ExpressionHoister : public s_tir::IRMutatorWithAnalyzer {
         }
       }
 
-      loop_info_lookup[info.loop_def.get()] = std::move(info);
+      loop_info_lookup.insert_or_assign(info.loop_def.get(), std::move(info));
     }
   }
 
@@ -585,13 +585,14 @@ namespace transform {
 
 Pass HoistExpression() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistExpressionConfig>("s_tir.HoistExpression");
 
     if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<HoistExpressionConfig>();
     }
-    n->body = ExpressionHoister::Hoist(std::move(n->body), cfg.value());
+    n->body = ExpressionHoister::Hoist(std::move(n->body).value(), cfg.value());
     return f;
   };
   auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "s_tir.InsertHoistedExpression", {});
@@ -612,6 +613,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 static Pass HoistIfThenElseImpl() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("s_tir.HoistIfThenElse");
     auto flag = f->GetAttr<int64_t>("tirx.HoistIfThenElseExprWithBlock");
@@ -619,7 +621,7 @@ static Pass HoistIfThenElseImpl() {
       HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kUsingBlockVar) |
                                        static_cast<int>(HoistedConditionals::kIfElseExpr),
                                    static_cast<int>(HoistedLetBindings::kNone));
-      n->body = ExpressionHoister::Hoist(std::move(n->body), config);
+      n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
       return f;
     }
     if (!cfg.has_value()) {
@@ -630,7 +632,7 @@ static Pass HoistIfThenElseImpl() {
                                          : HoistedConditionals::kNone);
     HoistExpressionConfig config(block_var | static_cast<int>(HoistedConditionals::kIfElseStmt),
                                  static_cast<int>(HoistedLetBindings::kNone));
-    n->body = ExpressionHoister::Hoist(std::move(n->body), config);
+    n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
     return f;
   };
   auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "s_tir.InsertHoistIfThenElse", {});
@@ -645,10 +647,11 @@ static Pass HoistIfThenElseImpl() {
 
 static Pass HoistIfThenElseBasicImpl() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kIfElseStmt),
                                  static_cast<int>(HoistedLetBindings::kNone));
-    n->body = ExpressionHoister::Hoist(std::move(n->body), config);
+    n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
     return f;
   };
   auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "s_tir.InsertHoistIfThenElseBasic", {});

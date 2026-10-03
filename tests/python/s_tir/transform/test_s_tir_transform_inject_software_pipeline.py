@@ -56,7 +56,7 @@ def _check_error(func):
 
 
 @Ts.prim_func
-def trivial_pipeline(A: T.Buffer((16, 1), "float32"), C: T.Buffer((16, 1), "float32")):
+def trivial_pipeline(A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
             0, 1, annotations={"software_pipeline_stage": [0, 1], "software_pipeline_order": [0, 1]}
@@ -77,7 +77,7 @@ def trivial_pipeline(A: T.Buffer((16, 1), "float32"), C: T.Buffer((16, 1), "floa
 
 @Ts.prim_func
 def transformed_trivial_pipeline(
-    A: T.Buffer((16, 1), "float32"), C: T.Buffer((16, 1), "float32")
+    A: T.Tensor((16, 1), "float32"), C: T.Tensor((16, 1), "float32")
 ) -> None:
     for tx in T.thread_binding(16, thread="threadIdx.x"):
         with Ts.sblock():
@@ -100,7 +100,7 @@ def transformed_trivial_pipeline(
 
 def gen_simple_compute(num_stages):
     @Ts.prim_func
-    def simple_compute(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
+    def simple_compute(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
         for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
             for i in T.serial(
                 0,
@@ -128,7 +128,7 @@ def gen_simple_compute(num_stages):
 
 @Ts.prim_func
 def transformed_simple_compute(
-    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with Ts.sblock():
@@ -161,7 +161,7 @@ k = T.dynamic("k", "int32")
 
 
 @Ts.prim_func
-def dynamic_compute(A: T.Buffer((16, k), "float32"), C: T.Buffer((16, k), "float32")):
+def dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
             0,
@@ -189,7 +189,7 @@ k = T.dynamic("k", "int32")
 
 
 @Ts.prim_func
-def transformed_dynamic_compute(A: T.Buffer((16, k), "float32"), C: T.Buffer((16, k), "float32")):
+def transformed_dynamic_compute(A: T.Tensor((16, k), "float32"), C: T.Tensor((16, k), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with Ts.sblock():
             Ts.reads(A[tx, 0 : T.max(1, k)])
@@ -227,7 +227,7 @@ def transformed_dynamic_compute(A: T.Buffer((16, k), "float32"), C: T.Buffer((16
 
 @Ts.prim_func
 def simple_compute_with_other_annotation(
-    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -255,7 +255,7 @@ def simple_compute_with_other_annotation(
 
 @Ts.prim_func
 def transformed_simple_compute_with_other_annotation(
-    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with Ts.sblock():
@@ -289,7 +289,7 @@ def transformed_simple_compute_with_other_annotation(
 
 
 @Ts.prim_func
-def three_stage_compute(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")):
+def three_stage_compute(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
             0,
@@ -320,7 +320,7 @@ def three_stage_compute(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), 
 
 @Ts.prim_func
 def transformed_three_stage_compute(
-    A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")
+    A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(16, thread="threadIdx.x"):
         with Ts.sblock():
@@ -374,9 +374,9 @@ def transformed_three_stage_compute(
 
 @Ts.prim_func
 def dag_interleaving(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    C: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    C: T.Tensor((16, 16), "float32"),
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -418,9 +418,9 @@ def dag_interleaving(
 
 @Ts.prim_func
 def transformed_dag_interleaving(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    C: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    C: T.Tensor((16, 16), "float32"),
 ) -> None:
     for tx in T.thread_binding(16, thread="threadIdx.x"):
         with Ts.sblock():
@@ -483,7 +483,7 @@ def transformed_dag_interleaving(
 
 @Ts.prim_func
 def nested_pipeline_simple(
-    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
+    A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -527,7 +527,7 @@ def nested_pipeline_simple(
 
 @Ts.prim_func
 def transformed_nested_pipeline_simple(
-    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
+    A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with Ts.sblock():
@@ -604,7 +604,7 @@ def transformed_nested_pipeline_simple(
 
 @Ts.prim_func
 def nested_pipeline_prefetch_inner(
-    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
+    A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -648,7 +648,7 @@ def nested_pipeline_prefetch_inner(
 
 @Ts.prim_func
 def transformed_nested_pipeline_prefetch_inner(
-    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
+    A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with Ts.sblock():
@@ -728,7 +728,7 @@ def transformed_nested_pipeline_prefetch_inner(
 
 @Ts.prim_func
 def nested_pipeline_interleaving(
-    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
+    A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -778,7 +778,7 @@ def nested_pipeline_interleaving(
 
 @Ts.prim_func
 def transformed_nested_pipeline_interleaving(
-    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
+    A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with Ts.sblock():
@@ -887,7 +887,7 @@ def transformed_nested_pipeline_interleaving(
 
 @Ts.prim_func
 def nested_pipeline_double_buffer(
-    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
+    A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -938,7 +938,7 @@ def nested_pipeline_double_buffer(
 
 @Ts.prim_func
 def transformed_nested_pipeline_double_buffer(
-    A: T.Buffer((16, 16, 16), "float32"), C: T.Buffer((16, 16, 16), "float32")
+    A: T.Tensor((16, 16, 16), "float32"), C: T.Tensor((16, 16, 16), "float32")
 ) -> None:
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         with Ts.sblock():
@@ -1051,7 +1051,7 @@ def transformed_nested_pipeline_double_buffer(
 
 @Ts.prim_func
 def simple_compute_incorrect_reorder(
-    A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")
+    A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -1083,7 +1083,7 @@ def simple_compute_incorrect_reorder(
 
 @Ts.prim_func
 def simple_compute_conflicting_order(
-    A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")
+    A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(
@@ -1115,7 +1115,7 @@ def simple_compute_conflicting_order(
 
 @Ts.prim_func
 def simple_compute_missing_annotation(
-    A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")
+    A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ):
     for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
         for i in T.serial(0, 16, annotations={"software_pipeline_stage": [0, 1]}):
@@ -1194,7 +1194,7 @@ def test_simple_compute_async():
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
     @Ts.prim_func
-    def ref(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")):
+    def ref(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
@@ -1241,7 +1241,7 @@ def test_simple_compute_async():
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
     @Ts.prim_func
-    def ref(A: T.Buffer((16, 16), "float32"), C: T.Buffer((16, 16), "float32")) -> None:
+    def ref(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
@@ -1294,9 +1294,9 @@ def test_simple_compute_async():
 def test_async_producer_interleaving():
     @Ts.prim_func
     def simple_compute(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ):
         for tx in T.thread_binding(0, 16, thread="threadIdx.x"):
             for i in range(16):
@@ -1329,9 +1329,9 @@ def test_async_producer_interleaving():
 
     @Ts.prim_func
     def ref(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ) -> None:
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with Ts.sblock():
@@ -1408,7 +1408,7 @@ def test_three_stage_compute_two_stage_async():
     mod = tvm.s_tir.transform.InjectSoftwarePipeline()(sch.mod)
 
     @Ts.prim_func
-    def ref(A: T.Buffer((16, 16), "float32"), D: T.Buffer((16, 16), "float32")) -> None:
+    def ref(A: T.Tensor((16, 16), "float32"), D: T.Tensor((16, 16), "float32")) -> None:
         for tx in T.thread_binding(16, thread="threadIdx.x"):
             with Ts.sblock():
                 Ts.reads(A[tx, 0:16])
@@ -1489,7 +1489,7 @@ def test_three_stage_compute_two_stage_async():
                                 with T.attr(
                                     0,
                                     "async_wait_inflight_count",
-                                    T.if_then_else(i + 16 - 1 < 16, 1, 0, dtype="int32"),
+                                    T.if_then_else(i + 16 - 1 < 16, 1, 0),
                                 ):
                                     D[tx, i - 2 + 16] = C[(i - 2 + 16) % 2, tx, 0] + T.float32(1)
 
@@ -1645,7 +1645,7 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
 
 def test_less_loop_than_num_stage():
     @Ts.prim_func
-    def before(A: T.Buffer((2,), "float32"), E: T.Buffer((2,), "float32")):
+    def before(A: T.Tensor((2,), "float32"), E: T.Tensor((2,), "float32")):
         for i in T.serial(
             0,
             2,
@@ -1668,7 +1668,7 @@ def test_less_loop_than_num_stage():
                     E[i] = D[0] + T.float32(5)
 
     @Ts.prim_func
-    def after(A: T.Buffer((2,), "float32"), E: T.Buffer((2,), "float32")):
+    def after(A: T.Tensor((2,), "float32"), E: T.Tensor((2,), "float32")):
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes()
@@ -1722,7 +1722,7 @@ def test_less_loop_than_num_stage_dynamic():
     K = T.dynamic("K", "int32")
 
     @Ts.prim_func
-    def before(A: T.Buffer([K], "float32"), E: T.Buffer([K], "float32")):
+    def before(A: T.Tensor([K], "float32"), E: T.Tensor([K], "float32")):
         for i in T.serial(
             0,
             K,
@@ -1747,7 +1747,7 @@ def test_less_loop_than_num_stage_dynamic():
     K = T.dynamic("K", "int32")
 
     @Ts.prim_func
-    def after(A: T.Buffer([K], "float32"), E: T.Buffer([K], "float32")):
+    def after(A: T.Tensor([K], "float32"), E: T.Tensor([K], "float32")):
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes()

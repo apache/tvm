@@ -62,7 +62,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     stmt = for_node->body;
   }
 
-  BufferStore store;
+  BufferStore store{ffi::UnsafeInit{}};
   if (auto opt = stmt.as<BufferStore>()) {
     store = opt.value();
   } else {
@@ -72,7 +72,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
         .str();
   }
 
-  TensorLoad load;
+  TensorLoad load{ffi::UnsafeInit{}};
   if (auto opt = store->value.as<TensorLoad>()) {
     load = opt.value();
   } else {

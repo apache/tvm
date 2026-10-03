@@ -80,13 +80,13 @@ class MemoizedExprTranslator : public ExprFunctor<OutputType(const Expr&)> {
       return it->second;
     }
     auto res = BaseFunctor::VisitExpr(n);
-    memo_[n] = res;
+    memo_.insert_or_assign(n, res);
     return res;
   }
 
   virtual OutputType VisitExpr_(const VarNode* vn) {
     TVM_FFI_ICHECK(memo_.count(ffi::GetRef<Expr>(vn)));
-    return memo_[ffi::GetRef<Expr>(vn)];
+    return memo_.at(ffi::GetRef<Expr>(vn));
   }
 
   virtual OutputType VisitExpr_(const DataflowVarNode* vn) {
@@ -96,7 +96,7 @@ class MemoizedExprTranslator : public ExprFunctor<OutputType(const Expr&)> {
   virtual OutputType VisitBinding_(const VarBindingNode* binding) {
     TVM_FFI_ICHECK_EQ(memo_.count(binding->var), 0);
     auto v = VisitExpr(binding->value);
-    memo_[binding->var] = v;
+    memo_.insert_or_assign(binding->var, v);
     return v;
   }
 
@@ -269,7 +269,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
     }
 
     Var renewed = CopyVar(op, std::move(new_ty));
-    var_remap_[old_var] = renewed;
+    var_remap_.insert_or_assign(old_var, renewed);
     return renewed;
   }
 
@@ -283,7 +283,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
     }
 
     Var renewed = CopyVar(op, op->ty);
-    var_remap_[old_var] = renewed;
+    var_remap_.insert_or_assign(old_var, renewed);
     return renewed;
   }
 
@@ -297,7 +297,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
     }
 
     Var renewed = CopyVar(op, op->ty);
-    var_remap_[old_var] = renewed;
+    var_remap_.insert_or_assign(old_var, renewed);
     return renewed;
   }
 
@@ -312,7 +312,7 @@ class SymbolicVarRenewMutator : public ExprMutator {
       Var new_param = this->VisitVarDef(param);
       params.push_back(new_param);
       if (!param.same_as(new_param)) {
-        var_remap_[param] = new_param;
+        var_remap_.insert_or_assign(param, new_param);
         all_params_unchanged = false;
       }
     }

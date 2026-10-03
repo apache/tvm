@@ -43,7 +43,7 @@ def run_test_break_continue(func, shape, expected):
 def test_break_continue1():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((10,), 'int32')):
+    def func(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -65,12 +65,12 @@ def test_break_continue1():
 def test_break_continue2():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((9,), 'int32')):
+    def func(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
         cta_id = T.cta_id([1])
         tid = T.thread_id([32])
-        idx = T.alloc_buffer((1,), "int32", scope="local")
+        idx = T.alloc_tensor((1,), "int32", scope="local")
         idx[0] = 0
         for i in T.serial(3):
             if i == 0:
@@ -92,12 +92,12 @@ def test_break_continue2():
 def test_break_continue3():
     # fmt: off
     @T.prim_func
-    def func(A: T.Buffer((10,), 'int32')):
+    def func(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
         cta_id = T.cta_id([1])
         tid = T.thread_id([32])
-        i = T.alloc_buffer((1,), "int32", scope="local")
+        i = T.alloc_tensor((1,), "int32", scope="local")
         i[0] = 0
         while i[0] < 10:
             if (i[0] % 2) == 1:

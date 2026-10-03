@@ -21,7 +21,7 @@ from __future__ import annotations
 import functools
 import inspect
 from collections.abc import Callable
-from typing import Any, ParamSpec, TypeVar
+from typing import Any
 
 import tvm_ffi as _ffi
 
@@ -95,10 +95,10 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
                 declaration = module_frame.functions[func]
                 if isinstance(declaration, tir.PrimFunc):
                     # The Relax-facing signature may erase pointer results to Any.
-                    return Call(func, args, ret_ty=declaration.ret_type)
+                    return Call(func, args, ty=declaration.ret_type)
                 break
     if isinstance(func.ty, ir.FuncType):
-        return Call(func, args, ret_ty=func.ty.ret_type)
+        return Call(func, args, ty=func.ty.ret_type)
     return Call(func, args)
 
 
@@ -186,24 +186,14 @@ def comm_reducer(combiner: Callable, identity: list[Expr]) -> CommReducer:
     return CommReducer(args[: num_args // 2], args[num_args // 2 :], res, identity)
 
 
-T = TypeVar("T")
+def _op_wrapper(func):
+    """Retain the normal call contract while attaching namespace printer metadata."""
 
-
-P = ParamSpec("P")
-
-
-def _op_wrapper(func: Callable[P, T]) -> Callable[P, T]:
     @functools.wraps(func)
-    def wrapped(*args, **kwargs) -> T:
-        if "dtype" in kwargs:
-            kwargs.pop("dtype")
+    def wrapped(*args, **kwargs):
         return func(*args, **kwargs)
 
-    # Expose underlying tir op name for printer registration
-    try:
-        wrapped.__tir_op_name__ = getattr(func, "__name__", None)
-    except Exception:  # pragma: no cover
-        pass
+    wrapped.__tir_op_name__ = getattr(func, "__name__", None)
     return wrapped
 
 
@@ -298,7 +288,7 @@ def _get_script_namespace(name: str) -> object:
 
 
 def register_script_namespace(
-    name: str, namespace: object, override: bool = False, *, register_printer_names: bool = True
+    name: str, namespace: object, override: bool = False, *, canonical_op_names: bool = False
 ) -> object:
     """Register a construction namespace and return it.
 
@@ -311,9 +301,10 @@ def register_script_namespace(
     override : bool, optional
         Replace differing operator printer names if True. Existing equal names
         are reused; other duplicates raise ValueError.
-    register_printer_names : bool, optional
-        Discover printer names from legacy wrappers. Backends exposing canonical
-        registered Op names disable this to retain registration-owned spelling.
+    canonical_op_names : bool, optional
+        Publish registered Op names whose canonical attributes expose matching
+        callables. Preserve explicit printer aliases. Otherwise discover names
+        from legacy wrappers. Repeat registration to publish newly exposed Ops.
     """
     _SCRIPT_NAMESPACES[name] = namespace
     globals()[name] = namespace
@@ -335,7 +326,24 @@ def register_script_namespace(
         if isinstance(module_all, list) and name not in module_all:
             module_all.append(name)
 
-    if register_printer_names:
+    if canonical_op_names:
+        prefix = f"tirx.{name}."
+        for op_name in _ir.Op.list_op_names():
+            if not op_name.startswith(prefix):
+                continue
+            current = namespace
+            for part in op_name[len(prefix) :].split("."):
+                current = getattr(current, part, None)
+            op = _ir.Op.get(op_name)
+            identity = getattr(current, "__tvm_op__", None)
+            if (
+                callable(current)
+                and isinstance(identity, _ir.Op)
+                and identity.same_as(op)
+                and op.get_attr("TScriptPrinterName") is None
+            ):
+                op.set_attr("TScriptPrinterName", op_name)
+    else:
         _register_script_namespace_printer_names(namespace, f"tirx.{name}", override)
     return namespace
 
@@ -351,274 +359,274 @@ def _register_tir_namespace_printer_names():
 _register_tir_namespace_printer_names()
 
 
-abs = _op_wrapper(_tir_op.abs)  # pylint: disable=redefined-builtin
+abs = _tir_op.abs  # pylint: disable=redefined-builtin
 
 
-acos = _op_wrapper(_tir_op.acos)
+acos = _tir_op.acos
 
 
-acosh = _op_wrapper(_tir_op.acosh)
+acosh = _tir_op.acosh
 
 
-address_of = _op_wrapper(_tir_op.address_of)
+address_of = _tir_op.address_of
 
 
-asin = _op_wrapper(_tir_op.asin)
+asin = _tir_op.asin
 
 
-asinh = _op_wrapper(_tir_op.asinh)
+asinh = _tir_op.asinh
 
 
-atan = _op_wrapper(_tir_op.atan)
+atan = _tir_op.atan
 
 
-atan2 = _op_wrapper(_tir_op.atan2)
+atan2 = _tir_op.atan2
 
 
-atanh = _op_wrapper(_tir_op.atanh)
+atanh = _tir_op.atanh
 
 
-bitwise_and = _op_wrapper(_tir_op.bitwise_and)
+bitwise_and = _tir_op.bitwise_and
 
 
-bitwise_not = _op_wrapper(_tir_op.bitwise_not)
+bitwise_not = _tir_op.bitwise_not
 
 
-bitwise_or = _op_wrapper(_tir_op.bitwise_or)
+bitwise_or = _tir_op.bitwise_or
 
 
-bitwise_xor = _op_wrapper(_tir_op.bitwise_xor)
+bitwise_xor = _tir_op.bitwise_xor
 
 
-ceil = _op_wrapper(_tir_op.ceil)
+ceil = _tir_op.ceil
 
 
-clz = _op_wrapper(_tir_op.clz)
+clz = _tir_op.clz
 
 
-copysign = _op_wrapper(_tir_op.copysign)
+copysign = _tir_op.copysign
 
 
-cos = _op_wrapper(_tir_op.cos)
+cos = _tir_op.cos
 
 
-cosh = _op_wrapper(_tir_op.cosh)
+cosh = _tir_op.cosh
 
 
-erf = _op_wrapper(_tir_op.erf)
+erf = _tir_op.erf
 
 
-exp = _op_wrapper(_tir_op.exp)
+exp = _tir_op.exp
 
 
-exp2 = _op_wrapper(_tir_op.exp2)
+exp2 = _tir_op.exp2
 
 
-exp10 = _op_wrapper(_tir_op.exp10)
+exp10 = _tir_op.exp10
 
 
-filter = _op_wrapper(_tir_op.filter)  # pylint: disable=redefined-builtin
+filter = _tir_op.filter  # pylint: disable=redefined-builtin
 
 
-selector = _op_wrapper(_tir_op.selector)
+selector = _tir_op.selector
 
 
-floor = _op_wrapper(_tir_op.floor)
+floor = _tir_op.floor
 
 
-ceildiv = _op_wrapper(_tir_op.ceildiv)
+ceildiv = _tir_op.ceildiv
 
 
-floordiv = _op_wrapper(_tir_op.floordiv)
+floordiv = _tir_op.floordiv
 
 
-floormod = _op_wrapper(_tir_op.floormod)
+floormod = _tir_op.floormod
 
 
-fmod = _op_wrapper(_tir_op.fmod)
+fmod = _tir_op.fmod
 
 
-fma = _op_wrapper(_tir_op.fma)
+fma = _tir_op.fma
 
 
-hypot = _op_wrapper(_tir_op.hypot)
+hypot = _tir_op.hypot
 
 
-if_then_else = _op_wrapper(_tir_op.if_then_else)
+if_then_else = _tir_op.if_then_else
 
 
-infinity = _op_wrapper(_tir_op.infinity)
+infinity = _tir_op.infinity
 
 
-isfinite = _op_wrapper(_tir_op.isfinite)
+isfinite = _tir_op.isfinite
 
 
-isinf = _op_wrapper(_tir_op.isinf)
+isinf = _tir_op.isinf
 
 
-isnan = _op_wrapper(_tir_op.isnan)
+isnan = _tir_op.isnan
 
 
-isnullptr = _op_wrapper(_tir_op.isnullptr)
+isnullptr = _tir_op.isnullptr
 
 
-ldexp = _op_wrapper(_tir_op.ldexp)
+ldexp = _tir_op.ldexp
 
 
-likely = _op_wrapper(_tir_op.likely)
+likely = _tir_op.likely
 
 
-log = _op_wrapper(_tir_op.log)
+log = _tir_op.log
 
 
-log1p = _op_wrapper(_tir_op.log1p)
+log1p = _tir_op.log1p
 
 
-log2 = _op_wrapper(_tir_op.log2)
+log2 = _tir_op.log2
 
 
-log10 = _op_wrapper(_tir_op.log10)
+log10 = _tir_op.log10
 
 
-max_value = _op_wrapper(_tir_op.max_value)
+max_value = _tir_op.max_value
 
 
-min_value = _op_wrapper(_tir_op.min_value)
+min_value = _tir_op.min_value
 
 
-nearbyint = _op_wrapper(_tir_op.nearbyint)
+nearbyint = _tir_op.nearbyint
 
 
-nextafter = _op_wrapper(_tir_op.nextafter)
+nextafter = _tir_op.nextafter
 
 
-popcount = _op_wrapper(_tir_op.popcount)
+popcount = _tir_op.popcount
 
 
-pow = _op_wrapper(_tir_op.pow)  # pylint: disable=redefined-builtin
+pow = _tir_op.pow  # pylint: disable=redefined-builtin
 
 
-q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
+q_multiply_shift = _tir_op.q_multiply_shift
 
 
-q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
+q_multiply_shift_per_axis = _tir_op.q_multiply_shift_per_axis
 
 
-round = _op_wrapper(_tir_op.round)  # pylint: disable=redefined-builtin
+round = _tir_op.round  # pylint: disable=redefined-builtin
 
 
-rsqrt = _op_wrapper(_tir_op.rsqrt)
+rsqrt = _tir_op.rsqrt
 
 
-shift_left = _op_wrapper(_tir_op.shift_left)
+shift_left = _tir_op.shift_left
 
 
-shift_right = _op_wrapper(_tir_op.shift_right)
+shift_right = _tir_op.shift_right
 
 
-sigmoid = _op_wrapper(_tir_op.sigmoid)
+sigmoid = _tir_op.sigmoid
 
 
-sin = _op_wrapper(_tir_op.sin)
+sin = _tir_op.sin
 
 
-sinh = _op_wrapper(_tir_op.sinh)
+sinh = _tir_op.sinh
 
 
-sqrt = _op_wrapper(_tir_op.sqrt)
+sqrt = _tir_op.sqrt
 
 
-tan = _op_wrapper(_tir_op.tan)
+tan = _tir_op.tan
 
 
-tanh = _op_wrapper(_tir_op.tanh)
+tanh = _tir_op.tanh
 
 
-thread_return = _op_wrapper(_tir_op.thread_return)
+thread_return = _tir_op.thread_return
 
 
-trunc = _op_wrapper(_tir_op.trunc)
+trunc = _tir_op.trunc
 
 
-truncdiv = _op_wrapper(_tir_op.truncdiv)
+truncdiv = _tir_op.truncdiv
 
 
-truncmod = _op_wrapper(_tir_op.truncmod)
+truncmod = _tir_op.truncmod
 
 
-tvm_access_ptr = _op_wrapper(_tir_op.tvm_access_ptr)
+tvm_access_ptr = _tir_op.tvm_access_ptr
 
 
-ptr_byte_offset = _op_wrapper(_tir_op.ptr_byte_offset)
+ptr_byte_offset = _tir_op.ptr_byte_offset
 
 
-tvm_throw_last_error = _op_wrapper(_tir_op.tvm_throw_last_error)
+tvm_throw_last_error = _tir_op.tvm_throw_last_error
 
 
-print_buffer = _op_wrapper(_tir_op.print_buffer)
+print_buffer = _tir_op.print_buffer
 
 
-tvm_stack_alloca = _op_wrapper(_tir_op.tvm_stack_alloca)
+tvm_stack_alloca = _tir_op.tvm_stack_alloca
 
 
-tvm_stack_make_shape = _op_wrapper(_tir_op.tvm_stack_make_shape)
+tvm_stack_make_shape = _tir_op.tvm_stack_make_shape
 
 
-tvm_stack_make_array = _op_wrapper(_tir_op.tvm_stack_make_array)
+tvm_stack_make_array = _tir_op.tvm_stack_make_array
 
 
-call_packed = _op_wrapper(_tir_op.call_packed)
+call_packed = _tir_op.call_packed
 
 
-call_ffi_kernel = _op_wrapper(_tir_op.call_ffi_kernel)
+call_ffi_kernel = _tir_op.call_ffi_kernel
 
 
-tensormap_encode_tiled = _op_wrapper(_tir_op.tensormap_encode_tiled)
+tensormap_encode_tiled = _tir_op.tensormap_encode_tiled
 
 
-call_cpacked = _op_wrapper(_tir_op.call_cpacked)
+call_cpacked = _tir_op.call_cpacked
 
 
-call_packed_lowered = _op_wrapper(_tir_op.call_packed_lowered)
+call_packed_lowered = _tir_op.call_packed_lowered
 
 
-call_cpacked_lowered = _op_wrapper(_tir_op.call_cpacked_lowered)
+call_cpacked_lowered = _tir_op.call_cpacked_lowered
 
 
-handle_add_byte_offset = _op_wrapper(_tir_op.handle_add_byte_offset)
+handle_add_byte_offset = _tir_op.handle_add_byte_offset
 
 
-tvm_struct_set = _op_wrapper(_tir_op.tvm_struct_set)
+tvm_struct_set = _tir_op.tvm_struct_set
 
 
 tvm_struct_get = _tir_op.tvm_struct_get
 
 
-tvm_thread_invariant = _op_wrapper(_tir_op.tvm_thread_invariant)
+tvm_thread_invariant = _tir_op.tvm_thread_invariant
 
 
-tvm_thread_allreduce = _op_wrapper(_tir_op.tvm_thread_allreduce)
+tvm_thread_allreduce = _tir_op.tvm_thread_allreduce
 
 
-tvm_load_matrix_sync = _op_wrapper(_tir_op.tvm_load_matrix_sync)
+tvm_load_matrix_sync = _tir_op.tvm_load_matrix_sync
 
 
-tvm_mma_sync = _op_wrapper(_tir_op.tvm_mma_sync)
+tvm_mma_sync = _tir_op.tvm_mma_sync
 
 
-tvm_bmma_sync = _op_wrapper(_tir_op.tvm_bmma_sync)
+tvm_bmma_sync = _tir_op.tvm_bmma_sync
 
 
-tvm_fill_fragment = _op_wrapper(_tir_op.tvm_fill_fragment)
+tvm_fill_fragment = _tir_op.tvm_fill_fragment
 
 
-tvm_store_matrix_sync = _op_wrapper(_tir_op.tvm_store_matrix_sync)
+tvm_store_matrix_sync = _tir_op.tvm_store_matrix_sync
 
 
 tvm_storage_sync = _tir_op.tvm_storage_sync
 
 
-tvm_kernel_replace_point = _op_wrapper(_tir_op.tvm_kernel_replace_point)
+tvm_kernel_replace_point = _tir_op.tvm_kernel_replace_point
 
 
 tvm_warp_shuffle = _tir_op.tvm_warp_shuffle
@@ -636,34 +644,34 @@ tvm_warp_shuffle_xor = _tir_op.tvm_warp_shuffle_xor
 tvm_warp_activemask = _tir_op.tvm_warp_activemask
 
 
-cooperative_tensor_fill = _op_wrapper(_tir_op.cooperative_tensor_fill)
+cooperative_tensor_fill = _tir_op.cooperative_tensor_fill
 
 
-cooperative_tensor_load = _op_wrapper(_tir_op.cooperative_tensor_load)
+cooperative_tensor_load = _tir_op.cooperative_tensor_load
 
 
-cooperative_tensor_store = _op_wrapper(_tir_op.cooperative_tensor_store)
+cooperative_tensor_store = _tir_op.cooperative_tensor_store
 
 
-cooperative_tensor_multiply_accumulate = _op_wrapper(_tir_op.cooperative_tensor_multiply_accumulate)
+cooperative_tensor_multiply_accumulate = _tir_op.cooperative_tensor_multiply_accumulate
 
 
-assume = _op_wrapper(_tir_op.assume)
+assume = _tir_op.assume
 
 
-undef = _op_wrapper(_tir_op.undef)
+undef = _tir_op.undef
 
 
-TVMBackendAllocWorkspace = _op_wrapper(_tir_op.TVMBackendAllocWorkspace)
+TVMBackendAllocWorkspace = _tir_op.TVMBackendAllocWorkspace
 
 
-TVMBackendFreeWorkspace = _op_wrapper(_tir_op.TVMBackendFreeWorkspace)
+TVMBackendFreeWorkspace = _tir_op.TVMBackendFreeWorkspace
 
 
-vscale = _op_wrapper(_tir_op.vscale)
+vscale = _tir_op.vscale
 
 
-ignore_loop_partition = _op_wrapper(_tir_op.ignore_loop_partition)
+ignore_loop_partition = _tir_op.ignore_loop_partition
 
 
 reinterpret = _dtype_forward(_tir_op.reinterpret)
@@ -699,10 +707,10 @@ get_active_lane_mask = _dtype_forward(_tir_op.get_active_lane_mask)
 masked_load = _dtype_forward(_tir_op.masked_load)
 
 
-masked_store = _op_wrapper(_tir_op.masked_store)
+masked_store = _tir_op.masked_store
 
 
-dp4a = _dtype_forward(_tir_op.dp4a)
+dp4a = _tir_op.dp4a
 
 
 broadcast = Broadcast

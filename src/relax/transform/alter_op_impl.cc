@@ -195,7 +195,7 @@ class AlterOpImplMutator : public ExprMutator {
   GlobalVar GetOrCreateRemovePadOp(const ffi::Array<PrimExpr>& old_shape, DLDataType dtype) {
     int t_shape = old_shape.size();
     if (remove_pad_map_.count(t_shape) != 0) {
-      return remove_pad_map_[t_shape];
+      return remove_pad_map_.at(t_shape);
     }
     // Create dynamic shapes for input and output tensors
     ffi::Array<PrimExpr> dyn_padded_shape, dyn_old_shape;
@@ -226,7 +226,7 @@ class AlterOpImplMutator : public ExprMutator {
     builder_->UpdateFunction(gv_remove_pad,
                              WithoutAttr(remove_pad_with_frozen_layout, "global_symbol"));
 
-    remove_pad_map_[t_shape] = gv_remove_pad;
+    remove_pad_map_.insert_or_assign(t_shape, gv_remove_pad);
     return gv_remove_pad;
   }
 

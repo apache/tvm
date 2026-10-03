@@ -288,8 +288,8 @@ def test_dynamic_launch_thread():
     class before:
         @T.prim_func
         def default_function(
-            A: T.Buffer([seq_len], "int32"),  # noqa: F821
-            B: T.Buffer([seq_len], "int32"),  # noqa: F821
+            A: T.Tensor([seq_len], "int32"),  # noqa: F821
+            B: T.Tensor([seq_len], "int32"),  # noqa: F821
             seq_len: T.int32,
         ):
             T.func_attr({"target": T.target("cuda")})
@@ -305,8 +305,8 @@ def test_dynamic_launch_thread():
     class expected:
         @T.prim_func
         def default_function(
-            A: T.Buffer((seq_len,), "int32"),  # noqa: F821
-            B: T.Buffer((seq_len,), "int32"),  # noqa: F821
+            A: T.Tensor((seq_len,), "int32"),  # noqa: F821
+            B: T.Tensor((seq_len,), "int32"),  # noqa: F821
             seq_len: T.int32,
         ):
             T.func_attr({"target": T.target("cuda")})
@@ -328,8 +328,8 @@ def test_dynamic_launch_thread():
                     "tirx.noalias": True,
                 }
             )
-            A = T.decl_buffer(seq_len, "int32", data=A_data)
-            B = T.decl_buffer(seq_len, "int32", data=B_data)
+            A = T.decl_tensor(seq_len, "int32", data=A_data)
+            B = T.decl_tensor(seq_len, "int32", data=B_data)
             blockIdx_x = T.launch_thread("blockIdx.x", num_blocks)
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             if blockIdx_x * 128 + threadIdx_x < seq_len:
@@ -347,13 +347,13 @@ def test_symbolic_var_parameter():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((m,)), B: T.Buffer((m,))):
+        def main(A: T.Tensor((m,)), B: T.Tensor((m,))):
             T.func_attr({"target": T.target("cuda")})
 
             T.attr(T.target("cuda"), "target", 0)
             blockIdx_x = T.launch_thread("blockIdx.x", m)
-            B_1 = T.decl_buffer((m,), data=B.data)
-            A_1 = T.decl_buffer((m,), data=A.data)
+            B_1 = T.decl_tensor((m,), data=B.data)
+            A_1 = T.decl_tensor((m,), data=A.data)
             B_1[blockIdx_x] = A_1[blockIdx_x]
 
     after = tvm.tirx.transform.SplitHostDevice()(Module)
@@ -365,7 +365,7 @@ def test_buffer_used_only_through_data_projection():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer((16,), "float32")):
+        def main(A: T.Tensor((16,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             with T.attr(T.target("cuda"), "target", 0):
                 T.evaluate(T.call_extern("consume", A.data, dtype="int32"))
@@ -375,7 +375,7 @@ def test_buffer_used_only_through_data_projection():
     declared_buffers = []
 
     def collect(node):
-        if _is_buffer_binding(node, "tirx.decl_buffer"):
+        if _is_buffer_binding(node, "tirx.decl_tensor"):
             declared_buffers.append(node.var)
 
     tvm_ffi.structural_walk(kernel.body, collect)
@@ -389,7 +389,7 @@ def test_thread_extent_region_extracted_as_device_kernel():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(16, "float32")):
+        def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             i = T.launch_thread("threadIdx.x", 16)
             A[i] = 0.0
@@ -397,7 +397,7 @@ def test_thread_extent_region_extracted_as_device_kernel():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer(16, "float32")):
+        def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.call_ffi_kernel("main_kernel", A.data, 16, launch_params=["threadIdx.x"])
 
@@ -413,7 +413,7 @@ def test_thread_extent_region_extracted_as_device_kernel():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(16, dtype="float32", data=A_data)
             i = T.launch_thread("threadIdx.x", 16)
             A[i] = 0.0
 
@@ -425,7 +425,7 @@ def test_cuda_launch_preserves_flag_metadata():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(16, "float32")):
+        def main(A: T.Tensor(16, "float32")):
             T.func_attr(
                 {
                     "target": T.target("cuda", host="llvm"),
@@ -467,7 +467,7 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(4, "float32")):
+        def main(A: T.Tensor(4, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.attr(T.target("cuda"), "target", 0)
             T.attr(0, "tirx.required_block_size", 1)
@@ -499,7 +499,7 @@ def test_cuda_launch_preserves_singleton_cluster_dimensions():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             with T.attr(T.target("cuda"), "target", 0):
                 T.launch_thread("blockIdx.x", 4)
@@ -530,7 +530,7 @@ def test_device_scope_region_extracted_as_device_kernel():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.attr(0, "device_scope", 0)
             A[0] = 0.0
@@ -538,7 +538,7 @@ def test_device_scope_region_extracted_as_device_kernel():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.call_ffi_kernel("main_kernel", A.data, launch_params=[])
 
@@ -554,7 +554,7 @@ def test_device_scope_region_extracted_as_device_kernel():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(1, dtype="float32", data=A_data)
             T.attr(0, "device_scope", 0)
             A[0] = 0.0
 
@@ -568,20 +568,20 @@ def test_lower_device_kernel_launch():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
         @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("cuda")})
-            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(1, dtype="float32", data=A_data)
             A[0] = 0.0
 
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel", A.data, launch_params=[])
 
@@ -596,7 +596,7 @@ def test_lower_device_kernel_launch():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(1, dtype="float32", data=A_data)
             A[0] = 0.0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
@@ -609,20 +609,20 @@ def test_externally_visible_kernel_launch():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
         @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel_by_another_name"})
-            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(1, dtype="float32", data=A_data)
             A[0] = 0.0
 
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel_by_another_name", A.data, launch_params=[])
 
@@ -637,7 +637,7 @@ def test_externally_visible_kernel_launch():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(1, dtype="float32", data=A_data)
             A[0] = 0.0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
@@ -650,7 +650,7 @@ def test_collect_launch_parameter():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(16, "float32")):
+        def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
@@ -662,14 +662,14 @@ def test_collect_launch_parameter():
                     "global_symbol": "kernel",
                 }
             )
-            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(16, dtype="float32", data=A_data)
             i = T.launch_thread("threadIdx.x", 16)
             A[i] = 0.0
 
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer(16, "float32")):
+        def main(A: T.Tensor(16, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel", A.data, 16, launch_params=["threadIdx.x"])
 
@@ -684,7 +684,7 @@ def test_collect_launch_parameter():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(16, dtype="float32", data=A_data)
             i = T.launch_thread("threadIdx.x", 16)
             A[i] = 0.0
 
@@ -698,20 +698,20 @@ def test_same_device_different_target():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data)
 
         @T.prim_func
         def kernel(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("c")})
-            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(16, dtype="float32", data=A_data)
             A[0] = 0.0
 
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer(1, "float32")):
+        def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm")})
             T.call_extern("kernel", A.data, dtype="void")
 
@@ -724,7 +724,7 @@ def test_same_device_different_target():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(16, dtype="float32", data=A_data)
             A[0] = 0.0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
@@ -737,14 +737,14 @@ def test_bind_before_thread_extent():
     @I.ir_module
     class Before:
         @T.prim_func
-        def main(A: T.Buffer(16, "float32"), n: T.int32):
+        def main(A: T.Tensor(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             Before.kernel(A.data, n)
 
         @T.prim_func
         def kernel(A_data: T.handle("float32"), n: T.int32):
             T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel"})
-            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(16, dtype="float32", data=A_data)
             v: T.let[T.int32] = n + 1
             i = T.launch_thread("threadIdx.x", v)
             A[i] = 0.0
@@ -752,7 +752,7 @@ def test_bind_before_thread_extent():
     @I.ir_module
     class Expected:
         @T.prim_func
-        def main(A: T.Buffer(16, "float32"), n: T.int32):
+        def main(A: T.Tensor(16, "float32"), n: T.int32):
             T.func_attr({"target": T.target("llvm")})
             T.call_ffi_kernel("kernel", A.data, n, n + 1, launch_params=["threadIdx.x"])
 
@@ -767,7 +767,7 @@ def test_bind_before_thread_extent():
                     "tirx.is_global_func": True,
                 }
             )
-            A = T.decl_buffer(16, dtype="float32", data=A_data)
+            A = T.decl_tensor(16, dtype="float32", data=A_data)
             v: T.let[T.int32] = n + 1
             i = T.launch_thread("threadIdx.x", v)
             A[i] = 0.0

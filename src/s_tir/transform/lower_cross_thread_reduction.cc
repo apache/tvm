@@ -151,11 +151,11 @@ ffi::Array<BufferVar> MakeScratchpads(const ffi::Array<BufferVar>& reduction_buf
   for (const BufferVar& buffer : reduction_buffers) {
     ffi::String name = is_cross_thread_buffer ? "cross" : "in";
     name = name + "_thread_" + buffer.name();
-    new_buffers.push_back(BufferVar(name, BufferType(/*storage_scope=*/"local",
+    new_buffers.push_back(BufferVar(name, TensorType(/*storage_scope=*/"local",
                                                      /*dtype=*/buffer->dtype,
                                                      /*shape=*/{IntImm::Int32(1)},
                                                      /*strides=*/{IntImm::Int32(1)},
-                                                     /*elem_offset=*/PrimExpr{nullptr},
+                                                     /*elem_offset=*/std::nullopt,
                                                      /*data_alignment=*/0,
                                                      /*offset_factor=*/0)));
   }
@@ -257,8 +257,7 @@ class InThreadReducerMaker : public StmtExprMutator {
   static ffi::Optional<Stmt> Make(const SBlockRealizeNode* src_realize,
                                   ffi::Optional<SBlockRealize> tgt_realize, Stmt stmt) {
     return ffi::make_object<InThreadReducerMaker>(src_realize, std::move(tgt_realize))
-        ->Mutate(stmt, InplaceMode::kAllow)
-        .ValueOrUnchanged(std::move(stmt));
+        ->Rewrite(std::move(stmt));
   }
 
   explicit InThreadReducerMaker(const SBlockRealizeNode* src_realize,
@@ -266,46 +265,60 @@ class InThreadReducerMaker : public StmtExprMutator {
       : src_realize_(src_realize), tgt_realize_(tgt_realize) {}
 
  private:
+  // Statement removal is carried separately from the mutator's required Stmt result.
+  // Each enclosing loop or sequence consumes the Optional before constructing its body.
+  ffi::Optional<Stmt> Rewrite(Stmt stmt) {
+    removed_ = false;
+    Stmt result = Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt).as_or_throw<Stmt>();
+    if (removed_) {
+      return std::nullopt;
+    }
+    return result;
+  }
+
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* realize, InplaceMode inplace_mode) final {
     if (realize == src_realize_) {
-      return tgt_realize_.has_value()  //
-                 ? tgt_realize_.value()
-                 : Stmt{nullptr};
+      if (tgt_realize_.has_value()) {
+        return tgt_realize_.value();
+      }
+      removed_ = true;
     }
     return ffi::Unchanged();
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
-    if (std::optional<For> opt_res = StmtExprMutator::Mutate_(loop, inplace_mode)
-                                         .ValueOrUnchanged(ffi::GetRef<Stmt>(loop))
-                                         .as<For>()) {
-      For res = *opt_res;
-      if (res->thread_binding.has_value()) {
-        if (!res->body.defined() ||
-            UnderLoopReductionBlockVarCollector::CheckHasReductionBlocks(res)) {
-          return res->body;
-        }
-        return res;
-
-      } else {
-        return res;
-      }
-    } else {
-      return Stmt{nullptr};
+    auto body = Rewrite(loop->body);
+    if (!body.has_value()) {
+      removed_ = true;
+      return ffi::Unchanged();
     }
+    For res = ffi::GetRef<For>(loop);
+    if (!body.value().same_as(loop->body)) {
+      res.CopyOnWrite()->body = body.value();
+    }
+    if (res->thread_binding.has_value() &&
+        UnderLoopReductionBlockVarCollector::CheckHasReductionBlocks(res)) {
+      return res->body;
+    }
+    return res;
   }
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* seq, InplaceMode inplace_mode) final {
     ffi::Array<Stmt> stmts;
     stmts.reserve(seq->size());
-    for (size_t i = 0; i < seq->seq.size(); ++i) {
-      Stmt stmt = seq->seq[i];
-      if (ffi::Optional<Stmt> opt_res = Mutate(stmt).ValueOrUnchanged(stmt).as_or_throw<Stmt>()) {
-        stmts.push_back(opt_res.value());
+    for (const Stmt& stmt : seq->seq) {
+      if (auto result = Rewrite(stmt)) {
+        stmts.push_back(result.value());
       }
     }
-    return stmts.empty() ? Stmt{nullptr} : SeqStmt::Flatten(stmts);
+    removed_ = stmts.empty();
+    if (removed_) {
+      return ffi::Unchanged();
+    }
+    return SeqStmt::Flatten(stmts);
   }
+
+  bool removed_ = false;
 
   const SBlockRealizeNode* src_realize_;
   ffi::Optional<SBlockRealize> tgt_realize_;
@@ -882,9 +895,10 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
       new_buffers.insert(new_buffers.end(), it_buffers.value().begin(), it_buffers.value().end());
     }
     // Step 4. Transform.
-    loop2new_stmt_[reduction_loops[0]] =
+    loop2new_stmt_.insert_or_assign(
+        reduction_loops[0],
         TransformReductionBlock(realize, it_buffers, ct_buffers, reduction_buffers, wb_indices,
-                                reducer, combiner_rhs, reduction_loops);
+                                reducer, combiner_rhs, reduction_loops));
 
     // Step 5. Record the reduction thread dims for the write-back buffers.
     // The information is used for consumer block broadcasting detection.
@@ -944,11 +958,11 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // Part 1. Check if the block needs cross-thread reduction rewrite.
     std::vector<const ForNode*> reduction_loops = NeedCrossThreadReduction(realize);
     if (!reduction_loops.empty()) {
-      // Return an empty statement, because the transformation result will
-      // be inserted when returning to the first reduction-related loop.
+      // Keep the original statement during traversal.  The complete transformed
+      // subtree replaces it when returning to the first reduction-related loop.
       has_cross_thread_reduction_ = true;
       MakeCrossThreadReduction(realize, reduction_loops);
-      return Stmt{nullptr};
+      return ffi::Unchanged();
     }
 
     if (!has_cross_thread_reduction_) {

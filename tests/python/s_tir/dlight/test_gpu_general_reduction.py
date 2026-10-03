@@ -40,7 +40,7 @@ def _make_scalar_argmin(length):
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(x: T.Buffer((T.int64(length),), "float32"), x_red: T.Buffer((), "int64")):
+        def main(x: T.Tensor((T.int64(length),), "float32"), x_red: T.Tensor((), "int64")):
             T.func_attr({"tirx.noalias": True})
             x_red_temp_v0 = Ts.sblock_alloc_buffer((), "int64")
             x_red_temp_v1 = Ts.sblock_alloc_buffer(())
@@ -97,7 +97,7 @@ def test_softmax_1():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(lv44: T.Buffer((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Buffer((T.int64(1), T.int64(32), n, m), 'float16')):
+        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -147,7 +147,7 @@ def test_softmax_1():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(lv44: T.Buffer((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Buffer((T.int64(1), T.int64(32), n, m), 'float16')):
+        def main(lv44: T.Tensor((T.int64(1), T.int64(32), n, m)), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), n, m), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -199,7 +199,7 @@ def test_softmax_2():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
+        def main(A: T.Tensor((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Tensor((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
             # with Ts.sblock("root"):
             T_softmax_maxelem = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)))
             T_softmax_exp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1), T.int64(32000)))
@@ -237,7 +237,7 @@ def test_softmax_2():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(A: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
+        def main(A: T.Tensor((T.int64(1), T.int64(1), T.int64(32000)), "float32"), T_softmax_norm: T.Tensor((T.int64(1), T.int64(1), T.int64(32000)), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with Ts.sblock("root"):
             T_softmax_maxelem_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)), scope="shared")
@@ -284,7 +284,7 @@ def test_softmax_3():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(input: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
+        def main(input: T.Tensor((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Tensor((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
             # with Ts.sblock("root"):
             T_softmax_maxelem = Ts.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)))
             T_softmax_exp = Ts.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)))
@@ -322,7 +322,7 @@ def test_softmax_3():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(input: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
+        def main(input: T.Tensor((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Tensor((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             # with Ts.sblock("root"):
             T_softmax_maxelem_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)), scope="shared")
@@ -376,7 +376,7 @@ def test_layer_norm():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(lv6: T.Buffer((T.int64(1), n, T.int64(2560))), weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), var_compute_intermediate: T.Buffer((T.int64(1), n, T.int64(2560)), 'float16')):
+        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560))), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -413,7 +413,7 @@ def test_layer_norm():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(lv6: T.Buffer((T.int64(1), n, T.int64(2560))), weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), var_compute_intermediate: T.Buffer((T.int64(1), n, T.int64(2560)), 'float16')):
+        def main(lv6: T.Tensor((T.int64(1), n, T.int64(2560))), weight1: T.Tensor((T.int64(2560),), "float32"), bias: T.Tensor((T.int64(2560),), "float32"), var_compute_intermediate: T.Tensor((T.int64(1), n, T.int64(2560)), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -454,7 +454,7 @@ def test_rms_norm():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), B: T.Buffer((T.int64(4096),), "float16"), rms_norm_1: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16')):
+        def main(A: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), B: T.Tensor((T.int64(4096),), "float16"), rms_norm_1: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16')):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -479,7 +479,7 @@ def test_rms_norm():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(A: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16'), B: T.Buffer((T.int64(4096),), "float16"), rms_norm_1: T.Buffer((T.int64(1), n, T.int64(4096)), 'float16')):
+        def main(A: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16'), B: T.Tensor((T.int64(4096),), "float16"), rms_norm_1: T.Tensor((T.int64(1), n, T.int64(4096)), 'float16')):
             T.func_attr({"op_pattern": 4, "tirx.is_scheduled": True, "tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -513,7 +513,7 @@ def test_group_norm():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def main(A: T.Buffer((1, 2048), "float32"), B: T.Buffer((2048,), "float32"), C: T.Buffer((2048,), "float32"), T_reshape: T.Buffer((1, 2048), "float32")):
+        def main(A: T.Tensor((1, 2048), "float32"), B: T.Tensor((2048,), "float32"), C: T.Tensor((2048,), "float32"), T_reshape: T.Tensor((1, 2048), "float32")):
             T.func_attr({"tirx.noalias": True})
             T_reshape_1 = Ts.sblock_alloc_buffer((1, 32, 64))
             A_red_temp_v0 = Ts.sblock_alloc_buffer((1, 32))
@@ -567,7 +567,7 @@ def test_group_norm():
     @I.ir_module
     class After:
         @Ts.prim_func
-        def main(A: T.Buffer((1, 2048), "float32"), B: T.Buffer((2048,), "float32"), C: T.Buffer((2048,), "float32"), T_reshape: T.Buffer((1, 2048), "float32")):
+        def main(A: T.Tensor((1, 2048), "float32"), B: T.Tensor((2048,), "float32"), C: T.Tensor((2048,), "float32"), T_reshape: T.Tensor((1, 2048), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
             A_red_temp_v0_shared = Ts.sblock_alloc_buffer((1, 32), scope="shared")
@@ -609,8 +609,8 @@ def test_logsumexp():
     class Before:
         @Ts.prim_func
         def compute_lse(
-            A: T.Buffer((batch_size, vocab_size), dtype="float32"),
-            blocked_lse: T.Buffer((batch_size, num_chunks), dtype="float32"),
+            A: T.Tensor((batch_size, vocab_size), dtype="float32"),
+            blocked_lse: T.Tensor((batch_size, num_chunks), dtype="float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -658,7 +658,7 @@ def test_logsumexp():
     class After:
         @Ts.prim_func
         def compute_lse(
-            A: T.Buffer((batch_size, vocab_size)), blocked_lse: T.Buffer((batch_size, num_chunks))
+            A: T.Tensor((batch_size, vocab_size)), blocked_lse: T.Tensor((batch_size, num_chunks))
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 

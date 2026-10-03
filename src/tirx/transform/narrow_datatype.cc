@@ -315,8 +315,9 @@ namespace transform {
 
 Pass NarrowDataType(int target_bits) {
   auto pass_func = [target_bits](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    n->body = ffi::make_object<NarrowDataTypeRewriter>(target_bits)->Rewrite(n->body);
+    n->body = ffi::make_object<NarrowDataTypeRewriter>(target_bits)->Rewrite(n->body.value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.NarrowDataType", {});

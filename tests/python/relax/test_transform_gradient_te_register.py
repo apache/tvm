@@ -64,7 +64,7 @@ def get_expected_1():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
+        def f_mul(A: T.Tensor((T.int64(5), T.int64(5)), "float32"), B: T.Tensor((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Tensor((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
@@ -75,7 +75,7 @@ def get_expected_1():
                     f_mul_1[v_i0, v_i1] = A[v_i0, v_i1] * B[v_i0, v_i1]
 
         @Ts.prim_func(private=True)
-        def f_mul_grad(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), C: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_grad_1: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_grad_2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
+        def f_mul_grad(A: T.Tensor((T.int64(5), T.int64(5)), "float32"), B: T.Tensor((T.int64(5), T.int64(5)), "float32"), C: T.Tensor((T.int64(5), T.int64(5)), "float32"), f_mul_grad_1: T.Tensor((T.int64(5), T.int64(5)), "float32"), f_mul_grad_2: T.Tensor((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
@@ -151,7 +151,7 @@ def test_call_tir(register_te_grads):
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
-        def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
+        def f_mul(A: T.Tensor((T.int64(5), T.int64(5)), "float32"), B: T.Tensor((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Tensor((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
@@ -180,7 +180,7 @@ def get_expected_2():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
+        def f_mul(A: T.Tensor((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Tensor((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
@@ -191,7 +191,7 @@ def get_expected_2():
                     f_mul2[v_i0, v_i1] = A[v_i0, v_i1] * T.float32(2)
 
         @Ts.prim_func(private=True)
-        def f_mulk_grad(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mulk_grad_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
+        def f_mulk_grad(A: T.Tensor((T.int64(5), T.int64(5)), "float32"), B: T.Tensor((T.int64(5), T.int64(5)), "float32"), f_mulk_grad_1: T.Tensor((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
@@ -260,7 +260,7 @@ def test_call_tir_kwargs(register_te_grads):
     @I.ir_module
     class Before:
         @Ts.prim_func(private=True)
-        def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
+        def f_mul(A: T.Tensor((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Tensor((T.int64(5), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
@@ -294,7 +294,7 @@ def get_expected_3():
     @I.ir_module
     class Expected:
         @Ts.prim_func(private=True)
-        def f_mul(A: T.Buffer((n_f_mul, n_f_mul)), B: T.Buffer((n_f_mul, n_f_mul)), f_mul_1: T.Buffer((n_f_mul, n_f_mul))):
+        def f_mul(A: T.Tensor((n_f_mul, n_f_mul)), B: T.Tensor((n_f_mul, n_f_mul)), f_mul_1: T.Tensor((n_f_mul, n_f_mul))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -306,7 +306,7 @@ def get_expected_3():
                     f_mul_1[v_i0, v_i1] = A[v_i0, v_i1] * B[v_i0, v_i1]
 
         @Ts.prim_func(private=True)
-        def f_mul_grad(A: T.Buffer((n_f_mul_grad, n_f_mul_grad)), B: T.Buffer((n_f_mul_grad, n_f_mul_grad)), C: T.Buffer((n_f_mul_grad, n_f_mul_grad)), f_mul_grad_1: T.Buffer((n_f_mul_grad, n_f_mul_grad)), f_mul_grad_2: T.Buffer((n_f_mul_grad, n_f_mul_grad))):
+        def f_mul_grad(A: T.Tensor((n_f_mul_grad, n_f_mul_grad)), B: T.Tensor((n_f_mul_grad, n_f_mul_grad)), C: T.Tensor((n_f_mul_grad, n_f_mul_grad)), f_mul_grad_1: T.Tensor((n_f_mul_grad, n_f_mul_grad)), f_mul_grad_2: T.Tensor((n_f_mul_grad, n_f_mul_grad))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):

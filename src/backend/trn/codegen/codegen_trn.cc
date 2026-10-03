@@ -76,6 +76,8 @@ CodeGenTrainium::CodeGenTrainium(Target target) : target_(target) {
 }
 
 void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  TVM_FFI_CHECK(func->body.has_value(), ValueError)
+      << "Kernel code generation requires a function body";
   // NOTE: There is no inter-function calls among Trainium kernels.
   // For now we keep the Trainium codegen without inter-function call
   // process.
@@ -132,7 +134,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // the function scope.
   stream << "):\n";
   int func_scope = this->BeginScope();
-  this->PrintStmt(func->body);
+  this->PrintStmt(func->body.value());
   this->PrintIndent();
   stream << "return ";
   for (size_t i = 0; i < output_vids.size(); i++) {
@@ -216,13 +218,13 @@ std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // 
 
 void CodeGenTrainium::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
-    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
   }
   CodeGenC::Dispatch_(op);
 }
 
-void CodeGenTrainium::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
@@ -278,7 +280,7 @@ void CodeGenTrainium::DispatchAllocBuffer(const BindNode* op, const CallNode* bu
 void CodeGenTrainium::Dispatch_(const AttrStmtNode* op) {
   if (op->attr_key == tirx::attr::tensorized_nki_instruction) {
     ctx_.tensorizing = true;
-    ctx_.mask = PrimExpr(nullptr);
+    ctx_.mask = std::nullopt;
     ctx_.loopvar2dim.clear();
     ctx_.is_matmul_input = false;
   }
@@ -550,8 +552,8 @@ void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLI
       }
       return ffi::WalkResult::Advance();
     };
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(ctx_.mask, walk_fn);
-    os << ", mask=" << PrintExpr(ctx_.mask);
+    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(ctx_.mask.value(), walk_fn);
+    os << ", mask=" << PrintExpr(ctx_.mask.value());
   }
   os << ")";
 }
@@ -627,7 +629,7 @@ void CodeGenTrainium::Dispatch_(const prim::FloorModNode* op, std::ostream& os) 
   os << PrintExpr(op->a) << " % " << PrintExpr(op->b);
 }
 
-void CodeGenTrainium::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
   tvm::Tuple shape = buffer_call->args[1].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
@@ -641,13 +643,13 @@ void CodeGenTrainium::DispatchDeclBuffer(const BindNode* op, const CallNode* buf
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     data_var = call->args[0].as<VarNode>();
   }
-  TVM_FFI_ICHECK(data_var) << "Trainium codegen expects DeclBuffer data to be a buffer variable";
+  TVM_FFI_ICHECK(data_var) << "Trainium codegen expects DeclTensor data to be a buffer variable";
   if (data_var->ty.as<PointerTypeNode>()) {
     buffer_idmap_[buffer] = GetVarID(data_var);
     buffer_data_varmap_[buffer] = data_var;
     return;
   }
-  TVM_FFI_ICHECK(data_var->ty.as<BufferTypeNode>());
+  TVM_FFI_ICHECK(data_var->ty.as<TensorTypeNode>());
   BufferVar source_buffer = ffi::GetRef<Var>(data_var).as_or_throw<BufferVar>();
   auto source_it = buffer_data_varmap_.find(source_buffer);
   TVM_FFI_ICHECK(source_it != buffer_data_varmap_.end())
@@ -668,7 +670,7 @@ void CodeGenTrainium::DispatchDeclBuffer(const BindNode* op, const CallNode* buf
   buffer_idmap_[buffer] = buffer_vid;
   buffer_data_varmap_[buffer] = data_var;
   data_buffer_idmap_[data_var] = buffer_vid;
-  data_decl_buffer_map_[data_var] = buffer;
+  data_decl_buffer_map_.insert_or_assign(data_var, buffer);
   PrintIndent();
   stream << buffer_vid << " = " << data_vid << ".reshape("
          << PrintShapeAsList(shape->fields.as_or_throw<Array<PrimExpr>>()) << ")\n";

@@ -58,15 +58,15 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   std::vector<AccessEntry> Summarize(std::vector<StmtEntry> seq, const ForNode* loop) final {
     // Redirect all "shared.dyn" buffer access to the same buffer var
     // so that the accesses can be planned together.
-    Var shared_dyn_buf;
+    ffi::Optional<Var> shared_dyn_buf;
     for (StmtEntry& entry : seq) {
       for (AccessEntry& access : entry.access) {
         if (access.scope.rank == StorageRank::kShared && access.scope.tag == ".dyn" &&
             access.buffer.defined()) {
-          if (!shared_dyn_buf.defined()) {
+          if (!shared_dyn_buf.has_value()) {
             shared_dyn_buf = access.buffer;
           } else {
-            access.buffer = shared_dyn_buf;
+            access.buffer = shared_dyn_buf.value();
           }
         }
       }
@@ -368,8 +368,9 @@ namespace transform {
 
 Pass ThreadSync(ffi::String storage_scope) {
   auto pass_func = [storage_scope](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    n->body = s_tir::ThreadSync(std::move(n->body), storage_scope);
+    n->body = s_tir::ThreadSync(std::move(n->body).value(), storage_scope);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.ThreadSync", {});

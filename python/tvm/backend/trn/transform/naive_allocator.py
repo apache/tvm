@@ -56,7 +56,7 @@ def _get_alloc_pool_start(stmt) -> int:
 
     def collect_alloc_buffer(op: Bind):
         nonlocal alloc_pool_start
-        if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_buffer"):
+        if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_tensor"):
             return
         buffer = op.var
         if len(buffer.ty.allocated_addr) == 0:
@@ -79,7 +79,7 @@ def _allocate_missing_buffers(stmt, alloc_pool_start: int):
 
     def allocate_buffer(op: Bind):
         nonlocal alloc_offset
-        if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_buffer"):
+        if not isinstance(op.value, Call) or op.value.op != Op.get("tirx.alloc_tensor"):
             return op
         buffer = op.var
         shape = op.value.args[0].fields
@@ -98,7 +98,7 @@ def _allocate_missing_buffers(stmt, alloc_pool_start: int):
                     attrs=op.value.attrs,
                     ty_args=op.value.ty_args,
                     span=op.value.span,
-                    ret_ty=new_buffer.ty,
+                    ty=new_buffer.ty,
                 ),
                 op.span,
             )

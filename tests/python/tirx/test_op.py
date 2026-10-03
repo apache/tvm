@@ -19,7 +19,7 @@ import pickle
 import pytest
 
 from tvm.ir import Op, assert_structural_equal
-from tvm.tirx.buffer import decl_buffer
+from tvm.tirx.buffer import decl_tensor
 from tvm.tirx.exec_scope import ExecScope
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
@@ -29,28 +29,28 @@ def _test(op: str, *args):
 
 
 def test_copy():
-    A = decl_buffer((64, 64), "float32", scope="global")
-    A_sm = decl_buffer((64, 64), "float32", scope="shared")
+    A = decl_tensor((64, 64), "float32", scope="global")
+    A_sm = decl_tensor((64, 64), "float32", scope="shared")
     _test("copy", A[0:64, 0:64], A_sm[0:64, 0:64])
 
 
 def test_fill():
-    A = decl_buffer((64, 64), "float32", scope="global")
+    A = decl_tensor((64, 64), "float32", scope="global")
     _test("fill", A[0:64, 0:64], 1.0)
 
 
 def test_gemm():
-    A = decl_buffer((64, 64), "float32", scope="global")
-    B = decl_buffer((64, 64), "float32", scope="global")
-    C = decl_buffer((64, 64), "float32", scope="global")
-    D = decl_buffer((64, 64), "float32", scope="global")
+    A = decl_tensor((64, 64), "float32", scope="global")
+    B = decl_tensor((64, 64), "float32", scope="global")
+    C = decl_tensor((64, 64), "float32", scope="global")
+    D = decl_tensor((64, 64), "float32", scope="global")
     _test("gemm", D[:, :], A[:, :], B[:, :], C[:, :], True, False, 1.0, 0.0)
 
 
 def test_tile_primitive_call_pickle_roundtrip():
     """TilePrimitiveCall reflection must provide a deserialization creator."""
-    A = decl_buffer((64,), "float32", scope="local")
-    workspace = decl_buffer((16,), "float32", scope="shared")
+    A = decl_tensor((64,), "float32", scope="local")
+    workspace = decl_tensor((16,), "float32", scope="shared")
     call = TilePrimitiveCall(
         A[:],
         1.0,
@@ -79,8 +79,8 @@ def test_buffer_replacer_no_shared_default():
 
     r1 = BufferReplacer()
     r2 = BufferReplacer()
-    A = decl_buffer((64,), "float32")
-    B = decl_buffer((64,), "float32")
+    A = decl_tensor((64,), "float32")
+    B = decl_tensor((64,), "float32")
     r1.buffer_map[A] = B
     # r2 must not see r1's mutation
     assert len(r2.buffer_map) == 0
@@ -93,7 +93,7 @@ def test_buffer_replacer_replaces_strides_and_elem_offset():
 
     n = Var("n", "int32")
     m = Var("m", "int32")
-    A = decl_buffer((64,), "float32", strides=[n], elem_offset=n)
+    A = decl_tensor((64,), "float32", strides=[n], elem_offset=n)
     store = BufferStore(A, 1.0, [0])
 
     new = BufferReplacer(var_map={n: m})(store)
@@ -105,10 +105,10 @@ def test_gemm_async_partial_scale_factor():
     """Regression test for F7: gemm_async must reject partial scale factors."""
     from tvm.tirx.script.ir_builder.tirx import gemm_async
 
-    A = decl_buffer((64, 64), "float16", scope="shared")
-    B = decl_buffer((64, 64), "float16", scope="shared")
-    C = decl_buffer((64, 64), "float16", scope="shared")
-    SF = decl_buffer((64,), "float16", scope="shared")
+    A = decl_tensor((64, 64), "float16", scope="shared")
+    B = decl_tensor((64, 64), "float16", scope="shared")
+    C = decl_tensor((64, 64), "float16", scope="shared")
+    SF = decl_tensor((64,), "float16", scope="shared")
 
     with pytest.raises(ValueError, match="SFA and SFB must both be provided or both be None"):
         gemm_async(C[:, :], A[:, :], B[:, :], SFA=SF[:])

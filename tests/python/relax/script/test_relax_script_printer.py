@@ -89,8 +89,8 @@ class TestModule:
 
     @Ts.prim_func
     def tir_func(
-        x: T.Buffer((T.int64(128), T.int64(128)), "float32"),
-        y: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+        x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
+        y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         for i, j in T.grid(T.int64(128), T.int64(128)):
@@ -144,7 +144,7 @@ class Module:
     I.module_attrs({"device_num": 10})
     I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
     @Ts.prim_func
-    def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
+    def tir_func(x: T.Tensor((T.int64(128), T.int64(128)), "float32"), y: T.Tensor((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
         with Ts.sblock("root"):
             Ts.reads()
@@ -869,7 +869,7 @@ def test_module_cross_func_call():
     class TestModule:
         @Ts.prim_func
         def tir_func(
-            x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")
+            x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")
         ):
             T.evaluate(0)
 
@@ -893,7 +893,7 @@ from __future__ import annotations
 @I.ir_module
 class Module:
     @Ts.prim_func
-    def tir_func(x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")):
+    def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
         T.evaluate(0)
 
     @R.function
@@ -918,7 +918,7 @@ from __future__ import annotations
 @I.ir_module
 class Module:
     @Ts.prim_func
-    def tir_func(x: T.Buffer((T.int64(128),), "float32"), y: T.Buffer((T.int64(128),), "float32")):
+    def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
         T.evaluate(0)
 
     @R.function

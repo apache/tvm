@@ -94,10 +94,10 @@ static Expr LowerAccessPtr(const CallNode* call,
   }
 
   PrimType scalar_dtype = dtype.WithLanes(1);
-  BufferVar access_buffer{nullptr};
+  ffi::Optional<BufferVar> access_buffer;
   ffi::String storage_scope;
-  Expr access_data;
-  if (buffer_var->ty.as<BufferTypeNode>()) {
+  ffi::Optional<Expr> access_data;
+  if (buffer_var->ty.as<TensorTypeNode>()) {
     BufferVar source_buffer = buffer_var.as_or_throw<BufferVar>();
     if (source_buffer->dtype == scalar_dtype && source_buffer->shape.size() == 1) {
       access_buffer = source_buffer;
@@ -114,14 +114,14 @@ static Expr LowerAccessPtr(const CallNode* call,
   }
 
   if (!access_buffer.defined()) {
-    // BufferVar identity includes its immutable BufferType.  Bind an explicit
+    // BufferVar identity includes its immutable TensorType.  Bind an explicit
     // scalar physical view instead of retyping a vector, padded, or packed source.
     access_buffer =
         BufferVar(buffer_var->name + "_access",
-                  BufferType(storage_scope, scalar_dtype, {scalar_extent}, {}, 0, 0, 0));
-    buffer_aliases->push_back({access_buffer, access_data});
+                  TensorType(storage_scope, scalar_dtype, {scalar_extent}, {}, 0, 0, 0));
+    buffer_aliases->push_back({access_buffer.value(), access_data.value()});
   }
-  TensorLoad buf_load = BufferLoad(access_buffer, {offset});
+  TensorLoad buf_load = BufferLoad(access_buffer.value(), {offset});
   return Call(call->ty, builtin::address_of(), {buf_load});
 }
 
@@ -175,13 +175,14 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
       const auto& alias = access_ptr_buffer_aliases_[i - 1];
       result = SeqStmt::Flatten(
           Bind(alias.buffer,
-               Call(alias.buffer.type(), builtin::decl_buffer(),
+               Call(alias.buffer.type(), builtin::decl_tensor(),
                     {alias.data, tvm::Tuple(alias.buffer->shape),
                      DataTypeImm(alias.buffer->dtype->dtype), StringImm(alias.buffer.scope())},
                     {})),
           std::move(result));
     }
-    access_ptr_buffer_aliases_.resize(alias_begin);
+    access_ptr_buffer_aliases_.erase(access_ptr_buffer_aliases_.begin() + alias_begin,
+                                     access_ptr_buffer_aliases_.end());
     return result;
   }
 

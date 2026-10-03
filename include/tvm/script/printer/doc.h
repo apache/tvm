@@ -819,7 +819,7 @@ class AssignDocNode : public StmtDocNode {
   /*!
    * \brief The right hand side of the assignment.
    *
-   * If null, this doc represents declaration, e.g. `A: T.Buffer((1,2))`
+   * If null, this doc represents declaration, e.g. `A: T.Tensor((1,2))`
    * */
   ffi::Optional<ExprDoc> rhs;
   /*! \brief The type annotation of this assignment. */

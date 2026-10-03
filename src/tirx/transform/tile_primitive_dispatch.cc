@@ -310,7 +310,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       seq.reserve(alloc_buffers_.size() + 1);
       for (const auto& buffer : alloc_buffers_) {
         seq.push_back(
-            Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_buffer(),
+            Bind(buffer.var(), Call(buffer.type(), tirx::builtin::alloc_tensor(),
                                     {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                                      StringImm(buffer.scope())},
                                     DictAttrs())));
@@ -389,8 +389,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       rebuilt.push_back(s);
       if (const auto* bind = s.as<BindNode>()) {
         if (const auto* call = bind->value.as<CallNode>();
-            call && (call->op.same_as(builtin::alloc_buffer()) ||
-                     call->op.same_as(builtin::decl_buffer()))) {
+            call && (call->op.same_as(builtin::alloc_tensor()) ||
+                     call->op.same_as(builtin::decl_tensor()))) {
           changed |= AppendPostBufferDefStmts(&rebuilt, bind->var.as_or_throw<BufferVar>(),
                                               bind->var.as_or_throw<BufferVar>());
         }
@@ -404,8 +404,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>(); call) {
-      if (call->op.same_as(builtin::alloc_buffer())) return MutateAllocBuffer(op, inplace_mode);
-      if (call->op.same_as(builtin::decl_buffer())) return MutateDeclBuffer(op, inplace_mode);
+      if (call->op.same_as(builtin::alloc_tensor())) return MutateAllocTensor(op, inplace_mode);
+      if (call->op.same_as(builtin::decl_tensor())) return MutateDeclTensor(op, inplace_mode);
     }
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const auto* bind = stmt.as<BindNode>();
@@ -431,7 +431,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   /*!
    * \brief Track the storage root of a buffer variable.
    *
-   * A ``DeclBuffer`` whose data is ``buffer_data(src)`` is a view over
+   * A ``DeclTensor`` whose data is ``buffer_data(src)`` is a view over
    * ``src``'s storage, so it inherits ``src``'s root; anything else owns its
    * storage.  Buffers with no definition in the body (PrimFunc parameters)
    * are absent from the map and are their own root.
@@ -443,14 +443,14 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       if (const auto* call = data.value().as<CallNode>();
           call && call->op.same_as(builtin::buffer_data()) && call->args.size() == 1) {
         if (auto src = call->args[0].as<Var>();
-            src.has_value() && src.value()->ty.as<BufferTypeNode>()) {
+            src.has_value() && src.value()->ty.as<TensorTypeNode>()) {
           root = StorageRootOf(src.value());
         }
       }
     }
-    buffer_root_[new_var] = root;
+    buffer_root_.insert_or_assign(new_var, root);
     if (!old_var.same_as(new_var)) {
-      buffer_root_[old_var] = root;
+      buffer_root_.insert_or_assign(old_var, root);
     }
   }
 
@@ -477,7 +477,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
       if (op->op.same_as(builtin::buffer_data()) && op->args.size() == 1) {
         if (auto var = op->args[0].as<Var>();
-            var.has_value() && var.value()->ty.as<BufferTypeNode>()) {
+            var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
           auto it = buffer_root_.find(var.value());
           if (it != buffer_root_.end() && !it->second.same_as(var.value())) {
             return it->second.as_or_throw<BufferVar>().data();
@@ -490,7 +490,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     const std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& buffer_root_;
   };
 
-  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
     BufferVar old_buffer = op->var.as_or_throw<BufferVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
@@ -502,7 +502,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     return SeqStmt::Flatten(seq);
   }
 
-  UnchangedOr<Stmt> MutateDeclBuffer(const BindNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, InplaceMode inplace_mode) {
     BufferVar old_buffer = op->var.as_or_throw<BufferVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
@@ -598,7 +598,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     }
     // Propagate shared_state changes back (Map uses COW semantics)
     shared_state_ = sctx->shared_state;
-    return res->body;
+    TVM_FFI_CHECK(res->body.has_value(), ValueError)
+        << "A tile primitive implementation must have a body";
+    return res->body.value();
   }
 
   // --- Scope-id resolution at kernel scope ----------------------------------
@@ -1065,8 +1067,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   }
 
   bool TryExtractModuloTarget(const PrimExpr& expr, ScopeIdTarget* target, int64_t* modulus) {
-    PrimExpr lhs;
-    PrimExpr rhs;
+    PrimExpr lhs{ffi::UnsafeInit{}};
+    PrimExpr rhs{ffi::UnsafeInit{}};
     if (const auto* mod = expr.as<prim::ModNode>()) {
       lhs = mod->a;
       rhs = mod->b;
@@ -1295,7 +1297,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         elect_atoms.push_back(&atom);
         continue;
       }
-      auto target = ResolveScopeIdTarget(atom.scopeid_var.as_or_throw<PrimExpr>());
+      auto target = ResolveScopeIdTarget(atom.scopeid_var.value().as_or_throw<PrimExpr>());
       if (!target) continue;  // atom recognized but target not in scope
       bool merged = false;
       for (auto& g : groups) {
@@ -1344,9 +1346,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     auto lane = FindLaneScopeVar();
     if (!lane) return false;
     ScopeIdTarget target{ScopeBinding::kWarpThread, 0, 1};
-    PrimExpr selector =
-        Call((*lane)->ty, tirx::builtin::selector(), ffi::Array<Expr>{*lane, atom.elect_sync_call})
-            .as_or_throw<PrimExpr>();
+    PrimExpr selector = Call((*lane)->ty, tirx::builtin::selector(),
+                             ffi::Array<Expr>{*lane, atom.elect_sync_call.value()})
+                            .as_or_throw<PrimExpr>();
     return TryPushSelectorForTarget(target, selector);
   }
 
@@ -1519,10 +1521,11 @@ namespace transform {
 
 Pass TilePrimitiveDispatch() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
-    n->body = TilePrimitiveDispatcher::LowerOpCalls(n->body, target);
-    if (!NoOpCallVerifier::Verify(n->body, false)) {
+    n->body = TilePrimitiveDispatcher::LowerOpCalls(n->body.value(), target);
+    if (!NoOpCallVerifier::Verify(n->body.value(), false)) {
       LOG(FATAL) << "Failed to lower the TIRx program: " << f;
     }
     return f;

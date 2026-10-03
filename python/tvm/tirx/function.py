@@ -44,8 +44,8 @@ class PrimFunc(BaseFunc, Scriptable):
     params: List[Union[tvm.tirx.Var, tvm.tirx.Buffer]]
         List of input parameters to the function.
 
-    body: tvm.tirx.Stmt
-        The body of the function.
+    body: Optional[tvm.tirx.Stmt]
+        The body of the function, or None for a declaration.
 
     ret_type: tvm.ir.Type
         The return type annotation of the function.
@@ -89,8 +89,8 @@ class PrimFunc(BaseFunc, Scriptable):
 
         Parameters
         ----------
-        new_body : Stmt
-            The new body.
+        new_body : Optional[Stmt]
+            The new body, or None for a declaration.
 
         span : Optional[Span]
             The location of this itervar in the source code.
@@ -127,8 +127,8 @@ class PrimFunc(BaseFunc, Scriptable):
 
             @T.prim_func
             def mem_copy(
-                A: T.Buffer((m, n), "float32"),
-                B: T.Buffer((m, n), "float32"),
+                A: T.Tensor((m, n), "float32"),
+                B: T.Tensor((m, n), "float32"),
                 m: T.int32,
                 n: T.int32,
             ) -> None:
@@ -141,7 +141,7 @@ class PrimFunc(BaseFunc, Scriptable):
         .. code-block:: python
 
             a, _, m, n = mem_copy.params
-            func = mem_copy.specialize({a: tirx.decl_buffer((16, 16))})
+            func = mem_copy.specialize({a: tirx.decl_tensor((16, 16))})
             # or
             func = mem_copy.specialize({n: 16, m: 16})
 
@@ -151,7 +151,7 @@ class PrimFunc(BaseFunc, Scriptable):
 
             @T.prim_func
             def mem_copy_16_16(
-                A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")
+                A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")
             ) -> None:
 
                 for i, j in T.grid(16, 16):

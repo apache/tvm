@@ -38,8 +38,8 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
     Note that we index N-D Buffer by 1-D linearlized indices.
 
     """
-    lo_buf = T.decl_buffer([1], out_dtype, scope="local")
-    hi_buf = T.decl_buffer([1], out_dtype, scope="local")
+    lo_buf = T.decl_tensor([1], out_dtype, scope="local")
+    hi_buf = T.decl_tensor([1], out_dtype, scope="local")
     lo = lo_buf
     hi = hi_buf
 

@@ -34,10 +34,10 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def matmul_bias_relu_before(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    C: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    C: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
 ) -> None:
     """Original function with separate reduction and epilogue blocks (Bias + ReLU)."""
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
@@ -56,10 +56,10 @@ def matmul_bias_relu_before(
 
 @Ts.prim_func
 def matmul_bias_relu_before_per_iteration(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    C: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    C: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
 ) -> None:
     """Original function with per-iteration ReLU (same semantics as fused)."""
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
@@ -82,10 +82,10 @@ def matmul_bias_relu_before_per_iteration(
 
 @Ts.prim_func
 def matmul_bias_relu_expected(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    C: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    C: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
 ) -> None:
     """Expected function after fusion (Bias + ReLU)."""
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
@@ -157,11 +157,11 @@ def test_matmul_bias_relu_correctness_unified():
 
 @Ts.prim_func
 def matmul_bias_relu_multiple_epilogue_before(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    C: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
-    E: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    C: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
+    E: T.Tensor((16, 16), "float32"),
 ) -> None:
     """Original function with separate reduction and multiple epilogue blocks (one with ReLU, one without)."""
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")
@@ -185,11 +185,11 @@ def matmul_bias_relu_multiple_epilogue_before(
 
 @Ts.prim_func
 def matmul_bias_relu_multiple_epilogue_expected(
-    A: T.Buffer((16, 16), "float32"),
-    B: T.Buffer((16, 16), "float32"),
-    C: T.Buffer((16, 16), "float32"),
-    D: T.Buffer((16, 16), "float32"),
-    E: T.Buffer((16, 16), "float32"),
+    A: T.Tensor((16, 16), "float32"),
+    B: T.Tensor((16, 16), "float32"),
+    C: T.Tensor((16, 16), "float32"),
+    D: T.Tensor((16, 16), "float32"),
+    E: T.Tensor((16, 16), "float32"),
 ) -> None:
     """Expected function after fusion (Bias + ReLU) with multiple epilogue blocks."""
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="float32")

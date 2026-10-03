@@ -33,7 +33,7 @@ def test_batch_decode_gemv():
     batch_size = T.dynamic("batch_size")
 
     @Ts.prim_func(private=True)
-    def before(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), lv807: T.Buffer((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Buffer((batch_size, T.int64(1), T.int64(4096)), 'float16')):
+    def before(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
 
         # with Ts.sblock("root"):
@@ -63,7 +63,7 @@ def test_batch_decode_gemv():
     batch_size = T.dynamic("batch_size")
 
     @Ts.prim_func(private=True)
-    def expected(lv429: T.Buffer((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Buffer((T.int64(4096), T.int64(896)), "float16"), lv807: T.Buffer((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Buffer((batch_size, T.int64(1), T.int64(4096)), 'float16')):
+    def expected(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -161,7 +161,7 @@ def test_batch_gemv():
     batch_size = T.dynamic("batch_size")
 
     @Ts.prim_func(private=True)
-    def before(A: T.Buffer((batch_size, T.int64(1), T.int64(K)), 'float16'), B: T.Buffer((T.int64(N), T.int64(K)), "float16"), NT_matmul: T.Buffer((batch_size, T.int64(1), T.int64(N)), 'float16')):
+    def before(A: T.Tensor((batch_size, T.int64(1), T.int64(K)), 'float16'), B: T.Tensor((T.int64(N), T.int64(K)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(N)), 'float16')):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
 
         # with Ts.sblock("root"):
@@ -177,7 +177,7 @@ def test_batch_gemv():
     batch_size = T.dynamic("batch_size")
 
     @Ts.prim_func(private=True)
-    def expected(A: T.Buffer((batch_size, T.int64(1), T.int64(4096)), 'float16'), B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"), NT_matmul: T.Buffer((batch_size, T.int64(1), T.int64(4096)), 'float16')):
+    def expected(A: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16'), B: T.Tensor((T.int64(4096), T.int64(4096)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -262,7 +262,7 @@ def test_reduction_symbolic_var():
     kv_seq_len = T.dynamic("kv_seq_len")
 
     @Ts.prim_func(private=True)
-    def before(A: T.Buffer((T.int64(1), T.int64(32), T.int64(1), kv_seq_len)), B: T.Buffer((T.int64(1), T.int64(32), kv_seq_len, T.int64(128))), matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
+    def before(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), kv_seq_len)), B: T.Tensor((T.int64(1), T.int64(32), kv_seq_len, T.int64(128))), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -286,9 +286,9 @@ def test_small_spatial_axis():
 
     @Ts.prim_func(private=True)
     def func(
-        A: T.Buffer((batch_size, T.int64(4096)), "float16"),
-        B: T.Buffer((T.int64(8), T.int64(4096)), "float16"),
-        C: T.Buffer((batch_size, T.int64(8)), "float16"),
+        A: T.Tensor((batch_size, T.int64(4096)), "float16"),
+        B: T.Tensor((T.int64(8), T.int64(4096)), "float16"),
+        C: T.Tensor((batch_size, T.int64(8)), "float16"),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -305,7 +305,7 @@ def test_small_spatial_axis():
     batch_size = T.dynamic("batch_size")
 
     @Ts.prim_func(private=True)
-    def expected(A: T.Buffer((batch_size, T.int64(4096)), 'float16'), B: T.Buffer((T.int64(8), T.int64(4096)), "float16"), C: T.Buffer((batch_size, T.int64(8)), 'float16')):
+    def expected(A: T.Tensor((batch_size, T.int64(4096)), 'float16'), B: T.Tensor((T.int64(8), T.int64(4096)), "float16"), C: T.Tensor((batch_size, T.int64(8)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -397,10 +397,10 @@ def test_outer_reduction():
 
     @Ts.prim_func(private=True)
     def before(
-        B0: T.Buffer((512, 6144), "uint32"),
-        B1: T.Buffer((128, 6144), "float16"),
-        A: T.Buffer((batch_size, 1, 4096), 'float16'),
-        C: T.Buffer((batch_size, 1, 6144), 'float16')
+        B0: T.Tensor((512, 6144), "uint32"),
+        B1: T.Tensor((128, 6144), "float16"),
+        A: T.Tensor((batch_size, 1, 4096), 'float16'),
+        C: T.Tensor((batch_size, 1, 6144), 'float16')
     ):
 
         compute = Ts.sblock_alloc_buffer((4096, 6144), "float16")
@@ -423,7 +423,7 @@ def test_outer_reduction():
     batch_size = T.dynamic("batch_size", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(B0: T.Buffer((512, 6144), "uint32"), B1: T.Buffer((128, 6144), "float16"), A: T.Buffer((batch_size, 1, 4096), 'float16'), C: T.Buffer((batch_size, 1, 6144), 'float16')):
+    def expected(B0: T.Tensor((512, 6144), "uint32"), B1: T.Tensor((128, 6144), "float16"), A: T.Tensor((batch_size, 1, 4096), 'float16'), C: T.Tensor((batch_size, 1, 6144), 'float16')):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -542,7 +542,7 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     batch_size = T.dynamic("batch_size")
 
     @Ts.prim_func(private=True)
-    def before(A: T.Buffer((batch_size, T.int64(1), T.int64(128)), 'float16'), B: T.Buffer((T.int64(128), T.int64(128)), "float16"), C: T.Buffer((batch_size, T.int64(1), T.int64(128)), 'float16')):
+    def before(A: T.Tensor((batch_size, T.int64(1), T.int64(128)), 'float16'), B: T.Tensor((T.int64(128), T.int64(128)), "float16"), C: T.Tensor((batch_size, T.int64(1), T.int64(128)), 'float16')):
         T.func_attr({"tir.noalias": True})
 
         for i0, i1, i2, k in T.grid(batch_size, T.int64(1), T.int64(128), T.int64(128)):
@@ -569,9 +569,9 @@ def test_low_batch_gemv_rejects_non_einsum_buffer_access():
 
     @Ts.prim_func(private=True)
     def before(
-        A: T.Buffer((batch_size, 8), "float16"),
-        B: T.Buffer((4, batch_size + 8), "float16"),
-        C: T.Buffer((batch_size, 4), "float16"),
+        A: T.Tensor((batch_size, 8), "float16"),
+        B: T.Tensor((4, batch_size + 8), "float16"),
+        C: T.Tensor((batch_size, 4), "float16"),
     ):
         for i, j, k in T.grid(batch_size, 4, 8):
             with Ts.sblock("attention_score"):
@@ -593,9 +593,9 @@ def test_low_batch_gemv_broadcast_epilogue():
 
     @Ts.prim_func(private=True)
     def before(
-        A: T.Buffer((T.int64(1), batch_size, T.int64(1), T.int64(128)), 'float16'),
-        B: T.Buffer((T.int64(128), T.int64(128)), "float16"),
-        C: T.Buffer((T.int64(1), batch_size, T.int64(2), T.int64(3), T.int64(128)), 'float32'),
+        A: T.Tensor((T.int64(1), batch_size, T.int64(1), T.int64(128)), 'float16'),
+        B: T.Tensor((T.int64(128), T.int64(128)), "float16"),
+        C: T.Tensor((T.int64(1), batch_size, T.int64(2), T.int64(3), T.int64(128)), 'float32'),
     ):
         T.func_attr({"tirx.noalias": True})
 

@@ -226,9 +226,9 @@ def test_vm_compile_e2e_func_param_with_shape():
     class TestVMCompileE2E2:
         @Ts.prim_func
         def tir_matmul(
-            A: T.Buffer((m_tir_matmul, n_tir_matmul)),
-            B: T.Buffer((n_tir_matmul, k_tir_matmul)),
-            C: T.Buffer((m_tir_matmul, k_tir_matmul)),
+            A: T.Tensor((m_tir_matmul, n_tir_matmul)),
+            B: T.Tensor((n_tir_matmul, k_tir_matmul)),
+            C: T.Tensor((m_tir_matmul, k_tir_matmul)),
         ) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
@@ -265,10 +265,10 @@ def test_call_tir_inplace_e2e_simple():
     class TestCallTIRInplaceE2ESimple:
         @Ts.prim_func
         def copy(
-            A: T.Buffer((2, 3), "int32"),
-            B: T.Buffer((2, 3), "int32"),
-            C: T.Buffer((2, 3), "int32"),
-            out1: T.Buffer((2, 3), "int32"),
+            A: T.Tensor((2, 3), "int32"),
+            B: T.Tensor((2, 3), "int32"),
+            C: T.Tensor((2, 3), "int32"),
+            out1: T.Tensor((2, 3), "int32"),
         ):
             # copies the contents of C into A, B, and out1
             T.func_attr({"tirx.noalias": True})
@@ -323,7 +323,7 @@ def test_call_tir_inplace_e2e_rw():
     @tvm.script.ir_module
     class TestCallTIRInplaceE2ERW:
         @Ts.prim_func
-        def inplace_add(A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32")):
+        def inplace_add(A: T.Tensor((2, 3), "int32"), B: T.Tensor((2, 3), "int32")):
             # sums A and B, storing the result in A
             T.func_attr({"tirx.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -691,7 +691,7 @@ def test_lower_memory_alloc_storage_tensor():
             return y
 
         @Ts.prim_func
-        def copy(A: T.Buffer((2, 3), "float32"), B: T.Buffer((2, 3), "float32")):
+        def copy(A: T.Tensor((2, 3), "float32"), B: T.Tensor((2, 3), "float32")):
             for i0, i1 in T.grid(2, 3):
                 with Ts.sblock("block"):
                     vi0, vi1 = Ts.axis.remap("SS", [i0, i1])
@@ -714,7 +714,7 @@ def test_sub_func_call():
     @tvm.script.ir_module
     class TestVMSubFunction:
         @Ts.prim_func
-        def tir_matmul(A: T.Buffer((m, n)), B: T.Buffer((n, k)), C: T.Buffer((m, k))) -> None:
+        def tir_matmul(A: T.Tensor((m, n)), B: T.Tensor((n, k)), C: T.Tensor((m, k))) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 
             for i, j, k_index in T.grid(m, k, n):
@@ -893,7 +893,7 @@ n = T.dynamic("n", "int32")
 @tvm.script.ir_module
 class TestVMSetInput:
     @Ts.prim_func
-    def test_vm_mul(A: T.Buffer((m, n)), B: T.Buffer((m, n)), C: T.Buffer((m, n))):
+    def test_vm_mul(A: T.Tensor((m, n)), B: T.Tensor((m, n)), C: T.Tensor((m, n))):
         T.func_attr({"global_symbol": "test_vm_mul"})
 
         for i, j in T.grid(m, n):
@@ -942,7 +942,7 @@ def test_multi_systemlib():
         I.module_attrs({"system_lib_prefix": "libA_"})
 
         @Ts.prim_func
-        def tir_init(x: T.Buffer([N], "float32")):
+        def tir_init(x: T.Tensor([N], "float32")):
             for i in range(N):
                 x[i] = T.float32(0)
 
@@ -959,7 +959,7 @@ def test_multi_systemlib():
         I.module_attrs({"system_lib_prefix": "libB_"})
 
         @Ts.prim_func
-        def tir_init(x: T.Buffer([N], "float32")):
+        def tir_init(x: T.Tensor([N], "float32")):
             for i in range(N):
                 x[i] = T.float32(1)
 

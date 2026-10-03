@@ -681,10 +681,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
            [](PyExprMutator mutator, Var var, Type ty) { return mutator->WithType(var, ty); })
       .def("relax.PyExprMutatorSetVarRemap",
            [](PyExprMutator mutator, Var old_var, Var new_var) {
-             return mutator->var_remap_[old_var] = new_var;
+             mutator->var_remap_.insert_or_assign(old_var, new_var);
+             return new_var;
            })
       .def("relax.PyExprMutatorGetVarRemap",
-           [](PyExprMutator mutator, Var var) { return mutator->var_remap_[var]; });
+           [](PyExprMutator mutator, Var var) -> ffi::Optional<Var> {
+             auto it = mutator->var_remap_.find(var);
+             if (it != mutator->var_remap_.end()) return it->second;
+             return std::nullopt;
+           });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

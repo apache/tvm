@@ -41,7 +41,7 @@ tvm::Type InferType(const PrimFunc& prim_func) {
   ffi::Array<tvm::Type> params;
   for (const auto& param : prim_func->params) {
     tvm::Type param_ty = [&]() -> tvm::Type {
-      if (param->ty.as<BufferTypeNode>()) {
+      if (param->ty.as<TensorTypeNode>()) {
         BufferVar buf = param.as_or_throw<BufferVar>();
         relax::ShapeExpr shape(
             buf->shape.Map([](PrimExpr dim) { return cast(PrimType::Int(64), dim); }));
@@ -99,7 +99,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimFuncMutate(
                                     }));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ret_type,
                                     mutator->MutateExpected(self->ret_type));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Stmt>>, mapped_body,
                                     mutator->MutateExpected(self->body));
   if (mapped_params.UnchangedOrSameAs(self->params) &&
       mapped_ret_type.UnchangedOrSameAs(self->ret_type) &&
@@ -126,7 +126,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimFuncMaybeInplaceMut
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<Type>, mapped_ret_type,
       mutator->MutateExpected(self->ret_type, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<Stmt>>, mapped_body,
                                     mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
   if (!mapped_params.UnchangedOrSameAs(self->params)) {
     self->params = std::move(mapped_params).ValueUnchecked();
@@ -143,8 +143,9 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimFuncMaybeInplaceMut
 }  // namespace
 
 // Get the function type of a PrimFunc
-PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
-                   Span span) {
+PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body, Type ret_type,
+                   DictAttrs attrs, Span span)
+    : BaseFunc(ffi::UnsafeInit{}) {
   if (ret_type.IsMissing()) {
     ret_type = VoidType();
   }
@@ -171,9 +172,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&PrimFuncMaybeInplaceMutate>());
 
-  refl::GlobalDef().def("tirx.PrimFunc",
-                        [](ffi::Array<tirx::Var> params, Stmt body, Type ret_type, DictAttrs attrs,
-                           Span span) { return PrimFunc(params, body, ret_type, attrs, span); });
+  refl::GlobalDef().def("tirx.PrimFunc", [](ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body,
+                                            Type ret_type, DictAttrs attrs, Span span) {
+    return PrimFunc(params, body, ret_type, attrs, span);
+  });
 }
 
 FuncType PrimFuncNode::func_type_annotation() const {

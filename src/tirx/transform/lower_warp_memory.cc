@@ -205,7 +205,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
   // The buffer variable
   const VarNode* buffer_;
   // the warp index
-  Var warp_index_;
+  Var warp_index_{ffi::UnsafeInit{}};
   // the coefficient
   int64_t warp_coeff_{0};
   // analyzer.
@@ -268,7 +268,7 @@ class WarpAccessRewriter : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
   explicit WarpAccessRewriter(int warp_size, sym::AnalyzerObj* analyzer)
       : warp_size_(warp_size), analyzer_(analyzer) {}
-  // Rewrite the AllocBuffer statement which transforms
+  // Rewrite the AllocTensor statement which transforms
   // warp memory to local memory.
   // \param op The allocation binding for warp memory.
   // \param buffer_call The matched allocation Call.
@@ -299,7 +299,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    auto type = CopyBufferType(op->var.as_or_throw<BufferVar>());
+    auto type = CopyTensorType(op->var.as_or_throw<BufferVar>());
     type->storage_scope = "local";
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
@@ -309,7 +309,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
     return SeqStmt::Flatten(
         Bind(new_buf.var(),
-             Call(new_buf.type(), tirx::builtin::alloc_buffer(),
+             Call(new_buf.type(), tirx::builtin::alloc_tensor(),
                   {tvm::Tuple(new_buf->shape, buffer_call->args[0]->span),
                    DataTypeImm(new_buf->dtype->dtype, buffer_call->args[1]->span),
                    StringImm(new_buf.scope(), buffer_call->args[2]->span)},
@@ -479,11 +479,11 @@ class WarpAccessRewriter : public StmtExprMutator {
   // The buffer variable
   const VarNode* buffer_;
   // The fresh local buffer replacing the warp-scoped definition.
-  BufferVar new_buffer_;
+  BufferVar new_buffer_{ffi::UnsafeInit{}};
   // number of threads involved in one shuffle
   int width_{0};
   // Warp index
-  Var warp_index_;
+  Var warp_index_{ffi::UnsafeInit{}};
   // the coefficient m
   int warp_coeff_{0};
   // the coefficient n
@@ -553,13 +553,13 @@ class WarpMemoryRewriter : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) {
-    // Process SeqStmt to find warp AllocBuffer and gather remaining siblings as body.
+    // Process SeqStmt to find warp AllocTensor and gather remaining siblings as body.
     ffi::Array<Stmt> new_seq;
     bool changed = false;
     for (size_t i = 0; i < op->seq.size(); ++i) {
       const auto* alloc = op->seq[i].as<BindNode>();
       if (const auto* call = alloc ? alloc->value.as<CallNode>() : nullptr;
-          call && call->op.same_as(builtin::alloc_buffer()) &&
+          call && call->op.same_as(builtin::alloc_tensor()) &&
           call->args[2].as_or_throw<StringImm>()->value == "warp") {
         new_storage_scopes_[alloc->var] = "local";
         // Gather remaining siblings as the "body" for rewriting.
@@ -593,12 +593,13 @@ namespace transform {
 
 Pass LowerWarpMemory() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     TVM_FFI_ICHECK(target.has_value()) << "LowerWarpMemory: Require the target attribute";
     int warp_size = target.value()->GetAttr<int64_t>("thread_warp_size", 1).value();
     auto warp_memory_rewriter = ffi::make_object<WarpMemoryRewriter>(warp_size);
-    auto stmt = warp_memory_rewriter->Rewrite(std::move(n->body));
+    auto stmt = warp_memory_rewriter->Rewrite(std::move(n->body).value());
     n->body = ffi::make_object<UpdatePointerStorageScope>(warp_memory_rewriter->new_storage_scopes_)
                   ->Mutate(stmt, InplaceMode::kAllow)
                   .ValueOrUnchanged(stmt);

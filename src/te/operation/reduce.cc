@@ -61,8 +61,8 @@ CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
     PrimType dtype = identity_element[i].ty();
     PrimVar l = lhs[i].CopyWithDType(dtype);
     PrimVar r = rhs[i].CopyWithDType(dtype);
-    var_map[lhs[i].get()] = l;
-    var_map[rhs[i].get()] = r;
+    var_map.insert_or_assign(lhs[i].get(), l);
+    var_map.insert_or_assign(rhs[i].get(), r);
 
     p_lhs->SetItem(i, l);
     p_rhs->SetItem(i, r);
@@ -120,15 +120,14 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Reduce
 Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
-               PrimExpr condition, int value_index, ffi::Array<PrimExpr> init, Span span) {
+               ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
+               Span span)
+    : PrimExpr(ffi::UnsafeInit{}) {
   for (size_t i = 0; i < axis.size(); ++i) {
     TVM_FFI_ICHECK_EQ(axis[i]->iter_type, kCommReduce)
         << "Can only take axis created by reduce_axis";
   }
-  if (!condition.defined()) {
-    condition = IntImm::Bool(true);
-  }
-  auto n = ffi::make_object<ReduceNode>();
+  auto n = ffi::make_object<ReduceNode>(condition.value_or(IntImm::Bool(true)));
   TVM_FFI_ICHECK(source.defined());
   for (size_t i = 0; i < axis.size(); ++i) {
     TVM_FFI_ICHECK(axis[i].defined());
@@ -151,7 +150,6 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
   n->source = std::move(source);
   n->init = std::move(init);
   n->axis = std::move(axis);
-  n->condition = condition;
   n->value_index = value_index;
   n->span = std::move(span);
   data_ = std::move(n);
@@ -159,11 +157,11 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "te.Reduce", [](CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<IterVar> axis,
-                      PrimExpr condition, int value_index, ffi::Array<PrimExpr> init, Span span) {
-        return Reduce(combiner, source, axis, condition, value_index, init, span);
-      });
+  refl::GlobalDef().def("te.Reduce", [](CommReducer combiner, ffi::Array<PrimExpr> source,
+                                        ffi::Array<IterVar> axis, ffi::Optional<PrimExpr> condition,
+                                        int value_index, ffi::Array<PrimExpr> init, Span span) {
+    return Reduce(combiner, source, axis, condition, value_index, init, span);
+  });
 }
 
 }  // namespace te

@@ -38,7 +38,8 @@ namespace tirx {
 TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
                                      ffi::Map<ffi::String, BufferVar> workspace,
                                      ffi::Map<ffi::String, ffi::Any> config,
-                                     ffi::Optional<ffi::String> dispatch, ExecScope scope) {
+                                     ffi::Optional<ffi::String> dispatch, ExecScope scope)
+    : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined(), ValueError) << "TilePrimitiveCall expects a defined operator";
   static const auto& category_map = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
   TVM_FFI_ICHECK(category_map.get(op, ffi::String("")) == "tile_primitive")

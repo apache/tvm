@@ -293,8 +293,7 @@ class ConstantFolder : public ExprMutator {
     if (shape) {
       TensorType ret_ty = call->ty.as_or_throw<TensorType>();
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(),
-                                  ret_ty->dtype.value()->dtype)
-          .value_or({});
+                                  ret_ty->dtype.value()->dtype);
     }
     return {};
   }

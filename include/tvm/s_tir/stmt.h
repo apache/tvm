@@ -43,6 +43,11 @@ namespace s_tir {
  */
 class MatchBufferRegionNode : public ffi::Object {
  public:
+  explicit MatchBufferRegionNode(ffi::UnsafeInit tag) : buffer(tag), source(tag) {}
+
+  MatchBufferRegionNode(tirx::BufferVar buffer, TensorRegion source)
+      : buffer(std::move(buffer)), source(std::move(source)) {}
+
   /*! \brief The target buffer. */
   tirx::BufferVar buffer;
   /*! \brief The source buffer region. */
@@ -84,7 +89,7 @@ class MatchBufferRegion : public ffi::ObjectRef {
  *      T.reads([buffer0[start:end, ...], ...])
  *      T.writes([buffer1[start:end, ...], ...])
  *      T.where(predicate)
- *      buffer2 = T.alloc_buffer(shape, dtype)
+ *      buffer2 = T.alloc_tensor(shape, dtype)
  *      buffer3 = Ts.match_buffer(source_buffer[start:end, ...])
  *      T.attr({attr_key: attr_value, ...})
  *      with T.init():
@@ -95,6 +100,10 @@ class MatchBufferRegion : public ffi::ObjectRef {
  */
 class SBlockNode : public tirx::StmtNode {
  public:
+  explicit SBlockNode(ffi::UnsafeInit tag) : body(tag) {}
+
+  explicit SBlockNode(tirx::Stmt body) : body(std::move(body)) {}
+
   /*! \brief The variables of the block. */
   ffi::Array<tirx::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
@@ -156,7 +165,9 @@ class SBlock : public tirx::Stmt {
                           ffi::Array<tirx::BufferVar> alloc_buffers = ffi::Array<tirx::BufferVar>(),
                           Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlock, tirx::Stmt, SBlockNode);
+  explicit SBlock(ffi::ObjectPtr<SBlockNode> node) : tirx::Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlock, tirx::Stmt, SBlockNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockNode);
 };
 
@@ -165,6 +176,11 @@ class SBlock : public tirx::Stmt {
  */
 class SBlockRealizeNode : public tirx::StmtNode {
  public:
+  explicit SBlockRealizeNode(ffi::UnsafeInit tag) : predicate(tag), block(tag) {}
+
+  SBlockRealizeNode(PrimExpr predicate, SBlock block)
+      : predicate(std::move(predicate)), block(std::move(block)) {}
+
   /*! \brief The corresponding values of the iter vars. */
   ffi::Array<PrimExpr> iter_values;
   /*!
@@ -194,7 +210,9 @@ class SBlockRealize : public tirx::Stmt {
   TVM_DLL explicit SBlockRealize(ffi::Array<PrimExpr> iter_values, PrimExpr predicate, SBlock block,
                                  Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SBlockRealize, tirx::Stmt, SBlockRealizeNode);
+  explicit SBlockRealize(ffi::ObjectPtr<SBlockRealizeNode> node) : tirx::Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SBlockRealize, tirx::Stmt, SBlockRealizeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeNode);
 };
 

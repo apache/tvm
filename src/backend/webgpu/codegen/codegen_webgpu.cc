@@ -125,7 +125,7 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_buffer())) {
+        call && call->op.same_as(tirx::builtin::decl_tensor())) {
       if (auto source = GetBufferDataVar(call->args[0])) {
         buffer_aliases_.insert_or_assign(op->var.get(), ResolveBuffer(source.value()));
         return std::nullopt;
@@ -189,6 +189,8 @@ CodeGenWebGPU::CodeGenWebGPU(Target target) : target_(target) {
 }
 
 runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_readonly_decl) {
+  TVM_FFI_CHECK(f->body.has_value(), ValueError)
+      << "Kernel code generation requires a function body";
   // clear previous generated state.
   this->InitFuncState(f);
   // reserve keywords
@@ -227,7 +229,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   // runtime classifies storage-buffer arguments by the serialized "handle" dtype.
   constexpr DLDataType kRuntimeOpaqueHandleType{kDLOpaqueHandle, 64, 1};
 
-  WebGPUWorkGroupInfo info = WebGPUWorkgroupInfoCollector::Collect(f->body);
+  WebGPUWorkGroupInfo info = WebGPUWorkgroupInfoCollector::Collect(f->body.value());
 
   std::vector<Var> pod_args;
   int num_buffer = 0;
@@ -335,12 +337,12 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
                << "  @builtin(num_workgroups) gridDim : vec3<u32>,\n"
                << "  @builtin(local_invocation_id) threadIdx : vec3<u32>\n"
                << ") {\n";
-  // skip out of bound grids
-  this->stream << "  if (blockIdx.z * gridDim.x + blockIdx.x > "  // NOLINT(*)
+  // skip out of bound grids; valid packed ids are [0, packGridDimX)
+  this->stream << "  if (blockIdx.z * gridDim.x + blockIdx.x >= "  // NOLINT(*)
                << val_pod_args << "." << packGridDimX << ") { return; }\n";
   // the function scope.
   int func_scope = this->BeginScope();
-  this->PrintStmt(f->body);
+  this->PrintStmt(f->body.value());
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";
@@ -657,8 +659,8 @@ void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // 
 
 void CodeGenWebGPU::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
-    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
   }
   // Stateful reads cannot be substituted after the underlying state changes.
   if (auto prim_value = op->value.as<PrimExpr>();
@@ -739,7 +741,7 @@ void CodeGenWebGPU::Dispatch_(const BufferStoreNode* op) {
   }
 }
 
-void CodeGenWebGPU::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;

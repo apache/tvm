@@ -202,12 +202,8 @@ class PipelineOpaqueAccessRewriter {
         const BufferVar& new_buffer = (*it).second;
         new_args.Set(i, new_buffer.data());
         PrimExpr old_index = call->args[i + 1].as_or_throw<PrimExpr>();
-        PrimExpr offset;
-        if (new_buffer->strides.empty()) {
-          offset = product(buffer->shape);
-        } else {
-          offset = new_buffer->strides[0];
-        }
+        PrimExpr offset =
+            new_buffer->strides.empty() ? product(buffer->shape) : new_buffer->strides[0];
         if (buffer.scope() == "m16n8k8.matrixA" || buffer.scope() == "m16n8k8.matrixB") {
           // mma scope size will shrink by warp size
           // @see transform_mma_buffer_layout
@@ -285,14 +281,14 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    for (const BufferVar& alloc_buffer : op->alloc_buffers) {
-      buffer_data_to_buffer_.Set(alloc_buffer.var(), alloc_buffer);
+    for (const BufferVar& alloc_tensor : op->alloc_buffers) {
+      buffer_data_to_buffer_.Set(alloc_tensor.var(), alloc_tensor);
     }
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
-    for (const BufferVar& alloc_buffer : op->alloc_buffers) {
-      buffer_data_to_buffer_.erase(alloc_buffer.var());
+    for (const BufferVar& alloc_tensor : op->alloc_buffers) {
+      buffer_data_to_buffer_.erase(alloc_tensor.var());
     }
     return block;
   }
@@ -392,7 +388,7 @@ class PipelineRewriter : public StmtExprMutator {
     for (const BufferVar& buffer : pipeline_allocs_) {
       int num_versions = ComputeBufferVersions(buffer, infos.at(buffer));
       if (num_versions > 1) {
-        buffer_remap_.Set(buffer, RewriteAllocBuffer(buffer, num_versions));
+        buffer_remap_.Set(buffer, RewriteAllocTensor(buffer, num_versions));
       }
     }
     for (const auto& [_, remapped] : buffer_remap_) {
@@ -577,8 +573,8 @@ class PipelineRewriter : public StmtExprMutator {
    * \param num_versions The number of versions to keep.
    * \return The resized buffer.
    */
-  BufferVar RewriteAllocBuffer(const BufferVar& buffer, int num_versions) {
-    ffi::ObjectPtr<BufferTypeNode> new_buffer = CopyBufferType(buffer);
+  BufferVar RewriteAllocTensor(const BufferVar& buffer, int num_versions) {
+    ffi::ObjectPtr<TensorTypeNode> new_buffer = CopyTensorType(buffer);
     new_buffer->shape.insert(new_buffer->shape.begin(), PrimExpr(num_versions));
     if (new_buffer->strides.size()) {
       TVM_FFI_ICHECK(new_buffer->strides.size() + 1 == new_buffer->shape.size());
@@ -610,9 +606,9 @@ class PipelineRewriter : public StmtExprMutator {
       int insert_before;
       // in_flight_count would be a more precise name, but the implementation uses wait_count for
       // brevity.
-      PrimExpr wait_count{nullptr};
+      ffi::Optional<PrimExpr> wait_count;
 
-      bool valid() const { return wait_count.defined(); }
+      bool valid() const { return wait_count.has_value(); }
     } pending_wait;
 
     // Destination buffers of async operations that have been encountered so far in the loop
@@ -777,7 +773,7 @@ class PipelineRewriter : public StmtExprMutator {
 
       if (!pending_wait.valid()) {
         pending_wait = {static_cast<int>(i), wait_count};
-      } else if (analyzer_->CanProve(wait_count < pending_wait.wait_count)) {
+      } else if (analyzer_->CanProve(wait_count < pending_wait.wait_count.value())) {
         // Coalesce multiple wait_queue if the later one allows fewer in-flight ops.
         pending_wait = {pending_wait.insert_before, wait_count};
       }
@@ -815,14 +811,14 @@ class PipelineRewriter : public StmtExprMutator {
           // If the async operation that this wait_queue is waiting on is predicated, and we cannot
           // prove that the predicate is always true, the precise wait count is only valid
           // at iterations where the predicate is true;
-          auto wait_count =
-              Call(PrimType::Int(32), prim::builtin::if_then_else(),
-                   ffi::Array<PrimExpr>{state.predicate.value(), state.pending_wait.wait_count, 0})
-                  .as_or_throw<PrimExpr>();
+          auto wait_count = Call(PrimType::Int(32), prim::builtin::if_then_else(),
+                                 ffi::Array<PrimExpr>{state.predicate.value(),
+                                                      state.pending_wait.wait_count.value(), 0})
+                                .as_or_throw<PrimExpr>();
           attach_wait_scope(state.pending_wait.insert_before, stage_id, wait_count);
         } else {
           attach_wait_scope(state.pending_wait.insert_before, stage_id,
-                            state.pending_wait.wait_count);
+                            state.pending_wait.wait_count.value());
         }
       }
     }
@@ -872,7 +868,7 @@ class PipelineRewriter : public StmtExprMutator {
    */
   Stmt EmitImpl(PrimExpr start, PrimExpr end, bool unroll_loop,
                 ffi::Optional<PrimExpr> extra_loop_lower_bound = std::nullopt) {
-    PrimExpr new_loop_var;
+    PrimExpr new_loop_var{ffi::UnsafeInit{}};
     PrimExpr extent = end - start;
 
     auto make_nop = []() {
@@ -1013,16 +1009,10 @@ class PipelineRewriter : public StmtExprMutator {
     auto stmts =
         CompletePipelineLoopStatements(new_blocks, async_states_local, ana_normalized.get());
 
-    Stmt new_loop{nullptr};
-
     if (stmts.empty()) {
       return make_nop();
     }
-    if (stmts.size() == 1) {
-      new_loop = stmts[0];
-    } else {
-      new_loop = SeqStmt(stmts);
-    }
+    Stmt new_loop = stmts.size() == 1 ? stmts[0] : SeqStmt(stmts);
 
     if (!is_unit_loop) {
       new_loop = For(new_loop_var.as_or_throw<PrimVar>(), pipeline_loop_->min, extent,
@@ -1113,8 +1103,8 @@ class PipelineInjector : public StmtExprMutator {
         injector->buffer_data_to_buffer_.Set(buffer.value().var(), buffer.value());
       }
     }
-    injector->fragment_info_ = GetTensorCoreFragmentInfo(func->body);
-    return injector->Mutate(func->body).ValueOrUnchanged(func->body);
+    injector->fragment_info_ = GetTensorCoreFragmentInfo(func->body.value());
+    return injector->Mutate(func->body.value()).ValueOrUnchanged(func->body.value());
   }
 
   explicit PipelineInjector(ffi::Optional<ffi::String> global_symbol)
@@ -1177,18 +1167,16 @@ class PipelineInjector : public StmtExprMutator {
     // Step 2: Find the body and buffer allocations of the pipeline. The body can be direct child of
     // the for-loop. If the for-loop has BlockRealize as its child, the pipeline body will be the
     // child of the block.
-    Stmt pipeline_body{nullptr};
+    Stmt pipeline_body = for_node->body;
     ffi::Array<BufferVar> pipeline_allocs;
     if (const auto* realize = for_node->body.as<SBlockRealizeNode>()) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
-        TVM_FFI_ICHECK(buffer->IsInstance<BufferTypeNode>());
+        TVM_FFI_ICHECK(buffer->IsInstance<TensorTypeNode>());
         buffer_data_to_buffer_.Set(buffer.var(), buffer);
       }
       pipeline_body = block->body;
       pipeline_allocs = block->alloc_buffers;
-    } else {
-      pipeline_body = for_node->body;
     }
 
     const SeqStmtNode* pipeline_body_seq = pipeline_body.as<SeqStmtNode>();
@@ -1284,14 +1272,14 @@ class PipelineInjector : public StmtExprMutator {
    * \param alloc_buffers The buffer allocations to be added.
    */
   void AddAllocBuffers(SBlockNode* n, const ffi::Array<BufferVar> alloc_buffers) {
-    for (const BufferVar& alloc_buffer : alloc_buffers) {
-      n->alloc_buffers.push_back(alloc_buffer);
+    for (const BufferVar& alloc_tensor : alloc_buffers) {
+      n->alloc_buffers.push_back(alloc_tensor);
       Region region;
-      region.reserve(alloc_buffer->shape.size());
-      for (const PrimExpr& dim : alloc_buffer->shape) {
+      region.reserve(alloc_tensor->shape.size());
+      for (const PrimExpr& dim : alloc_tensor->shape) {
         region.push_back(Range::FromMinExtent(0, dim));
       }
-      n->writes.push_back(BufferRegion(alloc_buffer, region));
+      n->writes.push_back(BufferRegion(alloc_tensor, region));
     }
   }
 
@@ -1352,9 +1340,10 @@ namespace transform {
  */
 Pass InjectSoftwarePipeline() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* fptr = f.CopyOnWrite();
     fptr->body = software_pipeline::PipelineInjector::Inject(f);
-    fptr->body = s_tir::ConvertSSA(std::move(fptr->body));
+    fptr->body = s_tir::ConvertSSA(std::move(fptr->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectSoftwarePipeline", {});

@@ -55,9 +55,9 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-                                int opt_level, ffi::String name,
-                                tvm::ffi::Array<ffi::String> required, bool traceable = false);
+TVM_DLL Pass CreatePrimFuncPass(
+    std::function<ffi::Optional<PrimFunc>(PrimFunc, IRModule, PassContext)> pass_func,
+    int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required, bool traceable = false);
 
 /*!
  * \brief Lower vectorization loops.
@@ -337,7 +337,7 @@ TVM_DLL Pass TilePrimitiveDispatch();
 TVM_DLL Pass LowerTIRxCleanup();
 
 /*!
- * \brief Lower opaque constructs in TIRX programs: AllocBuffer, For(thread_binding),
+ * \brief Lower opaque constructs in TIRX programs: allocation calls, For(thread_binding),
  *        unit loop elimination. This is the tirx-specific counterpart of
  *        s_tir::LowerOpaqueBlock, without any SBlock handling.
  * \return The pass.

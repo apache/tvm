@@ -122,7 +122,7 @@ const s_tir::SBlockNode* FindAnchorBlock(const IRModule& mod) {
     double best_flops = -1;
     int best_idx = 0;
     for (size_t i = 0; i < candidates.size(); ++i) {
-      auto loop = GetEnclosingLoop(candidates[i], prim_func->body);
+      auto loop = GetEnclosingLoop(candidates[i], prim_func->body.value());
       auto flops = s_tir::EstimateTIRFlops(loop);
       if (flops > best_flops) {
         best_flops = flops;

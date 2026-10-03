@@ -152,10 +152,10 @@ def get_ldmatrix_intrin(
 
     @Ts.prim_func
     def ldmatrix_desc(
-        warp: T.Buffer(
+        warp: T.Tensor(
             (WARP_SIZE, local_size), dtype, align=64, offset_factor=offset_factor, scope="warp"
         ),
-        shared: T.Buffer(
+        shared: T.Tensor(
             (smem_tile_row, smem_tile_col),
             dtype,
             align=64,
@@ -181,10 +181,10 @@ def get_ldmatrix_intrin(
 
     @Ts.prim_func
     def ldmatrix_impl(
-        warp: T.Buffer(
+        warp: T.Tensor(
             (WARP_SIZE, local_size), dtype, align=64, offset_factor=offset_factor, scope="warp"
         ),
-        shared: T.Buffer(
+        shared: T.Tensor(
             (smem_tile_row, smem_tile_col),
             dtype,
             align=64,
@@ -330,13 +330,13 @@ def get_mma_intrin(
 
     @Ts.prim_func
     def mma_sync_desc(
-        A: T.Buffer(
+        A: T.Tensor(
             (WARP_SIZE, local_size), a_dtype, align=64, offset_factor=A_offset_factor, scope="warp"
         ),
-        B: T.Buffer(
+        B: T.Tensor(
             (WARP_SIZE, local_size), b_dtype, align=64, offset_factor=B_offset_factor, scope="warp"
         ),
-        C: T.Buffer(
+        C: T.Tensor(
             (WARP_SIZE, local_size_out),
             out_dtype,
             align=64,
@@ -375,13 +375,13 @@ def get_mma_intrin(
 
     @Ts.prim_func
     def mma_sync_impl(
-        A: T.Buffer(
+        A: T.Tensor(
             (WARP_SIZE, local_size), a_dtype, align=64, offset_factor=A_offset_factor, scope="warp"
         ),
-        B: T.Buffer(
+        B: T.Tensor(
             (WARP_SIZE, local_size), b_dtype, align=64, offset_factor=B_offset_factor, scope="warp"
         ),
-        C: T.Buffer(
+        C: T.Tensor(
             (WARP_SIZE, local_size_out),
             out_dtype,
             align=64,
@@ -523,7 +523,7 @@ def get_mma_fill_intrin(dtype, local_size):
     index_map = shared_16x16_to_ldmatrix_32x8_layout
 
     @Ts.prim_func
-    def mma_fill_desc(C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp")) -> None:
+    def mma_fill_desc(C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp")) -> None:
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(C_warp[0:WARP_SIZE, 0:local_size])
@@ -537,7 +537,7 @@ def get_mma_fill_intrin(dtype, local_size):
 
     @Ts.prim_func
     def mma_fill_impl(
-        C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
+        C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -568,8 +568,8 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
 
     @Ts.prim_func
     def mma_store_desc(
-        C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp"),
-        C: T.Buffer([M_DIM, N_DIM], dtype=dtype, scope=scope),
+        C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp"),
+        C: T.Tensor([M_DIM, N_DIM], dtype=dtype, scope=scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
@@ -588,8 +588,8 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
 
         @Ts.prim_func
         def mma_store_impl(
-            C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
-            C: T.Buffer(
+            C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
+            C: T.Tensor(
                 [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
             ),
         ) -> None:
@@ -616,8 +616,8 @@ def get_mma_store_intrin(dtype, local_size, scope="global", use_mma_store_intrin
 
         @Ts.prim_func
         def mma_store_impl(
-            C_warp: T.Buffer([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
-            C: T.Buffer(
+            C_warp: T.Tensor([WARP_SIZE, local_size], dtype=dtype, scope="warp", offset_factor=1),
+            C: T.Tensor(
                 [M_DIM, N_DIM], dtype=dtype, scope=scope, offset_factor=1, strides=[s0, s1]
             ),
         ) -> None:
@@ -795,10 +795,10 @@ def get_wmma_load_intrin(
 
     @Ts.prim_func
     def wmma_load_desc(
-        A: T.Buffer(
+        A: T.Tensor(
             (frag_m, frag_n), dtype, align=64, offset_factor=offset_factor, scope=shared_scope
         ),
-        C: T.Buffer(
+        C: T.Tensor(
             (frag_m, frag_n),
             dtype,
             align=64,
@@ -821,7 +821,7 @@ def get_wmma_load_intrin(
 
     @Ts.prim_func
     def wmma_load_impl(
-        A: T.Buffer(
+        A: T.Tensor(
             (frag_m, frag_n),
             dtype,
             align=64,
@@ -829,7 +829,7 @@ def get_wmma_load_intrin(
             scope=shared_scope,
             strides=[s1, s0],
         ),
-        C: T.Buffer(
+        C: T.Tensor(
             (frag_m, frag_n),
             dtype,
             align=64,
@@ -851,7 +851,6 @@ def get_wmma_load_intrin(
                     A.access_ptr("r", ptr_type=dtype),
                     s1,
                     layout,
-                    dtype="void",
                 )
             )
 
@@ -867,7 +866,7 @@ def get_wmma_fill_intrin(
 
     @Ts.prim_func
     def wmma_fill_desc(
-        C: T.Buffer(
+        C: T.Tensor(
             (m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope="wmma.accumulator"
         ),
     ) -> None:
@@ -884,7 +883,7 @@ def get_wmma_fill_intrin(
 
     @Ts.prim_func
     def wmma_fill_impl(
-        C: T.Buffer(
+        C: T.Tensor(
             (m_dim, n_dim),
             dtype,
             align=64,
@@ -904,7 +903,6 @@ def get_wmma_fill_intrin(
                     k_dim,
                     get_wmma_fragment_index(C, d1, m_dim, n_dim),
                     T.float32(0),
-                    dtype="void",
                 )
             )
 
@@ -919,10 +917,10 @@ def get_wmma_store_intrin(
 
     @Ts.prim_func
     def wmma_store_desc(
-        A: T.Buffer(
+        A: T.Tensor(
             (m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope="wmma.accumulator"
         ),
-        C: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope=scope),
+        C: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=offset_factor, scope=scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(A[0:m_dim, 0:n_dim])
@@ -939,7 +937,7 @@ def get_wmma_store_intrin(
 
     @Ts.prim_func
     def wmma_store_impl(
-        A: T.Buffer(
+        A: T.Tensor(
             (m_dim, n_dim),
             dtype,
             align=64,
@@ -947,7 +945,7 @@ def get_wmma_store_intrin(
             scope="wmma.accumulator",
             strides=[d1, d0],
         ),
-        C: T.Buffer(
+        C: T.Tensor(
             (m_dim, n_dim),
             dtype,
             align=64,
@@ -969,7 +967,6 @@ def get_wmma_store_intrin(
                     C.access_ptr("w", ptr_type=dtype),
                     s1,
                     "row_major",
-                    dtype="void",
                 )
             )
 
@@ -999,17 +996,17 @@ def get_wmma_sync_intrin(
 
     @Ts.prim_func
     def wmma_sync_desc(
-        A: T.Buffer(
+        A: T.Tensor(
             (m_dim, k_dim), in_dtype, align=64, offset_factor=A_offset_factor, scope="wmma.matrix_a"
         ),
-        B: T.Buffer(
+        B: T.Tensor(
             maybe_swap(k_dim, n_dim),
             in_dtype,
             align=64,
             offset_factor=B_offset_factor,
             scope="wmma.matrix_b",
         ),
-        C: T.Buffer(
+        C: T.Tensor(
             (m_dim, n_dim),
             out_dtype,
             align=64,
@@ -1037,7 +1034,7 @@ def get_wmma_sync_intrin(
 
     @Ts.prim_func
     def wmma_sync_impl(
-        A: T.Buffer(
+        A: T.Tensor(
             (m_dim, k_dim),
             in_dtype,
             align=64,
@@ -1045,7 +1042,7 @@ def get_wmma_sync_intrin(
             scope="wmma.matrix_a",
             strides=[a1, a0],
         ),
-        B: T.Buffer(
+        B: T.Tensor(
             maybe_swap(k_dim, n_dim),
             in_dtype,
             align=64,
@@ -1053,7 +1050,7 @@ def get_wmma_sync_intrin(
             scope="wmma.matrix_b",
             strides=[b1, b0],
         ),
-        C: T.Buffer(
+        C: T.Tensor(
             (m_dim, n_dim),
             out_dtype,
             align=64,
@@ -1075,7 +1072,6 @@ def get_wmma_sync_intrin(
                     get_wmma_fragment_index(B, b1, b_shape_0, b_shape_1),
                     C.data,
                     get_wmma_fragment_index(C, c1, m_dim, n_dim),
-                    dtype="void",
                 )
             )
 
@@ -1425,7 +1421,7 @@ def get_mma_init_intrin(
 
     @Ts.prim_func
     def mma_init_desc(
-        dst: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+        dst: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -1437,7 +1433,7 @@ def get_mma_init_intrin(
 
     @Ts.prim_func
     def mma_init_impl(
-        dst: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+        dst: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -1473,8 +1469,8 @@ def get_mma_load_intrin(
 
     @Ts.prim_func
     def mma_load_desc(
-        src: T.Buffer((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope),
-        dst: T.Buffer((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=mma_fragment_scope),
+        src: T.Tensor((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope),
+        dst: T.Tensor((frag_m, frag_n), dtype, align=64, offset_factor=1, scope=mma_fragment_scope),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(src[0:frag_m, 0:frag_n])
@@ -1491,10 +1487,10 @@ def get_mma_load_intrin(
 
     @Ts.prim_func
     def mma_load_impl(
-        src: T.Buffer(
+        src: T.Tensor(
             (frag_m, frag_n), dtype, align=64, offset_factor=1, scope=shared_scope, strides=[s0, s1]
         ),
-        dst: T.Buffer(
+        dst: T.Tensor(
             (frag_m, frag_n),
             dtype,
             align=64,
@@ -1543,11 +1539,11 @@ def get_mma_sync_intrin(
 
     @Ts.prim_func
     def mma_sync_desc(
-        A: T.Buffer((m_dim, k_dim), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixA"),
-        B: T.Buffer(
+        A: T.Tensor((m_dim, k_dim), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixA"),
+        B: T.Tensor(
             (B_shape_0, B_shape_1), in_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixB"
         ),
-        C: T.Buffer((m_dim, n_dim), out_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+        C: T.Tensor((m_dim, n_dim), out_dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(C[0:m_dim, 0:n_dim], A[0:m_dim, 0:k_dim], B[0:B_shape_0, 0:B_shape_1])
@@ -1569,7 +1565,7 @@ def get_mma_sync_intrin(
 
     @Ts.prim_func
     def mma_sync_impl(
-        A: T.Buffer(
+        A: T.Tensor(
             (m_dim, k_dim),
             in_dtype,
             align=64,
@@ -1577,7 +1573,7 @@ def get_mma_sync_intrin(
             scope="m16n8k8.matrixA",
             strides=[a0, a1],
         ),
-        B: T.Buffer(
+        B: T.Tensor(
             (B_shape_0, B_shape_1),
             in_dtype,
             align=64,
@@ -1585,7 +1581,7 @@ def get_mma_sync_intrin(
             scope="m16n8k8.matrixB",
             strides=[b0, b1],
         ),
-        C: T.Buffer(
+        C: T.Tensor(
             (m_dim, n_dim),
             out_dtype,
             align=64,
@@ -1627,8 +1623,8 @@ def get_mma_store_dummy_intrin(
 
     @Ts.prim_func
     def mma_store_desc(
-        src: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
-        dst: T.Buffer((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="shared.dyn"),
+        src: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="m16n8k8.matrixC"),
+        dst: T.Tensor((m_dim, n_dim), dtype, align=64, offset_factor=1, scope="shared.dyn"),
     ) -> None:
         with Ts.sblock("root"):
             Ts.reads(src[0:m_dim, 0:n_dim])

@@ -494,7 +494,7 @@ Expr TVMFFIABIBuilder::LoadTVMFFIAnyUnionValue(const Var& v_packed_args, int par
 
 Expr TVMFFIABIBuilder::DecodeParamOpaqueHandle(int param_index, const PrimExpr& type_index) {
   // ── Type check: accept handle-like types ───────────────────
-  std::string expected_type = params_[param_index]->ty.as<BufferTypeNode>() ? "Tensor" : "pointer";
+  std::string expected_type = params_[param_index]->ty.as<TensorTypeNode>() ? "Tensor" : "pointer";
   EmitTypeIndexCheck(param_index,
                      type_index == ffi::TypeIndex::kTVMFFINone ||
                          type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
@@ -565,7 +565,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   ffi::reflection::AccessPath param_path =
       ffi::reflection::AccessPath::Root()->Extend(AccessStep::ArrayItem(param_index));
 
-  if (param->ty.as<BufferTypeNode>()) {
+  if (param->ty.as<TensorTypeNode>()) {
     Var handle(param->name + ".handle", PointerType::VoidPointerTy());
     Expr handle_value = DecodeParamOpaqueHandle(param_index, type_index.as_or_throw<PrimExpr>());
     BindPointer(handle, handle_value, param_path, true);
@@ -583,7 +583,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   PrimType dtype = param->ty.as_or_throw<PrimType>();
 
   // Type-check and load value via per-dtype dispatch
-  PrimExpr arg_value;
+  PrimExpr arg_value{ffi::UnsafeInit{}};
   if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     arg_value = DecodeParamBool(param_index, type_index.as_or_throw<PrimExpr>());
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {
@@ -622,7 +622,7 @@ void TVMFFIABIBuilder::DecodeAllParams() {
                                       func_name_ + "." + param->name, param_path);
       decl_buffers_.push_back(
           Bind(buffer.value(),
-               Call(buffer.value().type(), builtin::decl_buffer(),
+               Call(buffer.value().type(), builtin::decl_tensor(),
                     {data, tvm::Tuple(buffer.value()->shape),
                      DataTypeImm(buffer.value()->dtype->dtype), StringImm(buffer.value().scope())},
                     {})));

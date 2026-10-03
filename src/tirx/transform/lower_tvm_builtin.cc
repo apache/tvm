@@ -57,6 +57,7 @@ class BuiltinLower : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
   static PrimFunc Build(PrimFunc func) {
+    if (!func->body.has_value()) return func;
     ffi::Optional<PrimExpr> device_type = std::nullopt;
     bool preserve_ffi_kernel = false;
     if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
@@ -66,7 +67,7 @@ class BuiltinLower : public StmtExprMutator {
     }
 
     auto mutator = ffi::make_object<BuiltinLower>(device_type, preserve_ffi_kernel);
-    func.CopyOnWrite()->body = mutator->VisitBodyAndRealizeAlloca(func->body);
+    func.CopyOnWrite()->body = mutator->VisitBodyAndRealizeAlloca(func->body.value());
     return func;
   }
 
@@ -115,7 +116,7 @@ class BuiltinLower : public StmtExprMutator {
 
   // Record stack frame for existing scope.
   struct AllocaScope {
-    BufferVar stack_shape;
+    ffi::Optional<BufferVar> stack_shape;
     Var stack_array = Var("stack_array", PointerType::VoidPointerTy());
     Var stack_ffi_any = Var("stack_ffi_any", PointerType::VoidPointerTy());
 
@@ -147,7 +148,7 @@ class BuiltinLower : public StmtExprMutator {
     {
       // NOTE: this scope reference is invalid after any mutation is applied to alloca_scope_.
       auto& scope = precheck->alloca_scope_.back();
-      scope.stack_shape = decl_buffer({IntImm::Int64(0)}, PrimType::Int(64), "stack_shape");
+      scope.stack_shape = decl_tensor({IntImm::Int64(0)}, PrimType::Int(64), "stack_shape");
     }
 
     precheck->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
@@ -188,17 +189,17 @@ class BuiltinLower : public StmtExprMutator {
       }
 
       if (scope.max_sizes.shape_stack != -1) {
-        scope.stack_shape = decl_buffer({IntImm::Int64(scope.max_sizes.shape_stack)},
+        scope.stack_shape = decl_tensor({IntImm::Int64(scope.max_sizes.shape_stack)},
                                         PrimType::Int(64), "stack_shape");
-        stmt = SeqStmt::Flatten(
-            Bind(scope.stack_shape, Call(scope.stack_shape.type(), builtin::decl_buffer(),
-                                         {StackAlloca(scope.stack_shape.DataPointerType(), "shape",
-                                                      scope.max_sizes.shape_stack),
-                                          tvm::Tuple(scope.stack_shape->shape),
-                                          DataTypeImm(scope.stack_shape->dtype->dtype),
-                                          StringImm(scope.stack_shape.scope())},
-                                         {})),
-            stmt);
+        stmt = SeqStmt::Flatten(Bind(scope.stack_shape.value(),
+                                     Call(scope.stack_shape.value().type(), builtin::decl_tensor(),
+                                          {StackAlloca(scope.stack_shape.value().DataPointerType(),
+                                                       "shape", scope.max_sizes.shape_stack),
+                                           tvm::Tuple(scope.stack_shape.value()->shape),
+                                           DataTypeImm(scope.stack_shape.value()->dtype->dtype),
+                                           StringImm(scope.stack_shape.value().scope())},
+                                          {})),
+                                stmt);
       }
 
       if (!alloca_stmts.empty()) {
@@ -254,8 +255,8 @@ class BuiltinLower : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(builtin::alloc_buffer()))
-      return MutateAllocBuffer(op, inplace_mode);
+        call && call->op.same_as(builtin::alloc_tensor()))
+      return MutateAllocTensor(op, inplace_mode);
     if (const CallNode* call = op->value.as<CallNode>()) {
       if (call->op.same_as(builtin::nd_mem_alloc_with_scope())) {
         return MakeNdMemAllocWithScope(op, call);
@@ -264,9 +265,9 @@ class BuiltinLower : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> MutateAllocBuffer(const BindNode* op, InplaceMode inplace_mode) {
-    // Lower AllocBuffer to device allocate when needed.
-    // AllocBuffer is flat (no body). Visit buffer fields via base class.
+  UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
+    // Lower AllocTensor to device allocate when needed.
+    // AllocTensor is flat (no body). Visit buffer fields via base class.
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     const auto* buffer_call = op->value.as<CallNode>();
@@ -287,7 +288,7 @@ class BuiltinLower : public StmtExprMutator {
     if (const auto* dev_type = device_type_.as<IntImmNode>();
         dev_type && dev_type->value == kDLCPU) {
       if (scope == "global") {
-        auto constant_size = op->var->ty.as_or_throw<BufferType>()->ConstantAllocationSize();
+        auto constant_size = op->var->ty.as_or_throw<TensorType>()->ConstantAllocationSize();
         if (constant_size.has_value() && constant_size.value() > 0 &&
             static_cast<size_t>(constant_size.value()) * nbytes < runtime::kMaxStackAlloca) {
           return stmt;
@@ -322,7 +323,7 @@ class BuiltinLower : public StmtExprMutator {
 
     Stmt alloc_bind =
         Bind(op->var.as_or_throw<BufferVar>(),
-             Call(op->var.as_or_throw<BufferVar>().type(), builtin::decl_buffer(),
+             Call(op->var.as_or_throw<BufferVar>().type(), builtin::decl_tensor(),
                   {Call(op->var.as_or_throw<BufferVar>().DataPointerType(), alloc_workspace_op,
                         {prim::cast(PrimType::Int(32), device_type_.value()),
                          prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
@@ -377,7 +378,7 @@ class BuiltinLower : public StmtExprMutator {
     auto extent_result = this->Mutate(op->extent, inplace_mode);
     bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
     PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);
-    Stmt body;
+    Stmt body = op->body;
 
     if (op->kind == ForKind::kParallel) {
       body = this->VisitBodyAndRealizeAlloca(op->body);
@@ -494,13 +495,14 @@ class BuiltinLower : public StmtExprMutator {
     op = expr.as<CallNode>();
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
-      prep_seq.emplace_back(BufferStore(
-          scope.stack_shape, prim::cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>()),
-          {ConstInt32(stack_begin + i)}));
+      prep_seq.emplace_back(
+          BufferStore(scope.stack_shape.value(),
+                      prim::cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>()),
+                      {ConstInt32(stack_begin + i)}));
     }
     PrimExpr offset = ConstInt32(stack_begin);
-    TensorLoad load = BufferLoad(scope.stack_shape, {offset});
-    return Call(scope.stack_shape.DataPointerType(), builtin::address_of(), {load});
+    TensorLoad load = BufferLoad(scope.stack_shape.value(), {offset});
+    return Call(scope.stack_shape.value().DataPointerType(), builtin::address_of(), {load});
   }
   // make array
   Expr MakeArray(const CallNode* op) {
@@ -535,7 +537,7 @@ class BuiltinLower : public StmtExprMutator {
     // set byte offset
     int data_bytes = GetVectorBytes(dtype);
     PrimExpr elem_offset = op->args[5].as_or_throw<PrimExpr>();
-    PrimExpr byte_offset;
+    PrimExpr byte_offset = elem_offset;
     if (!is_zero(elem_offset)) {
       byte_offset = elem_offset * IntImm(elem_offset.ty(), data_bytes);
     } else {
@@ -725,7 +727,7 @@ class BuiltinLower : public StmtExprMutator {
    * free_nd stmt is pushed to the current scope's pending_frees. Body-carrying
    * stmts (For, IfThenElse, AttrStmt) create new scopes via
    * WithNewScope. On scope exit, pending_frees are appended after the body.
-   * AllocBuffer (flat, no body) pushes its free to the enclosing scope.
+   * AllocTensor (flat, no body) pushes its free to the enclosing scope.
    */
   struct ScopeLevel {
     std::vector<Stmt> pending_frees;

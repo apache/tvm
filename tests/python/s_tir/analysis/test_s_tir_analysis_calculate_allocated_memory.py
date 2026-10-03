@@ -29,13 +29,13 @@ from tvm.script import tirx as T
 @tvm.script.ir_module
 class Module:
     @Ts.prim_func
-    def scale_by_two(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
+    def scale_by_two(a: T.Tensor((128,), "int8"), c: T.Tensor((128,), "int8")):
         for i in T.serial(128):
             with Ts.sblock("C"):
                 c[i] = a[i] * T.int8(2)
 
     @Ts.prim_func
-    def scale_by_two_three(a: T.Buffer((128,), "int8"), c: T.Buffer((128,), "int8")):
+    def scale_by_two_three(a: T.Tensor((128,), "int8"), c: T.Tensor((128,), "int8")):
         B = Ts.sblock_alloc_buffer([128], dtype="int8", scope="global.vtcm")
         for i in T.serial(128):
             with Ts.sblock("B"):
@@ -71,9 +71,9 @@ def test_scale_by(primFunc, size):
 
 @Ts.prim_func
 def matmul_mix_scope(
-    A: T.Buffer([128, 128], scope="global"),
-    B: T.Buffer([128, 128], scope="global"),
-    C: T.Buffer([128, 128], scope="global"),
+    A: T.Tensor([128, 128], scope="global"),
+    B: T.Tensor([128, 128], scope="global"),
+    C: T.Tensor([128, 128], scope="global"),
 ) -> None:
     A_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")
     B_allocated = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="global.texture")

@@ -73,7 +73,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     // Book keep definitions
-    defs_[op->var.get()] = op->value;
+    defs_.insert_or_assign(op->var.get(), op->value);
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -111,7 +111,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   bool IsFromFunctionArgs(const VarNode* var) const {
     const VarNode* V = var;
     for (const Var& param : func_->params) {
-      if (param->ty.as<BufferTypeNode>() && V == param.get()) return true;
+      if (param->ty.as<TensorTypeNode>() && V == param.get()) return true;
     }
 
     while (true) {
@@ -167,7 +167,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   bool in_thread_env_{false};
   std::vector<ffi::String> errs_;
   //@}
-  tirx::PrimFunc func_{nullptr};                   ///< Function to be verified.
+  tirx::PrimFunc func_;                            ///< Function to be verified.
   int dev_type_{kDLCPU};                           ///< Device type
   std::unordered_map<const VarNode*, Expr> defs_;  ///< Variable definitions
 };

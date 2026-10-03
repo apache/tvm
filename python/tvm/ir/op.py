@@ -51,7 +51,7 @@ def _make_op_api(op, module_name):
         ):
             provisional = Call.unchecked(op, operands, attrs=attrs, ty_args=ty_args, span=span)
             ret_ty = reinfer_type(provisional)
-        return Call(op, operands, attrs=attrs, ty_args=ty_args, span=span, ret_ty=ret_ty)
+        return Call(op, operands, attrs=attrs, ty_args=ty_args, span=span, ty=ret_ty)
 
     call.__name__ = op.name.rsplit(".", 1)[-1]
     call.__module__ = module_name
@@ -77,7 +77,8 @@ def _init_op_api(namespace, target_module_name=None):
     ``__tvm_op__ = Op.get(name)`` to retain ownership of that name. This declares
     identity, not semantic equivalence: the wrapper must accept printed calls
     or have an appropriate exceptional printer hook. Other collisions fail
-    before any functions are installed. Returns None.
+    before any functions are installed. Script namespaces separately publish
+    their callable names to the printer after initialization. Returns None.
     """
     if not namespace or any(
         not part.isidentifier() or keyword.iskeyword(part) for part in namespace.split(".")

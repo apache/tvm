@@ -395,7 +395,7 @@ def test_no_op_for_call_to_tir():
             return x
 
         @Ts.prim_func(private=True)
-        def shape_func(H: T.Buffer(T.int64(4), "int64")):
+        def shape_func(H: T.Tensor(T.int64(4), "int64")):
             H[T.int64(0)] = H[T.int64(0)] + T.int64(1)
 
     Expected = Before

@@ -59,10 +59,10 @@ namespace tirx {
  * by a later buffer's shape (batch_size).  Separating definitions from
  * checks guarantees all variables are in scope when assertions reference them.
  *
- * - init_nest: Binds, DeclBuffers for shape/strides arrays, AttrStmts —
+ * - init_nest: Binds, DeclTensors for shape/strides arrays, AttrStmts —
  *   all value-loading code that defines variables.
  * - asserts: AssertStmts — all validation checks.
- * - decl_buffers: DeclBuffer for buffer-typed parameters — buffer declarations.
+ * - decl_buffers: DeclTensor for buffer-typed parameters — buffer declarations.
  *
  * ## Calling Protocol
  *
@@ -96,7 +96,7 @@ class TVMFFIABIBuilder {
   struct Result {
     /*! \brief Var -> VarDefInfo map for defined variables. */
     std::unordered_map<const VarNode*, VarDefInfo> var_defs;
-    /*! \brief Variable definitions (Binds, shape/strides DeclBuffers, AttrStmts). */
+    /*! \brief Variable definitions (Binds, shape/strides DeclTensors, AttrStmts). */
     std::vector<Stmt> init_nest;
     /*! \brief Validation checks (all AssertStmts). */
     std::vector<Stmt> asserts;
@@ -385,7 +385,7 @@ class TVMFFIABIBuilder {
 
   /*! \brief The definition map: VarNode* -> VarDefInfo (value + first_def_path). */
   std::unordered_map<const VarNode*, VarDefInfo> var_defs_;
-  /*! \brief Variable definitions: Binds, shape/strides DeclBuffers, AttrStmts. */
+  /*! \brief Variable definitions: Binds, shape/strides DeclTensors, AttrStmts. */
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
   std::vector<Stmt> asserts_;
@@ -415,7 +415,7 @@ class TVMFFIABIBuilder {
   std::unordered_map<int, std::string> param_names_;
 
   // Pre-cached common message fragments for string sharing across assertions
-  StringImm sig_imm_;  // func_signature_ (set in constructor)
+  StringImm sig_imm_{ffi::UnsafeInit{}};  // func_signature_ (set in constructor)
   StringImm when_calling_imm_ = StringImm(" when calling:\n  `");
   /*! \brief Whether to emit data pointer alignment checks (disabled for now). */
   bool check_alignment_ = false;

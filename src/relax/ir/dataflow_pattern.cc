@@ -125,8 +125,7 @@ RELAX_PATTERN_PRINTER_DEF(GlobalVarPatternNode, [](auto p, auto node) {
 });
 
 ExprPattern::ExprPattern(Expr expr) {
-  ffi::ObjectPtr<ExprPatternNode> n = ffi::make_object<ExprPatternNode>();
-  n->expr = std::move(expr);
+  ffi::ObjectPtr<ExprPatternNode> n = ffi::make_object<ExprPatternNode>(std::move(expr));
   data_ = std::move(n);
 }
 

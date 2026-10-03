@@ -278,7 +278,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       TVM_FFI_ICHECK(!var_binding->var->ty.IsMissing());
       TVM_FFI_ICHECK(!var_binding->value->ty.IsMissing());
       cur_frame->bindings.push_back(binding);
-      binding_table_[var_binding->var] = var_binding->value;
+      binding_table_.insert_or_assign(var_binding->var, var_binding->value);
     } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
       if (!cur_frame->is_dataflow) {
         TVM_FFI_ICHECK(!match_cast->var.as<DataflowVarNode>())
@@ -395,7 +395,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     CurrentBindingBlockFrame()->bindings.push_back(VarBinding(var, expr));
 
     // update the binding table
-    binding_table_[var] = expr;
+    binding_table_.insert_or_assign(var, expr);
 
     return var;
   }
@@ -565,7 +565,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       Var var = this->Emit(post, "");
       // NOTE: current frame addr can change due to underlying vector
       // re-allocation, redo lookup
-      CurrentBindingBlockFrame()->normalize_binding_map[arg] = var;
+      CurrentBindingBlockFrame()->normalize_binding_map.insert_or_assign(arg, var);
       return var;
     } else {
       return post;
@@ -655,12 +655,13 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     ffi::Array<Expr> new_args =
         op->args.Map([this](const Expr& arg) { return NormalizeArgument(arg); });
 
-    Call call;
-    if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
-      call = ffi::GetRef<Call>(op);
-    } else {
-      call = Call::Unchecked(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
-    }
+    Call call = [&]() -> Call {
+      if (new_op.same_as(op->op) && new_args.same_as(op->args)) {
+        return ffi::GetRef<Call>(op);
+      } else {
+        return Call::Unchecked(Type::Missing(), new_op, new_args, op->attrs, op->ty_args);
+      }
+    }();
 
     if (call->ty.IsMissing()) {
       auto inferred_ty = InferType(call);
@@ -722,12 +723,13 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     ffi::Array<BindingBlock> normalized_blocks = NormalizeBlocks(new_blocks);
     unchanged &= normalized_blocks.same_as(new_blocks);
 
-    SeqExpr seq_expr;
-    if (unchanged) {
-      seq_expr = ffi::GetRef<SeqExpr>(op);
-    } else {
-      seq_expr = SeqExpr(normalized_blocks, new_body, op->span);
-    }
+    SeqExpr seq_expr = [&]() -> SeqExpr {
+      if (unchanged) {
+        return ffi::GetRef<SeqExpr>(op);
+      } else {
+        return SeqExpr(normalized_blocks, new_body, op->span);
+      }
+    }();
 
     // only do shape/type inference if the SeqExpr does not have shape/type
     if (seq_expr->ty.IsMissing()) {
@@ -741,13 +743,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     Expr new_true = this->VisitWithNewScope(op->true_branch);
     Expr new_false = this->VisitWithNewScope(op->false_branch);
 
-    If if_node;
-    if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
-        new_false.same_as(op->false_branch)) {
-      if_node = ffi::GetRef<If>(op);
-    } else {
-      if_node = If(new_cond, new_true, new_false, op->span);
-    }
+    If if_node = [&]() -> If {
+      if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
+          new_false.same_as(op->false_branch)) {
+        return ffi::GetRef<If>(op);
+      } else {
+        return If(new_cond, new_true, new_false, op->span);
+      }
+    }();
     if (if_node->ty.IsMissing()) {
       auto true_info = EraseToWellDefinedInScope(GetType(new_true));
       auto false_info = EraseToWellDefinedInScope(GetType(new_false));
@@ -895,31 +898,30 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       this->BeginInnerScope();
     }
 
-    Expr ret;
+    Expr ret = [&]() -> Expr {
+      // SeqExpr do not need to prepare for normalization.
+      if (expr.as<SeqExprNode>()) {
+        return this->VisitExpr(expr);
+      } else {
+        this->BeginBindingBlock();
+        Expr post = this->NormalizeArgument(expr);
+        BindingBlock prologue = this->EndBlock();
+        // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
+        // Don't wrap if it's already a seq and there are no bindings to add
+        if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
+          return post;
+        }
+        ffi::Array<BindingBlock> bindings;
+        if (!prologue->bindings.empty()) {
+          bindings.push_back(prologue);
+        }
 
-    // SeqExpr do not need to prepare for normalization.
-    if (expr.as<SeqExprNode>()) {
-      ret = this->VisitExpr(expr);
-    } else {
-      this->BeginBindingBlock();
-      Expr post = this->NormalizeArgument(expr);
-      BindingBlock prologue = this->EndBlock();
-      // "New scopes" (function bodies, if/else clauses) must be wrapped in seq exprs.
-      // Don't wrap if it's already a seq and there are no bindings to add
-      if (post.as<SeqExprNode>() && prologue->bindings.empty()) {
-        return post;
+        SeqExpr seq(bindings, post);
+        UpdateType(seq, EraseToWellDefinedInScope(GetType(seq->body)));
+
+        return seq;
       }
-      ffi::Array<BindingBlock> bindings;
-      if (!prologue->bindings.empty()) {
-        bindings.push_back(prologue);
-      }
-
-      SeqExpr seq(bindings, post);
-      UpdateType(seq, EraseToWellDefinedInScope(GetType(seq->body)));
-
-      ret = seq;
-    }
-
+    }();
     this->EndScope();
     return ret;
   }
@@ -934,14 +936,16 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       bool is_dataflow = block->IsInstance<DataflowBlockNode>();
       ffi::Array<Binding> current;
       for (const Binding& binding : block->bindings) {
-        Expr value;
-        if (const auto* var_binding = binding.as<VarBindingNode>()) {
-          value = var_binding->value;
-        } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
-          value = match_cast->value;
-        } else {
-          TVM_FFI_THROW(InternalError) << "Unknown binding type: " << binding->GetTypeKey();
-        }
+        Expr value = [&]() -> Expr {
+          if (const auto* var_binding = binding.as<VarBindingNode>()) {
+            return var_binding->value;
+          } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
+            return match_cast->value;
+          } else {
+            TVM_FFI_THROW(InternalError) << "Unknown binding type: " << binding->GetTypeKey();
+            throw;
+          }
+        }();
         // if we encounter a nested seq, we have to flatten it:
         //   1. Append the binding block we've accumulated so far
         //   2. Reset the current block
@@ -995,6 +999,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
             current.push_back(MatchCast(match_cast->var, seq->body, match_cast->ty));
           } else {
             TVM_FFI_THROW(InternalError) << "Unknown binding type: " << binding->GetTypeKey();
+            throw;
           }
         } else {
           current.push_back(binding);

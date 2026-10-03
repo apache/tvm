@@ -48,7 +48,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
-  DeclBufferFrameNode::RegisterReflection();
+  DeclTensorFrameNode::RegisterReflection();
 }
 
 namespace {
@@ -105,7 +105,8 @@ void PrimFuncFrameNode::ExitWithScope() {
   }
   TVM_FFI_CHECK(!is_declaration || stmts.empty(), ValueError)
       << "A function declaration cannot contain body statements";
-  tvm::tirx::Stmt body = is_declaration ? tvm::tirx::Stmt() : AsStmt(stmts);
+  ffi::Optional<tvm::tirx::Stmt> body = std::nullopt;
+  if (!is_declaration) body = AsStmt(stmts);
   tvm::tirx::PrimFunc func(
       /*params=*/args,
       /*body=*/body,
@@ -238,10 +239,11 @@ void IfFrameNode::ExitWithScope() {
   if (!then_stmts.has_value()) {
     TVM_FFI_THROW(InternalError) << "IfThenElse frame should have at least one then branch";
   }
-  AddToParent(tvm::tirx::IfThenElse(
-                  condition, AsStmt(then_stmts.value()),
-                  else_stmts.has_value() ? AsStmt(else_stmts.value()) : tvm::tirx::Stmt(nullptr),
-                  source_span),
+  AddToParent(tvm::tirx::IfThenElse(condition, AsStmt(then_stmts.value()),
+                                    else_stmts.has_value()
+                                        ? ffi::Optional<tvm::tirx::Stmt>(AsStmt(else_stmts.value()))
+                                        : std::nullopt,
+                                    source_span),
               source_span);
 }
 
@@ -276,13 +278,14 @@ void ElseFrameNode::ExitWithScope() {
   FindIfFrame("T.else_")->else_stmts = stmts;
 }
 
-void DeclBufferFrameNode::ExitWithScope() {
+void DeclTensorFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   if (allocated) {
+    TVM_FFI_ICHECK(data.has_value());
     AddToParent(tvm::tirx::SeqStmt::Flatten(
                     tvm::tirx::Bind(buffer,
-                                    tvm::Call(buffer.type(), tvm::tirx::builtin::decl_buffer(),
-                                              {data, tvm::Tuple(buffer->shape),
+                                    tvm::Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
+                                              {data.value(), tvm::Tuple(buffer->shape),
                                                tvm::DataTypeImm(buffer->dtype->dtype),
                                                tvm::StringImm(buffer.scope())},
                                               {}, {}, source_span),
@@ -290,11 +293,11 @@ void DeclBufferFrameNode::ExitWithScope() {
                     AsStmt(stmts)),
                 source_span);
   } else {
-    // data is undefined in `decl_buffer(...)`, lower to `alloc_buffer(...)`.
+    // data is undefined in `decl_tensor(...)`, lower to `alloc_tensor(...)`.
     AddToParent(
         tvm::tirx::SeqStmt::Flatten(
             tvm::tirx::Bind(buffer.var(),
-                            Call(buffer.type(), tvm::tirx::builtin::alloc_buffer(),
+                            Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
                                  {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
                                   StringImm(buffer.scope())},
                                  DictAttrs(), {}, source_span),

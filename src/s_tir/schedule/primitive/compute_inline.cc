@@ -255,7 +255,7 @@ class NonSingleProducerError : public ScheduleErrorContextObj {
 class OpaqueAccessError : public ScheduleErrorContextObj {
  public:
   explicit OpaqueAccessError(IRModule mod, StmtSRef scope_root_sref)
-      : mod_(mod), scope_root_(nullptr) {
+      : mod_(mod), scope_root_(ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(scope_root_sref))) {
     const SBlockNode* scope_root = TVM_SREF_TO_SBLOCK(scope_root_sref);
     this->scope_root_ = ffi::GetRef<SBlock>(scope_root);
   }
@@ -411,7 +411,7 @@ class BaseInliner : public StmtExprMutator {
 
   /*!
    * \brief Update the following block signature:
-   * 1) T.alloc_buffer, if the block is scope root
+   * 1) T.alloc_tensor, if the block is scope root
    * 2) T.reads, if the block is not scope root
    * 3) T.writes, if the block is not scope root
    * \param block The block to be updated
@@ -423,9 +423,9 @@ class BaseInliner : public StmtExprMutator {
     ffi::Array<BufferVar> alloc_buffers;
     if (is_scope_root) {
       alloc_buffers.reserve(block->alloc_buffers.size());
-      for (const BufferVar& alloc_buffer : block->alloc_buffers) {
-        if (!alloc_buffer.same_as(inlined_buffer_)) {
-          alloc_buffers.push_back(alloc_buffer);
+      for (const BufferVar& alloc_tensor : block->alloc_buffers) {
+        if (!alloc_tensor.same_as(inlined_buffer_)) {
+          alloc_buffers.push_back(alloc_tensor);
         }
       }
     } else {
@@ -480,7 +480,7 @@ class BaseInliner : public StmtExprMutator {
 
  protected:
   /*! \brief The buffer to be inlined */
-  BufferVar inlined_buffer_{nullptr};
+  BufferVar inlined_buffer_;
   /*! \brief The body of the block to be inlined */
   const BufferStoreNode* inlined_store_{nullptr};
   /*! \brief The scope root */
@@ -496,9 +496,9 @@ class BaseInliner : public StmtExprMutator {
    * \note The pair (src_stmt, tgt_stmt) are produced by LeafBlockRemovalPlan to indicate a
    * transformation on top of the input AST. We take this approach to avoid changing the AST twice
    */
-  Stmt src_stmt{nullptr};
+  Stmt src_stmt{ffi::UnsafeInit{}};
   /*! \brief The Stmt to be replaced to when removing the leaf block */
-  Stmt tgt_stmt{nullptr};
+  Stmt tgt_stmt{ffi::UnsafeInit{}};
   /*! \brief The reuse mapping of block srefs */
   ffi::Map<SBlock, SBlock> block_reuse;
   /*! \brief Indicates if there is any opaque access of the inlined buffer */
@@ -569,9 +569,10 @@ class ComputeInliner : public BaseInliner {
       // Failure: indices of BufferStore are not bijective affine
       return false;
     }
-    idx_vars_.resize(buffer_ndim);
-    for (size_t i = 0; i < idx_vars_.size(); ++i) {
-      idx_vars_[i] = Var("ph_" + std::to_string(i), inlined_store_->indices[i].ty());
+    idx_vars_.clear();
+    idx_vars_.reserve(buffer_ndim);
+    for (size_t i = 0; i < buffer_ndim; ++i) {
+      idx_vars_.emplace_back("ph_" + std::to_string(i), inlined_store_->indices[i].ty());
     }
     ffi::Array<PrimExpr> prim_idx_vars;
     prim_idx_vars.reserve(idx_vars_.size());
@@ -618,7 +619,7 @@ class ComputeInliner : public BaseInliner {
   /*! \brief The store value for inlinement. If the producer
    store indices are trivial, it is wrt the producer block iter var,
    otherwise it is wrt to the placeholder vars of store indices. */
-  PrimExpr store_value_;
+  PrimExpr store_value_{ffi::UnsafeInit{}};
 };
 
 /*!
@@ -950,7 +951,7 @@ class ReverseComputeInliner : public BaseInliner {
   }
 
   /*! \brief The RHS value of the producer's BufferStore statement */
-  PrimExpr producer_rhs_{nullptr};
+  PrimExpr producer_rhs_{ffi::UnsafeInit{}};
   /*! \brief The indices of the consumer's BufferLoad */
   ffi::Array<PrimExpr> buffer_load_indices_;
   /*! \brief The IterMap representing the indices of the consumer's BufferLoad */
@@ -962,7 +963,7 @@ class ReverseComputeInliner : public BaseInliner {
   /*! \brief The predicate to ensure the consumer block iters are in-bound. It will be inserted
    * as the predicate of the producer block after inlining.
    */
-  PrimExpr consumer_iter_in_bound_{nullptr};
+  PrimExpr consumer_iter_in_bound_{ffi::UnsafeInit{}};
   /*! \brief The arithmetic analyzer */
   sym::Analyzer analyzer_;
 };
@@ -1125,7 +1126,7 @@ class ReductionEpilogueFuser : public BaseInliner {
         // Continue visiting child nodes (indices)
         return StmtExprVisitor::Visit_(load);
       }
-      BufferVar buffer;
+      BufferVar buffer{ffi::UnsafeInit{}};
       std::vector<const TensorLoadNode*> result;
     };
     auto extractor = ffi::make_object<Extractor>();
@@ -1143,14 +1144,14 @@ class ReductionEpilogueFuser : public BaseInliner {
   const SBlockNode* epilogue_block_;
   // Generalized approach: store the entire epilogue expression
   PrimExpr epilogue_expression_{
-      nullptr};  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
+      ffi::UnsafeInit{}};  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
   const TensorLoadNode* reduction_buffer_load_{
-      nullptr};                                // The reduction buffer load in epilogue expression
-  BufferVar epilogue_output_buffer_{nullptr};  // Output buffer D
+      nullptr};  // The reduction buffer load in epilogue expression
+  BufferVar epilogue_output_buffer_{ffi::UnsafeInit{}};    // Output buffer D
   ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
-  TensorRegion epilogue_output_region_{nullptr};           // Write region of D
-  BufferVar epilogue_addend_buffer_{nullptr};     // Additional buffer (e.g., bias buffer C)
-  TensorRegion epilogue_addend_region_{nullptr};  // Read region of additional buffer
+  ffi::Optional<TensorRegion> epilogue_output_region_;     // Write region of D
+  ffi::Optional<BufferVar> epilogue_addend_buffer_;     // Additional buffer (e.g., bias buffer C)
+  ffi::Optional<TensorRegion> epilogue_addend_region_;  // Read region of additional buffer
 };
 
 bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogue_block_realize) {
@@ -1317,7 +1318,7 @@ void ReductionEpilogueFuser::ExtractEpilogueInfo() {
       }
       return StmtExprVisitor::Visit_(load);
     }
-    BufferVar reduction_buffer;
+    BufferVar reduction_buffer{ffi::UnsafeInit{}};
     std::unordered_set<const VarNode*> other_buffers;
   };
   auto extractor = ffi::make_object<BufferExtractor>();
@@ -1363,7 +1364,7 @@ SBlock ReductionEpilogueFuser::CreateFusedReductionBlock(
 
   std::unordered_map<Var, Var> var_map;
   for (size_t i = 0; i < reduction_data_vars.size(); ++i) {
-    var_map[epilogue_data_vars[i]] = reduction_data_vars[i];
+    var_map.insert_or_assign(epilogue_data_vars[i], reduction_data_vars[i]);
   }
   auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto it = var_map.find(var); it != var_map.end()) {

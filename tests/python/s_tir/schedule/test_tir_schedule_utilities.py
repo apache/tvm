@@ -35,7 +35,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])) -> None:
+def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
             vi, vj = Ts.axis.remap("SS", [i, j])
@@ -48,7 +48,7 @@ def matmul(A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 1
 
 @Ts.prim_func
 def matmul_relu(
-    A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024)), D: T.Buffer((1024, 1024))
+    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
 ) -> None:
     C = Ts.sblock_alloc_buffer((1024, 1024))
 
@@ -66,7 +66,7 @@ def matmul_relu(
 
 @Ts.prim_func
 def matmul_relu_ann1(
-    A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024)), D: T.Buffer((1024, 1024))
+    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
 ) -> None:
     C = Ts.sblock_alloc_buffer((1024, 1024))
 
@@ -86,7 +86,7 @@ def matmul_relu_ann1(
 
 @Ts.prim_func
 def matmul_relu_ann2(
-    A: T.Buffer((1024, 1024)), B: T.Buffer((1024, 1024)), D: T.Buffer((1024, 1024))
+    A: T.Tensor((1024, 1024)), B: T.Tensor((1024, 1024)), D: T.Tensor((1024, 1024))
 ) -> None:
     C = Ts.sblock_alloc_buffer((1024, 1024))
 
@@ -108,8 +108,8 @@ def matmul_relu_ann2(
 class ModuleWithMultipleFuncs:
     @Ts.prim_func
     def vector_add(
-        A: T.Buffer(128, "float32"),
-        B: T.Buffer(128, "float32"),
+        A: T.Tensor(128, "float32"),
+        B: T.Tensor(128, "float32"),
     ) -> None:
         for i in range(128):
             with Ts.sblock("init"):
@@ -118,8 +118,8 @@ class ModuleWithMultipleFuncs:
 
     @Ts.prim_func
     def vector_add_2(
-        A: T.Buffer(128, "float32"),
-        B: T.Buffer(128, "float32"),
+        A: T.Tensor(128, "float32"),
+        B: T.Tensor(128, "float32"),
     ) -> None:
         for i in range(128):
             with Ts.sblock("init"):
@@ -128,7 +128,7 @@ class ModuleWithMultipleFuncs:
 
 
 @Ts.prim_func
-def tuple_reduction(data: T.Buffer((4, 32), "float32"), T_add: T.Buffer((4,), "float32")) -> None:
+def tuple_reduction(data: T.Tensor((4, 32), "float32"), T_add: T.Tensor((4,), "float32")) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body
@@ -389,8 +389,8 @@ def test_get_output_blocks_multiple_outputs():
 def test_get_output_blocks_nested():
     @Ts.prim_func
     def blockized(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
     ) -> None:
         with Ts.sblock("blockized_B"):
             vio = Ts.axis.spatial(1, 0)

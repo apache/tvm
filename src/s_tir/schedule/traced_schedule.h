@@ -50,7 +50,7 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   /******** Schedule: Sampling ********/
   ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates, const ffi::Array<FloatImm>& probs,
                            ffi::Optional<int64_t> decision = std::nullopt) final;
-  ffi::Array<ExprRV> SamplePerfectTile(
+  ffi::Array<ffi::Optional<ExprRV>> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
       ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) final;
   ffi::Array<ExprRV> SamplePartitionedTile(

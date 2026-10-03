@@ -28,7 +28,7 @@ from tvm.target import Target
 def test_matmul_tensorize():
     # fmt: off
     @Ts.prim_func(private=True)
-    def before(X: T.Buffer((256, 256), "float16"), W: T.Buffer((256, 256), "float16"), compute: T.Buffer((256, 256), "float16")):
+    def before(X: T.Tensor((256, 256), "float16"), W: T.Tensor((256, 256), "float16"), compute: T.Tensor((256, 256), "float16")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         for i, j, k in T.grid(256, 256, 256):
@@ -62,7 +62,7 @@ def test_matmul_tensorize():
     C_3_s1 = T.dynamic("C_3_s1", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(X: T.Buffer((256, 256), "float16"), W: T.Buffer((256, 256), "float16"), compute: T.Buffer((256, 256), "float16")):
+    def expected(X: T.Tensor((256, 256), "float16"), W: T.Tensor((256, 256), "float16"), compute: T.Tensor((256, 256), "float16")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with Ts.sblock("root"):
         X_reindex_shared_dyn = Ts.sblock_alloc_buffer((1, 256, 256), "float16", scope="shared.dyn")
@@ -190,7 +190,7 @@ def test_matmul_tensorize_too_small():
     m = T.dynamic("m", "int32")
 
     @Ts.prim_func(private=True)
-    def before(X: T.Buffer((m, 256), 'float16'), W: T.Buffer((15, 256), "float16"), compute: T.Buffer((m, 15))):
+    def before(X: T.Tensor((m, 256), 'float16'), W: T.Tensor((15, 256), "float16"), compute: T.Tensor((m, 15))):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -206,7 +206,7 @@ def test_matmul_tensorize_too_small():
     m = T.dynamic("m", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(X: T.Buffer((m, 256), 'float16'), W: T.Buffer((15, 256), "float16"), compute: T.Buffer((m, 15))):
+    def expected(X: T.Tensor((m, 256), 'float16'), W: T.Tensor((15, 256), "float16"), compute: T.Tensor((m, 15))):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -286,7 +286,7 @@ def test_matmul_tensorize_epilogue():
     n = T.dynamic("n", "int32")
 
     @Ts.prim_func(private=True)
-    def before(lv686: T.Buffer((T.int32(4096), T.int32(256)), "uint32"), lv687: T.Buffer((T.int32(4096), T.int32(64)), "float16"), lv42: T.Buffer((T.int32(1), n, T.int32(2048)), 'float16'), lv3: T.Buffer((T.int32(1), n, T.int32(4096)), 'float16'), p_output0_intermediate: T.Buffer((T.int32(1), n, T.int32(4096)), 'float16')):
+    def before(lv686: T.Tensor((T.int32(4096), T.int32(256)), "uint32"), lv687: T.Tensor((T.int32(4096), T.int32(64)), "float16"), lv42: T.Tensor((T.int32(1), n, T.int32(2048)), 'float16'), lv3: T.Tensor((T.int32(1), n, T.int32(4096)), 'float16'), p_output0_intermediate: T.Tensor((T.int32(1), n, T.int32(4096)), 'float16')):
         T.func_attr({"tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -343,7 +343,7 @@ def test_matmul_tensorize_epilogue():
     C_3_s1 = T.dynamic("C_3_s1", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(lv686: T.Buffer((4096, 256), "uint32"), lv687: T.Buffer((4096, 64), "float16"), lv42: T.Buffer((1, n, 2048), 'float16'), lv3: T.Buffer((1, n, 4096), 'float16'), p_output0_intermediate: T.Buffer((1, n, 4096), 'float16')):
+    def expected(lv686: T.Tensor((4096, 256), "uint32"), lv687: T.Tensor((4096, 64), "float16"), lv42: T.Tensor((1, n, 2048), 'float16'), lv3: T.Tensor((1, n, 4096), 'float16'), p_output0_intermediate: T.Tensor((1, n, 4096), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -470,7 +470,7 @@ def test_matmul_tensorize_epilogue():
 def test_matmul_int8_tensorize():
     # fmt: off
     @Ts.prim_func(private=True)
-    def before(X: T.Buffer((256, 256), "int8"), W: T.Buffer((256, 256), "int8"), compute: T.Buffer((256, 256), "int32")):
+    def before(X: T.Tensor((256, 256), "int8"), W: T.Tensor((256, 256), "int8"), compute: T.Tensor((256, 256), "int32")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         for i, j, r in T.grid(256, 256, 256):
@@ -504,7 +504,7 @@ def test_matmul_int8_tensorize():
     C_3_s1 = T.dynamic("C_3_s1", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(X: T.Buffer((256, 256), "int8"), W: T.Buffer((256, 256), "int8"), compute: T.Buffer((256, 256), "int32")):
+    def expected(X: T.Tensor((256, 256), "int8"), W: T.Tensor((256, 256), "int8"), compute: T.Tensor((256, 256), "int32")):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
         # with Ts.sblock("root"):
         X_reindex_shared_dyn = Ts.sblock_alloc_buffer((1, 256, 256), "int8", scope="shared.dyn")
@@ -631,7 +631,7 @@ def test_matmul_int8_tensorize_3d2d_dyn():
     m = T.dynamic("m", "int32")
 
     @Ts.prim_func(private=True)
-    def before(A: T.Buffer((1, m, 22016), 'int8'), B: T.Buffer((4096, 22016), "int8"), matmul_1: T.Buffer((1, m, 4096), 'int32')):
+    def before(A: T.Tensor((1, m, 22016), 'int8'), B: T.Tensor((4096, 22016), "int8"), matmul_1: T.Tensor((1, m, 4096), 'int32')):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -667,7 +667,7 @@ def test_matmul_int8_tensorize_3d2d_dyn():
     C_3_s1 = T.dynamic("C_3_s1", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(A: T.Buffer((1, m, 22016), 'int8'), B: T.Buffer((4096, 22016), "int8"), matmul_1: T.Buffer((1, m, 4096), 'int32')):
+    def expected(A: T.Tensor((1, m, 22016), 'int8'), B: T.Tensor((4096, 22016), "int8"), matmul_1: T.Tensor((1, m, 4096), 'int32')):
         T.func_attr({"op_pattern": 4, "tirx.is_scheduled": True, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -797,9 +797,9 @@ def test_matmul_metal():
 
     @Ts.prim_func(private=True)
     def before(
-        A: T.Buffer((batch_size, 1, 4096), 'float16'),
-        B: T.Buffer((28672, 4096), "float16"),
-        C: T.Buffer((batch_size, 1, 28672), 'float16'),
+        A: T.Tensor((batch_size, 1, 4096), 'float16'),
+        B: T.Tensor((28672, 4096), "float16"),
+        C: T.Tensor((batch_size, 1, 28672), 'float16'),
     ):
 
         for i0, i1, i2, k in T.grid(batch_size, 1, 28672, 4096):
@@ -833,7 +833,7 @@ def test_matmul_metal():
     C_2_s1 = T.dynamic("C_2_s1", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(A: T.Buffer((batch_size, 1, 4096), 'float16'), B: T.Buffer((28672, 4096), "float16"), C: T.Buffer((batch_size, 1, 28672), 'float16')):
+    def expected(A: T.Tensor((batch_size, 1, 4096), 'float16'), B: T.Tensor((28672, 4096), "float16"), C: T.Tensor((batch_size, 1, 28672), 'float16')):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):
@@ -952,10 +952,10 @@ def test_matmul_metal_int4_quant():
 
     @Ts.prim_func(private=True)
     def before(
-        B0: T.Buffer((28672, 512), "uint32"),
-        B1: T.Buffer((28672, 128), "float16"),
-        A: T.Buffer((batch_size, 1, 4096), 'float16'),
-        C: T.Buffer((batch_size, 1, 28672), 'float16')
+        B0: T.Tensor((28672, 512), "uint32"),
+        B1: T.Tensor((28672, 128), "float16"),
+        A: T.Tensor((batch_size, 1, 4096), 'float16'),
+        C: T.Tensor((batch_size, 1, 28672), 'float16')
     ):
 
         compute = Ts.sblock_alloc_buffer((28672, 4096), "float16")
@@ -998,7 +998,7 @@ def test_matmul_metal_int4_quant():
     C_2_s1 = T.dynamic("C_2_s1", "int32")
 
     @Ts.prim_func(private=True)
-    def expected(B0: T.Buffer((28672, 512), "uint32"), B1: T.Buffer((28672, 128), "float16"), A: T.Buffer((batch_size, 1, 4096), 'float16'), C: T.Buffer((batch_size, 1, 28672), 'float16')):
+    def expected(B0: T.Tensor((28672, 512), "uint32"), B1: T.Tensor((28672, 128), "float16"), A: T.Tensor((batch_size, 1, 4096), 'float16'), C: T.Tensor((batch_size, 1, 28672), 'float16')):
         T.func_attr({"tirx.is_scheduled": True})
 
         # with Ts.sblock("root"):

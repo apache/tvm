@@ -161,7 +161,7 @@ ExprDoc CallAttrsValue(DocTranslatorObj* d, const Attrs& attrs) {
 }  // namespace
 
 // The explicit fallback retains every field, including typed attribute objects.
-ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call, bool infer_result,
+ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call,
                 ffi::Optional<ffi::Array<ExprDoc>> translated_args) {
   ffi::Optional<Op> op = call->op.as<Op>();
   ffi::Array<ExprDoc> args;
@@ -188,11 +188,12 @@ ExprDoc RawCall(DocTranslatorObj* d, const CallNode* call, bool infer_result,
     keys.push_back("ty_args");
     values.push_back(ListDoc(types));
   }
-  if (!infer_result) {
-    keys.push_back("ty");
-    values.push_back(TypeValue(d, call->ty));
-  }
-  return NamespaceDoc("ir")->Attr("Call")->Call({callee, ListDoc(args)}, keys, values);
+  keys.push_back("ty");
+  values.push_back(TypeValue(d, call->ty));
+  return NamespaceDoc("ir")
+      ->Attr("Call")
+      ->Attr("unchecked")
+      ->Call({callee, ListDoc(args)}, keys, values);
 }
 
 // The query aliases the active frame; candidate classification must own a copy.

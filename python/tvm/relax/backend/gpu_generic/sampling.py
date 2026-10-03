@@ -102,8 +102,8 @@ def gpu_multinomial_from_uniform(
     def block_cumsum(
         ty: T.int64,
         tx: T.int64,
-        source_local: T.Buffer,
-        output_shared: T.Buffer,
+        source_local: T.Tensor,
+        output_shared: T.Tensor,
     ):
         """cumsum inside block (SM)"""
         # Inclusive scan inside thread
@@ -136,8 +136,8 @@ def gpu_multinomial_from_uniform(
     def block_adjacent_difference_left(
         ty: T.int64,
         tx: T.int64,
-        source_local: T.Buffer,
-        output_local: T.Buffer,
+        source_local: T.Tensor,
+        output_local: T.Tensor,
     ):
         with Ts.sblock():
             shared_buf = Ts.sblock_alloc_buffer((TX * TY,), "bool", scope="shared")
@@ -162,11 +162,11 @@ def gpu_multinomial_from_uniform(
         ty: T.int64,
         tx: T.int64,
         init_value,
-        data_local: T.Buffer,
-        output_local: T.Buffer,
+        data_local: T.Tensor,
+        output_local: T.Tensor,
         dtype: str,
         reduce_op: Callable,  # T.macro
-        mask_local: T.Buffer | None = None,
+        mask_local: T.Tensor | None = None,
     ):
         with Ts.sblock():
             local_sum = Ts.sblock_alloc_buffer((), dtype, scope="local")
@@ -265,10 +265,10 @@ def gpu_multinomial_from_uniform(
 
     @Ts.prim_func
     def parallel_sampling_from_prob(
-        prob: T.Buffer((n, vocab_size), prob_dtype),
-        uniform_samples: T.Buffer((batch_size, 1), sample_dtype),
-        row_indices: T.Buffer((batch_size, 1), sample_indices_dtype),
-        token_ids: T.Buffer((batch_size, 1), dtype),
+        prob: T.Tensor((n, vocab_size), prob_dtype),
+        uniform_samples: T.Tensor((batch_size, 1), sample_dtype),
+        row_indices: T.Tensor((batch_size, 1), sample_indices_dtype),
+        token_ids: T.Tensor((batch_size, 1), dtype),
     ):
         T.func_attr({"tirx.is_scheduled": True})
         # match buffers
@@ -324,10 +324,10 @@ def generic_get_sample_index(
 
     @Ts.prim_func(private=True)
     def _get_sample_index(
-        prob: T.Buffer((batch, vocab_size), prob_dtype),
-        usample: T.Buffer((out_batch, 1), sample_dtype),
-        sample_indices: T.Buffer((out_batch, 1), sample_indices_dtype),
-        output_index: T.Buffer((out_batch, 1), dtype),
+        prob: T.Tensor((batch, vocab_size), prob_dtype),
+        usample: T.Tensor((out_batch, 1), sample_dtype),
+        sample_indices: T.Tensor((out_batch, 1), sample_indices_dtype),
+        output_index: T.Tensor((out_batch, 1), dtype),
     ):
         for ax0, ax1 in T.grid(out_batch, vocab_size):
             with Ts.sblock("T_get_sample_index"):

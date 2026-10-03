@@ -28,7 +28,7 @@ from tvm.tirx.expr import FloatImm, IntImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
 
 from . import _ffi_api
-from .ir import decl_buffer, meta_class
+from .ir import decl_tensor, meta_class
 
 
 def _normalize_scope(scope) -> ExecScope:
@@ -1700,7 +1700,7 @@ def reshape(buffer: Buffer, shape: list[Expr]):
             + " are not compatible"
         )
 
-    return decl_buffer(
+    return decl_tensor(
         shape,
         buffer.ty.dtype,
         buffer_data(buffer),

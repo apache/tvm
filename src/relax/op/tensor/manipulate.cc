@@ -436,19 +436,15 @@ Type InferTypeExpandDims(const CallNode* call_node) {
   }
 
   std::vector<PrimExpr> output_shape;
-  output_shape.resize(output_ndim, PrimExpr());
-  for (int i = 0; i < n_new_dim; ++i) {
-    output_shape[axes[i]] = IntImm::Int64(1);
-  }
-
+  output_shape.reserve(output_ndim);
   int i_data_shape = 0;
   for (int i = 0; i < output_ndim; ++i) {
-    if (output_shape[i].defined()) {
-      continue;
+    if (std::find(axes.begin(), axes.end(), i) != axes.end()) {
+      output_shape.push_back(IntImm::Int64(1));
+    } else {
+      TVM_FFI_ICHECK_LT(i_data_shape, data_ty->ndim);
+      output_shape.push_back(data_shape->values[i_data_shape++]);
     }
-    TVM_FFI_ICHECK_LT(i_data_shape, data_ty->ndim);
-    output_shape[i] = data_shape->values[i_data_shape];
-    ++i_data_shape;
   }
   TVM_FFI_ICHECK_EQ(i_data_shape, data_ty->ndim);
   return TensorType(ShapeExpr(output_shape), data_ty->dtype, data_ty->vdevice);
@@ -1120,19 +1116,9 @@ Type InferTypeSplit(const Call& call, const BlockBuilder& ctx) {
 
     std::vector<Type> output_ty;
     for (size_t i = 0; i < p_indices.size() + 1; i++) {
-      PrimExpr left;
-      if (i == 0) {
-        left = zero;
-      } else {
-        left = p_indices[i - 1];
-      }
+      PrimExpr left = i == 0 ? zero : p_indices[i - 1];
 
-      PrimExpr right;
-      if (i < p_indices.size()) {
-        right = p_indices[i];
-      } else {
-        right = data_shape->values[axis];
-      }
+      PrimExpr right = i < p_indices.size() ? p_indices[i] : data_shape->values[axis];
 
       left = tvm::min(tvm::max(left, 0), data_shape->values[axis]);
       right = tvm::min(tvm::max(right, 0), data_shape->values[axis]);

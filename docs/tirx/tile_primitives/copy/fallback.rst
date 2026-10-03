@@ -77,13 +77,13 @@ divisible by ``32``, so this falls through to ``fallback`` (from
 
 
     @Tx.prim_func
-    def kernel(A: Tx.Buffer(shape, dtype), B: Tx.Buffer(shape, dtype)):
+    def kernel(A: Tx.Tensor(shape, dtype), B: Tx.Tensor(shape, dtype)):
 
         Tx.device_entry()
         Tx.cta_id([1])
         Tx.lane_id([32])
         Tx.thread_id([32])
-        A_smem = Tx.alloc_buffer(shape, dtype, scope="shared", layout=s_layout)
+        A_smem = Tx.alloc_tensor(shape, dtype, scope="shared", layout=s_layout)
         Tx.tile.warp.copy(A_smem[full], A[full])  # fallback
         Tx.cuda.cta_sync()
         Tx.tile.warp.copy(B[full], A_smem[full])  # fallback

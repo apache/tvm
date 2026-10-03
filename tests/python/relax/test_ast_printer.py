@@ -448,8 +448,8 @@ def test_call_tir():
     class TestCallTIR:
         @Ts.prim_func
         def addone(
-            A: T.Buffer((m_addone, n_addone), "float32"),
-            B: T.Buffer((m_addone, n_addone), "float32"),
+            A: T.Tensor((m_addone, n_addone), "float32"),
+            B: T.Tensor((m_addone, n_addone), "float32"),
         ) -> None:
             T.func_attr({"global_symbol": "addone"})
             for i, j in T.grid(m_addone, n_addone):

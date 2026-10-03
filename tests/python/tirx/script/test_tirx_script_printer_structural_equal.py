@@ -46,11 +46,11 @@ def test_prim_type_hidden_path_exact_message():
 
 def test_prim_func_buffer_param():
     @T.prim_func
-    def func1(A: T.Buffer((128, 128)), B: T.Buffer((128, 128))):
+    def func1(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))):
         pass
 
     @T.prim_func
-    def func2(A: T.Buffer((128, 128)), B: T.Buffer((128, 256))):
+    def func2(A: T.Tensor((128, 128)), B: T.Tensor((128, 256))):
         pass
 
     func1 = func1.with_attr("global_symbol", "main")
@@ -125,11 +125,11 @@ def test_evaluate():
 def test_allocate():
     @T.prim_func
     def func1():
-        a = T.alloc_buffer((128, 128), dtype="float32")
+        a = T.alloc_tensor((128, 128), dtype="float32")
 
     @T.prim_func
     def func2():
-        a = T.alloc_buffer((256, 128), dtype="float32")
+        a = T.alloc_tensor((256, 128), dtype="float32")
 
     func1 = func1.with_attr("global_symbol", "main")
     func2 = func2.with_attr("global_symbol", "main")

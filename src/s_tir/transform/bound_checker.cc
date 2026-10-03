@@ -81,13 +81,13 @@ class BoundChecker : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
-      return Mutate_AllocBuffer(op, call, inplace_mode);
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
+      return Mutate_AllocTensor(op, call, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_AllocBuffer(const BindNode* op, const CallNode* call,
+  UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
     if (UpdateIsNeeded(op->var.as_or_throw<BufferVar>().var())) {
       tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
@@ -115,12 +115,12 @@ class BoundChecker : public StmtExprMutator {
     }
     // The collector should has at least one item.
     if (store_scope_bound_collector_.size()) {
-      PrimExpr condition = MakeCondition();
-      if (!condition.as<StringImmNode>()) {
+      auto condition = MakeCondition();
+      if (condition.has_value()) {
         Stmt then_case = ffi::GetRef<Stmt>(op);
         Stmt else_case =
-            AssertStmt(condition, StringImm("RuntimeError"), {StringImm(error_message_)});
-        Stmt body = IfThenElse(condition, then_case, else_case);
+            AssertStmt(condition.value(), StringImm("RuntimeError"), {StringImm(error_message_)});
+        Stmt body = IfThenElse(condition.value(), then_case, else_case);
         return body;
       }
     }
@@ -212,8 +212,8 @@ class BoundChecker : public StmtExprMutator {
         std::make_pair(indices, mem_to_shape_[buffer_var.get()]));
   }
 
-  PrimExpr MakeCondition() {
-    PrimExpr condition;
+  ffi::Optional<PrimExpr> MakeCondition() {
+    ffi::Optional<PrimExpr> condition;
     for (const auto& pair : store_scope_bound_collector_) {
       ffi::Array<PrimExpr> indices = pair.first;
       ffi::Array<PrimExpr> shape = pair.second;
@@ -241,7 +241,8 @@ class BoundChecker : public StmtExprMutator {
         PrimExpr lower_bound = IntImm::Int64(0);
 
         PrimExpr current_condition = And(GE(index, lower_bound), LT(index, upper_bound));
-        condition = condition.defined() ? And(condition, current_condition) : current_condition;
+        condition =
+            condition.has_value() ? And(condition.value(), current_condition) : current_condition;
       }
     }
     return condition;

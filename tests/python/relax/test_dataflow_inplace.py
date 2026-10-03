@@ -180,7 +180,7 @@ def test_alias_call_tir():
     class AliasCallTir:
         @Ts.prim_func
         def tir_id(
-            A: T.Buffer((m_tir_id, n_tir_id), "int32"), B: T.Buffer((m_tir_id, n_tir_id), "int32")
+            A: T.Tensor((m_tir_id, n_tir_id), "int32"), B: T.Tensor((m_tir_id, n_tir_id), "int32")
         ) -> None:
             T.func_attr({"global_symbol": "tir_id"})
 
@@ -191,9 +191,9 @@ def test_alias_call_tir():
 
         @Ts.prim_func
         def tir_id2(
-            A: T.Buffer((m_tir_id2, n_tir_id2), "int32"),
-            B: T.Buffer((m_tir_id2, n_tir_id2), "int32"),
-            C: T.Buffer((m_tir_id2, n_tir_id2), "int32"),
+            A: T.Tensor((m_tir_id2, n_tir_id2), "int32"),
+            B: T.Tensor((m_tir_id2, n_tir_id2), "int32"),
+            C: T.Tensor((m_tir_id2, n_tir_id2), "int32"),
         ) -> None:
             T.func_attr({"global_symbol": "tir_id"})
 
@@ -382,8 +382,8 @@ def test_inplace_single_call():
 
     @Ts.prim_func(private=True)
     def expected_add(
-        A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-        B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
+        A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+        B: T.Tensor((T.int64(2), T.int64(3)), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
@@ -401,7 +401,7 @@ def test_inplace_single_call():
     new_add.attrs.inplace_indices == [0]
 
     @Ts.prim_func(private=True)
-    def expected_silu(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+    def expected_silu(A: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"tirx.noalias": True})
         compute = Ts.sblock_alloc_buffer((T.int64(2), T.int64(3)))
         for i0, i1 in T.grid(T.int64(2), T.int64(3)):
@@ -450,8 +450,8 @@ def test_insert_inplace_calls():
     class Expected:
         @Ts.prim_func(private=True)
         def add_inplace(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(1), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
@@ -463,8 +463,8 @@ def test_insert_inplace_calls():
 
         @Ts.prim_func(private=True)
         def multiply_inplace(
-            A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(1), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
@@ -476,8 +476,8 @@ def test_insert_inplace_calls():
 
         @Ts.prim_func(private=True)
         def subtract_inplace(
-            A: T.Buffer((T.int64(1), T.int64(3)), "float32"),
-            B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
+            A: T.Tensor((T.int64(1), T.int64(3)), "float32"),
+            B: T.Tensor((T.int64(1), T.int64(3)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1), T.int64(3)):
@@ -578,7 +578,7 @@ def test_dynamic():
     class Expected:
         @Ts.prim_func(private=True)
         def add_inplace(
-            A: T.Buffer((a_add_inplace, b_add_inplace)), B: T.Buffer((a_add_inplace, b_add_inplace))
+            A: T.Tensor((a_add_inplace, b_add_inplace)), B: T.Tensor((a_add_inplace, b_add_inplace))
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -591,8 +591,8 @@ def test_dynamic():
 
         @Ts.prim_func(private=True)
         def subtract_inplace(
-            A: T.Buffer((a_subtract_inplace, b_subtract_inplace)),
-            B: T.Buffer((a_subtract_inplace, b_subtract_inplace)),
+            A: T.Tensor((a_subtract_inplace, b_subtract_inplace)),
+            B: T.Tensor((a_subtract_inplace, b_subtract_inplace)),
         ):
             T.func_attr({"tirx.noalias": True})
 

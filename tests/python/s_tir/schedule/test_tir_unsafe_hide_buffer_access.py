@@ -31,10 +31,10 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def indirect_mem_access(
-    A: T.Buffer([128], dtype="float32"),
-    IA: T.Buffer([10], dtype="int32"),
-    B: T.Buffer([128], dtype="float32"),
-    IB: T.Buffer([10], dtype="int32"),
+    A: T.Tensor([128], dtype="float32"),
+    IA: T.Tensor([10], dtype="int32"),
+    B: T.Tensor([128], dtype="float32"),
+    IB: T.Tensor([10], dtype="int32"),
 ) -> None:
     for i in range(10):
         with Ts.sblock("B"):
@@ -46,10 +46,10 @@ def indirect_mem_access(
 
 @Ts.prim_func
 def indirect_mem_access_hide_ia(
-    A: T.Buffer([128], dtype="float32"),
-    IA: T.Buffer([10], dtype="int32"),
-    B: T.Buffer([128], dtype="float32"),
-    IB: T.Buffer([10], dtype="int32"),
+    A: T.Tensor([128], dtype="float32"),
+    IA: T.Tensor([10], dtype="int32"),
+    B: T.Tensor([128], dtype="float32"),
+    IB: T.Tensor([10], dtype="int32"),
 ) -> None:
     for i in range(10):
         with Ts.sblock("B"):
@@ -61,10 +61,10 @@ def indirect_mem_access_hide_ia(
 
 @Ts.prim_func
 def indirect_mem_access_hide_ib(
-    A: T.Buffer([128], dtype="float32"),
-    IA: T.Buffer([10], dtype="int32"),
-    B: T.Buffer([128], dtype="float32"),
-    IB: T.Buffer([10], dtype="int32"),
+    A: T.Tensor([128], dtype="float32"),
+    IA: T.Tensor([10], dtype="int32"),
+    B: T.Tensor([128], dtype="float32"),
+    IB: T.Tensor([10], dtype="int32"),
 ) -> None:
     for i in range(10):
         with Ts.sblock("B"):

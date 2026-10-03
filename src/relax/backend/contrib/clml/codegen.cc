@@ -42,7 +42,7 @@ namespace contrib {
 
 /*! \brief Attributes to store the compiler options for OpenCLML. */
 struct OpenCLMLCompilerConfigNode : public ffi::Object {
-  IntImm clml_version;
+  IntImm clml_version = IntImm::Int32(3);
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

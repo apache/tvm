@@ -30,8 +30,8 @@ def test_reshape_expand_dims():
     class Module:
         @Ts.prim_func
         def reshape(
-            rxplaceholder: T.Buffer((T.int64(8), T.int64(3)), "float32"),
-            T_reshape: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
+            rxplaceholder: T.Tensor((T.int64(8), T.int64(3)), "float32"),
+            T_reshape: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
         ):
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(3)):
                 with Ts.sblock("T_reshape"):
@@ -50,8 +50,8 @@ def test_reshape_expand_dims():
 
         @Ts.prim_func
         def expand_dims(
-            rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
-            expand_dims: T.Buffer(
+            rxplaceholder: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
+            expand_dims: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(4), T.int64(1), T.int64(3)), "float32"
             ),
         ):
@@ -79,8 +79,8 @@ def test_reshape_expand_dims():
     class Expected:
         @Ts.prim_func
         def reshape(
-            rxplaceholder: T.Buffer((T.int64(8), T.int64(3)), "float32"),
-            T_reshape: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
+            rxplaceholder: T.Tensor((T.int64(8), T.int64(3)), "float32"),
+            T_reshape: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
         ):
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(3)):
                 with Ts.sblock("T_reshape"):
@@ -99,8 +99,8 @@ def test_reshape_expand_dims():
 
         @Ts.prim_func
         def expand_dims(
-            rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
-            expand_dims: T.Buffer(
+            rxplaceholder: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
+            expand_dims: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(4), T.int64(1), T.int64(3)), "float32"
             ),
         ):
@@ -138,7 +138,7 @@ def test_reshape_pattern_detect():
     @tvm.script.ir_module
     class Module:
         @Ts.prim_func
-        def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
+        def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
             for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for ax0_ax1_ax2_ax3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
                     for ax0_ax1_ax2_ax3_fused_0 in range(T.int64(10)):
@@ -153,8 +153,8 @@ def test_reshape_pattern_detect():
 
         @Ts.prim_func
         def expand_dims(
-            rxplaceholder: T.Buffer((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32"),
-            expand_dims: T.Buffer(
+            rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32"),
+            expand_dims: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)),
                 "float32",
             ),
@@ -184,7 +184,7 @@ def test_reshape_pattern_detect():
     @tvm.script.ir_module
     class Expected:
         @Ts.prim_func
-        def expand_dims(rxplaceholder: T.Buffer((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32"), expand_dims_1: T.Buffer((T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)), "float32")):
+        def expand_dims(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32"), expand_dims_1: T.Tensor((T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)), "float32")):
             # with Ts.sblock("root"):
             for i0, i1, i2, i3, i4, i5 in T.grid(T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)):
                 with Ts.sblock("expand_dims"):
@@ -194,7 +194,7 @@ def test_reshape_pattern_detect():
                     expand_dims_1[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1] = rxplaceholder[i0_1, i2_1, i4_1, i5_1]
 
         @Ts.prim_func
-        def reshape(rxplaceholder: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Buffer((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
+        def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
             # with Ts.sblock("root"):
             for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for ax0_ax1_ax2_ax3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
@@ -230,7 +230,7 @@ def test_reshape_dynamic_shape():
     class Module:
         @Ts.prim_func(private=True)
         def reshape(
-            A: T.Buffer((n, 16, 128), "float16"), T_reshape: T.Buffer((1, n, 16, 128), "float16")
+            A: T.Tensor((n, 16, 128), "float16"), T_reshape: T.Tensor((1, n, 16, 128), "float16")
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -272,7 +272,7 @@ def test_reshape_dynamic_shape():
     class Expected:
         @Ts.prim_func(private=True)
         def reshape(
-            A: T.Buffer((n, 16, 128), "float16"), T_reshape: T.Buffer((1, n, 16, 128), "float16")
+            A: T.Tensor((n, 16, 128), "float16"), T_reshape: T.Tensor((1, n, 16, 128), "float16")
         ):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -319,8 +319,8 @@ def test_reshape_non_dataflow():
     class Module:
         @Ts.prim_func
         def reshape(
-            rxplaceholder: T.Buffer((T.int64(8), T.int64(3)), "float32"),
-            T_reshape: T.Buffer((T.int64(2), T.int64(4), T.int64(3)), "float32"),
+            rxplaceholder: T.Tensor((T.int64(8), T.int64(3)), "float32"),
+            T_reshape: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
         ):
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(3)):
                 with Ts.sblock("T_reshape"):
@@ -354,10 +354,10 @@ def test_tuple_get_reshape():
     class Module:
         @Ts.prim_func
         def fused_reshape5(
-            lv2_0: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
-            lv2_1: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
-            lv2_2: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
-            T_reshape_handle_intermediate: T.Buffer(
+            lv2_0: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
+            lv2_1: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
+            lv2_2: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
+            T_reshape_handle_intermediate: T.Tensor(
                 (T.int64(2), T.int64(4096), T.int64(8), T.int64(40)), "float16"
             ),
         ):
@@ -415,10 +415,10 @@ def test_tuple_get_reshape():
     class Expected:
         @Ts.prim_func
         def fused_reshape5(
-            lv2_0: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
-            lv2_1: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
-            lv2_2: T.Buffer((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
-            T_reshape_handle_intermediate: T.Buffer(
+            lv2_0: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
+            lv2_1: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
+            lv2_2: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
+            T_reshape_handle_intermediate: T.Tensor(
                 (T.int64(2), T.int64(4096), T.int64(8), T.int64(40)), "float16"
             ),
         ):
@@ -481,8 +481,8 @@ def test_invalid_reshape():
         # of the input.
         @Ts.prim_func
         def strided_slice(
-            A: T.Buffer((T.int64(1), T.int64(1024)), "int32"),
-            T_strided_slice: T.Buffer((T.int64(1), T.int64(1000)), "int32"),
+            A: T.Tensor((T.int64(1), T.int64(1024)), "int32"),
+            T_strided_slice: T.Tensor((T.int64(1), T.int64(1000)), "int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1), T.int64(1000)):
@@ -494,7 +494,7 @@ def test_invalid_reshape():
 
         @Ts.prim_func
         def add_one(
-            A: T.Buffer((T.int64(1), T.int64(1000)), "int32"),
+            A: T.Tensor((T.int64(1), T.int64(1000)), "int32"),
             T_add_one: T.buffer((T.int64(1), T.int64(1000)), "int32"),
         ):
             for ax0, ax1 in T.grid(T.int64(1), T.int64(1000)):
@@ -550,9 +550,9 @@ def test_reshape_scalar():
     class Expected:
         @Ts.prim_func(private=True)
         def add(
-            A: T.Buffer((T.int64(1),), "float32"),
-            B: T.Buffer((T.int64(1),), "float32"),
-            T_add: T.Buffer((T.int64(1),), "float32"),
+            A: T.Tensor((T.int64(1),), "float32"),
+            B: T.Tensor((T.int64(1),), "float32"),
+            T_add: T.Tensor((T.int64(1),), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -564,7 +564,7 @@ def test_reshape_scalar():
                     T_add[v_ax0] = A[v_ax0] + B[v_ax0]
 
         @Ts.prim_func(private=True)
-        def reshape(A: T.Buffer((), "float32"), T_reshape: T.Buffer((T.int64(1),), "float32")):
+        def reshape(A: T.Tensor((), "float32"), T_reshape: T.Tensor((T.int64(1),), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
             for ax0 in range(T.int64(1)):
@@ -614,9 +614,9 @@ def test_rewrite_static_reshape():
 
         @Ts.prim_func(private=True)
         def add(
-            y1: T.Buffer((T.int64(64), T.int64(4)), "float32"),
-            y2: T.Buffer((T.int64(64), T.int64(4)), "float32"),
-            z: T.Buffer((T.int64(64), T.int64(4)), "float32"),
+            y1: T.Tensor((T.int64(64), T.int64(4)), "float32"),
+            y2: T.Tensor((T.int64(64), T.int64(4)), "float32"),
+            z: T.Tensor((T.int64(64), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -672,10 +672,10 @@ def test_rewrite_static_reshape():
 
 #         @T.prim_func(private=True)
 #         def add(
-#             y1: T.Buffer([N // 4, 4], "float32"),
-#             y2: T.Buffer([N // 4, 4], "float32"),
+#             y1: T.Tensor([N // 4, 4], "float32"),
+#             y2: T.Tensor([N // 4, 4], "float32"),
 #             N: T.int64,
-#             z: T.Buffer([N // 4, 4], "float32"),
+#             z: T.Tensor([N // 4, 4], "float32"),
 #         ):
 
 
@@ -737,10 +737,10 @@ def test_rewrite_dynamic_reshape():
 
         @Ts.prim_func(private=True)
         def add(
-            y1: T.Buffer([add_N * 4, T.int64(4)], "float32"),
-            y2: T.Buffer([add_N * 4, T.int64(4)], "float32"),
+            y1: T.Tensor([add_N * 4, T.int64(4)], "float32"),
+            y2: T.Tensor([add_N * 4, T.int64(4)], "float32"),
             N: add_N,
-            z: T.Buffer([add_N * 4, T.int64(4)], "float32"),
+            z: T.Tensor([add_N * 4, T.int64(4)], "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 

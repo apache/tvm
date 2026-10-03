@@ -91,18 +91,18 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
 
     @Tx.prim_func
     def gemm(
-        A_g: Tx.Buffer((16, 16), "float16"),
-        B_g: Tx.Buffer((16, 8), "float16"),
-        D_g: Tx.Buffer((16, 8), "float32"),
+        A_g: Tx.Tensor((16, 16), "float16"),
+        B_g: Tx.Tensor((16, 8), "float16"),
+        D_g: Tx.Tensor((16, 8), "float32"),
     ):
 
         Tx.device_entry()
         Tx.cta_id([1])
         Tx.warp_id([1])
         lane = Tx.lane_id([32])
-        A_f = Tx.alloc_buffer((16, 16), "float16", scope="local", layout=A_FRAG)
-        B_f = Tx.alloc_buffer((16, 8), "float16", scope="local", layout=B_FRAG)
-        D_f = Tx.alloc_buffer((16, 8), "float32", scope="local", layout=D_FRAG)
+        A_f = Tx.alloc_tensor((16, 16), "float16", scope="local", layout=A_FRAG)
+        B_f = Tx.alloc_tensor((16, 8), "float16", scope="local", layout=B_FRAG)
+        D_f = Tx.alloc_tensor((16, 8), "float32", scope="local", layout=D_FRAG)
         A_reg = A_f.local(8)  # stage A into the lane's 8 regs
         for s in Tx.unroll(8):
             kp, rM, kHi = s % 2, (s // 2) % 2, s // 4

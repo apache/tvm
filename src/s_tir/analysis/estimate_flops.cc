@@ -269,7 +269,7 @@ double EstimateTIRFlops(const IRModule& mod) {
     if (auto cached = f->attrs.GetAttr<int64_t>("estimated_flops")) {
       cached_result += cached.value();
     } else {
-      result += counter.Dispatch(f->body);  //
+      if (f->body.has_value()) result += counter.Dispatch(f->body.value());  //
     }
   });
   return PostprocessResults(result) + cached_result;

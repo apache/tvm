@@ -471,12 +471,7 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
     // This checks if the indices are correct for the reduction. E.g. for select_last_index
     // it gives precedence for later indices of the same element and precedence for sooner
     // indices if not select_last_index;
-    PrimExpr proper_index;
-    if (select_last_index) {
-      proper_index = lhs_idx > rhs_idx;
-    } else {
-      proper_index = lhs_idx < rhs_idx;
-    }
+    PrimExpr proper_index = select_last_index ? lhs_idx > rhs_idx : lhs_idx < rhs_idx;
 
     PrimExpr update_index = is_smaller || (is_same && proper_index);
     result.push_back(tvm::prim::Select(update_index, lhs[0], rhs[0]));  // idx
@@ -533,12 +528,7 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
     // This checks if the indices are correct for the reduction. E.g. for select_last_index
     // it gives precedence for later indices of the same element and precedence for sooner
     // indices if not select_last_index;
-    PrimExpr proper_index;
-    if (select_last_index) {
-      proper_index = lhs_idx > rhs_idx;
-    } else {
-      proper_index = lhs_idx < rhs_idx;
-    }
+    PrimExpr proper_index = select_last_index ? lhs_idx > rhs_idx : lhs_idx < rhs_idx;
 
     PrimExpr update_index = is_bigger || (is_same && proper_index);
     result.push_back(tvm::prim::Select(update_index, lhs[0], rhs[0]));  // idx

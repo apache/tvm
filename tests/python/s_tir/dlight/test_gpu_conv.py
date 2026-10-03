@@ -28,9 +28,9 @@ def test_conv3d():
     # fmt: off
     @Ts.prim_func(private=True)
     def before(
-        A: T.Buffer((14308, 3, 2, 14, 14), "float16"),
-        W: T.Buffer((1280, 3, 2, 14, 14), "float16"),
-        C: T.Buffer((14308, 1280, 1, 1, 1), "float16"),
+        A: T.Tensor((14308, 3, 2, 14, 14), "float16"),
+        W: T.Tensor((1280, 3, 2, 14, 14), "float16"),
+        C: T.Tensor((14308, 1280, 1, 1, 1), "float16"),
     ):
         pad_A = Ts.sblock_alloc_buffer((14308, 3, 2, 14, 14), "float16")
         for i0, i1, i2, i3, i4 in T.grid(14308, 3, 2, 14, 14):
@@ -45,7 +45,7 @@ def test_conv3d():
                 C[v_nn, v_ff, v_yy, v_xx, v_zz] += pad_A[v_nn, v_rc, v_yy * 2 + v_ry, v_xx * 14 + v_rx, v_zz * 14 + v_rz]* W[v_ff, v_rc, v_ry, v_rx, v_rz]
 
     @Ts.prim_func(private=True)
-    def expected(A: T.Buffer((14308, 3, 2, 14, 14), "float16"), W: T.Buffer((1280, 3, 2, 14, 14), "float16"), C: T.Buffer((14308, 1280, 1, 1, 1), "float16")):
+    def expected(A: T.Tensor((14308, 3, 2, 14, 14), "float16"), W: T.Tensor((1280, 3, 2, 14, 14), "float16"), C: T.Tensor((14308, 1280, 1, 1, 1), "float16")):
         T.func_attr({"tirx.is_scheduled": True})
         # with Ts.sblock("root"):
         C_reindex_pad_local = Ts.sblock_alloc_buffer((1, 14336, 1280), "float16", scope="local")

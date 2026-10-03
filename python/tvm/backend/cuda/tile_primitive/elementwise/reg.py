@@ -354,7 +354,7 @@ def _make_views_meta(per_op_carved, per_thread_total):
     iter strides at codegen time.
     """
     return {
-        op_br: T.decl_buffer(
+        op_br: T.decl_tensor(
             (per_thread_total,),
             op_br.source.dtype,
             op_br.source.data,

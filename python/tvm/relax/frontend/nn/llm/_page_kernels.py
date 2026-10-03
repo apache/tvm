@@ -48,10 +48,10 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype, page_size: 
     position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
     @Ts.prim_func
     def tir_kv_cache_transpose_append(
-        pages: T.Buffer((num_pages, 2, num_key_value_heads, page_size, head_dim), dtype, elem_offset=pages_elem_offset),
-        k_data: T.Buffer((ntoken, num_key_value_heads, head_dim), dtype),
-        v_data: T.Buffer((ntoken, num_key_value_heads, head_dim), dtype),
-        position_map: T.Buffer((ntoken,), 'int32', elem_offset=position_map_elem_offset),
+        pages: T.Tensor((num_pages, 2, num_key_value_heads, page_size, head_dim), dtype, elem_offset=pages_elem_offset),
+        k_data: T.Tensor((ntoken, num_key_value_heads, head_dim), dtype),
+        v_data: T.Tensor((ntoken, num_key_value_heads, head_dim), dtype),
+        position_map: T.Tensor((ntoken,), 'int32', elem_offset=position_map_elem_offset),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -81,9 +81,9 @@ def _kv_cache_transpose_append_mla(d_qk: int, dtype, page_size: int = 16):
     position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
     @Ts.prim_func
     def tir_kv_cache_transpose_append_mla(
-        pages: T.Buffer((num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset),
-        kv_data: T.Buffer((ntoken, d_qk), dtype),
-        position_map: T.Buffer((ntoken,), 'int32', elem_offset=position_map_elem_offset),
+        pages: T.Tensor((num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset),
+        kv_data: T.Tensor((ntoken, d_qk), dtype),
+        position_map: T.Tensor((ntoken,), 'int32', elem_offset=position_map_elem_offset),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -108,10 +108,10 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
     position_map_elem_offset = T.dynamic("position_map_elem_offset")
     @Ts.prim_func
     def tir_kv_cache_debug_get_kv(
-        pages: T.Buffer((num_pages, 2, num_key_value_heads, page_size, head_dim), dtype, elem_offset=pages_elem_offset),
-        position_map: T.Buffer((seqlen,), 'int32', elem_offset=position_map_elem_offset),
-        k_data: T.Buffer((num_hidden_layers, seqlen, num_key_value_heads, head_dim), dtype),
-        v_data: T.Buffer((num_hidden_layers, seqlen, num_key_value_heads, head_dim), dtype),
+        pages: T.Tensor((num_pages, 2, num_key_value_heads, page_size, head_dim), dtype, elem_offset=pages_elem_offset),
+        position_map: T.Tensor((seqlen,), 'int32', elem_offset=position_map_elem_offset),
+        k_data: T.Tensor((num_hidden_layers, seqlen, num_key_value_heads, head_dim), dtype),
+        v_data: T.Tensor((num_hidden_layers, seqlen, num_key_value_heads, head_dim), dtype),
         layer_id: T.int64,
     ):
         T.func_attr({"tirx.noalias": True})
@@ -137,9 +137,9 @@ def _kv_cache_debug_get_kv_mla(num_hidden_layers, d_qk, dtype):
     position_map_elem_offset = T.dynamic("position_map_elem_offset")
     @Ts.prim_func
     def tir_kv_cache_debug_get_kv_mla(
-        pages: T.Buffer((num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset),
-        position_map: T.Buffer((seqlen,), 'int32', elem_offset=position_map_elem_offset),
-        compressed_kv_with_k_pe_data: T.Buffer((num_hidden_layers, seqlen, d_qk), dtype),
+        pages: T.Tensor((num_pages, page_size, d_qk), dtype, elem_offset=pages_elem_offset),
+        position_map: T.Tensor((seqlen,), 'int32', elem_offset=position_map_elem_offset),
+        compressed_kv_with_k_pe_data: T.Tensor((num_hidden_layers, seqlen, d_qk), dtype),
         layer_id: T.int64,
     ):
         T.func_attr({"tirx.noalias": True})
@@ -160,7 +160,7 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
     num_pages = T.dynamic("num_pages", "int32")
     pages_elem_offset = T.dynamic("pages_elem_offset")
     @Ts.prim_func
-    def copy_single_page(pages: T.Buffer((num_pages, 2, num_heads, page_size, head_dim), dtype, elem_offset=pages_elem_offset), src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
+    def copy_single_page(pages: T.Tensor((num_pages, 2, num_heads, page_size, head_dim), dtype, elem_offset=pages_elem_offset), src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
         T.func_attr({"tirx.is_scheduled": True})
 
         for b in T.thread_binding((copy_length * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"):
@@ -181,7 +181,7 @@ def _copy_single_page_mla(page_size, head_dim, dtype, target: Target):
     num_pages = T.dynamic("num_pages", "int32")
     pages_elem_offset = T.dynamic("pages_elem_offset")
     @Ts.prim_func
-    def copy_single_page_mla(pages: T.Buffer((num_pages, page_size, head_dim), dtype, elem_offset=pages_elem_offset), src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
+    def copy_single_page_mla(pages: T.Tensor((num_pages, page_size, head_dim), dtype, elem_offset=pages_elem_offset), src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
         T.func_attr({"tirx.is_scheduled": True})
 
         for b in T.thread_binding((copy_length * head_dim + tx - 1) // tx, thread="blockIdx.x"):
@@ -199,7 +199,7 @@ def _copy_single_page_cpu(num_heads, page_size, head_dim, dtype):
 
     num_pages = T.dynamic("num_pages", "int32")
     @Ts.prim_func
-    def copy_single_page_cpu(pages: T.Buffer((num_pages, 2, num_heads, page_size, head_dim), dtype), src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
+    def copy_single_page_cpu(pages: T.Tensor((num_pages, 2, num_heads, page_size, head_dim), dtype), src_page_id: T.int64, tgt_page_id: T.int64, copy_length: T.int64):
         T.func_attr({"tirx.is_scheduled": True})
 
         for b in T.serial((copy_length * num_heads * head_dim + tx - 1) // tx):
@@ -223,7 +223,7 @@ def _compact_kv_copy(num_heads, head_dim, dtype, target: Target, page_size: int 
     copy_src_dst_pos_elem_offset = T.dynamic("copy_src_dst_pos_elem_offset", "int32")
     pages_elem_offset = T.dynamic("pages_elem_offset")
     @Ts.prim_func
-    def compact_kv_copy(pages: T.Buffer((num_pages, 2, num_heads, page_size, head_dim), dtype, elem_offset=pages_elem_offset), copy_length_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=copy_length_indptr_elem_offset), copy_src_dst_pos: T.Buffer((2, total_copy_length), 'int32', elem_offset=copy_src_dst_pos_elem_offset), batch_size: T.int32):  # noqa: F821
+    def compact_kv_copy(pages: T.Tensor((num_pages, 2, num_heads, page_size, head_dim), dtype, elem_offset=pages_elem_offset), copy_length_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=copy_length_indptr_elem_offset), copy_src_dst_pos: T.Tensor((2, total_copy_length), 'int32', elem_offset=copy_src_dst_pos_elem_offset), batch_size: T.int32):  # noqa: F821
         T.func_attr({"tirx.is_scheduled": True})
 
         with Ts.sblock("root"):
@@ -249,7 +249,7 @@ def _compact_kv_copy_cpu(num_heads, head_dim, dtype, page_size: int = 16):
     copy_length_indptr_elem_offset = T.dynamic("copy_length_indptr_elem_offset", "int32")
     copy_src_dst_pos_elem_offset = T.dynamic("copy_src_dst_pos_elem_offset", "int32")
     @Ts.prim_func
-    def compact_kv_copy_cpu(pages: T.Buffer((num_pages, 2, num_heads, page_size, head_dim), dtype), copy_length_indptr: T.Buffer((batch_size + 1,), 'int32', elem_offset=copy_length_indptr_elem_offset), copy_src_dst_pos: T.Buffer((2, total_copy_length), 'int32', elem_offset=copy_src_dst_pos_elem_offset), batch_size: T.int32):  # noqa: F821
+    def compact_kv_copy_cpu(pages: T.Tensor((num_pages, 2, num_heads, page_size, head_dim), dtype), copy_length_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=copy_length_indptr_elem_offset), copy_src_dst_pos: T.Tensor((2, total_copy_length), 'int32', elem_offset=copy_src_dst_pos_elem_offset), batch_size: T.int32):  # noqa: F821
         T.func_attr({"tirx.is_scheduled": True})
 
         with Ts.sblock("root"):

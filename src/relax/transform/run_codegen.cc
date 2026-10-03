@@ -128,7 +128,7 @@ class CodeGenRunner : ExprMutator {
         Expr new_func = VisitExpr(func);
 
         if (new_func->IsInstance<ExternFuncNode>()) {
-          extern_funcs_[gvar_node] = new_func;
+          extern_funcs_.insert_or_assign(gvar_node, new_func);
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
           func = WithoutAttr(std::move(func), tvm::attr::kGlobalSymbol);

@@ -31,9 +31,9 @@ def test_add():
     class Module:
         @T.prim_func
         def test_fadd(
-            A: T.Buffer((1024,), "float32"),
-            B: T.Buffer((1024,), "float32"),
-            C: T.Buffer((1024,), "float32"),
+            A: T.Tensor((1024,), "float32"),
+            B: T.Tensor((1024,), "float32"),
+            C: T.Tensor((1024,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
@@ -64,8 +64,8 @@ def test_reinterpret():
     class Module:
         @T.prim_func
         def test_reinterpret(
-            A: T.Buffer((1024,), "int32"),
-            B: T.Buffer((1024,), "float32"),
+            A: T.Tensor((1024,), "int32"),
+            B: T.Tensor((1024,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
@@ -95,8 +95,8 @@ def test_ceil():
     class Module:
         @T.prim_func
         def test_ceil(
-            A: T.Buffer((1024,), "float32"),
-            B: T.Buffer((1024,), "float32"),
+            A: T.Tensor((1024,), "float32"),
+            B: T.Tensor((1024,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
@@ -126,8 +126,8 @@ def test_floor():
     class Module:
         @T.prim_func
         def test_floor(
-            A: T.Buffer((1024,), "float32"),
-            B: T.Buffer((1024,), "float32"),
+            A: T.Tensor((1024,), "float32"),
+            B: T.Tensor((1024,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
@@ -157,8 +157,8 @@ def test_round():
     class Module:
         @T.prim_func
         def test_round(
-            A: T.Buffer((1024,), "float32"),
-            B: T.Buffer((1024,), "float32"),
+            A: T.Tensor((1024,), "float32"),
+            B: T.Tensor((1024,), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for i0 in range(1024):
@@ -193,12 +193,12 @@ def test_subroutine_call():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer(1, dtype="float32")):
+        def main(A: T.Tensor(1, dtype="float32")):
             Module.subroutine(A.data)
 
         @T.prim_func(private=True)
         def subroutine(A_data: T.handle("float32")):
-            A = T.decl_buffer(1, dtype="float32", data=A_data)
+            A = T.decl_tensor(1, dtype="float32", data=A_data)
             A[0] = 42.0
 
     built = tvm.tirx.build(Module, target="c")
@@ -219,8 +219,8 @@ def test_workspace_allocation_cast():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((256,), "float32")):
-            workspace = T.alloc_buffer((256,), "float32", scope="global")
+        def main(A: T.Tensor((256,), "float32")):
+            workspace = T.alloc_tensor((256,), "float32", scope="global")
             for i in range(256):
                 workspace[i] = A[i]
             for i in range(256):
@@ -237,8 +237,8 @@ def test_local_alloc_buffer_uses_plain_c_pointer():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((1,), "float32")):
-            B = T.alloc_buffer((1,), "float32", scope="local")
+        def main(A: T.Tensor((1,), "float32")):
+            B = T.alloc_tensor((1,), "float32", scope="local")
             for i in range(1):
                 B[i] = A[i] + T.float32(1)
                 A[i] = B[i]
@@ -257,7 +257,7 @@ def test_local_alloc_buffer_uses_plain_c_pointer():
 
 
 def test_vector_access_ptr_address_uses_ramp_base():
-    buffer = tvm.tirx.decl_buffer((8,), "float32x2", name="A")
+    buffer = tvm.tirx.decl_tensor((8,), "float32x2", name="A")
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
     body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
     func = tvm.tirx.PrimFunc([buffer], body).with_attr("global_symbol", "main")
@@ -273,7 +273,7 @@ def test_if_then_else_avoids_extraneous_parentheses():
     @I.ir_module
     class Module:
         @T.prim_func
-        def main(A: T.Buffer((8,), "int32"), B: T.Buffer((8,), "int32")):
+        def main(A: T.Tensor((8,), "int32"), B: T.Tensor((8,), "int32")):
             for i in range(8):
                 B[i] = T.if_then_else(i == 0, 1, A[i])
 

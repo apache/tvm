@@ -37,7 +37,7 @@ def test_shared_operations_and_aliases():
     n = S.dynamic("n")
 
     @S.prim_func
-    def shared(A: S.Buffer((n,), "float32")):
+    def shared(A: S.Tensor((n,), "float32")):
         for i in T.serial(A.shape[0]):
             with S.sblock("copy"):
                 v = Ts.axis.spatial(A.shape[0], i)
@@ -45,7 +45,7 @@ def test_shared_operations_and_aliases():
 
     assert shared.attrs["s_tir"]
     assert shared.params[0].ty.layout is None
-    assert Ts.Buffer is T.Buffer
+    assert Ts.Tensor is T.Tensor
     assert Ts.serial is T.serial
     assert Ts.bind is T.bind
     assert Ts.tile is T.tile
@@ -62,14 +62,14 @@ def test_mixed_module_roundtrip():
     @I.ir_module
     class Mixed:
         @Ts.prim_func
-        def scheduled(A: Ts.Buffer((4,), "float32")):
+        def scheduled(A: Ts.Tensor((4,), "float32")):
             for i in Ts.serial(4):
                 with Ts.sblock("copy"):
                     v = Ts.axis.spatial(4, i)
                     A[v] = 1.0
 
         @T.prim_func
-        def direct(A: T.Buffer((4,), "float32")):
+        def direct(A: T.Tensor((4,), "float32")):
             for i in T.serial(4):
                 A[i] = 2.0
 
@@ -100,7 +100,7 @@ def test_tirx_construction_roundtrip_and_execution_are_independent(monkeypatch):
     @I.ir_module
     class Direct:
         @T.prim_func
-        def main(A: T.Buffer((4,), "int32")):
+        def main(A: T.Tensor((4,), "int32")):
             for i in T.serial(4):
                 A[i] = A[i] + 3
 
@@ -202,7 +202,7 @@ def test_s_tir_options_and_helpers():
             A[i] = Ts.float32(1)
 
     @Ts.prim_func(private=True)
-    def scheduled(A: Ts.Buffer((4,), "float32")):
+    def scheduled(A: Ts.Tensor((4,), "float32")):
         fill(A)
 
     assert scheduled.attrs["s_tir"]
@@ -236,7 +236,7 @@ def test_import_order(first):
             "from tvm.script import s_tir as Ts, tirx as T\n"
             "from tvm.script.parser import s_tir as parser\n"
             "assert Ts is direct is parser\n"
-            "assert Ts.Buffer is T.Buffer\n"
+            "assert Ts.Tensor is T.Tensor\n"
             "from tvm.s_tir.script import ir_builder as owned\n"
             "from tvm.script.ir_builder import s_tir as alias\n"
             "import tvm.s_tir.script.ir_builder.frame as owned_frame\n"

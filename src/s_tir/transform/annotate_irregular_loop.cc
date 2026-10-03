@@ -94,7 +94,8 @@ namespace transform {
 
 Pass AnnotateIrregularLoop() {
   auto pass_func = [](PrimFunc func, IRModule mod, PassContext ctx) -> PrimFunc {
-    func.CopyOnWrite()->body = IrregularLoopAnnotator::Annotate(func->body);
+    if (!func->body.has_value()) return func;
+    func.CopyOnWrite()->body = IrregularLoopAnnotator::Annotate(func->body.value());
     return func;
   };
 

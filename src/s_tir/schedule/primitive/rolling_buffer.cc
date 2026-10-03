@@ -176,7 +176,7 @@ class RollingBufferInfoCollector {
       throw MakeScheduleError<RollingBufferMatchError>(mod, ffi::GetRef<SBlock>(block),
                                                        buffer_region);
     }
-    return collector.info_;
+    return collector.info_.value();
   }
 
  private:
@@ -260,21 +260,17 @@ class RollingBufferInfoCollector {
     }
     ffi::Array<PrimExpr> new_shape = buffer->shape;
     new_shape.Set(roll_axis, region[roll_axis]->extent);
-    auto new_buffer_type = CopyBufferType(buffer);
+    auto new_buffer_type = CopyTensorType(buffer);
     new_buffer_type->shape = new_shape;
     BufferVar new_buffer = RebuildBufferVar(buffer, std::move(new_buffer_type));
 
-    info_.old_buffer = buffer;
-    info_.new_buffer = new_buffer;
-    info_.rolling_axis = roll_axis;
-    info_.rolling_extent = region[roll_axis]->extent;
-    info_.axis_overlaps = bound_overlaps;
-    info_.axis_iter_vars = bound_iter_vars;
+    info_ = RollingBufferInfo{buffer,         new_buffer,      roll_axis, region[roll_axis]->extent,
+                              bound_overlaps, bound_iter_vars, {}};
 
     return true;
   }
 
-  RollingBufferInfo info_;
+  std::optional<RollingBufferInfo> info_;
 };
 
 class RollingBufferRewriter : public StmtExprMutator {

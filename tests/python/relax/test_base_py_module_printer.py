@@ -50,14 +50,14 @@ class SimplePyFuncModule(BasePyModule):
 
     @Ts.prim_func
     def add_tir(
-        x: T.Buffer((5,), "float32"), y: T.Buffer((5,), "float32"), out: T.Buffer((5,), "float32")
+        x: T.Tensor((5,), "float32"), y: T.Tensor((5,), "float32"), out: T.Tensor((5,), "float32")
     ):
         for i in range(5):
             out[i] = x[i] + y[i]
 
     @Ts.prim_func
     def multiply_tir(
-        x: T.Buffer((5,), "float32"), y: T.Buffer((5,), "float32"), out: T.Buffer((5,), "float32")
+        x: T.Tensor((5,), "float32"), y: T.Tensor((5,), "float32"), out: T.Tensor((5,), "float32")
     ):
         for i in range(5):
             out[i] = x[i] * y[i]
@@ -124,7 +124,7 @@ class ComplexPyFuncModule(BasePyModule):
         return self._convert_tvm_to_pytorch(result)
 
     @Ts.prim_func
-    def extract_features(Data: T.Buffer((10,), "float32"), Features: T.Buffer((10,), "float32")):
+    def extract_features(Data: T.Tensor((10,), "float32"), Features: T.Tensor((10,), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         for i in range(10):
@@ -132,9 +132,9 @@ class ComplexPyFuncModule(BasePyModule):
 
     @Ts.prim_func
     def ml_inference(
-        Features: T.Buffer((10,), "float32"),
-        Params: T.Buffer((10,), "float32"),
-        Output: T.Buffer((5,), "float32"),
+        Features: T.Tensor((10,), "float32"),
+        Params: T.Tensor((10,), "float32"),
+        Output: T.Tensor((5,), "float32"),
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -142,14 +142,14 @@ class ComplexPyFuncModule(BasePyModule):
             Output[i] = Features[i] * Params[i] + Features[i + 5] * Params[i + 5]
 
     @Ts.prim_func
-    def post_process(Predictions: T.Buffer((5,), "float32"), Final: T.Buffer((5,), "float32")):
+    def post_process(Predictions: T.Tensor((5,), "float32"), Final: T.Tensor((5,), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         for i in range(5):
             Final[i] = T.max(Predictions[i], 0.0)
 
     @Ts.prim_func
-    def normalize_data(Data: T.Buffer((10,), "float32"), Normalized: T.Buffer((10,), "float32")):
+    def normalize_data(Data: T.Tensor((10,), "float32"), Normalized: T.Tensor((10,), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         for i in range(10):
@@ -203,7 +203,7 @@ class EdgeCasePyFuncModule(BasePyModule):
         return result
 
     @Ts.prim_func
-    def dummy_tir(Data: T.Buffer((1,), "float32"), Output: T.Buffer((1,), "float32")):
+    def dummy_tir(Data: T.Tensor((1,), "float32"), Output: T.Tensor((1,), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         Output[0] = Data[0]
@@ -263,7 +263,7 @@ class PerformancePyFuncModule(BasePyModule):
 
     @Ts.prim_func
     def vectorized_add(
-        A: T.Buffer((10,), "float32"), B: T.Buffer((10,), "float32"), C: T.Buffer((10,), "float32")
+        A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32"), C: T.Tensor((10,), "float32")
     ):
         T.func_attr({"tirx.noalias": True})
 
@@ -333,7 +333,7 @@ class IntegrationPyFuncModule(BasePyModule):
         return final_result
 
     @Ts.prim_func
-    def final_transform(Data: T.Buffer((10, 10), "float32"), Output: T.Buffer((10, 10), "float32")):
+    def final_transform(Data: T.Tensor((10, 10), "float32"), Output: T.Tensor((10, 10), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         for i in range(10):
@@ -396,7 +396,7 @@ class ErrorHandlingPyFuncModule(BasePyModule):
                 return self._get_safe_default()
 
     @Ts.prim_func
-    def safe_transform(Data: T.Buffer((5,), "float32"), Output: T.Buffer((5,), "float32")):
+    def safe_transform(Data: T.Tensor((5,), "float32"), Output: T.Tensor((5,), "float32")):
         T.func_attr({"tirx.noalias": True})
 
         for i in range(5):

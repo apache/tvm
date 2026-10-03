@@ -346,10 +346,10 @@ class PartitionFinder : public StmtExprVisitor {
         }
       }
 
-      PrimExpr inverse_cond = InverseCond(cond);
-      if (inverse_cond.defined()) {
-        IntSet interval =
-            DeduceBound(current_var_.as_or_throw<PrimExpr>(), inverse_cond, hint_map_, relax_map_);
+      auto inverse_cond = InverseCond(cond);
+      if (inverse_cond.has_value()) {
+        IntSet interval = DeduceBound(current_var_.as_or_throw<PrimExpr>(), inverse_cond.value(),
+                                      hint_map_, relax_map_);
         if (!interval.IsNothing()) {
           // cond is false within interval
           partitions[{cond, false}] = interval;
@@ -358,8 +358,8 @@ class PartitionFinder : public StmtExprVisitor {
     }
   }
 
-  PrimExpr InverseCond(const PrimExpr& cond) {
-    PrimExpr inverse_cond;
+  ffi::Optional<PrimExpr> InverseCond(const PrimExpr& cond) {
+    ffi::Optional<PrimExpr> inverse_cond;
     if (const LTNode* op = cond.as<LTNode>()) {
       // a < b -> a >= b
       inverse_cond = GE(op->a, op->b);
@@ -477,8 +477,8 @@ class LoopPartitioner : public StmtExprMutator {
     analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent), true);
     auto fs = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(fs)) {
-      Stmt s = TryPartition(fs, op->loop_var, op->min, op->min + op->extent - 1, op->body, false);
-      if (s.defined()) return s;
+      auto s = TryPartition(fs, op->loop_var, op->min, op->min + op->extent - 1, op->body, false);
+      if (s.has_value()) return s.value();
     }
 
     // normal path when loop partition fails
@@ -501,13 +501,13 @@ class LoopPartitioner : public StmtExprMutator {
     PrimExpr extent = op->value.as_or_throw<PrimExpr>();
     auto as = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(as)) {
-      Stmt s = TryPartition(as, var, 0, extent - 1, op->body, true);
-      if (s.defined()) return s;
+      auto s = TryPartition(as, var, 0, extent - 1, op->body, true);
+      if (s.has_value()) return s.value();
     }
 
     // normal path when loop parittion fails.
     runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-    Stmt res;
+    Stmt res{ffi::UnsafeInit{}};
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.
       relax_map_.insert(
@@ -526,8 +526,8 @@ class LoopPartitioner : public StmtExprMutator {
   }
 
  private:
-  Stmt TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max, Stmt body,
-                    bool partition_thread_scope);
+  ffi::Optional<Stmt> TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max, Stmt body,
+                                   bool partition_thread_scope);
 
   std::pair<IntSet, ExpressionSet> GetIntervalAndCondset(const Partition& partitions,
                                                          const sym::IntervalSet& for_interval,
@@ -640,8 +640,9 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
  * which will eventually be simplified to empty code. And because only one loop was generated
  * from loop 2 we stop recursing.
  */
-Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, PrimExpr max, Stmt body,
-                                   bool partition_thread_scope) {
+ffi::Optional<Stmt> LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min,
+                                                  PrimExpr max, Stmt body,
+                                                  bool partition_thread_scope) {
   using namespace sym;
   // include hint of var.
   hint_map_.insert({var.get(), IntSet::Interval(min, max)});
@@ -651,7 +652,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   finder->Visit(body);
 
   hint_map_.erase(var.get());
-  if (finder->partitions.empty()) return Stmt();
+  if (finder->partitions.empty()) return std::nullopt;
 
   sym::IntervalSet for_interval(min, max);
 
@@ -714,7 +715,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
   }();
 
   if (middle_interval.IsNothing() && opt_cond_value == false) {
-    return Stmt();
+    return std::nullopt;
   }
 
   if (!opt_cond_value.has_value()) {
@@ -723,7 +724,7 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
       auto new_body = VisitAndMutate(body);
       return For(var.as_or_throw<PrimVar>(), min, max - min + 1, ForKind::kUnrolled, new_body);
     }
-    return Stmt();
+    return std::nullopt;
   }
   bool cond_value = opt_cond_value.value();
 
@@ -735,8 +736,8 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
 
   // Calculating pre-subrange and generating code for it.
   // pre-subrange = [min, body_begin)
-  PrimExpr body_begin;
-  Stmt pre_stmt;
+  PrimExpr body_begin = min;
+  ffi::Optional<Stmt> pre_stmt;
   bool pre_stmt_recurse = true;
   if (middle_interval_i->HasLowerBound()) {
     body_begin = analyzer_->Simplify(middle_interval.min());
@@ -768,8 +769,8 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
 
   // Calculating post-subrange and generating code for it.
   // post-subrange = [post_doubt_begin, max+1)
-  PrimExpr post_doubt_begin;
-  Stmt post_stmt;
+  PrimExpr post_doubt_begin = max + 1;
+  ffi::Optional<Stmt> post_stmt;
   bool post_stmt_recurse = true;
   if (middle_interval_i->HasUpperBound()) {
     post_doubt_begin = analyzer_->Simplify(middle_interval.max() + 1);
@@ -801,11 +802,11 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
     post_doubt_begin = max + 1;
   }
 
-  Stmt s;
+  Stmt s{ffi::UnsafeInit{}};
 
   // Generating code for middle subrange
   if (!partition_thread_scope) {
-    Stmt mid_stmt;
+    ffi::Optional<Stmt> mid_stmt;
     if (!analyzer_->CanProve(body_begin >= post_doubt_begin)) {
       // [body_begin, post_doubt_begin)
       Stmt simplified_body = ffi::make_object<ConditionEliminator>(cond_set, cond_value)
@@ -822,15 +823,15 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
                           .as_or_throw<Stmt>();
       mid_stmt = MakeFor(stmt.get(), post_doubt_begin - body_begin, new_body);
       // Recurse until partitions is empty
-      mid_stmt = VisitAndMutate(mid_stmt);
+      mid_stmt = VisitAndMutate(mid_stmt.value());
       // Recurse for each non-empty subrange only if there are at least
       // two non-empty subranges
-      if (pre_stmt.defined() || post_stmt.defined()) {
-        if (pre_stmt.defined() && pre_stmt_recurse) {
-          pre_stmt = VisitAndMutate(pre_stmt);
+      if (pre_stmt.has_value() || post_stmt.has_value()) {
+        if (pre_stmt.has_value() && pre_stmt_recurse) {
+          pre_stmt = VisitAndMutate(pre_stmt.value());
         }
-        if (post_stmt.defined() && post_stmt_recurse) {
-          post_stmt = VisitAndMutate(post_stmt);
+        if (post_stmt.has_value() && post_stmt_recurse) {
+          post_stmt = VisitAndMutate(post_stmt.value());
         }
       }
     }
@@ -913,12 +914,13 @@ namespace transform {
 
 Pass LoopPartition() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<LoopPartitionConfig>("s_tir.LoopPartition");
     if (!cfg.has_value()) {
       cfg = tvm::transform::PassConfigWithDefaults<LoopPartitionConfig>();
     }
-    n->body = s_tir::LoopPartition(std::move(n->body), cfg.value()->partition_const_loop,
+    n->body = s_tir::LoopPartition(std::move(n->body).value(), cfg.value()->partition_const_loop,
                                    cfg.value()->no_unroll_loop_with_extent_one,
                                    cfg.value()->unroll_loop_with_partition_hint_no_interval);
     return f;

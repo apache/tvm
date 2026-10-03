@@ -174,7 +174,7 @@ class AutoPadder {
           reverse_strides.push_back(stride);
         }
         // Step 3. create the new padded buffer
-        ffi::ObjectPtr<BufferTypeNode> b = CopyBufferType(buffer);
+        ffi::ObjectPtr<TensorTypeNode> b = CopyTensorType(buffer);
         ffi::Array<PrimExpr> strides;
         for (int i = static_cast<int>(reverse_strides.size()) - 1; i >= 0; i--) {
           strides.push_back(reverse_strides[i]);
@@ -563,7 +563,7 @@ class AutoPadder {
           self->iter_spaces_[op->buffer.get()].push_back(iter_space);
         }
         if (vector_length_ != -1 &&
-            CheckVarContiguous(op->indices.back(), vector_var, substitute_map_)) {
+            CheckVarContiguous(op->indices.back(), vector_var.value(), substitute_map_)) {
           int64_t m = self->padding_min_.Get(op->buffer).value_or(1);
           self->padding_min_.Set(op->buffer, std::max(static_cast<int64_t>(vector_length_), m));
         }
@@ -598,7 +598,7 @@ class AutoPadder {
           self->iter_spaces_[buffer.get()].push_back(iter_space);
         }
         if (vector_length_ != -1 &&
-            CheckVarContiguous(substitued_indices.back(), vector_var, substitute_map_)) {
+            CheckVarContiguous(substitued_indices.back(), vector_var.value(), substitute_map_)) {
           int64_t m = self->padding_min_.Get(buffer).value_or(1);
           self->padding_min_.Set(buffer, std::max(static_cast<int64_t>(vector_length_), m));
         }
@@ -662,7 +662,7 @@ class AutoPadder {
     ffi::Map<ffi::String, int64_t> warp_thread_extent_;
     ffi::Map<Var, Range> var_range_;
     int vector_length_ = -1;
-    Var vector_var;
+    ffi::Optional<Var> vector_var;
   };
 
   /*!
@@ -765,7 +765,7 @@ class AutoCopyMutator : public StmtExprMutator {
     for (RewriteRule* rule : rules) {
       n->body = rule->Apply(std::move(n->body), constraints, &outputs);
     }
-    for (const BufferVar& buffer : outputs.alloc_buffer) {
+    for (const BufferVar& buffer : outputs.alloc_tensor) {
       n->alloc_buffers.push_back(buffer);
     }
     for (const auto& p : outputs.padding_min) {
@@ -845,11 +845,13 @@ namespace transform {
 
 Pass LowerAutoCopy() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto mutator =
-        ffi::make_object<AutoCopyMutator>(ThreadExtentCollector::CollectThreadExtent(n->body));
-    n->body = mutator->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(std::move(n->body));
-    n->body = mutator->RewritePaddingBody(n->body);
+    auto mutator = ffi::make_object<AutoCopyMutator>(
+        ThreadExtentCollector::CollectThreadExtent(n->body.value()));
+    n->body = mutator->Mutate(n->body.value(), InplaceMode::kAllow)
+                  .ValueOrUnchanged(std::move(n->body).value());
+    n->body = mutator->RewritePaddingBody(n->body.value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerAutoCopy", {});

@@ -27,8 +27,8 @@ namespace {
 
 class PairExprNode : public ExprNode {
  public:
-  Expr left;
-  Expr right;
+  Expr left{ffi::UnsafeInit{}};
+  Expr right{ffi::UnsafeInit{}};
   static void RegisterReflection() {
     ffi::reflection::ObjectDef<PairExprNode>()
         .def_ro("left", &PairExprNode::left)
@@ -38,13 +38,13 @@ class PairExprNode : public ExprNode {
 };
 class PairExpr : public Expr {
  public:
-  PairExpr(Expr left, Expr right) {
+  PairExpr(Expr left, Expr right) : Expr(ffi::UnsafeInit{}) {
     auto node = ffi::make_object<PairExprNode>();
     node->left = std::move(left);
     node->right = std::move(right);
     data_ = std::move(node);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PairExpr, Expr, PairExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PairExpr, Expr, PairExprNode);
 };
 TVM_FFI_STATIC_INIT_BLOCK() { PairExprNode::RegisterReflection(); }
 

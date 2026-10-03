@@ -140,8 +140,7 @@ struct BufferPadding {
 
   static BufferPadding FromBufferRegion(const TensorRegion& buffer_region,
                                         const ffi::Map<Var, PrimExpr>& iter_extents) {
-    BufferPadding result;
-    result.buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+    BufferVar buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
     ffi::Array<PrimExpr> shape;
     shape.reserve(buffer_region->region.size());
     int ndim = buffer_region->region.size();
@@ -156,9 +155,7 @@ struct BufferPadding {
         shape.push_back(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i]);
       }
     }
-    result.padded_buffer = decl_buffer(shape, result.buffer->dtype, result.buffer.name() + "_pad",
-                                       result.buffer.scope());
-    return result;
+    return {buffer, decl_tensor(shape, buffer->dtype, buffer.name() + "_pad", buffer.scope())};
   }
 
   Stmt MakeCopyBlock(bool is_read, ffi::Array<SBlock>* blocks, sym::AnalyzerObj* analyzer) {
@@ -169,12 +166,7 @@ struct BufferPadding {
     ffi::Array<PrimExpr> indices;
     int ndim = buffer->shape.size();
     for (int i = 0; i < ndim; ++i) {
-      PrimExpr dim{nullptr};
-      if (is_read) {
-        dim = padded_buffer->shape[i];
-      } else {
-        dim = buffer->shape[i];
-      }
+      PrimExpr dim = is_read ? padded_buffer->shape[i] : buffer->shape[i];
       Range dom = Range::FromMinExtent(IntImm(dim.ty(), 0), dim);
       loop_vars.push_back(Var("i" + std::to_string(i), dim.ty()));
       loop_doms.push_back(dom);
@@ -183,20 +175,21 @@ struct BufferPadding {
       iter_vars.push_back(iter_var);
       indices.push_back(iter_var->var);
     }
-    Stmt body{nullptr};
-    if (is_read) {
-      PrimExpr predicate = IntImm::Bool(true);
-      for (int i = 0; i < ndim; ++i) {
-        if (!analyzer->CanProveEqual(buffer->shape[i], padded_buffer->shape[i])) {
-          predicate = predicate && (indices[i] < buffer->shape[i]);
+    Stmt body = [&]() -> Stmt {
+      if (is_read) {
+        PrimExpr predicate = IntImm::Bool(true);
+        for (int i = 0; i < ndim; ++i) {
+          if (!analyzer->CanProveEqual(buffer->shape[i], padded_buffer->shape[i])) {
+            predicate = predicate && (indices[i] < buffer->shape[i]);
+          }
         }
+        PrimExpr rhs = BufferLoad(buffer, indices);
+        return BufferStore(padded_buffer,
+                           if_then_else(predicate, rhs, prim::MakeConst(rhs.ty(), 0)), indices);
+      } else {
+        return BufferStore(buffer, BufferLoad(padded_buffer, indices), indices);
       }
-      PrimExpr rhs = BufferLoad(buffer, indices);
-      body = BufferStore(padded_buffer, if_then_else(predicate, rhs, prim::MakeConst(rhs.ty(), 0)),
-                         indices);
-    } else {
-      body = BufferStore(buffer, BufferLoad(padded_buffer, indices), indices);
-    }
+    }();
     TensorRegion read_region = BufferRegion(buffer, instance_dom);
     TensorRegion write_region = BufferRegion(padded_buffer, instance_dom);
     if (!is_read) {
@@ -298,7 +291,6 @@ class InvalidProducerError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
   SBlock producer_;
 };
 
@@ -484,13 +476,12 @@ void PadEinsum(ScheduleState self, const StmtSRef& block_sref, const ffi::Array<
     new_scope_body.insert(new_scope_body.end(), write_blocks.begin(), write_blocks.end());
   }
   // Step 7. Create new scope
-  SBlock new_scope_block{nullptr};
-  {
+  SBlock new_scope_block = [&]() {
     ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*scope_block);
     n->body = SeqStmt::Flatten(new_scope_body);
     n->alloc_buffers.insert(n->alloc_buffers.end(), alloc_buffers.begin(), alloc_buffers.end());
-    new_scope_block = SBlock(n);
-  }
+    return SBlock(n);
+  }();
   replacer->block_sref_reuse_.Set(ffi::GetRef<SBlock>(scope_block), new_scope_block);
   // Step 8. Do replacement and update flags
   self->Replace(scope_sref, new_scope_block, replacer->block_sref_reuse_);

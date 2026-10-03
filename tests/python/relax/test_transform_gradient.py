@@ -1211,8 +1211,8 @@ def test_report_error():
 
         @Ts.prim_func
         def sum(
-            rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"),
-            rxplaceholder_red: T.Buffer((), "float32"),
+            rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float32"),
+            rxplaceholder_red: T.Tensor((), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for k0, k1 in T.grid(T.int64(3), T.int64(3)):

@@ -86,7 +86,7 @@ fp16):
 
     @Tx.prim_func
     def copy_async_test(
-        A: Tx.Buffer((128, WIDTH), "float16"), B: Tx.Buffer((128, WIDTH), "float16")
+        A: Tx.Tensor((128, WIDTH), "float16"), B: Tx.Tensor((128, WIDTH), "float16")
     ):
 
         Tx.device_entry()
@@ -100,7 +100,7 @@ fp16):
                     Tx.address_of(tmem_addr), Tx.uint32(32)
                 )
             Tx.tvm_storage_sync("shared")
-            tmem = Tx.decl_buffer(
+            tmem = Tx.decl_tensor(
                 (128, WIDTH),
                 "float16",
                 scope="tmem",
@@ -169,14 +169,14 @@ Selecting the upper F sub-slab
 
     from tvm.tirx.layout import tmem_datapath_layout
 
-    lower = Tx.decl_buffer(
+    lower = Tx.decl_tensor(
         (64, cols),
         "float32",
         scope="tmem",
         allocated_addr=tmem_addr[0],
         layout=tmem_datapath_layout("F", 64, cols, sub_slab=0),
     )
-    upper = Tx.decl_buffer(
+    upper = Tx.decl_tensor(
         (64, cols),
         "float32",
         scope="tmem",

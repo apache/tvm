@@ -1325,8 +1325,8 @@ std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& b
       continue;
     }
     // Try to find the buffer in `allloc_buffers`
-    for (const BufferVar& alloc_buffer : block->alloc_buffers) {
-      if (buffer.same_as(alloc_buffer)) {
+    for (const BufferVar& alloc_tensor : block->alloc_buffers) {
+      if (buffer.same_as(alloc_tensor)) {
         return {ffi::GetRef<StmtSRef>(defining_site_sref), true};
       }
     }
@@ -1880,7 +1880,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
     const IntImmNode* int_desc_extent = desc_loop->extent.as<IntImmNode>();
 
     // Step 3.2. Find the corresponding iter_value of the target block with a matching iterator type
-    PrimExpr block_bind;
+    ffi::Optional<PrimExpr> block_bind;
     int current_block_ind = next_block_ind;
     for (; current_block_ind >= 0; --current_block_ind) {
       if (iter_types_block[current_block_ind] == iter_type_desc) {
@@ -1890,7 +1890,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
       }
     }
 
-    if (!block_bind.defined()) return std::nullopt;
+    if (!block_bind.has_value()) return std::nullopt;
 
     // Step 3.3. Find the corresponding loop of the target block
     for (int i = 0, n = block_loops.size(); i < n; ++i) {
@@ -1900,7 +1900,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
       // Skip i-th loop if it has already been mapped
       if (ret->loop_map.find(block_loop_sref) != ret->loop_map.end()) continue;
 
-      PrimExpr residual = analyzer->Simplify(block_bind - block_loops[i]->loop_var);
+      PrimExpr residual = analyzer->Simplify(block_bind.value() - block_loops[i]->loop_var);
       if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(residual, block_walkfn).has_value()) {
         continue;
       }

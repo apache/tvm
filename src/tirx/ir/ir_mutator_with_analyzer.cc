@@ -52,7 +52,7 @@ using sym::detail::EnterConstraintFacts;
 void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::PrimFunc& func) {
   // Mark all symbolic buffer-parameter shape values as positive.
   for (const tirx::Var& param : func->params) {
-    if (!param->ty.as<tirx::BufferTypeNode>()) {
+    if (!param->ty.as<tirx::TensorTypeNode>()) {
       continue;
     }
     tirx::BufferVar buffer = param.as_or_throw<tirx::BufferVar>();
@@ -166,7 +166,7 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
     // may change after stores, opaque calls, or another iteration of a nested
     // loop, so they cannot be facts for the entire branch scope.
     bool condition_is_pure = SideEffect(real_condition) <= CallEffectKind::kPure;
-    Stmt then_case;
+    Stmt then_case = op->then_case;
     ffi::Optional<Stmt> else_case;
     constraint_scope_.WithNewScope([&]() {
       if (condition_is_pure) {
@@ -255,7 +255,7 @@ UnchangedOr<Expr> IRMutatorWithAnalyzer::Mutate_(const CallNode* op, InplaceMode
   static const Op if_then_else_op = Op::Get("prim.if_then_else");
   if (op->op.same_as(if_then_else_op)) {
     PrimExpr cond = this->Mutate(op->args[0]).ValueOrUnchanged(op->args[0]).as_or_throw<PrimExpr>();
-    Expr true_value, false_value;
+    Expr true_value = op->args[1], false_value = op->args[2];
     constraint_scope_.WithNewScope([&]() {
       EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
       WithRecordIterPredicate(cond, [&] {
@@ -312,7 +312,7 @@ UnchangedOr<PrimExpr> IRMutatorWithAnalyzer::Mutate_(const prim::SelectNode* op,
   auto cond_result = this->Mutate(op->condition, inplace_mode);
   bool cond_unchanged = cond_result.UnchangedOrSameAs(op->condition);
   PrimExpr cond = std::move(cond_result).ValueOrUnchanged(op->condition);
-  PrimExpr true_value, false_value;
+  PrimExpr true_value = op->true_value, false_value = op->false_value;
   constraint_scope_.WithNewScope([&]() {
     EnterConstraintFacts(&constraint_scope_.Current(), analyzer_, cond);
     true_value = Mutate(op->true_value, inplace_mode).ValueOrUnchanged(op->true_value);

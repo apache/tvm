@@ -43,7 +43,7 @@ def _check_fail(original):
 
 @Ts.prim_func
 def element_wise_thread_x(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     for i in T.thread_binding(0, 128, "blockIdx.x"):
         for j0_0 in T.thread_binding(0, 4, "threadIdx.x"):
@@ -58,7 +58,7 @@ def element_wise_thread_x(
 
 @Ts.prim_func
 def unified_element_wise_thread_x(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
@@ -76,9 +76,9 @@ def unified_element_wise_thread_x(
 
 @Ts.prim_func
 def element_wise_thread_x_different_dtype(
-    A: T.Buffer((128, 128), "float32"),
-    B: T.Buffer((128, 128), "float32"),
-    C: T.Buffer((128, 128), "float32"),
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
 ) -> None:
     for i in T.thread_binding(128, "blockIdx.x"):
         for j0_0 in T.thread_binding(4, "threadIdx.x"):
@@ -93,9 +93,9 @@ def element_wise_thread_x_different_dtype(
 
 @Ts.prim_func
 def unified_element_wise_thread_x_different_dtype(
-    A: T.Buffer((128, 128), "float32"),
-    B: T.Buffer((128, 128), "float32"),
-    C: T.Buffer((128, 128), "float32"),
+    A: T.Tensor((128, 128), "float32"),
+    B: T.Tensor((128, 128), "float32"),
+    C: T.Tensor((128, 128), "float32"),
 ) -> None:
     for blockIdx_x in T.thread_binding(128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(4, "threadIdx.x"):
@@ -113,7 +113,7 @@ def unified_element_wise_thread_x_different_dtype(
 
 @Ts.prim_func
 def element_wise_env_thread_x(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     j1_0 = T.env_thread("threadIdx.x")
     j0_0 = T.env_thread("threadIdx.x")
@@ -133,7 +133,7 @@ def element_wise_env_thread_x(
 
 @Ts.prim_func
 def unified_element_wise_env_thread_x(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
@@ -150,7 +150,7 @@ def unified_element_wise_env_thread_x(
 
 
 @Ts.prim_func
-def element_wise_vthread_x(A: T.Buffer([128, 128]), B: T.Buffer([128, 128])) -> None:
+def element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
     for i_0 in T.thread_binding(0, 2, "vthread.x"):
         for i_1 in T.thread_binding(0, 64, "threadIdx.x"):
             for j_0 in T.thread_binding(0, 2, "vthread.x"):
@@ -160,7 +160,7 @@ def element_wise_vthread_x(A: T.Buffer([128, 128]), B: T.Buffer([128, 128])) -> 
 
 
 @Ts.prim_func
-def unified_element_wise_vthread_x(A: T.Buffer([128, 128]), B: T.Buffer([128, 128])) -> None:
+def unified_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
     for vthread_x in T.thread_binding(0, 2, "vthread.x"):
         for threadIdx_x in T.thread_binding(0, 64, "threadIdx.x"):
             for j_1 in T.serial(0, 64):
@@ -172,7 +172,7 @@ def unified_element_wise_vthread_x(A: T.Buffer([128, 128]), B: T.Buffer([128, 12
 
 @Ts.prim_func
 def element_wise_two_thread_x_in_same_kernel_not_equal(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 64])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 64])
 ) -> None:
     for i in T.thread_binding(0, 128, "blockIdx.x"):
         for j0 in T.thread_binding(0, 128, "threadIdx.x"):
@@ -183,10 +183,10 @@ def element_wise_two_thread_x_in_same_kernel_not_equal(
 
 @Ts.prim_func
 def element_wise_kernels_with_different_size(
-    A: T.Buffer([128, 128]),
-    B: T.Buffer([128, 128]),
-    C: T.Buffer([256, 256]),
-    D: T.Buffer([256, 256]),
+    A: T.Tensor([128, 128]),
+    B: T.Tensor([128, 128]),
+    C: T.Tensor([256, 256]),
+    D: T.Tensor([256, 256]),
 ) -> None:
     for i0 in T.thread_binding(0, 128, "blockIdx.x"):
         for j0 in T.thread_binding(0, 128, "threadIdx.x"):
@@ -198,10 +198,10 @@ def element_wise_kernels_with_different_size(
 
 @Ts.prim_func
 def unified_element_wise_kernels_with_different_size(
-    A: T.Buffer([128, 128]),
-    B: T.Buffer([128, 128]),
-    C: T.Buffer([256, 256]),
-    D: T.Buffer([256, 256]),
+    A: T.Tensor([128, 128]),
+    B: T.Tensor([128, 128]),
+    C: T.Tensor([256, 256]),
+    D: T.Tensor([256, 256]),
 ) -> None:
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 128, "threadIdx.x"):
@@ -213,7 +213,7 @@ def unified_element_wise_kernels_with_different_size(
 
 @Ts.prim_func
 def element_wise_implicit_block(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     for i in T.thread_binding(0, 128, "threadIdx.y"):
         for j0_0 in T.thread_binding(0, 4, "threadIdx.x"):
@@ -228,7 +228,7 @@ def element_wise_implicit_block(
 
 @Ts.prim_func
 def unified_element_wise_implicit_block(
-    A: T.Buffer([128, 128]), B: T.Buffer([128, 128]), C: T.Buffer([128, 128])
+    A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     for blockIdx_x in T.thread_binding(0, 128, "threadIdx.y"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
@@ -276,7 +276,7 @@ def test_implicit_block():
 
 def test_inner_binding_with_annotation():
     @Ts.prim_func
-    def inner_binding_with_annotation(A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")):
+    def inner_binding_with_annotation(A: T.Tensor((64,), "float32"), B: T.Tensor((64,), "float32")):
         for bx in T.thread_binding(32, "blockIdx.x"):
             for tx in T.thread_binding(2, "threadIdx.x", annotations={"my_annotation": 1}):
                 with Ts.sblock("block"):
@@ -285,7 +285,7 @@ def test_inner_binding_with_annotation():
 
     @Ts.prim_func
     def unified_inner_binding_with_annotation(
-        A: T.Buffer((64,), "float32"), B: T.Buffer((64,), "float32")
+        A: T.Tensor((64,), "float32"), B: T.Tensor((64,), "float32")
     ):
         for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
             for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):

@@ -240,9 +240,9 @@ class ScheduleNode : public ffi::Object {
    * \param n The number of tiles to be sampled
    * \param max_innermost_factor The maximum tile size allowed to be sampled in the innermost loop
    * \param decision The sampling decision
-   * \return A list of length `n`, the random perfect tile sizes sampled
+   * \return A list of length `n`, with absent factors representing sizes inferred by Split.
    */
-  virtual ffi::Array<ExprRV> SamplePerfectTile(
+  virtual ffi::Array<ffi::Optional<ExprRV>> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
       ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) = 0;
   /*!
@@ -834,7 +834,7 @@ class ScheduleNode : public ffi::Object {
    * appears in the block's ancestor loops as `rolling axis`, fold and circularize the buffer along
    * the rolling dimension, append block predicate to avoid recomputing overlapping elements.
    * It requires:
-   * 1) The buffer to be an intermediate buffer defined via `alloc_buffer`.
+   * 1) The buffer to be an intermediate buffer defined via `alloc_tensor`.
    * 2) The LCA of the producer and consumer of the buffer is a for loop, typically,
    *    the producer and consumer of the buffer are cascaded through compute_at.
    * 3) The access region of the buffer has at least one dimension that contains
