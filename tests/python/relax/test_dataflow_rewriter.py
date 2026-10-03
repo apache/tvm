@@ -441,7 +441,7 @@ def test_rewrite_only_introduces_private_subroutines_when_required():
             return R.call_tir(RewriteMul.subroutine_mul, [A], out_ty=R.Tensor([16], "float32"))
 
         @Ts.prim_func(private=True)
-        def subroutine_mul(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        def subroutine_mul(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
 
@@ -519,7 +519,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
             return R.call_tir(RewriteMul.subroutine, [A], out_ty=R.Tensor([16], "float32"))
 
         @Ts.prim_func(private=True)
-        def subroutine(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        def subroutine(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
 
@@ -544,7 +544,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
             return A * R.const(2.0, "float32")
 
         @Ts.prim_func(private=True)
-        def subroutine_1(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        def subroutine_1(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
             for i in range(16):
                 B[i] = A[i] * A[i]
 

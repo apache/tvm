@@ -514,7 +514,7 @@ bool TensorizeComparator::CompareBuffer(const BufferVar& lhs, const BufferVar& r
     equal = (*it).second.same_as(lhs);
   } else {
     // Remap the buffer variable definition without recursively comparing its
-    // BufferType.  Tensorization intentionally matches a region of a larger
+    // TensorType.  Tensorization intentionally matches a region of a larger
     // workload buffer against the intrinsic's smaller descriptor buffer.
     auto data_it = equal_map_.find(lhs.var());
     if (data_it != equal_map_.end()) {

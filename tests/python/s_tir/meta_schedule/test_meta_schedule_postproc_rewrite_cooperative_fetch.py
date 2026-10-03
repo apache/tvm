@@ -54,7 +54,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 @tvm.script.ir_module
 class AfterRewrite0:
     @Ts.prim_func
-    def main(A: T.Buffer([512, 512], dtype='float32'), B: T.Buffer([512, 512], dtype='float32'), C: T.Buffer([512, 512], dtype='float32')) -> None:
+    def main(A: T.Tensor([512, 512], dtype='float32'), B: T.Tensor([512, 512], dtype='float32'), C: T.Tensor([512, 512], dtype='float32')) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -106,9 +106,9 @@ class AfterRewrite0:
 class WarpExecutionAfterRewrite:
     @Ts.prim_func
     def main(
-        A: T.Buffer((512, 512), "float32"),
-        B: T.Buffer((512, 512), "float32"),
-        C: T.Buffer((512, 512), "float32"),
+        A: T.Tensor((512, 512), "float32"),
+        B: T.Tensor((512, 512), "float32"),
+        C: T.Tensor((512, 512), "float32"),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})

@@ -172,7 +172,7 @@ ffi::Optional<ExprDoc> CallTIRDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
   if (!HasRelaxCallResult(call, destination) || call->args.size() != 2 ||
       !call->args[1].as<TupleNode>() || call->ty_args.size() != 1) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   const Op& op = call->op.as_or_throw<Op>();
   const auto* inplace = call->attrs.as<relax::CallTIRInplaceAttrs>();
@@ -180,27 +180,27 @@ ffi::Optional<ExprDoc> CallTIRDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
   if (op->name == "relax.call_tir_inplace"     ? inplace == nullptr
       : op->name == "relax.call_tir_with_grad" ? grad == nullptr
                                                : call->attrs.defined()) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
 
   const Type& output = call->ty_args[0];
   const auto* tuple = output.as<TupleTypeNode>();
   // The constructor unwraps a single-element output list into a tensor type.
-  if (tuple && tuple->fields.size() == 1) return RawCall(d, call, false);
+  if (tuple && tuple->fields.size() == 1) return RawCall(d, call);
   ffi::Array<Type> output_types = tuple ? tuple->fields : ffi::Array<Type>{output};
   bool distributed =
       !output_types.empty() && output_types[0].as<relax::distributed::DTensorTypeNode>();
-  if (distributed && op->name != "relax.call_tir") return RawCall(d, call, false);
+  if (distributed && op->name != "relax.call_tir") return RawCall(d, call);
   ffi::Array<ExprDoc> output_docs;
   for (const Type& type : output_types) {
     if (distributed) {
       const auto* tensor = type.as<relax::distributed::DTensorTypeNode>();
       if (!tensor || !tensor->tensor_ty->shape.as<relax::ShapeExprNode>()) {
-        return RawCall(d, call, false);
+        return RawCall(d, call);
       }
     } else {
       const auto* tensor = type.as<relax::TensorTypeNode>();
-      if (!tensor || !tensor->shape.as<relax::ShapeExprNode>()) return RawCall(d, call, false);
+      if (!tensor || !tensor->shape.as<relax::ShapeExprNode>()) return RawCall(d, call);
     }
     output_docs.push_back(d->Translate(type).value());
   }
@@ -251,9 +251,9 @@ ffi::Optional<ExprDoc> CallDefaultDocTranslate(DocTranslatorObj* d, ffi::AnyView
       ffi::Array<ExprDoc> args;
       for (const Expr& arg : call->args) args.push_back(d->Translate(arg).value());
       if (auto doc = RelaxCallDocTranslate(d, call, args)) return doc;
-      return RawCall(d, call, false, args);
+      return RawCall(d, call, args);
     }
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   if ((call->op.as<VarNode>() || call->op.as<GlobalVarNode>() ||
        call->op.as<relax::FunctionNode>()) &&
@@ -275,7 +275,7 @@ ffi::Optional<ExprDoc> CallDefaultDocTranslate(DocTranslatorObj* d, ffi::AnyView
     }
   }
   if (!inferred || !ffi::StructuralEqual()(inferred.value(), call->ty)) {
-    return RawCall(d, call, false);
+    return RawCall(d, call);
   }
   const Type& result_type = inferred.value();
   if (auto doc = TIRCallPrefixDocTranslate(d, call)) return doc;
@@ -283,7 +283,7 @@ ffi::Optional<ExprDoc> CallDefaultDocTranslate(DocTranslatorObj* d, ffi::AnyView
   for (const Expr& arg : call->args) args.push_back(d->Translate(arg).value());
   if (auto doc = FFIKernelDocTranslate(d, call, result_type, args)) return doc;
   if (auto doc = TIRCallDocTranslate(d, call, result_type, args)) return doc;
-  return RawCall(d, call, true, args);
+  return RawCall(d, call, args);
 }
 
 ffi::Optional<ExprDoc> CallDocTranslate(DocTranslatorObj* d, ffi::AnyView input,

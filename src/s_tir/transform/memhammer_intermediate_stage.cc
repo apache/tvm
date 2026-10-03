@@ -234,14 +234,14 @@ class BufferLoadReplacer : public StmtExprMutator {
  * \param storage_scope the storage scope of the new cache
  * \param compute_location the compute location.
  * \param outer_loops the outer loops of this stmt
- * \param alloc_buffer the new cache block
+ * \param alloc_tensor the new cache block
  * \return a pair. The first is the stmt after transformation.
  *         The second is the SeqStmt that contains 2 stages (one original and another inserted).
  */
 std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::String storage_scope,
                                           ffi::Optional<For> compute_location,
                                           const ffi::Array<For>& outer_loops,
-                                          BufferVar* alloc_buffer) {
+                                          BufferVar* alloc_tensor) {
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
   std::vector<const ForNode*> loops_under_compute_location;
@@ -383,10 +383,10 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   } else {
     new_buffer = WithScope(buf_store->buffer, storage_scope);
   }
-  ffi::ObjectPtr<BufferTypeNode> buffer_type = CopyBufferType(new_buffer);
+  ffi::ObjectPtr<TensorTypeNode> buffer_type = CopyTensorType(new_buffer);
   buffer_type->shape = new_shape;
   new_buffer = RebuildBufferVar(new_buffer, std::move(buffer_type));
-  *alloc_buffer = new_buffer;
+  *alloc_tensor = new_buffer;
 
   Stmt generate_body;
   if (is_write_cache) {
@@ -472,7 +472,7 @@ Stmt CreateLocalStage::Rewrite(const Stmt& stmt, const ConstraintSet& constraint
                                         constraints.outer_loops, &cache_buffer)
                            .first;
   if (cache_buffer.defined()) {
-    output->alloc_buffer.push_back(cache_buffer);
+    output->alloc_tensor.push_back(cache_buffer);
   }
   return after_caching;
 }

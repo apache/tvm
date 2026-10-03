@@ -1068,8 +1068,8 @@ def test_call_tir_with_float16_args():
 
         @Ts.prim_func
         def tir_identity(
-            Input: T.Buffer(64, "float16"),
-            Output: T.Buffer(64, "float16"),
+            Input: T.Tensor(64, "float16"),
+            Output: T.Tensor(64, "float16"),
         ):
             for i in range(64):
                 with Ts.sblock("copy"):

@@ -38,9 +38,9 @@ class Gemm_F16F16F16:
     # fmt: off
     @Ts.prim_func
     def main(
-        A: T.Buffer((M, K), "float16"),  # type: ignore
-        B: T.Buffer((K, N), "float16"),  # type: ignore
-        C: T.Buffer((M, N), "float16"),  # type: ignore
+        A: T.Tensor((M, K), "float16"),  # type: ignore
+        B: T.Tensor((K, N), "float16"),  # type: ignore
+        C: T.Tensor((M, N), "float16"),  # type: ignore
     ):
         for i, j, k in T.grid(M, N, K):
             with Ts.sblock("C"):
@@ -55,9 +55,9 @@ class Gemm_F16F16F32:
     # fmt: off
     @Ts.prim_func
     def main(
-        A: T.Buffer((M, K), "float16"),  # type: ignore
-        B: T.Buffer((K, N), "float16"),  # type: ignore
-        C: T.Buffer((M, N), "float32"),  # type: ignore
+        A: T.Tensor((M, K), "float16"),  # type: ignore
+        B: T.Tensor((K, N), "float16"),  # type: ignore
+        C: T.Tensor((M, N), "float32"),  # type: ignore
     ):
         for i, j, k in T.grid(M, N, K):
             with Ts.sblock("C"):

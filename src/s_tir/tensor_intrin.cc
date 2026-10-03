@@ -26,8 +26,8 @@
 
 namespace tvm {
 namespace s_tir {
-using tirx::BufferTypeNode;
 using tirx::PrimFunc;
+using tirx::TensorTypeNode;
 
 TVM_FFI_STATIC_INIT_BLOCK() { TensorIntrinNode::RegisterReflection(); }
 
@@ -47,7 +47,7 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
       << "The number of parameters of the description and the implementation of the "
          "tensor intrinsic doesn't match.";
   auto is_handle = [](const Var& param) {
-    return param->ty.as<PointerTypeNode>() != nullptr || param->ty.as<BufferTypeNode>() != nullptr;
+    return param->ty.as<PointerTypeNode>() != nullptr || param->ty.as<TensorTypeNode>() != nullptr;
   };
   for (size_t i = 0; i < desc->params.size(); i++) {
     TVM_FFI_CHECK(is_handle(desc->params[i]), ValueError)

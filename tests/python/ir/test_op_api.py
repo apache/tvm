@@ -260,7 +260,7 @@ def test_retained_wrappers_and_raw_fields():
     ]:
         roundtrip(call, [p])
     for kwargs in [{"attrs": {"flag": 1}}, {"ret_ty": "float32"}, {"ret_ty": ir.Type.missing()}]:
-        assert "I.Call(" in roundtrip(T.cuda.clock64(**kwargs))
+        assert "I.Call.unchecked(" in roundtrip(T.cuda.clock64(**kwargs))
 
 
 def test_wrapper_custom_inference_is_lossless():
@@ -269,8 +269,8 @@ def test_wrapper_custom_inference_is_lossless():
     p = tvm.tirx.Var("p", "handle")
     try:
         op.set_attr("FInferType", lambda c: ir.PrimType("int64"), override=True)
-        call = ir.Call(op, [p, tvm.tirx.const(1, "int32")], ret_ty="int64")
-        assert "I.Call(" in roundtrip(call, [p])
+        call = ir.Call(op, [p, tvm.tirx.const(1, "int32")], ty="int64")
+        assert "I.Call.unchecked(" in roundtrip(call, [p])
     finally:
         op.set_attr("FInferType", original, override=True)
 
@@ -279,7 +279,7 @@ def test_generated_full_call_roundtrip(target):
     op = register(target.__name__ + ".call", ["x"], ty_args=["T"])
     _init_op_api(target.__name__)
     call = target.call(1, ty_args=[ir.PrimType("int16")], attrs={"flag": 1}, ret_ty="int32")
-    assert "I.Call(" in roundtrip(call)
+    assert "I.Call.unchecked(" in roundtrip(call)
     assert op.get_attr("TScriptPrinterName") is None
 
 
@@ -287,12 +287,21 @@ def test_explicit_printer_alias_and_late_cuda_registration():
     module = importlib.import_module("tvm.backend.cuda.script")
     op = register("tirx.cuda.test_op_api_alias")
     op.set_attr("TFixedReturnType", ir.PrimType("int32"))
+    # Registration or generic initialization alone does not publish a name
+    # through the script namespace registration contract.
+    call = ir.Call(op, [], ty="int32")
+    assert "I.Call.unchecked(" in roundtrip(call)
     _init_op_api("tirx.cuda", module.__name__)
     generated = module.test_op_api_alias
+    assert "I.Call.unchecked(" in roundtrip(generated())
+    from tvm.tirx.script.ir_builder.op import register_script_namespace
+
+    register_script_namespace("cuda", module, canonical_op_names=True)
     assert "T.cuda.test_op_api_alias(" in roundtrip(generated())
     module.test_op_api_custom_name = generated
-    op.set_attr("TScriptPrinterName", "tirx.cuda.test_op_api_custom_name")
+    op.set_attr("TScriptPrinterName", "tirx.cuda.test_op_api_custom_name", override=True)
     try:
+        register_script_namespace("cuda", module, canonical_op_names=True)
         assert "T.cuda.test_op_api_custom_name(" in roundtrip(generated())
     finally:
         op.set_attr("TScriptPrinterName", op.name, override=True)
@@ -317,7 +326,7 @@ def test_wait_and_vector_load_fallbacks():
         T.cuda.ldg(p, "float32", dst=[p, p], vec="v2"),
     ]
     for call in calls:
-        assert "I.Call(" in roundtrip(call, [p])
+        assert "I.Call.unchecked(" in roundtrip(call, [p])
 
 
 @pytest.mark.parametrize(
@@ -329,17 +338,17 @@ def test_wait_and_vector_load_fallbacks():
     ],
 )
 def test_unchecked_calls_keep_lossless_fallback(name, args, ret_ty):
-    call = ir.Call.unchecked("tirx.cuda." + name, args, ret_ty=ret_ty)
-    assert "I.Call(" in roundtrip(call)
+    call = ir.Call.unchecked("tirx.cuda." + name, args, ty=ret_ty)
+    assert "I.Call.unchecked(" in roundtrip(call)
 
 
 def test_retained_wrapper_tensor_region_fallback():
-    buffer = tvm.tirx.decl_buffer((4,), "int32", name="A")
-    call = ir.Call("tirx.cuda.atomic_add", [buffer[0:1], 1], ret_ty="int32")
-    assert "I.Call(" in roundtrip(call, [buffer])
+    buffer = tvm.tirx.decl_tensor((4,), "int32", name="A")
+    call = ir.Call("tirx.cuda.atomic_add", [buffer[0:1], 1], ty="int32")
+    assert "I.Call.unchecked(" in roundtrip(call, [buffer])
 
 
 def test_shuffle_buffer_operand_fallback():
-    buffer = tvm.tirx.decl_buffer((1,), "int32", name="A")
-    call = ir.Call("tirx.cuda.__shfl_sync", [1, buffer, 0, 32], ret_ty=buffer.ty)
-    assert "I.Call(" in roundtrip(call, [buffer])
+    buffer = tvm.tirx.decl_tensor((1,), "int32", name="A")
+    call = ir.Call("tirx.cuda.__shfl_sync", [1, buffer, 0, 32], ty=buffer.ty)
+    assert "I.Call.unchecked(" in roundtrip(call, [buffer])

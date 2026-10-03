@@ -34,10 +34,10 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def matmul_bias_before(
-    A: T.Buffer((16, 16), "int8"),
-    B: T.Buffer((16, 16), "int8"),
-    C: T.Buffer((16, 16), "int32"),
-    D: T.Buffer((16, 16), "int32"),
+    A: T.Tensor((16, 16), "int8"),
+    B: T.Tensor((16, 16), "int8"),
+    C: T.Tensor((16, 16), "int32"),
+    D: T.Tensor((16, 16), "int32"),
 ) -> None:
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
@@ -54,10 +54,10 @@ def matmul_bias_before(
 
 @Ts.prim_func
 def matmul_bias_expected(
-    A: T.Buffer((16, 16), "int8"),
-    B: T.Buffer((16, 16), "int8"),
-    C: T.Buffer((16, 16), "int32"),
-    D: T.Buffer((16, 16), "int32"),
+    A: T.Tensor((16, 16), "int8"),
+    B: T.Tensor((16, 16), "int8"),
+    C: T.Tensor((16, 16), "int32"),
+    D: T.Tensor((16, 16), "int32"),
 ) -> None:
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
@@ -72,10 +72,10 @@ def matmul_bias_expected(
 
 @Ts.prim_func
 def matmul_bias_fp32_before(
-    A: T.Buffer((32, 32), "float32"),
-    B: T.Buffer((32, 32), "float32"),
-    C: T.Buffer((32, 32), "float32"),
-    D: T.Buffer((32, 32), "float32"),
+    A: T.Tensor((32, 32), "float32"),
+    B: T.Tensor((32, 32), "float32"),
+    C: T.Tensor((32, 32), "float32"),
+    D: T.Tensor((32, 32), "float32"),
 ) -> None:
     temp = Ts.sblock_alloc_buffer((32, 32), dtype="float32")
     for i, j, k in T.grid(32, 32, 32):
@@ -92,10 +92,10 @@ def matmul_bias_fp32_before(
 
 @Ts.prim_func
 def matmul_bias_fp32_expected(
-    A: T.Buffer((32, 32), "float32"),
-    B: T.Buffer((32, 32), "float32"),
-    C: T.Buffer((32, 32), "float32"),
-    D: T.Buffer((32, 32), "float32"),
+    A: T.Tensor((32, 32), "float32"),
+    B: T.Tensor((32, 32), "float32"),
+    C: T.Tensor((32, 32), "float32"),
+    D: T.Tensor((32, 32), "float32"),
 ) -> None:
     temp = Ts.sblock_alloc_buffer((32, 32), dtype="float32")
     for i, j, k in T.grid(32, 32, 32):
@@ -110,11 +110,11 @@ def matmul_bias_fp32_expected(
 
 @Ts.prim_func
 def matmul_bias_multiple_epilogue_before(
-    A: T.Buffer((16, 16), "int8"),
-    B: T.Buffer((16, 16), "int8"),
-    C: T.Buffer((16, 16), "int32"),
-    D: T.Buffer((16, 16), "int32"),
-    E: T.Buffer((16, 16), "int32"),
+    A: T.Tensor((16, 16), "int8"),
+    B: T.Tensor((16, 16), "int8"),
+    C: T.Tensor((16, 16), "int32"),
+    D: T.Tensor((16, 16), "int32"),
+    E: T.Tensor((16, 16), "int32"),
 ) -> None:
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
@@ -135,11 +135,11 @@ def matmul_bias_multiple_epilogue_before(
 
 @Ts.prim_func
 def matmul_bias_multiple_epilogue_expected(
-    A: T.Buffer((16, 16), "int8"),
-    B: T.Buffer((16, 16), "int8"),
-    C: T.Buffer((16, 16), "int32"),
-    D: T.Buffer((16, 16), "int32"),
-    E: T.Buffer((16, 16), "int32"),
+    A: T.Tensor((16, 16), "int8"),
+    B: T.Tensor((16, 16), "int8"),
+    C: T.Tensor((16, 16), "int32"),
+    D: T.Tensor((16, 16), "int32"),
+    E: T.Tensor((16, 16), "int32"),
 ) -> None:
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
     for i, j, k in T.grid(16, 16, 16):
@@ -219,11 +219,11 @@ def test_fuse_reduction_epilogue_multiple_epilogue():
 
 @Ts.prim_func
 def matmul_bias_invalid_multiple_use_before(
-    A: T.Buffer((16, 16), "int8"),
-    B: T.Buffer((16, 16), "int8"),
-    C1: T.Buffer((16, 16), "int32"),
-    C2: T.Buffer((16, 16), "int32"),
-    D: T.Buffer((16, 16), "int32"),
+    A: T.Tensor((16, 16), "int8"),
+    B: T.Tensor((16, 16), "int8"),
+    C1: T.Tensor((16, 16), "int32"),
+    C2: T.Tensor((16, 16), "int32"),
+    D: T.Tensor((16, 16), "int32"),
 ) -> None:
     """Epilogue uses the reduction result twice; fusion must be rejected."""
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")
@@ -249,10 +249,10 @@ def test_fuse_reduction_epilogue_reject_multiple_use():
 
 @Ts.prim_func
 def matmul_bias_invalid_scaling_before(
-    A: T.Buffer((16, 16), "int8"),
-    B: T.Buffer((16, 16), "int8"),
-    C: T.Buffer((16, 16), "int32"),
-    D: T.Buffer((16, 16), "int32"),
+    A: T.Tensor((16, 16), "int8"),
+    B: T.Tensor((16, 16), "int8"),
+    C: T.Tensor((16, 16), "int32"),
+    D: T.Tensor((16, 16), "int32"),
 ) -> None:
     """Epilogue scales the reduction result; fusion must be rejected."""
     temp = Ts.sblock_alloc_buffer((16, 16), dtype="int32")

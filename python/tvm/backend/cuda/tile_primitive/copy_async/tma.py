@@ -2168,10 +2168,10 @@ def _emit_plan(
 
     def shared_ptr(element_offset=0):
         # Keep the sliced offset in the pointer index instead of the Buffer's
-        # elem_offset.  The latter is part of a flat DeclBuffer definition;
+        # elem_offset.  The latter is part of a flat DeclTensor definition;
         # after loop unrolling, CSE may otherwise lift an offset containing a
         # locally bound coordinate above that coordinate's Bind statement.
-        smem_view = T.decl_buffer(
+        smem_view = T.decl_tensor(
             (1,),
             spec.smem_buffer.dtype,
             spec.smem_buffer.data,

@@ -37,9 +37,9 @@ def _check(before, expect):
 def test_matmul():
     @Ts.prim_func
     def before(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 16), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 16), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ) -> None:
         T.func_attr({"layout_free_buffers": [1]})
         B_ = Ts.sblock_alloc_buffer([16, 4, 4], dtype="float32")
@@ -63,9 +63,9 @@ def test_matmul():
 
     @Ts.prim_func
     def after(
-        A: T.Buffer((16, 16), "float32"),
-        B: T.Buffer((16, 4, 4), "float32"),
-        C: T.Buffer((16, 16), "float32"),
+        A: T.Tensor((16, 16), "float32"),
+        B: T.Tensor((16, 4, 4), "float32"),
+        C: T.Tensor((16, 16), "float32"),
     ) -> None:
         T.func_attr({"layout_free_buffers": [1]})
         for i0_o, i1_o in T.grid(16, 16):

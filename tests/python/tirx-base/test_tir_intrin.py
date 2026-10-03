@@ -39,7 +39,7 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
     n = T.int32()
 
     @T.prim_func
-    def kernel(A: T.Buffer((n,), dtype), B: T.Buffer((n,), out_dtype)):
+    def kernel(A: T.Tensor((n,), dtype), B: T.Tensor((n,), out_dtype)):
         if I.constexpr(gpu):
             for bx in T.thread_binding(T.ceildiv(n, 64), thread="blockIdx.x"):
                 for tx in T.thread_binding(64, thread="threadIdx.x"):
@@ -57,7 +57,7 @@ def _binary_kernel(op, rhs_dtype="float32"):
 
     @T.prim_func
     def kernel(
-        A: T.Buffer((n,), "float32"), B: T.Buffer((n,), rhs_dtype), C: T.Buffer((n,), "float32")
+        A: T.Tensor((n,), "float32"), B: T.Tensor((n,), rhs_dtype), C: T.Tensor((n,), "float32")
     ):
         for i in range(n):
             C[i] = op(A[i], B[i])
@@ -318,10 +318,10 @@ stride_3 = T.dynamic("stride_3", "int32")
 class Module:
     @T.prim_func
     def test_tir_fma(
-        A_1: T.Buffer([n], strides=[stride], elem_offset=0, align=64, offset_factor=1),
-        B_1: T.Buffer([n], strides=[stride_1], elem_offset=0, align=64, offset_factor=1),
-        C_1: T.Buffer([n], strides=[stride_2], elem_offset=0, align=64, offset_factor=1),
-        d_1: T.Buffer([n], strides=[stride_3], elem_offset=0, align=64, offset_factor=1),
+        A_1: T.Tensor([n], strides=[stride], elem_offset=0, align=64, offset_factor=1),
+        B_1: T.Tensor([n], strides=[stride_1], elem_offset=0, align=64, offset_factor=1),
+        C_1: T.Tensor([n], strides=[stride_2], elem_offset=0, align=64, offset_factor=1),
+        d_1: T.Tensor([n], strides=[stride_3], elem_offset=0, align=64, offset_factor=1),
     ) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "test_fma", "tirx.noalias": True})

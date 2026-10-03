@@ -27,7 +27,7 @@ from tvm import s_tir, tirx
 )
 @pytest.mark.parametrize("access_kind", ["load", "store"])
 def test_explicit_matrix_ab_access_is_rejected(scope, shape, access_kind):
-    buffer = tirx.decl_buffer(shape, "float32", scope=scope)
+    buffer = tirx.decl_tensor(shape, "float32", scope=scope)
     if access_kind == "load":
         body = tirx.Evaluate(tirx.BufferLoad(buffer, [0, 0]))
     else:

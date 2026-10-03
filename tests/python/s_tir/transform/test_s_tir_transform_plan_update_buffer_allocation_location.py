@@ -33,7 +33,7 @@ def _check(original, transformed):
 
 
 @Ts.prim_func
-def element_func(A: T.Buffer((16, 16)), C: T.Buffer((16, 16))) -> None:
+def element_func(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
     B = Ts.sblock_alloc_buffer((16, 16))
     for i0 in range(0, 16):
         for j0 in range(0, 16):
@@ -47,7 +47,7 @@ def element_func(A: T.Buffer((16, 16)), C: T.Buffer((16, 16))) -> None:
 
 
 @Ts.prim_func
-def transformed_element_func(A: T.Buffer([16, 16]), C: T.Buffer([16, 16])) -> None:
+def transformed_element_func(A: T.Tensor([16, 16]), C: T.Tensor([16, 16])) -> None:
     for i_0 in range(0, 16):
         with Ts.sblock():
             Ts.reads([A[i_0, 0:16]])
@@ -158,7 +158,7 @@ def transformed_match_buffer_func() -> None:
 
 
 @Ts.prim_func
-def opaque_access(A: T.Buffer([1024]), B: T.Buffer([1024])) -> None:
+def opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
     A_cache = Ts.sblock_alloc_buffer([1024])
     for i in T.serial(0, 8):
         with Ts.sblock():
@@ -188,7 +188,7 @@ def opaque_access(A: T.Buffer([1024]), B: T.Buffer([1024])) -> None:
 
 
 @Ts.prim_func
-def transformed_opaque_access(A: T.Buffer([1024]), B: T.Buffer([1024])) -> None:
+def transformed_opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
     for i in T.serial(0, 8):
         with Ts.sblock():
             vi = Ts.axis.S(8, i)
@@ -234,7 +234,7 @@ def test_loop_carried_dependency():
     and the allocate buffer should keep the order."""
 
     @Ts.prim_func
-    def before(A: T.Buffer((8, 8, 8), "int32"), B: T.Buffer((8, 8, 8), "int32")):
+    def before(A: T.Tensor((8, 8, 8), "int32"), B: T.Tensor((8, 8, 8), "int32")):
         C = Ts.sblock_alloc_buffer([8, 8, 8], dtype="int32")
         D = Ts.sblock_alloc_buffer([8, 8, 8], dtype="int32")
         for i in T.serial(8):
@@ -253,12 +253,12 @@ def test_loop_carried_dependency():
                         vj = Ts.axis.opaque(8, j)
                         B[vi, vj, vk] = (
                             C[vi, vj, vk]
-                            + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0, dtype="int32")
+                            + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0)
                             + D[vi, vj, vk]
                         )
 
     @Ts.prim_func
-    def after(A: T.Buffer((8, 8, 8), "int32"), B: T.Buffer((8, 8, 8), "int32")) -> None:
+    def after(A: T.Tensor((8, 8, 8), "int32"), B: T.Tensor((8, 8, 8), "int32")) -> None:
         for i in T.serial(8):
             with Ts.sblock():
                 Ts.reads(A[i, 0:8, 0:8])
@@ -280,7 +280,7 @@ def test_loop_carried_dependency():
                             vj = Ts.axis.opaque(8, j)
                             B[vi, vj, vk] = (
                                 C[vi, vj, vk]
-                                + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0, dtype="int32")
+                                + T.if_then_else(0 < vj, C[vi, vj - 1, vk], 0)
                                 + D[vi, vj, vk]
                             )
 
@@ -292,7 +292,7 @@ def test_1D_cascade_op_rolling_buffer():
     which is marked as opaque in consumer block's iter mappings."""
 
     @Ts.prim_func
-    def before(A: T.Buffer((4, 16), "int32"), C: T.Buffer((4, 8), "int32")):
+    def before(A: T.Tensor((4, 16), "int32"), C: T.Tensor((4, 8), "int32")):
         B = Ts.sblock_alloc_buffer((4, 6), "int32")
         for c in T.serial(4):
             for i in T.serial(0, 2):
@@ -318,7 +318,7 @@ def test_1D_cascade_op_rolling_buffer():
                             )
 
     @Ts.prim_func
-    def after(A: T.Buffer((4, 16), "int32"), C: T.Buffer((4, 8), "int32")):
+    def after(A: T.Tensor((4, 16), "int32"), C: T.Tensor((4, 8), "int32")):
         for c in T.serial(4):
             with Ts.sblock():
                 Ts.reads(A[c, 0:12], C[c, 0:8])
@@ -350,14 +350,14 @@ def test_buffer_conditional_lowering():
 
     Confirm that the `tirx.PlanAndUpdateBufferAllocationLocation` pass
     leaves (Buffer nodes corresponding to pointer-typed PrimFunc arguments)
-    unchanged, rather than lowering them to `reads`, `writes`, and `alloc_buffer` nodes.
+    unchanged, rather than lowering them to `reads`, `writes`, and `alloc_tensor` nodes.
     """
 
     @Ts.prim_func
     def before(A: T.handle("float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i in range(1):
-            A_1 = T.decl_buffer((1,), data=A)
+            A_1 = T.decl_tensor((1,), data=A)
             A_1[i] = 0
 
     after = before
@@ -370,7 +370,7 @@ def test_dltensor_buffer_is_unlowered():
     Confirm that the `tirx.PlanAndUpdateBufferAllocationLocation` pass
     leaves (Buffer nodes corresponding to PrimFunc DLTensor arguments)
     unchanged, rather than lowering them to `reads`, `writes`, and
-    `alloc_buffer` nodes.
+    `alloc_tensor` nodes.
     """
 
     @Ts.prim_func
@@ -383,14 +383,14 @@ def test_dltensor_buffer_is_unlowered():
             shape_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
                 dlpack_handle, 0, 3, dtype=T.handle("int64").ty
             )
-            shape = T.decl_buffer(ndim, "int64", data=shape_ptr)
-            product = T.decl_buffer([], "int64")
+            shape = T.decl_tensor(ndim, "int64", data=shape_ptr)
+            product = T.decl_tensor([], "int64")
             product[()] = 1
             for dim in range(axis + 1, ndim):
                 product[()] = product[()] * shape[dim]
             return product[()]
         else:
-            strides = T.decl_buffer(ndim, "int64", data=stride_ptr)
+            strides = T.decl_tensor(ndim, "int64", data=stride_ptr)
             stride: T.int64 = strides[axis]
             return stride
 
@@ -402,7 +402,7 @@ def test_reduce_buffer_dominate_reduce_loops():
     """Reduction write buffer allocation should dominate all reduce loops"""
 
     @Ts.prim_func
-    def before(x: T.Buffer((256, 256, 256), "float32"), x_red: T.Buffer((256, 256), "float32")):
+    def before(x: T.Tensor((256, 256, 256), "float32"), x_red: T.Tensor((256, 256), "float32")):
         x_red_ = Ts.sblock_alloc_buffer((256, 256))
         for ax0_0, k1_0, ax1_0 in T.grid(4, 4, 4):
             for ax0_1, k1_1, ax1_1 in T.grid(64, 64, 64):
@@ -420,7 +420,7 @@ def test_reduce_buffer_dominate_reduce_loops():
                     x_red[v0, v1] = x_red_[v0, v1]
 
     @Ts.prim_func
-    def after(x: T.Buffer((256, 256, 256), "float32"), x_red: T.Buffer((256, 256), "float32")):
+    def after(x: T.Tensor((256, 256, 256), "float32"), x_red: T.Tensor((256, 256), "float32")):
         for ax0_0 in range(4):
             with Ts.sblock(""):
                 Ts.reads(x[ax0_0 * 64 : ax0_0 * 64 + 64, 0:256, 0:256])

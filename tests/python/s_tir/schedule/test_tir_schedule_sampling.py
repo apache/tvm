@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 
 
 @Ts.prim_func
-def elementwise(A: T.Buffer((128, 257, 1470)), B: T.Buffer((128, 257, 1470))) -> None:
+def elementwise(A: T.Tensor((128, 257, 1470)), B: T.Tensor((128, 257, 1470))) -> None:
     for i, j, k in T.grid(128, 257, 1470):
         with Ts.sblock("B"):
             vi, vj, vk = Ts.axis.remap("SSS", [i, j, k])
@@ -40,9 +40,9 @@ def elementwise(A: T.Buffer((128, 257, 1470)), B: T.Buffer((128, 257, 1470))) ->
 
 @Ts.prim_func
 def tiled_conv2d_with_padding(
-    inputs: T.Buffer((1, 224, 224, 3), "float32"),
-    weight: T.Buffer((7, 7, 3, 64), "float32"),
-    conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32"),
+    inputs: T.Tensor((1, 224, 224, 3), "float32"),
+    weight: T.Tensor((7, 7, 3, 64), "float32"),
+    conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32"),
 ) -> None:
     PadInput = Ts.sblock_alloc_buffer([1, 230, 230, 3], dtype="float32")
     for i0, i1, i2, i3 in T.grid(1, 230, 230, 3):
@@ -54,7 +54,6 @@ def tiled_conv2d_with_padding(
                 3 <= i1_1 and i1_1 < 227 and 3 <= i2_1 and i2_1 < 227,
                 inputs[i0_1, i1_1 - 3, i2_1 - 3, i3_1],
                 T.float32(0),
-                dtype="float32",
             )
     for (
         i0_0,
@@ -217,7 +216,7 @@ def test_sample_perfect_tile_on_dynamic_loops():
     n = T.dynamic("n", "int32")
 
     @Ts.prim_func
-    def workload(A: T.Buffer((n, 1024))) -> None:
+    def workload(A: T.Tensor((n, 1024))) -> None:
         for i, j in T.grid(n, 1024):
             with Ts.sblock("B"):
                 vi, vj = Ts.axis.remap("SS", [i, j])

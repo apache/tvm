@@ -749,7 +749,7 @@ ffi::Array<BufferVar> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_st
     ffi::Array<PrimExpr> rf_shape = buffer->shape;
     rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
 
-    ffi::ObjectPtr<BufferTypeNode> n = CopyBufferType(buffer);
+    ffi::ObjectPtr<TensorTypeNode> n = CopyTensorType(buffer);
     n->shape = rf_shape;
     rf_buffers.push_back(RebuildBufferVar(buffer, std::move(n), buffer.name() + ".rf"));
   }

@@ -45,9 +45,9 @@ def test_transform_fuse_transpose_matmul():
     class Expected:
         @Ts.prim_func(private=True)
         def NT_matmul(
-            x: T.Buffer((T.int64(128), T.int64(256)), "float32"),
-            w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
-            NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(256)), "float32"),
+            w: T.Tensor((T.int64(128), T.int64(256)), "float32"),
+            NT_matmul: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -98,9 +98,9 @@ def test_transform_fuse_transpose_matmul_const():
     class Expected:
         @Ts.prim_func(private=True)
         def NT_matmul(
-            x: T.Buffer((T.int64(128), T.int64(256)), "float32"),
-            w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
-            NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
+            x: T.Tensor((T.int64(128), T.int64(256)), "float32"),
+            w: T.Tensor((T.int64(128), T.int64(256)), "float32"),
+            NT_matmul: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):

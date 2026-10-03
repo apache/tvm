@@ -40,7 +40,7 @@ def _check_fail(original):
 
 
 @Ts.prim_func
-def buffer_load_store(A: T.Buffer((16, 16, 16)), C: T.Buffer((16, 16))) -> None:
+def buffer_load_store(A: T.Tensor((16, 16, 16)), C: T.Tensor((16, 16))) -> None:
     for i, j, k in T.grid(4, 16, 8):
         with Ts.sblock():
             Ts.reads(C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2])
@@ -56,7 +56,7 @@ def buffer_load_store(A: T.Buffer((16, 16, 16)), C: T.Buffer((16, 16))) -> None:
 
 
 @Ts.prim_func
-def transformed_buffer_load_store(A: T.Buffer((16, 16, 16)), C: T.Buffer((16, 16))) -> None:
+def transformed_buffer_load_store(A: T.Tensor((16, 16, 16)), C: T.Tensor((16, 16))) -> None:
     for i, j, k in T.grid(4, 16, 8):
         with Ts.sblock():
             Ts.reads(C[i * 4 : i * 4 + 4, k * 2 : k * 2 + 2])
@@ -78,7 +78,7 @@ Bs_1 = T.dynamic("Bs_1", "int32")
 
 
 @Ts.prim_func
-def opaque_access(A: T.Buffer((32, 64, 128)), B: T.Buffer((64, 64, 64))) -> None:
+def opaque_access(A: T.Tensor((32, 64, 128)), B: T.Tensor((64, 64, 64))) -> None:
     for i, j, k in T.grid(2, 64, 8):
         with Ts.sblock():
             Ts.reads([])
@@ -122,7 +122,7 @@ def opaque_access(A: T.Buffer((32, 64, 128)), B: T.Buffer((64, 64, 64))) -> None
 
 
 @Ts.prim_func
-def transformed_opaque_access(A: T.Buffer((32, 64, 128)), B: T.Buffer((64, 64, 64))) -> None:
+def transformed_opaque_access(A: T.Tensor((32, 64, 128)), B: T.Tensor((64, 64, 64))) -> None:
     for i, j, k in T.grid(2, 64, 8):
         with Ts.sblock():
             Ts.reads([])
@@ -154,7 +154,7 @@ def transformed_opaque_access(A: T.Buffer((32, 64, 128)), B: T.Buffer((64, 64, 6
 
 
 @Ts.prim_func
-def opaque_buffer_data_projection(A: T.Buffer((16,))) -> None:
+def opaque_buffer_data_projection(A: T.Tensor((16,))) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(A[4:8])
@@ -163,7 +163,7 @@ def opaque_buffer_data_projection(A: T.Buffer((16,))) -> None:
 
 
 @Ts.prim_func
-def transformed_opaque_buffer_data_projection(A: T.Buffer((16,))) -> None:
+def transformed_opaque_buffer_data_projection(A: T.Tensor((16,))) -> None:
     with Ts.sblock():
         Ts.reads([])
         Ts.writes(A[4:8])
@@ -175,7 +175,7 @@ As_1 = T.dynamic("As_1", "int32")
 
 
 @Ts.prim_func
-def high_dim_opaque_access(A: T.Buffer((16, 32, 64))) -> None:
+def high_dim_opaque_access(A: T.Tensor((16, 32, 64))) -> None:
     for i, j, k in T.grid(16, 2, 4):
         with Ts.sblock():
             Ts.reads([])
@@ -199,7 +199,7 @@ def high_dim_opaque_access(A: T.Buffer((16, 32, 64))) -> None:
 
 
 @Ts.prim_func
-def transformed_high_dim_opaque_access(A: T.Buffer((16, 32, 64))) -> None:
+def transformed_high_dim_opaque_access(A: T.Tensor((16, 32, 64))) -> None:
     for i, j, k in T.grid(16, 2, 4):
         with Ts.sblock():
             Ts.reads([])
@@ -222,7 +222,7 @@ As_1 = T.dynamic("As_1", "int32")
 
 @Ts.prim_func
 def high_dim_opaque_access_with_source_strides(
-    A: T.Buffer((16, 32, 64), strides=[2576, 80, 1]),
+    A: T.Tensor((16, 32, 64), strides=[2576, 80, 1]),
 ) -> None:
     for i, j, k in T.grid(16, 2, 4):
         with Ts.sblock():
@@ -248,7 +248,7 @@ def high_dim_opaque_access_with_source_strides(
 
 @Ts.prim_func
 def transformed_high_dim_opaque_access_with_source_strides(
-    A: T.Buffer((16, 32, 64), strides=[2576, 80, 1]),
+    A: T.Tensor((16, 32, 64), strides=[2576, 80, 1]),
 ) -> None:
     for i, j, k in T.grid(16, 2, 4):
         with Ts.sblock():
@@ -273,7 +273,7 @@ Ass_1 = T.dynamic("Ass_1", "int32")
 
 
 @Ts.prim_func
-def recursive_match(A: T.Buffer((64, 64, 64)), B: T.Buffer((64, 64, 64))) -> None:
+def recursive_match(A: T.Tensor((64, 64, 64)), B: T.Tensor((64, 64, 64))) -> None:
     for i, j, k in T.grid(64, 4, 4):
         with Ts.sblock():
             Ts.reads([])
@@ -329,7 +329,7 @@ def recursive_match(A: T.Buffer((64, 64, 64)), B: T.Buffer((64, 64, 64))) -> Non
 
 
 @Ts.prim_func
-def transformed_recursive_match(A: T.Buffer((64, 64, 64)), B: T.Buffer((64, 64, 64))) -> None:
+def transformed_recursive_match(A: T.Tensor((64, 64, 64)), B: T.Tensor((64, 64, 64))) -> None:
     for i, j, k in T.grid(64, 4, 4):
         with Ts.sblock():
             Ts.reads([])
@@ -376,8 +376,8 @@ Bs_1 = T.dynamic("Bs_1", "int32")
 
 @Ts.prim_func
 def symbolic_match(
-    A: T.Buffer((n * m, m)),  # noqa: F821
-    B: T.Buffer((n * 2, m * 4)),  # noqa: F821
+    A: T.Tensor((n * m, m)),  # noqa: F821
+    B: T.Tensor((n * 2, m * 4)),  # noqa: F821
     n: T.int32,
     m: T.int32,
 ) -> None:
@@ -406,8 +406,8 @@ def symbolic_match(
 
 @Ts.prim_func
 def transformed_symbolic_match(
-    A: T.Buffer((n * m, m)),  # noqa: F821
-    B: T.Buffer((n * 2, m * 4)),  # noqa: F821
+    A: T.Tensor((n * m, m)),  # noqa: F821
+    B: T.Tensor((n * 2, m * 4)),  # noqa: F821
     n: T.int32,
     m: T.int32,
 ) -> None:
@@ -431,7 +431,7 @@ def transformed_symbolic_match(
 
 
 @Ts.prim_func
-def rank0_buffer(A: T.Buffer((8, 8)), B: T.Buffer((8, 8))) -> None:
+def rank0_buffer(A: T.Tensor((8, 8)), B: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock():
             Ts.reads([])
@@ -452,7 +452,7 @@ def rank0_buffer(A: T.Buffer((8, 8)), B: T.Buffer((8, 8))) -> None:
 
 
 @Ts.prim_func
-def transformed_rank0_buffer(A: T.Buffer((8, 8)), B: T.Buffer((8, 8))) -> None:
+def transformed_rank0_buffer(A: T.Tensor((8, 8)), B: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock():
             Ts.reads([])
@@ -471,7 +471,7 @@ def transformed_rank0_buffer(A: T.Buffer((8, 8)), B: T.Buffer((8, 8))) -> None:
 
 
 @Ts.prim_func
-def fail_match_load(A: T.Buffer((8, 8))) -> None:
+def fail_match_load(A: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock():
             Ts.reads(A[i, j])
@@ -481,7 +481,7 @@ def fail_match_load(A: T.Buffer((8, 8))) -> None:
 
 
 @Ts.prim_func
-def fail_match_store(A: T.Buffer((8, 8))) -> None:
+def fail_match_store(A: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock():
             Ts.reads([])
@@ -495,7 +495,7 @@ stride = T.dynamic("stride", "int32")
 
 
 @Ts.prim_func(check_well_formed=False)
-def fail_buffer_bind(A: T.Buffer((8, 8))) -> None:
+def fail_buffer_bind(A: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 2):
         with Ts.sblock():
             sub_A = Ts.match_buffer(
@@ -507,7 +507,7 @@ def fail_buffer_bind(A: T.Buffer((8, 8))) -> None:
 
 # well-formed checker complains about redefinition of a stride variable
 @Ts.prim_func(check_well_formed=False)
-def fail_match_func_param(A: T.Buffer((8, 8)), m: T.int32, n: T.int32) -> None:
+def fail_match_func_param(A: T.Tensor((8, 8)), m: T.int32, n: T.int32) -> None:
     for i, j in T.grid(8, 2):
         with Ts.sblock():
             sub_A = Ts.match_buffer(
@@ -560,7 +560,7 @@ def test_fail_match_func_param():
 
 
 @Ts.prim_func
-def scalar_match_buffer_type_coercion(A: T.Buffer((8, 8))) -> None:
+def scalar_match_buffer_type_coercion(A: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock(""):
             vi = Ts.axis.spatial(8, i)
@@ -573,7 +573,7 @@ def scalar_match_buffer_type_coercion(A: T.Buffer((8, 8))) -> None:
 
 
 @Ts.prim_func
-def transformed_scalar_match_buffer_type_coercion(A: T.Buffer((8, 8))) -> None:
+def transformed_scalar_match_buffer_type_coercion(A: T.Tensor((8, 8))) -> None:
     for i, j in T.grid(8, 8):
         with Ts.sblock(""):
             vi = Ts.axis.spatial(8, i)
@@ -589,7 +589,7 @@ def test_scalar_match_buffer_type_coercion():
 
 
 @Ts.prim_func
-def masked_match_buffer(A: T.Buffer((8,), "float32")) -> None:
+def masked_match_buffer(A: T.Tensor((8,), "float32")) -> None:
     with Ts.sblock():
         Ts.reads(A[2:6])
         sub_A = Ts.match_buffer(A[2:6], (4,), offset_factor=1)

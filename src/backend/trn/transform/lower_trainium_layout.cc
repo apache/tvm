@@ -68,7 +68,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       }
       if (buffer.value()->layout.has_value()) {
         BufferVar flattened = storage_lower->GetFlattenedBuffer(buffer.value());
-        auto type = CopyBufferType(buffer.value());
+        auto type = CopyTensorType(buffer.value());
         type->layout = std::nullopt;
         BufferVar source = RebuildBufferVar(buffer.value(), std::move(type));
         param_flattened_buffers.emplace_back(flattened, source);
@@ -80,7 +80,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     auto new_stmt = storage_lower->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(stmt);
     for (const auto& [buf, source] : param_flattened_buffers) {
       new_stmt =
-          SeqStmt::Flatten(Bind(buf, Call(buf.type(), tirx::builtin::decl_buffer(),
+          SeqStmt::Flatten(Bind(buf, Call(buf.type(), tirx::builtin::decl_tensor(),
                                           {source.data(), tvm::Tuple(buf->shape),
                                            DataTypeImm(buf->dtype->dtype), StringImm(buf.scope())},
                                           {})),
@@ -110,7 +110,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::alloc_buffer())) {
+        call && call->op.same_as(tirx::builtin::alloc_tensor())) {
       BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
       if (!original_buffer->layout.has_value()) {
         return ffi::Unchanged();
@@ -120,7 +120,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         return ffi::Unchanged();
       }
       return Bind(buffer.var(),
-                  Call(buffer.type(), tirx::builtin::alloc_buffer(),
+                  Call(buffer.type(), tirx::builtin::alloc_tensor(),
                        {tvm::Tuple(buffer->shape, call->args[0]->span),
                         DataTypeImm(buffer->dtype->dtype, call->args[1]->span),
                         StringImm(buffer.scope(), call->args[2]->span)},
@@ -128,7 +128,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
                   op->span);
     }
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(tirx::builtin::decl_buffer())) {
+        call && call->op.same_as(tirx::builtin::decl_tensor())) {
       BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
       Expr original_data = call->args[0];
       auto data_update = Mutate(original_data, inplace_mode);
@@ -139,7 +139,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         return ffi::Unchanged();
       }
       return Bind(buffer,
-                  Call(buffer.type(), tirx::builtin::decl_buffer(),
+                  Call(buffer.type(), tirx::builtin::decl_tensor(),
                        {std::move(data), tvm::Tuple(buffer->shape),
                         DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
                        call->attrs, call->ty_args, call->span),
@@ -155,7 +155,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     auto trn_layout = buf->layout.as<TileLayoutNode>();
     BufferVar flattened;
-    ffi::ObjectPtr<BufferTypeNode> type;
+    ffi::ObjectPtr<TensorTypeNode> type;
     if (IsTrainiumLayout(trn_layout)) {
       ffi::Array<PrimExpr> new_shape =
           buf.scope() == "trn.psum" ? ffi::Array<PrimExpr>{trn_layout->GetSpan(ffi::String("Bank")),
@@ -164,7 +164,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
                                     : ffi::Array<PrimExpr>{trn_layout->GetSize(ffi::String("P")),
                                                            trn_layout->GetSpan(ffi::String("F"))};
       flattened = buf;
-      type = CopyBufferType(flattened);
+      type = CopyTensorType(flattened);
       type->shape = new_shape;
       type->strides = {};
     } else if (is_alloc) {
@@ -188,16 +188,16 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
           }
         }
         flattened = buf;
-        type = CopyBufferType(flattened);
+        type = CopyTensorType(flattened);
         type->shape = {ana->Simplify(mem_span)};
         type->strides = {};
       } else {
         flattened = buf.GetFlattenedBuffer();
-        type = CopyBufferType(flattened);
+        type = CopyTensorType(flattened);
       }
     } else {
       flattened = buf.GetFlattenedBuffer();
-      type = CopyBufferType(flattened);
+      type = CopyTensorType(flattened);
     }
     if (flattened->dtype->dtype == DLDataType{kDLBool, 8, 1}) {
       type->dtype = PrimType::Int(8);

@@ -1325,8 +1325,8 @@ std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& b
       continue;
     }
     // Try to find the buffer in `allloc_buffers`
-    for (const BufferVar& alloc_buffer : block->alloc_buffers) {
-      if (buffer.same_as(alloc_buffer)) {
+    for (const BufferVar& alloc_tensor : block->alloc_buffers) {
+      if (buffer.same_as(alloc_tensor)) {
         return {ffi::GetRef<StmtSRef>(defining_site_sref), true};
       }
     }

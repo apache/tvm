@@ -82,7 +82,7 @@ ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const prim::LetNode* op)
 
 ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const VarNode* op) {
   Var var = ffi::GetRef<Var>(op);
-  if (var->ty.as<BufferTypeNode>()) {
+  if (var->ty.as<TensorTypeNode>()) {
     BufferVar buffer = var.as_or_throw<BufferVar>();
     if (def_region_kind() == kTVMFFIDefRegionKindSimple) {
       bool is_first_buffer_definition = !buffer_def_count_.count(op);
@@ -127,7 +127,7 @@ void VarUseDefAnalyzer::HandleUse(const Var& var) {
 
 void VarUseDefAnalyzer::HandleDef(const BufferVar& buf) {
   auto ptr = buf.get();
-  // Some lowering pipelines may duplicate identical DeclBuffer nodes that
+  // Some lowering pipelines may duplicate identical DeclTensor nodes that
   // reference the same BufferVar object. Treat repeated definition of the same
   // buffer object as idempotent.
   if (buffer_def_count_.count(ptr)) {

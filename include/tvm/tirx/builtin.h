@@ -42,7 +42,7 @@ namespace tirx {
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
 /*!
- * \brief Allocate a buffer: alloc_buffer(shape, dtype, scope) -> BufferType.
+ * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
  *
  * Arguments, in order:
  * - args[0]: shape, Tuple of integer extents (IntImm or symbolic integer expressions).
@@ -50,12 +50,12 @@ namespace builtin {
  * - args[2]: scope, StringImm naming the storage scope.
  *
  * DictAttrs directly holds the allocation annotations, defaulting to an empty dictionary.
- * The BufferType result agrees with the operands and retains buffer access/storage metadata.
+ * The TensorType result agrees with the operands and retains buffer access/storage metadata.
  *
  * \code
  * // Example pattern match code for a given Binding:
  * if (const auto* call = binding->value.as<CallNode>();
- *     call && call->op.same_as(builtin::alloc_buffer())) {
+ *     call && call->op.same_as(builtin::alloc_tensor())) {
  *   tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
  *   DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
  *   ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
@@ -63,9 +63,9 @@ namespace builtin {
  * }
  * \endcode
  */
-TVM_DLL const Op& alloc_buffer();
+TVM_DLL const Op& alloc_tensor();
 /*!
- * \brief Declare a buffer view: decl_buffer(data, shape, dtype, scope) -> BufferType.
+ * \brief Declare a buffer view: decl_tensor(data, shape, dtype, scope) -> TensorType.
  *
  * Arguments, in order:
  * - args[0]: data, Expr for the existing physical pointer backing the buffer view.
@@ -73,13 +73,13 @@ TVM_DLL const Op& alloc_buffer();
  * - args[2]: dtype, DataTypeImm with a DLDataType payload for the element type.
  * - args[3]: scope, StringImm naming the storage scope.
  *
- * There are no attributes. The BufferType result agrees with the operands and retains
+ * There are no attributes. The TensorType result agrees with the operands and retains
  * buffer access/storage metadata. The operation binds a view without allocating memory.
  *
  * \code
  * // Example pattern match code for a given Binding:
  * if (const auto* call = binding->value.as<CallNode>();
- *     call && call->op.same_as(builtin::decl_buffer())) {
+ *     call && call->op.same_as(builtin::decl_tensor())) {
  *   Expr data = call->args[0];
  *   tvm::Tuple shape = call->args[1].as_or_throw<tvm::Tuple>();
  *   DLDataType dtype = call->args[2].as_or_throw<DataTypeImm>()->value;
@@ -87,7 +87,7 @@ TVM_DLL const Op& alloc_buffer();
  * }
  * \endcode
  */
-TVM_DLL const Op& decl_buffer();
+TVM_DLL const Op& decl_tensor();
 /*!
  * \brief Return from a GPU thread without returning a function value.
  */
@@ -635,7 +635,7 @@ TVM_DLL const Op& buffer_offset();
 /*!
  * \brief Project the physical pointer associated with a BufferVar definition.
  *
- * The result pointer type is derived from the BufferType dtype and storage
+ * The result pointer type is derived from the TensorType dtype and storage
  * scope of the sole BufferVar argument.  This operation is consumed by TIRx
  * lowering and code generation.
  */

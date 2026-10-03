@@ -332,10 +332,10 @@ ffi::Array<BufferVar> GenerateOutputBuffers(const te::ComputeOp& compute_op, Cre
   // Step 2. Prepare buffers for compute outputs
   //  - Declare buffers
   //  - Update `op2buffers`
-  //  - Add the non-argument tensors to `alloc_buffer` of the root block
+  //  - Add the non-argument tensors to `alloc_tensor` of the root block
   ffi::Array<BufferVar> buffers;
   for (const te::Tensor& tensor : tensors) {
-    BufferVar buffer = decl_buffer(tensor->shape, tensor->dtype, tensor->GetNameHint(), "global");
+    BufferVar buffer = decl_tensor(tensor->shape, tensor->dtype, tensor->GetNameHint(), "global");
     info->tensor2buffers[tensor] = buffer;
     buffers.push_back(buffer);
     if (!info->IsArg(tensor)) {
@@ -727,7 +727,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
       if (auto offset_var = placeholder->elem_offset.as<PrimVar>()) {
         var_map[offset_var.value().get()] = zero_offset;
       }
-      ffi::ObjectPtr<BufferTypeNode> type = CopyBufferType(output_buffer);
+      ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(output_buffer);
       type->elem_offset = zero_offset;
       output_buffer = RebuildBufferVar(output_buffer, std::move(type));
       input_buffer_map[placeholder.get()] = output_buffer;
@@ -815,7 +815,7 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
     // buffer declaration recorded in the tensor2buffer binds map
     if (info->tensor2buffers.count(tensor) == 0) {
       const BufferVar& buffer =
-          decl_buffer(placeholder->shape, placeholder->dtype, placeholder->name, "global");
+          decl_tensor(placeholder->shape, placeholder->dtype, placeholder->name, "global");
       info->tensor2buffers[tensor] = buffer;
     }
   } else if (auto compute_op = op.as<te::ComputeOp>()) {

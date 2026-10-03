@@ -2800,10 +2800,10 @@ def sample_top_p_top_k_from_sorted_prob(
 
     @Ts.prim_func(private=True)
     def _get_renorm_prob(
-        cumsum_sorted: T.Buffer((batch, vocab_size), prob_dtype),
-        top_p: T.Buffer((batch, 1), prob_dtype),
-        top_k: T.Buffer((batch, 1), index_dtype),
-        renorm_prob: T.Buffer((batch, 1), prob_dtype),
+        cumsum_sorted: T.Tensor((batch, vocab_size), prob_dtype),
+        top_p: T.Tensor((batch, 1), prob_dtype),
+        top_k: T.Tensor((batch, 1), index_dtype),
+        renorm_prob: T.Tensor((batch, 1), prob_dtype),
     ):
         for ax0, ax1 in T.grid(batch, vocab_size):
             with Ts.sblock("T_get_renorm_prob"):
@@ -2822,12 +2822,12 @@ def sample_top_p_top_k_from_sorted_prob(
 
     @Ts.prim_func(private=True)
     def _get_index_from_sorted(
-        cumsum_sorted: T.Buffer((batch, vocab_size), prob_dtype),
-        indices: T.Buffer((batch, vocab_size), index_dtype),
-        renorm_prob: T.Buffer((batch, 1), prob_dtype),
-        usample: T.Buffer((kernel_out_batch, 1), prob_dtype),
-        sample_indices: T.Buffer((kernel_out_batch, 1), sample_indices_dtype),
-        output_index: T.Buffer((kernel_out_batch, 1), index_dtype),
+        cumsum_sorted: T.Tensor((batch, vocab_size), prob_dtype),
+        indices: T.Tensor((batch, vocab_size), index_dtype),
+        renorm_prob: T.Tensor((batch, 1), prob_dtype),
+        usample: T.Tensor((kernel_out_batch, 1), prob_dtype),
+        sample_indices: T.Tensor((kernel_out_batch, 1), sample_indices_dtype),
+        output_index: T.Tensor((kernel_out_batch, 1), index_dtype),
     ):
         for ax0, ax1 in T.grid(kernel_out_batch, vocab_size):
             with Ts.sblock("T_get_index_from_sorted"):
@@ -2909,11 +2909,11 @@ def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
 
     @Ts.prim_func(private=True)
     def _get_renorm_cutoff(
-        sorted_prob: T.Buffer((kernel_batch, vocab_size), prob_dtype),
-        cumsum_sorted: T.Buffer((kernel_batch, vocab_size), prob_dtype),
-        top_p: T.Buffer((kernel_batch, 1), prob_dtype),
-        top_k: T.Buffer((kernel_batch, 1), top_k_dtype),
-        cutoff: T.Buffer((kernel_batch, 1), prob_dtype),
+        sorted_prob: T.Tensor((kernel_batch, vocab_size), prob_dtype),
+        cumsum_sorted: T.Tensor((kernel_batch, vocab_size), prob_dtype),
+        top_p: T.Tensor((kernel_batch, 1), prob_dtype),
+        top_k: T.Tensor((kernel_batch, 1), top_k_dtype),
+        cutoff: T.Tensor((kernel_batch, 1), prob_dtype),
     ):
         for ax0, ax1 in T.grid(kernel_batch, vocab_size):
             with Ts.sblock("T_get_renorm_cutoff"):

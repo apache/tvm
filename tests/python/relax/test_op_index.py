@@ -921,9 +921,9 @@ def test_legalize_dynamic_begin_end():
 
         @Ts.prim_func(private=True)
         def strided_slice(
-            A: T.Buffer((T.int64(16), T.int64(16))),
+            A: T.Tensor((T.int64(16), T.int64(16))),
             index: T.int64,
-            B: T.Buffer((T.int64(1), T.int64(16))),
+            B: T.Tensor((T.int64(1), T.int64(16))),
         ):
             T.func_attr({"tirx.noalias": True})
             for (*iters,) in T.grid(*B.shape):
@@ -956,7 +956,7 @@ def test_legalize_dynamic_begin_inf_end():
         strided_slice_index = T.int64()
 
         @Ts.prim_func(private=True)
-        def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), index: strided_slice_index, T_dynamic_strided_slice_with_axes: T.Buffer((T.max(T.int64(16) - T.max(T.if_then_else(strided_slice_index < T.int64(0), strided_slice_index + T.int64(16), strided_slice_index), T.int64(0)), T.int64(0)), T.int64(16)))):
+        def strided_slice(A: T.Tensor((T.int64(16), T.int64(16)), "float32"), index: strided_slice_index, T_dynamic_strided_slice_with_axes: T.Tensor((T.max(T.int64(16) - T.max(T.if_then_else(strided_slice_index < T.int64(0), strided_slice_index + T.int64(16), strided_slice_index), T.int64(0)), T.int64(0)), T.int64(16)))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):

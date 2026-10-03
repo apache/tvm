@@ -46,8 +46,8 @@ def make_prim_func(
 
         @T.prim_func
         def kernel(
-            A: T.Buffer((VECTOR_N_INPUTS,), dtype),
-            B: T.Buffer((VECTOR_N_INPUTS,), dtype),
+            A: T.Tensor((VECTOR_N_INPUTS,), dtype),
+            B: T.Tensor((VECTOR_N_INPUTS,), dtype),
         ):
             T.func_attr({"global_symbol": name + "_kernel", "tirx.noalias": True})
             for i in T.thread_binding(VECTOR_N_INPUTS, thread="threadIdx.x"):
@@ -58,9 +58,9 @@ def make_prim_func(
 
         @T.prim_func
         def kernel(
-            A: T.Buffer((VECTOR_N_INPUTS,), dtype),
-            E: T.Buffer((VECTOR_N_INPUTS,), dtype),
-            B: T.Buffer((VECTOR_N_INPUTS,), dtype),
+            A: T.Tensor((VECTOR_N_INPUTS,), dtype),
+            E: T.Tensor((VECTOR_N_INPUTS,), dtype),
+            B: T.Tensor((VECTOR_N_INPUTS,), dtype),
         ):
             T.func_attr({"global_symbol": name + "_kernel", "tirx.noalias": True})
             for i in T.thread_binding(VECTOR_N_INPUTS, thread="threadIdx.x"):

@@ -51,7 +51,7 @@ _test_n = T.dynamic("n")
 @I.ir_module(check_well_formed=False)
 class Module:
     @Ts.prim_func
-    def full1(T_full: T.Buffer((T.int64(1), T.int64(32), T.int64(1), full1_n), 'float16')):
+    def full1(T_full: T.Tensor((T.int64(1), T.int64(32), T.int64(1), full1_n), 'float16')):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -63,7 +63,7 @@ class Module:
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
     @Ts.prim_func
-    def full2(T_full: T.Buffer((T.int64(1), T.int64(32), full2_n, T.int64(128)), 'float16')):
+    def full2(T_full: T.Tensor((T.int64(1), T.int64(32), full2_n, T.int64(128)), 'float16')):
         T.func_attr({"op_pattern": 0, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -75,7 +75,7 @@ class Module:
                 T_full[v_ax0, v_ax1, v_ax2, v_ax3] = T.float16(1.0)
 
     @Ts.prim_func
-    def matmul1(A: T.Buffer((T.int64(1), T.int64(32), T.int64(1), matmul1_n), 'float16'), B: T.Buffer((T.int64(1), T.int64(32), matmul1_n, T.int64(128)), 'float16'), matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
+    def matmul1(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), matmul1_n), 'float16'), B: T.Tensor((T.int64(1), T.int64(32), matmul1_n, T.int64(128)), 'float16'), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
         T.func_attr({"op_pattern": 4, "tirx.noalias": True})
 
         # with Ts.sblock("root"):
@@ -105,7 +105,7 @@ class Module:
 m = T.dynamic("m")
 
 @Ts.prim_func
-def cuda_workload(inp0: T.Buffer((T.int64(1), m, T.int64(4096))), inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Buffer((T.int64(1), m, T.int64(4096)))):
+def cuda_workload(inp0: T.Tensor((T.int64(1), m, T.int64(4096))), inp1: T.Tensor((T.int64(4096), T.int64(4096)), "float32"), matmul: T.Tensor((T.int64(1), m, T.int64(4096)))):
     T.func_attr({"tirx.is_scheduled": True})
 
     # with Ts.sblock("root"):

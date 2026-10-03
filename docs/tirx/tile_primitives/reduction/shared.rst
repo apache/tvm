@@ -64,15 +64,15 @@ axis ``-1``) to a ``4``-vector (from ``test_reduction.py``):
 
     @Tx.prim_func
     def test_reduction(
-        A: Tx.Buffer((4, 8), "float32", layout=TileLayout(S[4, 8])),
-        B: Tx.Buffer((4,), "float32", layout=TileLayout(S[4,])),
+        A: Tx.Tensor((4, 8), "float32", layout=TileLayout(S[4, 8])),
+        B: Tx.Tensor((4,), "float32", layout=TileLayout(S[4,])),
     ):
 
         Tx.device_entry()
         Tx.cta_id([1])
         Tx.thread_id([32])
-        A_smem = Tx.alloc_buffer((4, 8), "float32", scope="shared", layout=TileLayout(S[(4, 8)]))
-        B_smem = Tx.alloc_buffer((4,), "float32", scope="shared", layout=TileLayout(S[(4,)]))
+        A_smem = Tx.alloc_tensor((4, 8), "float32", scope="shared", layout=TileLayout(S[(4, 8)]))
+        B_smem = Tx.alloc_tensor((4,), "float32", scope="shared", layout=TileLayout(S[(4,)]))
         Tx.tile.cta.copy(A_smem, A)
         Tx.cuda.cta_sync()
         Tx.tile.cta.sum(B_smem, A_smem, axes=(-1,), accum=False)  # reduction shared dispatch

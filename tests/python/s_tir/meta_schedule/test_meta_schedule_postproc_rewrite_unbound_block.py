@@ -50,7 +50,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 class Before_cooperative_fetch:
     @Ts.prim_func
     def main(
-        A: T.Buffer([512, 512], dtype="float32"), B: T.Buffer([512, 512], dtype="float32")
+        A: T.Tensor([512, 512], dtype="float32"), B: T.Tensor([512, 512], dtype="float32")
     ) -> None:
         for i, j in T.grid(512, 512):
             with Ts.sblock("C"):
@@ -62,7 +62,7 @@ class Before_cooperative_fetch:
 class After_cooperative_fetch:
     @Ts.prim_func
     def main(
-        A: T.Buffer([512, 512], dtype="float32"), B: T.Buffer([512, 512], dtype="float32")
+        A: T.Tensor([512, 512], dtype="float32"), B: T.Tensor([512, 512], dtype="float32")
     ) -> None:
         for i_j_fused_0 in T.thread_binding(256, thread="blockIdx.x"):
             for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -75,7 +75,7 @@ class After_cooperative_fetch:
 @tvm.script.ir_module
 class Before_norm_bmn:
     @Ts.prim_func
-    def main(A: T.Buffer((1, 256, 256), "float32"), D: T.Buffer((1,), "float32")) -> None:
+    def main(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor((1,), "float32")) -> None:
         C = Ts.sblock_alloc_buffer([1], dtype="float32")
         for i0, i1, i2 in T.grid(1, 256, 256):
             with Ts.sblock("C"):
@@ -86,13 +86,13 @@ class Before_norm_bmn:
         for i0 in T.serial(1):
             with Ts.sblock("D"):
                 b = Ts.axis.S(1, i0)
-                D[b] = T.sqrt(C[b], dtype="float32")
+                D[b] = T.sqrt(C[b])
 
 
 @tvm.script.ir_module
 class After_norm_bmn:
     @Ts.prim_func
-    def main(A: T.Buffer((1, 256, 256), "float32"), D: T.Buffer((1,), "float32")) -> None:
+    def main(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor((1,), "float32")) -> None:
         C = Ts.sblock_alloc_buffer([1], dtype="float32")
         for i0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
             for i0_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
@@ -107,14 +107,14 @@ class After_norm_bmn:
             for i0_fused_1 in T.thread_binding(1, thread="threadIdx.x"):
                 with Ts.sblock("D"):
                     b = Ts.axis.S(1, 0)
-                    D[b] = T.sqrt(C[b], dtype="float32")
+                    D[b] = T.sqrt(C[b])
 
 
 @tvm.script.ir_module
 class Bert_fused_reshape_transpose_reshape:
     @Ts.prim_func
     def main(
-        placeholder: T.Buffer((12, 64, 64), "float32"), T_reshape: T.Buffer((64, 768), "float32")
+        placeholder: T.Tensor((12, 64, 64), "float32"), T_reshape: T.Tensor((64, 768), "float32")
     ) -> None:
         for i0_i1_fused_0, i0_i1_fused_1 in T.grid(1536, 32):
             with Ts.sblock("T_reshape_1"):
@@ -133,7 +133,7 @@ class Bert_fused_reshape_transpose_reshape:
 class Bert_fused_reshape_transpose_reshape_large:
     @Ts.prim_func
     def main(
-        placeholder: T.Buffer((12, 64, 64), "float32"), T_reshape: T.Buffer((64, 768), "float32")
+        placeholder: T.Tensor((12, 64, 64), "float32"), T_reshape: T.Tensor((64, 768), "float32")
     ) -> None:
         for i0_i1_fused_0, i0_i1_fused_1 in T.grid(1536000, 32):
             with Ts.sblock("T_reshape_1"):
@@ -152,7 +152,7 @@ class Bert_fused_reshape_transpose_reshape_large:
 class Bert_fused_reshape_transpose_reshape_after_rub:
     @Ts.prim_func
     def main(
-        placeholder: T.Buffer((12, 64, 64), "float32"), T_reshape: T.Buffer((64, 768), "float32")
+        placeholder: T.Tensor((12, 64, 64), "float32"), T_reshape: T.Tensor((64, 768), "float32")
     ) -> None:
         for i0_i1_fused_0_i0_i1_fused_1_fused_0 in T.thread_binding(48, thread="blockIdx.x"):
             for i0_i1_fused_0_i0_i1_fused_1_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -186,7 +186,7 @@ class Bert_fused_reshape_transpose_reshape_after_rub:
 class Bert_fused_reshape_transpose_reshape_after_rub_large:
     @Ts.prim_func
     def main(
-        placeholder: T.Buffer((12, 64, 64), "float32"), T_reshape: T.Buffer((64, 768), "float32")
+        placeholder: T.Tensor((12, 64, 64), "float32"), T_reshape: T.Tensor((64, 768), "float32")
     ) -> None:
         # body
         # with Ts.sblock("root")
@@ -233,7 +233,7 @@ class Bert_fused_reshape_transpose_reshape_after_rub_large:
 
 @Ts.prim_func
 def before_unrolled_loop(
-    placeholder: T.Buffer((1, 56, 56, 64), "float32"),
+    placeholder: T.Tensor((1, 56, 56, 64), "float32"),
 ) -> None:
     # function attr dict
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -258,7 +258,7 @@ def before_unrolled_loop(
 
 @Ts.prim_func
 def after_unrolled_loop(
-    placeholder: T.Buffer((1, 56, 56, 64), "float32"),
+    placeholder: T.Tensor((1, 56, 56, 64), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
     # body

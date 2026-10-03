@@ -50,7 +50,7 @@ def test_customize_legalize():
             return gv
 
         @Ts.prim_func(private=True)
-        def add(rxplaceholder_1: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), rxplaceholder: T.Buffer((T.int64(1), T.int64(2), T.int64(3)), "float32"), T_add: T.Buffer((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
+        def add(rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
                 with Ts.sblock("T_add"):
@@ -79,7 +79,7 @@ def test_legalize_multiple_types_of_call():
             return gv
 
         @Ts.prim_func(private=True)
-        def identity(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_id: T.Buffer((T.int64(3), T.int64(3)), "float32")):
+        def identity(rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float32"), T_id: T.Tensor((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with Ts.sblock("T_add"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -104,7 +104,7 @@ def test_legalize_multiple_types_of_call():
             return gv
 
         @Ts.prim_func(private=True)
-        def identity(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_id: T.Buffer((T.int64(3), T.int64(3)), "float32")):
+        def identity(rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float32"), T_id: T.Tensor((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with Ts.sblock("T_add"):
                     v_ax0, v_ax1 = Ts.axis.remap("SS", [ax0, ax1])
@@ -113,7 +113,7 @@ def test_legalize_multiple_types_of_call():
                     T_id[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1]
 
         @Ts.prim_func(private=True)
-        def multiply(rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float32")):
+        def multiply(rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float32"), T_multiply: T.Tensor((T.int64(3), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with Ts.sblock("T_multiply"):
@@ -195,8 +195,8 @@ def test_legalize_scalar_data_type_preserve():
     class Expected0:
         @Ts.prim_func(private=True)
         def multiply(
-            rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "float16"),
-            T_multiply: T.Buffer((T.int64(3), T.int64(3)), "float16"),
+            rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float16"),
+            T_multiply: T.Tensor((T.int64(3), T.int64(3)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -219,8 +219,8 @@ def test_legalize_scalar_data_type_preserve():
     class Expected1:
         @Ts.prim_func(private=True)
         def multiply(
-            rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
-            T_multiply: T.Buffer((T.int64(3), T.int64(3)), "uint8"),
+            rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "uint8"),
+            T_multiply: T.Tensor((T.int64(3), T.int64(3)), "uint8"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -241,8 +241,8 @@ def test_legalize_scalar_data_type_preserve():
     class Expected2:
         @Ts.prim_func(private=True)
         def equal(
-            rxplaceholder: T.Buffer((T.int64(3), T.int64(3)), "bool"),
-            T_equal: T.Buffer((T.int64(3), T.int64(3)), "bool"),
+            rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "bool"),
+            T_equal: T.Tensor((T.int64(3), T.int64(3)), "bool"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -402,9 +402,9 @@ def test_legalize_with_vdevice():
 
         @Ts.prim_func(private=True)
         def add(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for (*iters,) in T.grid(T.int64(32), T.int64(32)):
@@ -427,9 +427,9 @@ def test_legalize_with_vdevice():
 
         @Ts.prim_func(private=True)
         def add_llvm(
-            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
-            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
+            C: T.Tensor((T.int64(32), T.int64(32)), "float32"),
         ):
             T.func_attr({"target": T.target("llvm"), "tirx.noalias": True})
             for (*iters,) in T.grid(T.int64(32), T.int64(32)):

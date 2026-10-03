@@ -137,9 +137,9 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                     tx = te.thread_axis("threadIdx.x")
                     bx = te.thread_axis("blockIdx.x")
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf = T.decl_buffer([1], "int32", scope="local")
-                    middle_buf = T.decl_buffer([1], "int32", scope="local")
-                    end_buf = T.decl_buffer([1], "int32", scope="local")
+                    start_buf = T.decl_tensor([1], "int32", scope="local")
+                    middle_buf = T.decl_tensor([1], "int32", scope="local")
+                    end_buf = T.decl_tensor([1], "int32", scope="local")
                     with T.frame_scope(
                         [
                             T.attr(tx, "thread_extent", nthread_tx),
@@ -231,10 +231,10 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                     tx = te.thread_axis("threadIdx.x")
                     bx = te.thread_axis("blockIdx.x")
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
-                    start_buf = T.decl_buffer([1], "int32", scope="local")
-                    middle_buf = T.decl_buffer([1], "int32", scope="local")
-                    end_buf = T.decl_buffer([1], "int32", scope="local")
-                    tmp_buf = T.decl_buffer([1], out_dtype, scope="local")
+                    start_buf = T.decl_tensor([1], "int32", scope="local")
+                    middle_buf = T.decl_tensor([1], "int32", scope="local")
+                    end_buf = T.decl_tensor([1], "int32", scope="local")
+                    tmp_buf = T.decl_tensor([1], out_dtype, scope="local")
                     with T.frame_scope(
                         [
                             T.attr(tx, "thread_extent", nthread_tx),
@@ -412,10 +412,10 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=operator.add):
 
             return ib.get()
 
-    data_buf = tvm.tirx.decl_buffer(
+    data_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "valid_indices_buf", data_alignment=8, layout=None
     )
-    ex_scan_output_buf = tvm.tirx.decl_buffer(
+    ex_scan_output_buf = tvm.tirx.decl_tensor(
         ex_scan_output.shape,
         ex_scan_output.dtype,
         "ex_scan_output_buf",
@@ -484,15 +484,15 @@ def scan_thrust(
         (N-1)-D tensor storing the reduction of each scan axis.
         Returned if return_reduction is True.
     """
-    data_buf = tvm.tirx.decl_buffer(
+    data_buf = tvm.tirx.decl_tensor(
         data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
     )
-    output_buf = tvm.tirx.decl_buffer(
+    output_buf = tvm.tirx.decl_tensor(
         data.shape, output_dtype, "output_buf", data_alignment=8, layout=None
     )
 
     workspace_buf = (
-        tvm.tirx.decl_buffer(
+        tvm.tirx.decl_tensor(
             workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8, layout=None
         )
         if workspace is not None
@@ -593,10 +593,10 @@ def exclusive_scan(
             # TIR exclusive scan accepts only 2D or higher-rank inputs.
             data = expand_dims(data, axis=0)
 
-        data_buf = tvm.tirx.decl_buffer(
+        data_buf = tvm.tirx.decl_tensor(
             data.shape, data.dtype, "data_buf", data_alignment=8, layout=None
         )
-        output_buf = tvm.tirx.decl_buffer(
+        output_buf = tvm.tirx.decl_tensor(
             data.shape, output_dtype, "output_buf", data_alignment=8, layout=None
         )
 

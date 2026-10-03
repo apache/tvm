@@ -27,7 +27,7 @@ def test_buffer_region_bounds_are_visited():
     data = tvm.tirx.Var(
         "data", tvm.ir.PointerType(tvm.ir.PrimType("int32"), storage_scope="global")
     )
-    buffer = tvm.tirx.decl_buffer([4], "int32", data=data)
+    buffer = tvm.tirx.decl_tensor([4], "int32", data=data)
     undefined = tvm.tirx.Var("undefined", "int32")
     region = tvm.tirx.BufferRegion(buffer, [tvm.ir.Range.from_min_extent(undefined, 4)])
     block = tvm.s_tir.SBlock([], [region], [], "region", tvm.tirx.Evaluate(0))
@@ -38,8 +38,8 @@ def test_buffer_region_bounds_are_visited():
 def test_fail_use_out_loop_var():
     @Ts.prim_func(check_well_formed=False)
     def element_wise(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
+        A: T.Tensor((128, 128), "float32"),
+        B: T.Tensor((128, 128), "float32"),
     ):
         for i, j in T.grid(128, 128):
             with Ts.sblock("B"):
@@ -56,7 +56,7 @@ def test_block_match_buffer_defines_buffer_obj():
     @I.ir_module
     class mod:
         @Ts.prim_func
-        def func(A: T.Buffer([256, 256], "float32")):
+        def func(A: T.Tensor([256, 256], "float32")):
             for (*iters,) in T.grid(16, 16, 16, 16):
                 with Ts.sblock("compute"):
                     tile_i, tile_j, i, j = Ts.axis.remap("SSSS", iters)
@@ -77,7 +77,7 @@ def test_block_match_buffer_defines_symbolic_variables():
     @I.ir_module
     class mod:
         @Ts.prim_func
-        def func(A: T.Buffer([256, 256], "int32")):
+        def func(A: T.Tensor([256, 256], "int32")):
             for (*iters,) in T.grid(16, 16, 16, 16):
                 with Ts.sblock("compute"):
                     tile_i, tile_j, i, j = Ts.axis.remap("SSSS", iters)
@@ -99,7 +99,7 @@ def test_match_buffer_in_block_is_well_formed():
     @I.ir_module
     class mod:
         @Ts.prim_func
-        def func(A: T.Buffer((128, 128), "float32")):
+        def func(A: T.Tensor((128, 128), "float32")):
             for (*iters,) in T.grid(8, 8, 16, 16):
                 with Ts.sblock("compute"):
                     ti, tj, i, j = Ts.axis.remap("SSSS", iters)
@@ -117,13 +117,13 @@ def test_error_undeclared_buffer_in_schedulable_tir():
     # Manually construct a BufferStore that uses a buffer without any declaration
     # inside a block context.
     n = tvm.tirx.Var("n", "int32")
-    A = tvm.tirx.decl_buffer([n], "float32", name="A")
+    A = tvm.tirx.decl_tensor([n], "float32", name="A")
     i = tvm.tirx.Var("i", "int32")
 
     # Create an undeclared buffer using an explicit data pointer that is NOT
-    # a function parameter and NOT wrapped with DeclBuffer.
+    # a function parameter and NOT wrapped with DeclTensor.
     B_data = tvm.tirx.Var("B_data", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
-    B = tvm.tirx.decl_buffer([n], "float32", name="B", data=B_data)
+    B = tvm.tirx.decl_tensor([n], "float32", name="B", data=B_data)
 
     # Build a block that writes to B without any declaration of B.
     bi = tvm.tirx.Var("bi", "int32")
@@ -144,11 +144,11 @@ def test_error_undeclared_buffer_in_schedulable_tir():
         params=[A, B_data],
         body=tvm.tirx.For(i, 0, n, tvm.tirx.ForKind.SERIAL, block_realize),
         # Note: B is NOT a function parameter, so its declaration scope is only
-        # within a DeclBuffer node (which we intentionally omit here).
+        # within a DeclTensor node (which we intentionally omit here).
     )
 
     # B is used in the block but was never declared — should fail.
     with pytest.raises(
-        (ValueError, tvm.error.InternalError), match="buffer B.*without a prior DeclBuffer"
+        (ValueError, tvm.error.InternalError), match="buffer B.*without a prior DeclTensor"
     ):
         tvm.s_tir.analysis.verify_well_formed(prim_func)

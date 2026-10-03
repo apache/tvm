@@ -199,7 +199,7 @@ def _make_op(
     g_layout = g_layout or _plain_layout(g_shape)
     s_layout = s_layout or _plain_layout(s_shape)
     s_dtype = s_dtype or dtype
-    g_buf = tvm.tirx.decl_buffer(
+    g_buf = tvm.tirx.decl_tensor(
         g_shape,
         dtype,
         "A",
@@ -207,7 +207,7 @@ def _make_op(
         elem_offset=g_elem_offset,
         layout=g_layout,
     )
-    s_buf = tvm.tirx.decl_buffer(
+    s_buf = tvm.tirx.decl_tensor(
         s_shape,
         s_dtype,
         "A_smem",
@@ -302,7 +302,7 @@ def _ints(values):
 
 def _make_spec(**overrides):
     g_data = Var("A", PointerType(PrimType("float16"), "global"))
-    s_buf = tvm.tirx.decl_buffer(
+    s_buf = tvm.tirx.decl_tensor(
         (4, 8),
         "float16",
         "A_smem",
@@ -1118,13 +1118,13 @@ def test_dispatch_propagates_flat_bind_to_auto_coordinate_proof():
     func = _from_source(
         """
 @T.prim_func
-def bind_coordinate(D: T.Buffer((33360, 6144), 'bfloat16')):
+def bind_coordinate(D: T.Tensor((33360, 6144), 'bfloat16')):
 
     T.device_entry()
     block = T.cta_id([192])
     tid = T.thread_id([1])
     tile_index = T.alloc_local((1,), "int32")
-    D_smem = T.alloc_buffer(
+    D_smem = T.alloc_tensor(
         (2, 16, 128),
         "bfloat16",
         scope="shared.dyn",
@@ -1526,15 +1526,15 @@ def test_explicit_allows_different_operand_ranks_with_equal_payload_bytes():
     source = _from_source(
         """
 @T.prim_func
-def rank_change(A: T.Buffer((8, 8), 'float16')):
+def rank_change(A: T.Tensor((8, 8), 'float16')):
 
     T.device_entry()
     T.cta_id([1])
     tid = T.thread_id([1])
-    dyn = T.alloc_buffer((65,), "uint64", scope="shared.dyn")
+    dyn = T.alloc_tensor((65,), "uint64", scope="shared.dyn")
     T.attr({"tirx.dyn_smem_bytes": 65 * 8})
-    A_smem = T.decl_buffer((64,), "float16", dyn.data, layout=T.TileLayout(T.S[64]))
-    mbar = T.decl_buffer((1,), "uint64", dyn.data, elem_offset=16)
+    A_smem = T.decl_tensor((64,), "float16", dyn.data, layout=T.TileLayout(T.S[64]))
+    mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=16)
     if tid == 0:
         Tx.copy_async(
             A_smem[:], A[:, :], dispatch="tma_explicit", mbar=mbar.ptr_to([0])
@@ -1548,8 +1548,8 @@ def rank_change(A: T.Buffer((8, 8), 'float16')):
 _SELECTOR_SOURCE = """
 @T.prim_func
 def selector_gather(
-    A: T.Buffer((256, 64), 'bfloat16'),
-    B: T.Buffer((512, 80), 'bfloat16'),
+    A: T.Tensor((256, 64), 'bfloat16'),
+    B: T.Tensor((512, 80), 'bfloat16'),
     flag: T.int32,
 ):
 
@@ -1558,12 +1558,12 @@ def selector_gather(
     T.device_entry()
     T.cta_id([1])
     tid = T.thread_id([128])
-    dyn = T.alloc_buffer((520,), "uint64", scope="shared.dyn")
+    dyn = T.alloc_tensor((520,), "uint64", scope="shared.dyn")
     T.attr({"tirx.dyn_smem_bytes": 520 * 8})
-    A_smem = T.decl_buffer(
+    A_smem = T.decl_tensor(
         (4, 64), "bfloat16", dyn.data, layout=T.TileLayout(T.S[4, 64])
     )
-    mbar = T.decl_buffer((1,), "uint64", dyn.data, elem_offset=64)
+    mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=64)
     if tid == 0:
         T.ptx.mbarrier.init.shared.b64(mbar.ptr_to([0]), T.uint32(1))
         Tx.copy_async(
@@ -1698,8 +1698,8 @@ def _build_sparse_decode_qo_tma_regression():
     # fmt: off
     @T.prim_func
     def kernel(
-        Q_storage: T.Buffer((64 * 576,), 'bfloat16'),
-        O_storage: T.Buffer((64 * 512,), 'bfloat16'),
+        Q_storage: T.Tensor((64 * 576,), 'bfloat16'),
+        O_storage: T.Tensor((64 * 512,), 'bfloat16'),
         q_stride_b: T.int64,
         q_stride_s: T.int64,
         q_stride_h: T.int64,
@@ -1729,12 +1729,12 @@ def _build_sparse_decode_qo_tma_regression():
         T.device_entry()
         T.cta_id([1])
         tid = T.thread_id([128])
-        dyn = T.alloc_buffer((shared_bytes + 8,), "uint8", scope="shared.dyn")
+        dyn = T.alloc_tensor((shared_bytes + 8,), "uint8", scope="shared.dyn")
         T.attr({"tirx.dyn_smem_bytes": shared_bytes + 8})
-        q_smem = T.decl_buffer(
+        q_smem = T.decl_tensor(
             (64, 512), "bfloat16", dyn.data, scope="shared.dyn", layout=q_layout
         )
-        q_tail_smem = T.decl_buffer(
+        q_tail_smem = T.decl_tensor(
             (64, 64),
             "bfloat16",
             dyn.data,
@@ -1742,7 +1742,7 @@ def _build_sparse_decode_qo_tma_regression():
             scope="shared.dyn",
             layout=q_tail_layout,
         )
-        o_smem = T.decl_buffer(
+        o_smem = T.decl_tensor(
             (64, 512),
             "bfloat16",
             dyn.data,
@@ -1750,7 +1750,7 @@ def _build_sparse_decode_qo_tma_regression():
             scope="shared.dyn",
             layout=o_layout,
         )
-        mbar = T.decl_buffer(
+        mbar = T.decl_tensor(
             (1,), "uint64", dyn.data, elem_offset=shared_bytes // 8, scope="shared.dyn"
         )
         q_tail_smem_tma = q_tail_smem.view(64, 2, 32).permute(1, 0, 2)
@@ -1994,21 +1994,21 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
     # fmt: off
     @T.prim_func
     def kernel(
-        A: T.Buffer((rows, cols), dtype),
-        B: T.Buffer((rows, cols), dtype),
+        A: T.Tensor((rows, cols), dtype),
+        B: T.Tensor((rows, cols), dtype),
         flag: T.int32,
-        Out: T.Buffer((4, cols), dtype),
+        Out: T.Tensor((4, cols), dtype),
     ):
 
         T.device_entry()
         T.cta_id([1])
         tid = T.thread_id([128])
-        dyn = T.alloc_buffer((shared_bytes + 64,), "uint8", scope="shared.dyn")
+        dyn = T.alloc_tensor((shared_bytes + 64,), "uint8", scope="shared.dyn")
         T.attr({"tirx.dyn_smem_bytes": shared_bytes + 64})
-        A_smem = T.decl_buffer(
+        A_smem = T.decl_tensor(
             (4, cols), dtype, dyn.data, layout=T.TileLayout(T.S[4, cols])
         )
-        mbar = T.decl_buffer((1,), "uint64", dyn.data, elem_offset=shared_bytes // 8)
+        mbar = T.decl_tensor((1,), "uint64", dyn.data, elem_offset=shared_bytes // 8)
         mbar_ptr = T.meta_var(mbar.ptr_to([0]))
         if tid == 0:
             T.ptx.mbarrier.init.shared.b64(mbar_ptr, T.uint32(1))

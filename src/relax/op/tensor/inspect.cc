@@ -265,7 +265,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
     tirx::Var ndim("ndim", PrimType::Int(32));
 
     tirx::BufferVar shape_buffer =
-        tirx::decl_buffer({ndim.as_or_throw<PrimExpr>()}, field_ty, "shape");
+        tirx::decl_tensor({ndim.as_or_throw<PrimExpr>()}, field_ty, "shape");
 
     tirx::Var extent("extent", field_ty);
 
@@ -284,7 +284,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
              {StringImm("Specified axis may not be larger than the tensor's dimensionality")}),
          tirx::Bind(
              shape_buffer,
-             tvm::Call(shape_buffer.type(), tvm::tirx::builtin::decl_buffer(),
+             tvm::Call(shape_buffer.type(), tvm::tirx::builtin::decl_tensor(),
                        {tvm::Call(
                             shape_buffer.DataPointerType(), tirx::builtin::tvm_struct_get(),
                             {dlpack_handle, IntImm::Int32(0),

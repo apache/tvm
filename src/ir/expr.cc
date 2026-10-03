@@ -436,7 +436,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> VarVisit(
   // A PrimType carries only a dtype, so it has nothing to visit.  Broad callbacks do not see this
   // skipped field; dynamically typed Vars still descend through the Type value.
   if (!self->ty.as<PrimTypeNode>()) {
-    // Only Simple is clamped: Pattern co-introduces type fields such as BufferType shape
+    // Only Simple is clamped: Pattern co-introduces type fields such as TensorType shape
     // variables, so that ambient region must continue through the dynamic type.
     if (visitor->def_region_kind() == kTVMFFIDefRegionKindSimple) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
@@ -467,7 +467,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> VarMutate(
   // A PrimType carries only a dtype, so it has nothing to substitute.  Broad callbacks do not see
   // this skipped field; dynamically typed Vars still descend through the Type value.
   if (!self->ty.as<PrimTypeNode>()) {
-    // Pattern co-introduces type fields such as BufferType shape variables; Simple does not.
+    // Pattern co-introduces type fields such as TensorType shape variables; Simple does not.
     ffi::Expected<ffi::UnchangedOr<ffi::Any>> mapped_ty_result =
         mutator->def_region_kind() == kTVMFFIDefRegionKindSimple
             ? mutator->WithDefRegionKind(kTVMFFIDefRegionKindNone,
@@ -510,7 +510,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> VarMaybeInplaceMutate(
   // A PrimType carries only a dtype, so it has nothing to substitute.  Broad callbacks do not see
   // this skipped field; dynamically typed Vars still descend through the Type value.
   if (!self->ty.as<PrimTypeNode>()) {
-    // Pattern co-introduces type fields such as BufferType shape variables; Simple does not.
+    // Pattern co-introduces type fields such as TensorType shape variables; Simple does not.
     ffi::Expected<ffi::UnchangedOr<ffi::Any>> mapped_ty_result =
         mutator->def_region_kind() == kTVMFFIDefRegionKindSimple
             ? mutator->WithDefRegionKind(

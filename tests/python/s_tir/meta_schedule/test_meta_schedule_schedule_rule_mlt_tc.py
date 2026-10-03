@@ -85,7 +85,7 @@ def test_matmul_relu(shared_scope):
 
     # fmt: off
     @Ts.prim_func
-    def matmul_relu_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
+    def matmul_relu_0(A: T.Tensor((128, 128), "float16"), B: T.Tensor((128, 128), "float16"), compute: T.Tensor((128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
         C_reindex_shared = Ts.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope=shared_scope)
@@ -236,7 +236,7 @@ def test_matmul_relu(shared_scope):
 def test_matmul_relu_with_fallback():
     # fmt: off
     @Ts.prim_func
-    def matmul_relu_fallback_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
+    def matmul_relu_fallback_0(A: T.Tensor((128, 128), "float16"), B: T.Tensor((128, 128), "float16"), compute: T.Tensor((128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
         C_reindex_shared = Ts.sblock_alloc_buffer((4, 2, 2, 4, 16, 16), scope="shared")
@@ -394,7 +394,7 @@ def test_conv2d(shared_scope):
 
     # fmt: off
     @Ts.prim_func
-    def conv2d_0(inputs: T.Buffer((1, 16, 16, 32), "float16"), weight: T.Buffer((3, 3, 32, 32), "float16"), conv2d_nhwc: T.Buffer((1, 16, 16, 32), "float32")):
+    def conv2d_0(inputs: T.Tensor((1, 16, 16, 32), "float16"), weight: T.Tensor((3, 3, 32, 32), "float16"), conv2d_nhwc: T.Tensor((1, 16, 16, 32), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
         PadInput = Ts.sblock_alloc_buffer((1, 18, 18, 32), "float16")
@@ -576,7 +576,7 @@ def test_matmul_relu_pipeline(shared_scope):
 
     # fmt: off
     @Ts.prim_func
-    def matmul_relu_pipeline_0(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"), compute: T.Buffer((128, 128), "float32")) -> None:
+    def matmul_relu_pipeline_0(A: T.Tensor((128, 128), "float16"), B: T.Tensor((128, 128), "float16"), compute: T.Tensor((128, 128), "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # body
@@ -757,7 +757,7 @@ def test_matmul_relu_non_tensorizable():
 def test_padded_matmul_relu():
     # fmt: off
     @Ts.prim_func
-    def padded_matmul_relu_0(A: T.Buffer((127, 127), "float16"), B: T.Buffer((127, 127), "float16"), compute: T.Buffer((127, 127), "float32")) -> None:
+    def padded_matmul_relu_0(A: T.Tensor((127, 127), "float16"), B: T.Tensor((127, 127), "float16"), compute: T.Tensor((127, 127), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         C_reindex_shared = Ts.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope="shared")
         C_reindex_shared_wmma_accumulator = Ts.sblock_alloc_buffer((4, 8, 2, 1, 16, 16), scope="wmma.accumulator")
@@ -905,7 +905,7 @@ def test_padded_matmul_relu():
 def test_conv_1x1():
     # fmt: off
     @Ts.prim_func
-    def conv2d_1x1_0(inputs: T.Buffer((1, 16, 16, 64), "float16"), weight: T.Buffer((1, 1, 64, 64), "float16"), conv2d_nhwc: T.Buffer((1, 16, 16, 64), "float32")):
+    def conv2d_1x1_0(inputs: T.Tensor((1, 16, 16, 64), "float16"), weight: T.Tensor((1, 1, 64, 64), "float16"), conv2d_nhwc: T.Tensor((1, 16, 16, 64), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         # with Ts.sblock("root"):
         conv2d_nhwc_reindex_shared = Ts.sblock_alloc_buffer((2, 1, 8, 4, 16, 16), scope="shared")
@@ -1063,7 +1063,7 @@ def test_conv_1x1():
 def test_padded_conv():
     # fmt: off
     @Ts.prim_func
-    def padded_conv2d_0(inputs: T.Buffer((1, 224, 224, 3), "float16"), weight: T.Buffer((7, 7, 3, 64), "float16"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")):
+    def padded_conv2d_0(inputs: T.Tensor((1, 224, 224, 3), "float16"), weight: T.Tensor((7, 7, 3, 64), "float16"), conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         conv2d_nhwc_reindex_shared = Ts.sblock_alloc_buffer((56, 2, 14, 2, 16, 16), scope="shared")
@@ -1215,7 +1215,7 @@ def test_padded_conv():
 def test_padded_matmul_single_padded_input():
     # fmt: off
     @Ts.prim_func
-    def padded_matmul_single_padded_input_0(A: T.Buffer((1023, 4096), "float16"), B: T.Buffer((4096, 1024), "float16"), C: T.Buffer((1023, 1024), "float32")):
+    def padded_matmul_single_padded_input_0(A: T.Tensor((1023, 4096), "float16"), B: T.Tensor((4096, 1024), "float16"), C: T.Tensor((1023, 1024), "float32")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         C_reindex_pad_shared = Ts.sblock_alloc_buffer((8, 32, 8, 2, 16, 16), scope="shared")
@@ -1363,7 +1363,7 @@ def test_padded_matmul_single_padded_input():
 def test_padded_matmul_no_padded_output():
     # fmt: off
     @Ts.prim_func
-    def padded_matmul_no_padded_output_0(A: T.Buffer((1024, 4095), "float16"), B: T.Buffer((4095, 1024), "float16"), C: T.Buffer((1024, 1024), "float32")):
+    def padded_matmul_no_padded_output_0(A: T.Tensor((1024, 4095), "float16"), B: T.Tensor((4095, 1024), "float16"), C: T.Tensor((1024, 1024), "float32")):
         T.func_attr({"tirx.noalias": True})
         # with Ts.sblock("root"):
         C_reindex_shared = Ts.sblock_alloc_buffer((32, 16, 2, 4, 16, 16), scope="shared")

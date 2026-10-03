@@ -312,7 +312,7 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
     const auto* allocation = alloc ? alloc->value.as<CallNode>() : nullptr;
     const auto* store = stmt->seq[i + 1].as<tirx::BufferStoreNode>();
     auto docs = d->CurrentScopeDocs();
-    if (!allocation || !allocation->op.same_as(tirx::builtin::alloc_buffer()) || !store ||
+    if (!allocation || !allocation->op.same_as(tirx::builtin::alloc_tensor()) || !store ||
         !alloc->var.same_as(store->buffer) || docs.empty())
       continue;
     auto scalar = docs.back().as<AssignDoc>();

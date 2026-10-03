@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 @Ts.prim_func
-def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
+def element_wise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
@@ -46,7 +46,7 @@ def element_wise(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "fl
             C[vi, vj] = B[vi, vj] + 1.0
 
 @Ts.prim_func
-def element_wise_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")):
+def element_wise_set_dtype(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")):
     B = Ts.sblock_alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -62,7 +62,7 @@ def element_wise_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128,
             C[vi, vj] = T.cast(B[vi, vj], "float32") + 1.0
 
 @Ts.prim_func
-def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
+def element_wise_subregion_match(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
     for i, j in T.grid(128, 128):
@@ -77,7 +77,7 @@ def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer
             C[vi, vj] = B_subregion1[()] + 1.0
 
 @Ts.prim_func
-def element_wise_subregion_match_set_dtype(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
+def element_wise_subregion_match_set_dtype(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((128, 128), "float16")
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):

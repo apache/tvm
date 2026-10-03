@@ -24,7 +24,6 @@ import inspect
 import numbers as _numbers
 import re as _re
 
-import tvm
 from tvm import ir as _ir
 from tvm import relax
 from tvm import relax as _relax
@@ -248,48 +247,9 @@ def tuple(*fields: Expr) -> Expr:
     return relax.Tuple(fields)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def shape(value: list[Expr]) -> Expr:
-    """Create a ShapeExpr.
-    Parameters
-    ----------
-    value : List[Expr]
-        The fields of the tuple.
-    Returns
-    -------
-    res : Expr
-        The result tuple.
-    """
-    return relax.ShapeExpr(value)  # pylint: disable=no-member # type: ignore
-
-
-def prim_value(value: Expr | int | float) -> Expr:
-    """Convert a value to a primitive expression.
-
-    Parameters
-    ----------
-    value : Expr | int | float
-        The value to convert.
-
-    Returns
-    -------
-    res : Expr
-        The primitive expression.
-    """
-    return relax.prim_value(value)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def str(value: py_str) -> Expr:
-    """Create a string imm expression.
-    Parameters
-    ----------
-    value : str
-        The value of the str.
-    Returns
-    -------
-    res : Expr
-        The result str.
-    """
-    return tvm.ir.StringImm(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+shape = ShapeExpr
+prim_value = relax.prim_value
+str = _ir.StringImm
 
 
 @_resolve_global_info_args("vdevice", resolver=resolve_global_info_)

@@ -1394,7 +1394,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     if (const auto* call = arg.as<CallNode>();
         call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
       var_node = call->args[0].as<VarNode>();
-      TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::BufferTypeNode>())
+      TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::TensorTypeNode>())
           << "print_buffer expects buffer_data to project a BufferVar";
     }
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
@@ -1585,12 +1585,12 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
 
 void CodeGenCUDA::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
   }
   CodeGenC::Dispatch_(op);
 }
 
-void CodeGenCUDA::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;

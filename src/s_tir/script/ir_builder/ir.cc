@@ -195,7 +195,7 @@ BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   if (scope == "global" || scope == "shared" || scope == "shared.dyn" || scope == "local") {
     TVM_FFI_ICHECK(allocated_addr.empty())
         << "ValueError: For `" << scope
-        << "` scope, Ts.alloc_buffer does not accept `allocated_addr`";
+        << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
   }
   ffi::Optional<PrimExpr> opt_elem_offset =
       elem_offset.defined() ? ffi::Optional<PrimExpr>(elem_offset) : std::nullopt;
@@ -205,8 +205,8 @@ BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   auto opt_func_frame = builder->FindFrame<tirx::PrimFuncFrame>();
   if (opt_func_frame.has_value()) {
     TVM_FFI_CHECK(opt_func_frame.value().as<PrimFuncFrameNode>() != nullptr, ValueError)
-        << "ValueError: `Ts.alloc_buffer()` is only for s_tir PrimFuncs. "
-           "Use `T.alloc_buffer()` inside default (tirx) PrimFuncs.";
+        << "ValueError: `Ts.alloc_tensor()` is only for s_tir PrimFuncs. "
+           "Use `T.alloc_tensor()` inside default (tirx) PrimFuncs.";
   }
 
   // Walk up the frame stack: attach to the innermost enclosing s_tir::SBlock (lifting

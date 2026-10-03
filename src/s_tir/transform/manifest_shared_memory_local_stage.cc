@@ -170,7 +170,7 @@ class IntermediateStageRewriter {
       new_buffer_shape.push_back(relaxed_loop->extent);
     }
     BufferVar new_buffer = WithScope(buffer, "local");
-    ffi::ObjectPtr<BufferTypeNode> type = CopyBufferType(new_buffer);
+    ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(new_buffer);
     type->shape = new_buffer_shape;
     new_buffer = RebuildBufferVar(new_buffer, std::move(type));
     return {new_buffer, buffer_indices};

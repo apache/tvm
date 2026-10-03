@@ -26,11 +26,11 @@ from tvm.testing import env
 
 @T.prim_func
 def ptx_scalar_f32_math(
-    A: T.Buffer((32,), "float32"),
-    B: T.Buffer((32,), "float32"),
-    C_add: T.Buffer((32,), "float32"),
-    C_mul: T.Buffer((32,), "float32"),
-    C_max: T.Buffer((32,), "float32"),
+    A: T.Tensor((32,), "float32"),
+    B: T.Tensor((32,), "float32"),
+    C_add: T.Tensor((32,), "float32"),
+    C_mul: T.Tensor((32,), "float32"),
+    C_max: T.Tensor((32,), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     bx = T.env_thread("blockIdx.x")

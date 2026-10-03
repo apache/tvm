@@ -51,7 +51,7 @@ def test_dso_module_load():
 
     def save_object(names):
         n = te.var("n")
-        Ab = tvm.tirx.decl_buffer((n,), dtype)
+        Ab = tvm.tirx.decl_tensor((n,), dtype)
         i = te.var("i")
         # for i in 0 to n-1:
         stmt = tvm.tirx.For(

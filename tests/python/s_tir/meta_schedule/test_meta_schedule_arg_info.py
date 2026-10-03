@@ -25,9 +25,9 @@ from tvm.script import tirx as T
 
 @Ts.prim_func
 def Matmul(
-    A: T.Buffer((128, 256), "float32"),
-    B: T.Buffer((256, 512), "float32"),
-    C: T.Buffer((128, 512), "float32"),
+    A: T.Tensor((128, 256), "float32"),
+    B: T.Tensor((256, 512), "float32"),
+    C: T.Tensor((128, 512), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "main"})
 

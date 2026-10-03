@@ -220,7 +220,7 @@ class HostDeviceSplitter : public StmtExprMutator {
         std::sort(params.begin(), params.end(), [](const Var& a, const Var& b) {
           auto sort_key = [](const Var& var) {
             bool is_handle =
-                var->ty.as<PointerTypeNode>() != nullptr || var->ty.as<BufferTypeNode>() != nullptr;
+                var->ty.as<PointerTypeNode>() != nullptr || var->ty.as<TensorTypeNode>() != nullptr;
             return std::tuple{
                 !is_handle,
                 var->name,
@@ -242,13 +242,13 @@ class HostDeviceSplitter : public StmtExprMutator {
 
     // Buffer Vars are compiler-side values, not ABI values.  Thread their
     // physical pointer projection through the kernel call and recover the
-    // typed buffer at the kernel entry with an explicit DeclBuffer source.
+    // typed buffer at the kernel entry with an explicit DeclTensor source.
     ffi::Array<Var> kernel_params;
     ffi::Array<Expr> call_args;
     ffi::Map<Var, Var> buffer_data_params;
     auto kernel_rewriter = ffi::make_object<StmtExprMutator>();
     for (const Var& param : params) {
-      if (param->ty.as<BufferTypeNode>()) {
+      if (param->ty.as<TensorTypeNode>()) {
         BufferVar buffer = param.as_or_throw<BufferVar>();
         BufferVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
         Var data_param(buffer.name() + "_ptr", buffer.DataPointerType());
@@ -288,7 +288,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       TVM_FFI_ICHECK(kernel_buffer != nullptr);
       body = SeqStmt::Flatten(
           Bind(kernel_buffer.as_or_throw<BufferVar>(),
-               Call(kernel_buffer.as_or_throw<BufferVar>().type(), builtin::decl_buffer(),
+               Call(kernel_buffer.as_or_throw<BufferVar>().type(), builtin::decl_tensor(),
                     {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<BufferVar>()->shape),
                      DataTypeImm(kernel_buffer.as_or_throw<BufferVar>()->dtype->dtype),
                      StringImm(kernel_buffer.as_or_throw<BufferVar>().scope())},
@@ -487,8 +487,8 @@ class DeviceInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
     if (const auto* call = op->value.as<CallNode>();
-        call && call->op.same_as(builtin::alloc_buffer()))
-      return DispatchAllocBuffer(op, call);
+        call && call->op.same_as(builtin::alloc_tensor()))
+      return DispatchAllocTensor(op, call);
     // Track Bind definitions so that thread_extent values and
     // dyn_shmem_size expressions that reference locally-bound
     // variables (e.g. CSE variables) can be inlined back to
@@ -554,7 +554,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> DispatchAllocBuffer(const BindNode* op, const CallNode* call) {
+  ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
     ffi::String scope = call->args[2].as_or_throw<StringImm>()->value;
     auto storage_scope = runtime::StorageScope::Create(scope);
     if (storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn") {

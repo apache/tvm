@@ -92,9 +92,9 @@ def test_mlp_with_tuple():
 
         @Ts.prim_func(private=True)
         def split1(
-            A: T.Buffer((128, 128), "float32"),
-            T_split: T.Buffer((64, 128), "float32"),
-            T_split_1: T.Buffer((64, 128), "float32"),
+            A: T.Tensor((128, 128), "float32"),
+            T_split: T.Tensor((64, 128), "float32"),
+            T_split_1: T.Tensor((64, 128), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -139,9 +139,9 @@ def test_mlp_with_tuple():
 
         @Ts.prim_func(private=True)
         def split1(
-            A: T.Buffer((128, 128), "float32"),
-            T_split: T.Buffer((64, 128), "float32"),
-            T_split_1: T.Buffer((64, 128), "float32"),
+            A: T.Tensor((128, 128), "float32"),
+            T_split: T.Tensor((64, 128), "float32"),
+            T_split_1: T.Tensor((64, 128), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -375,9 +375,9 @@ def test_decoder_layer():
 
         @Ts.prim_func
         def rms_norm(
-            A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096),), "float16"),
-            rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096),), "float16"),
+            rms_norm_1: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -412,10 +412,10 @@ def test_decoder_layer():
 
         @Ts.prim_func
         def rotary_embedding(
-            A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            C: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            rotary: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -572,9 +572,9 @@ def test_decoder_layer():
 
         @Ts.prim_func
         def rms_norm(
-            A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096),), "float16"),
-            rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096),), "float16"),
+            rms_norm_1: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -608,10 +608,10 @@ def test_decoder_layer():
 
         @Ts.prim_func
         def rotary_embedding(
-            A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            C: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            rotary: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -776,9 +776,9 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def add(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            T_add: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            T_add: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -794,9 +794,9 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def divide(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            T_divide: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            T_divide: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -812,9 +812,9 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def matmul(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -832,9 +832,9 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def matmul1(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -855,9 +855,9 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def matmul2(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
-            matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -878,9 +878,9 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def maximum(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            T_maximum: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            T_maximum: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -896,9 +896,9 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def minimum(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            B: T.Buffer((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
-            T_minimum: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            B: T.Tensor((T.int64(1), T.int64(1), T.int64(256), T.int64(256)), "float16"),
+            T_minimum: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -916,8 +916,8 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def reshape(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
-            T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -933,8 +933,8 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def reshape1(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
-            T_reshape: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            T_reshape: T.Tensor((T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -947,8 +947,8 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def reshape2(
-            A: T.Buffer((T.int64(256), T.int64(32), T.int64(128)), "float16"),
-            T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -962,8 +962,8 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def reshape3(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
-            T_reshape: T.Buffer((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            T_reshape: T.Tensor((T.int64(1), T.int64(256), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -979,9 +979,9 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func
         def rms_norm(
-            A: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096),), "float16"),
-            rms_norm_1: T.Buffer((T.int64(1), 256, T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096),), "float16"),
+            rms_norm_1: T.Tensor((T.int64(1), 256, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1017,10 +1017,10 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func
         def rotary_embedding(
-            A: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            rotary: T.Buffer((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            C: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            rotary: T.Tensor((T.int64(1), 256, T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1049,8 +1049,8 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def softmax(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
-            T_softmax_norm: T.Buffer(
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"),
+            T_softmax_norm: T.Tensor(
                 (T.int64(1), T.int64(32), T.int64(256), T.int64(256)), "float16"
             ),
         ):
@@ -1116,8 +1116,8 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def transpose(
-            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
-            T_transpose: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
+            T_transpose: T.Tensor((T.int64(4096), T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1130,8 +1130,8 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def transpose1(
-            A: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
-            T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            T_transpose: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1147,8 +1147,8 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def transpose2(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
-            T_transpose: T.Buffer((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            T_transpose: T.Tensor((T.int64(1), T.int64(32), T.int64(128), T.int64(256)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1164,8 +1164,8 @@ def test_decoder_layer_tir():
 
         @Ts.prim_func(private=True)
         def transpose3(
-            A: T.Buffer((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
-            T_transpose: T.Buffer((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), T.int64(32), T.int64(256), T.int64(128)), "float16"),
+            T_transpose: T.Tensor((T.int64(1), T.int64(256), T.int64(32), T.int64(128)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1567,9 +1567,9 @@ def test_decoder_layer_dynamic_shape():
 
         @Ts.prim_func
         def rms_norm(
-            A: T.Buffer((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096),), "float16"),
-            rms_norm_1: T.Buffer((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096),), "float16"),
+            rms_norm_1: T.Tensor((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -1604,11 +1604,11 @@ def test_decoder_layer_dynamic_shape():
 
         @Ts.prim_func
         def rotary_embedding(
-            A: T.Buffer((T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            C: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
             m: T.int64,
-            rotary: T.Buffer(
+            rotary: T.Tensor(
                 (T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"
             ),
         ):
@@ -1774,9 +1774,9 @@ def test_decoder_layer_dynamic_shape():
 
         @Ts.prim_func
         def rms_norm(
-            A: T.Buffer((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
-            B: T.Buffer((T.int64(4096),), "float16"),
-            rms_norm_1: T.Buffer((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
+            A: T.Tensor((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
+            B: T.Tensor((T.int64(4096),), "float16"),
+            rms_norm_1: T.Tensor((T.int64(1), rms_norm_n, T.int64(4096)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -1811,11 +1811,11 @@ def test_decoder_layer_dynamic_shape():
 
         @Ts.prim_func
         def rotary_embedding(
-            A: T.Buffer((T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"),
-            B: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
-            C: T.Buffer((T.int64(2048), T.int64(128)), "float16"),
+            A: T.Tensor((T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"),
+            B: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
+            C: T.Tensor((T.int64(2048), T.int64(128)), "float16"),
             m: T.int64,
-            rotary: T.Buffer(
+            rotary: T.Tensor(
                 (T.int64(1), rotary_embedding_n, T.int64(32), T.int64(128)), "float16"
             ),
         ):

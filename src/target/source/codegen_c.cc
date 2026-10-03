@@ -711,8 +711,8 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     if (op->op.same_as(tirx::builtin::buffer_data())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 1U);
       const auto* buffer = op->args[0].as<VarNode>();
-      TVM_FFI_ICHECK(buffer && buffer->ty.as<BufferTypeNode>())
-          << "buffer_data expects a Var with BufferType";
+      TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
+          << "buffer_data expects a Var with TensorType";
       os << GetVarID(buffer);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
       TVM_FFI_ICHECK_GE(op->args.size(), 1U);
@@ -924,7 +924,7 @@ void CodeGenC::PrintVecBinaryOp(const std::string& op, const PrimType& t, PrimEx
   }
 }
 
-void CodeGenC::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
   DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
@@ -1231,8 +1231,8 @@ void CodeGenC::Dispatch_(const prim::SelectNode* op, std::ostream& os) {  // NOL
 
 void CodeGenC::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
-    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
   }
   RegisterHandleTypeFromPointer(op->var, &op->value);
   std::string value = PrintExpr(op->value);
@@ -1254,7 +1254,7 @@ void CodeGenC::Dispatch_(const BindNode* op) {
   }
 }
 
-void CodeGenC::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;

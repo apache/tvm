@@ -95,9 +95,9 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
     }
     for (const tirx::BufferVar& buffer : block->alloc_buffers) {
       CallDoc rhs = d->Translate(buffer.var()->ty).value().as_or_throw<CallDoc>();
-      TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Buffer", TypeError)
-          << "Ts.sblock_alloc_buffer cannot reconstruct this nonrepresentable BufferType";
-      const auto* buffer_type = buffer.var()->ty.as<tirx::BufferTypeNode>();
+      TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
+          << "Ts.sblock_alloc_buffer cannot reconstruct this nonrepresentable TensorType";
+      const auto* buffer_type = buffer.var()->ty.as<tirx::TensorTypeNode>();
       TVM_FFI_CHECK(
           buffer_type->allocated_addr.empty() ||
               (buffer_type->storage_scope != "global" && buffer_type->storage_scope != "shared" &&
@@ -171,8 +171,8 @@ ffi::Optional<ExprDoc> MatchBufferRegionDocTranslate(DocTranslatorObj* d, ffi::A
       << "printer statement-only node cannot fulfill a destination";
   ExprDoc source = d->Translate(match->source).value();
   CallDoc rhs = d->Translate(match->buffer.var()->ty).value().as_or_throw<CallDoc>();
-  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Buffer", TypeError)
-      << "Ts.match_buffer cannot reconstruct this nonrepresentable BufferType";
+  TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
+      << "Ts.match_buffer cannot reconstruct this nonrepresentable TensorType";
   rhs->callee = NamespaceDoc("s_tir")->Attr("match_buffer");
   rhs->args.insert(rhs->args.begin(), source);
   IdDoc lhs = VarDoc(d, match->buffer);

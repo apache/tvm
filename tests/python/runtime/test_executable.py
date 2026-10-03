@@ -32,9 +32,9 @@ from tvm.script import tirx as T
 class MyModule:
     @Ts.prim_func
     def add(
-        A: T.Buffer((10,), "float32"),
-        B: T.Buffer((10,), "float32"),
-        C: T.Buffer((10,), "float32"),
+        A: T.Tensor((10,), "float32"),
+        B: T.Tensor((10,), "float32"),
+        C: T.Tensor((10,), "float32"),
     ):
         for i in range(10):
             C[i] = A[i] + B[i]

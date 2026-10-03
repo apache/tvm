@@ -1444,7 +1444,7 @@ def test_detect_iter_map_with_bufferload_recursion():
     i = tvm.tirx.Var("i", "int32")
     j = tvm.tirx.Var("j", "int32")
 
-    buffer = tvm.tirx.decl_buffer((n,), "int32", name="seqlen")
+    buffer = tvm.tirx.decl_tensor((n,), "int32", name="seqlen")
 
     indices = [(buffer[i] + j) // divisor]
     iter_vars = {

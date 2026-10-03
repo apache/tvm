@@ -216,13 +216,13 @@ std::string CodeGenTrainium::GetStorageScopeStr(const std::string& scope) {  // 
 
 void CodeGenTrainium::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
-    if (call->op.same_as(tirx::builtin::alloc_buffer())) return DispatchAllocBuffer(op, call);
-    if (call->op.same_as(tirx::builtin::decl_buffer())) return DispatchDeclBuffer(op, call);
+    if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);
+    if (call->op.same_as(tirx::builtin::decl_tensor())) return DispatchDeclTensor(op, call);
   }
   CodeGenC::Dispatch_(op);
 }
 
-void CodeGenTrainium::DispatchAllocBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
@@ -627,7 +627,7 @@ void CodeGenTrainium::Dispatch_(const prim::FloorModNode* op, std::ostream& os) 
   os << PrintExpr(op->a) << " % " << PrintExpr(op->b);
 }
 
-void CodeGenTrainium::DispatchDeclBuffer(const BindNode* op, const CallNode* buffer_call) {
+void CodeGenTrainium::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
   tvm::Tuple shape = buffer_call->args[1].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
@@ -641,13 +641,13 @@ void CodeGenTrainium::DispatchDeclBuffer(const BindNode* op, const CallNode* buf
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     data_var = call->args[0].as<VarNode>();
   }
-  TVM_FFI_ICHECK(data_var) << "Trainium codegen expects DeclBuffer data to be a buffer variable";
+  TVM_FFI_ICHECK(data_var) << "Trainium codegen expects DeclTensor data to be a buffer variable";
   if (data_var->ty.as<PointerTypeNode>()) {
     buffer_idmap_[buffer] = GetVarID(data_var);
     buffer_data_varmap_[buffer] = data_var;
     return;
   }
-  TVM_FFI_ICHECK(data_var->ty.as<BufferTypeNode>());
+  TVM_FFI_ICHECK(data_var->ty.as<TensorTypeNode>());
   BufferVar source_buffer = ffi::GetRef<Var>(data_var).as_or_throw<BufferVar>();
   auto source_it = buffer_data_varmap_.find(source_buffer);
   TVM_FFI_ICHECK(source_it != buffer_data_varmap_.end())

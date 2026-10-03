@@ -39,10 +39,10 @@ def test_quantize_fp32_to_int8():
     class Expected:
         @Ts.prim_func(private=True)
         def quantize(
-            A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
-            B: T.Buffer((T.int64(2),), "float32"),
-            C: T.Buffer((T.int64(2),), "int8"),
-            quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
+            A: T.Tensor((T.int64(2), T.int64(4)), "float32"),
+            B: T.Tensor((T.int64(2),), "float32"),
+            C: T.Tensor((T.int64(2),), "int8"),
+            quantized: T.Tensor((T.int64(2), T.int64(4)), "int8"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -93,10 +93,10 @@ def test_quantize_fp16_to_uint8():
     class Expected:
         @Ts.prim_func(private=True)
         def quantize(
-            A: T.Buffer((T.int64(2), T.int64(4)), "float16"),
-            B: T.Buffer((T.int64(2),), "float16"),
-            C: T.Buffer((T.int64(2),), "int8"),
-            quantized: T.Buffer((T.int64(2), T.int64(4)), "uint8"),
+            A: T.Tensor((T.int64(2), T.int64(4)), "float16"),
+            B: T.Tensor((T.int64(2),), "float16"),
+            C: T.Tensor((T.int64(2),), "int8"),
+            quantized: T.Tensor((T.int64(2), T.int64(4)), "uint8"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -152,10 +152,10 @@ def test_quantize_fp32_to_int8_symbolic():
     class Expected:
         @Ts.prim_func(private=True)
         def quantize(
-            A: T.Buffer((T.int64(4), n_quantize)),
-            B: T.Buffer((n_quantize,)),
-            C: T.Buffer((n_quantize,), "int8"),
-            quantized: T.Buffer((T.int64(4), n_quantize), "int8"),
+            A: T.Tensor((T.int64(4), n_quantize)),
+            B: T.Tensor((n_quantize,)),
+            C: T.Tensor((n_quantize,), "int8"),
+            quantized: T.Tensor((T.int64(4), n_quantize), "int8"),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -205,8 +205,8 @@ def test_quantize_fp32_to_int8_scalar_param():
     class Expected:
         @Ts.prim_func(private=True)
         def quantize(
-            A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
-            quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
+            A: T.Tensor((T.int64(2), T.int64(4)), "float32"),
+            quantized: T.Tensor((T.int64(2), T.int64(4)), "int8"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -253,10 +253,10 @@ def test_quantize_fp32_to_int8_scalar_1d_param():
     class Expected:
         @Ts.prim_func(private=True)
         def quantize(
-            A: T.Buffer((T.int64(2), T.int64(4)), "float32"),
-            B: T.Buffer((T.int64(2),), "float32"),
-            C: T.Buffer((T.int64(2),), "int8"),
-            quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
+            A: T.Tensor((T.int64(2), T.int64(4)), "float32"),
+            B: T.Tensor((T.int64(2),), "float32"),
+            C: T.Tensor((T.int64(2),), "int8"),
+            quantized: T.Tensor((T.int64(2), T.int64(4)), "int8"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -304,8 +304,8 @@ def test_quantize_fp16_to_int8_scalar_param():
     class Expected:
         @Ts.prim_func(private=True)
         def quantize(
-            A: T.Buffer((T.int64(2), T.int64(4)), "float16"),
-            quantized: T.Buffer((T.int64(2), T.int64(4)), "int8"),
+            A: T.Tensor((T.int64(2), T.int64(4)), "float16"),
+            quantized: T.Tensor((T.int64(2), T.int64(4)), "int8"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -350,10 +350,10 @@ def test_dequantize_int8_to_fp32():
     class Expected:
         @Ts.prim_func(private=True)
         def dequantize(
-            A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
-            B: T.Buffer((T.int64(2),), "float32"),
-            C: T.Buffer((T.int64(2),), "int8"),
-            dequantized: T.Buffer((T.int64(2), T.int64(4)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(4)), "int8"),
+            B: T.Tensor((T.int64(2),), "float32"),
+            C: T.Tensor((T.int64(2),), "int8"),
+            dequantized: T.Tensor((T.int64(2), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -396,8 +396,8 @@ def test_dequantize_int8_to_fp32_scalar_param():
     class Expected:
         @Ts.prim_func(private=True)
         def dequantize(
-            A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
-            dequantized: T.Buffer((T.int64(2), T.int64(4)), "float32"),
+            A: T.Tensor((T.int64(2), T.int64(4)), "int8"),
+            dequantized: T.Tensor((T.int64(2), T.int64(4)), "float32"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -441,10 +441,10 @@ def test_dequantize_int8_to_fp32_symbolic():
     class Expected:
         @Ts.prim_func(private=True)
         def dequantize(
-            A: T.Buffer((T.int64(2), n_dequantize), "int8"),
-            B: T.Buffer((n_dequantize,)),
-            C: T.Buffer((n_dequantize,), "int8"),
-            dequantized: T.Buffer((T.int64(2), n_dequantize)),
+            A: T.Tensor((T.int64(2), n_dequantize), "int8"),
+            B: T.Tensor((n_dequantize,)),
+            C: T.Tensor((n_dequantize,), "int8"),
+            dequantized: T.Tensor((T.int64(2), n_dequantize)),
         ):
             T.func_attr({"tirx.noalias": True})
 
@@ -492,10 +492,10 @@ def test_dequantize_int8_to_fp16():
     class Expected:
         @Ts.prim_func(private=True)
         def dequantize(
-            A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
-            B: T.Buffer((T.int64(2),), "float16"),
-            C: T.Buffer((T.int64(2),), "int8"),
-            dequantized: T.Buffer((T.int64(2), T.int64(4)), "float16"),
+            A: T.Tensor((T.int64(2), T.int64(4)), "int8"),
+            B: T.Tensor((T.int64(2),), "float16"),
+            C: T.Tensor((T.int64(2),), "int8"),
+            dequantized: T.Tensor((T.int64(2), T.int64(4)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -548,8 +548,8 @@ def test_dequantize_int8_to_fp16_scalar_param():
     class Expected:
         @Ts.prim_func(private=True)
         def dequantize(
-            A: T.Buffer((T.int64(2), T.int64(4)), "int8"),
-            dequantized: T.Buffer((T.int64(2), T.int64(4)), "float16"),
+            A: T.Tensor((T.int64(2), T.int64(4)), "int8"),
+            dequantized: T.Tensor((T.int64(2), T.int64(4)), "float16"),
         ):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):

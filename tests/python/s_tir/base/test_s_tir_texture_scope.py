@@ -34,8 +34,8 @@ def test_texture_scope():
     class PlusOneMultTwo:
         @Ts.prim_func
         def main(
-            A: T.Buffer((128, 128, 4), dtype="float32", scope="global.texture"),
-            C: T.Buffer((128, 128, 4), dtype="float32", scope="global.texture"),
+            A: T.Tensor((128, 128, 4), dtype="float32", scope="global.texture"),
+            C: T.Tensor((128, 128, 4), dtype="float32", scope="global.texture"),
         ) -> None:
             T.func_attr({"tirx.noalias": True})
 

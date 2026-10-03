@@ -136,6 +136,21 @@ underlying builders can also be used directly from Python. The transpiler theref
 needs no separate mutable IR representation: it generates calls to this construction
 protocol.
 
+Ordinary IR constructors can be used directly in parsed source. Shared exports
+such as ``I.Call`` and ``T.Range`` use the same constructor contracts as
+``tvm.ir.Call`` and ``tvm.ir.Range``, including keyword arguments, source spans
+and validation. ``Call(..., ty=...)`` supplies an explicit result type; omission
+leaves ``Type.missing()`` for subsequent normalization. Use ``Call.unchecked``
+explicitly for provisional calls that require later validation. Raw printed calls
+use this form with their stored result type to preserve all fields.
+
+Operations likewise retain their normal argument contracts. A dtype inferred from
+operands is not an extra ``dtype`` keyword; operations with an explicit dtype
+parameter accept it normally. Annotation shorthand, module metadata selectors,
+frame construction and variadic dtype positioning remain explicit builder adapters.
+They do not change the underlying IR constructor's validation or consult builder
+state from ordinary construction.
+
 Printing and round trips
 ------------------------
 
@@ -159,7 +174,7 @@ For example, a small function can be authored, printed and parsed again:
    from tvm.script import tirx as T
 
    @T.prim_func
-   def increment(A: T.Buffer((4,), "float32")):
+   def increment(A: T.Tensor((4,), "float32")):
        for i in T.serial(4):
            A[i] = A[i] + 1.0
 

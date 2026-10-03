@@ -36,7 +36,7 @@ from typing import Literal
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import TensorLoad, Type, is_prim_expr
+from tvm.ir import Range, TensorLoad, Type, is_prim_expr
 from tvm.script.ir_builder.base import MISSING, IRBuilder
 from tvm.script.ir_builder.ir import meta_var
 from tvm.script.parser.protocol_registry import (
@@ -208,9 +208,9 @@ def _record_meta_resource(value: Any, skip_frames: int = 2) -> None:
         scope.record(value, frame_info)
 
 
-@_register_mutable_decl("tirx.Buffer", syntax="parameter")
+@_register_mutable_decl("tirx.Tensor", syntax="parameter")
 @_annotation_constructor
-def _buffer_type(
+def _tensor_type(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
     data: Var = None,
@@ -224,8 +224,8 @@ def _buffer_type(
     allocated_addr: int | tuple[int, ...] | None = None,
     *,
     span=None,
-) -> tir.BufferType:
-    """Construct a buffer type for annotations and explicit type-valued fields.
+) -> tir.TensorType:
+    """Construct a tensor type for annotations and explicit type-valued fields.
 
     Parameters
     ----------
@@ -265,9 +265,9 @@ def _buffer_type(
 
     Returns
     -------
-    res : BufferType
-        The buffer type. Function annotations introduce variables of this type;
-        allocation and declaration operations construct buffer variables.
+    res : TensorType
+        The tensor type. Function annotations introduce variables of this type;
+        allocation and declaration operations construct tensor variables.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
     shape = tuple(shape)
@@ -277,7 +277,7 @@ def _buffer_type(
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
         allocated_addr = [allocated_addr]
-    result = _ffi_api.BufferType(  # type: ignore[attr-defined] # pylint: disable=no-member
+    result = _ffi_api.TensorType(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         data,
@@ -548,8 +548,8 @@ def thread_id_in_wg(
     return tuple(ret)
 
 
-@_register_mutable_decl("tirx.alloc_buffer")
-def alloc_buffer(
+@_register_mutable_decl("tirx.alloc_tensor")
+def alloc_tensor(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
     data: Var | None = None,
@@ -563,11 +563,11 @@ def alloc_buffer(
     allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
 ) -> Buffer:
-    """Statement-level buffer allocation (creates a buffer-returning allocation Call).
+    """Allocate a tensor and return its variable.
 
-    Emits a Bind statement with an allocation Call and returns the Buffer directly::
+    Emits a Bind statement with a ``tirx.alloc_tensor`` Call::
 
-        buf = T.alloc_buffer((128, 128))
+        buf = T.alloc_tensor((128, 128))
 
     Parameters
     ----------
@@ -634,14 +634,14 @@ def alloc_buffer(
 
     norm_annotations = {k: _normalize_ann_value(v) for k, v in (annotations or {}).items()}
     allocation = ir.Call(
-        "tirx.alloc_buffer",
+        "tirx.alloc_tensor",
         [
             ir.Tuple(buf.shape),
             ir.DataTypeImm(DataType(buf.dtype)),
             ir.StringImm(buf.scope()),
         ],
         attrs=ir.DictAttrs(norm_annotations),
-        ret_ty=buf.ty,
+        ty=buf.ty,
     )
     _ffi_api.AddToParent(tir.Bind(buf, allocation))
     return buf
@@ -652,7 +652,7 @@ def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Buffer:
 
     Sugar for the recurring pattern::
 
-        T.alloc_buffer(
+        T.alloc_tensor(
             (128, elem_per_thread), dtype,
             layout=wg_local_layout(elem_per_thread),
             scope="local",
@@ -661,7 +661,7 @@ def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Buffer:
     Used to stage a tcgen05 load: each of the 128 threads in a warpgroup
     owns one row of ``elem_per_thread`` contiguous elements.
     """
-    return alloc_buffer(
+    return alloc_tensor(
         (128, elem_per_thread),
         dtype,
         layout=wg_local_layout(elem_per_thread),
@@ -756,8 +756,8 @@ class DtypeConstructor:
         return f"DtypeConstructor({self._dtype_str!r})"
 
 
-@_register_mutable_decl("tirx.decl_buffer")
-def decl_buffer(
+@_register_mutable_decl("tirx.decl_tensor")
+def decl_tensor(
     shape,
     dtype="float32",
     data=None,
@@ -770,10 +770,11 @@ def decl_buffer(
     layout=MISSING,
     allocated_addr=None,
 ) -> Buffer:
-    """Create a buffer declaration node.
+    """Declare a tensor backed by a pointer, or allocate its storage.
 
-    When ``data`` is provided, creates a DeclBuffer (alias to existing data).
-    When ``data`` is None, creates an AllocBuffer (new allocation).
+    With ``data``, bind a ``tirx.decl_tensor`` Call to the tensor variable.
+    Without ``data``, bind a ``tirx.alloc_tensor`` Call instead. The ``tmem``
+    scope uses ``allocated_addr`` to declare externally allocated tensor memory.
 
     Parameters
     ----------
@@ -817,7 +818,7 @@ def decl_buffer(
     if strides is None:
         strides = []
     dtype = _normalize_prim_type(dtype)
-    decl_frame = _ffi_api.DeclBuffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    decl_frame = _ffi_api.DeclTensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
         "",
@@ -830,7 +831,7 @@ def decl_buffer(
         _get_layout(layout, shape, scope),
         allocated_addr,
     )
-    if isinstance(decl_frame, frame.DeclBufferFrame):
+    if isinstance(decl_frame, frame.DeclTensorFrame):
         decl_frame.add_callback(partial(decl_frame.__exit__, None, None, None))
         buf = decl_frame.__enter__()
     else:
@@ -839,17 +840,17 @@ def decl_buffer(
     return buf
 
 
-alloc_shared = functools.partial(alloc_buffer, scope="shared")
+alloc_shared = functools.partial(alloc_tensor, scope="shared")
 
 _register_mutable_decl("tirx.alloc_shared")(alloc_shared)
 
-alloc_local = functools.partial(alloc_buffer, scope="local")
+alloc_local = functools.partial(alloc_tensor, scope="local")
 
 _register_mutable_decl("tirx.alloc_local")(alloc_local)
 
 smem = _register_mutable_decl("tirx.smem")(alloc_shared)
 
-tmem = functools.partial(alloc_buffer, scope="tmem")
+tmem = functools.partial(alloc_tensor, scope="tmem")
 
 
 def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
@@ -949,7 +950,7 @@ def alloc_scalar(
     annotations: dict[str, Any] | None = None,
 ) -> TensorLoad:
     """Allocate a zero-dimensional buffer (scalar), with optional allocation annotations."""
-    buf = alloc_buffer(
+    buf = alloc_tensor(
         shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]), annotations=annotations
     )
     assert is_buffer_var(buf)
@@ -960,7 +961,7 @@ def alloc_scalar(
 @_register_mutable_decl("tirx.decl_scalar")
 def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> TensorLoad:
     """Declare a zero-dimensional buffer (scalar) from a pointer."""
-    buf = decl_buffer(
+    buf = decl_tensor(
         shape=(1,),
         dtype=dtype,
         data=data,
@@ -1619,21 +1620,6 @@ def target(
     return Target(target_config, host)
 
 
-def Range(begin: Expr, end: Expr) -> ir.Range:  # pylint: disable=invalid-name
-    """
-    Create a Range object.
-
-    Parameters
-    ----------
-    begin : Expr
-        The begin value of the range.
-
-    end : Optional[Expr]
-        The end value of the range.
-    """
-    return ir.Range(begin, end)
-
-
 if TYPE_CHECKING:
     C = TypeVar("C")
 
@@ -1703,10 +1689,9 @@ def Ptr(dtype, storage_scope="global", *, span=None):
     return _at(span, ptr(dtype, storage_scope))
 
 
-Buffer = _buffer_type
+Tensor = _tensor_type
 
 __all__ = [
-    "Buffer",
     "BufferLoad",
     "ComposeLayout",
     "DtypeConstructor",
@@ -1723,16 +1708,17 @@ __all__ = [
     "Range",
     "S",
     "ScopeIdDef",
+    "Tensor",
     "TensorMap",
     "TileLayout",
     "Tuple",
     "Var",
-    "alloc_buffer",
     "alloc_cast_frag",
     "alloc_local",
     "alloc_scalar",
     "alloc_shared",
     "alloc_tcgen05_ldst_frag",
+    "alloc_tensor",
     "bf16",
     "bfloat16",
     "boolean",
@@ -1741,8 +1727,8 @@ __all__ = [
     "cta_id",
     "cta_id_in_cluster",
     "cta_id_in_pair",
-    "decl_buffer",
     "decl_scalar",
+    "decl_tensor",
     "f16",
     "f32",
     "f64",

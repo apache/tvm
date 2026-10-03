@@ -40,7 +40,7 @@ def test_basic(consume_params):
     class Before:
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ) -> None:
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -105,7 +105,7 @@ def test_basic(consume_params):
 
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -176,7 +176,7 @@ def test_basic(consume_params):
 
         @Ts.prim_func
         def transform_layout_IOHW_to_OIHW(
-            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+            w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
             for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
                 with Ts.sblock("layout_transform"):
@@ -1442,7 +1442,7 @@ def test_symbolic_var_2():
     @I.ir_module
     class Before:
         @Ts.prim_func
-        def zeros(T_full: T.Buffer((n_zeros, n_zeros))):
+        def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
             T.func_attr({"tirx.noalias": True})
 
             for ax0, ax1 in T.grid(n_zeros, n_zeros):
@@ -1469,7 +1469,7 @@ def test_symbolic_var_2():
     @I.ir_module
     class Expected:
         @Ts.prim_func
-        def zeros(T_full: T.Buffer((n_zeros, n_zeros))):
+        def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
             T.func_attr({"tirx.noalias": True})
 
             # with Ts.sblock("root"):
@@ -1531,9 +1531,9 @@ def test_symbolic_var_from_shape():
 
         @Ts.prim_func(private=True)
         def slice(
-            Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
+            Input_2d: T.Tensor(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,
-            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
+            Output_Slice: T.Tensor(shape=[16], dtype="int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for j in range(16):
@@ -1586,9 +1586,9 @@ def test_symbolic_var_from_shape():
 
         @Ts.prim_func(private=True)
         def slice(
-            Input_2d: T.Buffer(shape=[16, 16], dtype="int32"),
+            Input_2d: T.Tensor(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,
-            Output_Slice: T.Buffer(shape=[16], dtype="int32"),
+            Output_Slice: T.Tensor(shape=[16], dtype="int32"),
         ):
             T.func_attr({"tirx.noalias": True})
             for j in range(16):
