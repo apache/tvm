@@ -515,7 +515,7 @@ class FunctionCreator : public ExprMutator {
         Var item_param(param_name + "_" + std::to_string(item_idx), param_ty->fields[item_idx]);
         item_args.push_back(TupleGetItem(ffi::GetRef<Expr>(tuple_arg), item_idx));
         item_params.push_back(item_param);
-        tuple_get_item_remap[tuple_arg][item_idx] = item_param;
+        tuple_get_item_remap[tuple_arg].insert_or_assign(item_idx, item_param);
       }
       arguments_.erase(arguments_.begin() + param_idx);
       arguments_.insert(arguments_.begin() + param_idx, item_args.begin(), item_args.end());
@@ -528,7 +528,7 @@ class FunctionCreator : public ExprMutator {
     InlineShapeDependentPrimArgs();
 
     // Step 4. Visit each binding and collect outputs one by one.
-    ffi::Array<Expr> outputs(output_vars_.size(), Expr());
+    std::vector<ffi::Optional<Expr>> output_slots(output_vars_.size());
     for (const Binding& binding : bindings_) {
       // Special handing for TupleGetItem.
       if (const auto* var_binding = binding.as<VarBindingNode>()) {
@@ -536,9 +536,9 @@ class FunctionCreator : public ExprMutator {
           auto it = tuple_get_item_remap.find(tuple_get_item->tuple.get());
           if (it != tuple_get_item_remap.end()) {
             TVM_FFI_ICHECK(it->second.find(tuple_get_item->index) != it->second.end());
-            var_remap_[var_binding->var] = it->second[tuple_get_item->index];
+            var_remap_.insert_or_assign(var_binding->var, it->second.at(tuple_get_item->index));
             if (auto output_idx = GetOutputIndex(binding->var)) {
-              outputs.Set(*output_idx, it->second[tuple_get_item->index]);
+              output_slots[*output_idx] = it->second.at(tuple_get_item->index);
             }
             continue;
           }
@@ -551,12 +551,19 @@ class FunctionCreator : public ExprMutator {
         const auto* var_binding = binding.as<VarBindingNode>();
         TVM_FFI_ICHECK_NOTNULL(var_binding);
         Var output_var = builder_->EmitOutput(VisitExpr(var_binding->value));
-        var_remap_[var_binding->var] = output_var;
-        outputs.Set(*output_idx, output_var);
+        var_remap_.insert_or_assign(var_binding->var, output_var);
+        output_slots[*output_idx] = output_var;
       } else {
         // Case 2. It is an internal binding, add it to the binding list.
         VisitBinding(binding);
       }
+    }
+
+    ffi::Array<Expr> outputs;
+    outputs.reserve(output_slots.size());
+    for (const auto& output : output_slots) {
+      TVM_FFI_ICHECK(output.has_value()) << "Missing fused function output";
+      outputs.push_back(output.value());
     }
 
     // Step 5. Finish constructing the new block.
@@ -649,7 +656,7 @@ class FunctionCreator : public ExprMutator {
       if (inline_bound_value) {
         const auto* argument_var = argument.as<VarNode>();
         TVM_FFI_ICHECK(argument_var);
-        inlined_bindings_[argument_var] = bound_value;
+        inlined_bindings_.insert_or_assign(argument_var, bound_value);
       }
 
       size_t param_idx = it - arguments_.begin();
@@ -678,7 +685,7 @@ class FunctionCreator : public ExprMutator {
       Var bound_var = ffi::GetRef<Var>(var);
       Expr bound_value = ResolveOuterBinding(bound_var);
       if (!bound_value.same_as(bound_var) && IsInlinableConstants(bound_value)) {
-        inlined_bindings_[var] = bound_value;
+        inlined_bindings_.insert_or_assign(var, bound_value);
         return;
       }
     }
@@ -937,20 +944,17 @@ class OperatorFusor : public ExprMutator {
       // same dataflow/output status as its sole boundary variable.  The last binding is only the
       // insertion point and may itself be a dead internal binding.
       TVM_FFI_ICHECK(!output_vars.empty());
-      Var new_var;
       Call call_to_emit = Call::Unchecked(Type::Missing(), gv, UpdateArgs(func_info.arguments_));
 
-      if (output_vars.size() == 1 && !output_vars[0]->IsInstance<DataflowVarNode>()) {
-        new_var = builder_->EmitOutput(call_to_emit);
-      } else {
-        new_var = builder_->Emit(call_to_emit);
-      }
+      Var new_var = output_vars.size() == 1 && !output_vars[0]->IsInstance<DataflowVarNode>()
+                        ? builder_->EmitOutput(call_to_emit)
+                        : builder_->Emit(call_to_emit);
 
       // Step c. Remap every boundary output to the corresponding result of the grouped call.
       // FunctionCreator uses output_vars() order when it constructs a multi-output tuple.  A
       // single boundary output is returned directly, including when that output is itself a tuple.
       if (output_vars.size() == 1) {
-        var_remap_[ffi::GetRef<Var>(output_vars[0])] = new_var;
+        var_remap_.insert_or_assign(ffi::GetRef<Var>(output_vars[0]), new_var);
         continue;
       }
 
@@ -961,9 +965,9 @@ class OperatorFusor : public ExprMutator {
         int index = static_cast<int>(std::distance(output_vars.begin(), it));
         TupleGetItem tuple_get(new_var, index);
         if (output_var->IsInstance<DataflowVarNode>()) {
-          var_remap_[output_var] = builder_->Emit(tuple_get);
+          var_remap_.insert_or_assign(output_var, builder_->Emit(tuple_get));
         } else {
-          var_remap_[output_var] = builder_->EmitOutput(tuple_get);
+          var_remap_.insert_or_assign(output_var, builder_->EmitOutput(tuple_get));
         }
         remapped_outputs.insert(output_var.get());
       };
@@ -1399,7 +1403,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
         new_func = WithoutAttr(std::move(new_func), tvm::relax::attr::kPrimitive);
         builder_->GetContextIRModule()->Remove(ffi::GetRef<GlobalVar>(gvar));
         auto new_gvar = builder_->AddFunction(new_func, gsymbol);
-        gvar_map_[gvar] = new_gvar;
+        gvar_map_.insert_or_assign(gvar, new_gvar);
         return Call::Unchecked(Type::Missing(), new_gvar, call_node->args);
       }
     }
@@ -1530,8 +1534,8 @@ PatternCheckContext::PatternCheckContext(Expr matched_expr,
                                          ffi::Map<Var, Expr> matched_bindings,
                                          ffi::Map<Var, ffi::Array<Var>> var_usages,
                                          ffi::Map<Expr, Var> value_to_bound_var) {
-  ffi::ObjectPtr<PatternCheckContextNode> n = ffi::make_object<PatternCheckContextNode>();
-  n->matched_expr = std::move(matched_expr);
+  ffi::ObjectPtr<PatternCheckContextNode> n =
+      ffi::make_object<PatternCheckContextNode>(std::move(matched_expr));
   n->annotated_expr = std::move(annotated_expr);
   n->matched_bindings = std::move(matched_bindings);
   n->var_usages = std::move(var_usages);

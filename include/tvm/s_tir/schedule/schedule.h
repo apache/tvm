@@ -240,9 +240,9 @@ class ScheduleNode : public ffi::Object {
    * \param n The number of tiles to be sampled
    * \param max_innermost_factor The maximum tile size allowed to be sampled in the innermost loop
    * \param decision The sampling decision
-   * \return A list of length `n`, the random perfect tile sizes sampled
+   * \return A list of length `n`, with absent factors representing sizes inferred by Split.
    */
-  virtual ffi::Array<ExprRV> SamplePerfectTile(
+  virtual ffi::Array<ffi::Optional<ExprRV>> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
       ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) = 0;
   /*!

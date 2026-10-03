@@ -214,7 +214,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
                        realize->block->writes.end());
   std::unordered_map<const VarNode*, PrimExpr> binding_map;
   for (size_t i = 0; i < realize->iter_values.size(); i++) {
-    binding_map[realize->block->iter_vars[i]->var.get()] = realize->iter_values[i];
+    binding_map.insert_or_assign(realize->block->iter_vars[i]->var.get(), realize->iter_values[i]);
   }
   auto f_substitute = [&binding_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto it = binding_map.find(var.get()); it != binding_map.end()) {

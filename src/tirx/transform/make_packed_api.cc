@@ -76,7 +76,7 @@ class ReturnRewriter : public StmtExprMutator {
   };
 
   ConvertedInfo ConvertForFFI(Expr val) {
-    ConvertedInfo info;
+    ConvertedInfo info{-1, val};
 
     // convert val's data type to FFI data type, return type code
     if (val->ty.as<PointerTypeNode>()) {
@@ -206,6 +206,7 @@ ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
 }
 
 PrimFunc MakePackedAPI(PrimFunc func) {
+  if (!func->body.has_value()) return func;
   auto global_symbol = RequiresPackedAPI(func);
   if (!global_symbol.has_value()) {
     return func;
@@ -262,8 +263,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                       ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
   Stmt body = ffi::make_object<ReturnRewriter>(v_result)
-                  ->Mutate(func_ptr->body, InplaceMode::kAllow)
-                  .ValueOrUnchanged(func_ptr->body);
+                  ->Mutate(func_ptr->body.value(), InplaceMode::kAllow)
+                  .ValueOrUnchanged(func_ptr->body.value());
   body = AttrStmt(0, attr::compute_scope, StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (need_set_device) {
@@ -289,7 +290,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   func_ptr->body = body;
   func_ptr->params = args;
 
-  ffi::Array<Var> undefined = UndefinedVars(func_ptr->body, func_ptr->params);
+  ffi::Array<Var> undefined = UndefinedVars(func_ptr->body.value(), func_ptr->params);
   TVM_FFI_ICHECK_EQ(undefined.size(), 0)
       << "In PrimFunc " << name_hint << " variables " << undefined
       << " are used, but are not passed in as API arguments";
@@ -320,9 +321,10 @@ Pass MakePackedAPI() {
     for (const auto& [gvar, base_func] : mptr->functions) {
       if (auto opt = base_func.as<PrimFunc>()) {
         auto func = opt.value();
+        if (!func->body.has_value()) continue;
         auto orig_func = func;
 
-        if (auto body = SubroutineCallRewriter::Apply(packed_func_methods, func->body)) {
+        if (auto body = SubroutineCallRewriter::Apply(packed_func_methods, func->body.value())) {
           func.CopyOnWrite()->body = body.value();
         }
 

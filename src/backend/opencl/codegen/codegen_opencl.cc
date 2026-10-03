@@ -127,7 +127,9 @@ CodeGenOpenCL::CodeGenOpenCL() {
 
 void CodeGenOpenCL::InitFuncState(const PrimFunc& f) {
   CodeGenC::InitFuncState(f);
-  this->SetTextureScope(ffi::make_object<InferTextureAccess>()->Infer(f->body));
+  if (f->body.has_value()) {
+    this->SetTextureScope(ffi::make_object<InferTextureAccess>()->Infer(f->body.value()));
+  }
   for (Var arg : f->params) {
     auto ptr_type = arg->ty.as<PointerTypeNode>();
     if (ptr_type && runtime::IsTextureStorage(std::string(ptr_type->storage_scope))) {

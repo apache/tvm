@@ -128,13 +128,14 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
       Function func = ffi::GetRef<Function>(n);
       // Enrich at this leaf executor, rendering the location local to the
       // currently-processed function (the access path is function-rooted).
-      Function updated_func;
-      try {
-        updated_func = pass_func(func, updated_mod, pass_ctx);
-      } catch (ffi::Error& err) {
-        throw tvm::transform::EnrichPassErrorWithContext(err, updated_mod, pass_info->name,
-                                                         it.first);
-      }
+      Function updated_func = [&]() -> Function {
+        try {
+          return pass_func(func, updated_mod, pass_ctx);
+        } catch (ffi::Error& err) {
+          throw tvm::transform::EnrichPassErrorWithContext(err, updated_mod, pass_info->name,
+                                                           it.first);
+        }
+      }();
       updates.push_back({it.first, updated_func});
     }
   }
@@ -310,13 +311,14 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
       Function func = ffi::GetRef<Function>(n);
       // Enrich at this leaf executor, rendering the location local to the
       // currently-processed function.
-      Function updated_func;
-      try {
-        updated_func = dataflow_block_mutator.VisitExpr(func).as_or_throw<Function>();
-      } catch (ffi::Error& err) {
-        throw tvm::transform::EnrichPassErrorWithContext(err, updated_mod, pass_info->name,
-                                                         it.first);
-      }
+      Function updated_func = [&]() -> Function {
+        try {
+          return dataflow_block_mutator.VisitExpr(func).as_or_throw<Function>();
+        } catch (ffi::Error& err) {
+          throw tvm::transform::EnrichPassErrorWithContext(err, updated_mod, pass_info->name,
+                                                           it.first);
+        }
+      }();
       updates.push_back({it.first, updated_func});
     }
   }

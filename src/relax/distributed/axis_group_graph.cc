@@ -32,10 +32,10 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
-                            const sym::Analyzer& analyzer) {
+ffi::Optional<Var> GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
+                                           const sym::Analyzer& analyzer) {
   if (auto prim_var = index.as<PrimVar>()) {
-    return prim_var.value();
+    return Var(prim_var.value());
   }
   ffi::Map<PrimVar, Range> primitive_var_range;
   for (const auto& [var, range] : var_range) {
@@ -43,22 +43,22 @@ Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
   }
   sym::IterSumExpr iter_sum = sym::NormalizeToIterSum(index, primitive_var_range, analyzer);
   if (!is_zero(iter_sum->base)) {
-    return Var();
+    return std::nullopt;
   }
   if (iter_sum->args.empty()) {
-    return Var();
+    return std::nullopt;
   }
   // floormod(floordiv(source, lower_factor), extent) * scale
   sym::IterSplitExpr highest_iter_split = iter_sum->args[0];
   auto source_var = highest_iter_split->source->source.as<PrimVar>();
   if (!source_var) {
-    return Var();
+    return std::nullopt;
   }
   Var var = source_var.value();
   // the floormod must take no effect
   if (!analyzer->CanProve(floordiv(var_range[var]->extent, highest_iter_split->lower_factor) <=
                           highest_iter_split->extent)) {
-    return Var();
+    return std::nullopt;
   }
   return var;
 }

@@ -166,11 +166,12 @@ class CheckpointCollector : private ExprMutator {
       // Add remapping from binding->var to new_var
       if (!binding->var.as<DataflowVarNode>() && var->IsInstance<DataflowVarNode>()) {
         // For output binding, emit a dummy binding
-        this->var_remap_[binding->var] = builder_->EmitOutput(orig_var, orig_var->name);
+        this->var_remap_.insert_or_assign(binding->var,
+                                          builder_->EmitOutput(orig_var, orig_var->name));
       } else {
-        this->var_remap_[binding->var] = orig_var;
+        this->var_remap_.insert_or_assign(binding->var, orig_var);
       }
-      var_mapping[binding->var] = orig_var;
+      var_mapping.insert_or_assign(binding->var, orig_var);
 
       if (value->op.same_as(s_cp)) {
         // mark the original var to be checkpointed
@@ -503,7 +504,7 @@ class BackwardBindingGenerator : private ExprVisitor {
       // var might be wrapped in start_checkpoint or end_checkpoint, so we should find the original
       // var first
       if (cp_collector_.var_mapping.count(var)) {
-        var = cp_collector_.var_mapping[var];
+        var = cp_collector_.var_mapping.at(var);
       }
       // If the var don't have adjoint var, it do not contribute to the target. So its adjoint is
       // zeros
@@ -520,11 +521,9 @@ class BackwardBindingGenerator : private ExprVisitor {
 
   // Emit the adjoint expr as the name `original_var_name` + "_adjoint"
   Var EmitAdjoint(const Var& source_var, const Expr& adjoint, bool is_output) {
-    Var adjoint_var;
-    if (is_output) {
-      adjoint_var = builder_->EmitOutput(adjoint, source_var->name + "_adjoint_out");
-    } else {
-      adjoint_var = builder_->Emit(adjoint, source_var->name + "_adjoint");
+    Var adjoint_var = is_output ? builder_->EmitOutput(adjoint, source_var->name + "_adjoint_out")
+                                : builder_->Emit(adjoint, source_var->name + "_adjoint");
+    if (!is_output) {
       adjoint_var_map_.Set(source_var, adjoint_var);
     }
     return adjoint_var;
@@ -593,12 +592,12 @@ class BackwardBindingGenerator : private ExprVisitor {
     TVM_FFI_ICHECK(index >= 0 && index < static_cast<int>(ty->fields.size()));
     ffi::Array<Expr> res;
     for (size_t i = 0; i < ty->fields.size(); ++i) {
-      Expr field;
-      if (const auto* expr_tuple = tuple.as<TupleNode>()) {
-        field = expr_tuple->fields[i];
-      } else {
-        field = TupleGetItem(tuple, i);
-      }
+      Expr field = [&]() -> Expr {
+        if (const auto* expr_tuple = tuple.as<TupleNode>()) {
+          return expr_tuple->fields[i];
+        }
+        return TupleGetItem(tuple, i);
+      }();
       if (static_cast<int>(i) == index) {
         field = TupleAwareAdd(field, increment);
       }
@@ -789,11 +788,11 @@ class GradientMutator : private ExprMutator {
   CheckpointCollector cp_collector_;
   // the differentiation target
   int target_index_;
-  Var target_var_;
+  Var target_var_{ffi::UnsafeInit{}};
   // the return value of the original function and the differentiated function
   ffi::Array<Var> orig_params_;
-  Expr orig_return_expr_;
-  Expr return_expr_;
+  Expr orig_return_expr_{ffi::UnsafeInit{}};
+  Expr return_expr_{ffi::UnsafeInit{}};
 };
 
 namespace transform {

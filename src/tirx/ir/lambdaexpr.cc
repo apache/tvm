@@ -47,9 +47,8 @@ PrimExpr LambdaExprNode::Apply(const ffi::Array<PrimExpr>& indices) const {
 }
 
 LambdaExpr::LambdaExpr(ffi::Array<Var> vars, PrimExpr pred) {
-  auto n = ffi::make_object<LambdaExprNode>();
+  auto n = ffi::make_object<LambdaExprNode>(std::move(pred));
   n->vars = std::move(vars);
-  n->pred = std::move(pred);
   data_ = std::move(n);
 }
 

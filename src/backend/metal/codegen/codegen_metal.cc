@@ -85,6 +85,8 @@ CodeGenMetal::CodeGenMetal(Target target) : target_(target) {
 }
 
 void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  TVM_FFI_CHECK(func->body.has_value(), ValueError)
+      << "Kernel code generation requires a function body";
   // NOTE: There is no inter-function calls among Metal kernels.
   // For now we keep the metal codegen without inter-function call
   // process.
@@ -201,7 +203,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // the function scope.
   stream << ") {\n";
   int func_scope = this->BeginScope();
-  this->PrintStmt(func->body);
+  this->PrintStmt(func->body.value());
   this->EndScope(func_scope);
   this->PrintIndent();
   this->stream << "}\n\n";

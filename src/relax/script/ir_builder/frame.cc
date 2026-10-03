@@ -249,7 +249,7 @@ void BindingBlockFrameNode::ExitWithScope() {
       if (auto span = binding_spans.Get(output_var)) {
         binding_spans.Set(new_output_var, span.value());
       }
-      var_remap[output_var] = new_output_var;
+      var_remap.insert_or_assign(output_var, new_output_var);
     }
     VarReplacer mutator(std::move(var_remap));
 
@@ -323,13 +323,14 @@ void IfFrameNode::ExitWithScope() {
   TVM_FFI_CHECK(else_expr.has_value(), ValueError)
       << "The body of else part is expected to be defined before exiting.";
   auto body = tvm::relax::If(condition, then_expr.value(), else_expr.value(), source_span);
-  var = Emit(body, std::nullopt);
+  auto binding_var = Emit(body, std::nullopt);
+  var = binding_var;
   // Finalization uses the frame's already-composed location, never the exit context.
   if (source_span.defined()) {
-    CheckBindingBlockFrameExistAndUnended()->binding_spans.Set(var, source_span);
+    CheckBindingBlockFrameExistAndUnended()->binding_spans.Set(binding_var, source_span);
   }
-  var->span = source_span;
-  IRBuilder::Name(var_name, var);
+  binding_var->span = source_span;
+  IRBuilder::Name(var_name, binding_var);
 }
 
 void ThenFrameNode::EnterWithScope() {

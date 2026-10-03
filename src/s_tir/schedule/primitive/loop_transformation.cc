@@ -730,14 +730,13 @@ ffi::Array<StmtSRef> LoopPartition(ScheduleState self, const StmtSRef& loop_sref
   ffi::String block_name = get_sblock_name(loop->body) + "_" + loop->loop_var->name;
   int n = factors.size();
   PrimExpr min_value = loop->min;
-  PrimExpr extent_value;
 
   ffi::Array<Stmt> block_partitions;
   block_partitions.reserve(n);
 
   // Iterate over each pair of factors and create partition
   for (int i = 0; i < n; i++) {
-    extent_value = analyzer->Simplify(factors[i]);
+    PrimExpr extent_value = analyzer->Simplify(factors[i]);
     Var new_loop_var = loop->loop_var.CopyWithSuffix(std::to_string(i)).CopyWithDType(dtype);
     // The widened dtype is intentional: partition factors determine the common loop dtype.
     auto f_substitute = [old_var = loop->loop_var, &new_loop_var](
@@ -855,7 +854,7 @@ class LoopReconstructor : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     if (ffi::GetRef<For>(loop) == need_remove_loop_.back()) {
-      return new_outer_loop_;
+      return new_outer_loop_.value();
     } else if (std::count(need_remove_loop_.begin(), need_remove_loop_.end(),
                           ffi::GetRef<For>(loop))) {
       return Evaluate(0);
@@ -869,9 +868,9 @@ class LoopReconstructor : public StmtExprMutator {
   /*! \brief The given loops to be merge */
   const std::vector<std::vector<For>>& loops_;
   /*! \brief The outermost new loop to replace the original loop */
-  For new_outer_loop_{nullptr};
+  ffi::Optional<For> new_outer_loop_;
   /*! \brief The innermost new loop to replace the original loop */
-  For new_inner_loop_{nullptr};
+  ffi::Optional<For> new_inner_loop_;
   /*! \brief The loops to be removed */
   std::vector<For> need_remove_loop_;
 };
@@ -944,7 +943,7 @@ StmtSRef Merge(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs) {
       reconstructor->Mutate(scope_root).ValueOrUnchanged(scope_root).as_or_throw<SBlock>();
   // Step 3. Do the actual replacement
   self->Replace(scope_root_sref, new_scope_root, {{scope_root, new_scope_root}});
-  return self->stmt2ref.at(reconstructor->new_inner_loop_.get());
+  return self->stmt2ref.at(reconstructor->new_inner_loop_.value().get());
 }
 
 StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
@@ -1155,7 +1154,7 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
                           const std::unordered_set<const StmtSRefNode*>& loop_srefs) {
   std::unordered_set<const VarNode*> inner_vars;
   inner_vars.reserve(chain.size());
-  For new_loop{nullptr};
+  ffi::Optional<For> new_loop;
   int index = static_cast<int>(ordered_loop_srefs.size()) - 1;
   for (const StmtSRefNode* loop_sref : chain) {
     const ForNode* copy = nullptr;
@@ -1167,8 +1166,8 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
     }
     TVM_FFI_ICHECK(copy != nullptr);
     ffi::ObjectPtr<ForNode> n = ffi::make_object<ForNode>(*copy);
-    if (new_loop.defined()) {
-      n->body = new_loop;
+    if (new_loop.has_value()) {
+      n->body = new_loop.value();
     } else {
       n->body = loop_sref->StmtAs<ForNode>()->body;
     }
@@ -1188,7 +1187,7 @@ For ConstructNewLoopChain(const ScheduleState& self, std::vector<const StmtSRefN
     inner_vars.insert(copy->loop_var.get());
     new_loop = For(std::move(n));
   }
-  return new_loop;
+  return new_loop.value();
 }
 
 void Reorder(ScheduleState self, const ffi::Array<StmtSRef>& ordered_loop_srefs) {
@@ -1239,13 +1238,13 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
       if (realize->block.get() == src_block_) {
         new_loop_ = For(PrimVar("u", PrimType::Int(32)), 0, 1, ForKind::kSerial,
                         ffi::GetRef<SBlockRealize>(realize));
-        return new_loop_;
+        return new_loop_.value();
       }
       return StmtExprMutator::Mutate_(realize, inplace_mode);
     }
 
     const StmtNode* src_block_;
-    For new_loop_{nullptr};
+    ffi::Optional<For> new_loop_;
   };
 
   TVM_FFI_CHECK(sref->parent != nullptr, ValueError) << "Cannot add loops on top of the root block";
@@ -1260,7 +1259,7 @@ StmtSRef AddUnitLoop(ScheduleState self, StmtSRef sref) {
     SBlock new_parent_block = new_stmt.as_or_throw<SBlock>();
     self->Replace(parent_sref, new_stmt, {{old_parent_block, new_parent_block}});
   }
-  return self->stmt2ref.at(creator->new_loop_.get());
+  return self->stmt2ref.at(creator->new_loop_.value().get());
 }
 
 /******** InstructionKind Registration ********/

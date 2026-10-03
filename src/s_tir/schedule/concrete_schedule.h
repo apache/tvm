@@ -91,7 +91,7 @@ class ConcreteScheduleNode : public ScheduleNode {
   /******** Schedule: Sampling ********/
   ExprRV SampleCategorical(const ffi::Array<int64_t>& candidates, const ffi::Array<FloatImm>& probs,
                            ffi::Optional<int64_t> decision = std::nullopt) override;
-  ffi::Array<ExprRV> SamplePerfectTile(
+  ffi::Array<ffi::Optional<ExprRV>> SamplePerfectTile(
       const LoopRV& loop_rv, int n, int max_innermost_factor,
       ffi::Optional<ffi::Array<int64_t>> decision = std::nullopt) override;
   ffi::Array<ExprRV> SamplePartitionedTile(
@@ -228,12 +228,11 @@ class ConcreteScheduleNode : public ScheduleNode {
   /*!
    * \brief Add a list of integers as random variables into the symbol table
    * \param value The list of integers to be added to the symbol table
-   * \param convert_negone_to_none Convert negative one to none RV.
-   * Which is convention of certain primitives.
    * \return The new random variables created
    */
-  inline ffi::Array<ExprRV> CreateRV(const std::vector<int64_t>& value,
-                                     bool convert_negone_to_none = false);
+  inline ffi::Array<ExprRV> CreateRV(const std::vector<int64_t>& value);
+  /*! \brief Create tile factors, representing an inferred (-1) factor as absence. */
+  inline ffi::Array<ffi::Optional<ExprRV>> CreateOptionalRV(const std::vector<int64_t>& value);
   /*! \brief Remove a random variable from the symbol table */
   inline void RemoveFromSymbolTable(const ffi::ObjectRef& rv);
   /*!
@@ -376,16 +375,21 @@ inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   return rv.as_or_throw<PrimExpr>();
 }
 
-inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value,
-                                                         bool convert_negone_to_none) {
+inline ffi::Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value) {
   ffi::Array<ExprRV> results;
   results.reserve(value.size());
   for (int64_t v : value) {
-    if (convert_negone_to_none && v == -1) {
-      results.push_back(ExprRV(nullptr));
-      continue;
-    }
     results.push_back(CreateRV(v));
+  }
+  return results;
+}
+
+inline ffi::Array<ffi::Optional<ExprRV>> ConcreteScheduleNode::CreateOptionalRV(
+    const std::vector<int64_t>& value) {
+  ffi::Array<ffi::Optional<ExprRV>> results;
+  results.reserve(value.size());
+  for (int64_t v : value) {
+    results.push_back(v == -1 ? ffi::Optional<ExprRV>(std::nullopt) : CreateRV(v));
   }
   return results;
 }

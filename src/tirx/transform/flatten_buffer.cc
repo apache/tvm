@@ -63,6 +63,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
   static PrimFunc Flatten(PrimFunc func) {
+    if (!func->body.has_value()) return func;
     sym::Analyzer ana;
     auto pass = ffi::make_object<BufferFlattener>(ana);
     pass->MarkBufferParamShapes(func);

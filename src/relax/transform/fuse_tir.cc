@@ -417,7 +417,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
   /*! \brief The IRModule */
   const IRModule& mod_;
   ffi::Map<Expr, tirx::BufferVar> relax_to_tir_var_map_;
-  Var current_var_;
+  Var current_var_{ffi::UnsafeInit{}};
 };
 
 class FusedTIRConstructor : public ExprVisitor {
@@ -574,7 +574,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // Step 3. Check functions are all schedulable funcs. i.e. the body of func is root block
     // TODO(Siyuan): support un-schedulable functions.
-    TVM_FFI_ICHECK(prim_func->body->IsInstance<s_tir::SBlockRealizeNode>())
+    TVM_FFI_ICHECK(prim_func->body.as<s_tir::SBlockRealizeNode>())
         << "Only schedulable functions (whose body is the root block) can be fused";
     const s_tir::SBlockRealize& root_realize = prim_func->body.as_or_throw<s_tir::SBlockRealize>();
     const s_tir::SBlock& root_block = root_realize->block;
@@ -831,13 +831,10 @@ class FusedTIRConstructor : public ExprVisitor {
       const auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       TVM_FFI_ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
       PrimType dtype = tensor->dtype.value();
-      tirx::BufferVar buffer;
-      if (tir_buffer_param.has_value()) {
-        buffer = tirx::decl_tensor(shape_expr->values, dtype, name_hint,
-                                   tir_buffer_param.value().scope());
-      } else {
-        buffer = tirx::decl_tensor(shape_expr->values, dtype, name_hint);
-      }
+      tirx::BufferVar buffer = tir_buffer_param.has_value()
+                                   ? tirx::decl_tensor(shape_expr->values, dtype, name_hint,
+                                                       tir_buffer_param.value().scope())
+                                   : tirx::decl_tensor(shape_expr->values, dtype, name_hint);
       out->push_back(std::move(buffer));
 
     } else if (ty.as<PrimTypeNode>()) {
@@ -966,7 +963,7 @@ class FusedTIRConstructor : public ExprVisitor {
   /*! \brief The helper info to fuse TIR prim_func */
   FuseFuncInfo func_info_;
   /*! \brief The tirx function after fusion*/
-  tirx::PrimFunc fused_tir_;
+  tirx::PrimFunc fused_tir_{ffi::UnsafeInit{}};
   /*! \brief Indices of inputs that are used for in-place computation */
   std::unordered_set<size_t> inplace_indices_;
 };
@@ -1022,7 +1019,7 @@ class TIRFuseMutator : public ExprMutator {
 
       mod->Remove(old_gvar);
       updates->Add(new_gvar, prim_func);
-      replacements[old_gvar] = Replacement{new_gvar, func, indices};
+      replacements.insert_or_assign(old_gvar, Replacement{new_gvar, func, indices});
     }
 
     TIRFuseMutator mutator(replacements);

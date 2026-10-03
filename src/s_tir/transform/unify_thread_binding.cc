@@ -31,8 +31,10 @@ namespace transform {
 
 Pass UnifyThreadBinding() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = tirx::detail::ThreadBindingUnifier<StmtExprMutator>::Unify(std::move(f->body));
+    fptr->body =
+        tirx::detail::ThreadBindingUnifier<StmtExprMutator>::Unify(std::move(f->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "s_tir.UnifyThreadBinding", {});

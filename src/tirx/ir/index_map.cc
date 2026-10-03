@@ -125,7 +125,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   ffi::Array<PrimExpr> inverse_exprs;
   for (int i = 0, n = self->initial_indices.size(); i < n; ++i) {
     PrimVar index = self->initial_indices[i];
-    PrimExpr expr;
+    PrimExpr expr{ffi::UnsafeInit{}};
     if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
       expr = initial_ranges[i]->min;
     } else {
@@ -134,7 +134,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
     inverse_exprs.push_back(analyzer->Simplify(expr));
   }
 
-  PrimExpr padding_predicate = padded_iter_map->padding_predicate;
+  PrimExpr padding_predicate = padded_iter_map->padding_predicate.value();
   padding_predicate = sym::NormalizeIterMapToExpr(padding_predicate);
   auto f_substitute =
       [&inverse_exprs_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {

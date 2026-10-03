@@ -46,7 +46,8 @@ ffi::Array<PrimExpr> DetectLinearEquation(const PrimExpr& e, const ffi::Array<Pr
  * \return concat([min_value[i], max_value[i]]), None is returned if there is no min or max value
  *          return empty if the e does not match the pattern.
  */
-ffi::Array<PrimExpr> DetectClipBound(const PrimExpr& e, const ffi::Array<PrimVar>& vars);
+ffi::Array<ffi::Optional<PrimExpr>> DetectClipBound(const PrimExpr& e,
+                                                    const ffi::Array<PrimVar>& vars);
 
 }  // namespace sym
 }  // namespace tvm

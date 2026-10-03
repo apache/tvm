@@ -223,7 +223,7 @@ AndOfOrs::Key AndOfOrs::GetKey(const PrimExpr& expr) {
 
   Key key{expr_to_key_.size()};
   expr_to_key_[expr] = key;
-  key_to_expr_[key] = expr;
+  key_to_expr_.insert_or_assign(key, expr);
   return key;
 }
 

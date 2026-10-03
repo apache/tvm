@@ -375,7 +375,7 @@ def test_call_accepts_core_expr_operator():
 
 def test_call_raises_error_for_missing_operator():
     """relax::Call requires a defined operator."""
-    with pytest.raises(ValueError, match="defined operator"):
+    with pytest.raises(TypeError, match=r"Expected `ir.Expr` but got `None`"):
         rx.Call(None, [])
 
 

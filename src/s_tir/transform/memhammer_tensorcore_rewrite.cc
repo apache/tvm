@@ -348,11 +348,9 @@ class WmmaToGlobalRewriter : public StmtExprMutator {
 
 Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
-  Stmt body{nullptr};
-  ffi::Optional<For> compute_location;
-  std::tie(body, compute_location) = TileWmmaBlock(stmt);
-  SeqStmt seq{nullptr};
-  BufferVar cache_buffer;
+  auto [body, compute_location] = TileWmmaBlock(stmt);
+  SeqStmt seq{ffi::UnsafeInit{}};
+  BufferVar cache_buffer{ffi::UnsafeInit{}};
   // Step 1. add a shared memory cache
   std::tie(body, seq) = InsertCacheStage(std::move(body), true, "shared.dyn", compute_location,
                                          constraints.outer_loops, &cache_buffer);
@@ -565,11 +563,9 @@ class MmaToGlobalRewriter : public StmtExprMutator {
 
 Stmt MmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                           OutputSet* output) const {
-  Stmt body{nullptr};
-  ffi::Optional<For> compute_location;
-  std::tie(body, compute_location) = TileMmaToGlobalBlock(stmt);
-  SeqStmt seq{nullptr};
-  BufferVar cache_buffer;
+  auto [body, compute_location] = TileMmaToGlobalBlock(stmt);
+  SeqStmt seq{ffi::UnsafeInit{}};
+  BufferVar cache_buffer{ffi::UnsafeInit{}};
   // Step 1. add a shared memory cache
   std::tie(body, seq) = InsertCacheStage(std::move(body), true, "shared.dyn", compute_location,
                                          constraints.outer_loops, &cache_buffer);

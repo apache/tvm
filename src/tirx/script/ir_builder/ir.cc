@@ -70,9 +70,9 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
     PrimType shape_dtype = shape.empty() ? PrimType::Int(32) : shape[0].ty();
     elem_offset = tvm::PrimVar("elem_offset", shape_dtype);
   }
-  return tvm::tirx::TensorType(
-      storage_scope, dtype, shape, strides.value_or(ffi::Array<PrimExpr>()),
-      elem_offset.value_or(PrimExpr()), align, offset_factor, layout, allocated_addr);
+  return tvm::tirx::TensorType(storage_scope, dtype, shape,
+                               strides.value_or(ffi::Array<PrimExpr>()), elem_offset, align,
+                               offset_factor, layout, allocated_addr);
 }
 
 }  // namespace
@@ -392,9 +392,8 @@ ForFrame Grid(ffi::Array<ffi::Variant<PrimExpr, ffi::Tuple<PrimExpr, PrimExpr>>>
 
 AssertFrame Assert(PrimExpr condition, ffi::String error_kind,
                    ffi::Array<ffi::String> message_parts) {
-  ffi::ObjectPtr<AssertFrameNode> n = ffi::make_object<AssertFrameNode>();
-  n->condition = condition;
-  n->error_kind = tvm::StringImm(error_kind);
+  ffi::ObjectPtr<AssertFrameNode> n =
+      ffi::make_object<AssertFrameNode>(condition, tvm::StringImm(error_kind));
   ffi::Array<tvm::StringImm> parts;
   for (const auto& p : message_parts) {
     parts.push_back(tvm::StringImm(p));
@@ -431,7 +430,7 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   } else {
     TVM_FFI_THROW(InternalError) << "LaunchThread can only be used inside a PrimFunc";
   }
-  ffi::ObjectPtr<LaunchThreadFrameNode> n = ffi::make_object<LaunchThreadFrameNode>();
+  ffi::ObjectPtr<LaunchThreadFrameNode> n = ffi::make_object<LaunchThreadFrameNode>(extent);
   if (!iter_var->dom.defined()) {
     const_cast<tvm::tirx::IterVarNode*>(iter_var.get())->dom =
         Range(tvm::IntImm(extent.ty(), 0), extent);
@@ -440,7 +439,6 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
                                  << iter_var->dom->extent << " vs " << extent;
   }
   n->iter_var = iter_var;
-  n->extent = extent;
   n->attr_key =
       iter_var->thread_tag == "vthread" ? tvm::tirx::attr::virtual_thread : "thread_extent";
   return LaunchThreadFrame(n);
@@ -451,10 +449,9 @@ LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
 }
 
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {
-  ffi::ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>();
+  ffi::ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>(value);
   n->node = std::move(node);
   n->attr_key = attr_key;
-  n->value = value;
   return AttrFrame(n);
 }
 
@@ -486,8 +483,7 @@ AttrFrame DeviceEntry() {
 }
 
 WhileFrame While(PrimExpr condition) {
-  ffi::ObjectPtr<WhileFrameNode> n = ffi::make_object<WhileFrameNode>();
-  n->condition = condition;
+  ffi::ObjectPtr<WhileFrameNode> n = ffi::make_object<WhileFrameNode>(condition);
   return WhileFrame(n);
 }
 
@@ -510,8 +506,7 @@ tvm::tirx::Stmt Continue() {
 }
 
 IfFrame If(PrimExpr condition) {
-  ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>();
-  n->condition = condition;
+  ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>(condition);
   n->then_stmts = std::nullopt;
   n->else_stmts = std::nullopt;
   return IfFrame(n);
@@ -641,9 +636,9 @@ DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
     }
   }
 
-  ffi::ObjectPtr<DeclTensorFrameNode> n = ffi::make_object<DeclTensorFrameNode>();
-  n->buffer = BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope,
-                         align, offset_factor, layout, allocated_addr_arr);
+  ffi::ObjectPtr<DeclTensorFrameNode> n = ffi::make_object<DeclTensorFrameNode>(
+      BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope, align,
+                 offset_factor, layout, allocated_addr_arr));
   if (data.has_value()) {
     n->data = data.value();
   } else if (scope == "tmem") {

@@ -76,9 +76,9 @@ class NotSingleWriteBlock : public ScheduleErrorContextObj {
 /*! \brief The auxiliary info used for the insertion point and content of the cache stage. */
 struct CacheStageInfo {
   /*! \brief The buffer to be read. */
-  BufferVar read_buffer;
+  BufferVar read_buffer{ffi::UnsafeInit{}};
   /*! \brief The buffer to be written. */
-  BufferVar write_buffer;
+  BufferVar write_buffer{ffi::UnsafeInit{}};
   /*! \brief The buffer allocation to be inserted into the block signature. */
   ffi::Optional<BufferVar> alloc;
   /*! \brief The AST node whose body is where the cache stage should be inserted. */
@@ -86,13 +86,13 @@ struct CacheStageInfo {
   /*! \brief The index to insert the cache_read/cache_write stage. */
   size_t loc_pos;
   /*! \brief The cache_read/cache_write stage to be inserted. */
-  Stmt cache_stage;
+  Stmt cache_stage{ffi::UnsafeInit{}};
   /*! \brief The map used for ScheduleStateNode::Replace. */
   ffi::Map<SBlock, SBlock> block_reuse;
   /*! \brief A set of blocks that will consume the new cache. */
   std::unordered_set<StmtSRef, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> consumer_blocks;
   /*! \brief cache region for the buffer to be cached */
-  TensorRegion cache_region;
+  TensorRegion cache_region{ffi::UnsafeInit{}};
 };
 
 /*! \brief Return the buffer region related with the buffer */
@@ -392,7 +392,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
     if (used) {
       reindex_indices.push_back(var);
     }
-    block_var_replace_map[iter->var] = var;
+    block_var_replace_map.insert_or_assign(iter->var, var);
   }
 
   // Step 2: Replace the original block iters with the new block iters
@@ -1803,10 +1803,12 @@ class ReIndexRewriter : public StmtExprMutator {
 
   explicit ReIndexRewriter(const StmtSRef& block_sref, CacheStageInfo* info,
                            const std::unordered_set<Var>& covered)
-      : block_sref_(block_sref), info_(info), covered_(covered) {
-    new_buffer_ = info->alloc.value();
-    old_buffer_ = info->read_buffer.same_as(new_buffer_) ? info->write_buffer : info->read_buffer;
-  }
+      : block_sref_(block_sref),
+        info_(info),
+        covered_(covered),
+        old_buffer_(info->read_buffer.same_as(info->alloc.value()) ? info->write_buffer
+                                                                   : info->read_buffer),
+        new_buffer_(info->alloc.value()) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* block, InplaceMode inplace_mode) final {
@@ -1985,45 +1987,46 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
   }
 
   // Step 3. Update cache stage info.
-  TensorRegion cache_region{nullptr};
-  if (ffi::Optional<StmtSRef> _write_block_sref =
-          GetOnlyWriteBlock(self, scope_sref, read_buffer)) {
-    // Case 1. The buffer is written inside the block.
-    StmtSRef write_block_sref = _write_block_sref.value();
-    const SBlockNode* write_block = TVM_SREF_TO_SBLOCK(write_block_sref);
-    // Find the producing region
-    TensorRegion region = GetBufferRegionFromBuffer(write_block->writes, read_buffer).value();
-    StmtSRef parent_sref = ffi::GetRef<StmtSRef>(write_block_sref->parent);
+  TensorRegion cache_region = [&]() -> TensorRegion {
+    if (ffi::Optional<StmtSRef> _write_block_sref =
+            GetOnlyWriteBlock(self, scope_sref, read_buffer)) {
+      // Case 1. The buffer is written inside the block.
+      StmtSRef write_block_sref = _write_block_sref.value();
+      const SBlockNode* write_block = TVM_SREF_TO_SBLOCK(write_block_sref);
+      // Find the producing region
+      TensorRegion region = GetBufferRegionFromBuffer(write_block->writes, read_buffer).value();
+      StmtSRef parent_sref = ffi::GetRef<StmtSRef>(write_block_sref->parent);
 
-    // Detect insert position
-    CacheLocDetector::Detect</*is_cache_read=*/true>(self, write_block_sref, scope_sref, &info);
-    cache_region = RelaxBufferRegion(self, region, write_block_sref, parent_sref, info.loc_sref);
-  } else {
-    // Case 2. The buffer is the input block for the scope.
-    info.loc_sref = scope_sref;
-    info.loc_pos = 0;
-    // When a nested block gates the actual read with T.where, the consumer block's own
-    // predicate is trivially true, so the scope-block read annotation covers the full loop
-    // range. Collect nested-read predicates and, if any are non-trivial, relax the consumer
-    // block's read region under that predicate to get a tighter cache allocation.
-    // Without a nested predicate we fall back to scope_block->reads (which preserves the
-    // original buffer's dtype in its extents, e.g. int64 shapes).
-    ffi::Optional<TensorRegion> read_region_opt =
-        GetBufferRegionFromBuffer(block->reads, read_buffer);
-    PrimExpr nested_pred = read_region_opt ? CollectNestedBlockPredicates(block->body, read_buffer,
-                                                                          BufferIndexType::kRead)
-                                           : IntImm::Bool(true);
-    if (read_region_opt && !is_one(nested_pred) && block_sref->parent != nullptr) {
-      StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
-      cache_region = RelaxBufferRegion(self, read_region_opt.value(), block_sref, parent_sref,
-                                       scope_sref, nested_pred);
-    } else if (ffi::Optional<TensorRegion> scope_region =
-                   GetBufferRegionFromBuffer(scope_block->reads, read_buffer)) {
-      cache_region = scope_region.value();
+      // Detect insert position
+      CacheLocDetector::Detect</*is_cache_read=*/true>(self, write_block_sref, scope_sref, &info);
+      return RelaxBufferRegion(self, region, write_block_sref, parent_sref, info.loc_sref);
     } else {
-      cache_region = FullBufferRegion(read_buffer);
+      // Case 2. The buffer is the input block for the scope.
+      info.loc_sref = scope_sref;
+      info.loc_pos = 0;
+      // When a nested block gates the actual read with T.where, the consumer block's own
+      // predicate is trivially true, so the scope-block read annotation covers the full loop
+      // range. Collect nested-read predicates and, if any are non-trivial, relax the consumer
+      // block's read region under that predicate to get a tighter cache allocation.
+      // Without a nested predicate we fall back to scope_block->reads (which preserves the
+      // original buffer's dtype in its extents, e.g. int64 shapes).
+      ffi::Optional<TensorRegion> read_region_opt =
+          GetBufferRegionFromBuffer(block->reads, read_buffer);
+      PrimExpr nested_pred = read_region_opt ? CollectNestedBlockPredicates(
+                                                   block->body, read_buffer, BufferIndexType::kRead)
+                                             : IntImm::Bool(true);
+      if (read_region_opt && !is_one(nested_pred) && block_sref->parent != nullptr) {
+        StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
+        return RelaxBufferRegion(self, read_region_opt.value(), block_sref, parent_sref, scope_sref,
+                                 nested_pred);
+      } else if (ffi::Optional<TensorRegion> scope_region =
+                     GetBufferRegionFromBuffer(scope_block->reads, read_buffer)) {
+        return scope_region.value();
+      } else {
+        return FullBufferRegion(read_buffer);
+      }
     }
-  }
+  }();
 
   // Step 4. Making new cache stage block and rewrite readers.
   bool cache_full_region = info.loc_sref->StmtAs<SBlockNode>() == nullptr ||
@@ -2106,7 +2109,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
   // is restricted by a nested predicate, so we OR them together for a tighter region estimate.
   PrimExpr nested_write_pred =
       CollectNestedBlockPredicates(block->body, write_buffer, BufferIndexType::kWrite);
-  TensorRegion cache_region;
+  TensorRegion cache_region{ffi::UnsafeInit{}};
   if (block_sref->parent != nullptr) {
     StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
     cache_region =

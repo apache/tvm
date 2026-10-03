@@ -218,7 +218,7 @@ TEST(IRF, StmtVisitor) {
     auto z = x + 1;
     Stmt eval_body = Evaluate(z);
     PrimType dtype = PrimType::Float(32);
-    BufferVar buf("b", TensorType("global", dtype, {z, z}, {}, PrimExpr(), 0, 0));
+    BufferVar buf("b", TensorType("global", dtype, {z, z}, {}, std::nullopt, 0, 0));
     // AllocTensor is flat (no body). Return as SeqStmt with eval.
     return SeqStmt({Bind(buf.var(), Call(buf.type(), tirx::builtin::alloc_tensor(),
                                          {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype),
@@ -273,7 +273,7 @@ TEST(IRF, StmtExprMutator) {
   auto fmakealloc = [&]() {
     auto z = x + 1;
     PrimType dtype = PrimType::Float(32);
-    BufferVar buf("b", TensorType("global", dtype, {1, z}, {}, PrimExpr(), 0, 0));
+    BufferVar buf("b", TensorType("global", dtype, {1, z}, {}, std::nullopt, 0, 0));
     return Bind(buf.var(), Call(buf.type(), tirx::builtin::alloc_tensor(),
                                 {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype),
                                  StringImm(buf.scope())},
@@ -689,7 +689,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
                                        /*dtype=*/PrimType::Float(32),
                                        /*shape=*/{n},
                                        /*strides=*/{},
-                                       /*elem_offset=*/PrimExpr(),
+                                       /*elem_offset=*/std::nullopt,
                                        /*data_alignment=*/1,
                                        /*offset_factor=*/1));
   };

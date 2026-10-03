@@ -105,9 +105,9 @@ Type InferTypePool1D(const Call& call, const BlockBuilder& ctx) {
 
   sym::Analyzer analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCW_shape;
-  out_NCW_shape.resize(3);
-  out_NCW_shape[0] = data_NCW_shape[0];
-  out_NCW_shape[1] = data_NCW_shape[1];
+  out_NCW_shape.reserve(3);
+  out_NCW_shape.push_back(data_NCW_shape[0]);
+  out_NCW_shape.push_back(data_NCW_shape[1]);
 
   PrimExpr numerator_w =
       input_w + padding_w - IntImm::Int32(attrs->dilation[0]) * (kernel_w - 1) - 1;
@@ -118,9 +118,10 @@ Type InferTypePool1D(const Call& call, const BlockBuilder& ctx) {
   if (attrs->ceil_mode) {
     PrimExpr invalid_last_w = (raw_out_w - 1) * IntImm::Int32(attrs->strides[0]) >=
                               input_w + IntImm::Int32(attrs->padding[0]);
-    out_NCW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
+    out_NCW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w)));
   } else {
-    out_NCW_shape[2] = analyzer->Simplify(raw_out_w);
+    out_NCW_shape.push_back(analyzer->Simplify(raw_out_w));
   }
 
   ffi::Array<PrimExpr> out_shape = out2NCW.BackwardShape(out_NCW_shape);
@@ -232,9 +233,9 @@ Type InferTypePool2D(const Call& call, const BlockBuilder& ctx) {
 
   sym::Analyzer analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCHW_shape;
-  out_NCHW_shape.resize(4);
-  out_NCHW_shape[0] = data_NCHW_shape[0];
-  out_NCHW_shape[1] = data_NCHW_shape[1];
+  out_NCHW_shape.reserve(4);
+  out_NCHW_shape.push_back(data_NCHW_shape[0]);
+  out_NCHW_shape.push_back(data_NCHW_shape[1]);
 
   PrimExpr numerator_h =
       input_h + padding_h - IntImm::Int32(attrs->dilation[0]) * (kernel_h - 1) - 1;
@@ -251,11 +252,13 @@ Type InferTypePool2D(const Call& call, const BlockBuilder& ctx) {
                               input_h + IntImm::Int32(attrs->padding[0]);
     PrimExpr invalid_last_w = (raw_out_w - 1) * IntImm::Int32(attrs->strides[1]) >=
                               input_w + IntImm::Int32(attrs->padding[1]);
-    out_NCHW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h));
-    out_NCHW_shape[3] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
+    out_NCHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h)));
+    out_NCHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w)));
   } else {
-    out_NCHW_shape[2] = analyzer->Simplify(raw_out_h);
-    out_NCHW_shape[3] = analyzer->Simplify(raw_out_w);
+    out_NCHW_shape.push_back(analyzer->Simplify(raw_out_h));
+    out_NCHW_shape.push_back(analyzer->Simplify(raw_out_w));
   }
 
   ffi::Array<PrimExpr> out_shape = out2NCHW.BackwardShape(out_NCHW_shape);
@@ -394,9 +397,9 @@ Type InferTypePool3D(const Call& call, const BlockBuilder& ctx) {
 
   sym::Analyzer analyzer = ctx->GetAnalyzer();
   std::vector<PrimExpr> out_NCDHW_shape;
-  out_NCDHW_shape.resize(5);
-  out_NCDHW_shape[0] = data_NCDHW_shape[0];
-  out_NCDHW_shape[1] = data_NCDHW_shape[1];
+  out_NCDHW_shape.reserve(5);
+  out_NCDHW_shape.push_back(data_NCDHW_shape[0]);
+  out_NCDHW_shape.push_back(data_NCDHW_shape[1]);
 
   PrimExpr numerator_d =
       input_d + padding_d - IntImm::Int32(attrs->dilation[0]) * (kernel_d - 1) - 1;
@@ -419,13 +422,16 @@ Type InferTypePool3D(const Call& call, const BlockBuilder& ctx) {
                               input_h + IntImm::Int32(attrs->padding[1]);
     PrimExpr invalid_last_w = (raw_out_w - 1) * IntImm::Int32(attrs->strides[2]) >=
                               input_w + IntImm::Int32(attrs->padding[2]);
-    out_NCDHW_shape[2] = analyzer->Simplify(if_then_else(invalid_last_d, raw_out_d - 1, raw_out_d));
-    out_NCDHW_shape[3] = analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h));
-    out_NCDHW_shape[4] = analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w));
+    out_NCDHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_d, raw_out_d - 1, raw_out_d)));
+    out_NCDHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_h, raw_out_h - 1, raw_out_h)));
+    out_NCDHW_shape.push_back(
+        analyzer->Simplify(if_then_else(invalid_last_w, raw_out_w - 1, raw_out_w)));
   } else {
-    out_NCDHW_shape[2] = analyzer->Simplify(raw_out_d);
-    out_NCDHW_shape[3] = analyzer->Simplify(raw_out_h);
-    out_NCDHW_shape[4] = analyzer->Simplify(raw_out_w);
+    out_NCDHW_shape.push_back(analyzer->Simplify(raw_out_d));
+    out_NCDHW_shape.push_back(analyzer->Simplify(raw_out_h));
+    out_NCDHW_shape.push_back(analyzer->Simplify(raw_out_w));
   }
 
   ffi::Array<PrimExpr> out_shape = out2NCDHW.BackwardShape(out_NCDHW_shape);

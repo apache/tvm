@@ -115,7 +115,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
     } else {
       LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
                  << " not supported";
-      return Expr();
     }
   }
 
@@ -161,8 +160,9 @@ namespace transform {
 
 Pass LowerTIRxOpaque() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto fptr = f.CopyOnWrite();
-    fptr->body = TIRxOpaqueLower::Rewrite(std::move(fptr->body));
+    fptr->body = TIRxOpaqueLower::Rewrite(std::move(fptr->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTIRxOpaque", {});

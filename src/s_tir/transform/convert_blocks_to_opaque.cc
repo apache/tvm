@@ -43,7 +43,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  static Stmt Convert(const PrimFunc& f) {
+  static ffi::Optional<Stmt> Convert(const PrimFunc& f) {
     auto substituter = ffi::make_object<OpaqueBlockConverter>();
     return substituter->Mutate(f->body).ValueOrUnchanged(f->body);
   }

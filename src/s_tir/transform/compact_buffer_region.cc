@@ -300,9 +300,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
             const TensorRegion& explicit_region = index_type == BufferIndexType::kRead
                                                       ? op->reads[buffer_index]
                                                       : op->writes[buffer_index];
-            explicit_access_annotations_[explicit_region->source
-                                             .as_or_throw<tvm::tirx::BufferVar>()] =
-                explicit_region;
+            explicit_access_annotations_.insert_or_assign(
+                explicit_region->source.as_or_throw<tvm::tirx::BufferVar>(), explicit_region);
           }
         }
       }
@@ -480,7 +479,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       Range original =
           Range(/*begin=*/IntImm(original_shape[i].ty(), 0), /*end=*/original_shape[i]);
       Range range = int_set.CoverRange(original);
-      PrimExpr min, extent;
+      PrimExpr min{ffi::UnsafeInit{}};
+      PrimExpr extent{ffi::UnsafeInit{}};
       if (collect_inbound_) {
         min = dom_analyzer_->Simplify(tvm::max(0, range->min));
         extent = range->extent;
@@ -535,7 +535,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         SimplifyAndNarrowBufferRegionFromNDIntSet(buf);
       }
     }
-    pending_flat_alloc_buffers_.resize(n_before);
+    pending_flat_alloc_buffers_.erase(pending_flat_alloc_buffers_.begin() + n_before,
+                                      pending_flat_alloc_buffers_.end());
   }
 
   /**************** Class members ****************/
@@ -603,7 +604,7 @@ struct BufferAllocInfo {
    * \brief The reallocated buffer with minimal size.
    * \note The value if std::nullopt if the buffer do not need reallocate (e.g parameter buffer).
    */
-  BufferVar new_buffer;
+  BufferVar new_buffer{ffi::UnsafeInit{}};
 };
 
 /*! \brief Reallocate the buffers with minimal region. */
@@ -764,7 +765,7 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
   std::vector<PrimExpr> strides;
   if (alloc_info.dim_aligns.size()) {
     TVM_FFI_ICHECK(alloc_info.dim_aligns.size() == shape.size());
-    strides.resize(shape.size());
+    strides.reserve(shape.size());
     PrimExpr stride = IntImm(shape[0].ty(), 1);
     for (size_t i = shape.size(); i != 0; --i) {
       size_t dim = i - 1;
@@ -776,10 +777,11 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
         PrimExpr offset = IntImm(stride.ty(), align_offset);
         stride = stride + indexmod(factor + offset - indexmod(stride, factor), factor);
       }
-      strides[dim] = stride;
+      strides.push_back(stride);
       stride = stride * shape[dim];
     }
   }
+  std::reverse(strides.begin(), strides.end());
   return strides;
 }
 
@@ -817,7 +819,7 @@ Stmt BufferCompactorCompact(
     buffer_info.emplace(buffer.var(), std::move(alloc_info));
   }
   auto compactor = ffi::make_object<BufferCompactor>(std::move(buffer_info));
-  Stmt stmt = compactor->Mutate(f->body).ValueOrUnchanged(f->body);
+  Stmt stmt = compactor->Mutate(f->body.value()).ValueOrUnchanged(f->body.value());
   return stmt;
 }
 
@@ -825,9 +827,10 @@ namespace transform {
 
 Pass CompactBufferAllocation(bool is_strict) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     PrimFuncNode* fptr = f.CopyOnWrite();
     auto region = BufferAccessRegionCollector::Collect(f, /*collect_inbound=*/is_strict);
-    auto storage_align = CollectStorageAlignAnnotation(f->body);
+    auto storage_align = CollectStorageAlignAnnotation(f->body.value());
     fptr->body = BufferCompactorCompact(f, region, storage_align);
     return f;
   };

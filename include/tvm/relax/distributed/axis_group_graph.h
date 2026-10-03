@@ -59,8 +59,8 @@ class BufferAxisHash {
  * \param analyzer The analyzer
  * \return The iter var whose extent to be changed
  */
-Var GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
-                            const sym::Analyzer& analyzer);
+ffi::Optional<Var> GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> var_range,
+                                           const sym::Analyzer& analyzer);
 
 /*!
  * \brief Construct an axis group graph from a PrimFunc. Two buffer axis are connected if they
@@ -152,8 +152,8 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
         !intset_b.MatchRange(Range::FromMinExtent(0, buffer_shape_b))) {
       return false;
     }
-    Var matched_var = GetShardingVarFromIndex(b, iter_var_range_, analyzer);
-    if (!matched_var.same_as(var)) {
+    auto matched_var = GetShardingVarFromIndex(b, iter_var_range_, analyzer);
+    if (!matched_var.has_value() || !matched_var.value().same_as(var)) {
       return false;
     }
     return true;

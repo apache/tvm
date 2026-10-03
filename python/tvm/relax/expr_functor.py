@@ -1629,7 +1629,7 @@ class PyExprMutator:
             self._outer(), old_var, new_var
         )
 
-    def get_var_remap(self, var: Var) -> Var:
+    def get_var_remap(self, var: Var) -> Var | None:
         """Remap a var to a new var in use-site.
 
         Parameters
@@ -1640,7 +1640,7 @@ class PyExprMutator:
         Returns
         -------
         var : Var
-            The remapped var.
+            The remapped var, or None if no mapping exists.
         """
         # Using self._outer() to ref _PyExprMutator
         return _ffi_api.PyExprMutatorGetVarRemap(self._outer(), var)  # type: ignore

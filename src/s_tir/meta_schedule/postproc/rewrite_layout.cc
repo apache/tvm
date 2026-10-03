@@ -40,7 +40,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
 
   explicit BufferReadPosCollector(const BufferVar& buffer) : buffer_(buffer.get()) {}
 
-  const std::pair<SBlock, int>& GetBufferLocation() const { return buffer_loc_; }
+  const std::pair<SBlock, int>& GetBufferLocation() const { return buffer_loc_.value(); }
 
   const ffi::Optional<IndexMap> GetBufferIndexMap() const { return buffer_index_map_; }
 
@@ -53,7 +53,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* op) final {
-    SBlockRealize outer_block_realize = ffi::GetRef<SBlockRealize>(op);
+    ffi::Optional<SBlockRealize> outer_block_realize = ffi::GetRef<SBlockRealize>(op);
     std::swap(outer_block_realize, cur_realize_);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     std::swap(cur_realize_, outer_block_realize);
@@ -61,14 +61,14 @@ class BufferReadPosCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    TVM_FFI_ICHECK(cur_realize_.defined()) << "TensorLoad occurred outside of any block";
+    TVM_FFI_ICHECK(cur_realize_.has_value()) << "TensorLoad occurred outside of any block";
 
     const BufferVar& buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
     if (buffer_ == buffer.get()) {
       ffi::Map<Var, PrimExpr> subst_map;
-      for (size_t i = 0; i < cur_realize_->iter_values.size(); i++) {
-        const Var& var = cur_realize_->block->iter_vars[i]->var;
-        const PrimExpr& value = cur_realize_->iter_values[i];
+      for (size_t i = 0; i < cur_realize_.value()->iter_values.size(); i++) {
+        const Var& var = cur_realize_.value()->block->iter_vars[i]->var;
+        const PrimExpr& value = cur_realize_.value()->iter_values[i];
         subst_map.Set(var, value);
       }
       auto f_substitute =
@@ -81,14 +81,14 @@ class BufferReadPosCollector : public StmtExprVisitor {
         subst_indices.push_back(
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, f_substitute).as_or_throw<PrimExpr>());
       }
-      buffer_index_map_ = SuggestIndexMap(/*buffer=*/buffer,                      //
-                                          /*indices=*/subst_indices,              //
-                                          /*loops=*/loop_stack_,                  //
-                                          /*predicate=*/cur_realize_->predicate,  //
+      buffer_index_map_ = SuggestIndexMap(/*buffer=*/buffer,                              //
+                                          /*indices=*/subst_indices,                      //
+                                          /*loops=*/loop_stack_,                          //
+                                          /*predicate=*/cur_realize_.value()->predicate,  //
                                           /*analyzer=*/analyzer_.get());
-      int buffer_index = GetReadBufferIndex(cur_realize_->block, buffer);
+      int buffer_index = GetReadBufferIndex(cur_realize_.value()->block, buffer);
       TVM_FFI_ICHECK(buffer_index != -1);
-      buffer_loc_ = std::make_pair(cur_realize_->block, buffer_index);
+      buffer_loc_ = std::make_pair(cur_realize_.value()->block, buffer_index);
     }
     return std::nullopt;
   }
@@ -105,7 +105,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   /*! \brief The buffer of interest. */
   const VarNode* buffer_;
   /*! \brief The block that consumes the buffer and the corresponding read index. */
-  std::pair<SBlock, int> buffer_loc_;
+  std::optional<std::pair<SBlock, int>> buffer_loc_;
   /*! \brief The proposed IndexMap. */
   ffi::Optional<IndexMap> buffer_index_map_;
 
@@ -114,7 +114,7 @@ class BufferReadPosCollector : public StmtExprVisitor {
   /*! \brief Arithmetic analyzer. */
   sym::Analyzer analyzer_;
   /*! \brief Current BlockRealize scope, used in recursive visit */
-  SBlockRealize cur_realize_;
+  ffi::Optional<SBlockRealize> cur_realize_;
 };
 
 class LayoutFreeBufferCollector : public StmtExprVisitor {

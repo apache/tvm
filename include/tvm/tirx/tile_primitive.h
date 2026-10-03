@@ -44,6 +44,10 @@ namespace tirx {
  */
 class LambdaExprNode : public ffi::Object {
  public:
+  explicit LambdaExprNode(ffi::UnsafeInit tag) : pred(tag) {}
+
+  explicit LambdaExprNode(PrimExpr pred) : pred(std::move(pred)) {}
+
   /*! \brief The bound variables of the lambda. */
   Array<Var> vars;
   /*! \brief The lambda body over ``vars``. */
@@ -246,7 +250,9 @@ class TilePrimitiveCall : public Stmt {
 
   static bool IsValidOpCallArgType(const ffi::Any& arg);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
+  explicit TilePrimitiveCall(ffi::ObjectPtr<TilePrimitiveCallNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TilePrimitiveCall, Stmt, TilePrimitiveCallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TilePrimitiveCallNode);
 };
 

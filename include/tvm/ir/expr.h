@@ -68,13 +68,18 @@ class Tuple : public Expr {
    */
   TVM_DLL explicit Tuple(ffi::Array<Expr> fields, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Tuple, Expr, TupleNode);
+  explicit Tuple(ffi::ObjectPtr<TupleNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
 };
 
 /*! \brief Get the index-th field out of a tuple. */
 class TupleGetItemNode : public ExprNode {
  public:
+  explicit TupleGetItemNode(Expr tuple) : tuple(std::move(tuple)) {}
+  explicit TupleGetItemNode(ffi::UnsafeInit tag) : tuple(tag) {}
+
   /*! \brief The tuple expression. */
   Expr tuple;
   /*! \brief The field index. */
@@ -101,13 +106,18 @@ class TupleGetItem : public Expr {
    */
   TVM_DLL TupleGetItem(Expr tuple, int index, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TupleGetItem, Expr, TupleGetItemNode);
+  explicit TupleGetItem(ffi::ObjectPtr<TupleGetItemNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TupleGetItem, Expr, TupleGetItemNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleGetItemNode);
 };
 
 /*! \brief Load a value from an indexed expression source. */
 class TensorLoadNode : public ExprNode {
  public:
+  explicit TensorLoadNode(Expr source) : source(std::move(source)) {}
+  explicit TensorLoadNode(ffi::UnsafeInit tag) : source(tag) {}
+
   /*! \brief The indexed source expression. */
   Expr source;
   /*! \brief The indices at which the source is loaded. */
@@ -126,7 +136,9 @@ class TensorLoadNode : public ExprNode {
 /*! \brief Managed reference to TensorLoadNode. */
 class TensorLoad : public PrimExpr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorLoad, PrimExpr, TensorLoadNode);
+  explicit TensorLoad(ffi::ObjectPtr<TensorLoadNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorLoad, PrimExpr, TensorLoadNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorLoadNode);
 };
@@ -388,7 +400,9 @@ class Var : public Expr {
   /*! \brief Return a fresh ordinary Var with a new type, retaining its metadata. */
   TVM_DLL Var CopyWithType(Type type) const;
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Var, Expr, VarNode);
+  explicit Var(ffi::ObjectPtr<VarNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Var, Expr, VarNode);
 };
 
 /*!
@@ -418,7 +432,9 @@ class PrimVar : public PrimExpr {
     return this->as_or_throw<Var>().CopyWithDType(dtype).as_or_throw<PrimVar>();
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimVar, PrimExpr, VarNode);
+  explicit PrimVar(ffi::ObjectPtr<VarNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimVar, PrimExpr, VarNode);
   static constexpr bool _type_container_is_exact = false;
 };
 
@@ -467,7 +483,9 @@ class GlobalVar : public Expr {
  public:
   TVM_DLL explicit GlobalVar(ffi::String name_hint, Span span = {});
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GlobalVar, Expr, GlobalVarNode);
+  explicit GlobalVar(ffi::ObjectPtr<GlobalVarNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GlobalVar, Expr, GlobalVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
@@ -476,6 +494,9 @@ class GlobalVar : public Expr {
  */
 class CallNode : public ExprNode {
  public:
+  explicit CallNode(Expr op) : op(std::move(op)) {}
+  explicit CallNode(ffi::UnsafeInit tag) : op(tag) {}
+
   /*!
    * \brief The operator/function being invoked.
    *
@@ -524,7 +545,9 @@ class Call : public Expr {
    */
   TVM_DLL static Type ReinferType(const CallNode* call);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Call, Expr, CallNode);
+  explicit Call(ffi::ObjectPtr<CallNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Call, Expr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 
  private:
@@ -543,7 +566,9 @@ class ConstantNode : public ExprNode {
 /*! \brief Managed reference to a literal constant. */
 class Constant : public Expr {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Constant, Expr, ConstantNode);
+  explicit Constant(ffi::ObjectPtr<ConstantNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Constant, Expr, ConstantNode);
 };
 
 /*! \brief A constant whose payload is separate from its expression type. */
@@ -562,7 +587,9 @@ class GenericConst : public Constant {
  public:
   TVM_DLL GenericConst(ffi::Any value, Type ty, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(GenericConst, Constant, GenericConstNode);
+  explicit GenericConst(ffi::ObjectPtr<GenericConstNode> node) : Constant(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GenericConst, Constant, GenericConstNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GenericConstNode);
 };
 
@@ -582,7 +609,9 @@ class StringImm : public Constant {
  public:
   TVM_DLL explicit StringImm(ffi::String value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(StringImm, Constant, StringImmNode);
+  explicit StringImm(ffi::ObjectPtr<StringImmNode> node) : Constant(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StringImm, Constant, StringImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(StringImmNode);
 };
 
@@ -602,7 +631,9 @@ class DataTypeImm : public Constant {
  public:
   TVM_DLL explicit DataTypeImm(DLDataType value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(DataTypeImm, Constant, DataTypeImmNode);
+  explicit DataTypeImm(ffi::ObjectPtr<DataTypeImmNode> node) : Constant(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DataTypeImm, Constant, DataTypeImmNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DataTypeImmNode);
 };
 
@@ -679,7 +710,9 @@ class IntImm : public PrimExpr {
     return IntImm(PrimType::Int(64), value, std::move(span));
   }
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IntImm, PrimExpr, IntImmNode);
+  explicit IntImm(ffi::ObjectPtr<IntImmNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IntImm, PrimExpr, IntImmNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IntImmNode);
 };
@@ -715,7 +748,9 @@ class FloatImm : public PrimExpr {
    */
   TVM_DLL FloatImm(PrimType value_ty, double value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(FloatImm, PrimExpr, FloatImmNode);
+  explicit FloatImm(ffi::ObjectPtr<FloatImmNode> node) : PrimExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FloatImm, PrimExpr, FloatImmNode);
   static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloatImmNode);
 };
@@ -730,7 +765,7 @@ class RangeNode : public ffi::Object {
   /*! \brief the location of this range in the source */
   mutable Span span;
   /*! \brief constructor */
-  RangeNode() {}
+  explicit RangeNode(ffi::UnsafeInit tag) : min(tag), extent(tag) {}
   RangeNode(PrimExpr min, PrimExpr extent, Span span = Span())
       : min(min), extent(extent), span(span) {}
 
@@ -775,6 +810,9 @@ class Range : public ffi::ObjectRef {
 /*! \brief A region of an indexed expression source. */
 class TensorRegionNode : public ExprNode {
  public:
+  explicit TensorRegionNode(Expr source) : source(std::move(source)) {}
+  explicit TensorRegionNode(ffi::UnsafeInit tag) : source(tag) {}
+
   /*! \brief The indexed source expression. */
   Expr source;
   /*! \brief The ranges selected from the source. */
@@ -798,7 +836,9 @@ class TensorRegion : public Expr {
  public:
   TVM_DLL TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(TensorRegion, Expr, TensorRegionNode);
+  explicit TensorRegion(ffi::ObjectPtr<TensorRegionNode> node) : Expr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(TensorRegion, Expr, TensorRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TensorRegionNode);
 };
 

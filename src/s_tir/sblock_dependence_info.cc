@@ -93,7 +93,9 @@ SBlockDependenceInfo::SBlockDependenceInfo(IRModule mod) {
     const BaseFunc& base_func = kv.second;
     if (auto opt = base_func.as<PrimFunc>()) {
       auto func = opt.value();
-      SBlockDependenceInfoCollector::Collect(self, func->body);
+      if (func->body.has_value()) {
+        SBlockDependenceInfoCollector::Collect(self, func->body.value());
+      }
     }
   }
   data_ = std::move(n);

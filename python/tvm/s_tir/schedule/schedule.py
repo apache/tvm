@@ -391,7 +391,7 @@ class Schedule(Object):
         n: int,
         max_innermost_factor: int = 16,
         decision: list[int] | None = None,
-    ) -> list[ExprRV]:
+    ) -> list[ExprRV | None]:
         """Sample the factors to perfect tile a specific loop
 
         Parameters
@@ -407,8 +407,9 @@ class Schedule(Object):
 
         Returns
         -------
-        result : List[ExprRV]
-            A list of length `n`, the random perfect tile sizes sampled
+        result : List[Optional[ExprRV]]
+            A list of length `n`, the random perfect tile sizes sampled.
+            A dynamic factor is represented by None.
         """
         return list(
             _ffi_api.ScheduleSamplePerfectTile(  # type: ignore  # pylint: disable=no-member

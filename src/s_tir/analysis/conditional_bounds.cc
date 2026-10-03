@@ -181,9 +181,9 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
   // Note that the bounds are for v, not for v*coef
 
   // The lower bound of the best pair so far
-  PrimExpr best_lower;
+  ffi::Optional<PrimExpr> best_lower;
   // The difference between the upper and the lower of the best pair, maybe overapproximation
-  PrimExpr best_diff_over;
+  ffi::Optional<PrimExpr> best_diff_over;
 
   for (const PrimExpr& low : lowers) {
     for (const PrimExpr& upp : uppers) {
@@ -212,19 +212,20 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
 
       // If it is provable that the new one is strictly better than the current best one,
       // then replace it. Note that we are biased towards earlier pairs which should be simpler.
-      if (diff_over.has_value() && (!best_diff_over.defined() ||
-                                    analyzer->CanProve(diff_over.value() - best_diff_over < 0))) {
+      if (diff_over.has_value() &&
+          (!best_diff_over.has_value() ||
+           analyzer->CanProve(diff_over.value() - best_diff_over.value() < 0))) {
         best_lower = low_divided;
         best_diff_over = diff_over.value();
       }
     }
   }
 
-  if (!best_lower.defined()) {
-    TVM_FFI_ICHECK(!best_diff_over.defined());
+  if (!best_lower.has_value()) {
+    TVM_FFI_ICHECK(!best_diff_over.has_value());
     return Range();
   }
-  return Range::FromMinExtent(best_lower, analyzer->Simplify(best_diff_over + 1));
+  return Range::FromMinExtent(best_lower.value(), analyzer->Simplify(best_diff_over.value() + 1));
 }
 
 struct ExprLess {
@@ -740,7 +741,8 @@ void ConditionalBoundsContext::EnterWithScope() {
 }
 
 void ConditionalBoundsContext::ExitWithScope() {
-  pending_conditions_->resize(origin_pending_conditions_num_);
+  pending_conditions_->erase(pending_conditions_->begin() + origin_pending_conditions_num_,
+                             pending_conditions_->end());
   for (const auto& p : origin_map_) {
     const auto* var = p.first;
     auto relax_it = relax_map_->find(var);

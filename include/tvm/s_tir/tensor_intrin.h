@@ -34,6 +34,11 @@ namespace s_tir {
  */
 class TensorIntrinNode : public ffi::Object {
  public:
+  explicit TensorIntrinNode(ffi::UnsafeInit tag) : desc(tag), impl(tag) {}
+
+  TensorIntrinNode(tirx::PrimFunc desc, tirx::PrimFunc impl)
+      : desc(std::move(desc)), impl(std::move(impl)) {}
+
   /*! \brief The function to describe the computation. */
   tirx::PrimFunc desc;
   /*! \brief The function of the implementation for the execution. */

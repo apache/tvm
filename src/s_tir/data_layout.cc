@@ -312,8 +312,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
   }
 
   std::vector<bool> exists(128, false);
-  PrimExpr norm_indexes[128];
-  for (auto& it : norm_indexes) it = PrimExpr(0);
+  std::vector<PrimExpr> norm_indexes(128, PrimExpr(0));
 
   for (size_t i = 0; i < src_layout.ndim(); i++) {
     auto factor = src_layout.PackedAxisAt(i)->dom->extent;
@@ -451,7 +450,7 @@ inline ffi::Array<PrimExpr> TransformIndex(const ffi::Array<PrimExpr>& src_index
   ffi::Array<PrimExpr> result;
   std::unordered_map<const tirx::VarNode*, PrimExpr> bind_map;
   for (size_t i = 0; i < src_index.size(); ++i) {
-    bind_map[src_axis[i]->var.get()] = src_index[i];
+    bind_map.insert_or_assign(src_axis[i]->var.get(), src_index[i]);
   }
   auto f_substitute = [&bind_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto it = bind_map.find(var.get()); it != bind_map.end()) {
@@ -509,11 +508,12 @@ inline ffi::Array<PrimExpr> TransformShape(const ffi::Array<PrimExpr>& src_shape
               << ", get " << orig_shape;
         }
       }
-      bind_map[orig_axis->var.get()] = IntImm(orig_axis->var.ty(), 0);
+      bind_map.insert_or_assign(orig_axis->var.get(), IntImm(orig_axis->var.ty(), 0));
     } else {
-      bind_map[orig_axis->var.get()] = orig_axis->var.ty() == orig_shape.ty()
-                                           ? orig_shape
-                                           : prim::cast(orig_axis->var.ty(), orig_shape);
+      bind_map.insert_or_assign(orig_axis->var.get(),
+                                orig_axis->var.ty() == orig_shape.ty()
+                                    ? orig_shape
+                                    : prim::cast(orig_axis->var.ty(), orig_shape));
     }
   }
   auto f_substitute = [&bind_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {

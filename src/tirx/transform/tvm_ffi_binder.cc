@@ -583,7 +583,7 @@ void TVMFFIABIBuilder::DecodeParam(int param_index) {
   PrimType dtype = param->ty.as_or_throw<PrimType>();
 
   // Type-check and load value via per-dtype dispatch
-  PrimExpr arg_value;
+  PrimExpr arg_value{ffi::UnsafeInit{}};
   if (dtype.MatchesCode(DLDataTypeCode::kDLBool)) {
     arg_value = DecodeParamBool(param_index, type_index.as_or_throw<PrimExpr>());
   } else if (dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) {

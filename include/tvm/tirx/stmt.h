@@ -66,7 +66,11 @@ class StmtNode : public ffi::Object {
 /*! \brief Container of all statements */
 class Stmt : public ffi::ObjectRef {
  public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Stmt, ffi::ObjectRef, StmtNode);
+  explicit Stmt(ffi::ObjectPtr<StmtNode> node) : ffi::ObjectRef(std::move(node)) {
+    TVM_FFI_CHECK(defined(), ValueError) << "Stmt expects a defined node";
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Stmt, ffi::ObjectRef, StmtNode);
 };
 
 /*!
@@ -78,6 +82,10 @@ class Stmt : public ffi::ObjectRef {
  */
 class BindNode : public StmtNode {
  public:
+  explicit BindNode(ffi::UnsafeInit tag) : var(tag), value(tag) {}
+
+  BindNode(Var var, Expr value) : var(std::move(var)), value(std::move(value)) {}
+
   /*! \brief The variable being bound. */
   Var var;
   /*! \brief The value to bind to the variable. */
@@ -100,7 +108,9 @@ class Bind : public Stmt {
  public:
   TVM_DLL Bind(Var var, Expr value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Bind, Stmt, BindNode);
+  explicit Bind(ffi::ObjectPtr<BindNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Bind, Stmt, BindNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BindNode);
 };
 
@@ -116,6 +126,10 @@ class Bind : public Stmt {
  */
 class AttrStmtNode : public StmtNode {
  public:
+  explicit AttrStmtNode(ffi::UnsafeInit tag) : value(tag), body(tag) {}
+
+  AttrStmtNode(Expr value, Stmt body) : value(std::move(value)), body(std::move(body)) {}
+
   /*! \brief this is attribute about certain node */
   ffi::Any node;
   /*! \brief the type key of the attribute */
@@ -144,7 +158,9 @@ class AttrStmt : public Stmt {
  public:
   TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AttrStmt, Stmt, AttrStmtNode);
+  explicit AttrStmt(ffi::ObjectPtr<AttrStmtNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
 };
 
@@ -159,6 +175,11 @@ class AttrStmt : public Stmt {
  */
 class AssertStmtNode : public StmtNode {
  public:
+  explicit AssertStmtNode(ffi::UnsafeInit tag) : condition(tag), error_kind(tag) {}
+
+  AssertStmtNode(PrimExpr condition, StringImm error_kind)
+      : condition(std::move(condition)), error_kind(std::move(error_kind)) {}
+
   /*! \brief Condition to be checked. */
   PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
@@ -185,7 +206,9 @@ class AssertStmt : public Stmt {
   TVM_DLL AssertStmt(PrimExpr condition, StringImm error_kind, ffi::Array<StringImm> message_parts,
                      Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(AssertStmt, Stmt, AssertStmtNode);
+  explicit AssertStmt(ffi::ObjectPtr<AssertStmtNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AssertStmt, Stmt, AssertStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AssertStmtNode);
 };
 
@@ -201,6 +224,11 @@ class AssertStmt : public Stmt {
  */
 class BufferStoreNode : public StmtNode {
  public:
+  explicit BufferStoreNode(ffi::UnsafeInit tag) : buffer(tag), value(tag) {}
+
+  BufferStoreNode(BufferVar buffer, PrimExpr value)
+      : buffer(std::move(buffer)), value(std::move(value)) {}
+
   /*! \brief The buffer variable. */
   BufferVar buffer;
   /*! \brief The value to be stored. */
@@ -227,7 +255,9 @@ class BufferStore : public Stmt {
   TVM_DLL explicit BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                                Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(BufferStore, Stmt, BufferStoreNode);
+  explicit BufferStore(ffi::ObjectPtr<BufferStoreNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(BufferStore, Stmt, BufferStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
 };
 
@@ -262,6 +292,10 @@ class SeqStmtNode : public StmtNode {
  */
 class EvaluateNode : public StmtNode {
  public:
+  explicit EvaluateNode(ffi::UnsafeInit tag) : value(tag) {}
+
+  explicit EvaluateNode(Expr value) : value(std::move(value)) {}
+
   /*! \brief The expression to be evaluated. */
   Expr value;
 
@@ -282,7 +316,9 @@ class Evaluate : public Stmt {
 
   explicit Evaluate(int value, Span span = Span()) : Evaluate(PrimExpr(value), span) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Evaluate, Stmt, EvaluateNode);
+  explicit Evaluate(ffi::ObjectPtr<EvaluateNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Evaluate, Stmt, EvaluateNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(EvaluateNode);
 };
 
@@ -382,6 +418,10 @@ class SeqStmt : public Stmt {
       return std::nullopt;
     }
 
+    void operator()(size_t i, const ffi::Optional<Stmt>& stmt) const {
+      if (stmt.has_value()) (*this)(i, stmt.value());
+    }
+
     template <typename T>
     void operator()(size_t i, const T& stmt_or_seq) const {
       if constexpr (std::is_base_of_v<ObjectRef, T>) {
@@ -433,7 +473,9 @@ class SeqStmt : public Stmt {
     ffi::Array<Stmt>* seq_;
   };
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(SeqStmt, Stmt, SeqStmtNode);
+  explicit SeqStmt(ffi::ObjectPtr<SeqStmtNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(SeqStmt, Stmt, SeqStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqStmtNode);
 };
 
@@ -442,6 +484,11 @@ class SeqStmt : public Stmt {
  */
 class IfThenElseNode : public StmtNode {
  public:
+  explicit IfThenElseNode(ffi::UnsafeInit tag) : condition(tag), then_case(tag) {}
+
+  IfThenElseNode(PrimExpr condition, Stmt then_case)
+      : condition(std::move(condition)), then_case(std::move(then_case)) {}
+
   /*! \brief The condition. */
   PrimExpr condition;
   /*! \brief The branch to be executed when condition is true. */
@@ -468,7 +515,9 @@ class IfThenElse : public Stmt {
   TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case,
                      ffi::Optional<Stmt> else_case = std::nullopt, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IfThenElse, Stmt, IfThenElseNode);
+  explicit IfThenElse(ffi::ObjectPtr<IfThenElseNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IfThenElse, Stmt, IfThenElseNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IfThenElseNode);
 };
 
@@ -512,6 +561,14 @@ enum class ForKind : int {
  */
 class ForNode : public StmtNode {
  public:
+  explicit ForNode(ffi::UnsafeInit tag) : loop_var(tag), min(tag), extent(tag), body(tag) {}
+
+  ForNode(PrimVar loop_var, PrimExpr min, PrimExpr extent, Stmt body)
+      : loop_var(std::move(loop_var)),
+        min(std::move(min)),
+        extent(std::move(extent)),
+        body(std::move(body)) {}
+
   /*! \brief The loop variable. */
   PrimVar loop_var;
   /*! \brief The minimum value of iteration. */
@@ -571,7 +628,9 @@ class For : public Stmt {
               ffi::Map<ffi::String, ffi::Any> annotations = {},
               ffi::Optional<PrimExpr> step = std::nullopt, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(For, Stmt, ForNode);
+  explicit For(ffi::ObjectPtr<ForNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(For, Stmt, ForNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
 };
 
@@ -587,6 +646,11 @@ class For : public Stmt {
  */
 class WhileNode : public StmtNode {
  public:
+  explicit WhileNode(ffi::UnsafeInit tag) : condition(tag), body(tag) {}
+
+  WhileNode(PrimExpr condition, Stmt body)
+      : condition(std::move(condition)), body(std::move(body)) {}
+
   /*! \brief The termination condition. */
   PrimExpr condition;
   /*! \brief The body of the while loop. */
@@ -609,7 +673,9 @@ class While : public Stmt {
  public:
   TVM_DLL While(PrimExpr condition, Stmt body, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(While, Stmt, WhileNode);
+  explicit While(ffi::ObjectPtr<WhileNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(While, Stmt, WhileNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(WhileNode);
 };
 
@@ -618,6 +684,10 @@ class While : public Stmt {
  */
 class ReturnNode : public StmtNode {
  public:
+  explicit ReturnNode(ffi::UnsafeInit tag) : value(tag) {}
+
+  explicit ReturnNode(Expr value) : value(std::move(value)) {}
+
   /*! \brief The value to return. */
   Expr value;
 
@@ -637,7 +707,9 @@ class Return : public Stmt {
  public:
   TVM_DLL explicit Return(Expr value, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Return, Stmt, ReturnNode);
+  explicit Return(ffi::ObjectPtr<ReturnNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Return, Stmt, ReturnNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReturnNode);
 };
 
@@ -662,7 +734,9 @@ class Break : public Stmt {
  public:
   TVM_DLL explicit Break(Span span);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Break, Stmt, BreakNode);
+  explicit Break(ffi::ObjectPtr<BreakNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Break, Stmt, BreakNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BreakNode);
 };
 
@@ -687,7 +761,9 @@ class Continue : public Stmt {
  public:
   TVM_DLL explicit Continue(Span span);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(Continue, Stmt, ContinueNode);
+  explicit Continue(ffi::ObjectPtr<ContinueNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Continue, Stmt, ContinueNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ContinueNode);
 };
 
@@ -716,7 +792,9 @@ class ScopeIdDefStmt : public Stmt {
  public:
   TVM_DLL ScopeIdDefStmt(ScopeIdDef def, Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(ScopeIdDefStmt, Stmt, ScopeIdDefStmtNode);
+  explicit ScopeIdDefStmt(ffi::ObjectPtr<ScopeIdDefStmtNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ScopeIdDefStmt, Stmt, ScopeIdDefStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ScopeIdDefStmtNode);
 };
 

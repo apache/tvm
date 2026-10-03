@@ -140,7 +140,6 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   // Storing all the buffer assumptions data in map
   std::unordered_map<tirx::BufferVar, assume_struct, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       map_buffer_assumption;
-  tirx::BufferVar current_bufferstorenode_name;
 
   struct InternalConstraintContext {
     /* This stuct appends the constraint passed to it in the conditions list.
@@ -202,13 +201,12 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override {
     if (map_buffer_assumption.find(op->source.as_or_throw<tvm::tirx::BufferVar>()) !=
         map_buffer_assumption.end()) {
-      PrimExpr buf_value;
       /* If the cuurent context where the buffer load is present is same as
       the context of the buffer assumption then, return the buffer value present in the assumption.
       This will eventually replace the bufferload value in the complete expresison */
 
       auto buffer_assumption =
-          map_buffer_assumption[op->source.as_or_throw<tvm::tirx::BufferVar>()];
+          map_buffer_assumption.at(op->source.as_or_throw<tvm::tirx::BufferVar>());
       PrimExpr current_predicate_and_context = CurrentScopePredicate();
       PrimExpr buffer_predicate_and_context =
           buffer_assumption.buffer_context && buffer_assumption.buffer_predicate;
@@ -216,8 +214,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
           current_predicate_and_context, buffer_predicate_and_context, /*map_free_vars=*/true);
 
       if (current_context_and_buffer_constraint_is_same) {
-        buf_value = buffer_assumption.buffer_value;
-        return buf_value;
+        return buffer_assumption.buffer_value;
       }
     }
     return ffi::Unchanged();
@@ -236,10 +233,10 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         PrimExpr then_clause = call->args[1].as_or_throw<PrimExpr>();
         PrimExpr else_clause = call->args[2].as_or_throw<PrimExpr>();
 
-        PrimExpr then_clause_in_then_context;
-        PrimExpr else_clause_in_then_context;
-        PrimExpr then_clause_in_else_context;
-        PrimExpr else_clause_in_else_context;
+        PrimExpr then_clause_in_then_context{ffi::UnsafeInit{}};
+        PrimExpr else_clause_in_then_context{ffi::UnsafeInit{}};
+        PrimExpr then_clause_in_else_context{ffi::UnsafeInit{}};
+        PrimExpr else_clause_in_else_context{ffi::UnsafeInit{}};
         {
           // Simplifying expressions in " then context "
           InternalConstraintContext then_ctx(this, cond);
@@ -309,7 +306,6 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
   void AssumeConstraintComponent(PrimExpr assumption) {
     PrimExpr additional_predicate = IntImm::Bool(true);
-    assume_struct buf_data;
 
     std::vector<PrimExpr> buffer_exprs;
     for (const auto& expr : sym::ExtractComponents(assumption)) {
@@ -349,8 +345,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     // Parse the statement and store the desired values
     // Ex: A[i]==0, load = A[i], value = 0
-    TensorLoad load;
-    PrimExpr value;
+    TensorLoad load{ffi::UnsafeInit{}};
+    PrimExpr value{ffi::UnsafeInit{}};
     if (auto opt = as_equal_node->a.as<TensorLoad>()) {
       load = opt.value();
       value = as_equal_node->b;
@@ -364,16 +360,13 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
     // Populating the assume statement predicate, buffer, value
     // and the context of the assume statement
-    buf_data.buffer_context = CurrentScopePredicate();
-    buf_data.buffer_predicate = additional_predicate;
-    buf_data.buffer_load = load;
-    buf_data.buffer_value = value;
-    buf_data.buffer_indices = load->indices;
+    assume_struct buf_data{CurrentScopePredicate(), additional_predicate, load, value,
+                           load->indices};
     for (size_t i = 0; i < load->indices.size(); i++) {
       buf_data.buffer_indices.push_back(analyzer_->Simplify(load->indices[i]));
     }
-    map_buffer_assumption[buf_data.buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()] =
-        buf_data;
+    map_buffer_assumption.insert_or_assign(
+        buf_data.buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), buf_data);
 
     auto has_side_effect = SideEffect(value) > CallEffectKind::kPure;
     TVM_FFI_ICHECK(!has_side_effect)

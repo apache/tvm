@@ -64,7 +64,7 @@ class PatternMatcher : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
     auto it = filled_map_.find(op);
     if (it == filled_map_.end()) {
-      filled_map_[op] = expr_to_match_;
+      filled_map_.insert_or_assign(op, expr_to_match_);
     } else {
       if (it->second.same_as(expr_to_match_) ||
           ffi::StructuralEqual()(it->second, expr_to_match_)) {
@@ -310,7 +310,7 @@ class PatternMatcher : public StmtExprVisitor {
  private:
   bool match_success_{true};
   ffi::Array<PrimExpr> pattern_;
-  Expr expr_to_match_;
+  Expr expr_to_match_{ffi::UnsafeInit{}};
   std::unordered_map<const VarNode*, Expr> filled_map_;
 };
 

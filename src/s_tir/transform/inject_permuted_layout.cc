@@ -88,7 +88,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     // Index after vectorizing by 8
     PrimExpr col_idx_outer = floordiv(col_idx, VECTORIZE_FACTOR),
              col_idx_inner = floormod(col_idx, VECTORIZE_FACTOR);
-    PrimExpr new_col_idx_outer;
+    PrimExpr new_col_idx_outer{ffi::UnsafeInit{}};
     if (row_size % 64 == 0) {
       // Use 8 * 8 permuted layout
       // Every number below corresponds to 8 consecutive fp16 number in shared mem, i.e. one read

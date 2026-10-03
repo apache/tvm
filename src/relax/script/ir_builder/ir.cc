@@ -354,8 +354,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ///////////////////////////// If Then Else /////////////////////////////
 
 IfFrame If(tvm::relax::Expr condition) {
-  ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>();
-  n->condition = condition;
+  ffi::ObjectPtr<IfFrameNode> n = ffi::make_object<IfFrameNode>(condition);
   n->then_expr = std::nullopt;
   n->else_expr = std::nullopt;
   return IfFrame(n);

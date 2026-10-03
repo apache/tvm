@@ -60,9 +60,8 @@ TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span)
     }
   }
 
-  ffi::ObjectPtr<TensorLoadNode> node = ffi::make_object<TensorLoadNode>();
+  ffi::ObjectPtr<TensorLoadNode> node = ffi::make_object<TensorLoadNode>(std::move(buffer));
   node->ty = std::move(result_ty);
-  node->source = std::move(buffer);
   node->indices = std::move(indices);
   node->span = std::move(span);
   return TensorLoad(std::move(node));

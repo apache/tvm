@@ -45,7 +45,7 @@ using PMap = std::unordered_map<T, U, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>;
 
 PMap<GlobalVar, PSet<GlobalVar>> CollectCallMap(const IRModule& mod) {
   struct Visitor : StmtExprVisitor {
-    GlobalVar current;
+    GlobalVar current{ffi::UnsafeInit{}};
     PMap<GlobalVar, PSet<GlobalVar>> caller_lookup;
 
     ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
@@ -133,7 +133,9 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
     }
   };
   static const auto native_stmts = NativeStmtTable::Make();
-  if (!native_stmts.CanDispatch(prim_func->body.get())) return false;
+  if (!prim_func->body.has_value() || !native_stmts.CanDispatch(prim_func->body.get())) {
+    return false;
+  }
 
   return true;
 }
@@ -255,7 +257,7 @@ class PrimFuncInliner : public StmtExprMutator {
 
     callee = Specialize(callee, param_map);
 
-    return callee->body;
+    return callee->body.value();
   }
 
   // Map from GlobalVar to PrimFuncs which may be inlined.

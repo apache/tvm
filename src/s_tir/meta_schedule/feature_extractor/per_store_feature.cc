@@ -307,8 +307,9 @@ Pass SimplifyForFeatureExtraction() {
     }
   };
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     PrimFuncNode* n = f.CopyOnWrite();
-    n->body = Simplifier::Run(std::move(n->body));
+    n->body = Simplifier::Run(std::move(n->body).value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});

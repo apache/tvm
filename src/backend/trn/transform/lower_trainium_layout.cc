@@ -154,7 +154,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
       return std::move(mapped).as_or_throw<UnchangedOr<BufferVar>>().ValueOrUnchanged(buf);
     }
     auto trn_layout = buf->layout.as<TileLayoutNode>();
-    BufferVar flattened;
+    BufferVar flattened = buf;
     ffi::ObjectPtr<TensorTypeNode> type;
     if (IsTrainiumLayout(trn_layout)) {
       ffi::Array<PrimExpr> new_shape =
@@ -346,11 +346,12 @@ namespace transform {
 
 Pass LowerTrainiumLayout() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
-    auto [body, params] = TrainiumLayoutApplier::Lower(n->body, n->params);
+    auto [body, params] = TrainiumLayoutApplier::Lower(n->body.value(), n->params);
     n->body = std::move(body);
     n->params = std::move(params);
-    n->body = TrainiumBufferOffsetRemover::Remove(n->body);
+    n->body = TrainiumBufferOffsetRemover::Remove(n->body.value());
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.backend.trn.LowerTrainiumLayout", {});

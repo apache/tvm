@@ -279,9 +279,8 @@ struct ReadWriteAtImpl {
     auto replacer = ffi::make_object<ReadWriteAtBufferReplacer>(src_, dst_, &block_sref_reuse_);
     for (int i = st; i < ed; ++i) {
       Stmt stmt = subtrees[i];
-      subtrees.Set(i, Stmt(nullptr));
-      subtrees.Set(i,
-                   replacer->Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(std::move(stmt)));
+      subtrees.Set(
+          i, replacer->Mutate(stmt, InplaceMode::kDisallow).ValueOrUnchanged(std::move(stmt)));
     }
     SBlockRealize realize =
         is_read

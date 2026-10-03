@@ -776,7 +776,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
     Var new_param = this->VisitVarDef(param);
     params.push_back(new_param);
     if (!param.same_as(new_param)) {
-      var_remap_[param] = new_param;
+      var_remap_.insert_or_assign(param, new_param);
       all_params_unchanged = false;
     }
   }
@@ -887,9 +887,9 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
     new_var = temp;
   }
 
-  this->var_remap_[binding->var] = new_var;
-  this->var_remap_[visited_var] = new_var;
-  this->var_remap_[new_var] = new_var;
+  this->var_remap_.insert_or_assign(binding->var, new_var);
+  this->var_remap_.insert_or_assign(visited_var, new_var);
+  this->var_remap_.insert_or_assign(new_var, new_var);
 
   builder_->EmitNormalized(VarBinding(new_var, new_value));
 }
@@ -910,9 +910,9 @@ void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
       new_value = builder_->NormalizeArgument(new_value);
       new_var = WithType(new_var, new_ty);
 
-      var_remap_[binding->var] = new_var;
-      var_remap_[visited_var] = new_var;
-      var_remap_[new_var] = new_var;
+      var_remap_.insert_or_assign(binding->var, new_var);
+      var_remap_.insert_or_assign(visited_var, new_var);
+      var_remap_.insert_or_assign(new_var, new_var);
 
       return MatchCast(new_var, new_value, new_ty, binding->span);
     }
@@ -946,7 +946,7 @@ Var ExprMutator::VisitVarDef_(const DataflowVarNode* var) {
   if (!output->IsInstance<DataflowVarNode>()) {
     Var delegated_output = output;
     output = DataflowVar(output->name, GetType(output), output->span);
-    var_remap_[delegated_output] = output;
+    var_remap_.insert_or_assign(delegated_output, output);
   }
   return output;
 }
@@ -987,15 +987,13 @@ BindingBlock ExprMutator::VisitBindingBlock(const BindingBlock& block) {
 }
 
 Var ExprMutator::VisitVarDef(const Var& var) {
-  Var ret;
   if (const auto* node = var.as<DataflowVarNode>()) {
-    ret = VisitVarDef_(node);
+    return VisitVarDef_(node);
   } else if (const auto* node = var.as<VarNode>()) {
-    ret = VisitVarDef_(node);
-  } else {
-    TVM_FFI_THROW(TypeError) << "Invalid type: " << var->GetTypeKey();
+    return VisitVarDef_(node);
   }
-  return ret;
+  TVM_FFI_THROW(TypeError) << "Invalid type: " << var->GetTypeKey();
+  throw;
 }
 
 Expr ExprMutator::VisitWithNewScope(const Expr& expr, ffi::Optional<ffi::Array<Var>> params) {

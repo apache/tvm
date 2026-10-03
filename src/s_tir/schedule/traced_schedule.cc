@@ -33,7 +33,7 @@ Schedule Schedule::Traced(IRModule mod, LinearCongruentialEngine::TRandState see
   n->analyzer_ = sym::Analyzer();
   n->trace_ = Trace();
   n->Seed(seed);
-  GlobalVar gv;
+  GlobalVar gv{ffi::UnsafeInit{}};
   if (FindEntryFunc(mod, &gv) != nullptr) {
     n->func_working_on_ = gv;
   } else {
@@ -69,14 +69,12 @@ ExprRV TracedScheduleNode::SampleCategorical(const ffi::Array<int64_t>& candidat
   return result;
 }
 
-ffi::Array<ExprRV> TracedScheduleNode::SamplePerfectTile(
+ffi::Array<ffi::Optional<ExprRV>> TracedScheduleNode::SamplePerfectTile(
     const LoopRV& loop_rv, int n, int max_innermost_factor,
     ffi::Optional<ffi::Array<int64_t>> decision) {
   // use None RV object to denotes auto-infer tile factors.
-  ffi::Array<ExprRV> results =
-      CreateRV(::tvm::s_tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
-                                               max_innermost_factor, &decision),
-               /*convert_negone_to_none=*/true);
+  ffi::Array<ffi::Optional<ExprRV>> results = CreateOptionalRV(::tvm::s_tir::SamplePerfectTile(
+      &this->rand_state_, this->GetSRef(loop_rv), n, max_innermost_factor, &decision));
   static const InstructionKind& kind = InstructionKind::Get("SamplePerfectTile");
   trace_->Append(
       /*inst=*/Instruction(
@@ -124,7 +122,7 @@ LoopRV TracedScheduleNode::SampleComputeLocation(const SBlockRV& block_rv,
 
 SBlockRV TracedScheduleNode::GetSBlock(const ffi::String& name,
                                        const ffi::Optional<ffi::String>& func_name) {
-  GlobalVar gv;
+  GlobalVar gv{ffi::UnsafeInit{}};
   if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
   } else if (func_working_on_.has_value()) {

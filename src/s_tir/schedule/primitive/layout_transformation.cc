@@ -170,8 +170,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       }
     }
 
-    WriteInfo write_info;
-    write_info.store = ffi::GetRef<BufferStore>(op);
+    WriteInfo write_info{ffi::GetRef<BufferStore>(op)};
     if (loop_dependency_range) {
       size_t i = loop_dependency_range.value().first;
       size_t j = loop_dependency_range.value().second;
@@ -689,9 +688,10 @@ class TransformLayoutPlanner : public StmtExprVisitor {
           }
           return ffi::Unchanged();
         };
-        self->active_var_bindings_[var.get()] =
+        self->active_var_bindings_.insert_or_assign(
+            var.get(),
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(prim_value.value(), f_substitute)
-                .as_or_throw<PrimExpr>();
+                .as_or_throw<PrimExpr>());
       }
     }
     ~BindVariableDefinition() {}
@@ -1305,7 +1305,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
 
   // Step 4: Rewrite the PrimFunc buffer parameter if necessary.
   if (!defining_site_sref.has_value()) {
-    GlobalVar g_var;
+    GlobalVar g_var{ffi::UnsafeInit{}};
     const auto* old_func = GetRootPrimFunc(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
     ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();

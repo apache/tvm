@@ -371,6 +371,7 @@ OpPatternKind AnalyzeOpPatternKind(const PrimFunc& func) {
 }
 
 bool HasReshapePattern(const PrimFunc& func) {
+  if (!func->body.has_value()) return false;
   class ReshapeDetector : public s_tir::StmtExprVisitor {
    public:
     ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) override {
@@ -488,7 +489,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       };
 
       ffi::Array<PrimExpr> nontrivial_indices{nullptr};
-      BufferVar nontrivial_buffer{nullptr};
+      ffi::Optional<BufferVar> nontrivial_buffer;
       if (f_is_trivial_indices(dst_buffer_, buffer_store->indices)) {
         nontrivial_indices = buffer_load->indices;
         nontrivial_buffer = src_buffer_;
@@ -519,7 +520,8 @@ bool HasReshapePattern(const PrimFunc& func) {
           if (auto repl = inverse_indices_map.Get(var)) return ffi::Any(*std::move(repl));
           return ffi::Unchanged();
         };
-        PrimExpr flattened_idx = f_calc_flattened_idx(nontrivial_buffer, nontrivial_indices);
+        PrimExpr flattened_idx =
+            f_calc_flattened_idx(nontrivial_buffer.value(), nontrivial_indices);
         flattened_idx =
             ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(std::move(flattened_idx), f_substitute)
                 .as_or_throw<PrimExpr>();
@@ -574,8 +576,8 @@ bool HasReshapePattern(const PrimFunc& func) {
 
   // To detect the reshape pattern, we require each For to have
   // either another For or a BlockRealize as body.
-  TVM_FFI_ICHECK(func->body->IsInstance<s_tir::SBlockRealizeNode>());
-  return ReshapeDetector::Detect(src_buffer, dst_buffer, func->body);
+  TVM_FFI_ICHECK(func->body.as<s_tir::SBlockRealizeNode>());
+  return ReshapeDetector::Detect(src_buffer, dst_buffer, func->body.value());
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

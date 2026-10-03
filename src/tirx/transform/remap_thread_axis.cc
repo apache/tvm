@@ -85,8 +85,9 @@ PrimFunc RemapThreadAxis(PrimFunc func, ffi::Map<ffi::String, IterVar> thread_ma
     func = WithAttr(std::move(func), tirx::attr::kKernelLaunchParams, launch_params);
   }
 
+  if (!func->body.has_value()) return func;
   auto* n = func.CopyOnWrite();
-  n->body = ffi::make_object<ThreadAxisRewriter>(tmap)->Rewrite(std::move(n->body));
+  n->body = ffi::make_object<ThreadAxisRewriter>(tmap)->Rewrite(std::move(n->body).value());
   return func;
 }
 

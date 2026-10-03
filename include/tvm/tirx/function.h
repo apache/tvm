@@ -52,8 +52,8 @@ class PrimFuncNode : public BaseFuncNode {
   ffi::Array<tirx::Var> params;
   /*! \brief The return type of the function. */
   Type ret_type = Type::Missing();
-  /*! \brief The body of the function */
-  tirx::Stmt body;
+  /*! \brief The body of the function, absent for a declaration. */
+  ffi::Optional<tirx::Stmt> body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -109,7 +109,7 @@ class PrimFunc : public BaseFunc {
    *
    * \param params The parameters of the function.
    *
-   * \param body The body of the function.
+   * \param body The body of the function, or std::nullopt for a declaration.
    *
    * \param ret_type The return type of the function.
    *
@@ -117,10 +117,12 @@ class PrimFunc : public BaseFunc {
    *
    * \param span The location of this object in the source code.
    */
-  TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, Stmt body, Type ret_type = VoidType(),
-                   DictAttrs attrs = DictAttrs(), Span span = Span());
+  TVM_DLL PrimFunc(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body,
+                   Type ret_type = VoidType(), DictAttrs attrs = DictAttrs(), Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
+  explicit PrimFunc(ffi::ObjectPtr<PrimFuncNode> node) : BaseFunc(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimFunc, BaseFunc, PrimFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(PrimFuncNode);
 };
 
