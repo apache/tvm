@@ -1146,7 +1146,7 @@ class ReductionEpilogueFuser : public BaseInliner {
   PrimExpr epilogue_expression_{
       ffi::UnsafeInit{}};  // The entire epilogue expression (e.g., temp + C, max(temp + C, 0))
   const TensorLoadNode* reduction_buffer_load_{
-      nullptr};                                // The reduction buffer load in epilogue expression
+      nullptr};  // The reduction buffer load in epilogue expression
   BufferVar epilogue_output_buffer_{ffi::UnsafeInit{}};    // Output buffer D
   ffi::Array<PrimExpr> epilogue_output_indices_{nullptr};  // Indices of D[vi, vj]
   ffi::Optional<TensorRegion> epilogue_output_region_;     // Write region of D
