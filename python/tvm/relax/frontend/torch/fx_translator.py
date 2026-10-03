@@ -994,6 +994,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             "chunk": self._chunk,
             "concat": self._cat,
             "contiguous": lambda node: self.env[node.args[0]],
+            "amax": self._amax_amin(relax.op.max),
+            "amin": self._amax_amin(relax.op.min),
             "cumprod": self._cumprod,
             "cumsum": self._cumsum,
             "expand": self._expand,
