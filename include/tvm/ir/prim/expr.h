@@ -55,8 +55,11 @@ using FloatImmNode = tvm::FloatImmNode;
  */
 class CastNode : public ExprNode {
  public:
+  explicit CastNode(PrimExpr value) : value(std::move(value)) {}
+  explicit CastNode(ffi::UnsafeInit tag) : value(tag) {}
+
   /*! \brief Original data type. */
-  PrimExpr value{ffi::UnsafeInit{}};
+  PrimExpr value;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CastNode>().def_ro("value", &CastNode::value);
@@ -85,10 +88,13 @@ class Cast : public PrimExpr {
 template <typename T>
 class BinaryOpNode : public ExprNode {
  public:
+  BinaryOpNode(PrimExpr a, PrimExpr b) : a(std::move(a)), b(std::move(b)) {}
+  explicit BinaryOpNode(ffi::UnsafeInit tag) : a(tag), b(tag) {}
+
   /*! \brief The left operand. */
-  PrimExpr a{ffi::UnsafeInit{}};
+  PrimExpr a;
   /*! \brief The right operand. */
-  PrimExpr b{ffi::UnsafeInit{}};
+  PrimExpr b;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
@@ -101,6 +107,7 @@ class BinaryOpNode : public ExprNode {
 /*! \brief a + b */
 class AddNode : public BinaryOpNode<AddNode> {
  public:
+  using BinaryOpNode<AddNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.Add";
 };
 
@@ -121,6 +128,7 @@ class Add : public PrimExpr {
 /*! \brief a << b */
 class LShiftNode : public BinaryOpNode<LShiftNode> {
  public:
+  using BinaryOpNode<LShiftNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.LShift";
 };
 
@@ -141,6 +149,7 @@ class LShift : public PrimExpr {
 /*! \brief a >> b */
 class RShiftNode : public BinaryOpNode<RShiftNode> {
  public:
+  using BinaryOpNode<RShiftNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.RShift";
 };
 
@@ -161,6 +170,7 @@ class RShift : public PrimExpr {
 /*! \brief a & b */
 class BitwiseAndNode : public BinaryOpNode<BitwiseAndNode> {
  public:
+  using BinaryOpNode<BitwiseAndNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.BitwiseAnd";
 };
 
@@ -181,6 +191,7 @@ class BitwiseAnd : public PrimExpr {
 /*! \brief a | b */
 class BitwiseOrNode : public BinaryOpNode<BitwiseOrNode> {
  public:
+  using BinaryOpNode<BitwiseOrNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.BitwiseOr";
 };
 
@@ -201,6 +212,7 @@ class BitwiseOr : public PrimExpr {
 /*! \brief a ^ b */
 class BitwiseXorNode : public BinaryOpNode<BitwiseXorNode> {
  public:
+  using BinaryOpNode<BitwiseXorNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.BitwiseXor";
 };
 
@@ -221,6 +233,7 @@ class BitwiseXor : public PrimExpr {
 /*! \brief a - b */
 class SubNode : public BinaryOpNode<SubNode> {
  public:
+  using BinaryOpNode<SubNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.Sub";
 };
 
@@ -242,6 +255,7 @@ class Sub : public PrimExpr {
 /*! \brief a * b */
 class MulNode : public BinaryOpNode<MulNode> {
  public:
+  using BinaryOpNode<MulNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.Mul";
 };
 
@@ -265,6 +279,7 @@ class Mul : public PrimExpr {
  */
 class DivNode : public BinaryOpNode<DivNode> {
  public:
+  using BinaryOpNode<DivNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.Div";
 };
 
@@ -288,6 +303,7 @@ class Div : public PrimExpr {
  */
 class ModNode : public BinaryOpNode<ModNode> {
  public:
+  using BinaryOpNode<ModNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.Mod";
 };
 
@@ -308,6 +324,7 @@ class Mod : public PrimExpr {
 /*! \brief Floor division, floor(a/b) */
 class FloorDivNode : public BinaryOpNode<FloorDivNode> {
  public:
+  using BinaryOpNode<FloorDivNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.FloorDiv";
 };
 
@@ -328,6 +345,7 @@ class FloorDiv : public PrimExpr {
 /*! \brief The remainder of the floordiv */
 class FloorModNode : public BinaryOpNode<FloorModNode> {
  public:
+  using BinaryOpNode<FloorModNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.FloorMod";
 };
 
@@ -348,6 +366,7 @@ class FloorMod : public PrimExpr {
 /*! \brief min(a, b) */
 class MinNode : public BinaryOpNode<MinNode> {
  public:
+  using BinaryOpNode<MinNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.Min";
 };
 
@@ -368,6 +387,7 @@ class Min : public PrimExpr {
 /*! \brief max(a, b) */
 class MaxNode : public BinaryOpNode<MaxNode> {
  public:
+  using BinaryOpNode<MaxNode>::BinaryOpNode;
   static constexpr const char* _type_key = "prim.Max";
 };
 
@@ -392,10 +412,13 @@ class Max : public PrimExpr {
 template <typename T>
 class CmpOpNode : public ExprNode {
  public:
+  CmpOpNode(PrimExpr a, PrimExpr b) : a(std::move(a)), b(std::move(b)) {}
+  explicit CmpOpNode(ffi::UnsafeInit tag) : a(tag), b(tag) {}
+
   /*! \brief The left operand. */
-  PrimExpr a{ffi::UnsafeInit{}};
+  PrimExpr a;
   /*! \brief The right operand. */
-  PrimExpr b{ffi::UnsafeInit{}};
+  PrimExpr b;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
@@ -408,6 +431,7 @@ class CmpOpNode : public ExprNode {
 /*! \brief a == b */
 class EQNode : public CmpOpNode<EQNode> {
  public:
+  using CmpOpNode<EQNode>::CmpOpNode;
   static constexpr const char* _type_key = "prim.EQ";
 };
 
@@ -428,6 +452,7 @@ class EQ : public PrimExpr {
 /*! \brief a != b */
 class NENode : public CmpOpNode<NENode> {
  public:
+  using CmpOpNode<NENode>::CmpOpNode;
   static constexpr const char* _type_key = "prim.NE";
 };
 
@@ -448,6 +473,7 @@ class NE : public PrimExpr {
 /*! \brief a < b */
 class LTNode : public CmpOpNode<LTNode> {
  public:
+  using CmpOpNode<LTNode>::CmpOpNode;
   static constexpr const char* _type_key = "prim.LT";
 };
 
@@ -468,6 +494,7 @@ class LT : public PrimExpr {
 /*! \brief a <= b */
 struct LENode : public CmpOpNode<LENode> {
  public:
+  using CmpOpNode<LENode>::CmpOpNode;
   static constexpr const char* _type_key = "prim.LE";
 };
 
@@ -488,6 +515,7 @@ class LE : public PrimExpr {
 /*! \brief a > b */
 class GTNode : public CmpOpNode<GTNode> {
  public:
+  using CmpOpNode<GTNode>::CmpOpNode;
   static constexpr const char* _type_key = "prim.GT";
 };
 
@@ -508,6 +536,7 @@ class GT : public PrimExpr {
 /*! \brief a >= b */
 class GENode : public CmpOpNode<GENode> {
  public:
+  using CmpOpNode<GENode>::CmpOpNode;
   static constexpr const char* _type_key = "prim.GE";
 };
 
@@ -528,10 +557,13 @@ class GE : public PrimExpr {
 /*! \brief a && b */
 class AndNode : public ExprNode {
  public:
+  AndNode(PrimExpr a, PrimExpr b) : a(std::move(a)), b(std::move(b)) {}
+  explicit AndNode(ffi::UnsafeInit tag) : a(tag), b(tag) {}
+
   /*! \brief The left operand. */
-  PrimExpr a{ffi::UnsafeInit{}};
+  PrimExpr a;
   /*! \brief The right operand. */
-  PrimExpr b{ffi::UnsafeInit{}};
+  PrimExpr b;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
@@ -556,10 +588,13 @@ class And : public PrimExpr {
 /*! \brief a || b */
 class OrNode : public ExprNode {
  public:
+  OrNode(PrimExpr a, PrimExpr b) : a(std::move(a)), b(std::move(b)) {}
+  explicit OrNode(ffi::UnsafeInit tag) : a(tag), b(tag) {}
+
   /*! \brief The left operand. */
-  PrimExpr a{ffi::UnsafeInit{}};
+  PrimExpr a;
   /*! \brief The right operand. */
-  PrimExpr b{ffi::UnsafeInit{}};
+  PrimExpr b;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
@@ -584,8 +619,11 @@ class Or : public PrimExpr {
 /*! \brief !a */
 class NotNode : public ExprNode {
  public:
+  explicit NotNode(PrimExpr a) : a(std::move(a)) {}
+  explicit NotNode(ffi::UnsafeInit tag) : a(tag) {}
+
   /*! \brief The input operand. */
-  PrimExpr a{ffi::UnsafeInit{}};
+  PrimExpr a;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<NotNode>().def_ro("a", &NotNode::a);
@@ -610,8 +648,11 @@ class Not : public PrimExpr {
 /*! \brief ~a */
 class BitwiseNotNode : public ExprNode {
  public:
+  explicit BitwiseNotNode(PrimExpr a) : a(std::move(a)) {}
+  explicit BitwiseNotNode(ffi::UnsafeInit tag) : a(tag) {}
+
   /*! \brief The input operand. */
-  PrimExpr a{ffi::UnsafeInit{}};
+  PrimExpr a;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BitwiseNotNode>().def_ro("a", &BitwiseNotNode::a);
@@ -642,12 +683,18 @@ class BitwiseNot : public PrimExpr {
  */
 class SelectNode : public ExprNode {
  public:
+  SelectNode(PrimExpr condition, PrimExpr true_value, PrimExpr false_value)
+      : condition(std::move(condition)),
+        true_value(std::move(true_value)),
+        false_value(std::move(false_value)) {}
+  explicit SelectNode(ffi::UnsafeInit tag) : condition(tag), true_value(tag), false_value(tag) {}
+
   /*! \brief The condition */
-  PrimExpr condition{ffi::UnsafeInit{}};
+  PrimExpr condition;
   /*! \brief value to be returned when condition is true. */
-  PrimExpr true_value{ffi::UnsafeInit{}};
+  PrimExpr true_value;
   /*! \brief value to be returned when condition is false. */
-  PrimExpr false_value{ffi::UnsafeInit{}};
+  PrimExpr false_value;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SelectNode>()
@@ -678,12 +725,16 @@ class Select : public PrimExpr {
  */
 class LetNode : public ExprNode {
  public:
+  LetNode(Var var, PrimExpr value, PrimExpr body)
+      : var(std::move(var)), value(std::move(value)), body(std::move(body)) {}
+  explicit LetNode(ffi::UnsafeInit tag) : var(tag), value(tag), body(tag) {}
+
   /*! \brief The variable. */
-  Var var{ffi::UnsafeInit{}};
+  Var var;
   /*! \brief The value to be binded. */
-  PrimExpr value{ffi::UnsafeInit{}};
+  PrimExpr value;
   /*! \brief The result expression. */
-  PrimExpr body{ffi::UnsafeInit{}};
+  PrimExpr body;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetNode>()

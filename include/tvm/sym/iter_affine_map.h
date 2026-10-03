@@ -89,15 +89,19 @@ class IterMapExpr : public PrimExpr {
  */
 class IterMarkNode : public ffi::Object {
  public:
+  explicit IterMarkNode(PrimExpr source, PrimExpr extent)
+      : source(std::move(source)), extent(std::move(extent)) {}
+  explicit IterMarkNode(ffi::UnsafeInit) : source(ffi::UnsafeInit{}), extent(ffi::UnsafeInit{}) {}
+
   /*!
    * \brief The source expression, can either be
    *  a IterSumExpr or a Var.
    */
-  PrimExpr source{ffi::UnsafeInit{}};
+  PrimExpr source;
   /*!
    * \brief The extent of the iteration.
    */
-  PrimExpr extent{ffi::UnsafeInit{}};
+  PrimExpr extent;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -134,14 +138,19 @@ class IterMark : public ffi::ObjectRef {
  */
 class IterSplitExprNode : public IterMapExprNode {
  public:
+  explicit IterSplitExprNode(PrimExpr lower_factor, PrimExpr extent, PrimExpr scale)
+      : lower_factor(std::move(lower_factor)), extent(std::move(extent)), scale(std::move(scale)) {}
+  explicit IterSplitExprNode(ffi::UnsafeInit)
+      : lower_factor(ffi::UnsafeInit{}), extent(ffi::UnsafeInit{}), scale(ffi::UnsafeInit{}) {}
+
   /*! \brief The source marked iterator. */
   IterMark source;
   /*! \brief The lower factor to split the source. */
-  PrimExpr lower_factor{ffi::UnsafeInit{}};
+  PrimExpr lower_factor;
   /*! \brief The extent of the split. */
-  PrimExpr extent{ffi::UnsafeInit{}};
+  PrimExpr extent;
   /*! \brief Additional scale. */
-  PrimExpr scale{ffi::UnsafeInit{}};
+  PrimExpr scale;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -196,10 +205,13 @@ class IterSplitExpr : public IterMapExpr {
  */
 class IterSumExprNode : public IterMapExprNode {
  public:
+  explicit IterSumExprNode(PrimExpr base) : base(std::move(base)) {}
+  explicit IterSumExprNode(ffi::UnsafeInit) : base(ffi::UnsafeInit{}) {}
+
   /*! \brief The args to the sum. */
   ffi::Array<IterSplitExpr> args;
   /*! \brief The base offset. */
-  PrimExpr base{ffi::UnsafeInit{}};
+  PrimExpr base;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

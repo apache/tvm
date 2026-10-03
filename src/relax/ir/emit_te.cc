@@ -35,9 +35,8 @@ namespace relax {
 TVM_FFI_STATIC_INIT_BLOCK() { RXPlaceholderOpNode::RegisterReflection(); }
 
 te::Tensor TETensor(Expr value, ffi::Map<tirx::Var, PrimExpr> tir_var_map, std::string name) {
-  auto n = ffi::make_object<RXPlaceholderOpNode>();
+  auto n = ffi::make_object<RXPlaceholderOpNode>(value);
   n->name = name;
-  n->value = value;
 
   // If the value is a constant, it might come as an argument of EmitTE and thus its shape and
   // checked-type might not be properly set. In this case we set the shape and dtype of the returned

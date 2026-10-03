@@ -215,12 +215,13 @@ TensorType::TensorType(ffi::String storage_scope, PrimType dtype, ffi::Array<Pri
                        int data_alignment, int offset_factor, ffi::Optional<Layout> layout,
                        ffi::Array<PrimExpr> allocated_addr, Span span)
     : Type(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<TensorTypeNode>();
+  PrimExpr offset = elem_offset.value_or(
+      IntImm(shape.empty() ? PrimType(tvm::tirx::DefaultIndexType()) : shape[0].ty(), 0));
+  auto n = ffi::make_object<TensorTypeNode>(std::move(offset));
   n->dtype = std::move(dtype);
   n->storage_scope = storage_scope.empty() ? ffi::String("global") : std::move(storage_scope);
   n->shape = std::move(shape);
   n->strides = std::move(strides);
-  n->elem_offset = elem_offset.value_or(IntImm(PrimType(n->DefaultIndexType()), 0));
   n->data_alignment =
       data_alignment <= 0 ? static_cast<int>(runtime::kAllocAlignment) : data_alignment;
   n->offset_factor = offset_factor == 0 ? 1 : offset_factor;

@@ -41,12 +41,16 @@ namespace prim {
  */
 class RampNode : public ExprNode {
  public:
+  RampNode(PrimExpr base, PrimExpr stride, PrimExpr lanes)
+      : base(std::move(base)), stride(std::move(stride)), lanes(std::move(lanes)) {}
+  explicit RampNode(ffi::UnsafeInit tag) : base(tag), stride(tag), lanes(tag) {}
+
   /*! \brief The base value. */
-  PrimExpr base{ffi::UnsafeInit{}};
+  PrimExpr base;
   /*! \brief The stride of each step. */
-  PrimExpr stride{ffi::UnsafeInit{}};
+  PrimExpr stride;
   /*! \brief Total number of lanes. */
-  PrimExpr lanes{ffi::UnsafeInit{}};
+  PrimExpr lanes;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RampNode>()
@@ -74,10 +78,14 @@ class Ramp : public PrimExpr {
 /*! \brief Create a vector where all the elements are value. */
 class BroadcastNode : public ExprNode {
  public:
+  BroadcastNode(PrimExpr value, PrimExpr lanes)
+      : value(std::move(value)), lanes(std::move(lanes)) {}
+  explicit BroadcastNode(ffi::UnsafeInit tag) : value(tag), lanes(tag) {}
+
   /*! \brief The base value. */
-  PrimExpr value{ffi::UnsafeInit{}};
+  PrimExpr value;
   /*! \brief The number of lanes. */
-  PrimExpr lanes{ffi::UnsafeInit{}};
+  PrimExpr lanes;
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BroadcastNode>()

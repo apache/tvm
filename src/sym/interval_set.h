@@ -45,10 +45,15 @@ namespace sym {
  */
 class IntervalSetNode : public IntSetNode {
  public:
+  explicit IntervalSetNode(PrimExpr min_value, PrimExpr max_value)
+      : min_value(std::move(min_value)), max_value(std::move(max_value)) {}
+  explicit IntervalSetNode(ffi::UnsafeInit)
+      : min_value(ffi::UnsafeInit{}), max_value(ffi::UnsafeInit{}) {}
+
   /*! \brief Minimum value in the interval. */
-  PrimExpr min_value{ffi::UnsafeInit{}};
+  PrimExpr min_value;
   /*! \brief Maximum value in the interval. */
-  PrimExpr max_value{ffi::UnsafeInit{}};
+  PrimExpr max_value;
 
   // visitor overload.
   static void RegisterReflection() {

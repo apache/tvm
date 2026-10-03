@@ -44,10 +44,14 @@ namespace tirx {
  */
 class LambdaExprNode : public ffi::Object {
  public:
+  explicit LambdaExprNode(ffi::UnsafeInit tag) : pred(tag) {}
+
+  explicit LambdaExprNode(PrimExpr pred) : pred(std::move(pred)) {}
+
   /*! \brief The bound variables of the lambda. */
   Array<Var> vars;
   /*! \brief The lambda body over ``vars``. */
-  PrimExpr pred{ffi::UnsafeInit{}};
+  PrimExpr pred;
 
   /*! \brief Replace the bound variables with the given indices, returning the substituted body. */
   PrimExpr Apply(const Array<PrimExpr>& indices) const;
@@ -201,7 +205,7 @@ class TilePrimitiveCallNode : public StmtNode {
         scope(std::move(scope)) {}
 
   // tvm::Op which corresponds to the TIRX operator.
-  tvm::Op op{ffi::UnsafeInit{}};
+  tvm::Op op;
 
   // Arguments to the operator.
   ffi::Array<ffi::Any> args;

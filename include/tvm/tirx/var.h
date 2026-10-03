@@ -117,13 +117,17 @@ enum IterVarType : int {
  */
 class IterVarNode : public PrimExprConvertibleNode {
  public:
+  explicit IterVarNode(ffi::UnsafeInit tag) : var(tag) {}
+
+  explicit IterVarNode(PrimVar var) : var(std::move(var)) {}
+
   /*!
    * \brief the domain of iteration, if known, can be None
    *  For the intermediate schedule node, before schedule.
    */
   Range dom;
   /*! \brief The looping variable */
-  PrimVar var{ffi::UnsafeInit{}};
+  PrimVar var;
   /*! \brief The type of the IterVar */
   IterVarType iter_type;
   /*!

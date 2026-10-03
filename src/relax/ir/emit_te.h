@@ -38,8 +38,11 @@ namespace relax {
  */
 class RXPlaceholderOpNode : public te::PlaceholderOpNode {
  public:
+  explicit RXPlaceholderOpNode(Expr value) : value(std::move(value)) {}
+  explicit RXPlaceholderOpNode(ffi::UnsafeInit) : value(ffi::UnsafeInit{}) {}
+
   /*! \brief The relax expression. */
-  Expr value{ffi::UnsafeInit{}};
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

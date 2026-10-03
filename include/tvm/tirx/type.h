@@ -63,6 +63,10 @@ inline DLDataType DefaultIndexType() {
  */
 class TensorTypeNode : public TypeNode {
  public:
+  explicit TensorTypeNode(ffi::UnsafeInit tag) : elem_offset(tag) {}
+
+  explicit TensorTypeNode(PrimExpr elem_offset) : elem_offset(std::move(elem_offset)) {}
+
   /*! \brief dtype in the content of the tensor */
   PrimType dtype = PrimType::Void();
   /*! \brief Storage scope/address space of the buffer. */
@@ -80,7 +84,7 @@ class TensorTypeNode : public TypeNode {
    */
   ffi::Array<PrimExpr> strides;
   /*! \brief The offset in terms of number of dtype elements (including lanes) */
-  PrimExpr elem_offset{ffi::UnsafeInit{}};
+  PrimExpr elem_offset;
   /*! \brief Alignment requirement of data pointer in bytes. */
   int data_alignment;
   /*!
@@ -96,9 +100,6 @@ class TensorTypeNode : public TypeNode {
    * For example, trn.psum takes 2D address, representing (bank, offset).
    */
   ffi::Array<PrimExpr> allocated_addr;
-
-  /*! \brief constructor */
-  TensorTypeNode() {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

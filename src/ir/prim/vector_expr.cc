@@ -220,7 +220,7 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span)
     stride = prim::cast(base_ty, stride);
   }
 
-  ffi::ObjectPtr<RampNode> node = ffi::make_object<RampNode>();
+  ffi::ObjectPtr<RampNode> node = ffi::make_object<RampNode>(base, stride, lanes);
   auto* lanes_as_int = lanes.as<IntImmNode>();
   if (lanes_as_int) {
     int lanes = lanes_as_int->value.as<int>().value();
@@ -238,8 +238,6 @@ Ramp::Ramp(PrimExpr base, PrimExpr stride, PrimExpr lanes, Span span)
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->base = base;
-  node->stride = stride;
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -264,7 +262,7 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) : PrimExpr(ffi::
   PrimType value_ty = value.ty();
   TVM_FFI_ICHECK(value_ty.IsScalar());
 
-  ffi::ObjectPtr<BroadcastNode> node = ffi::make_object<BroadcastNode>();
+  ffi::ObjectPtr<BroadcastNode> node = ffi::make_object<BroadcastNode>(value, lanes);
   auto* lanes_int = lanes.as<IntImmNode>();
   if (lanes_int) {
     int lanes = lanes_int->value.as<int>().value();
@@ -282,7 +280,6 @@ Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) : PrimExpr(ffi::
                 vscale_factor.value());
     node->lanes = lanes;
   }
-  node->value = std::move(value);
   node->span = std::move(span);
   data_ = node;
 }

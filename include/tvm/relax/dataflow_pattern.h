@@ -342,7 +342,10 @@ class PatternContext : public ffi::ObjectRef {
  */
 class ExprPatternNode : public DFPatternNode {
  public:
-  Expr expr{ffi::UnsafeInit{}}; /*!< The expression to match */
+  explicit ExprPatternNode(Expr expr) : expr(std::move(expr)) {}
+  explicit ExprPatternNode(ffi::UnsafeInit) : expr(ffi::UnsafeInit{}) {}
+
+  Expr expr; /*!< The expression to match */
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

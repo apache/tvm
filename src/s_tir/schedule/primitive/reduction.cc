@@ -217,12 +217,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     LoopHeightError::CheckLoopHigherThanReduceLoops(self->mod, block, realize, loops, loop_sref);
   }
   // IR Manipulation
-  ffi::ObjectPtr<SBlockNode> init_block = ffi::make_object<SBlockNode>();
-  ffi::ObjectPtr<SBlockRealizeNode> init_realize = ffi::make_object<SBlockRealizeNode>();
-  init_block->name_hint = block->name_hint + "_init";
-  init_block->annotations = block->annotations;
-  init_realize->iter_values = {};
-  init_realize->block = SBlock(init_block);
+  ffi::Array<IterVar> init_iter_vars;
+  ffi::Array<PrimExpr> init_iter_values;
   // Step 1. Create new block vars and their bindings
   // Maps an old block var to the new corresponding block var
   std::unordered_map<Var, Var> block_var_map;
@@ -240,8 +236,8 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
                          /*iter_type=*/iter_var->iter_type,
                          /*thread_tag=*/iter_var->thread_tag);
     // Add a block var and its binding
-    init_block->iter_vars.push_back(new_iter_var);
-    init_realize->iter_values.push_back(binding);
+    init_iter_vars.push_back(new_iter_var);
+    init_iter_values.push_back(binding);
     // Add a mapping from old block vars to new block vars
     block_var_map.insert_or_assign(iter_var->var, new_iter_var->var);
   }
@@ -255,9 +251,12 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     }
     return ffi::Unchanged();
   };
-  init_block->body =
+  auto init_block = ffi::make_object<SBlockNode>(
       ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(block->init.value(), map_block_var)
-          .as_or_throw<Stmt>();
+          .as_or_throw<Stmt>());
+  init_block->name_hint = block->name_hint + "_init";
+  init_block->annotations = block->annotations;
+  init_block->iter_vars = std::move(init_iter_vars);
   for (const TensorRegion& write : block->writes) {
     ffi::Array<Range> mapped_region = write->region.Map([&map_block_var](const Range& range) {
       PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_block_var)
@@ -281,7 +280,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
       return var.get() == v ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
                             : ffi::WalkResult::Advance();
     };
-    for (const PrimExpr& expr : init_realize->iter_values) {
+    for (const PrimExpr& expr : init_iter_values) {
       if (!ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(expr, walkfn).has_value()) {
         continue;
       }
@@ -300,7 +299,9 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
   }
   // Step 4. Derive the predicate for the init block realize.  Omit conjunction clauses that
   //         depend on discarded loops.
-  init_realize->predicate = RewriteInitPredicate(realize->predicate, discarded_loops);
+  auto init_realize = ffi::make_object<SBlockRealizeNode>(
+      RewriteInitPredicate(realize->predicate, discarded_loops), SBlock(init_block));
+  init_realize->iter_values = std::move(init_iter_values);
   // Step 5. Create new loops above init block
   std::unordered_map<Var, Var> loop_var_map;
   Stmt body = SBlockRealize(init_realize);

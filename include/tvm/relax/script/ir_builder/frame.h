@@ -208,8 +208,11 @@ class BindingBlockFrame : public RelaxFrame {
  */
 class IfFrameNode : public RelaxFrameNode {
  public:
+  explicit IfFrameNode(tvm::relax::Expr condition) : condition(std::move(condition)) {}
+  explicit IfFrameNode(ffi::UnsafeInit) : condition(ffi::UnsafeInit{}) {}
+
   /*! \brief The condition of the if statement. */
-  tvm::relax::Expr condition{ffi::UnsafeInit{}};
+  tvm::relax::Expr condition;
   /*! \brief The Bindings in the true branch. */
   ffi::Optional<tvm::relax::Expr> then_expr;
   /*! \brief The Bindings in the false branch. */

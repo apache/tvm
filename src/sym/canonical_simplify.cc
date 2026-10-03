@@ -125,8 +125,11 @@ bool CastIsSafe(PrimType dtype, PrimExpr value, AnalyzerObj* analyzer) {
  */
 class SplitExprNode : public CanonicalExprNode {
  public:
+  explicit SplitExprNode(PrimExpr index) : index(std::move(index)) {}
+  explicit SplitExprNode(ffi::UnsafeInit) : index(ffi::UnsafeInit{}) {}
+
   /*! \brief The base index expression. */
-  PrimExpr index{ffi::UnsafeInit{}};
+  PrimExpr index;
   /*! \brief The division factor ratio. */
   ffi::BigInt lower_factor{1};
   /*!
@@ -712,9 +715,8 @@ class CanonicalSimplifier::Impl : public RewriteSimplifier::Impl {
     if (const auto* op = expr.as<CanonicalExprNode>()) {
       expr = op->Normalize();
     }
-    ffi::ObjectPtr<SplitExprNode> n = ffi::make_object<SplitExprNode>();
-    n->ExprNode::ty = expr.ty();
-    n->index = std::move(expr);
+    ffi::ObjectPtr<SplitExprNode> n = ffi::make_object<SplitExprNode>(std::move(expr));
+    n->ExprNode::ty = n->index.ty();
     n->div_mode = kTruncDiv;
     return SplitExpr(n);
   }

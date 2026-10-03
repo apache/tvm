@@ -43,10 +43,15 @@ namespace s_tir {
  */
 class MatchBufferRegionNode : public ffi::Object {
  public:
+  explicit MatchBufferRegionNode(ffi::UnsafeInit tag) : buffer(tag), source(tag) {}
+
+  MatchBufferRegionNode(tirx::BufferVar buffer, TensorRegion source)
+      : buffer(std::move(buffer)), source(std::move(source)) {}
+
   /*! \brief The target buffer. */
-  tirx::BufferVar buffer{ffi::UnsafeInit{}};
+  tirx::BufferVar buffer;
   /*! \brief The source buffer region. */
-  TensorRegion source{ffi::UnsafeInit{}};
+  TensorRegion source;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -95,6 +100,10 @@ class MatchBufferRegion : public ffi::ObjectRef {
  */
 class SBlockNode : public tirx::StmtNode {
  public:
+  explicit SBlockNode(ffi::UnsafeInit tag) : body(tag) {}
+
+  explicit SBlockNode(tirx::Stmt body) : body(std::move(body)) {}
+
   /*! \brief The variables of the block. */
   ffi::Array<tirx::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
@@ -118,7 +127,7 @@ class SBlockNode : public tirx::StmtNode {
    */
   ffi::Optional<tirx::Stmt> init;
   /*! \brief The body of the block. */
-  tirx::Stmt body{ffi::UnsafeInit{}};
+  tirx::Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -167,15 +176,20 @@ class SBlock : public tirx::Stmt {
  */
 class SBlockRealizeNode : public tirx::StmtNode {
  public:
+  explicit SBlockRealizeNode(ffi::UnsafeInit tag) : predicate(tag), block(tag) {}
+
+  SBlockRealizeNode(PrimExpr predicate, SBlock block)
+      : predicate(std::move(predicate)), block(std::move(block)) {}
+
   /*! \brief The corresponding values of the iter vars. */
   ffi::Array<PrimExpr> iter_values;
   /*!
    * \brief The predicate of the block realization, the block will only be executed when the
    * predicate is true.
    */
-  PrimExpr predicate{ffi::UnsafeInit{}};
+  PrimExpr predicate;
   /*! \brief The block to be realized. */
-  SBlock block{ffi::UnsafeInit{}};
+  SBlock block;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

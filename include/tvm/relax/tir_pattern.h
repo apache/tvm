@@ -38,8 +38,11 @@ using TIRPattern = tirx::PrimFunc;
  */
 class MatchResultNode : public ffi::Object {
  public:
+  explicit MatchResultNode(TIRPattern pattern) : pattern(std::move(pattern)) {}
+  explicit MatchResultNode(ffi::UnsafeInit) : pattern(ffi::UnsafeInit{}) {}
+
   /*! The matched tirx pattern*/
-  TIRPattern pattern{ffi::UnsafeInit{}};
+  TIRPattern pattern;
   /*! \brief The evaluated values of symbolic vars. */
   ffi::Array<PrimExpr> symbol_values;
   /*! \brief The matched buffers of input and output. */

@@ -205,10 +205,15 @@ class ForFrame : public TIRFrame {
  */
 class AssertFrameNode : public TIRFrameNode {
  public:
+  explicit AssertFrameNode(ffi::UnsafeInit tag) : condition(tag), error_kind(tag) {}
+
+  AssertFrameNode(PrimExpr condition, tvm::StringImm error_kind)
+      : condition(std::move(condition)), error_kind(std::move(error_kind)) {}
+
   /*! \brief The PrimExpr to test. */
-  PrimExpr condition{ffi::UnsafeInit{}};
+  PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  tvm::StringImm error_kind{ffi::UnsafeInit{}};
+  tvm::StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
   ffi::Array<tvm::StringImm> message_parts;
 
@@ -250,8 +255,12 @@ class AssertFrame : public TIRFrame {
  */
 class LaunchThreadFrameNode : public TIRFrameNode {
  public:
+  explicit LaunchThreadFrameNode(ffi::UnsafeInit tag) : extent(tag) {}
+
+  explicit LaunchThreadFrameNode(PrimExpr extent) : extent(std::move(extent)) {}
+
   /*! \brief The extent of environment thread. */
-  PrimExpr extent{ffi::UnsafeInit{}};
+  PrimExpr extent;
   /*! \brief The attribute key, could be either virtual_thread or thread_extent. */
   ffi::String attr_key;
   /*! \brief The iteration variable. */
@@ -297,12 +306,16 @@ class LaunchThreadFrame : public TIRFrame {
  */
 class AttrFrameNode : public TIRFrameNode {
  public:
+  explicit AttrFrameNode(ffi::UnsafeInit tag) : value(tag) {}
+
+  explicit AttrFrameNode(Expr value) : value(std::move(value)) {}
+
   /*! \brief The node to annotate the attribute. */
   Any node;
   /*! \brief Attribute type key. */
   ffi::String attr_key;
   /*! \brief The value of the attribute. */
-  Expr value{ffi::UnsafeInit{}};
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -343,8 +356,12 @@ class AttrFrame : public TIRFrame {
  */
 class WhileFrameNode : public TIRFrameNode {
  public:
+  explicit WhileFrameNode(ffi::UnsafeInit tag) : condition(tag) {}
+
+  explicit WhileFrameNode(PrimExpr condition) : condition(std::move(condition)) {}
+
   /*! \brief The termination condition of while. */
-  PrimExpr condition{ffi::UnsafeInit{}};
+  PrimExpr condition;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -382,8 +399,12 @@ class WhileFrame : public TIRFrame {
  */
 class IfFrameNode : public TIRFrameNode {
  public:
+  explicit IfFrameNode(ffi::UnsafeInit tag) : condition(tag) {}
+
+  explicit IfFrameNode(PrimExpr condition) : condition(std::move(condition)) {}
+
   /*! \brief The condition of the if statement. */
-  PrimExpr condition{ffi::UnsafeInit{}};
+  PrimExpr condition;
   /*! \brief The statements in the true branch. */
   ffi::Optional<ffi::Array<tvm::tirx::Stmt>> then_stmts;
   /*! \brief The stetements in the false branch. */
@@ -502,8 +523,12 @@ class ElseFrame : public TIRFrame {
 
 class DeclTensorFrameNode : public TIRFrameNode {
  public:
+  explicit DeclTensorFrameNode(ffi::UnsafeInit tag) : buffer(tag) {}
+
+  explicit DeclTensorFrameNode(tvm::tirx::BufferVar buffer) : buffer(std::move(buffer)) {}
+
   /*! \brief The declared buffer. */
-  tvm::tirx::BufferVar buffer{ffi::UnsafeInit{}};
+  tvm::tirx::BufferVar buffer;
   /*! \brief Physical pointer expression backing the declaration. */
   ffi::Optional<Expr> data;
   /*! \brief The buffer allocated or not. */

@@ -82,10 +82,14 @@ class Stmt : public ffi::ObjectRef {
  */
 class BindNode : public StmtNode {
  public:
+  explicit BindNode(ffi::UnsafeInit tag) : var(tag), value(tag) {}
+
+  BindNode(Var var, Expr value) : var(std::move(var)), value(std::move(value)) {}
+
   /*! \brief The variable being bound. */
-  Var var{ffi::UnsafeInit{}};
+  Var var;
   /*! \brief The value to bind to the variable. */
-  Expr value{ffi::UnsafeInit{}};
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -122,14 +126,18 @@ class Bind : public Stmt {
  */
 class AttrStmtNode : public StmtNode {
  public:
+  explicit AttrStmtNode(ffi::UnsafeInit tag) : value(tag), body(tag) {}
+
+  AttrStmtNode(Expr value, Stmt body) : value(std::move(value)), body(std::move(body)) {}
+
   /*! \brief this is attribute about certain node */
   ffi::Any node;
   /*! \brief the type key of the attribute */
   ffi::String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
-  Expr value{ffi::UnsafeInit{}};
+  Expr value;
   /*! \brief The body statement to be executed */
-  Stmt body{ffi::UnsafeInit{}};
+  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -167,10 +175,15 @@ class AttrStmt : public Stmt {
  */
 class AssertStmtNode : public StmtNode {
  public:
+  explicit AssertStmtNode(ffi::UnsafeInit tag) : condition(tag), error_kind(tag) {}
+
+  AssertStmtNode(PrimExpr condition, StringImm error_kind)
+      : condition(std::move(condition)), error_kind(std::move(error_kind)) {}
+
   /*! \brief Condition to be checked. */
-  PrimExpr condition{ffi::UnsafeInit{}};
+  PrimExpr condition;
   /*! \brief The error kind, e.g. "RuntimeError", "TypeError", "ValueError". */
-  StringImm error_kind{ffi::UnsafeInit{}};
+  StringImm error_kind;
   /*! \brief Error message fragments, concatenated at runtime when assertion fails. */
   ffi::Array<StringImm> message_parts;
 
@@ -211,10 +224,15 @@ class AssertStmt : public Stmt {
  */
 class BufferStoreNode : public StmtNode {
  public:
+  explicit BufferStoreNode(ffi::UnsafeInit tag) : buffer(tag), value(tag) {}
+
+  BufferStoreNode(BufferVar buffer, PrimExpr value)
+      : buffer(std::move(buffer)), value(std::move(value)) {}
+
   /*! \brief The buffer variable. */
-  BufferVar buffer{ffi::UnsafeInit{}};
+  BufferVar buffer;
   /*! \brief The value to be stored. */
-  PrimExpr value{ffi::UnsafeInit{}};
+  PrimExpr value;
   /*! \brief The indices location to be stored. */
   ffi::Array<PrimExpr> indices;
 
@@ -274,8 +292,12 @@ class SeqStmtNode : public StmtNode {
  */
 class EvaluateNode : public StmtNode {
  public:
+  explicit EvaluateNode(ffi::UnsafeInit tag) : value(tag) {}
+
+  explicit EvaluateNode(Expr value) : value(std::move(value)) {}
+
   /*! \brief The expression to be evaluated. */
-  Expr value{ffi::UnsafeInit{}};
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -462,10 +484,15 @@ class SeqStmt : public Stmt {
  */
 class IfThenElseNode : public StmtNode {
  public:
+  explicit IfThenElseNode(ffi::UnsafeInit tag) : condition(tag), then_case(tag) {}
+
+  IfThenElseNode(PrimExpr condition, Stmt then_case)
+      : condition(std::move(condition)), then_case(std::move(then_case)) {}
+
   /*! \brief The condition. */
-  PrimExpr condition{ffi::UnsafeInit{}};
+  PrimExpr condition;
   /*! \brief The branch to be executed when condition is true. */
-  Stmt then_case{ffi::UnsafeInit{}};
+  Stmt then_case;
   /*! \brief The branch to be executed when condition is false, can be null. */
   ffi::Optional<Stmt> else_case;
 
@@ -534,16 +561,24 @@ enum class ForKind : int {
  */
 class ForNode : public StmtNode {
  public:
+  explicit ForNode(ffi::UnsafeInit tag) : loop_var(tag), min(tag), extent(tag), body(tag) {}
+
+  ForNode(PrimVar loop_var, PrimExpr min, PrimExpr extent, Stmt body)
+      : loop_var(std::move(loop_var)),
+        min(std::move(min)),
+        extent(std::move(extent)),
+        body(std::move(body)) {}
+
   /*! \brief The loop variable. */
-  PrimVar loop_var{ffi::UnsafeInit{}};
+  PrimVar loop_var;
   /*! \brief The minimum value of iteration. */
-  PrimExpr min{ffi::UnsafeInit{}};
+  PrimExpr min;
   /*! \brief The extent of the iteration. */
-  PrimExpr extent{ffi::UnsafeInit{}};
+  PrimExpr extent;
   /*! \brief The kind of the for loop. */
   ForKind kind;
   /*! \brief The body of the for loop. */
-  Stmt body{ffi::UnsafeInit{}};
+  Stmt body;
   /*!
    * \brief Only valid when kind == ForKind::kThreadBinding
    * The context thread that this loop variable bounds to.
@@ -611,10 +646,15 @@ class For : public Stmt {
  */
 class WhileNode : public StmtNode {
  public:
+  explicit WhileNode(ffi::UnsafeInit tag) : condition(tag), body(tag) {}
+
+  WhileNode(PrimExpr condition, Stmt body)
+      : condition(std::move(condition)), body(std::move(body)) {}
+
   /*! \brief The termination condition. */
-  PrimExpr condition{ffi::UnsafeInit{}};
+  PrimExpr condition;
   /*! \brief The body of the while loop. */
-  Stmt body{ffi::UnsafeInit{}};
+  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -644,8 +684,12 @@ class While : public Stmt {
  */
 class ReturnNode : public StmtNode {
  public:
+  explicit ReturnNode(ffi::UnsafeInit tag) : value(tag) {}
+
+  explicit ReturnNode(Expr value) : value(std::move(value)) {}
+
   /*! \brief The value to return. */
-  Expr value{ffi::UnsafeInit{}};
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

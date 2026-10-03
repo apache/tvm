@@ -315,9 +315,8 @@ MatchBufferRegion::MatchBufferRegion(BufferVar buffer, TensorRegion source) {
     }
   }
   // Note that we do not check elem_offset and strides in this function
-  ffi::ObjectPtr<MatchBufferRegionNode> node = ffi::make_object<MatchBufferRegionNode>();
-  node->buffer = std::move(buffer);
-  node->source = std::move(source);
+  ffi::ObjectPtr<MatchBufferRegionNode> node =
+      ffi::make_object<MatchBufferRegionNode>(std::move(buffer), std::move(source));
   data_ = std::move(node);
 }
 
@@ -351,12 +350,11 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
           << "SBlock region must match its buffer rank";
     }
   }
-  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
+  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>(std::move(body));
   node->iter_vars = std::move(iter_vars);
   node->reads = std::move(reads);
   node->writes = std::move(writes);
   node->name_hint = std::move(name_hint);
-  node->body = std::move(body);
   node->init = std::move(init);
   node->alloc_buffers = std::move(alloc_buffers);
   node->match_buffers = std::move(match_buffers);
@@ -367,12 +365,11 @@ SBlock::SBlock(ffi::Array<IterVar> iter_vars, ffi::Array<TensorRegion> reads,
 
 SBlock::SBlock(ffi::String name_hint, Stmt body, ffi::Array<BufferVar> alloc_buffers, Span span)
     : tirx::Stmt(ffi::UnsafeInit{}) {
-  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>();
+  ffi::ObjectPtr<SBlockNode> node = ffi::make_object<SBlockNode>(std::move(body));
   node->iter_vars = {};
   node->reads = {};
   node->writes = {};
   node->name_hint = std::move(name_hint);
-  node->body = std::move(body);
   node->init = std::nullopt;
   node->alloc_buffers = std::move(alloc_buffers);
   node->match_buffers = {};
@@ -410,10 +407,9 @@ SBlockRealize::SBlockRealize(ffi::Array<PrimExpr> values, PrimExpr predicate, SB
   PrimType predicate_ty = predicate.ty();
   TVM_FFI_CHECK(predicate_ty.MatchesCode(DLDataTypeCode::kDLBool), TypeError)
       << "Expect Block.predicate to be a bool expression";
-  ffi::ObjectPtr<SBlockRealizeNode> node = ffi::make_object<SBlockRealizeNode>();
+  ffi::ObjectPtr<SBlockRealizeNode> node =
+      ffi::make_object<SBlockRealizeNode>(std::move(predicate), std::move(block));
   node->iter_values = std::move(values);
-  node->predicate = std::move(predicate);
-  node->block = std::move(block);
   node->span = std::move(span);
   data_ = std::move(node);
 }

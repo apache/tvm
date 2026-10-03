@@ -57,9 +57,8 @@ TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
         << "Parameters of the implementation of "
            "the tensor intrinsic should be handle only.";
   }
-  ffi::ObjectPtr<TensorIntrinNode> n = ffi::make_object<TensorIntrinNode>();
-  n->desc = std::move(desc);
-  n->impl = std::move(impl);
+  ffi::ObjectPtr<TensorIntrinNode> n =
+      ffi::make_object<TensorIntrinNode>(std::move(desc), std::move(impl));
   data_ = std::move(n);
 }
 

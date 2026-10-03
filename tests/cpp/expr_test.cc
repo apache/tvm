@@ -189,9 +189,8 @@ TEST(Expr, DeepEqualTensorLoadSourceIdentity) {
   Var source("source", PointerType(PrimType::Float(32)));
   Var other_source("source", PointerType(PrimType::Float(32)));
   auto load = [](Expr source, PrimExpr index) {
-    auto node = ffi::make_object<TensorLoadNode>();
+    auto node = ffi::make_object<TensorLoadNode>(source);
     node->ty = PrimType::Float(32);
-    node->source = source;
     node->indices = {index};
     return TensorLoad(node);
   };

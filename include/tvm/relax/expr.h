@@ -97,9 +97,12 @@ TVM_DLL GenericConst MakeTensorConst(runtime::Tensor data,
 /*! \brief The base class of a variable binding in Relax. */
 class BindingNode : public ffi::Object {
  public:
+  explicit BindingNode(Var var) : var(std::move(var)) {}
+  explicit BindingNode(ffi::UnsafeInit) : var(ffi::UnsafeInit{}) {}
+
   mutable Span span;
   /*! \brief The return variable to bound to. */
-  Var var{ffi::UnsafeInit{}};
+  Var var;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -139,8 +142,13 @@ class Binding : public ffi::ObjectRef {
  */
 class MatchCastNode : public BindingNode {
  public:
+  explicit MatchCastNode(Var var, Expr value)
+      : BindingNode(std::move(var)), value(std::move(value)) {}
+  explicit MatchCastNode(ffi::UnsafeInit)
+      : BindingNode(ffi::UnsafeInit{}), value(ffi::UnsafeInit{}) {}
+
   /*! \brief The input value to match cast. */
-  Expr value{ffi::UnsafeInit{}};
+  Expr value;
   /*! \brief The type pattern to match to. */
   Type ty = Type::Missing();
 
@@ -168,8 +176,13 @@ class MatchCast : public Binding {
 
 class VarBindingNode : public BindingNode {
  public:
+  explicit VarBindingNode(Var var, Expr value)
+      : BindingNode(std::move(var)), value(std::move(value)) {}
+  explicit VarBindingNode(ffi::UnsafeInit)
+      : BindingNode(ffi::UnsafeInit{}), value(ffi::UnsafeInit{}) {}
+
   /*! \brief The binding value. */
-  Expr value{ffi::UnsafeInit{}};
+  Expr value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -241,8 +254,11 @@ class DataflowBlock : public BindingBlock {
  */
 class SeqExprNode : public ExprNode {
  public:
+  explicit SeqExprNode(Expr body) : body(std::move(body)) {}
+  explicit SeqExprNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
+
   ffi::Array<BindingBlock> blocks;
-  Expr body{ffi::UnsafeInit{}};
+  Expr body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -307,12 +323,19 @@ class SeqExpr : public Expr {
  */
 class IfNode : public ExprNode {
  public:
+  explicit IfNode(Expr cond, SeqExpr true_branch, SeqExpr false_branch)
+      : cond(std::move(cond)),
+        true_branch(std::move(true_branch)),
+        false_branch(std::move(false_branch)) {}
+  explicit IfNode(ffi::UnsafeInit)
+      : cond(ffi::UnsafeInit{}), true_branch(ffi::UnsafeInit{}), false_branch(ffi::UnsafeInit{}) {}
+
   /*! \brief The condition. */
-  Expr cond{ffi::UnsafeInit{}};
+  Expr cond;
   /*! \brief The expression evaluated when condition is true. */
-  SeqExpr true_branch{ffi::UnsafeInit{}};
+  SeqExpr true_branch;
   /*! \brief The expression evaluated when condition is false */
-  SeqExpr false_branch{ffi::UnsafeInit{}};
+  SeqExpr false_branch;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -356,10 +379,13 @@ class If : public Expr {
 /*! \brief A Relax function. */
 class FunctionNode : public BaseFuncNode {
  public:
+  explicit FunctionNode(SeqExpr body) : body(std::move(body)) {}
+  explicit FunctionNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
+
   /*! \brief The parameters to the function. */
   ffi::Array<Var> params;
   /*! \brief The body of the function. */
-  SeqExpr body{ffi::UnsafeInit{}};
+  SeqExpr body;
   /*! \brief The return type of the function. */
   Type ret_ty = Type::Missing();
   /*! \brief Whether the function is annotated as pure or not. */

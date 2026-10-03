@@ -88,7 +88,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMaybeInplaceMuta
 
 // IterVar
 IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Span span) {
-  ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>();
+  ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(var);
   if (dom.defined() && dom->extent.defined()) {
     PrimType extent_ty = dom->extent.ty();
     PrimType var_ty = var.ty();
@@ -101,7 +101,6 @@ IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, 
         << ") must match its associated Var's dtype (" << var_ty->dtype << ")";
   }
   n->dom = dom;
-  n->var = var;
   n->iter_type = t;
   n->thread_tag = thread_tag;
   n->span = std::move(span);

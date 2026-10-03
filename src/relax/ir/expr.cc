@@ -400,10 +400,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
 TVM_FFI_STATIC_INIT_BLOCK() { BindingNode::RegisterReflection(); }
 
 If::If(Expr cond, Expr true_branch, Expr false_branch, Span span) : Expr(ffi::UnsafeInit{}) {
-  ffi::ObjectPtr<IfNode> n = ffi::make_object<IfNode>();
-  n->cond = std::move(cond);
-  n->true_branch = std::move(true_branch);
-  n->false_branch = std::move(false_branch);
+  ffi::ObjectPtr<IfNode> n =
+      ffi::make_object<IfNode>(std::move(cond), std::move(true_branch), std::move(false_branch));
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -498,10 +496,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 MatchCast::MatchCast(Var var, Expr value, Type ty, Span span) {
-  ffi::ObjectPtr<MatchCastNode> n = ffi::make_object<MatchCastNode>();
   TVM_FFI_ICHECK(var.defined()) << "MatchCast requires var to be defined";
-  n->var = std::move(var);
-  n->value = std::move(value);
+  ffi::ObjectPtr<MatchCastNode> n =
+      ffi::make_object<MatchCastNode>(std::move(var), std::move(value));
   n->ty = std::move(ty);
   n->span = span;
   data_ = std::move(n);
@@ -517,9 +514,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 VarBinding::VarBinding(Var var, Expr value, Span span) {
-  ffi::ObjectPtr<VarBindingNode> n = ffi::make_object<VarBindingNode>();
-  n->var = std::move(var);
-  n->value = std::move(value);
+  ffi::ObjectPtr<VarBindingNode> n =
+      ffi::make_object<VarBindingNode>(std::move(var), std::move(value));
   n->span = span;
   data_ = std::move(n);
 }
@@ -621,9 +617,8 @@ SeqExpr::SeqExpr(Expr body) : Expr(ffi::UnsafeInit{}) {
 }
 
 SeqExpr::SeqExpr(ffi::Array<BindingBlock> blocks, Expr body, Span span) : Expr(ffi::UnsafeInit{}) {
-  ffi::ObjectPtr<SeqExprNode> n = ffi::make_object<SeqExprNode>();
+  ffi::ObjectPtr<SeqExprNode> n = ffi::make_object<SeqExprNode>(std::move(body));
   n->blocks = std::move(blocks);
-  n->body = std::move(body);
   n->span = span;
   data_ = std::move(n);
 }
@@ -694,9 +689,8 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
   FuncType func_ty(param_ty, ret_ty.value(), is_pure);
 
   // set the fields
-  ffi::ObjectPtr<FunctionNode> n = ffi::make_object<FunctionNode>();
+  ffi::ObjectPtr<FunctionNode> n = ffi::make_object<FunctionNode>(std::move(body));
   n->params = std::move(params);
-  n->body = std::move(body);
   n->ret_ty = ret_ty.value();
   n->is_pure = is_pure;
   n->ty = std::move(func_ty);
@@ -741,9 +735,8 @@ Function Function::CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure
   }();
 
   // set the fields
-  ffi::ObjectPtr<FunctionNode> n = ffi::make_object<FunctionNode>();
+  ffi::ObjectPtr<FunctionNode> n = ffi::make_object<FunctionNode>(std::move(body));
   n->params = std::move(params);
-  n->body = std::move(body);
   n->is_pure = is_pure;
   n->ty = std::move(finfo);
   n->ret_ty = std::move(ret_ty);

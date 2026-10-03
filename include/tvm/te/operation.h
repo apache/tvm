@@ -96,6 +96,9 @@ class CommReducer : public ffi::ObjectRef {
 /*! \brief Reduction operator */
 class ReduceNode : public OpaqueExprNode {
  public:
+  explicit ReduceNode(PrimExpr condition) : condition(std::move(condition)) {}
+  explicit ReduceNode(ffi::UnsafeInit) : condition(ffi::UnsafeInit{}) {}
+
   /*! \brief The commutative combiner */
   CommReducer combiner;
   /*! \brief The source operand */
@@ -108,7 +111,7 @@ class ReduceNode : public OpaqueExprNode {
    * \brief Predicate on the reduction
    *  Only add the body to reduction if condition is true.
    */
-  PrimExpr condition{ffi::UnsafeInit{}};
+  PrimExpr condition;
   /*! \brief the index of this reduce node */
   int value_index;
 
@@ -354,6 +357,9 @@ class ScanOp : public Operation {
  */
 class ExternOpNode : public OperationNode {
  public:
+  explicit ExternOpNode(Stmt body) : body(std::move(body)) {}
+  explicit ExternOpNode(ffi::UnsafeInit) : body(ffi::UnsafeInit{}) {}
+
   /*! \brief The input tensors */
   ffi::Array<Tensor> inputs;
   /*! \brief Symbolic placeholder representation of inputs */
@@ -361,10 +367,8 @@ class ExternOpNode : public OperationNode {
   /*! \brief Symbolic placeholder representation of outputs */
   ffi::Array<BufferVar> output_placeholders;
   /*! \brief the statement that generates the computation. */
-  Stmt body{ffi::UnsafeInit{}};
+  Stmt body;
 
-  /*! \brief constructor */
-  ExternOpNode() {}
   // override functions
   int num_outputs() const final;
   PrimType output_dtype(size_t i) const final;

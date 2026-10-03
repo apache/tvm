@@ -697,8 +697,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TensorRegion::TensorRegion(Expr source, ffi::Array<Range> region, Type ty, Span span)
     : Expr(ffi::UnsafeInit{}) {
-  auto node = ffi::make_object<TensorRegionNode>();
-  node->source = std::move(source);
+  auto node = ffi::make_object<TensorRegionNode>(source);
   node->region = std::move(region);
   node->ty = std::move(ty);
   node->span = std::move(span);
@@ -760,14 +759,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) : Expr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK_GE(index, 0, IndexError) << "Index out of bounds: Tuple " << tuple
                                          << " cannot be accessed with negative index " << index;
-  ffi::ObjectPtr<TupleGetItemNode> node = ffi::make_object<TupleGetItemNode>();
+  ffi::ObjectPtr<TupleGetItemNode> node = ffi::make_object<TupleGetItemNode>(tuple);
   if (const auto* tuple_type = tuple->ty.as<TupleTypeNode>()) {
     TVM_FFI_CHECK_LT(index, tuple_type->fields.size(), IndexError)
         << "Index out of bounds: Tuple " << tuple << " is of size " << tuple_type->fields.size()
         << ", and cannot be accessed with index " << index;
     node->ty = tuple_type->fields[index];
   }
-  node->tuple = std::move(tuple);
   node->index = index;
   node->span = std::move(span);
   data_ = std::move(node);
@@ -1193,9 +1191,8 @@ Call::Call(Type ret_ty, Expr op, ffi::Array<Expr> args, Attrs attrs, ffi::Array<
     : Expr(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined(), ValueError) << "Call expects a defined operator";
 
-  ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>();
+  ffi::ObjectPtr<CallNode> n = ffi::make_object<CallNode>(op);
   n->ExprNode::ty = std::move(ret_ty);
-  n->op = std::move(op);
   n->args = std::move(args);
   n->attrs = std::move(attrs);
   n->ty_args = std::move(ty_args);

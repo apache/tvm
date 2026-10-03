@@ -77,8 +77,11 @@ class Tuple : public Expr {
 /*! \brief Get the index-th field out of a tuple. */
 class TupleGetItemNode : public ExprNode {
  public:
+  explicit TupleGetItemNode(Expr tuple) : tuple(std::move(tuple)) {}
+  explicit TupleGetItemNode(ffi::UnsafeInit tag) : tuple(tag) {}
+
   /*! \brief The tuple expression. */
-  Expr tuple{ffi::UnsafeInit{}};
+  Expr tuple;
   /*! \brief The field index. */
   int index;
 
@@ -112,8 +115,11 @@ class TupleGetItem : public Expr {
 /*! \brief Load a value from an indexed expression source. */
 class TensorLoadNode : public ExprNode {
  public:
+  explicit TensorLoadNode(Expr source) : source(std::move(source)) {}
+  explicit TensorLoadNode(ffi::UnsafeInit tag) : source(tag) {}
+
   /*! \brief The indexed source expression. */
-  Expr source{ffi::UnsafeInit{}};
+  Expr source;
   /*! \brief The indices at which the source is loaded. */
   ffi::Array<PrimExpr> indices;
 
@@ -488,13 +494,16 @@ class GlobalVar : public Expr {
  */
 class CallNode : public ExprNode {
  public:
+  explicit CallNode(Expr op) : op(std::move(op)) {}
+  explicit CallNode(ffi::UnsafeInit tag) : op(tag) {}
+
   /*!
    * \brief The operator/function being invoked.
    *
    * It can be an Op, a GlobalVar, a local function value, or another callable
    * expression.
    */
-  Expr op{ffi::UnsafeInit{}};
+  Expr op;
 
   /*! \brief The arguments of the call. */
   ffi::Array<Expr> args;
@@ -750,13 +759,13 @@ class FloatImm : public PrimExpr {
 class RangeNode : public ffi::Object {
  public:
   /*! \brief beginning of the node */
-  PrimExpr min{ffi::UnsafeInit{}};
+  PrimExpr min;
   /*! \brief the extend of range */
-  PrimExpr extent{ffi::UnsafeInit{}};
+  PrimExpr extent;
   /*! \brief the location of this range in the source */
   mutable Span span;
   /*! \brief constructor */
-  RangeNode() {}
+  explicit RangeNode(ffi::UnsafeInit tag) : min(tag), extent(tag) {}
   RangeNode(PrimExpr min, PrimExpr extent, Span span = Span())
       : min(min), extent(extent), span(span) {}
 
@@ -801,8 +810,11 @@ class Range : public ffi::ObjectRef {
 /*! \brief A region of an indexed expression source. */
 class TensorRegionNode : public ExprNode {
  public:
+  explicit TensorRegionNode(Expr source) : source(std::move(source)) {}
+  explicit TensorRegionNode(ffi::UnsafeInit tag) : source(tag) {}
+
   /*! \brief The indexed source expression. */
-  Expr source{ffi::UnsafeInit{}};
+  Expr source;
   /*! \brief The ranges selected from the source. */
   ffi::Array<Range> region;
 

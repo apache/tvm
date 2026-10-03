@@ -1534,8 +1534,8 @@ PatternCheckContext::PatternCheckContext(Expr matched_expr,
                                          ffi::Map<Var, Expr> matched_bindings,
                                          ffi::Map<Var, ffi::Array<Var>> var_usages,
                                          ffi::Map<Expr, Var> value_to_bound_var) {
-  ffi::ObjectPtr<PatternCheckContextNode> n = ffi::make_object<PatternCheckContextNode>();
-  n->matched_expr = std::move(matched_expr);
+  ffi::ObjectPtr<PatternCheckContextNode> n =
+      ffi::make_object<PatternCheckContextNode>(std::move(matched_expr));
   n->annotated_expr = std::move(annotated_expr);
   n->matched_bindings = std::move(matched_bindings);
   n->var_usages = std::move(var_usages);

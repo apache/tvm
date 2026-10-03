@@ -102,10 +102,13 @@ using namespace tvm::prim;
  */
 class StorageTokenNode : public ffi::Object {
  public:
+  explicit StorageTokenNode(PrimExpr bytes) : bytes(std::move(bytes)) {}
+  explicit StorageTokenNode(ffi::UnsafeInit) : bytes(ffi::UnsafeInit{}) {}
+
   /*! \brief Reference counter. */
   int ref_counter{0};
   /*! \brief Number of bytes that this token requires. */
-  PrimExpr bytes{ffi::UnsafeInit{}};
+  PrimExpr bytes;
   /*! \brief The dtype of this token. */
   DLDataType dtype;
   /*! \brief The memory scope of the token. */
@@ -180,8 +183,7 @@ class StorageToken : public ffi::ObjectRef {
 
     size = IntImm::Int64(const_coeff) * size;
 
-    ffi::ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>();
-    n->bytes = size;
+    ffi::ObjectPtr<StorageTokenNode> n = ffi::make_object<StorageTokenNode>(size);
     n->dtype = dtype;
     n->storage_scope = std::move(storage_scope);
     n->vdevice = std::move(vdevice);

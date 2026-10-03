@@ -151,9 +151,7 @@ TVM_FFI_STATIC_INIT_BLOCK() { ComposeLayoutNode::RegisterReflection(); }
 
 /**************** Iter ****************/
 Iter::Iter(PrimExpr extent, PrimExpr stride, Axis axis) {
-  auto n = ffi::make_object<IterNode>();
-  n->extent = extent;
-  n->stride = stride;
+  auto n = ffi::make_object<IterNode>(extent, stride);
   n->axis = axis;
   data_ = std::move(n);
 }

@@ -670,9 +670,7 @@ Bind::Bind(Var var, Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
   TVM_FFI_ICHECK(ffi::StructuralEqual()(value->ty, var->ty));
 
-  ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>();
-  node->var = std::move(var);
-  node->value = std::move(value);
+  ffi::ObjectPtr<BindNode> node = ffi::make_object<BindNode>(std::move(var), std::move(value));
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -693,11 +691,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // AttrStmt
 AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span)
     : Stmt(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<AttrStmtNode>();
+  auto n = ffi::make_object<AttrStmtNode>(std::move(value), std::move(body));
   n->node = node;
   n->attr_key = std::move(attr_key);
-  n->value = std::move(value);
-  n->body = std::move(body);
   n->span = std::move(span);
   data_ = std::move(n);
 }
@@ -729,9 +725,8 @@ AssertStmt::AssertStmt(PrimExpr condition, StringImm error_kind,
       << "but received " << condition << " with dtype " << condition_ty;
   TVM_FFI_ICHECK(error_kind.defined());
 
-  ffi::ObjectPtr<AssertStmtNode> node = ffi::make_object<AssertStmtNode>();
-  node->condition = std::move(condition);
-  node->error_kind = std::move(error_kind);
+  ffi::ObjectPtr<AssertStmtNode> node =
+      ffi::make_object<AssertStmtNode>(std::move(condition), std::move(error_kind));
   node->message_parts = std::move(message_parts);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -807,12 +802,9 @@ For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt bod
         << loop_var.ty() << " vs " << step.value().ty();
   }
 
-  ffi::ObjectPtr<ForNode> node = ffi::make_object<ForNode>();
-  node->loop_var = std::move(loop_var);
-  node->min = std::move(min);
-  node->extent = std::move(extent);
+  ffi::ObjectPtr<ForNode> node = ffi::make_object<ForNode>(std::move(loop_var), std::move(min),
+                                                           std::move(extent), std::move(body));
   node->kind = kind;
-  node->body = std::move(body);
   node->thread_binding = std::move(thread_binding);
   node->annotations = std::move(annotations);
   node->step = std::move(step);
@@ -867,9 +859,8 @@ While::While(PrimExpr condition, Stmt body, Span span) : Stmt(ffi::UnsafeInit{})
   TVM_FFI_ICHECK(condition.ty().IsScalar());
   TVM_FFI_ICHECK(body.defined());
 
-  ffi::ObjectPtr<WhileNode> node = ffi::make_object<WhileNode>();
-  node->condition = std::move(condition);
-  node->body = std::move(body);
+  ffi::ObjectPtr<WhileNode> node =
+      ffi::make_object<WhileNode>(std::move(condition), std::move(body));
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -892,8 +883,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Return::Return(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(value.defined());
 
-  ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>();
-  node->value = std::move(value);
+  ffi::ObjectPtr<ReturnNode> node = ffi::make_object<ReturnNode>(std::move(value));
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -997,9 +987,8 @@ IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, ffi::Optional<Stmt> e
   TVM_FFI_ICHECK(condition.defined());
   TVM_FFI_ICHECK(then_case.defined());
   // else_case may be null.
-  ffi::ObjectPtr<IfThenElseNode> node = ffi::make_object<IfThenElseNode>();
-  node->condition = std::move(condition);
-  node->then_case = std::move(then_case);
+  ffi::ObjectPtr<IfThenElseNode> node =
+      ffi::make_object<IfThenElseNode>(std::move(condition), std::move(then_case));
   node->else_case = std::move(else_case);
   node->span = std::move(span);
   data_ = std::move(node);
@@ -1029,8 +1018,7 @@ Evaluate::Evaluate(Expr value, Span span) : Stmt(ffi::UnsafeInit{}) {
       << "A buffer variable cannot be used as a scalar Evaluate value; "
       << "use buffer.data to evaluate its physical pointer";
 
-  ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>();
-  node->value = std::move(value);
+  ffi::ObjectPtr<EvaluateNode> node = ffi::make_object<EvaluateNode>(std::move(value));
   node->span = std::move(span);
   data_ = std::move(node);
 }
@@ -1103,9 +1091,8 @@ BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> 
                              << "`, but RHS's dtype is `" << value_ty << "`";
   }
 
-  ffi::ObjectPtr<BufferStoreNode> node = ffi::make_object<BufferStoreNode>();
-  node->buffer = std::move(buffer);
-  node->value = std::move(value);
+  ffi::ObjectPtr<BufferStoreNode> node =
+      ffi::make_object<BufferStoreNode>(std::move(buffer), std::move(value));
   node->indices = std::move(indices);
   node->span = std::move(span);
   data_ = std::move(node);

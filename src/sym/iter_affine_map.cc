@@ -49,9 +49,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 IterMark::IterMark(PrimExpr source, PrimExpr extent) {
-  auto n = ffi::make_object<IterMarkNode>();
-  n->source = std::move(source);
-  n->extent = std::move(extent);
+  auto n = ffi::make_object<IterMarkNode>(std::move(source), std::move(extent));
   data_ = std::move(n);
 }
 
@@ -64,36 +62,28 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // Pattern A (RM): auto-default repr from reflection.
 
 IterSplitExpr::IterSplitExpr(IterMark source) : IterMapExpr(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<IterSplitExprNode>();
   auto one = prim::MakeConst(source->source.ty(), 1);
+  auto n = ffi::make_object<IterSplitExprNode>(one, source->extent, one);
   n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
-  n->extent = n->source->extent;
-  n->lower_factor = one;
-  n->scale = one;
   data_ = std::move(n);
 }
 
 IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr scale) : IterMapExpr(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<IterSplitExprNode>();
   auto one = prim::MakeConst(source->source.ty(), 1);
+  auto n = ffi::make_object<IterSplitExprNode>(one, source->extent, std::move(scale));
   n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
-  n->extent = n->source->extent;
-  n->lower_factor = one;
-  n->scale = std::move(scale);
   data_ = std::move(n);
 }
 
 IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr extent,
                              PrimExpr scale)
     : IterMapExpr(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<IterSplitExprNode>();
+  auto n = ffi::make_object<IterSplitExprNode>(std::move(lower_factor), std::move(extent),
+                                               std::move(scale));
   n->ExprNode::ty = source->source.ty();
   n->source = std::move(source);
-  n->lower_factor = std::move(lower_factor);
-  n->extent = std::move(extent);
-  n->scale = std::move(scale);
   data_ = std::move(n);
 }
 
@@ -109,10 +99,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 IterSumExpr::IterSumExpr(ffi::Array<IterSplitExpr> args, PrimExpr base)
     : IterMapExpr(ffi::UnsafeInit{}) {
-  auto n = ffi::make_object<IterSumExprNode>();
-  n->ExprNode::ty = base.ty();
+  auto n = ffi::make_object<IterSumExprNode>(std::move(base));
+  n->ExprNode::ty = n->base.ty();
   n->args = std::move(args);
-  n->base = std::move(base);
   data_ = std::move(n);
 }
 

@@ -127,7 +127,7 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
     TVM_FFI_ICHECK_EQ(axis[i]->iter_type, kCommReduce)
         << "Can only take axis created by reduce_axis";
   }
-  auto n = ffi::make_object<ReduceNode>();
+  auto n = ffi::make_object<ReduceNode>(condition.value_or(IntImm::Bool(true)));
   TVM_FFI_ICHECK(source.defined());
   for (size_t i = 0; i < axis.size(); ++i) {
     TVM_FFI_ICHECK(axis[i].defined());
@@ -150,7 +150,6 @@ Reduce::Reduce(CommReducer combiner, ffi::Array<PrimExpr> source, ffi::Array<Ite
   n->source = std::move(source);
   n->init = std::move(init);
   n->axis = std::move(axis);
-  n->condition = condition.value_or(IntImm::Bool(true));
   n->value_index = value_index;
   n->span = std::move(span);
   data_ = std::move(n);

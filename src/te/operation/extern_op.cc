@@ -51,7 +51,7 @@ ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi:
   if (!attrs.defined()) {
     attrs = ffi::Map<ffi::String, ffi::Any>();
   }
-  auto n = ffi::make_object<ExternOpNode>();
+  auto n = ffi::make_object<ExternOpNode>(std::move(body));
   n->name = std::move(name);
   n->tag = std::move(tag);
   n->attrs = std::move(attrs);
@@ -67,7 +67,6 @@ ExternOp::ExternOp(std::string name, std::string tag, ffi::Map<ffi::String, ffi:
   n->inputs = std::move(inputs);
   n->input_placeholders = std::move(input_placeholders);
   n->output_placeholders = std::move(output_placeholders);
-  n->body = std::move(body);
   data_ = std::move(n);
 }
 
