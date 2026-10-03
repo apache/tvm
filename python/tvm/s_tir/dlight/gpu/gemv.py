@@ -19,7 +19,7 @@
 
 from functools import reduce
 
-from tvm import s_tir, tirx
+from tvm import arith, s_tir, tirx
 from tvm.target import Target
 
 from ..analysis import (
@@ -42,7 +42,7 @@ class GEMV(GPUScheduleRule):
         func: tirx.PrimFunc,
         target: Target,
         _: bool,
-    ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
+    ) -> s_tir.Schedule | list[s_tir.Schedule] | None:
         if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
@@ -118,6 +118,8 @@ class GEMV(GPUScheduleRule):
             UNROLL,
             SUPPORT_WARP_SHUFFLE,
         ):
+            analyzer = arith.Analyzer()
+
             # rfactor: reduce to tx * vec_c
             _, s, r, c = sch.get_loops(block=gemv)
             s = sch.fuse(_, s)
@@ -226,7 +228,8 @@ class GEMV(GPUScheduleRule):
                 factors=[None, get_max_factor(TILE_S, [1, 2, 4, 8])],
                 preserve_unit_iters=True,
             )
-            assert sch.get(ts_o).extent.value == 1
+            if not analyzer.can_prove_equal(sch.get(ts_o).extent, 1):
+                return None
             ts = sch.fuse(ts_o, ts_i)
             sch.reorder(ts, tr, tile_s, vec_s, vec_c)
             sch.bind(ts, TAG_S)
@@ -240,7 +243,8 @@ class GEMV(GPUScheduleRule):
             ts_o, ts_i, tile_s = sch.split(
                 ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
             )
-            assert sch.get(ts_o).extent.value == 1
+            if not analyzer.can_prove_equal(sch.get(ts_o).extent, 1):
+                return None
             ts = sch.fuse(ts_o, ts_i)
             sch.reorder(tile_s, ts, tr)
             sch.bind(ts, TAG_S)
@@ -298,7 +302,8 @@ class GEMV(GPUScheduleRule):
                     ts_o, ts_i, tile_s = sch.split(
                         ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
                     )
-                    assert sch.get(ts_o).extent.value == 1
+                    if not analyzer.can_prove_equal(sch.get(ts_o).extent, 1):
+                        return None
                     ts = sch.fuse(ts_o, ts_i)
                     sch.bind(ts, TAG_S)
                     sch.set_scope(block, 0, "local")
