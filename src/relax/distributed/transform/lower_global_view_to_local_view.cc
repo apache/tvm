@@ -214,7 +214,9 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
           int dim = pr.first;
           int shard = pr.second;
           auto sharding_var = GetShardingVarFromIndex(access_index[dim], iter_var_range, analyzer);
-          TVM_FFI_ICHECK(sharding_var.has_value()) << "Cannot determine sharding variable";
+          if (!sharding_var.has_value()) {
+            continue;
+          }
           Var var = sharding_var.value();
           TVM_FFI_ICHECK(!iter_var_shards_.count(var) || iter_var_shards_[var] == shard)
               << "A loop cannot have different sharding";
