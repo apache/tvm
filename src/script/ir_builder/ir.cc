@@ -54,7 +54,7 @@ IRModuleFrame IRModule() {
 // each dialect registers its own handler that maps a function of that
 // type to the appropriate ty.
 inline ffi::Optional<Type> GetGlobalVarType(const BaseFunc& func) {
-  if (!func->ty.IsMissing()) {
+  if (!func->ty.as<MissingType>().has_value()) {
     return func->ty;
   }
   // Registry: "script.ir_builder.decl_function.<type-key>" — per-function-kind

@@ -725,7 +725,7 @@ Tuple::Tuple(ffi::Array<Expr> fields, Span span) : Expr(ffi::UnsafeInit{}) {
   ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {
     ffi::Array<Type> field_ty;
     for (const Expr& field : fields) {
-      if (field->ty.IsMissing()) {
+      if (field->ty.as<MissingType>().has_value()) {
         return std::nullopt;
       }
       field_ty.push_back(field->ty);
@@ -821,7 +821,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Constants
 GenericConst::GenericConst(ffi::Any value, Type ty, Span span) : Constant(ffi::UnsafeInit{}) {
-  TVM_FFI_CHECK(!ty.IsMissing(), TypeError) << "GenericConst requires an expression type";
+  TVM_FFI_CHECK(!ty.as<MissingType>().has_value(), TypeError)
+      << "GenericConst requires an expression type";
   TVM_FFI_CHECK(!value.as<ffi::BigInt>() && !value.as<bool>() && !value.as<double>() &&
                     !value.as<ffi::String>(),
                 TypeError)
@@ -1217,7 +1218,7 @@ Type Call::ReinferType(const CallNode* call) {
   TVM_FFI_CHECK(infer_type.count(op.value()), ValueError)
       << "No context-free FInferType hook is registered for " << op.value();
   Type result = infer_type[op.value()].CallExpected(call).value();
-  TVM_FFI_CHECK(!result.IsMissing(), InternalError)
+  TVM_FFI_CHECK(!result.as<MissingType>().has_value(), InternalError)
       << "FInferType for " << op.value() << " returned Type::Missing()";
   return result;
 }

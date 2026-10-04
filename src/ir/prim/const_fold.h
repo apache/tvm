@@ -79,7 +79,7 @@ inline bool IsIndexType(DLDataType type) {
 
 inline bool IsIndexTypedExpr(const ExprNode* expr) {
   TVM_FFI_DCHECK(expr != nullptr);
-  TVM_FFI_DCHECK(!expr->ExprNode::ty.IsMissing());
+  TVM_FFI_DCHECK(!expr->ExprNode::ty.as<MissingType>().has_value());
   const auto* prim_ty = expr->ExprNode::ty.as<PrimTypeNode>();
   TVM_FFI_DCHECK(prim_ty != nullptr);
   return IsIndexType(prim_ty->dtype);

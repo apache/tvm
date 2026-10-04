@@ -743,7 +743,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
   /// @brief Check if the expression type is supported by z3 integer operations.
   static bool IsZ3SupportedExpr(const ExprNode* expr) {
     TVM_FFI_DCHECK(expr != nullptr);
-    TVM_FFI_DCHECK(!expr->ExprNode::ty.IsMissing());
+    TVM_FFI_DCHECK(!expr->ExprNode::ty.as<MissingType>().has_value());
     PrimType prim_ty = expr->ExprNode::ty.as_or_throw<PrimType>();
     return (prim_ty->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLInt) ||
             prim_ty->dtype.code == static_cast<uint8_t>(DLDataTypeCode::kDLUInt) ||

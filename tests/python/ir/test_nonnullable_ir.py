@@ -59,7 +59,7 @@ def test_optional_statement_fields_and_roundtrip():
 def test_offset_default_and_missing_type_remain_values():
     tensor = tvm.tirx.decl_tensor((8,), "float32", elem_offset=None)
     assert int(tensor.ty.elem_offset) == 0
-    assert tvm.ir.Type.missing().is_missing()
+    assert isinstance(tvm.ir.Type.missing(), tvm.ir.MissingType)
     # False and zero are valid primitive expressions, not absence.
     assert int(tvm.tirx.Evaluate(False).value) == 0
     assert int(tvm.tirx.Evaluate(0).value) == 0

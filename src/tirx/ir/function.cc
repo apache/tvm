@@ -146,7 +146,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> PrimFuncMaybeInplaceMut
 PrimFunc::PrimFunc(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body, Type ret_type,
                    DictAttrs attrs, Span span)
     : BaseFunc(ffi::UnsafeInit{}) {
-  if (ret_type.IsMissing()) {
+  if (ret_type.as<MissingType>().has_value()) {
     ret_type = VoidType();
   }
 
