@@ -134,7 +134,7 @@ void PrintPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func, ExprDoc 
           ExprStmtDoc(NamespaceDoc("tirx")->Attr("func_attr")->Call({DictDoc(keys, values)})));
     }
     ffi::Optional<ExprDoc> ret_type = std::nullopt;
-    if (!func->ret_type.IsMissing() && !IsVoidType(func->ret_type)) {
+    if (!func->ret_type.as<MissingType>().has_value() && !IsVoidType(func->ret_type)) {
       ret_type = d->Translate(func->ret_type).value();
     }
     doc = FunctionDoc(IdDoc(name), args, {decorator}, ret_type, body);

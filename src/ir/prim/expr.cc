@@ -40,7 +40,7 @@ int GetLanesOrVScaleFactor(const PrimType& ty) {
 TVM_FFI_INLINE const PrimTypeNode* GetPrimTypeNode(const PrimExpr& expr) {
   const auto* node = expr.get();
   TVM_FFI_DCHECK(node != nullptr);
-  TVM_FFI_DCHECK(!node->ExprNode::ty.IsMissing());
+  TVM_FFI_DCHECK(!node->ExprNode::ty.as<MissingType>().has_value());
   const auto* prim_ty = node->ExprNode::ty.as<PrimTypeNode>();
   TVM_FFI_DCHECK(prim_ty != nullptr);
   return prim_ty;

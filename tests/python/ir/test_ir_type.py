@@ -33,7 +33,7 @@ def test_missing_type():
     missing = tvm.ir.Type.missing()
 
     assert isinstance(missing, tvm.ir.Type)
-    assert missing.is_missing()
+    assert isinstance(missing, tvm.ir.MissingType)
 
 
 def test_prim_type():

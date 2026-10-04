@@ -107,8 +107,8 @@ ExprDoc TypeValueImpl(DocTranslatorObj* d, const Type& type, bool dtype_literal)
         ->Attr("FuncType")
         ->Call({ListDoc(args), TypeValue(d, function->ret_type, false)});
   }
-  if (type.IsMissing()) {
-    return NamespaceDoc("ir")->Attr("Type")->Attr("missing")->Call({});
+  if (type.as<MissingType>().has_value()) {
+    return NamespaceDoc("ir")->Attr("MissingType")->Call({});
   }
   if (auto pointer = type.as<PointerTypeNode>()) {
     if (auto primitive = pointer->element_type.as<PrimType>();
