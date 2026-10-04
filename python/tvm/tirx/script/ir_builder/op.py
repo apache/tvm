@@ -287,7 +287,9 @@ def _get_script_namespace(name: str) -> object:
     raise AttributeError(f"No script namespace {name!r}")
 
 
-def register_script_namespace(name: str, namespace: object, override: bool = False) -> object:
+def register_script_namespace(
+    name: str, namespace: object, override: bool = False, *, canonical_op_names: bool = False
+) -> object:
     """Register a construction namespace and return it.
 
     Parameters
@@ -299,6 +301,10 @@ def register_script_namespace(name: str, namespace: object, override: bool = Fal
     override : bool, optional
         Replace differing operator printer names if True. Existing equal names
         are reused; other duplicates raise ValueError.
+    canonical_op_names : bool, optional
+        Publish registered Op names whose canonical attributes expose matching
+        callables. Preserve explicit printer aliases. Otherwise discover names
+        from legacy wrappers. Repeat registration to publish newly exposed Ops.
     """
     _SCRIPT_NAMESPACES[name] = namespace
     globals()[name] = namespace
@@ -320,7 +326,25 @@ def register_script_namespace(name: str, namespace: object, override: bool = Fal
         if isinstance(module_all, list) and name not in module_all:
             module_all.append(name)
 
-    _register_script_namespace_printer_names(namespace, f"tirx.{name}", override)
+    if canonical_op_names:
+        prefix = f"tirx.{name}."
+        for op_name in _ir.Op.list_op_names():
+            if not op_name.startswith(prefix):
+                continue
+            current = namespace
+            for part in op_name[len(prefix) :].split("."):
+                current = getattr(current, part, None)
+            op = _ir.Op.get(op_name)
+            identity = getattr(current, "__tvm_op__", None)
+            if (
+                callable(current)
+                and isinstance(identity, _ir.Op)
+                and identity.same_as(op)
+                and op.get_attr("TScriptPrinterName") is None
+            ):
+                op.set_attr("TScriptPrinterName", op_name)
+    else:
+        _register_script_namespace_printer_names(namespace, f"tirx.{name}", override)
     return namespace
 
 

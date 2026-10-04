@@ -749,7 +749,7 @@ def test_printer_ptx_more():
     _assert_namespace_print(
         cuda_op.cuda_tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0),
         "d: T.handle = T.handle()\na: T.handle = T.handle()\n"
-        "T.cuda.tcgen05.encode_matrix_descriptor(d, a, 1, 2, 0)",
+        "T.cuda.tcgen05_encode_matrix_descriptor(d, a, 1, 2, 0)",
     )
     _assert_namespace_print(
         cuda_op.cuda_tcgen05_encode_instr_descriptor(
@@ -1026,6 +1026,6 @@ def test_printer_ptx_mma_and_wgmma():
     _assert_namespace_print(
         cuda_op.cuda_wgmma_encode_matrix_descriptor(d, a, 1, 1, 0),
         "d: T.handle = T.handle()\na: T.handle = T.handle()\n"
-        "T.cuda.wgmma.encode_matrix_descriptor(d, a, 1, 1, 0)",
+        "T.cuda.wgmma_encode_matrix_descriptor(d, a, 1, 1, 0)",
     )
-    _assert_namespace_print(cuda_op.cuda_wgmma_noop_barrier(0), "T.cuda.wgmma.noop_barrier(0)")
+    _assert_namespace_print(cuda_op.cuda_wgmma_noop_barrier(0), "T.cuda.wgmma_noop_barrier(0)")

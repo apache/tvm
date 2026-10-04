@@ -510,13 +510,55 @@ ffi::Optional<ExprDoc> TIRCallDocTranslate(DocTranslatorObj* d, const CallNode* 
     // their stored Call argument list. Keep the lossless I.Call form until a
     // dedicated translation covers each signature.
     bool incompatible_signature = (op.value()->name == "tirx.cuda.ldg" && call->args.size() != 2) ||
-                                  op.value()->name == "tirx.cuda.wait_until";
-    // IKET lowering accepts a variadic IR signature, but its named constructors
-    // expose just the event/token and an optional payload.
-    if (op.value()->name == "tirx.cuda.iket_mark" ||
-        op.value()->name == "tirx.cuda.iket_range_start" ||
-        op.value()->name == "tirx.cuda.iket_range_end") {
-      incompatible_signature = call->args.empty() || call->args.size() > 2;
+                                  op.value()->name == "tirx.cuda.wait_until" ||
+                                  op.value()->name == "tirx.cuda.mov_sreg";
+    // Meaningful wrappers choose their result from operands, independently of
+    // customizable inference hooks. Only use them when that choice is lossless.
+    const std::string op_name = op.value()->name;
+    int result_operand = -1;
+    if (op_name == "tirx.cuda.atomic_add" || op_name == "tirx.cuda.atomic_cas" ||
+        op_name == "tirx.cuda.__shfl_sync" || op_name == "tirx.cuda.__shfl_up_sync" ||
+        op_name == "tirx.cuda.__shfl_down_sync" || op_name == "tirx.cuda.__shfl_xor_sync") {
+      result_operand = 1;
+    } else if (op_name == "tirx.cuda.warp_reduce" || op_name == "tirx.cuda.cta_reduce") {
+      result_operand = 0;
+    }
+    if (result_operand >= 0 &&
+        (call->args.size() <= static_cast<size_t>(result_operand) ||
+         !ffi::StructuralEqual()(call->ty, call->args[result_operand]->ty))) {
+      incompatible_signature = true;
+    }
+    if (op_name == "tirx.cuda.__activemask" &&
+        !ffi::StructuralEqual()(call->ty, PrimType::UInt(32))) {
+      incompatible_signature = true;
+    }
+    if (op_name == "tirx.cuda.ldg" && call->args.size() == 2) {
+      auto dtype = call->args[1].as<StringImmNode>();
+      auto result = call->ty.as<PrimType>();
+      if (!dtype || !result || ffi::DLDataTypeToString(result.value()->dtype) != dtype->value) {
+        incompatible_signature = true;
+      }
+    }
+    // Published CUDA callables use canonical names. Late registrations without
+    // a published callable retain lossless reconstruction.
+    bool canonical_cuda = op_name.find("tirx.cuda.") == 0;
+    if (canonical_cuda) {
+      // Generated APIs validate construction; preserve provisional or invalid
+      // Calls through the explicit unchecked reconstruction surface instead.
+      try {
+        op.value().Validate(call);
+      } catch (const ffi::Error&) {
+        return RawCall(d, call);
+      }
+      if (op_name.find("tirx.cuda.__shfl") == 0 && call->args.size() > 1 &&
+          call->args[1].as<VarNode>() && call->args[1]->ty.as<tirx::TensorTypeNode>()) {
+        return RawCall(d, call);
+      }
+      if ((result_operand >= 0 || op_name == "tirx.cuda.ldg") &&
+          std::any_of(call->args.begin(), call->args.end(),
+                      [](const Expr& arg) { return arg.as<TensorRegionNode>() != nullptr; })) {
+        return RawCall(d, call);
+      }
     }
     if (names.count(op.value()) && !incompatible_signature) {
       std::string name = names[op.value()];
@@ -532,6 +574,10 @@ ffi::Optional<ExprDoc> TIRCallDocTranslate(DocTranslatorObj* d, const CallNode* 
             named_args.push_back(LiteralDoc::Str(string->value, std::nullopt));
           } else {
             ExprDoc argument = args[i];
+            // Canonical CUDA APIs preserve structured IR operands.
+            if (op.value()->name.find("tirx.cuda.") == 0) {
+              argument = MaterializeCallArgument(d, call->args[i], argument);
+            }
             if (const auto* address = call->args[i].as<CallNode>();
                 is_ptx && address && IsPTXAddressCall(address)) {
               // Use the address constructor only when it preserves its operands.
@@ -541,7 +587,9 @@ ffi::Optional<ExprDoc> TIRCallDocTranslate(DocTranslatorObj* d, const CallNode* 
             }
             bool reads_operand_type =
                 is_ptx ||
-                (i == 0 && (op.value()->name == "tirx.selector" ||
+                (i == 0 && (op.value()->name == "tirx.cuda.warp_reduce" ||
+                            op.value()->name == "tirx.cuda.cta_reduce" ||
+                            op.value()->name == "tirx.selector" ||
                             op.value()->name == "tirx.webgpu.subgroup_shuffle" ||
                             op.value()->name == "tirx.webgpu.subgroup_shuffle_up" ||
                             op.value()->name == "tirx.webgpu.subgroup_shuffle_down" ||
