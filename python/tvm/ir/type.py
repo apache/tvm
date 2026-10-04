@@ -30,16 +30,16 @@ class Type(Node, Scriptable):
 
     @staticmethod
     def missing():
-        """Return the sentinel for missing type information."""
+        """Construct a MissingType for missing type information."""
         return _ffi_api.TypeMissing()
 
     @staticmethod
     def Missing():
-        """Return the sentinel for missing type information."""
+        """Construct a MissingType for missing type information."""
         return _ffi_api.TypeMissing()
 
     def is_missing(self):
-        """Return whether this is the missing-type sentinel."""
+        """Return whether this is a MissingType."""
         return _ffi_api.TypeIsMissing(self)
 
     def __eq__(self, other):
@@ -52,6 +52,18 @@ class Type(Node, Scriptable):
     def same_as(self, other):
         """Compares two TVM types by referential equality."""
         return self.is_(other)
+
+
+@tvm_ffi.register_object("ir.MissingType")
+class MissingType(Type):
+    """Type information that has not been supplied or computed.
+
+    Unlike AnyType or Void, this is not a concrete type and must be resolved
+    before a boundary that requires fully typed IR.
+    """
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.MissingType)
 
 
 @tvm_ffi.register_object("ir.AnyType")

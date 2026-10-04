@@ -22,7 +22,9 @@
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/source_map.h>
+#include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/type_functor.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/te/operation.h>
@@ -89,6 +91,26 @@ TEST(Expr, NonNullablePrimitiveFallbacks) {
   EXPECT_FALSE(ffi::Any(wrong_type).try_cast<TypedExpr<PrimType>>().has_value());
   auto tensor = te::placeholder({1}, PrimType::Float(32), "input");
   EXPECT_TRUE(ffi::Any(tensor(0)).cast<PrimExpr>().defined());
+}
+
+TEST(Expr, MissingTypeTypedBoundaries) {
+  using namespace tvm;
+  static_assert(!MissingType::_type_is_nullable);
+  static_assert(std::is_default_constructible_v<MissingType>);
+  MissingType missing;
+  EXPECT_TRUE(missing.IsMissing());
+  EXPECT_THROW(ffi::Any().cast<MissingType>(), ffi::Error);
+  EXPECT_FALSE(ffi::Any().cast<ffi::Optional<MissingType>>().has_value());
+  Var untyped("x", missing);
+  EXPECT_FALSE(ffi::Any(untyped).try_cast<PrimExpr>().has_value());
+  EXPECT_FALSE(ffi::Any(untyped).try_cast<TypedExpr<PrimType>>().has_value());
+  EXPECT_THROW(ffi::Any(untyped).cast<PrimExpr>(), ffi::Error);
+  EXPECT_THROW(relax::GetTypeAs<PrimTypeNode>(untyped), ffi::Error);
+  relax::TypeVisitor visitor;
+  EXPECT_THROW(visitor(missing), ffi::Error);
+  EXPECT_THROW(relax::TypeBaseCheckPrecondition(missing, missing), ffi::Error);
+  EXPECT_THROW(relax::TypeBaseCheckPrecondition(AnyType(), missing), ffi::Error);
+  EXPECT_THROW(relax::TypeBaseCheckPrecondition(missing, MissingType()), ffi::Error);
 }
 
 TEST(Expr, Basic) {

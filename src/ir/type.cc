@@ -63,7 +63,7 @@ ffi::ObjectPtr<PrimTypeNode> GetCachedPrimTypeNode(DLDataType dtype) {
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TypeVisit(
     ffi::StructuralVisitorObj*, ffi::AnyView) noexcept {
-  // Type::Missing() is the only concrete TypeNode value; span is ignored debug metadata.
+  // Field-less types are leaves; span is ignored debug metadata.
   return std::nullopt;
 }
 
@@ -246,14 +246,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TupleTypeMaybeInplaceMu
 
 }  // namespace
 
-Type Type::Missing() {
-  static Type missing = []() {
-    Type type(ffi::UnsafeInit{});
-    type.data_ = ffi::make_object<TypeNode>();
-    return type;
-  }();
-  return missing;
-}
+Type Type::Missing() { return MissingType(); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -268,7 +261,22 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("ir.TypeIsMissing", [](Type type) { return type.IsMissing(); });
 }
 
-bool Type::IsMissing() const { return this->same_as(Type::Missing()); }
+bool Type::IsMissing() const { return this->as<MissingTypeNode>() != nullptr; }
+
+MissingType::MissingType() : Type(ffi::UnsafeInit{}) {
+  data_ = ffi::make_object<MissingTypeNode>();
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  MissingTypeNode::RegisterReflection();
+  refl::TypeAttrDef<MissingTypeNode>()
+      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TypeVisit>())
+      .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TypeMutate>())
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            ffi::FStructuralMutate::FromNative<&TypeMaybeInplaceMutate>());
+  refl::GlobalDef().def("ir.MissingType", []() { return MissingType(); });
+}
 
 AnyType::AnyType(Span span) : Type(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<AnyTypeNode> n = ffi::make_object<AnyTypeNode>();

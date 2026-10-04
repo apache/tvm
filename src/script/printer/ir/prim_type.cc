@@ -32,6 +32,16 @@ namespace details {
 
 namespace {
 
+ffi::Optional<ExprDoc> MissingTypeDocTranslate(DocTranslatorObj*, ffi::AnyView,
+                                               const ffi::Object*) {
+  return NamespaceDoc("ir")->Attr("MissingType")->Call({});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<MissingTypeNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&MissingTypeDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> IntImmDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                           const ffi::Object*) {
   const auto* imm =
