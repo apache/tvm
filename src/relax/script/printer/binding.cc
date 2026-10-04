@@ -64,8 +64,6 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
   if (auto func = binding->value.as<relax::FunctionNode>()) {
-    d->Emit(CommentDoc("from tvm.script import relax as R"), ffi::GetRef<ffi::ObjectRef>(binding));
-    d->Emit(CommentDoc(""), ffi::GetRef<ffi::ObjectRef>(binding));
     IdDoc lhs = VarDoc(d, binding->var);
     d->Translate(binding->value);
     FunctionDoc function = d->CurrentScopeDocs().back().as_or_throw<FunctionDoc>();

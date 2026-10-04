@@ -158,11 +158,12 @@ Printing and round trips
 of expressions and statements. The translation engine tracks scopes, names and each
 Doc's original IR object. The script entry point maps these origins to diagnostic
 paths; the private Doc printer formats the tree, annotations and underlines as Python
-text. Printer configuration stays read-only throughout. ``DocToPythonScript`` also
-formats an existing Doc directly. This tree is separate from the parser's Python AST.
+text. Printer configuration stays read-only throughout. The Python document printer
+helper also formats an existing Doc directly for document-level tests. This tree is
+separate from the parser's Python AST.
 
-The public ``Script`` text entry points are declared in
-``tvm/script/printer/printer.h``. Their orchestration and diagnostic path mapping
+The public ``tvm::Script`` text entry point is declared in
+``tvm/script/printer/printer.h``. Its orchestration and diagnostic path mapping
 live in ``src/script/printer/printer.cc``; ``doc_translator.h`` exposes the
 IR-to-Doc translation protocol.
 
