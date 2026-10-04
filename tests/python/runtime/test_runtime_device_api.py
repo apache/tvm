@@ -19,6 +19,8 @@ import os
 import subprocess
 import sys
 
+import pytest
+
 import tvm
 import tvm.testing
 
@@ -45,6 +47,26 @@ def test_check_if_device_exists():
             **os.environ,
             "CUDA_VISIBLE_DEVICES": "",
         },
+    )
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32" or not tvm.runtime.enabled("rocm"),
+    reason="Requires the Windows HIP runtime",
+)
+def test_windows_rocm_invalid_device_does_not_exist():
+    assert not tvm.rocm(-1).exist
+    assert not tvm.rocm(2**31 - 1).exist
+
+
+@pytest.mark.skipif(
+    sys.platform != "win32" or not tvm.runtime.enabled("rocm"),
+    reason="Requires the Windows HIP runtime",
+)
+def test_windows_rocm_hidden_device_does_not_exist():
+    subprocess.check_call(
+        [sys.executable, "-c", "import tvm; assert not tvm.rocm(0).exist"],
+        env={**os.environ, "HIP_VISIBLE_DEVICES": ""},
     )
 
 

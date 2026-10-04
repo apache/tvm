@@ -22,7 +22,9 @@
  * \brief GPU specific API
  */
 #include <hip/hip_runtime_api.h>
+#ifndef _WIN32
 #include <hsa/hsa.h>
+#endif
 #include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -42,6 +44,14 @@ class ROCMDeviceAPI final : public DeviceAPI {
     int value = 0;
     switch (kind) {
       case kExist: {
+#ifdef _WIN32
+        // Windows HIP has no HSA runtime. Missing devices or an incompatible
+        // driver must make an existence query return false, not throw.
+        int dev = 0;
+        if (hipGetDeviceCount(&dev) == hipSuccess) {
+          value = device.device_id >= 0 && device.device_id < dev;
+        }
+#else
         if (hsa_init() == HSA_STATUS_SUCCESS) {
           int dev;
           ROCM_CALL(hipGetDeviceCount(&dev));
@@ -50,6 +60,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
         } else {
           value = 0;
         }
+#endif
         break;
       }
       case kMaxThreadsPerBlock: {
