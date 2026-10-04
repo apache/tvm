@@ -647,13 +647,14 @@ Function::Function(ffi::Array<Var> params, Expr body, ffi::Optional<Type> ret_ty
   ffi::Array<Type> param_ty;
 
   for (const Var& param : params) {
-    TVM_FFI_ICHECK(!param->ty.IsMissing()) << "relax.Function requires params to contain ty";
+    TVM_FFI_ICHECK(!param->ty.as<MissingType>().has_value())
+        << "relax.Function requires params to contain ty";
     param_ty.push_back(GetType(param));
   }
 
   ffi::Optional<Type> body_ty;
 
-  if (!body->ty.IsMissing()) {
+  if (!body->ty.as<MissingType>().has_value()) {
     body_ty = GetType(body);
   }
 
@@ -720,7 +721,8 @@ Function Function::CreateEmpty(ffi::Array<Var> params, Type ret_ty, bool is_pure
                                Span span) {
   ffi::Array<Type> param_ty;
   for (const Var& param : params) {
-    TVM_FFI_ICHECK(!param->ty.IsMissing()) << "relax.Function requires params to contain ty.";
+    TVM_FFI_ICHECK(!param->ty.as<MissingType>().has_value())
+        << "relax.Function requires params to contain ty.";
     param_ty.push_back(GetType(param));
   }
 
@@ -817,7 +819,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.
-  TVM_FFI_ICHECK(!expr->ty.IsMissing()) << "GetShapeOf can only be applied to normalized expr";
+  TVM_FFI_ICHECK(!expr->ty.as<MissingType>().has_value())
+      << "GetShapeOf can only be applied to normalized expr";
   auto* tinfo = GetTypeAs<TensorTypeNode>(expr);
 
   TVM_FFI_ICHECK(tinfo != nullptr) << "ShapeOf can only be applied to expr with TensorType";

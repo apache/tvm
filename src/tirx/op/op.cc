@@ -67,7 +67,7 @@ Type GetType(const PrimExpr& expr) {
   if (auto* ptr = expr.as<tirx::VarNode>()) {
     // If Var has a more refined type annotation,
     // return the type anotation
-    if (!ptr->ty.IsMissing()) {
+    if (!ptr->ty.as<MissingType>().has_value()) {
       return ptr->ty;
     }
   }

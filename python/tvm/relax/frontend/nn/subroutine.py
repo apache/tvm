@@ -45,7 +45,7 @@ def _normalize_expr(block_builder, arg, as_relax_expr=False):
     if isinstance(arg, tuple):
         arg = relax.Tuple([_normalize_expr(block_builder, element) for element in arg])
 
-    if isinstance(arg, relax.Expr) and arg.ty.is_missing():
+    if isinstance(arg, relax.Expr) and isinstance(arg.ty, ir.MissingType):
         arg = block_builder.emit(arg)
 
     if isinstance(arg, nn.Tensor) and as_relax_expr:
@@ -108,7 +108,7 @@ class SubroutineMixin:
             out = subroutine(*subroutine_args)
 
             if is_nn_tensor_output:
-                if out.ty.is_missing():
+                if isinstance(out.ty, ir.MissingType):
                     out = block_builder.emit(out, name_hint=f"{subroutine.name_hint}_output")
                 out = nn.Tensor(_expr=out)
             return out

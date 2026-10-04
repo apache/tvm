@@ -55,14 +55,14 @@ ffi::Optional<ExprDoc> FunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   for (const Var& param : func->params) {
     IdDoc lhs = param_ids[param_index++];
     ffi::Optional<ExprDoc> annotation = std::nullopt;
-    if (!param->ty.IsMissing()) annotation = d->Translate(param->ty).value();
+    if (!param->ty.as<MissingType>().has_value()) annotation = d->Translate(param->ty).value();
     AssignDoc argument(lhs, std::nullopt, annotation);
     d->RecordOrigin(argument, param);
     args.push_back(argument);
   }
   auto signature_candidates = CopyImplicitDefs(d);
   ffi::Optional<ExprDoc> ret_type = std::nullopt;
-  if (!func->ret_ty.IsMissing()) {
+  if (!func->ret_ty.as<MissingType>().has_value()) {
     ret_type = d->Translate(func->ret_ty).value();
   }
   ffi::Array<ffi::String> decorator_keys;

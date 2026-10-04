@@ -186,7 +186,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
   }
 
   void VisitExpr(const Expr& expr) final {
-    if (!expr.as<OpNode>() && expr->ty.IsMissing()) {
+    if (!expr.as<OpNode>() && expr->ty.as<MissingType>().has_value()) {
       TVM_FFI_VISIT_THROW(TypeError, expr) << "The ty of Expr " << expr << " is missing.";
     }
     relax::ExprVisitor::VisitExpr(expr);
@@ -202,7 +202,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       }
     }
 
-    if (!op->ty.IsMissing()) {
+    if (!op->ty.as<MissingType>().has_value()) {
       if (!op->ty->IsInstance<FuncTypeNode>()) {
         TVM_FFI_VISIT_THROW(TypeError, var)
             << "The ty of GlobalVar " << ffi::GetRef<Expr>(op) << " must be either FuncType.";
@@ -323,7 +323,7 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       CheckType(param.get());
     }
     // check function ret_ty
-    if (!op->ret_ty.IsMissing()) {
+    if (!op->ret_ty.as<MissingType>().has_value()) {
       this->VisitType(op->ret_ty);
     } else {
       TVM_FFI_VISIT_THROW(TypeError, ffi::GetRef<Expr>(op)) << "Function must have defined ret_ty";
@@ -428,7 +428,8 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
       has_infer_type =
           op_map_infer_type_.count(op.value()) || op_map_infer_type_with_builder_.count(op.value());
     }
-    if (check_ty && !call->ty.IsMissing() && (!call->ty.as<PrimTypeNode>() || has_infer_type)) {
+    if (check_ty && !call->ty.as<MissingType>().has_value() &&
+        (!call->ty.as<PrimTypeNode>() || has_infer_type)) {
       // The `InferType` method isn't currently exposed by the
       // Normalizer, and can only be called indirectly by normalizing
       // an expression that does not yet have `Type`.
@@ -544,7 +545,8 @@ class WellFormedChecker : public relax::ExprVisitor, public relax::TypeVisitor {
 
     this->VisitVarDef(binding->var);
 
-    if (check_ty && !binding->var->ty.IsMissing() && !binding->value->ty.IsMissing()) {
+    if (check_ty && !binding->var->ty.as<MissingType>().has_value() &&
+        !binding->value->ty.as<MissingType>().has_value()) {
       auto expr_ty = GetType(binding->value);
       auto var_ty = GetType(binding->var);
       if (!IsBaseOf(var_ty, expr_ty)) {

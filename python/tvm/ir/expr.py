@@ -48,7 +48,7 @@ class Expr(Node):
     ty: "tvm.ir.Type"
 
     def __getitem__(self, index):
-        if self.ty.is_missing():
+        if isinstance(self.ty, tvm.ir.MissingType):
             # Preserve Relax's pre-normalization tuple access: operator calls
             # have a missing result type until the block builder infers it.
             return TupleGetItem(self, index)

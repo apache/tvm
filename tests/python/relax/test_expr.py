@@ -44,7 +44,7 @@ def _check_json_roundtrip(x):
 
 def _check_type_missing(ty):
     assert isinstance(ty, tvm.ir.Type)
-    assert ty.is_missing()
+    assert isinstance(ty, tvm.ir.MissingType)
 
 
 def test_var() -> None:

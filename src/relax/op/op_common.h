@@ -115,7 +115,7 @@ namespace detail {
 /*! \brief Implementation helper for GetArgType */
 template <typename ArgType>
 ArgType GetArgTypeByIndex(const Call& call, const Op& op, size_t index) {
-  if (call->args[index]->ty.IsMissing()) {
+  if (call->args[index]->ty.as<MissingType>().has_value()) {
     TVM_FFI_VISIT_THROW(InternalError, call)
         << op << " op should have arguments with defined Type.  "
         << "However, args[" << index << "] has undefined type.";

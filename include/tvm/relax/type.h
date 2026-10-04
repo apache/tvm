@@ -175,7 +175,7 @@ class TensorTypeNode : public TypeNode {
   ffi::Optional<ffi::Array<PrimExpr>> GetShape() const {
     if (!shape.has_value()) return {};
     const Expr& shape_expr = this->shape.value();
-    if (shape_expr->ty.IsMissing()) return {};
+    if (shape_expr->ty.as<MissingType>().has_value()) return {};
     if (const auto* shape_ty = shape_expr->ty.as<ShapeTypeNode>()) {
       return shape_ty->values;
     }
@@ -366,7 +366,7 @@ inline ffi::Optional<T> MatchType(const Expr& expr) {
  */
 template <typename T>
 inline const T* GetTypeAs(const Expr& expr) {
-  TVM_FFI_ICHECK(!expr->ty.IsMissing())
+  TVM_FFI_ICHECK(!expr->ty.as<MissingType>().has_value())
       << "The type is not populated, check if you have normalized the expr";
   return expr->ty.as<T>();
 }
@@ -378,7 +378,7 @@ inline const T* GetTypeAs(const Expr& expr) {
  * \return underlying Relax type.
  */
 inline Type GetType(const Expr& expr) {
-  TVM_FFI_ICHECK(!expr->ty.IsMissing())
+  TVM_FFI_ICHECK(!expr->ty.as<MissingType>().has_value())
       << "The type is not populated, check if you have normalized the expr";
   return expr->ty;
 }

@@ -62,7 +62,7 @@ namespace {
 // Relax's named constructors defer result typing until a binding supplies it.
 // A standalone named call therefore reconstructs only a missing stored result.
 bool HasRelaxCallResult(const CallNode* call, const ffi::Object* destination) {
-  if (call->ty.IsMissing()) return true;
+  if (call->ty.as<MissingType>().has_value()) return true;
   const auto* var = destination && destination->IsInstance<VarNode>()
                         ? static_cast<const VarNode*>(destination)
                         : nullptr;
@@ -266,8 +266,9 @@ ffi::Optional<ExprDoc> CallDefaultDocTranslate(DocTranslatorObj* d, ffi::AnyView
     return d->Translate(call->op).value()->Call(args);
   }
   ffi::Optional<Type> inferred = std::nullopt;
-  if (call->op.as<Op>() && std::all_of(call->args.begin(), call->args.end(),
-                                       [](const Expr& arg) { return !arg->ty.IsMissing(); })) {
+  if (call->op.as<Op>() && std::all_of(call->args.begin(), call->args.end(), [](const Expr& arg) {
+        return !arg->ty.as<MissingType>().has_value();
+      })) {
     try {
       inferred = Call::ReinferType(call);
     } catch (const ffi::Error&) {

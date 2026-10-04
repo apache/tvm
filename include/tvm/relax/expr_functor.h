@@ -524,7 +524,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
   bool VisitAndCheckTypeFieldUnchanged(const ffi::ObjectRef& ty) {
     if (const TypeNode* ty_node = ty.as<TypeNode>()) {
       Type type = ffi::GetRef<Type>(ty_node);
-      return type.IsMissing() || this->VisitExprDepTypeField(type).same_as(ty);
+      return type.as<MissingType>().has_value() || this->VisitExprDepTypeField(type).same_as(ty);
     } else {
       return true;
     }

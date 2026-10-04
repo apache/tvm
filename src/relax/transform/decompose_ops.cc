@@ -144,7 +144,7 @@ Expr DecomposeLayerNorm(const Call& call) {
 }
 
 Expr TensorToShape(const Call& call_node, const BlockBuilder& builder) {
-  TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+  TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
   Expr expr = call_node->args[0];
   const ShapeTypeNode* ty = GetTypeAs<ShapeTypeNode>(call_node);
   TVM_FFI_ICHECK(ty);

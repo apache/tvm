@@ -338,7 +338,7 @@ TVM_DECLARE_INTRIN_BINARY(ldexp);
  * \return The check results
  */
 inline bool IsPointerType(const Type& type, DLDataType element_type) {
-  if (type.IsMissing()) return false;
+  if (type.as<MissingType>().has_value()) return false;
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
     if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
       return prim_type->dtype == element_type;

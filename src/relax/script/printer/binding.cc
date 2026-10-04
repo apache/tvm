@@ -45,7 +45,8 @@ ffi::Optional<ExprDoc> MatchCastDocTranslate(DocTranslatorObj* d, ffi::AnyView i
           ->Call({d->Translate(binding->value).value(), d->Translate(binding->ty).value()});
   IdDoc lhs = VarDoc(d, binding->var);
   ffi::Optional<ExprDoc> annotation = std::nullopt;
-  if (!binding->var->ty.IsMissing()) annotation = d->Translate(binding->var->ty).value();
+  if (!binding->var->ty.as<MissingType>().has_value())
+    annotation = d->Translate(binding->var->ty).value();
   if (!d->GetExtraConfig<bool>("relax.show_all_ty", true)) annotation = std::nullopt;
   d->Emit(AssignDoc(lhs, rhs, annotation), ffi::GetRef<ffi::ObjectRef>(binding));
   return std::nullopt;
@@ -112,14 +113,14 @@ ffi::Optional<ExprDoc> VarBindingDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       }
     }
   }
-  bool inferable = inferred.has_value() && !inferred.value().IsMissing() &&
+  bool inferable = inferred.has_value() && !inferred.value().as<MissingType>().has_value() &&
                    ffi::StructuralEqual()(binding->var->ty, inferred.value());
   bool explicit_output_type = output_type_argument && inferable;
   // Primitive aliases need their annotation. Without context-free inference,
   // keep the binding type and let the parser's deferred inference use it.
   bool elide_annotation = infer_vdevice || explicit_output_type ||
                           (!show_all_ty && !binding->var->ty.as<PrimTypeNode>() && inferable);
-  if (!binding->var->ty.IsMissing() && !elide_annotation) {
+  if (!binding->var->ty.as<MissingType>().has_value() && !elide_annotation) {
     annotation = d->Translate(binding->var->ty).value();
   }
   d->Emit(AssignDoc(lhs, rhs.value(), annotation), ffi::GetRef<ffi::ObjectRef>(binding));
@@ -148,7 +149,7 @@ ffi::Optional<ExprDoc> IfDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   Var var = ffi::GetRef<Var>(static_cast<const VarNode*>(destination));
   ffi::Optional<IdDoc> lhs = VarDoc(d, var);
   ffi::Optional<ExprDoc> annotation = std::nullopt;
-  if (!var->ty.IsMissing()) annotation = d->Translate(var->ty).value();
+  if (!var->ty.as<MissingType>().has_value()) annotation = d->Translate(var->ty).value();
   ExprDoc condition = d->Translate(branch->cond).value();
   d->Emit(IfDoc(condition, RelaxSeqBody(d, branch->true_branch.get(), lhs, annotation, destination),
                 RelaxSeqBody(d, branch->false_branch.get(), lhs, annotation, destination)),

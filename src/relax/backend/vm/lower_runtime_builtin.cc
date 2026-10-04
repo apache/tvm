@@ -125,7 +125,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
 
   Expr Reshape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 2);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
     auto arg = call_node->args[1];
 
     TVM_FFI_CHECK(arg->ty->IsInstance<ShapeTypeNode>(), TypeError)
@@ -140,14 +140,14 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
 
   Expr ShapeOf(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
     return Call::Unchecked(Type::Missing(), builtin_shape_of_, call_node->args, Attrs(),
                            {GetType(call_node)});
   }
 
   Expr TensorToShape(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 1);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
 
     return Call::Unchecked(Type::Missing(), builtin_tensor_to_shape_, call_node->args, Attrs(),
                            {GetType(call_node)});
@@ -155,7 +155,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
 
   Expr CallPyFunc(const Call& call_node) {
     TVM_FFI_ICHECK(call_node->args.size() == 2);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
 
     // Create tuple with function name and arguments tuple
     ffi::Array<Expr> tuple_fields;
@@ -171,7 +171,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   Expr ToDevice(const Call& call_node) {
     // TODO(yongwww): replace ToVDeviceAttrs with related Expr
     TVM_FFI_ICHECK(call_node->args.size() == 1);
-    TVM_FFI_ICHECK(!call_node->ty.IsMissing());
+    TVM_FFI_ICHECK(!call_node->ty.as<MissingType>().has_value());
     auto attrs = call_node->attrs.as<ToVDeviceAttrs>();
     ffi::Array<Expr> args;
     args.push_back(call_node->args[0]);
