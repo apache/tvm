@@ -89,7 +89,7 @@ _op_ffi_api = None  # pylint: disable=invalid-name
 
 
 def _is_tensor_or_missing_type(ty: Type) -> bool:
-    return isinstance(ty, tvm.relax.TensorType) or ty.is_missing()
+    return isinstance(ty, tvm.relax.TensorType | tvm.ir.MissingType)
 
 
 def _binary_op_helper(lhs: Expr, rhs: Expr, op: Callable):

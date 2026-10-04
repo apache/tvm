@@ -91,7 +91,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 bool CanTranslateExplicitResultCall(const CallNode* call) {
   return !call->attrs.defined() && call->ty_args.empty() && call->ty.as<PrimType>() &&
          std::all_of(call->args.begin(), call->args.end(), [](const Expr& arg) {
-           return !arg->ty.IsMissing() && !arg.as<TensorRegionNode>();
+           return !arg->ty.as<MissingType>().has_value() && !arg.as<TensorRegionNode>();
          });
 }
 

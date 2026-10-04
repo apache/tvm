@@ -70,8 +70,8 @@ TEST(Expr, RequiredIRReferences) {
   CheckRequiredIRReference<relax::Function>();
   CheckRequiredIRReference<Type>();
   CheckRequiredIRReference<PrimType>();
-  EXPECT_TRUE(Type::Missing().IsMissing());
-  EXPECT_TRUE(ffi::Any(Type::Missing()).cast<Type>().IsMissing());
+  EXPECT_TRUE(Type::Missing().as<MissingType>().has_value());
+  EXPECT_TRUE(ffi::Any(Type::Missing()).cast<Type>().as<MissingType>().has_value());
   EXPECT_THROW(ffi::Array<ffi::Any>({ffi::Any()}).as_or_throw<ffi::Array<Expr>>(), ffi::Error);
 }
 

@@ -90,7 +90,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       GlobalVar gvar(func_name);
 
       Type finfo = Type::Missing();
-      if (!func->ty.IsMissing()) {
+      if (!func->ty.as<MissingType>().has_value()) {
         finfo = GetType(func);
       } else if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
         // NOTE: use a slightly different type than checked type
@@ -275,8 +275,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      TVM_FFI_ICHECK(!var_binding->var->ty.IsMissing());
-      TVM_FFI_ICHECK(!var_binding->value->ty.IsMissing());
+      TVM_FFI_ICHECK(!var_binding->var->ty.as<MissingType>().has_value());
+      TVM_FFI_ICHECK(!var_binding->value->ty.as<MissingType>().has_value());
       cur_frame->bindings.push_back(binding);
       binding_table_.insert_or_assign(var_binding->var, var_binding->value);
     } else if (const auto* match_cast = binding.as<MatchCastNode>()) {
@@ -285,8 +285,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
             << "Cannot emit dataflow var in non-dataflow block";
       }
       // normalized check
-      TVM_FFI_ICHECK(!match_cast->var->ty.IsMissing());
-      TVM_FFI_ICHECK(!match_cast->value->ty.IsMissing());
+      TVM_FFI_ICHECK(!match_cast->var->ty.as<MissingType>().has_value());
+      TVM_FFI_ICHECK(!match_cast->value->ty.as<MissingType>().has_value());
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
       cur_frame->bindings.push_back(binding);
@@ -532,7 +532,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     // After Normalize: an Expr always have
     // ty (with the exception of Op).
     if (!normalized->IsInstance<OpNode>()) {
-      TVM_FFI_ICHECK(!normalized->ty.IsMissing())
+      TVM_FFI_ICHECK(!normalized->ty.as<MissingType>().has_value())
           << "The ty of an Expr except OpNode after "
              "normalization must not be missing. However, this Expr does not have ty: "
           << normalized;
@@ -590,7 +590,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   Expr VisitVar_(const typename T::ContainerType* var) {
     // Parameters and free-vars must be present with type
     // Other vars must have already been normalized through binding
-    TVM_FFI_ICHECK(!var->ty.IsMissing()) << "Var " << var->name << " does not have type.";
+    TVM_FFI_ICHECK(!var->ty.template as<MissingType>().has_value())
+        << "Var " << var->name << " does not have type.";
     return ffi::GetRef<Var>(var);
   }
 
@@ -629,7 +630,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
     Tuple tuple = unchanged ? ffi::GetRef<Tuple>(op) : Tuple(new_fields, op->span);
     // Update tuple fields.
-    if (tuple->ty.IsMissing()) {
+    if (tuple->ty.as<MissingType>().has_value()) {
       ffi::Array<Type> tuple_ty;
       for (Expr field : tuple->fields) {
         tuple_ty.push_back(GetType(field));
@@ -663,7 +664,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       }
     }();
 
-    if (call->ty.IsMissing()) {
+    if (call->ty.as<MissingType>().has_value()) {
       auto inferred_ty = InferType(call);
       UpdateType(call, inferred_ty);
     }
@@ -732,7 +733,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     }();
 
     // only do shape/type inference if the SeqExpr does not have shape/type
-    if (seq_expr->ty.IsMissing()) {
+    if (seq_expr->ty.as<MissingType>().has_value()) {
       UpdateType(seq_expr, EraseToWellDefinedInScope(GetType(seq_expr->body)));
     }
     return seq_expr;
@@ -751,7 +752,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
         return If(new_cond, new_true, new_false, op->span);
       }
     }();
-    if (if_node->ty.IsMissing()) {
+    if (if_node->ty.as<MissingType>().has_value()) {
       auto true_info = EraseToWellDefinedInScope(GetType(new_true));
       auto false_info = EraseToWellDefinedInScope(GetType(new_false));
       UpdateType(if_node, TypeLCA(true_info, false_info));
@@ -765,7 +766,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     TupleGetItem node = new_tuple.same_as(op->tuple) ? ffi::GetRef<TupleGetItem>(op)
                                                      : TupleGetItem(new_tuple, op->index);
 
-    if (node->ty.IsMissing()) {
+    if (node->ty.as<MissingType>().has_value()) {
       auto opt = MatchType<TupleType>(node->tuple);
       TVM_FFI_ICHECK(opt) << "The type of Tuple must be TupleType, "
                           << "but expression " << node->tuple << " has type " << node->tuple->ty;
@@ -790,7 +791,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!new_value.same_as(binding->value)) {
       binding = VarBinding(binding->var, new_value, binding->span);
     }
-    if (binding->var->ty.IsMissing()) {
+    if (binding->var->ty.as<MissingType>().has_value()) {
       UpdateType(binding->var, GetType(new_value));
     }
     return binding;
@@ -801,7 +802,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!new_value.same_as(binding->value)) {
       binding = MatchCast(binding->var, new_value, binding->ty, binding->span);
     }
-    if (binding->var->ty.IsMissing()) {
+    if (binding->var->ty.as<MissingType>().has_value()) {
       UpdateType(binding->var, binding->ty);
     }
     return binding;
@@ -865,7 +866,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       return op_map_infer_ty[op](call, ffi::GetRef<BlockBuilder>(this));
     } else {
       // derive using function parameters
-      TVM_FFI_ICHECK(!call->op->ty.IsMissing());
+      TVM_FFI_ICHECK(!call->op->ty.as<MissingType>().has_value());
       auto opt = MatchType<FuncType>(call->op);
       TVM_FFI_ICHECK(opt) << "Call->op must contains a function type";
       FuncType finfo = opt.value();

@@ -113,7 +113,7 @@ void ExprVisitor::DefaultTypeFieldVisitor::VisitType_(const FuncTypeNode* op) {
 }
 
 void VisitExprDepTypeFieldIfNeeded(ExprVisitor* visitor, const Type& ty) {
-  if (!ty.IsMissing()) {
+  if (!ty.as<MissingType>().has_value()) {
     auto* ty_node = ty.as<TypeNode>();
     TVM_FFI_DCHECK(ty_node != nullptr);
     visitor->VisitExprDepTypeField(ffi::GetRef<Type>(ty_node));
@@ -521,7 +521,7 @@ Expr ExprMutatorBase::VisitExpr_(const CallNode* call_node) {
   }
 
   Type ret_ty = call_node->ty;
-  if (!ret_ty.IsMissing()) {
+  if (!ret_ty.as<MissingType>().has_value()) {
     ret_ty = this->VisitExprDepTypeField(ret_ty);
   }
   bool ret_ty_unchanged = ret_ty.same_as(call_node->ty);
@@ -1048,10 +1048,10 @@ ffi::Optional<Expr> ExprMutator::LookupBinding(const Var& var) {
 }
 
 Var ExprMutator::WithType(Var var, Type ty) {
-  TVM_FFI_ICHECK(!ty.IsMissing());
+  TVM_FFI_ICHECK(!ty.as<MissingType>().has_value());
 
   // TODO(relax-team) add TypeEqual check
-  if (!var->ty.IsMissing()) {
+  if (!var->ty.as<MissingType>().has_value()) {
     // use same-as as a quick path
     if (var->ty.same_as(ty) || ffi::StructuralEqual()(var->ty, ty)) {
       return var;

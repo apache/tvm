@@ -172,7 +172,7 @@ def test_unchecked_call_constructor():
     call = tvm.ir.Call.unchecked("relax.add", [x], attrs={"key": 1}, span=span)
     assert isinstance(call, tvm.ir.Call)
     assert call.op.same_as(op)
-    assert call.ty.is_missing()
+    assert isinstance(call.ty, tvm.ir.MissingType)
     assert call.span.same_as(span)
     assert isinstance(call.attrs, tvm.ir.DictAttrs)
     assert len(call.ty_args) == 0

@@ -91,7 +91,7 @@ class ASTPrinter(ExprFunctor):
         Handles whether to include the ty fields.
         """
         fields = kwargs.copy()
-        if not node.ty.is_missing() and self.include_ty_annotations:
+        if not isinstance(node.ty, tvm.ir.MissingType) and self.include_ty_annotations:
             fields["ty"] = self.visit_ty_(node.ty)
         return self.build_ast_node(nodename, force_newline=force_newline, **fields)
 

@@ -63,6 +63,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<GlobalVarNode>();
   RegisterScriptRepr<IRModuleNode>();
   RegisterScriptRepr<IntImmNode>();
+  RegisterScriptRepr<MissingTypeNode>();
   RegisterScriptRepr<PointerTypeNode>();
   RegisterScriptRepr<PrimTypeNode>();
   RegisterScriptRepr<RangeNode>();

@@ -125,7 +125,8 @@ class DataflowReshapeRewriter : public ExprMutator {
     // as the number of elements in the result. There are operators that could have a reshape
     // pattern that don't meet this requirement (e.g. strided_slice), and they should not be
     // converted to reshape.
-    TVM_FFI_ICHECK(!inp->ty.IsMissing() && !call->ty.IsMissing());
+    TVM_FFI_ICHECK(!inp->ty.as<MissingType>().has_value() &&
+                   !call->ty.as<MissingType>().has_value());
     TensorType inp_ty = inp->ty.as_or_throw<TensorType>();
     TensorType res_ty = call->ty.as_or_throw<TensorType>();
 

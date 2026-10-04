@@ -32,7 +32,7 @@ def test_call_type_and_validation_contract():
     for constructor in (ir.Call, I.Call):
         call = constructor("tirx.exp", [x], span=span)
         assert isinstance(call, I.Call)
-        assert call.ty.is_missing()
+        assert isinstance(call.ty, ir.MissingType)
         assert call.span.same_as(span)
         ir.assert_structural_equal(
             constructor("tirx.exp", [x], ty="float32"),

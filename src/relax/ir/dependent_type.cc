@@ -365,11 +365,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Helper functions
 void UpdateType(Expr expr, Type ty) {
-  TVM_FFI_ICHECK(expr->ty.IsMissing()) << "To ensure idempotency, "
-                                       << "the expression passed to UpdateType "
-                                       << "must not have any prior type.  "
-                                       << "However, expression " << expr << " has type " << expr->ty
-                                       << ", which cannot be overwritten with " << ty;
+  TVM_FFI_ICHECK(expr->ty.as<MissingType>().has_value())
+      << "To ensure idempotency, "
+      << "the expression passed to UpdateType "
+      << "must not have any prior type.  "
+      << "However, expression " << expr << " has type " << expr->ty
+      << ", which cannot be overwritten with " << ty;
   expr->ty = ty;
 }
 

@@ -409,7 +409,7 @@ ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
       dummy_callee_ty,
       Call::Unchecked(Type::Missing(), Var("dummy_callee", dummy_callee_ty), dummy_args),
       BlockBuilder::Create(std::nullopt));
-  if (derived_ret_ty.IsMissing()) {
+  if (derived_ret_ty.as<MissingType>().has_value()) {
     return std::nullopt;
   }
 
@@ -1106,7 +1106,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type ReturnTensorToShapeType(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
+  TVM_FFI_ICHECK(!call->args[0]->ty.as<MissingType>().has_value());
   const auto* tensor_ty = GetTypeAs<TensorTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(tensor_ty);
   TVM_FFI_ICHECK_EQ(tensor_ty->ndim, 1)
@@ -1144,7 +1144,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type ReturnShapeToTensorType(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
+  TVM_FFI_ICHECK(!call->args[0]->ty.as<MissingType>().has_value());
   const auto* ty = GetTypeAs<ShapeTypeNode>(call->args[0]);
   TVM_FFI_ICHECK(ty);
   int32_t ndim = ty->ndim;
@@ -1505,7 +1505,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferToVDeviceType(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
+  TVM_FFI_ICHECK(!call->args[0]->ty.as<MissingType>().has_value());
   TensorType data_ty = GetUnaryInputTensorType(call);
   auto attrs = call->attrs.as<ToVDeviceAttrs>();
   VDevice vdev = attrs->dst_vdevice;
@@ -1540,7 +1540,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 Type InferHintOnDeviceType(const CallNode* call_node) {
   const Call call = ffi::GetRef<Call>(call_node);
   TVM_FFI_ICHECK(call->args.size() == 1);
-  TVM_FFI_ICHECK(!call->args[0]->ty.IsMissing());
+  TVM_FFI_ICHECK(!call->args[0]->ty.as<MissingType>().has_value());
   TensorType data_ty = GetUnaryInputTensorType(call);
   return data_ty;
 }

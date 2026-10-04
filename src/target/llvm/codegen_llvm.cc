@@ -2308,7 +2308,7 @@ void CodeGenLLVM::Dispatch_(const BindNode* op) {
   // Therefore, to have the correct LLVM type for pointers, we may
   // need to introduce a pointer-cast, even though pointer-to-pointer
   // casts are not expressible with the `prim::CastNode`.
-  if (is_pointer && !v->ty.IsMissing()) {
+  if (is_pointer && !v->ty.as<MissingType>().has_value()) {
     TVM_FFI_ICHECK(op->value->ty.as<PointerTypeNode>())
         << "Variable " << op->var << " is a pointer with type " << op->value
         << ", but is being bound to expression with type " << op->value->ty;
