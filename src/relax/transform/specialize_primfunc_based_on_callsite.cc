@@ -26,6 +26,7 @@
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
+#include <tvm/relax/type.h>
 #include <tvm/tirx/index_map.h>
 
 #include <tuple>
@@ -85,8 +86,11 @@ class SpecializeTIRCallArgs : ExprMutator {
 
     for (size_t i = 0; i < args.size(); ++i) {
       auto ty = GetType(args[i]);
+      if (ty->IsInstance<PrimTypeNode>()) {
+        continue;
+      }
       TVM_FFI_ICHECK(ty->IsInstance<TensorTypeNode>())
-          << "Expected Tensor struct Info for call :" << call->op;
+          << "Expected Tensor or Prim type for call: " << call->op;
       auto tensor_ty = ty.as_or_throw<TensorType>();
       TVM_FFI_ICHECK(tensor_ty->shape.has_value()) << "Shape undefined for call:" << call->args[0];
       ffi::String scope = "global";
