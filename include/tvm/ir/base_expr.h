@@ -79,13 +79,37 @@ class TypeNode : public ffi::Object {
  */
 class Type : public ffi::ObjectRef {
  public:
-  /*! \brief Sentinel for a type that has not been populated yet. */
+  /*! \brief Construct a MissingType for type information not yet populated. */
   TVM_DLL static Type Missing();
 
-  /*! \return whether this is the missing-type sentinel. */
+  /*! \return whether this is a MissingType. */
   TVM_DLL bool IsMissing() const;
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Type, ffi::ObjectRef, TypeNode);
+};
+
+/*!
+ * \brief Type information that has not been supplied or computed.
+ *
+ * MissingType is not a concrete type, wildcard, or inference variable. Unlike
+ * AnyType and Void, it must be resolved before a fully typed IR boundary.
+ */
+class MissingTypeNode final : public TypeNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MissingTypeNode>();
+  }
+
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.MissingType", MissingTypeNode, TypeNode);
+};
+
+/*! \brief Managed reference to MissingTypeNode. */
+class MissingType final : public Type {
+ public:
+  TVM_DLL MissingType();
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(MissingType, Type, MissingTypeNode);
 };
 
 /*!
@@ -311,10 +335,10 @@ class ExprNode : public ffi::Object {
   /*!
    * \brief The deduced or annotated type of the expression.
    *
-   * Type::Missing() denotes type information that will be populated by
+   * MissingType() denotes type information that will be populated by
    * later analysis passes instead of expression constructors.
    */
-  mutable Type ty = Type::Missing();
+  mutable Type ty = MissingType();
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -322,7 +346,7 @@ class ExprNode : public ffi::Object {
     refl::ObjectDef<ExprNode>()
         .def_ro("span", &ExprNode::span, refl::DefaultValue(Span()),
                 refl::AttachFieldFlag::SEqHashIgnore())
-        .def_ro("ty", &ExprNode::ty, refl::DefaultValue(Type::Missing()));
+        .def_ro("ty", &ExprNode::ty, refl::DefaultValue(MissingType()));
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

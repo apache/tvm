@@ -307,6 +307,8 @@ class TypeBaseChecker : public TypeFunctor<BaseCheckResult(const Type&, const Ty
   explicit TypeBaseChecker(sym::AnalyzerObj* ana) : analyzer_(ana) {}
 
   BaseCheckResult VisitType(const Type& lhs, const Type& other) override {
+    TVM_FFI_ICHECK(!lhs.IsMissing() && !other.IsMissing())
+        << "Type analysis requires populated types";
     // quick path
     // Note: subclass may disable this quick path if we need to go over all type.
     if (lhs.same_as(other)) return BaseCheckResult::kPass;
@@ -632,6 +634,8 @@ class TypeBasePreconditionCollector : public TypeFunctor<PrimExpr(const Type&, c
   explicit TypeBasePreconditionCollector() {}
 
   PrimExpr VisitType(const Type& lhs, const Type& other) override {
+    TVM_FFI_ICHECK(!lhs.IsMissing() && !other.IsMissing())
+        << "Type analysis requires populated types";
     if (lhs.same_as(other)) {
       // Early bail-out if the Type has reference equality.
       return IntImm::Bool(true);
@@ -990,6 +994,8 @@ class TypeLCAFinder : public TypeFunctor<Type(const Type&, const Type&)> {
   explicit TypeLCAFinder(sym::AnalyzerObj* ana) : analyzer_(ana) {}
 
   Type VisitType(const Type& lhs, const Type& other) final {
+    TVM_FFI_ICHECK(!lhs.IsMissing() && !other.IsMissing())
+        << "Type analysis requires populated types";
     // quick path
     if (lhs.same_as(other)) return lhs;
     return TypeFunctor::VisitType(lhs, other);
