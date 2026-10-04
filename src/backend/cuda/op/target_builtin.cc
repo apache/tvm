@@ -373,8 +373,6 @@ void RegisterDeviceIntrinsics() {
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.runtime_instr_desc"), "cuda", CallEffectKind::kOpaque,
                           sig::arg("desc"), sig::arg<IntExpr>("sf_id"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
-  RegisterDeviceIntrinsic(OpDef("tirx.cuda.sm100_2sm_leader_smem_addr"), "cuda",
-                          CallEffectKind::kOpaque, sig::arg("ptr"));
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.smem_addr_from_uint64"), "cuda", CallEffectKind::kOpaque,
                           sig::arg<IntExpr>("cluster_addr"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::UInt(32));
