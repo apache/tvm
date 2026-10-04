@@ -25,6 +25,7 @@
 #include <tvm/tirx/tile_primitive.h>
 
 #include <algorithm>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
@@ -76,15 +77,40 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
     default:
       scope = "tile";
   }
+  // Tile APIs accept literal strings and Python sequences. Preserve that syntax,
+  // including empty sequences, when their storage is a StringImm or Tuple.
+  std::function<ExprDoc(ffi::AnyView)> tile_value = [&](ffi::AnyView value) -> ExprDoc {
+    if (const auto* integer = value.as<IntImmNode>()) {
+      if (integer->ty.as_or_throw<PrimType>() == PrimType::Bool()) {
+        return LiteralDoc::Boolean(integer->value != 0, std::nullopt);
+      }
+      if (integer->ty.as_or_throw<PrimType>() == PrimType::Int(32)) {
+        return LiteralDoc::Int(ffi::GetRef<IntImm>(integer), std::nullopt);
+      }
+    }
+    if (const auto* str = value.as<StringImmNode>()) {
+      ExprDoc doc = LiteralDoc::Str(str->value, std::nullopt);
+      d->RecordOrigin(doc, ffi::GetRef<StringImm>(str));
+      return doc;
+    }
+    if (const auto* tuple = value.as<TupleNode>()) {
+      ffi::Array<ExprDoc> fields;
+      for (const Expr& field : tuple->fields) fields.push_back(tile_value(field));
+      ExprDoc doc = TupleDoc(fields);
+      d->RecordOrigin(doc, ffi::GetRef<Tuple>(tuple));
+      return doc;
+    }
+    return AnyValue(d, value);
+  };
   ffi::Array<Doc> args;
   size_t n = stmt->args.size();
-  while (n && stmt->args[n - 1].type_index() == ffi::TypeIndex::kTVMFFINone) --n;
-  if (n == 2 &&
+  while (n && !stmt->args[n - 1].has_value()) --n;
+  if (n == 2 && stmt->args[0].has_value() && stmt->args[1].has_value() &&
       (stmt->op->name == "tirx.tile.exp2" || stmt->op->name == "tirx.tile.sqrt" ||
        stmt->op->name == "tirx.tile.reciprocal") &&
       [&]() {
-        const auto* dst = stmt->args[0].as<TensorRegionNode>();
-        const auto* src = stmt->args[1].as<TensorRegionNode>();
+        const auto* dst = stmt->args[0].value().as<TensorRegionNode>();
+        const auto* src = stmt->args[1].value().as<TensorRegionNode>();
         return dst && src && dst->source.same_as(src->source) &&
                ffi::StructuralEqual()(dst->region, src->region);
       }()) {
@@ -98,21 +124,26 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
     for (size_t i = 0; i < n; ++i) arg_order.push_back(i);
   }
   for (size_t i : arg_order) {
-    if (auto op = stmt->args[i].as<Op>()) {
+    if (!stmt->args[i].has_value()) {
+      args.push_back(LiteralDoc::None(std::nullopt));
+      continue;
+    }
+    Expr arg = stmt->args[i].value();
+    if (auto op = arg.as<Op>()) {
       const std::string& op_name = op.value()->name;
       if (op_name.find("tirx.tile.") == 0) {
         args.push_back(LiteralDoc::Str(op_name.substr(10), std::nullopt));
         continue;
       }
     }
-    if (const auto* region = stmt->args[i].as<TensorRegionNode>()) {
+    if (const auto* region = arg.as<TensorRegionNode>()) {
       // Tile APIs require a region even when every extent is one. Point
       // indexing would instead construct a TensorLoad and select builtin APIs.
       ExprDoc value = TensorRegionValue(d, region, true);
       d->RecordOrigin(value, ffi::GetRef<TensorRegion>(region));
       args.push_back(value);
     } else {
-      args.push_back(AnyValue(d, stmt->args[i]));
+      args.push_back(tile_value(arg));
     }
   }
   auto dict = [&](const auto& source) -> ffi::Optional<DictDoc> {
@@ -125,7 +156,7 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
     ffi::Array<ExprDoc> values;
     for (const auto& [key, value] : sorted) {
       keys.push_back(LiteralDoc::Str(key, std::nullopt));
-      values.push_back(AnyValue(d, value));
+      values.push_back(tile_value(value));
     }
     return DictDoc(keys, values);
   };

@@ -30,6 +30,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/stmt_functor.h>
+#include <tvm/tirx/tile_primitive.h>
 
 #include <exception>
 #include <optional>
@@ -80,6 +81,10 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       Dispatch_(tuple_get_item, path);
     } else if (auto* buffer_region = obj.as<TensorRegionNode>()) {
       Dispatch_(buffer_region, path);
+    } else if (auto* lambda = obj.as<LambdaExprNode>()) {
+      VisitLambda(lambda, path);
+    } else if (obj.as<OpNode>()) {
+      return;
     } else if (obj.as<OpaqueExprNode>()) {
       Dispatch(obj, path);
     } else {
@@ -99,6 +104,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   // Visit type metadata through its reflected fields, preserving source access paths.
   virtual void Visit(const Type& obj, ffi::reflection::AccessPath path);
   virtual void Visit(ffi::AnyView obj, ffi::reflection::AccessPath path);
+  void VisitLambda(const LambdaExprNode* op, ffi::reflection::AccessPath path);
 
   // Visitors for TIR constructs that are neither PrimExpr nor Stmt
   virtual void Visit(const IRModule& obj, ffi::reflection::AccessPath path);

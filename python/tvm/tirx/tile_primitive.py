@@ -27,7 +27,7 @@ from typing import Any, ClassVar
 import tvm_ffi
 from tvm_ffi import register_object
 
-from tvm.ir import Expr, Op, Range
+from tvm.ir import Array, Expr, Op, Range, Tuple
 from tvm.runtime import Object, Scriptable
 from tvm.target import Target
 
@@ -39,7 +39,7 @@ from .stmt import Stmt
 
 
 @register_object("tirx.LambdaExpr")
-class LambdaExpr(Object):
+class LambdaExpr(Expr):
     """A reified Python lambda: bound variables and a body over them.
 
     Used by tile primitive ops that take a per-element expression over the
@@ -243,7 +243,9 @@ class DispatchContext(Object, Scriptable):
         return self.scope_kind == "cluster"
 
 
-def normalize_const_arg(arg) -> Expr:
+def normalize_const_arg(arg) -> Expr | None:
+    if isinstance(arg, list | tuple | Array):
+        return Tuple([normalize_const_arg(value) for value in arg])
     if isinstance(arg, float):
         return FloatImm("float32", arg)
     return arg
@@ -264,7 +266,7 @@ class TilePrimitiveCall(Stmt):
     workspace : Map[str, Buffer]
         The workspace.
 
-    config : Map[str, ObjectRef]
+    config : Map[str, Optional[Expr]]
         The scheduler/config dictionary.
 
     dispatch : Optional[str]
@@ -274,9 +276,9 @@ class TilePrimitiveCall(Stmt):
         The cooperation scope of this call. Defaults to ``thread`` (an unscoped call).
     """
 
-    args: list[Expr]
+    args: list[Expr | None]
     workspace: dict[str, Buffer]
-    config: dict[str, Any]
+    config: dict[str, Expr | None]
     dispatch: str | None
     scope: ExecScope
     _registry: ClassVar[dict[Op, type["TilePrimitiveCall"]]] = {}
@@ -302,6 +304,7 @@ class TilePrimitiveCall(Stmt):
             )
             op = self.__class__.op
         args = list(map(normalize_const_arg, args))
+        config = {key: normalize_const_arg(value) for key, value in config.items()}
         self.__init_handle_by_constructor__(
             _ffi_api.TilePrimitiveCall,
             op,

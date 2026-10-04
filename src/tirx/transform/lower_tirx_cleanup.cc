@@ -276,8 +276,10 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
-    ffi::Array<ffi::Any> args = op->args;
-    args.MutateByApply([this](ffi::Any arg) -> ffi::Any { return VisitAny(arg); });
+    ffi::Array<ffi::Optional<Expr>> args = op->args;
+    args.MutateByApply([this](ffi::Optional<Expr> arg) {
+      return VisitAny(arg).as_or_throw<ffi::Optional<Expr>>();
+    });
     if (args.same_as(op->args)) {
       return ffi::Unchanged();
     } else {

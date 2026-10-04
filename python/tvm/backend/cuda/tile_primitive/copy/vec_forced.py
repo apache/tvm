@@ -32,7 +32,7 @@ Example::
             cache="nc", l1_evict="L1::no_allocate", prefetch_size="L2::256B")
 """
 
-from tvm.ir import TensorRegion
+from tvm.ir import StringImm, TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
@@ -80,10 +80,12 @@ def _ld_cache_config(op_call: TilePrimitiveCall) -> tuple[str | None, dict[str, 
     """
     cache = op_call.config.get("cache", None)
     if cache is not None:
-        cache = str(cache)
+        cache = cache.value if isinstance(cache, StringImm) else str(cache)
     hints: dict[str, str] = {}
     for key in _LD_CACHE_HINT_KEYS:
         value = op_call.config.get(key, None)
+        if isinstance(value, StringImm):
+            value = value.value
         if value is not None and str(value):
             hints[key] = str(value)
     return cache, hints

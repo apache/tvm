@@ -33,6 +33,7 @@ from enum import Enum
 from itertools import pairwise
 
 import tvm
+from tvm.ir import StringImm
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
 from tvm.tirx import Buffer, IntImm, PrimFunc, is_buffer_var
@@ -339,6 +340,8 @@ def _target_sm(arch: str) -> int:
 
 
 def _normalize_l2_promotion(value) -> int:
+    if isinstance(value, StringImm):
+        value = value.value
     if value is None:
         return 2
     if isinstance(value, IntImm):
@@ -360,6 +363,8 @@ def _normalize_l2_promotion(value) -> int:
 
 
 def _normalize_oob(value) -> int:
+    if isinstance(value, StringImm):
+        value = value.value
     if value is None or value == "zero":
         return 0
     if value == "nan":
@@ -370,6 +375,8 @@ def _normalize_oob(value) -> int:
 def _normalize_cache_hint(cache_hint):
     if cache_hint is None:
         return "", None
+    if isinstance(cache_hint, StringImm):
+        cache_hint = cache_hint.value
     if isinstance(cache_hint, str):
         return cache_hint, None
     if isinstance(cache_hint, tvm.tirx.Expr):
@@ -1585,6 +1592,8 @@ def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
             fail("cta_mask is only valid for global-to-shared TMA")
 
     use_tma_reduce = op_call.config.get("use_tma_reduce")
+    if isinstance(use_tma_reduce, StringImm):
+        use_tma_reduce = use_tma_reduce.value
     if use_tma_reduce is not None:
         if direction != "s2g":
             fail("use_tma_reduce is only valid for shared-to-global TMA")
@@ -1860,7 +1869,7 @@ def _explicit_spec_for_gmem(
 def _normalize_gather4(value):
     if value is None:
         return ()
-    if not isinstance(value, list | tuple | tvm.ir.Array) or len(value) != 4:
+    if not isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(value) != 4:
         fail("tma_explicit gather4 must contain exactly four row coordinates")
     return tuple(value)
 
@@ -1899,11 +1908,11 @@ def _validate_gather4_dst(s_buf: Buffer, s_starts, s_extents, spec: TensorMapSpe
 def _normalize_src_selector(value):
     if value is None:
         return ()
-    if not isinstance(value, list | tuple | tvm.ir.Array):
+    if not isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple):
         fail("tma_explicit src_selector must be a list of (condition, global Buffer/view)")
     result = []
     for idx, item in enumerate(value):
-        if not isinstance(item, list | tuple | tvm.ir.Array) or len(item) != 2:
+        if not isinstance(item, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(item) != 2:
             fail(f"tma_explicit src_selector[{idx}] must be a (condition, Buffer/view) pair")
         condition, buffer = item
         if not isinstance(condition, tvm.tirx.Expr):

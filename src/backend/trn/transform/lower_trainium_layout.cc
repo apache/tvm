@@ -254,7 +254,9 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<Stmt> Mutate_(const tirx::TilePrimitiveCallNode* op, InplaceMode inplace_mode) final {
-    auto args = op->args.Map([this](const ffi::Any& arg) { return MutateTileArgument(arg); });
+    auto args = op->args.Map([this](const ffi::Optional<Expr>& arg) {
+      return MutateTileArgument(arg).as_or_throw<ffi::Optional<Expr>>();
+    });
     if (args.same_as(op->args)) {
       return ffi::Unchanged();
     } else {

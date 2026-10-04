@@ -279,10 +279,14 @@ def _get_explicit_mma_tile(config):
     values = []
     for name in ("mma_m", "mma_n"):
         value = config[name]
-        if isinstance(value, bool):
+        if isinstance(value, bool) or (
+            isinstance(value, tvm.tirx.IntImm) and value.ty.dtype == "bool"
+        ):
             raise ValueError(
                 f"gemm_async[tcgen05]: {name} must be a positive integer, got {value!r}"
             )
+        if isinstance(value, tvm.tirx.IntImm):
+            value = value.value
         try:
             value = operator.index(value)
         except TypeError as err:
@@ -501,6 +505,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
         transA, transB, accum = op_call.transA, op_call.transB, op_call.accum
 
     cta_group = op_call.config.get("cta_group", 1)
+    if isinstance(cta_group, tvm.tirx.IntImm):
+        cta_group = int(cta_group)
     assert cta_group in [1, 2], f"tcgen05 schedule expected cta_group=1 or 2, got {cta_group}"
     # descI (pre-encoded uint32 instruction descriptor): rejected on the dense
     # path (dispatcher encodes it); block-scaled callers may still pass it in.
@@ -950,7 +956,12 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     # Packed Layout-E C (M, 2, N//2) is uniquely the cta_group::1 M=64 .ws datapath
     # (PTX §9.7.16.10.5), so .ws is inferred; weight_stationary=False on it is rejected.
     if packed_n2 and not is_2x2:
-        if op_call.config.get("weight_stationary") is False:
+        ws_config = op_call.config.get("weight_stationary")
+        if ws_config is False or (
+            isinstance(ws_config, tvm.tirx.IntImm)
+            and ws_config.ty.dtype == "bool"
+            and not ws_config.value
+        ):
             raise ValueError(
                 "gemm_async[tcgen05]: C uses the packed (M, 2, N//2):(1@TLane, "
                 "64@TLane, 1@TCol) Layout-E TMEM layout, which is the M=64 "

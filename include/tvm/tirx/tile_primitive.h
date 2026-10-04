@@ -42,7 +42,7 @@ namespace tirx {
  * At lowering time the dispatch substitutes ``vars`` with the concrete
  * instruction axes via ``Apply``.
  */
-class LambdaExprNode : public ffi::Object {
+class LambdaExprNode : public ExprNode {
  public:
   explicit LambdaExprNode(ffi::UnsafeInit tag) : pred(tag) {}
 
@@ -64,18 +64,18 @@ class LambdaExprNode : public ffi::Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.LambdaExpr", LambdaExprNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.LambdaExpr", LambdaExprNode, ExprNode);
 };
 
 /*!
  * \brief Managed reference to LambdaExprNode.
  * \sa LambdaExprNode
  */
-class LambdaExpr : public ffi::ObjectRef {
+class LambdaExpr : public Expr {
  public:
   explicit LambdaExpr(Array<Var> vars, PrimExpr pred);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LambdaExpr, ffi::ObjectRef, LambdaExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LambdaExpr, Expr, LambdaExprNode);
 };
 
 /*!
@@ -193,10 +193,10 @@ class TilePrimitiveCallNode : public StmtNode {
  public:
   explicit TilePrimitiveCallNode(ffi::UnsafeInit tag) : op(tag) {}
 
-  TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Any> args,
+  TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Optional<Expr>> args,
                         ffi::Map<ffi::String, BufferVar> workspace,
-                        ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
-                        ExecScope scope)
+                        ffi::Map<ffi::String, ffi::Optional<Expr>> config,
+                        ffi::Optional<ffi::String> dispatch, ExecScope scope)
       : op(std::move(op)),
         args(std::move(args)),
         workspace(std::move(workspace)),
@@ -208,13 +208,13 @@ class TilePrimitiveCallNode : public StmtNode {
   tvm::Op op;
 
   // Arguments to the operator.
-  ffi::Array<ffi::Any> args;
+  ffi::Array<ffi::Optional<Expr>> args;
 
   // Workspace (pre-allocated buffers) for the operator.
   ffi::Map<ffi::String, BufferVar> workspace;
 
   // Config for the operator/scheduler.
-  ffi::Map<ffi::String, ffi::Any> config;
+  ffi::Map<ffi::String, ffi::Optional<Expr>> config;
 
   // Optional dispatch variant name registered via @register_dispatch.
   ffi::Optional<ffi::String> dispatch{std::nullopt};
@@ -242,9 +242,9 @@ class TilePrimitiveCallNode : public StmtNode {
  */
 class TilePrimitiveCall : public Stmt {
  public:
-  TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
+  TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Optional<Expr>> args,
                             ffi::Map<ffi::String, BufferVar> workspace = {},
-                            ffi::Map<ffi::String, ffi::Any> config = {},
+                            ffi::Map<ffi::String, ffi::Optional<Expr>> config = {},
                             ffi::Optional<ffi::String> dispatch = std::nullopt,
                             ExecScope scope = ExecScope(ScopeKind::kThread));
 

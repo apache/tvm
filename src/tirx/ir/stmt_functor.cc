@@ -500,15 +500,18 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const TilePrimitiveCallNode* op,
     }
     return ffi::Unchanged();
   };
-  auto args = MutateTileArray<ffi::Any>(op->args.GetArrayObj(), inplace_mode, mutate_arg);
+  auto args =
+      MutateTileArray<ffi::Optional<Expr>>(op->args.GetArrayObj(), inplace_mode, mutate_arg);
   // A config map is another owning container on the path to its values.
   auto config_mode = op->config.unique() ? inplace_mode : InplaceMode::kDisallow;
-  UnchangedOr<ffi::Map<ffi::String, ffi::Any>> config = ffi::Unchanged();
-  std::vector<std::pair<ffi::String, ffi::Any>> replacements;
+  UnchangedOr<ffi::Map<ffi::String, ffi::Optional<Expr>>> config = ffi::Unchanged();
+  std::vector<std::pair<ffi::String, ffi::Optional<Expr>>> replacements;
   for (const auto& [key, value] : *static_cast<const ffi::MapObj*>(op->config.get())) {
     auto result = mutate_arg(value, config_mode);
     if (!result.UnchangedOrSameAs(value)) {
-      replacements.emplace_back(key.as_or_throw<ffi::String>(), std::move(result).ValueUnchecked());
+      replacements.emplace_back(
+          key.as_or_throw<ffi::String>(),
+          std::move(result).ValueUnchecked().as_or_throw<ffi::Optional<Expr>>());
     }
   }
   if (!replacements.empty()) {
@@ -517,7 +520,7 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const TilePrimitiveCallNode* op,
         const_cast<ffi::MapObj*>(static_cast<const ffi::MapObj*>(op->config.get()))->at(key) =
             std::move(value);
     } else {
-      ffi::Map<ffi::String, ffi::Any> replacement = op->config;
+      ffi::Map<ffi::String, ffi::Optional<Expr>> replacement = op->config;
       for (auto& [key, value] : replacements) replacement.Set(key, std::move(value));
       config = std::move(replacement);
     }

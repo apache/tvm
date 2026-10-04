@@ -250,19 +250,9 @@ void TIRVisitorWithPath::Dispatch_(const EvaluateNode* op, AccessPath path) {
 }
 
 void TIRVisitorWithPath::Dispatch_(const tirx::TilePrimitiveCallNode* op, AccessPath path) {
-  for (size_t i = 0; i < op->args.size(); i++) {
-    if (op->args[i] == nullptr) {
-      continue;
-    }
-    if (auto buf_region = op->args[i].as<TensorRegion>()) {
-      Visit(buf_region.value(), path->Attr("args")->ArrayItem(i));
-    } else if (auto expr = op->args[i].as<PrimExpr>()) {
-      Visit(expr.value(), path->Attr("args")->ArrayItem(i));
-    } else if (auto stmt = op->args[i].as<Stmt>()) {
-      Visit(stmt.value(), path->Attr("args")->ArrayItem(i));
-    } else if (auto buf = op->args[i].as<BufferVar>()) {
-      VisitBufferUse(buf.value(), path->Attr("args")->ArrayItem(i));
-    }
+  Visit(op->args, path->Attr("args"));
+  for (const auto& [key, value] : op->config) {
+    Visit(value, path->Attr("config")->MapItem(key));
   }
 }
 
@@ -296,6 +286,15 @@ void TIRVisitorWithPath::Dispatch_(const TensorRegionNode* op, AccessPath path) 
 }
 
 void TIRVisitorWithPath::Dispatch_(const OpaqueExprNode* op, AccessPath path) {}
+
+void TIRVisitorWithPath::VisitLambda(const LambdaExprNode* op, AccessPath path) {
+  Visit(op->ty, path->Attr("ty"));
+  std::vector<DefContext<Var>> context;
+  for (size_t i = 0; i < op->vars.size(); ++i) {
+    context.push_back(WithDef(op->vars[i], path->Attr("vars")->ArrayItem(i)));
+  }
+  Visit(op->pred, path->Attr("pred"));
+}
 
 void TIRVisitorWithPath::Dispatch_(const TupleNode* op, AccessPath path) {
   Visit(op->fields, path->Attr("fields"));
