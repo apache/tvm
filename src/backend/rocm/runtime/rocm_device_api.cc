@@ -45,8 +45,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
     switch (kind) {
       case kExist: {
 #ifdef _WIN32
-        // Windows HIP has no HSA runtime. Missing devices or an incompatible
-        // driver must make an existence query return false, not throw.
+        // Windows HIP SDK packages can omit the HSA development headers.
+        // Missing devices or an incompatible driver must return false, not throw.
         int dev = 0;
         if (hipGetDeviceCount(&dev) == hipSuccess) {
           value = device.device_id >= 0 && device.device_id < dev;
