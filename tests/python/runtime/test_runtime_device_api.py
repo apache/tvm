@@ -51,23 +51,28 @@ def test_check_if_device_exists():
 
 
 @pytest.mark.skipif(
-    sys.platform != "win32" or not tvm.runtime.enabled("rocm"),
-    reason="Requires the Windows HIP runtime",
+    not tvm.runtime.enabled("rocm"),
+    reason="Requires the ROCm runtime to be built",
 )
-def test_windows_rocm_invalid_device_does_not_exist():
-    assert not tvm.rocm(-1).exist
-    assert not tvm.rocm(2**31 - 1).exist
+@pytest.mark.parametrize("device_id", [-1, 2**31 - 1])
+def test_rocm_invalid_device_does_not_exist(device_id):
+    assert not tvm.rocm(device_id).exist
 
 
 @pytest.mark.skipif(
-    sys.platform != "win32" or not tvm.runtime.enabled("rocm"),
-    reason="Requires the Windows HIP runtime",
+    not tvm.runtime.enabled("rocm"),
+    reason="Requires the ROCm runtime to be built",
 )
-def test_windows_rocm_hidden_device_does_not_exist():
+def test_rocm_hidden_device_does_not_exist():
     subprocess.check_call(
         [sys.executable, "-c", "import tvm; assert not tvm.rocm(0).exist"],
-        env={**os.environ, "HIP_VISIBLE_DEVICES": ""},
+        env={**os.environ, "HIP_VISIBLE_DEVICES": "", "ROCR_VISIBLE_DEVICES": ""},
     )
+
+
+@tvm.testing.requires_rocm
+def test_rocm_device_exists():
+    assert tvm.rocm(0).exist
 
 
 if __name__ == "__main__":

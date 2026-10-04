@@ -53,7 +53,6 @@ macro(find_rocm use_rocm)
     endif()
     find_library(ROCM_HIPBLAS_LIBRARY hipblas ${__rocm_sdk}/lib)
     find_library(ROCM_HIPBLASLT_LIBRARY hipblaslt ${__rocm_sdk}/lib)
-    find_library(ROCM_HSA_LIBRARY hsa-runtime64 ${__rocm_sdk}/lib)
 
     if(ROCM_HIPHCC_LIBRARY)
       set(ROCM_FOUND TRUE)
