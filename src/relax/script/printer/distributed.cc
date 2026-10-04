@@ -107,9 +107,7 @@ ffi::Optional<ExprDoc> DeviceMeshDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   }
   ExprDoc devices = LiteralDoc::None(std::nullopt);
   if (mesh->device_range.has_value()) {
-    CallDoc range = d->Translate(mesh->device_range.value()).value().as_or_throw<CallDoc>();
-    range->callee = NamespaceDoc("relax")->Attr("Range");
-    devices = range;
+    devices = d->Translate(mesh->device_range.value()).value();
   } else {
     ffi::Array<ExprDoc> ids;
     for (int64_t value : mesh->device_ids) ids.push_back(LiteralDoc::Int(value, std::nullopt));

@@ -27,8 +27,6 @@
 #include <tvm/relax/distributed/type.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/logging.h>
-#include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
 #include <tvm/te/operation.h>
 #include <tvm/tirx/exec_scope.h>
@@ -38,66 +36,21 @@
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/tile_primitive.h>
 
-#include <sstream>
 #include <utility>
 
 #include "utils.h"
 
 namespace tvm {
-namespace {
-
-std::string RenderFallbackWithInvisiblePathInfo(const ffi::String& script,
-                                                const PrinterConfig& config) {
-  if (!config->render_invisible_path_info || config->path_to_underline.empty()) {
-    return std::string(script);
-  }
-
-  std::ostringstream os;
-  for (size_t i = 0; i < config->path_to_underline.size(); ++i) {
-    if (i != 0) os << "\n";
-    os << "Access path: " << config->path_to_underline[i]
-       << "\nNote: No visible object for this path is rendered in TVMScript.";
-  }
-  os << "\n\n" << script;
-  return os.str();
-}
-
-}  // namespace
-
-std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
-  PrinterConfig config = cfg.value_or(PrinterConfig());
-  static ffi::reflection::TypeAttrColumn translate(script::printer::kDocTranslate);
-  // Builtin runtime roots keep their native repr; hooks still translate them within IR.
-  if (!node.defined() || node->type_index() < ffi::TypeIndex::kTVMFFIDynObjectBegin ||
-      translate[node->type_index()].type_index() == ffi::TypeIndex::kTVMFFINone) {
-    return RenderFallbackWithInvisiblePathInfo(ffi::ReprPrint(ffi::Any(node)), config);
-  }
-  return std::string(script::printer::Script(node, config));
-}
-
-std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
-  try {
-    PrinterConfig config;
-    config->extra_config.Set("ir.comment_imports", true);
-    // Call translation directly so an unsupported type cannot recurse through ffi repr.
-    return std::string(script::printer::Script(obj, config));
-  } catch (const tvm::ffi::Error& e) {
-    LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
-                 << e.what();
-    std::ostringstream os;
-    os << obj->GetTypeKey() << '(' << obj.get() << ')';
-    return os.str();
-  }
-}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = ffi::reflection;
   using script::printer::details::RegisterScriptRepr;
   refl::GlobalDef()
       .def("node.TVMScriptPrinterScript", tvm::Script)
+      .def("script.printer.Script", tvm::Script)
       .def("script.printer.ReprPrintRelax",
            [](const ffi::ObjectRef& obj, const PrinterConfig& config) {
-             return script::printer::Script(obj, config);
+             return tvm::Script(obj, config);
            });
 
   RegisterScriptRepr<DataTypeImmNode>();

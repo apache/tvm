@@ -20,12 +20,14 @@
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/script/printer/doc.h>
 #include <tvm/script/printer/doc_translator.h>
 #include <tvm/script/printer/printer.h>
 
 #include <algorithm>
 #include <functional>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -108,8 +110,8 @@ ffi::Map<ffi::String, ffi::Array<ffi::Any>> CollectMetadata(
 ffi::Array<ffi::String> DisplayAliases(const PrinterConfig& config) {
   ffi::Array<ffi::String> aliases;
   for (const auto& [key, fallback] : GetNamespaceAliases()) {
-    aliases.push_back(key == "ir.prefix" ? config->ir_prefix
-                                         : config->GetExtraConfig<ffi::String>(key, fallback));
+    aliases.push_back(config->GetExtraConfig<ffi::String>(
+        key, key == "ir.prefix" ? config->ir_prefix : fallback));
   }
   return aliases;
 }
@@ -330,9 +332,7 @@ class MapDocPaths {
   std::vector<std::pair<ffi::ObjectRef, AccessPath>> occurrences_;
 };
 
-}  // namespace
-
-ffi::String Script(const ffi::ObjectRef& obj, const PrinterConfig& config) {
+ffi::String RenderScript(const ffi::ObjectRef& obj, const PrinterConfig& config) {
   ffi::Dict<Doc, ffi::ObjectRef> origins;
   Doc doc = DocTranslate(obj, &origins, config->extra_config);
   auto block = doc.as<StmtBlockDoc>();
@@ -410,8 +410,8 @@ ffi::String Script(const ffi::ObjectRef& obj, const PrinterConfig& config) {
       std::string canonical = key;
       canonical.resize(canonical.size() - std::string(".prefix").size());
       if (!namespaces.count(canonical)) continue;
-      ffi::String alias = canonical == "ir" ? config->ir_prefix
-                                            : config->GetExtraConfig<ffi::String>(key, fallback);
+      ffi::String alias = config->GetExtraConfig<ffi::String>(
+          key, canonical == "ir" ? config->ir_prefix : fallback);
       ffi::String import = "from tvm.script import " + canonical + " as " + std::string(alias);
       if (config->GetExtraConfig<bool>("ir.comment_imports", false) && !config->show_meta) {
         header.push_back(CommentDoc(import));
@@ -421,13 +421,64 @@ ffi::String Script(const ffi::ObjectRef& obj, const PrinterConfig& config) {
     }
     if (!header.empty()) header.push_back(ffi::String("\n"));
   }
+  if (config->path_to_underline.empty() && config->obj_to_underline.empty() &&
+      config->path_to_annotate.empty() && config->obj_to_annotate.empty() &&
+      !config->render_invisible_path_info) {
+    return details::RenderPythonScript(doc, config, header, {}, {});
+  }
   MapDocPaths paths(obj, config);
   auto [underline_paths, annotations] = paths.Map(doc, origins);
   return details::RenderPythonScript(doc, config, header, underline_paths, annotations);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK() { ffi::reflection::GlobalDef().def("script.printer.Script", Script); }
+}  // namespace
 
 }  // namespace printer
 }  // namespace script
+namespace {
+
+std::string RenderFallbackWithInvisiblePathInfo(const ffi::String& script,
+                                                const PrinterConfig& config) {
+  if (!config->render_invisible_path_info || config->path_to_underline.empty()) {
+    return std::string(script);
+  }
+
+  std::ostringstream os;
+  for (size_t i = 0; i < config->path_to_underline.size(); ++i) {
+    if (i != 0) os << "\n";
+    os << "Access path: " << config->path_to_underline[i]
+       << "\nNote: No visible object for this path is rendered in TVMScript.";
+  }
+  os << "\n\n" << script;
+  return os.str();
+}
+
+}  // namespace
+
+std::string Script(const ffi::ObjectRef& node, const ffi::Optional<PrinterConfig>& cfg) {
+  PrinterConfig config = cfg.value_or(PrinterConfig());
+  static ffi::reflection::TypeAttrColumn translate(script::printer::kDocTranslate);
+  // Builtin runtime roots keep their native repr; hooks still translate them within IR.
+  if (!node.defined() || node->type_index() < ffi::TypeIndex::kTVMFFIDynObjectBegin ||
+      translate[node->type_index()].type_index() == ffi::TypeIndex::kTVMFFINone) {
+    return RenderFallbackWithInvisiblePathInfo(ffi::ReprPrint(ffi::Any(node)), config);
+  }
+  return std::string(script::printer::RenderScript(node, config));
+}
+
+std::string RedirectedReprPrinterMethod(const ffi::ObjectRef& obj) {
+  try {
+    PrinterConfig config;
+    config->extra_config.Set("ir.comment_imports", true);
+    // Call translation directly so an unsupported type cannot recurse through ffi repr.
+    return std::string(script::printer::RenderScript(obj, config));
+  } catch (const tvm::ffi::Error& e) {
+    LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
+                 << e.what();
+    std::ostringstream os;
+    os << obj->GetTypeKey() << '(' << obj.get() << ')';
+    return os.str();
+  }
+}
+
 }  // namespace tvm
