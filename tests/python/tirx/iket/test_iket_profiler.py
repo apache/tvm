@@ -371,7 +371,7 @@ def test_public_interface_is_official_only():
     assert callable(cuda_transforms.LowerIket)
 
     script = serial_a.script()
-    assert 'T.cuda.iket.mark("a")' in script
+    assert 'T.cuda.iket_mark("a")' in script
     assert "T.tirx.iket" not in script
     assert (
         tvm.script.from_source(
@@ -381,9 +381,9 @@ def test_public_interface_is_official_only():
     )
 
     payload_script = payload_types.script()
-    assert 'T.cuda.iket.mark("i8", T.int8(-8))' in payload_script
-    assert 'T.cuda.iket.range_start("token_payload", -7)' in payload_script
-    assert "T.cuda.iket.range_end(token, 9)" in payload_script
+    assert 'T.cuda.iket_mark("i8", T.int8(-8))' in payload_script
+    assert 'T.cuda.iket_range_start("token_payload", -7)' in payload_script
+    assert "T.cuda.iket_range_end(token, 9)" in payload_script
     assert (
         tvm.script.from_source(
             payload_script, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}

@@ -147,9 +147,7 @@ def test_tile_shorthand_and_scoped_aliases_use_tile_ops():
 
 
 def test_device_intrinsic_namespaces_are_canonical_and_classified():
-    from tvm.backend.cuda.script import (
-        CUDANamespace as BackendCUDANamespace,
-    )
+    cuda_script = importlib.import_module("tvm.backend.cuda.script")
     from tvm.backend.cuda.script import (
         NVSHMEMNamespace as BackendNVSHMEMNamespace,
     )
@@ -160,7 +158,7 @@ def test_device_intrinsic_namespaces_are_canonical_and_classified():
     from tvm.backend.trn.script import NKINamespace as BackendNKINamespace
     from tvm.tirx.script.ir_builder import op as builder_op
 
-    assert isinstance(builder_op.cuda, BackendCUDANamespace)
+    assert builder_op.cuda is cuda_script
     assert isinstance(builder_op.s_tir, BackendSTIRNamespace)
     assert isinstance(builder_op.nvshmem, BackendNVSHMEMNamespace)
     assert isinstance(builder_op.metal, BackendMetalNamespace)
