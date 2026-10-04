@@ -74,7 +74,7 @@ def test_config_extension_passthrough():
     assert _script(tirx.Var("Custom", "int32"), cfg) == "Custom_1"
 
 
-@pytest.mark.parametrize("key", ["tirx.prefix", "relax.prefix", "s_tir.prefix"])
+@pytest.mark.parametrize("key", ["ir.prefix", "tirx.prefix", "relax.prefix", "s_tir.prefix"])
 @pytest.mark.parametrize("value", ["2prefix", 17])
 @pytest.mark.parametrize("nested", [False, True])
 def test_config_validates_dialect_prefixes(key, value, nested):
@@ -97,6 +97,37 @@ def test_config_reserves_dialect_prefixes_before_variable_definition(prefixes):
         assert var.script(verbose_expr=True, extra_config=prefixes).strip() == (
             f'{name}_1 = I.dynamic("{name}", dtype="int32")\n{name}_1'
         )
+
+
+@pytest.mark.parametrize(
+    "config, alias",
+    [
+        ({}, "I"),
+        ({"ir_prefix": "TypedI"}, "TypedI"),
+        ({"extra_config": {"ir.prefix": "ExplicitI"}}, "ExplicitI"),
+        (
+            {"ir_prefix": "TypedI", "extra_config": {"ir.prefix": "ExplicitI"}},
+            "ExplicitI",
+        ),
+    ],
+)
+@pytest.mark.parametrize("comment_imports", [False, True])
+def test_ir_prefix_rendering_imports_and_reservations(config, alias, comment_imports):
+    config = dict(config)
+    config["extra_config"] = {
+        **config.get("extra_config", {}),
+        "ir.comment_imports": comment_imports,
+    }
+    var = tirx.Var(alias, "int32")
+    assert var.script(verbose_expr=True, **config).strip() == (
+        f'{alias}_1 = {alias}.dynamic("{alias}", dtype="int32")\n{alias}_1'
+    )
+    mod = tvm.IRModule({})
+    script = mod.script(**config)
+    import_line = f"from tvm.script import ir as {alias}"
+    assert script.splitlines()[0] == ("# " if comment_imports else "") + import_line
+    assert f"@{alias}.ir_module" in script
+    assert_structural_equal(mod, tvm.script.from_source(script, extra_vars={alias: I}))
 
 
 def test_buffer():

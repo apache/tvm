@@ -84,15 +84,7 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
       for (const auto& [key, entries] : infos) {
         ffi::Array<ExprDoc> items;
         for (const GlobalInfo& entry : entries) {
-          ExprDoc item = AnyValue(d, entry);
-          if (key == "mesh") {
-            if (auto mesh = item.as<CallDoc>(); mesh && mesh.value()->args.size() == 2) {
-              if (auto range = mesh.value()->args[1].as<CallDoc>()) {
-                range.value()->callee = NamespaceDoc("ir")->Attr("Range");
-              }
-            }
-          }
-          items.push_back(item);
+          items.push_back(AnyValue(d, entry));
         }
         keys.push_back(LiteralDoc::Str(key, std::nullopt));
         values.push_back(ListDoc(items));
