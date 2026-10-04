@@ -54,14 +54,6 @@ TVM_DLL void RegisterNamespaceAlias(const ffi::String& key, const ffi::String& d
 /*! \brief Read the registered namespace aliases. */
 TVM_DLL const ffi::Map<ffi::String, ffi::String>& GetNamespaceAliases();
 
-/*!
- * \brief Translate IR, recover diagnostic paths, and render Python text.
- * \param obj The input IR object.
- * \param config The translation and rendering options.
- * \return The rendered script.
- */
-TVM_DLL ffi::String Script(const ffi::ObjectRef& obj, const PrinterConfig& config);
-
 }  // namespace printer
 }  // namespace script
 }  // namespace tvm

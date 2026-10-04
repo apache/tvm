@@ -25,7 +25,6 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/script/printer/config.h>
 
 #include <string>
 
@@ -1434,24 +1433,6 @@ class NamespaceDoc : public ExprDoc {
   TVM_DLL explicit NamespaceDoc(ffi::String canonical_name);
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(NamespaceDoc, ExprDoc, NamespaceDocNode);
 };
-
-/*!
- * \brief Render a completed Doc tree with the supplied configuration.
- * \param doc The Doc tree to render.
- * \param config The rendering configuration.
- * \return The rendered Python source.
- */
-TVM_DLL ffi::String DocToPythonScript(Doc doc, const PrinterConfig& config);
-
-/*!
- * \brief Render explicit headers followed by a completed Doc tree.
- * \param doc The Doc tree to render.
- * \param config The rendering configuration.
- * \param header Ordered String source chunks or CommentDocs.
- * \return The rendered Python source.
- */
-TVM_DLL ffi::String DocToPythonScriptWithHeader(Doc doc, const PrinterConfig& config,
-                                                const ffi::Array<ffi::Any>& header);
 
 }  // namespace printer
 }  // namespace script
