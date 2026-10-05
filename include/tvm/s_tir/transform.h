@@ -158,6 +158,7 @@ TVM_DLL Pass TransformMmaBufferLayout();
 
 /*!
  * \brief Remove the block to ensure that the TIR can not be scheduled again.
+ * Run LoopPartition first when thread-binding loops carry loop_partition_hint.
  * \return The pass.
  */
 TVM_DLL Pass LowerOpaqueBlock();

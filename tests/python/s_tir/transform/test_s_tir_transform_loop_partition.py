@@ -223,10 +223,10 @@ def partitioned_concat(
 def partition_from_scheduled_tir(prim_func, pass_cfg, do_flatten=True):
     with tvm.transform.PassContext(config=pass_cfg):
         mod = IRModule.from_expr(prim_func.with_attr("global_symbol", "main"))
+        mod = tvm.s_tir.transform.LoopPartition()(mod)
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
         if do_flatten:
             mod = tvm.tirx.transform.FlattenBuffer()(mod)
-        mod = tvm.s_tir.transform.LoopPartition()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         mod = tvm.tirx.transform.RemoveNoOp()(mod)
         return mod
@@ -262,7 +262,7 @@ def concat_func_3(
     placeholder_1_flat = T.decl_tensor([25088], "int8", data=placeholder_1.data)
     placeholder_2_flat = T.decl_tensor([25088], "int8", data=placeholder_2.data)
     T_concat_flat = T.decl_tensor([100352], "int8", data=T_concat.data)
-    for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+    for i1 in T.serial(128, annotations={"loop_partition_hint": 1}):
         for i2, i3 in T.grid(28, 28):
             if 96 <= i1:
                 T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_2_flat[
@@ -294,7 +294,7 @@ def test_loop_partition_unroll_hint():
         B = T.decl_tensor(25088, "int8", data=B_arg.data)
         for ax0 in T.serial(
             112,
-            annotations={"pragma_loop_partition_hint": True},
+            annotations={"loop_partition_hint": True},
         ):
             for ax1, ax2, ax3 in T.grid(224, 7, 16):
                 if 3 <= ax0 * 2 + ax2 and ax0 * 2 + ax2 < 227 and ax3 < 3:
@@ -339,8 +339,8 @@ def test_loop_partition_recursive_unroll_hint():
     @Ts.prim_func
     def main():
         placeholder_0_dm = T.decl_tensor([1, 32, 32, 16], dtype="int8")
-        for i3_0 in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
-            for i2_0 in T.serial(2, annotations={"pragma_loop_partition_hint": 1}):
+        for i3_0 in T.serial(5, annotations={"loop_partition_hint": 1}):
+            for i2_0 in T.serial(2, annotations={"loop_partition_hint": 1}):
                 pad_temp = T.decl_tensor([1, 16, 16, 16], dtype="int8")
                 for ax0, ax1, ax2 in T.grid(16, 16, 16):
                     if (
@@ -405,7 +405,7 @@ def test_loop_partition_keep_loop_annotations():
     def before(A: T.Tensor(160, "int32"), B: T.Tensor(160, "int32")) -> None:
         for i in T.serial(
             160,
-            annotations={"pragma_loop_partition_hint": True, "key": "value"},
+            annotations={"loop_partition_hint": True, "key": "value"},
         ):
             if i < 10:
                 B[i] = A[i] + 1
@@ -445,7 +445,7 @@ def test_loop_partition_with_unit_loop_in_condition():
         T_concat: T.Tensor((100352,), "int8"),
     ) -> None:
         for k in range(1, annotations={"preserve_unit_loop": True}):
-            for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+            for i1 in T.serial(128, annotations={"loop_partition_hint": 1}):
                 for i2, i3 in T.grid(28, 28):
                     if 96 <= k * 128 + i1:
                         T_concat[k * i1 * 784 + i2 * 28 + i3] = placeholder_2[
@@ -498,7 +498,7 @@ def concat_func_single_point(
     T_concat: T.Tensor((28, 128), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+        for i1 in T.serial(128, annotations={"loop_partition_hint": 1}):
             if i1 > 63:
                 T_concat[i0, i1] = placeholder[i0, i1 - 64]
             elif i1 == 63:
@@ -534,7 +534,7 @@ def concat_func_start_point_equality(
     T_concat: T.Tensor((28, 128), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in range(128, annotations={"pragma_loop_partition_hint": 1}):
+        for i1 in range(128, annotations={"loop_partition_hint": 1}):
             if i1 == 0:
                 # Special case for i1 == 0
                 T_concat[i0, i1] = placeholder_1[i0, 0]
@@ -573,7 +573,7 @@ def concat_func_end_point_equality(
     T_concat: T.Tensor((28, 128), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in range(128, annotations={"pragma_loop_partition_hint": 1}):
+        for i1 in range(128, annotations={"loop_partition_hint": 1}):
             if i1 == 127:
                 # Explicit equality check for the end point i1 == 127
                 T_concat[i0, i1] = placeholder_1[i0, 0]
@@ -612,9 +612,7 @@ def concat_func_edge_equalities(
     T_concat: T.Tensor((28, 66), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in range(
-            66, annotations={"pragma_loop_partition_hint": 1}
-        ):  # Loop from 0 to 65 inclusive
+        for i1 in range(66, annotations={"loop_partition_hint": 1}):  # Loop from 0 to 65 inclusive
             if i1 == 0:
                 # Handle equality at the start of the range: i1 == 0
                 T_concat[i0, i1] = placeholder_2[i0, 0]
@@ -654,7 +652,7 @@ def concat_five_buffers_with_equalities(
     T_concat: T.Tensor((28, 129), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in range(130, annotations={"pragma_loop_partition_hint": 1}):
+        for i1 in range(130, annotations={"loop_partition_hint": 1}):
             if i1 == 0:
                 T_concat[i0, i1] = buffer_a[i0, 0]
             elif i1 == 64:
@@ -694,13 +692,13 @@ def concat_five_buffers_with_equalities_expected(
 
 @Ts.prim_func
 def nested_partition_with_single_points(A: T.Tensor((25,), "int32")):
-    for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+    for i in T.serial(5, annotations={"loop_partition_hint": 1}):
         if i == 1:
-            for j in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+            for j in T.serial(5, annotations={"loop_partition_hint": 1}):
                 if j > 2:
                     A[i * 5 + j] = i * 5 + j
         else:
-            for j in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+            for j in T.serial(5, annotations={"loop_partition_hint": 1}):
                 if j > 2:
                     A[i * 5 + j] = i * 15 + j
 
@@ -745,9 +743,9 @@ def test_single_point_partition(origin, expected):
 def test_equation_on_floordiv():
     @Ts.prim_func
     def before(A: T.Tensor((2, 2, 20), "int32")):
-        for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+        for i in T.serial(5, annotations={"loop_partition_hint": 1}):
             if i == 1:
-                for vv in T.vectorized(640, annotations={"pragma_loop_partition_hint": 1}):
+                for vv in T.vectorized(640, annotations={"loop_partition_hint": 1}):
                     if i * 2 + vv // 320 == 3:
                         A[i - 1, i * 2 + vv // 320 - 3, vv % 320 // 16] = 1
 
@@ -770,7 +768,7 @@ def test_ignore_loop_partition_hint():
     def before(A: T.Tensor((10), "float32"), D: T.Tensor((10), "float32")):
         B = T.decl_tensor([2], "float32")
         C = T.decl_tensor([2], "float32")
-        for i in T.serial(12, annotations={"pragma_loop_partition_hint": 1}):
+        for i in T.serial(12, annotations={"loop_partition_hint": 1}):
             if T.ignore_loop_partition(i < 10):
                 B[i % 2] = A[i] + 1.0
             if T.ignore_loop_partition(1 <= i and i < 11):
@@ -798,6 +796,195 @@ def test_ignore_loop_partition_hint():
         before.with_attr({"global_symbol": "main"}), {}, do_flatten=False
     )
     tvm.ir.assert_structural_equal(after["main"], expected)
+
+
+@pytest.mark.parametrize("hint", [True, False, 1, 0, None, "proven", "unproven"])
+def test_loop_owned_hint_values(hint):
+    @T.prim_func
+    def before(n: T.int32, A: T.Tensor(8, "int32")):
+        for i in range(8):
+            if i < 4:
+                A[i] = n
+
+    value = hint
+    if hint == "proven":
+        value = before.params[0] < before.params[0] + 1
+    elif hint == "unproven":
+        value = before.params[0] > 0
+    loop = before.body
+    before = before.with_body(
+        tvm.tirx.For(
+            loop.loop_var,
+            loop.min,
+            loop.extent,
+            loop.kind,
+            loop.body,
+            annotations={"loop_partition_hint": value, "keep": "value"},
+        )
+    )
+    after = tvm.s_tir.transform.LoopPartition()(IRModule({"main": before}))["main"]
+    loops = []
+    tvm_ffi.structural_walk(
+        after.body, lambda x: loops.append(x) if isinstance(x, tvm.tirx.For) else None
+    )
+    assert len(loops) == (2 if hint in [True, 1, "proven"] else 1)
+    assert all(dict(loop.annotations) == {"keep": "value"} for loop in loops)
+
+
+@pytest.mark.parametrize(
+    "lower", [tvm.s_tir.transform.LowerOpaqueBlock, tvm.tirx.transform.LowerTIRxOpaque]
+)
+def test_opaque_preserves_loop_partition_hint(lower):
+    @T.prim_func
+    def before(A: T.Tensor(8, "int32")):
+        for i in T.serial(8, annotations={"loop_partition_hint": True, "keep": "value"}):
+            A[i] = i
+
+    after = lower()(IRModule({"main": before}))["main"]
+    tvm.ir.assert_structural_equal(after, before)
+
+
+@pytest.mark.parametrize("keep_annotation", [False, True])
+@pytest.mark.parametrize("keep_unit", [False, True])
+def test_partition_hint_unit_loops(keep_annotation, keep_unit):
+    annotations = {"loop_partition_hint": True}
+    if keep_annotation:
+        annotations["keep"] = "value"
+
+    @T.prim_func
+    def before(A: T.Tensor(3, "int32")):
+        for i in T.serial(3, annotations=annotations):
+            if i < 1:
+                A[i] = 1
+            else:
+                A[i] = 2
+
+    with tvm.transform.PassContext(
+        config={"s_tir.LoopPartition": {"no_unroll_loop_with_extent_one": keep_unit}}
+    ):
+        after = tvm.s_tir.transform.LoopPartition()(IRModule({"main": before}))["main"]
+    loops = []
+    tvm_ffi.structural_walk(
+        after.body, lambda x: loops.append(x) if isinstance(x, tvm.tirx.For) else None
+    )
+    assert [int(loop.extent) for loop in loops] == ([1, 2] if keep_annotation or keep_unit else [2])
+    assert all(
+        dict(loop.annotations) == ({"keep": "value"} if keep_annotation else {}) for loop in loops
+    )
+
+
+def test_partition_unroll_preserves_annotations():
+    @T.prim_func
+    def before(A: T.Tensor((5, 16), "int32")):
+        for i in T.serial(5, annotations={"loop_partition_hint": True, "keep": "value"}):
+            for j in range(16):
+                if 6 <= i * 4 + j and i * 4 + j < 26:
+                    A[i, j] = 1
+
+    with tvm.transform.PassContext(
+        config={"s_tir.LoopPartition": {"unroll_loop_with_partition_hint_no_interval": True}}
+    ):
+        after = tvm.s_tir.transform.LoopPartition()(IRModule({"main": before}))["main"]
+    loops = []
+    tvm_ffi.structural_walk(
+        after.body, lambda x: loops.append(x) if isinstance(x, tvm.tirx.For) else None
+    )
+    unrolled = [loop for loop in loops if loop.kind == tvm.tirx.ForKind.UNROLLED]
+    assert unrolled
+    assert all(dict(loop.annotations) == {"keep": "value"} for loop in unrolled)
+
+
+@pytest.mark.parametrize("tag", ["blockIdx.x", "threadIdx.x", "vthread"])
+@pytest.mark.parametrize(
+    "lower", [tvm.s_tir.transform.LowerOpaqueBlock, tvm.tirx.transform.LowerTIRxOpaque]
+)
+def test_partition_thread_binding_hint(tag, lower):
+    @T.prim_func
+    def before(A: T.Tensor((8, 2), "int32")):
+        for i in T.thread_binding(8, thread=tag, annotations={"loop_partition_hint": True}):
+            for j in T.thread_binding(2, thread="threadIdx.y"):
+                if i < 4:
+                    A[i, j] = 1
+
+    mod = IRModule({"main": before})
+    with pytest.raises(tvm.error.InternalError, match="Run LoopPartition before opaque lowering"):
+        lower()(mod)
+    after = tvm.s_tir.transform.LoopPartition()(mod)
+    outer = after["main"].body
+    assert outer.kind == tvm.tirx.ForKind.THREAD_BINDING
+    assert not outer.annotations
+    assert outer.body.kind == tvm.tirx.ForKind.THREAD_BINDING
+    if tag != "vthread":
+        assert isinstance(outer.body.body, tvm.tirx.IfThenElse)
+        assert outer.body.body.else_case is not None
+    # Launch extent/ownership survives partitioning, including virtual threads.
+    lowered = lower()(after)["main"].body
+    assert isinstance(lowered, tvm.tirx.AttrStmt)
+    assert int(lowered.value) == 8
+    assert lowered.node.thread_tag == tag
+
+
+def test_partition_before_opaque_blocks_and_flattening():
+    @Ts.prim_func
+    def before(A: T.Tensor((8, 2), "int32")):
+        for i in T.serial(8, annotations={"loop_partition_hint": True}):
+            for j in range(2):
+                with Ts.sblock("copy"):
+                    Ts.reads()
+                    Ts.writes(A[i, j])
+                    if i < 4:
+                        A[i, j] = 1
+                    else:
+                        A[i, j] = 2
+
+    partition = tvm.s_tir.transform.LoopPartition()
+    opaque = tvm.s_tir.transform.LowerOpaqueBlock()
+    flatten = tvm.tirx.transform.FlattenBuffer()
+    simplify = tvm.tirx.transform.StmtSimplify()
+    before = IRModule({"main": before})
+    old_order = simplify(partition(flatten(opaque(before))))
+    new_order = simplify(flatten(opaque(partition(before))))
+    tvm.ir.assert_structural_equal(new_order, old_order, map_free_vars=True)
+
+
+@pytest.mark.parametrize("outer_hint", [False, True])
+def test_nested_loop_hint_ownership(outer_hint):
+    @T.prim_func
+    def before(A: T.Tensor((8, 8), "int32")):
+        for i in T.serial(8, annotations={"loop_partition_hint": outer_hint, "owner": "outer"}):
+            for j in T.serial(8, annotations={"loop_partition_hint": True, "owner": "inner"}):
+                if i < 4:
+                    if j < 4:
+                        A[i, j] = 1
+
+    after = tvm.s_tir.transform.LoopPartition()(IRModule({"main": before}))["main"]
+    loops = []
+    tvm_ffi.structural_walk(
+        after.body, lambda x: loops.append(x) if isinstance(x, tvm.tirx.For) else None
+    )
+    outer = [loop for loop in loops if loop.annotations.get("owner") == "outer"]
+    inner = [loop for loop in loops if loop.annotations.get("owner") == "inner"]
+    assert len(outer) == (2 if outer_hint else 1)
+    assert inner and all(int(loop.extent) == 4 for loop in inner)
+    assert all("loop_partition_hint" not in loop.annotations for loop in loops)
+
+
+def test_partition_mixed_thread_scopes():
+    @T.prim_func
+    def before(A: T.Tensor((8, 2), "int32")):
+        for i in T.thread_binding(
+            8, thread="blockIdx.x", annotations={"loop_partition_hint": True}
+        ):
+            j = T.launch_thread("threadIdx.x", 2)
+            if i < 4:
+                A[i, j] = 1
+
+    after = tvm.s_tir.transform.LoopPartition()(IRModule({"main": before}))["main"].body
+    assert after.kind == tvm.tirx.ForKind.THREAD_BINDING
+    assert isinstance(after.body, tvm.tirx.AttrStmt)
+    assert after.body.attr_key == "thread_extent"
+    assert isinstance(after.body.body, tvm.tirx.IfThenElse)
+    assert after.body.body.else_case is not None
 
 
 if __name__ == "__main__":

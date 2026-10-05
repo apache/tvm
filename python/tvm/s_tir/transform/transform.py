@@ -136,6 +136,8 @@ def LowerMatchBuffer():
 def LowerOpaqueBlock():
     """Remove the block to ensure that the TIR can not be scheduled again.
 
+    Run LoopPartition first when thread-binding loops carry loop_partition_hint.
+
     Returns
     -------
     fpass : tvm.transform.Pass
@@ -229,6 +231,10 @@ class LoopPartitionConfig(_ffi.Object):
 
 def LoopPartition():
     """Partition loops in the stmt.
+
+    Consumes the owning For's ``loop_partition_hint`` annotation. A provably
+    true value enables partitioning even without likely tags. Run this pass
+    before opaque lowering when hinting thread-binding loops.
 
     Returns
     -------
