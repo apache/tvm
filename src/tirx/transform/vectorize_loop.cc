@@ -1308,11 +1308,8 @@ class LoopVectorizer : public StmtExprMutator {
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  explicit LoopVectorizer(DictAttrs attrs) {
-    if (auto opt_target = attrs.GetAttr<Target>(tvm::attr::kTarget)) {
-      target_ = opt_target.value();
-    }
-  }
+  explicit LoopVectorizer(DictAttrs attrs)
+      : target_(attrs.GetAttr<Target>(tvm::attr::kTarget).value_or(Target(nullptr))) {}
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     if (op->kind == ForKind::kVectorized) {
@@ -1345,17 +1342,6 @@ class LoopVectorizer : public StmtExprMutator {
     } else {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
-  }
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tvm::attr::kTarget) {
-      Target previous_target = target_;
-      target_ = op->node.as<Target>().value();
-      auto result = StmtExprMutator::Mutate_(op, inplace_mode);
-      target_ = previous_target;
-      return result;
-    }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
@@ -1393,7 +1379,7 @@ class LoopVectorizer : public StmtExprMutator {
     return this->Mutate(loop, InplaceMode::kDisallow).ValueOrUnchanged(loop);
   }
 
-  Target target_ = Target::Current();
+  Target target_;
 };
 
 class VectorizeSkipper : public StmtExprMutator {
