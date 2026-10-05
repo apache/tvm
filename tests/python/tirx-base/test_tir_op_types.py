@@ -23,6 +23,36 @@ from tvm import tirx
 from tvm.backend.cuda import op as _cuda_op
 
 
+def test_assume_aligned_contract():
+    tensor = tirx.decl_tensor((16,), "float32")
+    for value in (1, 64, 1 << 27, tirx.const(64, "uint64")):
+        call = tirx.assume_aligned(tensor, value)
+        assert call.ty == tvm.ir.PrimType("void")
+        assert call.args[0].same_as(tensor)
+    for value in (0, -1, 3, 1 << 28, True, 64.0, tirx.Var("align", "int32")):
+        with pytest.raises(ValueError, match="assume_aligned"):
+            tirx.assume_aligned(tensor, value)
+    with pytest.raises(ValueError, match="tensor variable"):
+        tirx.assume_aligned(tirx.Var("ptr", "handle"), 64)
+    # Direct construction uses the same validation, including constant/range checks.
+    with pytest.raises(ValueError, match="power of two"):
+        tvm.ir.Call("tirx.assume_aligned", [tensor, tirx.const(3, "int32")], ty="void")
+
+
+def test_assume_aligned_roundtrip_and_retention():
+    from tvm.script import tirx as T
+
+    @T.prim_func
+    def func(A: T.Tensor((16,), "float32")):
+        T.assume_aligned(A, 64)
+
+    assert "T.assume_aligned(A, 64)" in func.script()
+    tvm.ir.assert_structural_equal(func, tvm.script.from_source(func.script(), extra_vars={"T": T}))
+    mod = tvm.IRModule({"main": func})
+    simplified = tirx.transform.RemoveNoOp()(mod)["main"]
+    assert "assume_aligned" in simplified.script()
+
+
 def test_tir_op_tvm_struct_get():
     x = tirx.Var("x", ty="handle")
     expr = tirx.tvm_struct_get(x, 1, 2, dtype="int32")

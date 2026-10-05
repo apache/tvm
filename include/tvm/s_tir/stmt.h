@@ -230,9 +230,6 @@ constexpr const char* async_wait_inflight_count = tirx::attr::async_wait_infligh
  */
 constexpr const char* async_scope = "async_scope";
 
-/*! \brief Mark stores/loads with their bounds. */
-constexpr const char* buffer_bound = "buffer_bound";
-
 /*!
  * \brief SBlock annotation selecting a write-buffer index for double buffering in
  * InjectSoftwarePipeline.

@@ -22,6 +22,7 @@ import re
 
 import numpy as np
 import pytest
+import tvm_ffi
 
 import tvm
 import tvm.testing
@@ -408,32 +409,52 @@ def test_rank_zero():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-def test_rank_zero_bound_checkers():
-    @I.ir_module
-    class Module:
-        @T.prim_func
-        def main(
-            A: T.Tensor((64,), "float32"),
-            scale: T.Tensor((), "float32"),
-            compute: T.Tensor((), "float32"),
-        ):
-            T.func_attr({"tirx.noalias": True})
-            C = T.alloc_tensor(())
-            C[()] = T.float32(0.0)
-            for k in range(64):
-                C[()] = C[()] + A[k] * scale[()]
-            compute[()] = C[()] + T.float32(1.0)
+def test_assume_aligned_alias_and_offset():
+    @T.prim_func
+    def func(A: T.Tensor((16,), "float32", align=1)):
+        B = T.decl_tensor((16,), "float32", data=A.data, align=1)
+        T.assume_aligned(B, 64)
+        A[0] = A[0] + T.float32(1)
+        C = T.decl_tensor((15,), "float32", data=T.address_of(A[1]), align=1)
+        C[0] = C[0] + T.float32(2)
 
-    n = 64
-    with tvm.transform.PassContext(config={"tirx.instrument_bound_checkers": True}):
-        f = tvm.compile(Module, target="llvm")
-        dev = tvm.cpu(0)
-        a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("float32"), dev)
-        sc = tvm.runtime.tensor(np.random.randint(0, 2, size=()).astype("float32"), dev)
-        d = tvm.runtime.empty((), "float32", dev)
-        f(a, sc, d)
-        d_np = np.sum(a.numpy()) * sc.numpy() + 1
-        tvm.testing.assert_allclose(d.numpy(), d_np)
+    lib = tvm.tirx.build(func, target={"kind": "llvm", "opt-level": 0})
+    source = lib.inspect_source()
+    alignments = re.findall(r"load float, [^\n]*align ([0-9]+)", source)
+    assert "64" in alignments
+    assert "4" in alignments
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_assume_aligned_branch_scope():
+    @T.prim_func
+    def func(A: T.Tensor((16,), "float32", align=1), cond: T.int32):
+        if cond != 0:
+            T.assume_aligned(A, 64)
+            A[0] = A[0] + T.float32(1)
+        else:
+            A[0] = A[0] + T.float32(2)
+        A[1] = A[0] + T.float32(3)
+
+    source = tvm.tirx.build(func, target={"kind": "llvm", "opt-level": 0}).inspect_source()
+    alignments = re.findall(r"load float, [^\n]*align ([0-9]+)", source)
+    assert alignments.count("64") == 1
+    assert alignments.count("4") == 2
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_assume_aligned_empty_packed_argument():
+    @T.prim_func
+    def func(A: T.Tensor((0,), "float32", align=64)):
+        T.evaluate(0)
+
+    # An empty, shifted allocation is valid even when the data address does
+    # not satisfy the alignment expected of nonempty arguments.
+    storage = np.empty((128,), dtype="uint8")
+    offset = (1 - storage.ctypes.data) % 64
+    data = np.ndarray((0,), dtype="float32", buffer=storage, offset=offset)
+    assert data.ctypes.data % 64 == 1
+    tvm.compile(func, target="llvm")(tvm_ffi.from_dlpack(data))
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")

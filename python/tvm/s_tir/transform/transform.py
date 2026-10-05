@@ -312,17 +312,6 @@ def RewriteUnsafeSelect():
     return _ffi_api.RewriteUnsafeSelect()  # type: ignore
 
 
-def InstrumentBoundCheckers():
-    """Instruments bound checkers.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InstrumentBoundCheckers()  # type: ignore
-
-
 def VerifyVTCMLimit(default_target=None):
     """Verify if the size of the allocated vtcm memory satisfies the limit.
 

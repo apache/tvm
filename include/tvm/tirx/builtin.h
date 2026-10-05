@@ -622,6 +622,14 @@ TVM_DLL const Op& texture2d_load();
 TVM_DLL const Op& assume();
 
 /*!
+ * \brief Assume a tensor's base address has the given constant byte alignment.
+ *
+ * This leaf operation carries a compiler fact, without checking or changing
+ * the address. Alignment must be a power of two between 1 and 2^27 bytes.
+ */
+TVM_DLL const Op& assume_aligned();
+
+/*!
  * \brief Returns an initialized but arbitrary value
  *
  * Compile-time representation of memory locations whose values may be

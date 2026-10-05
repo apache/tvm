@@ -112,6 +112,31 @@ ffi::Expected<Type> InferTypeBuffer(const CallNode* call) noexcept try {
   return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
+ffi::Expected<void> ValidateAssumeAligned(const CallNode* call) noexcept try {
+  TVM_FFI_CHECK_EQ(call->args.size(), 2U, ValueError)
+      << "assume_aligned expects a tensor and byte alignment";
+  TVM_FFI_CHECK(call->args[0].as<TensorVar>().has_value(), ValueError)
+      << "assume_aligned expects a tensor variable";
+  const auto* alignment = call->args[1].as<IntImmNode>();
+  TVM_FFI_CHECK(alignment, ValueError)
+      << "assume_aligned expects a scalar integer constant alignment";
+  auto dtype = alignment->ty.as_or_throw<PrimType>();
+  TVM_FFI_CHECK(
+      dtype.IsScalar() && dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt),
+      ValueError)
+      << "assume_aligned expects an integer byte alignment";
+  auto value = alignment->value.as<int64_t>();
+  // GetAlignment converts bytes to bits using a signed int.
+  TVM_FFI_CHECK(value && *value > 0 && *value <= (int64_t{1} << 27) && (*value & (*value - 1)) == 0,
+                ValueError)
+      << "assume_aligned alignment must be a power of two in [1, 2^27]";
+  return {};
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+}
+
 ffi::Expected<void> ValidateDeclTensor(const CallNode* call) noexcept try {
   TVM_FFI_CHECK_EQ(call->args.size(), 4U, ValueError);
   auto buffer = call->ty.as_or_throw<TensorType>();
@@ -246,6 +271,7 @@ TVM_DEFINE_CACHED_OP_GETTER(nd_mem_alloc_with_scope, "tirx.nd_mem_alloc_with_sco
 TVM_DEFINE_CACHED_OP_GETTER(texture2d_store, "tirx.texture2d_store")
 TVM_DEFINE_CACHED_OP_GETTER(texture2d_load, "tirx.texture2d_load")
 TVM_DEFINE_CACHED_OP_GETTER(assume, "tirx.assume")
+TVM_DEFINE_CACHED_OP_GETTER(assume_aligned, "tirx.assume_aligned")
 TVM_DEFINE_CACHED_OP_GETTER(undef, "tirx.undef")
 TVM_DEFINE_CACHED_OP_GETTER(get_active_lane_mask, "tirx.get_active_lane_mask")
 TVM_DEFINE_CACHED_OP_GETTER(masked_load, "tirx.masked_load")
@@ -730,6 +756,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.assume")
       .signature(sig::arg("cond", "The condition."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.assume"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kEmbedInfo));
+
+  OpDef("tirx.assume_aligned")
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateAssumeAligned>())
+      .signature(sig::arg("tensor", "The tensor whose base address is aligned."),
+                 sig::arg("alignment_bytes", "The constant byte alignment."))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.assume_aligned"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kEmbedInfo));
