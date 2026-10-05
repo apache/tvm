@@ -102,7 +102,7 @@ def get_const_bias_tensor(bias, shape, dtype, workspace, sctx):
             "Constant bias tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         )
         # Create new bias buffer
-        bias_buffer = T.buffer(shape, dtype, scope="trn.sbuf", buffer_name="const_bias")
+        bias_buffer = T.Var("const_bias", T.Tensor(shape, dtype, scope="trn.sbuf"))
         sctx.add_alloc_buffer(bias_buffer)
 
         # This fragment captures buffers and indices from its insertion scope.

@@ -100,7 +100,7 @@ class TVMFFIABIBuilder {
     std::vector<Stmt> init_nest;
     /*! \brief Validation checks (all AssertStmts). */
     std::vector<Stmt> asserts;
-    /*! \brief BufferVar declarations for buffer-typed parameters. */
+    /*! \brief TensorVar declarations for buffer-typed parameters. */
     std::vector<Stmt> decl_buffers;
   };
 
@@ -261,7 +261,7 @@ class TVMFFIABIBuilder {
                  const ffi::reflection::AccessPath& base_path);
 
   /*!
-   * \brief BufferVar-to-buffer bind with ffi::reflection::AccessPath.
+   * \brief TensorVar-to-buffer bind with ffi::reflection::AccessPath.
    *
    * Binds data, elem_offset, shape, and strides of \p arg against \p value,
    * emitting assertions for any mismatches.
@@ -271,7 +271,7 @@ class TVMFFIABIBuilder {
    * \param base_path Base ffi::reflection::AccessPath for the buffer parameter.
    * \param fuzzy_match If true, allow value to have more dimensions than arg.
    */
-  void BindBuffer(const BufferVar& arg, const BufferVar& value,
+  void BindBuffer(const TensorVar& arg, const TensorVar& value,
                   ffi::reflection::AccessPath base_path, bool fuzzy_match);
 
   /*!
@@ -284,7 +284,7 @@ class TVMFFIABIBuilder {
    * \param arg_name Human-readable name for error messages.
    * \param base_path Base ffi::reflection::AccessPath for the tensor parameter.
    */
-  Expr DecodeParamDLTensor(const BufferVar& buffer, const PrimExpr& device_type,
+  Expr DecodeParamDLTensor(const TensorVar& buffer, const PrimExpr& device_type,
                            const PrimExpr& device_id, const Var& handle,
                            const std::string& arg_name, ffi::reflection::AccessPath base_path);
 
@@ -319,7 +319,7 @@ class TVMFFIABIBuilder {
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindCompactStrides(const BufferVar& buffer, const Var& strides_ptr,
+  void BindCompactStrides(const TensorVar& buffer, const Var& strides_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
@@ -332,7 +332,7 @@ class TVMFFIABIBuilder {
    * \param v_strides_is_null Expression checking if strides pointer is NULL.
    * \param param_path ffi::reflection::AccessPath for the tensor parameter.
    */
-  void BindRegularStrides(const BufferVar& buffer, const Var& strides_ptr, const Var& shape_ptr,
+  void BindRegularStrides(const TensorVar& buffer, const Var& strides_ptr, const Var& shape_ptr,
                           const PrimExpr& v_strides_is_null,
                           const ffi::reflection::AccessPath& param_path);
 
@@ -389,7 +389,7 @@ class TVMFFIABIBuilder {
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
   std::vector<Stmt> asserts_;
-  /*! \brief BufferVar declarations for buffer-typed parameters. */
+  /*! \brief TensorVar declarations for buffer-typed parameters. */
   std::vector<Stmt> decl_buffers_;
   /*! \brief Deferred constant-expression assertions for display-var substitution. */
   std::vector<PendingConstAssert> pending_const_asserts_;

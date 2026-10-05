@@ -308,7 +308,7 @@ def cuda_wait_until(
     """
     _validate_wait_until_attrs(scope, space, ptx_type)
     _reject_wide_word_for_predicate(ptx_type, "wait_until")
-    if tirx.is_buffer_var(dst):
+    if tirx.is_tensor_var(dst):
         dst = dst[0]
     condition = tirx.convert(predicate(dst) if callable(predicate) else predicate)
     return call_intrin(

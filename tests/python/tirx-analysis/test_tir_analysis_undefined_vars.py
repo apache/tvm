@@ -34,7 +34,7 @@ def test_decl_buffer_data_is_use():
     data_ptr = tirx.Var("buf_data", PointerType(PrimType("float32")))
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr)
 
-    body = tirx.Evaluate(tirx.BufferLoad(buf, [0]))
+    body = tirx.Evaluate(tirx.TensorLoad(buf, [0]))
     decl = tirx.Bind(
         buf,
         tvm.ir.Call(
@@ -69,7 +69,7 @@ def test_decl_buffer_elem_offset_is_use():
     elem_off = tirx.Var("buf_elem_offset", "int32")
     buf = tirx.decl_tensor((n,), "float32", "buf", data=data_ptr, elem_offset=elem_off)
 
-    body = tirx.Evaluate(tirx.BufferLoad(buf, [0]))
+    body = tirx.Evaluate(tirx.TensorLoad(buf, [0]))
     decl = tirx.Bind(
         buf,
         tvm.ir.Call(
@@ -102,7 +102,7 @@ def test_alloc_buffer_data_is_def():
     n = tirx.Var("n", "int32")
     buf = tirx.decl_tensor((n,), "float32", "buf")
 
-    body = tirx.Evaluate(tirx.BufferLoad(buf, [0]))
+    body = tirx.Evaluate(tirx.TensorLoad(buf, [0]))
     alloc = tvm.tirx.Bind(
         buf,
         tvm.ir.Call(
@@ -127,7 +127,7 @@ def test_alloc_buffer_data_is_def():
 
 
 def test_buffer_data_projection_is_buffer_use():
-    """An opaque data projection must retain the BufferVar identity."""
+    """An opaque data projection must retain the TensorVar identity."""
     buf = tirx.decl_tensor((16,), "float32", "buf")
     stmt = tirx.Evaluate(buf.data)
 

@@ -1416,8 +1416,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     }
 
     TypedPointer buffer_ptr =
-        CreateBufferPtr(MakeValue(load->source.as_or_throw<tvm::tirx::BufferVar>().var()),
-                        load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype, indices_val,
+        CreateBufferPtr(MakeValue(load->source.as_or_throw<tvm::tirx::TensorVar>().var()),
+                        load->source.as_or_throw<tvm::tirx::TensorVar>()->dtype, indices_val,
                         PrimType(load->ty.as_or_throw<PrimType>()->dtype));
     return buffer_ptr.addr;
   } else if (op->op.same_as(tirx::builtin::reinterpret()) && args[0].as<PrimExpr>() &&
@@ -1750,7 +1750,7 @@ const VarNode* CodeGenLLVM::GetBufferPhysicalRoot(const VarNode* buffer) const {
 }
 
 void CodeGenLLVM::BufferAccessHelper(
-    BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
+    TensorVar buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
     PrimType value_dtype,
     std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                      llvm::Value* predicate, int alignment, bool is_volatile)>
@@ -1885,7 +1885,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const TensorLoadNode* op) {
   // Pass all indices into BufferAccessHelper.  In CodeGenLLVM,
   // non-flat indices will result in an error in CreateBufferPtr, but
   // a subclass may override CreateBufferPtr.
-  BufferAccessHelper(op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices, std::nullopt,
+  BufferAccessHelper(op->source.as_or_throw<tvm::tirx::TensorVar>(), op->indices, std::nullopt,
                      access_dtype, make_load);
 
   llvm::Value* ret;
@@ -1905,7 +1905,7 @@ llvm::Value* CodeGenLLVM::Dispatch_(const TensorLoadNode* op) {
 
 llvm::Value* CodeGenLLVM::CreateMaskedLoad(const CallNode* op) {
   TVM_FFI_ICHECK_GE(op->args.size(), 3U);
-  BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
+  TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
   ffi::Array<PrimExpr> indices;
   for (size_t i = 1; i + 1 < op->args.size(); ++i) {
     indices.push_back(op->args[i].as_or_throw<PrimExpr>());
@@ -1935,7 +1935,7 @@ llvm::Value* CodeGenLLVM::CreateMaskedLoad(const CallNode* op) {
 
 llvm::Value* CodeGenLLVM::CreateMaskedStore(const CallNode* op) {
   TVM_FFI_ICHECK_GE(op->args.size(), 4U);
-  BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
+  TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
   PrimExpr value_expr = op->args[1].as_or_throw<PrimExpr>();
   ffi::Array<PrimExpr> indices;
   for (size_t i = 2; i + 1 < op->args.size(); ++i) {
@@ -2212,7 +2212,7 @@ void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {
 void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   EmitDebugLocation(op);
   TVM_FFI_ICHECK_EQ(shape->fields.size(), 1)
@@ -2342,7 +2342,7 @@ void CodeGenLLVM::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_
   Expr data = buffer_call->args[0];
   DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   EmitDebugLocation(op);
   const VarNode* buffer_var = buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer_var));
@@ -2465,7 +2465,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
 
   Type debug_type = tir_var->ty;
   if (const auto* buffer_type = debug_type.as<TensorTypeNode>()) {
-    // A BufferVar is a compiler-side identity.  Its LLVM value is the physical
+    // A TensorVar is a compiler-side identity.  Its LLVM value is the physical
     // data pointer installed by AllocTensor or DeclTensor.
     debug_type = buffer_type->DataPointerType();
   }

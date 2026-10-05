@@ -49,11 +49,9 @@ def generate_intermediate_buffer(
         assert sctx.alloc_only, (
             "Partial reduce buffer must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         )
-        intermediate_buffer = T.buffer(
-            intermediate_shape,
-            dtype=dst_buffer_region.source.ty.dtype,
-            scope="trn.sbuf",
-            buffer_name="partial_reduce",
+        intermediate_buffer = T.Var(
+            "partial_reduce",
+            T.Tensor(intermediate_shape, dtype=dst_buffer_region.source.ty.dtype, scope="trn.sbuf"),
         )
         sctx.add_alloc_buffer(intermediate_buffer)
 

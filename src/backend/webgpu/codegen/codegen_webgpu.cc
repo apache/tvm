@@ -606,8 +606,8 @@ void CodeGenWebGPU::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // 
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->source.as_or_throw<tvm::tirx::BufferVar>().var();
-  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::BufferVar>()->dtype;
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>().var();
+  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::TensorVar>()->dtype;
 
   int lanes = value_ty.lanes();
   std::string buffer_vid = GetVarID(buffer_var.get());
@@ -745,7 +745,7 @@ void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buff
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get());
   size_t constant_size = 1;

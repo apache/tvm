@@ -85,7 +85,6 @@ from tvm.runtime import Object, ObjectConvertible, Scriptable
 from tvm.runtime import const as const
 
 from . import _ffi_api
-from .buffer import Buffer
 
 
 @functools.cache
@@ -302,12 +301,12 @@ class Reduce(ir.ExprWithOp):
         )
 
 
-def BufferLoad(buffer: Buffer, indices: list[Expr], span: Span | None = None) -> ir.TensorLoad:
+def TensorLoad(buffer: Var, indices: list[Expr], span: Span | None = None) -> ir.TensorLoad:
     """Construct a validated buffer load.
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The buffer to be loaded.
 
     indices : List[Expr]
@@ -318,7 +317,7 @@ def BufferLoad(buffer: Buffer, indices: list[Expr], span: Span | None = None) ->
 
     """
 
-    return _ffi_api.BufferLoad(buffer, indices, span)
+    return _ffi_api.TensorLoad(buffer, indices, span)
 
 
 class CallEffectKind:

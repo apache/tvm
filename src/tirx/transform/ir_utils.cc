@@ -385,7 +385,7 @@ ffi::String GetPtrStorageScope(Var buffer_var) {
   return ptr_type->storage_scope;
 }
 
-ffi::Array<PrimExpr> GetBufferAllocationShape(const BufferVar& buffer) {
+ffi::Array<PrimExpr> GetBufferAllocationShape(const TensorVar& buffer) {
   ffi::Array<PrimExpr> alloc_shape = buffer->shape;
   if (buffer->strides.size()) {
     TVM_FFI_ICHECK_EQ(buffer->shape.size(), buffer->strides.size());

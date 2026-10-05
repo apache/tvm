@@ -584,7 +584,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferStoreMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
   const BufferStoreNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferStoreNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<BufferVar>, mapped_buffer,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<TensorVar>, mapped_buffer,
                                     mutator->MutateExpected(self->buffer));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value,
                                     mutator->MutateExpected(self->value));
@@ -607,7 +607,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BufferStoreMaybeInplace
   BufferStoreNode* self = const_cast<BufferStoreNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const BufferStoreNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<BufferVar>, mapped_buffer,
+      ffi::UnchangedOr<TensorVar>, mapped_buffer,
       mutator->MutateExpected(self->buffer, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<PrimExpr>, mapped_value,
                                     mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
@@ -1042,10 +1042,10 @@ TVM_FFI_INLINE int GetLanesOrVScaleFactor(const PrimType& ty) {
   return ty.IsScalableVector() ? ty.VScaleFactor() : ty.lanes();
 }
 
-BufferStore::BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices, Span span)
+BufferStore::BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices, Span span)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
-      << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
+      << "TensorVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
@@ -1110,7 +1110,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&BufferStoreMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.BufferStore",
-                        [](BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+                        [](TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                            Span span) { return BufferStore(buffer, value, indices, span); });
 }
 

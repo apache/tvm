@@ -30,7 +30,7 @@ from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import Range, TensorRegion
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import BufferRegion, Expr, Var, is_buffer_var
+from tvm.tirx import BufferRegion, Expr, Var, is_tensor_var
 from tvm.tirx.layout import Iter
 
 from .dim_utils import DimensionMapper, RangeInfo, normalize_and_group
@@ -106,9 +106,9 @@ class InstructionGenerator:
         for buffer_region in buffer_regions:
             if not isinstance(buffer_region, TensorRegion):
                 continue
-            if not is_buffer_var(buffer_region.source):
+            if not is_tensor_var(buffer_region.source):
                 raise TypeError(
-                    "Instruction operands require a TensorRegion with a BufferVar source"
+                    "Instruction operands require a TensorRegion with a TensorVar source"
                 )
             self.buffer_regions.append(buffer_region)
             bound_buffer_region = self._bound_buffer_region(buffer_region)

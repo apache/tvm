@@ -55,7 +55,7 @@ void IRMutatorWithAnalyzer::MarkBufferParamShapes(const tirx::PrimFunc& func) {
     if (!param->ty.as<tirx::TensorTypeNode>()) {
       continue;
     }
-    tirx::BufferVar buffer = param.as_or_throw<tirx::BufferVar>();
+    tirx::TensorVar buffer = param.as_or_throw<tirx::TensorVar>();
     for (PrimExpr shape : buffer->shape) {
       analyzer_->MarkGlobalNonNegValue(shape);
     }
