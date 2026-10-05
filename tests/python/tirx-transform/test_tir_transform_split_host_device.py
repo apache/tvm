@@ -384,7 +384,7 @@ def test_buffer_used_only_through_data_projection():
 
 
 def test_thread_extent_region_extracted_as_device_kernel():
-    """A bare thread_extent is annotated and extracted as a device kernel."""
+    """A bare launch_thread is annotated and extracted as a device kernel."""
 
     @I.ir_module
     class Before:

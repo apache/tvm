@@ -66,10 +66,8 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
         A: T.Tensor((32, 128), dtype), B: T.Tensor((32, 128), dtype)
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        bx = T.env_thread("blockIdx.x")
-        tx = T.env_thread("threadIdx.x")
-        T.launch_thread(bx, 1)
-        T.launch_thread(tx, 32)
+        T.launch_thread("blockIdx.x", 1)
+        tx = T.launch_thread("threadIdx.x", 32)
         with Ts.sblock():
             A_shared = Ts.sblock_alloc_buffer([32, 128], dtype, scope="shared")
             Ts.reads(A[0:32, 0:128])
@@ -94,10 +92,8 @@ def ptx_global_to_shared_copy_fp32x1(
     A: T.Tensor((32, 128), "float32"), B: T.Tensor((32, 128), "float32")
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     with Ts.sblock():
         A_shared = Ts.sblock_alloc_buffer([32, 128], "float32", scope="shared")
         Ts.reads(A[0:32, 0:128])
@@ -121,10 +117,8 @@ def ptx_global_to_shared_dyn_copy_fp16x8(
     C: T.Tensor((32, 128), "float16"),
 ) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     with Ts.sblock():
         A_shared = Ts.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")
         B_shared = Ts.sblock_alloc_buffer([32, 128], "float16", scope="shared.dyn")

@@ -219,7 +219,7 @@ struct ThreadScope {
    */
   static ThreadScope Create(const std::string& s) {
     ThreadScope r;
-    if (s.compare(0, 7, "vthread") == 0 || s == "cthread") {
+    if (s.compare(0, 7, "vthread") == 0) {
       // virtual thread at the same level as local
       r.rank = 1;
       r.dim_index = -1;

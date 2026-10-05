@@ -330,7 +330,7 @@ TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
  *
  * Also resolves ScopeIdDef declarations: gathers them at kernel scope, verifies
  * consistency, extracts launch parameters, and emits Bind statements +
- * thread_extent AttrStmts wrapping the dispatched body.
+ * launch_thread RegionStmts wrapping the dispatched body.
  * \return The pass.
  */
 TVM_DLL Pass TilePrimitiveDispatch();

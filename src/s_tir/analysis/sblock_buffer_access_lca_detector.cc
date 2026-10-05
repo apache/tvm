@@ -39,7 +39,7 @@ namespace tirx {
 /*!
  * \brief Detect the lowest common ancestor(LCA) position of buffer access.
  * \note
- * - Only consider BlockNode and ForNode to be the LCA nodes.
+ * - Consider block, loop, and region bodies to be LCA scopes.
  * - In the LCA locator, we are aware of the buffer scope and CUDA hierarchy so that any buffer in
  * global memory will have its buffer access LCA outside all launch sites of `blockIdx`, in order to
  * prevent conflicts between buffer memory scopes and CUDA hierarchy.
@@ -81,8 +81,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
  private:
   /*!
    * \brief The AST node information for querying LCA.
-   * \note Only BlockNode and ForNode are considered, since they are the only statements whose
-   *       body can be a SeqStmt (the LCA of buffer access) in TensorIR.
+   * \note Block, loop, and region bodies provide lexical allocation scopes.
    */
   struct ScopeInfo {
     // The parent scope info
@@ -257,16 +256,22 @@ class LCADetector : public s_tir::StmtExprVisitor {
     }
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent) {
-      const auto* iter = op->node.as<IterVarNode>();
-      TVM_FFI_ICHECK_NOTNULL(iter);
-      const runtime::ThreadScope& scope = runtime::ThreadScope::Create(iter->thread_tag);
-      if (scope.rank == 0) {
-        blockidx_scopes_.push_back(ancestor_scopes_.back());
-      }
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    // Operands belong to the enclosing scope, before the local definitions.
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
+    const ScopeInfo* parent_scope = ancestor_scopes_.back();
+    auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, ancestor_scopes_.size());
+    if (IsLaunchThread(op) && !IsVirtualThread(op) &&
+        runtime::ThreadScope::Create(LaunchThreadTag(op)).rank == 0) {
+      blockidx_scopes_.push_back(parent_scope);
     }
-    return s_tir::StmtExprVisitor::Visit_(op);
+    ancestor_scopes_.push_back(current_scope);
+    for (const Var& var : op->body_params) loop_scope_map_.emplace(var.get(), current_scope);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
+    for (const Var& var : op->body_params) loop_scope_map_.erase(var.get());
+    ancestor_scopes_.pop_back();
+    return std::nullopt;
   }
 
   // Declared regions carry bounds, not opaque runtime accesses.

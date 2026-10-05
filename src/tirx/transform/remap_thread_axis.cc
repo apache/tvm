@@ -41,21 +41,19 @@ class ThreadAxisRewriter : public StmtExprMutator {
   Stmt Rewrite(Stmt stmt) { return Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt); }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == attr::thread_extent) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      auto it = tmap_.find(iv->thread_tag);
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (IsLaunchThread(op) && !IsVirtualThread(op)) {
+      auto it = tmap_.find(LaunchThreadTag(op));
       if (it != tmap_.end()) {
-        const IterVar& new_iv = it->second;
-        auto mapped = VarRemapGet(iv->var);
-        if (mapped == nullptr) {
-          VarRemapSet(iv->var, new_iv->var);
-        } else {
-          TVM_FFI_ICHECK(mapped.as_or_throw<Var>().same_as(new_iv->var));
-        }
-        Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-        return AttrStmt(new_iv, op->attr_key, op->value, body);
+        PrimExpr old_extent = LaunchThreadExtent(op);
+        PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
+        PrimVar old_var = LaunchThreadVar(op);
+        PrimVar new_var(it->second->var->name, extent.ty());
+        ffi::Any previous_remap = VarRemapGet(old_var);
+        VarRemapSet(old_var, new_var);
+        Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+        VarRemapSet(old_var, previous_remap);
+        return LaunchThread(it->second->thread_tag, extent, new_var, body, op->span);
       }
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);

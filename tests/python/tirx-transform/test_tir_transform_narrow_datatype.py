@@ -99,7 +99,7 @@ def test_basic():
 
 
 def test_thread_axis():
-    # This test uses launch_thread to create AttrStmt nodes with "thread_extent"
+    # This test uses launch_thread to create RegionStmt nodes
     # and checks the dtype of thread axis variables after narrowing.
     def check_const(m, n, target_bits, target_dtype):
         @T.prim_func
@@ -112,8 +112,8 @@ def test_thread_axis():
         gvar = next(iter(mod.functions.keys()))
         func_narrowed = tvm.tirx.transform.NarrowDataType(target_bits)(mod)[gvar]
         stmt = func_narrowed.body
-        assert stmt.node.var.ty.dtype == target_dtype
-        assert stmt.body.node.var.ty.dtype == target_dtype
+        assert stmt.body_params[0].ty.dtype == target_dtype
+        assert stmt.body.body_params[0].ty.dtype == target_dtype
 
     # i32 -> i32
     check_const(2, 32, target_bits=32, target_dtype="int32")

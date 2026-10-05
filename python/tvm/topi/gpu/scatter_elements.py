@@ -72,14 +72,12 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
             with T.seq_scope():
                 # Init
                 nthread_bx_init = cast(ceil_div(full_range, max_threads), "int32")
-                tx_init = te.thread_axis("threadIdx.x")
-                bx_init = te.thread_axis("blockIdx.x")
                 with T.frame_scope(
                     [
-                        T.attr(bx_init, "thread_extent", nthread_bx_init),
-                        T.attr(tx_init, "thread_extent", max_threads),
+                        T.launch_thread("blockIdx.x", nthread_bx_init),
+                        T.launch_thread("threadIdx.x", max_threads),
                     ]
-                ):
+                ) as (bx_init, tx_init):
                     tid = bx_init * max_threads + tx_init
                     with T.if_(tid < full_range):
                         with T.then_():
@@ -91,14 +89,12 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
 
                 # Scatter
                 nthread_bx_scat = cast(ceil_div(ind_full_range_excl_axis, max_threads), "int32")
-                tx_scat = te.thread_axis("threadIdx.x")
-                bx_scat = te.thread_axis("blockIdx.x")
                 with T.frame_scope(
                     [
-                        T.attr(bx_scat, "thread_extent", nthread_bx_scat),
-                        T.attr(tx_scat, "thread_extent", max_threads),
+                        T.launch_thread("blockIdx.x", nthread_bx_scat),
+                        T.launch_thread("threadIdx.x", max_threads),
                     ]
-                ):
+                ) as (bx_scat, tx_scat):
                     fused = bx_scat * max_threads + tx_scat
                     with T.if_(fused < ind_full_range_excl_axis):
                         with T.then_():

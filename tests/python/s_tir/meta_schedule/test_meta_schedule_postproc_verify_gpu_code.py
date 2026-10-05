@@ -54,21 +54,16 @@ class Conv2dCuda0:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
-        threadIdx_x = T.env_thread("threadIdx.x")
-        threadIdx_y = T.env_thread("threadIdx.y")
-        blockIdx_x = T.env_thread("blockIdx.x")
-        blockIdx_y = T.env_thread("blockIdx.y")
-        blockIdx_z = T.env_thread("blockIdx.z")
 
         # body
-        T.launch_thread(blockIdx_z, 196)
+        blockIdx_z = T.launch_thread("blockIdx.z", 196)
         B_local = T.decl_tensor([64], "float32", scope="local")
         Apad_shared = T.decl_tensor([512], "float32", scope="shared")
         Apad_shared_local = T.decl_tensor([8], "float32", scope="local")
-        T.launch_thread(blockIdx_y, 8)
-        T.launch_thread(blockIdx_x, 4)
-        T.launch_thread(threadIdx_y, 8)
-        T.launch_thread(threadIdx_x, 8)
+        blockIdx_y = T.launch_thread("blockIdx.y", 8)
+        blockIdx_x = T.launch_thread("blockIdx.x", 4)
+        threadIdx_y = T.launch_thread("threadIdx.y", 8)
+        threadIdx_x = T.launch_thread("threadIdx.x", 8)
         for ff_c_init, nn_c_init in T.grid(8, 8):
             B_local[ff_c_init * 8 + nn_c_init] = T.float32(0)
         for rc_outer, ry, rx in T.grid(32, 3, 3):
@@ -94,21 +89,16 @@ class Conv2dCuda1:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
-        threadIdx_x = T.env_thread("threadIdx.x")
-        threadIdx_y = T.env_thread("threadIdx.y")
-        blockIdx_x = T.env_thread("blockIdx.x")
-        blockIdx_y = T.env_thread("blockIdx.y")
-        blockIdx_z = T.env_thread("blockIdx.z")
 
         # body
-        T.launch_thread(blockIdx_z, 196)
+        blockIdx_z = T.launch_thread("blockIdx.z", 196)
         B_local = T.decl_tensor([6400000], "float32", scope="local")
         Apad_shared = T.decl_tensor([512], "float32", scope="shared")
         Apad_shared_local = T.decl_tensor([8], "float32", scope="local")
-        T.launch_thread(blockIdx_y, 8)
-        T.launch_thread(blockIdx_x, 4)
-        T.launch_thread(threadIdx_y, 8)
-        T.launch_thread(threadIdx_x, 8)
+        blockIdx_y = T.launch_thread("blockIdx.y", 8)
+        blockIdx_x = T.launch_thread("blockIdx.x", 4)
+        threadIdx_y = T.launch_thread("threadIdx.y", 8)
+        threadIdx_x = T.launch_thread("threadIdx.x", 8)
         for ff_c_init, nn_c_init in T.grid(8, 8):
             B_local[ff_c_init * 8 + nn_c_init] = T.float32(0)
             # Access of the last element of B_local prevents buffer
@@ -138,21 +128,16 @@ class Conv2dCuda2:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
-        threadIdx_x = T.env_thread("threadIdx.x")
-        threadIdx_y = T.env_thread("threadIdx.y")
-        blockIdx_x = T.env_thread("blockIdx.x")
-        blockIdx_y = T.env_thread("blockIdx.y")
-        blockIdx_z = T.env_thread("blockIdx.z")
 
         # body
-        T.launch_thread(blockIdx_z, 196)
+        blockIdx_z = T.launch_thread("blockIdx.z", 196)
         B_local = T.decl_tensor([64], "float32", scope="local")
         Apad_shared = T.decl_tensor([512000], "float32", scope="shared")
         Apad_shared_local = T.decl_tensor([8], "float32", scope="local")
-        T.launch_thread(blockIdx_y, 8)
-        T.launch_thread(blockIdx_x, 4)
-        T.launch_thread(threadIdx_y, 8)
-        T.launch_thread(threadIdx_x, 8)
+        blockIdx_y = T.launch_thread("blockIdx.y", 8)
+        blockIdx_x = T.launch_thread("blockIdx.x", 4)
+        threadIdx_y = T.launch_thread("threadIdx.y", 8)
+        threadIdx_x = T.launch_thread("threadIdx.x", 8)
         for ff_c_init, nn_c_init in T.grid(8, 8):
             B_local[ff_c_init * 8 + nn_c_init] = T.float32(0)
         for rc_outer, ry, rx in T.grid(32, 3, 3):
@@ -182,21 +167,16 @@ class Conv2dCuda3:
         # function attr dict
         T.func_attr({"global_symbol": "main", "T.noalias": True})
         # var definition
-        threadIdx_x = T.env_thread("threadIdx.x")
-        threadIdx_y = T.env_thread("threadIdx.y")
-        blockIdx_x = T.env_thread("blockIdx.x")
-        blockIdx_y = T.env_thread("blockIdx.y")
-        blockIdx_z = T.env_thread("blockIdx.z")
 
         # body
-        T.launch_thread(blockIdx_z, 196)
+        blockIdx_z = T.launch_thread("blockIdx.z", 196)
         B_local = T.decl_tensor([64], "float32", scope="local")
         Apad_shared = T.decl_tensor([512], "float32", scope="shared")
         Apad_shared_local = T.decl_tensor([8], "float32", scope="local")
-        T.launch_thread(blockIdx_y, 8)
-        T.launch_thread(blockIdx_x, 4)
-        T.launch_thread(threadIdx_y, 8)
-        T.launch_thread(threadIdx_x, 800000)
+        blockIdx_y = T.launch_thread("blockIdx.y", 8)
+        blockIdx_x = T.launch_thread("blockIdx.x", 4)
+        threadIdx_y = T.launch_thread("threadIdx.y", 8)
+        threadIdx_x = T.launch_thread("threadIdx.x", 800000)
         for ff_c_init, nn_c_init in T.grid(8, 8):
             B_local[ff_c_init * 8 + nn_c_init] = T.float32(0)
         for rc_outer, ry, rx in T.grid(32, 3, 3):

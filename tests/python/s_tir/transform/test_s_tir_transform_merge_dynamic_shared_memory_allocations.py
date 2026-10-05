@@ -263,7 +263,7 @@ def test_async_copy():
 
     After = transform(Before)
     # The pass merges shared.dyn allocations. A_sh and B_sh are accessed
-    # sequentially inside the thread_extent with non-overlapping lifetimes,
+    # sequentially inside the launch_thread with non-overlapping lifetimes,
     # so the liveness analysis allows reuse — both fit in 512 bytes
     # (= 128 elements * 4 bytes).
     script = After["main"].script()
@@ -315,10 +315,10 @@ def test_decl_buffer_alias_extends_allocation_lifetime():
 
 
 def test_multi_thread_extent_blocks():
-    """Each thread_extent block must get its own merged buffer.
+    """Each launch_thread block must get its own merged buffer.
 
     Reproduces the scoping bug from PR #19605: a single PrimFunc
-    with two sibling thread_extent regions, each containing its
+    with two sibling launch_thread regions, each containing its
     own shared.dyn allocations. The merged buffer must be allocated
     inside each kernel body — not just the first.
     """
@@ -335,8 +335,7 @@ def test_multi_thread_extent_blocks():
             Y_flat = T.decl_tensor(128, data=Y.data)
 
             # First kernel launch
-            tx0 = T.env_thread("threadIdx.x")
-            with T.attr(tx0, "thread_extent", 128):
+            with T.launch_thread("threadIdx.x", 128) as tx0:
                 A_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
                 B_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
                 A_sh[tx0] = X_flat[tx0]
@@ -344,8 +343,7 @@ def test_multi_thread_extent_blocks():
                 X_flat[tx0] = B_sh[tx0]
 
             # Second kernel launch — must NOT see kernel #0's merged buffer.
-            tx1 = T.env_thread("threadIdx.x")
-            with T.attr(tx1, "thread_extent", 128):
+            with T.launch_thread("threadIdx.x", 128) as tx1:
                 C_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
                 D_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
                 C_sh[tx1] = Y_flat[tx1]
@@ -355,7 +353,7 @@ def test_multi_thread_extent_blocks():
     After = transform(Before)
     script = After["main"].script()
 
-    # Two merged allocations — one per thread_extent body.
+    # Two merged allocations — one per launch_thread body.
     # Each of the four original 128-float32 buffers (A_sh, B_sh, C_sh, D_sh)
     # gets merged within its own kernel scope.
     assert script.count("shared.dyn") >= 2, (
@@ -365,15 +363,13 @@ def test_multi_thread_extent_blocks():
         "Expected at least two alloc_tensor nodes (one merged buf per kernel)"
     )
 
-    # Both thread_extent blocks must contain their own merged buffer —
+    # Both launch_thread blocks must contain their own merged buffer —
     # they must NOT share the same buf_dyn_shmem variable.
     # Structurally verify that the first kernel's body accesses are
     # not rewritten to the second kernel's buf_dyn_shmem (and vice versa).
-    first_block = script.split("with T.attr(tx1")[0]
-    second_block = script.split("with T.attr(tx1")[1] if "tx1" in script else ""
+    first_block, second_block = script.split('with T.launch_thread("threadIdx.x", 128) as tx1:')
     assert "buf_dyn_shmem" in first_block, "Kernel 1 must have a merged buffer"
-    if second_block:
-        assert "buf_dyn_shmem" in second_block, "Kernel 2 must have a merged buffer"
+    assert "buf_dyn_shmem" in second_block, "Kernel 2 must have a merged buffer"
 
     # End-to-end: post-merge IR must remain well-formed through
     # the host/device split — this is the exact ordering from

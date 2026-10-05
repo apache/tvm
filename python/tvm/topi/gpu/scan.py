@@ -89,8 +89,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
 
         with T.if_(scan_axis_size == 0):
             with T.then_():
-                bx = te.thread_axis("blockIdx.x")
-                with T.attr(bx, "thread_extent", batch_size):
+                with T.launch_thread("blockIdx.x", batch_size) as bx:
                     with T.if_(bx < batch_size):
                         with T.then_():
                             if reduction is not None:
@@ -106,14 +105,12 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                 # Flatten the batch and scan-block axes into blockIdx.x.  On CUDA,
                 # blockIdx.y is limited to 65535 even when blockIdx.x can be much larger.
                 # Copy data to output
-                tx = te.thread_axis("threadIdx.x")
-                bx = te.thread_axis("blockIdx.x")
                 with T.frame_scope(
                     [
-                        T.attr(tx, "thread_extent", nthread_tx),
-                        T.attr(bx, "thread_extent", blocks_per_batch * batch_size),
+                        T.launch_thread("threadIdx.x", nthread_tx),
+                        T.launch_thread("blockIdx.x", blocks_per_batch * batch_size),
                     ]
-                ):
+                ) as (tx, bx):
                     batch = tvm.tirx.indexdiv(bx, blocks_per_batch)
                     tid = tvm.tirx.indexmod(bx, blocks_per_batch) * nthread_tx + tx
                     with T.if_(tid < scan_axis_size):
@@ -134,22 +131,16 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                 with T.serial(0, cast(lim, "int32")) as l2_width:
                     width = 2 << l2_width
 
-                    tx = te.thread_axis("threadIdx.x")
-                    bx = te.thread_axis("blockIdx.x")
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
                     start_buf = T.decl_tensor([1], "int32", scope="local")
                     middle_buf = T.decl_tensor([1], "int32", scope="local")
                     end_buf = T.decl_tensor([1], "int32", scope="local")
                     with T.frame_scope(
                         [
-                            T.attr(tx, "thread_extent", nthread_tx),
-                            T.attr(
-                                bx,
-                                "thread_extent",
-                                blocks_per_batch * batch_size,
-                            ),
+                            T.launch_thread("threadIdx.x", nthread_tx),
+                            T.launch_thread("blockIdx.x", blocks_per_batch * batch_size),
                         ]
-                    ):
+                    ) as (tx, bx):
                         batch = tvm.tirx.indexdiv(bx, blocks_per_batch)
                         tid = tvm.tirx.indexmod(bx, blocks_per_batch) * nthread_tx + tx
                         start = start_buf
@@ -207,8 +198,7 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                                         )
 
                 # Down Sweep of exclusive scan
-                bx = te.thread_axis("blockIdx.x")
-                with T.attr(bx, "thread_extent", batch_size):
+                with T.launch_thread("blockIdx.x", batch_size) as bx:
                     with T.if_(bx < batch_size):
                         with T.then_():
                             if reduction is not None:
@@ -228,8 +218,6 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                 with T.serial(0, cast(lim, "int32")) as l2_width:
                     width = 2 << (lim - l2_width - 1)
 
-                    tx = te.thread_axis("threadIdx.x")
-                    bx = te.thread_axis("blockIdx.x")
                     blocks_per_batch = cast(ceil_div(scan_axis_size, max_threads * width), "int32")
                     start_buf = T.decl_tensor([1], "int32", scope="local")
                     middle_buf = T.decl_tensor([1], "int32", scope="local")
@@ -237,14 +225,10 @@ def exclusive_scan_ir(data, output, reduction=None, binop=operator.add, identity
                     tmp_buf = T.decl_tensor([1], out_dtype, scope="local")
                     with T.frame_scope(
                         [
-                            T.attr(tx, "thread_extent", nthread_tx),
-                            T.attr(
-                                bx,
-                                "thread_extent",
-                                blocks_per_batch * batch_size,
-                            ),
+                            T.launch_thread("threadIdx.x", nthread_tx),
+                            T.launch_thread("blockIdx.x", blocks_per_batch * batch_size),
                         ]
-                    ):
+                    ) as (tx, bx):
                         batch = tvm.tirx.indexdiv(bx, blocks_per_batch)
                         tid = tvm.tirx.indexmod(bx, blocks_per_batch) * nthread_tx + tx
                         start = start_buf
@@ -373,14 +357,12 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=operator.add):
 
             nthread_tx = max_threads
             nthread_bx = ceil_div(batch_size, max_threads)
-            tx = te.thread_axis("threadIdx.x")
-            bx = te.thread_axis("blockIdx.x")
             with T.frame_scope(
                 [
-                    T.attr(tx, "thread_extent", nthread_tx),
-                    T.attr(bx, "thread_extent", nthread_bx),
+                    T.launch_thread("threadIdx.x", nthread_tx),
+                    T.launch_thread("blockIdx.x", nthread_bx),
                 ]
-            ):
+            ) as (tx, bx):
                 tid = bx * max_threads + tx
                 with T.if_(tid < batch_size):
                     with T.then_():

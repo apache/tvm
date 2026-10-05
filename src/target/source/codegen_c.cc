@@ -44,6 +44,7 @@ using namespace tirx;
 void CodeGenC::Init(bool output_ssa) { print_ssa_form_ = output_ssa; }
 
 void CodeGenC::InitFuncState(const PrimFunc& f) {
+  thread_extents_.clear();
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
   pointer_offset_vars_.clear();
@@ -468,7 +469,7 @@ std::string CodeGenC::CastFromTo(std::string value, const PrimType& from, const 
   return os.str();
 }
 
-void CodeGenC::BindThreadIndex(const IterVar& iv) {
+void CodeGenC::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
   TVM_FFI_THROW(InternalError) << "not implemented";
 }
 
@@ -1285,15 +1286,29 @@ void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_ca
   }
 }
 
+void CodeGenC::Dispatch_(const RegionStmtNode* op) {
+  ValidateRegionStmt(op);
+  TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+      << "Cannot generate code for unlowered region op " << op->op;
+  TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+      << "Virtual thread launches must be lowered before code generation";
+  PrimVar var = LaunchThreadVar(op);
+  ffi::String tag = LaunchThreadTag(op);
+  PrimExpr extent = LaunchThreadExtent(op);
+  auto [it, inserted] = thread_extents_.emplace(tag, extent);
+  sym::Analyzer analyzer;
+  TVM_FFI_CHECK(inserted || analyzer->CanProveEqual(it->second, extent), ValueError)
+      << "Conflicting launch extents for " << tag;
+  TVM_FFI_ICHECK(!var_idmap_.count(var.get())) << "Launch variable is already defined";
+  BindThreadIndex(var, tag);
+  this->PrintStmt(op->body);
+  var_idmap_.erase(var.get());
+}
+
 void CodeGenC::Dispatch_(const AttrStmtNode* op) {
-  if (op->attr_key == tirx::attr::thread_extent) {
-    IterVar iv = op->node.as_or_throw<IterVar>();
-    if (iv->thread_tag.length() != 0) {
-      if (!var_idmap_.count(iv->var.get())) {
-        BindThreadIndex(iv);
-      }
-    }
-  } else if (op->attr_key == tirx::attr::pragma_import_c) {
+  TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
+      << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
+  if (op->attr_key == tirx::attr::pragma_import_c) {
     const StringImmNode* value = op->value.as<StringImmNode>();
     TVM_FFI_ICHECK(value != nullptr);
     decl_stream << value->value;

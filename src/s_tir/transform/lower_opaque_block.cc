@@ -50,6 +50,21 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
  private:
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
+    // Attribute metadata can reference a loop variable replaced by a fresh
+    // launch binding. Rewrite it before descending into body-local definitions.
+    auto node = this->Mutate(op->node, inplace_mode);
+    auto value = this->Mutate(op->value, inplace_mode);
+    auto body = this->Mutate(op->body, inplace_mode);
+    if (node.UnchangedOrSameAs(op->node) && value.UnchangedOrSameAs(op->value) &&
+        body.UnchangedOrSameAs(op->body)) {
+      return ffi::Unchanged();
+    }
+    return AttrStmt(std::move(node).ValueOrUnchanged(op->node), op->attr_key,
+                    std::move(value).ValueOrUnchanged(op->value),
+                    std::move(body).ValueOrUnchanged(op->body), op->span);
+  }
+
   UnchangedOr<Stmt> Mutate_(const SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     // We have convert blocks into opaque blocks in previous passes.
     TVM_FFI_ICHECK(op->iter_values.empty())
@@ -100,18 +115,30 @@ class OpaqueBlockLower : public StmtExprMutator {
     // Step 1. Update unit loop info.
     PrimExpr min = this->Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
     PrimExpr extent = this->Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
-    if (is_one(extent) && op->annotations.empty()) {
+    auto step = this->Mutate(op->step, inplace_mode)
+                    .as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>()
+                    .ValueOrUnchanged(op->step);
+    auto previous_remap = VarRemapGet(op->loop_var);
+    PrimVar launch_var(ffi::UnsafeInit{});
+    if (op->kind == ForKind::kThreadBinding) {
+      TVM_FFI_ICHECK(is_zero(min)) << "Thread binding loops must start at zero";
+      launch_var = PrimVar(op->loop_var->name, extent.ty());
+      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), launch_var));
+    } else if (is_one(extent) && op->annotations.empty()) {
       // handling unit loop
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
 
-    // Step 2. Visit recursively
-    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-
-    // Step 3. Handle annotations
+    // Step 2. Annotations may refer to the loop's own variable. Rewrite them
+    // with the launch binding active, before visiting body-local definitions.
     std::vector<std::pair<std::string, Expr>> pragma_attrs;
     ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
+
+    // Step 3. Visit recursively with a body-local launch binding.
+    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    VarRemapSet(op->loop_var, previous_remap);
+
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding
@@ -120,8 +147,6 @@ class OpaqueBlockLower : public StmtExprMutator {
           << "Run LoopPartition before opaque lowering of a thread-binding loop with "
              "loop_partition_hint";
       TVM_FFI_ICHECK(op->thread_binding.has_value());
-      ffi::String thread_tag = op->thread_binding.value()->thread_tag;
-      body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);
     } else if (is_one(extent) && op->annotations.empty() &&
                !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
       // Case 2. Unit loop
@@ -129,29 +154,18 @@ class OpaqueBlockLower : public StmtExprMutator {
     } else {
       // Case 3. An ordinary loop
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 std::nullopt, new_annotations, op->step);
+                 std::nullopt, new_annotations, std::move(step));
     }
     // Step 5. Insert nested attrs
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-      body = AttrStmt(op->loop_var, it->first, it->second, std::move(body));
+      Var var = op->kind == ForKind::kThreadBinding ? Var(launch_var) : Var(op->loop_var);
+      body = AttrStmt(var, it->first, it->second, std::move(body));
+    }
+    if (op->kind == ForKind::kThreadBinding) {
+      return LaunchThread(op->thread_binding.value()->thread_tag, extent, launch_var, body,
+                          op->span);
     }
     return body;
-  }
-
-  static Stmt MakeLaunchThread(PrimExpr min, PrimExpr extent, Var var, ffi::String thread_tag,
-                               Stmt body) {
-    IterVar iter_var(/*dom=*/Range::FromMinExtent(min, extent),
-                     /*var=*/std::move(var).as_or_throw<PrimVar>(),
-                     /*iter_type=*/IterVarType::kThreadIndex,
-                     /*thread_tag=*/thread_tag);
-    ffi::String attr_key = (thread_tag == "vthread" || thread_tag == "vthread.x" ||
-                            thread_tag == "vthread.y" || thread_tag == "vthread.z")
-                               ? s_tir::attr::virtual_thread
-                               : tirx::attr::thread_extent;
-    return AttrStmt(/*node=*/std::move(iter_var),
-                    /*attr_key=*/std::move(attr_key),
-                    /*value=*/std::move(extent),
-                    /*body=*/std::move(body));
   }
 
   /*! \brief Convert attr value from annotation map into Expr. */
@@ -186,10 +200,13 @@ class OpaqueBlockLower : public StmtExprMutator {
           continue;
         }
 
-        pragma_attrs->emplace_back(key, ConvertAttrValue(key, kv.second));
+        auto value = this->Mutate(kv.second, InplaceMode::kDisallow).ValueOrUnchanged(kv.second);
+        pragma_attrs->emplace_back(key, ConvertAttrValue(key, value));
       } else if (!is_block) {
-        // the loop annotation is preserved
-        preserved_annotations.Set(key, kv.second);
+        // Preserve the annotation while remapping enclosing launch bindings,
+        // including expressions nested in annotation containers.
+        auto value = this->Mutate(kv.second, InplaceMode::kDisallow).ValueOrUnchanged(kv.second);
+        preserved_annotations.Set(key, value);
       }
     }
     std::sort(pragma_attrs->begin(), pragma_attrs->end(),

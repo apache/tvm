@@ -30,14 +30,14 @@ from .base import GPUScheduleRule
 
 def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
     """Check whether a statement already launches GPU threads internally,
-    e.g. via `T.launch_thread` (AttrStmt "thread_extent") or nested
+    e.g. via `T.launch_thread` regions or nested
     thread-bound loops. Such blocks manage their own thread environment
     and must not be wrapped in an additional thread binding."""
     found = False
 
-    def visit_attr(node: tirx.AttrStmt):
+    def visit_region(node: tirx.RegionStmt):
         nonlocal found
-        if node.attr_key in ("thread_extent", "virtual_thread"):
+        if node.op.name == "tirx.launch_thread":
             found = True
 
     def visit_for(node: tirx.For):
@@ -47,7 +47,7 @@ def _has_internal_thread_env(stmt: tirx.Stmt) -> bool:
 
     tvm_ffi.structural_walk(
         stmt,
-        [(tirx.AttrStmt, visit_attr), (tirx.For, visit_for)],
+        [(tirx.RegionStmt, visit_region), (tirx.For, visit_for)],
         order="post",
     )
     return found

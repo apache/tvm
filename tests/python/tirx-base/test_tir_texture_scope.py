@@ -26,8 +26,7 @@ def test_texture_scope():
         c: T.handle("float32", "global.texture"),
     ):
         T.func_attr({"global_symbol": "texture_kernel", "calling_conv": 2})
-        tx = T.env_thread("threadIdx.x")
-        T.launch_thread(tx, 128)
+        tx = T.launch_thread("threadIdx.x", 128)
         value = T.call_intrin("float32x4", "tirx.texture2d_load", a, tx, 0, 0, 128, T.Ramp(0, 1, 4))
         T.evaluate(
             T.call_intrin(

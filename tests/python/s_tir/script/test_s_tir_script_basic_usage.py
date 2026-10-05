@@ -323,8 +323,8 @@ def test_launch_thread_i64():
         else:
             T.evaluate(T.int64(1))
 
-    assert func.body.node.dom.min.ty.dtype == "int64"
-    assert func.body.node.dom.extent.ty.dtype == "int64"
+    assert func.body.body_params[0].ty.dtype == "int64"
+    assert func.body.args[1].ty.dtype == "int64"
 
 
 def test_block_annotation_merge():
@@ -441,13 +441,9 @@ def launch_env_thread():
 def vthread_func():
     @Ts.prim_func
     def vthread_func(A: T.Tensor([256], "float32"), C: T.Tensor([256], "float32")) -> None:
-        i0 = T.env_thread("blockIdx.x")
-        i1 = T.env_thread("threadIdx.x")
-        i2 = T.env_thread("vthread")
-
-        T.launch_thread(i0, 4)
-        T.launch_thread(i1, 2)
-        T.launch_thread(i2, 2)
+        i0 = T.launch_thread("blockIdx.x", 4)
+        i1 = T.launch_thread("threadIdx.x", 2)
+        i2 = T.launch_thread("vthread", 2)
         B = T.alloc_tensor((16,), scope="local")
         for j in range(16):
             B[j] = A[i0 * 64 + i1 * 32 + i2 * 16 + j] + T.float32(1)
@@ -1086,13 +1082,9 @@ def test_roundtrip_basic_usage(ir_generator):
 def element_wise_env_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
-    j1_0 = T.env_thread("threadIdx.x")
-    j0_0 = T.env_thread("threadIdx.x")
-    i = T.env_thread("blockIdx.x")
-
-    T.launch_thread(i, 128)
-    T.launch_thread(j0_0, 4)
-    T.launch_thread(j1_0, 4)
+    i = T.launch_thread("blockIdx.x", 128)
+    j0_0 = T.launch_thread("threadIdx.x", 4)
+    j1_0 = T.launch_thread("threadIdx.x", 4)
 
     for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
         for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):

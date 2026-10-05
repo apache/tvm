@@ -174,6 +174,33 @@ class BufferAllocationLocator : public StmtExprMutator {
     return node;
   }
 
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    auto it = alloc_buffers_.find(op);
+    if (it == alloc_buffers_.end()) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+    for (const TensorVar& buf : it->second) {
+      buffer_data_to_buffer_.Set(buf.var(), buf);
+    }
+    auto node = StmtExprMutator::Mutate_(op, inplace_mode)
+                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                    .as_or_throw<RegionStmt>();
+
+    ffi::Array<TensorVar> new_block_alloc_bufs;
+    for (const TensorVar& buf : it->second) {
+      if (managed_allocations_.count(buf.get())) {
+        buffer_data_to_buffer_.erase(buf.var());
+        new_block_alloc_bufs.push_back(buf);
+      }
+    }
+
+    if (new_block_alloc_bufs.size()) {
+      node.CopyOnWrite()->body = InjectOpaqueBlock(node->body, new_block_alloc_bufs);
+    }
+
+    return node;
+  }
+
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     TVM_FFI_ICHECK(!op->init.has_value());
     ffi::Array<TensorVar> alloc_buffers;

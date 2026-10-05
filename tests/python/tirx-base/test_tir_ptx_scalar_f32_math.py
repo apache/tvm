@@ -33,10 +33,8 @@ def ptx_scalar_f32_math(
     C_max: T.Tensor((32,), "float32"),
 ) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     T.ptx.add.rn.f32(C_add[tx], A[tx], B[tx])
     T.ptx.mul.rn.f32(C_mul[tx], A[tx], B[tx])
     T.ptx.max.f32(C_max[tx], A[tx], B[tx])

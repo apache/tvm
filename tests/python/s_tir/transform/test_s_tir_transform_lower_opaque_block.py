@@ -95,13 +95,9 @@ def compacted_gpu_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "
 def transformed_gpu_func(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
-    i0 = T.env_thread("blockIdx.x")
-    i1 = T.env_thread("threadIdx.x")
-    i2 = T.env_thread("vthread")
-
-    T.launch_thread(i0, 4)
-    T.launch_thread(i1, 2)
-    T.launch_thread(i2, 2)
+    i0 = T.launch_thread("blockIdx.x", 4)
+    i1 = T.launch_thread("threadIdx.x", 2)
+    i2 = T.launch_thread("vthread", 2)
     B = T.alloc_tensor(
         [1, 16],
         "float32",

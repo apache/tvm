@@ -47,6 +47,9 @@ def verify_structure(stmt, expected_struct):
             var_list.clear()
         elif isinstance(op, tvm.tirx.For):
             val = [(op.body,), ("tirx.For", op.loop_var.name)]
+        elif isinstance(op, tvm.tirx.RegionStmt):
+            assert op.op.name == "tirx.launch_thread"
+            val = [(op.body,), ("tirx.RegionStmt", op.op.name, int(op.args[1]))]
         elif isinstance(op, tvm.tirx.AttrStmt):
             val = [(op.body,), ("tirx.AttrStmt", op.attr_key, int(op.value))]
         else:
@@ -185,8 +188,10 @@ def test_attr_stmt():
         ("tirx.IfThenElse", ("i", "j")): (("tirx.For", "k"), ("tirx.For", "k")),
         ("tirx.For", "j"): (("tirx.IfThenElse", ("i", "j")),),
         ("tirx.For", "i"): (("tirx.For", "j"),),
-        ("tirx.AttrStmt", "thread_extent", 64): (("tirx.For", "i"),),
-        ("tirx.AttrStmt", "thread_extent", 32): (("tirx.AttrStmt", "thread_extent", 64),),
+        ("tirx.RegionStmt", "tirx.launch_thread", 64): (("tirx.For", "i"),),
+        ("tirx.RegionStmt", "tirx.launch_thread", 32): (
+            ("tirx.RegionStmt", "tirx.launch_thread", 64),
+        ),
     }
     verify_structure(new_stmt, expected_struct)
 
@@ -349,12 +354,6 @@ def test_no_hoisting_4():
     dshape = (32, 64)
     dshape_inner = (33, 63)
 
-    # Create iter_var for tx (used inside loop with T.attr)
-    tx_var = T.dynamic("threadIdx.x", "int32")
-    tx_iter = tvm.tirx.IterVar(
-        tvm.ir.Range(0, dshape_inner[0]), tx_var, tvm.tirx.IterVar.ThreadIndex, "threadIdx.x"
-    )
-
     @I.ir_module
     class Module:
         @Ts.prim_func(private=True)
@@ -363,7 +362,7 @@ def test_no_hoisting_4():
             for i in T.serial(l):
                 for j in T.serial(m):
                     for k in T.serial(n):
-                        T.attr(tx_iter, "thread_extent", dshape_inner[0])
+                        tx_var = T.launch_thread("threadIdx.x", dshape_inner[0])
                         if tx_var < 3:
                             data[bx * j + tx_var * j * k] = data[
                                 bx * j + tx_var * j * k
@@ -444,12 +443,6 @@ def test_no_hoisting_7():
 def test_hoisting_block_scope_2():
     dshape = (32, 64)
 
-    # Create iter_var for bx (used inside loop with T.attr)
-    bx_var = T.dynamic("blockIdx.x", "int32")
-    bx_iter = tvm.tirx.IterVar(
-        tvm.ir.Range(0, dshape[1]), bx_var, tvm.tirx.IterVar.ThreadIndex, "blockIdx.x"
-    )
-
     @I.ir_module
     class Module:
         @Ts.prim_func(private=True)
@@ -458,7 +451,7 @@ def test_hoisting_block_scope_2():
             for i in T.serial(l):
                 for j in T.serial(m):
                     for k in T.serial(n):
-                        T.attr(bx_iter, "thread_extent", dshape[1])
+                        bx_var = T.launch_thread("blockIdx.x", dshape[1])
                         if tx < 3:
                             data[bx_var * j + tx * j * k] = data[
                                 bx_var * j + tx * j * k

@@ -212,6 +212,7 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   void Dispatch_(const ContinueNode* op) override;
   void Dispatch_(const IfThenElseNode* op) override;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const RegionStmtNode* op) override;
   void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const EvaluateNode* op) override;
@@ -220,11 +221,12 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
 
   /*!
    * \brief Print expr representing the thread tag
-   * \param IterVar iv The thread index to be binded;
+   * \param var The lexical thread index variable.
+   * \param thread_tag The hardware thread axis.
    */
-  virtual void BindThreadIndex(const IterVar& iv);                             // NOLINT(*)
-  virtual void PrintStorageScope(const std::string& scope, std::ostream& os);  // NOLINT(*)
-  virtual void PrintStorageSync(const CallNode* op);                           // NOLINT(*)
+  virtual void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag);  // NOLINT(*)
+  virtual void PrintStorageScope(const std::string& scope, std::ostream& os);       // NOLINT(*)
+  virtual void PrintStorageSync(const CallNode* op);                                // NOLINT(*)
   // Binary vector op.
   virtual void PrintVecBinaryOp(const std::string& op, const PrimType& op_type, PrimExpr lhs,
                                 PrimExpr rhs,
@@ -340,6 +342,8 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
 
   /*! \brief restrict keyword */
   std::string restrict_keyword_{""};
+  /*! \brief Extents of physical thread axes in the current function. */
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
   /*! \brief the storage scope of allocation */
   std::unordered_map<const VarNode*, std::string> alloc_storage_scope_;
   /*! \brief the data type of allocated buffers */

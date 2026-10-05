@@ -71,6 +71,10 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       Dispatch_(str, path);
     } else if (auto* str = obj.as<DataTypeImmNode>()) {
       Dispatch_(str, path);
+    } else if (obj.as<OpNode>()) {
+      // Registered operations are atomic expression inputs.
+    } else if (auto global_var = obj.as<GlobalVar>()) {
+      Visit(global_var.value(), path);
     } else if (auto* var = obj.as<VarNode>()) {
       Dispatch_(var, path);
     } else if (auto* call = obj.as<CallNode>()) {
@@ -145,6 +149,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   using StmtFunctor::Dispatch;
   void Dispatch_(const BindNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override;
+  void Dispatch_(const RegionStmtNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const IfThenElseNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const ForNode* op, ffi::reflection::AccessPath path) override;
   void Dispatch_(const WhileNode* op, ffi::reflection::AccessPath path) override;
@@ -232,9 +237,9 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
    private:
     friend class TIRVisitorWithPath;
 
-    DefContext(TIRVisitorWithPath* self, T obj, ffi::reflection::AccessPath path)
+    DefContext(TIRVisitorWithPath* self, T obj, ffi::reflection::AccessPath path, bool visit_type)
         : self_(self), obj_(obj), path_(path), uncaught_exceptions_(std::uncaught_exceptions()) {
-      if (auto var = obj_.template as<Var>()) {
+      if (auto var = obj_.template as<Var>(); var && visit_type) {
         self_->Visit(var.value()->ty, path_->Attr("ty"));
       }
       self_->in_scope_definitions_.insert(obj_);
@@ -256,8 +261,8 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
 
   // Utility to track the scope of a node's definition.
   template <typename T>
-  DefContext<T> WithDef(T obj, ffi::reflection::AccessPath path) {
-    return DefContext(this, obj, path);
+  DefContext<T> WithDef(T obj, ffi::reflection::AccessPath path, bool visit_type = true) {
+    return DefContext(this, obj, path, visit_type);
   }
 
   /* \brief Utility to track the scope of a node's definition. */

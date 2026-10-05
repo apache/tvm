@@ -544,7 +544,7 @@ def LowerTIRx():
 def LowerTIRxOpaque():
     """Lower opaque constructs in TIRX programs.
 
-    Handles allocation call lowering, For(thread_binding) to AttrStmt(thread_extent)
+    Handles allocation call lowering, For(thread_binding) to RegionStmt(launch_thread)
     conversion, unit loop elimination, and pragma annotation handling.
     This is the tirx-specific counterpart of s_tir.LowerOpaqueBlock,
     without any SBlock/SBlockRealize handling.

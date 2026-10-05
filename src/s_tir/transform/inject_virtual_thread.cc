@@ -180,6 +180,16 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     Record(op->loop_var.get(), *expr_touched_);
     return this->Visit(op->body);
   }
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (!IsLaunchThread(op)) has_opaque_region_ = true;
+    expr_touched_->Reset(false);
+    for (const Expr& arg : op->args) expr_touched_->Visit(arg);
+    for (const Var& var : op->body_params) Record(var.get(), *expr_touched_);
+    return Visit(op->body);
+  }
+
+  bool has_opaque_region_{false};
+
   // external function call
   ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
     expr_touched_->Reset(true);
@@ -426,6 +436,24 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
 
     VarRemapSet(original, buf);
     return buf;
+  }
+
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    // A launch extent is evaluated before entering its body. If it depends on
+    // the virtual index, put the virtual loop outside the entire launch.
+    auto args =
+        this->Mutate(op->args, InplaceMode::kDisallow).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
+    if (visit_touched_var_ && !vt_loop_injected_) {
+      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
+    }
+    visit_touched_var_ = false;
+    auto body = this->Mutate(op->body, inplace_mode);
+    if (args.UnchangedOrSameAs(op->args) && body.UnchangedOrSameAs(op->body)) {
+      return ffi::Unchanged();
+    }
+    return RegionStmt(op->op, std::move(args).ValueOrUnchanged(op->args), op->body_params,
+                      std::move(body).ValueOrUnchanged(op->body), op->result_vars, op->attrs,
+                      op->span);
   }
 
   // Attribute
@@ -715,17 +743,24 @@ class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
 
   using IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<AttrStmtNode>();
-    if (op->attr_key == s_tir::attr::virtual_thread) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      bool allow_share = std::string(iv->thread_tag).substr(0, 7) == "vthread";
-      int nthread = op->value.as<IntImmNode>()->value.as<int>().value();
+    op = stmt.as<RegionStmtNode>();
+    if (IsVirtualThread(op)) {
+      PrimVar var = LaunchThreadVar(op);
+      const auto* extent = LaunchThreadExtent(op).as<IntImmNode>();
+      TVM_FFI_ICHECK(extent) << "Virtual thread extent must be a constant integer";
+      int nthread = extent->value.as<int>().value();
+      TVM_FFI_ICHECK_GT(nthread, 0) << "Virtual thread extent must be positive";
       auto vs = ffi::make_object<VarTouchedAnalysis>();
-      auto touched = vs->TouchedVar(op->body, iv->var.get());
+      auto touched = vs->TouchedVar(op->body, var.get());
+      if (vs->has_opaque_region_) {
+        // Keep unknown operations and their result definitions inside one
+        // lexical loop; they have no sharing or distribution semantics.
+        return For(var, IntImm(var.ty(), 0), LaunchThreadExtent(op), ForKind::kSerial, op->body);
+      }
       auto injector =
-          ffi::make_object<VTInjector>(analyzer_, iv->var, nthread, touched, allow_share);
+          ffi::make_object<VTInjector>(analyzer_, var, nthread, touched, /*allow_share=*/true);
       return injector->Mutate(op->body).ValueOrUnchanged(op->body);
     } else {
       return stmt;

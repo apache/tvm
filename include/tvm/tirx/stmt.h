@@ -25,6 +25,7 @@
 #define TVM_TIRX_STMT_H_
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/op.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/expr.h>
@@ -163,6 +164,65 @@ class AttrStmt : public Stmt {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
 };
+
+/*!
+ * \brief A single-body statement whose semantics are defined by an operator.
+ * Operands are evaluated in the enclosing scope. Body parameters are definitions
+ * at body entry; result variables are definitions following the region.
+ */
+class RegionStmtNode : public StmtNode {
+ public:
+  explicit RegionStmtNode(ffi::UnsafeInit tag) : op(tag), body(tag) {}
+
+  RegionStmtNode(Op op, Stmt body) : op(std::move(op)), body(std::move(body)) {}
+
+  Op op;
+  ffi::Array<Expr> args;
+  ffi::Array<Var> body_params;
+  Stmt body;
+  ffi::Array<Var> result_vars;
+  DictAttrs attrs;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RegionStmtNode>()
+        .def_ro("op", &RegionStmtNode::op)
+        .def_ro("attrs", &RegionStmtNode::attrs)
+        .def_ro("args", &RegionStmtNode::args)
+        .def_ro("body_params", &RegionStmtNode::body_params,
+                refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("body", &RegionStmtNode::body)
+        .def_ro("result_vars", &RegionStmtNode::result_vars,
+                refl::AttachFieldFlag::SEqHashDefSimple());
+  }
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.RegionStmt", RegionStmtNode, StmtNode);
+};
+
+/*! \brief Managed reference to RegionStmtNode. */
+class RegionStmt : public Stmt {
+ public:
+  TVM_DLL RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, Stmt body,
+                     ffi::Array<Var> result_vars = {}, DictAttrs attrs = DictAttrs(),
+                     Span span = Span());
+
+  explicit RegionStmt(ffi::ObjectPtr<RegionStmtNode> node) : Stmt(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RegionStmt, Stmt, RegionStmtNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(RegionStmtNode);
+};
+
+/*! \brief Validate a region's definitions and any known operation schema. */
+TVM_DLL void ValidateRegionStmt(const RegionStmtNode* op);
+/*! \brief Whether a region binds a hardware or virtual thread index. */
+TVM_DLL bool IsLaunchThread(const RegionStmtNode* op);
+/*! \brief Whether a launch's tag starts with vthread. */
+TVM_DLL bool IsVirtualThread(const RegionStmtNode* op);
+TVM_DLL ffi::String LaunchThreadTag(const RegionStmtNode* op);
+TVM_DLL PrimExpr LaunchThreadExtent(const RegionStmtNode* op);
+TVM_DLL PrimVar LaunchThreadVar(const RegionStmtNode* op);
+/*! \brief Construct a launch with an explicit lexical body binding. */
+TVM_DLL RegionStmt LaunchThread(ffi::String tag, PrimExpr extent, PrimVar var, Stmt body,
+                                Span span = Span());
 
 /*!
  * \brief Assert condition, if an error occurs, return the error message.
@@ -821,11 +881,7 @@ constexpr const char* pragma_import_llvm = "pragma_import_llvm";
 constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
 /*! \brief Mark storage alignment requirement of buffers */
 constexpr const char* storage_alignment = "storage_alignment";
-/*! \brief Mark launching extent of thread, used by device API. */
-constexpr const char* thread_extent = "thread_extent";
-
 /*! \brief Shared execution attributes consumed before and after block lowering. */
-constexpr const char* virtual_thread = "virtual_thread";
 constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
 constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
 /*! \brief Annotation key on AllocTensor marking the allocation as volatile. */

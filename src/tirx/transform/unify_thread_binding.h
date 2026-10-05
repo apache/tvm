@@ -34,15 +34,15 @@ using namespace tvm::prim;
 using support::StartsWith;
 
 /*!
- * \brief A mutator which searches AttrStmts of thread bindings and changes the `node` field IterVar
- * of the AttrStmts, so that for one kind of thread binding, all such thread bindings use the same
- * IterVar
+ * \brief Coalesce hardware thread bindings into one enclosing definition per axis.
+ * Virtual launches retain their independent lexical bindings.
  */
 template <typename DialectMutator>
 class ThreadBindingUnifier : public DialectMutator {
  public:
   using DialectMutator::Mutate;
   using DialectMutator::Mutate_;
+  using DialectMutator::VarRemapGet;
   using DialectMutator::VarRemapSet;
 
   static Stmt Unify(Stmt stmt) {
@@ -52,16 +52,15 @@ class ThreadBindingUnifier : public DialectMutator {
   }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    // If this AttrStmt is not thread binding attribute, return as usual.
-    if (op->attr_key != tirx::attr::thread_extent && op->attr_key != tirx::attr::virtual_thread) {
-      return DialectMutator::Mutate_(op, inplace_mode);
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (!IsLaunchThread(op) || IsVirtualThread(op)) {
+      return MutateIsolatedScope(op, inplace_mode);
     }
-    IterVar old_iter_var = op->node.as_or_throw<IterVar>();
-    PrimExpr extent = op->value.as_or_throw<PrimExpr>();
-    return UnifyThreadBindingImpl(op, old_iter_var->var, old_iter_var,
-                                  Range::FromMinExtent(IntImm(extent.ty(), 0), extent),
-                                  inplace_mode);
+    PrimExpr old_extent = LaunchThreadExtent(op);
+    PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
+    IterVar axis(Range(), LaunchThreadVar(op), IterVarType::kThreadIndex, LaunchThreadTag(op));
+    return UnifyThreadBindingImpl(
+        op, axis->var, axis, Range::FromMinExtent(IntImm(extent.ty(), 0), extent), inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
@@ -69,9 +68,15 @@ class ThreadBindingUnifier : public DialectMutator {
     if (op->kind != ForKind::kThreadBinding) {
       return DialectMutator::Mutate_(op, inplace_mode);
     }
+    if (StartsWith(op->thread_binding.value()->thread_tag, "vthread")) {
+      return MutateIsolatedScope(op, inplace_mode);
+    }
     ffi::Map<ffi::String, Any> annotations = op->annotations;
-    Stmt stmt = UnifyThreadBindingImpl(op, op->loop_var, op->thread_binding.value(),
-                                       Range::FromMinExtent(op->min, op->extent), inplace_mode);
+    Stmt stmt = UnifyThreadBindingImpl(
+        op, op->loop_var, op->thread_binding.value(),
+        Range::FromMinExtent(Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min),
+                             Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent)),
+        inplace_mode);
     if (annotations.empty()) {
       return stmt;
     }
@@ -91,6 +96,22 @@ class ThreadBindingUnifier : public DialectMutator {
                  /*annotation=*/std::move(annotations),
                  /*step=*/std::nullopt);
     }
+  }
+
+  // Never hoist hardware definitions across generic or virtual region boundaries.
+  template <typename Node>
+  UnchangedOr<Stmt> MutateIsolatedScope(const Node* op, InplaceMode inplace_mode) {
+    auto outer_axes = std::move(thread_tag2iter_var_map_);
+    auto outer_launches = std::move(launch_threads_);
+    int outer_depth = thread_block_depth_;
+    thread_tag2iter_var_map_ = {};
+    launch_threads_ = {};
+    thread_block_depth_ = 0;
+    auto result = DialectMutator::Mutate_(op, inplace_mode);
+    thread_tag2iter_var_map_ = std::move(outer_axes);
+    launch_threads_ = std::move(outer_launches);
+    thread_block_depth_ = outer_depth;
+    return result;
   }
 
   template <typename Node>
@@ -136,6 +157,7 @@ class ThreadBindingUnifier : public DialectMutator {
     // Step 4. We will substitute the occurrences of the old variable in the old IterVar with the
     // new variable in further mutation. Thus, we store the mapping entry. Cast to old dtype if
     // needed (we assume both old and new dtype are valid for the range of the thread extent).
+    ffi::Any previous_remap = VarRemapGet(old_var);
     VarRemapSet(old_var, prim::cast(old_var->ty.as_or_throw<PrimType>(),
                                     new_iter_var->var.as_or_throw<PrimExpr>()));
 
@@ -144,6 +166,7 @@ class ThreadBindingUnifier : public DialectMutator {
     // binding of the kernel.
     // The old binding is removed; only its body survives under the new launch variable.
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    VarRemapSet(old_var, previous_remap);
     thread_block_depth_ = old_thread_block_depth;
     return is_kernel_launch_scope ? EmitLaunchThreads(body) : body;
   }

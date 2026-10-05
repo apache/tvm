@@ -352,15 +352,12 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
-      IterVar iter = op->node.as_or_throw<IterVar>();
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (IsLaunchThread(op)) {
+      PrimExpr extent = LaunchThreadExtent(op);
+      Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
+      IterVar iter(dom, LaunchThreadVar(op), IterVarType::kThreadIndex, LaunchThreadTag(op));
       ancestor_iters_.push_back(iter);
-      Range dom = iter->dom;
-      if (!dom.defined()) {  // dom is empty for legacy te schedule
-        PrimExpr extent = op->value.as_or_throw<PrimExpr>();
-        dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
-      }
       dom_analyzer_->Bind(iter->var, dom);
       dom_map_.emplace(iter->var.get(), sym::IntSet::FromRange(dom));
       size_t n_pending_before = pending_flat_alloc_buffers_.size();
@@ -370,7 +367,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       ancestor_iters_.pop_back();
       return std::nullopt;
     }
-    return StmtExprVisitor::Visit_(op);
+    size_t n_pending_before = pending_flat_alloc_buffers_.size();
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    CompactPendingFlatAllocTensors(n_pending_before);
+    return std::nullopt;
   }
 
   /**************** Helper functions ****************/

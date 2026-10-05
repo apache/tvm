@@ -196,30 +196,35 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::thread_extent) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      if (iv->var->name == "threadIdx.x" || iv->thread_tag == "threadIdx.x") {
-        threadIdx_x_ext = op->value.as_or_throw<PrimExpr>();
-      }
-      if (iv->var->name == "threadIdx.y" || iv->thread_tag == "threadIdx.y") {
-        threadIdx_y_ext = op->value.as_or_throw<PrimExpr>();
-      }
-      if (iv->var->name == "threadIdx.z" || iv->thread_tag == "threadIdx.z") {
-        threadIdx_z_ext = op->value.as_or_throw<PrimExpr>();
-      }
-      if (iv->var->name == "clusterCtaIdx.x" || iv->thread_tag == "clusterCtaIdx.x") {
-        clusterCtaIdx_x_ext = op->value.as_or_throw<PrimExpr>();
-      }
-      if (iv->var->name == "clusterCtaIdx.y" || iv->thread_tag == "clusterCtaIdx.y") {
-        clusterCtaIdx_y_ext = op->value.as_or_throw<PrimExpr>();
-      }
-      if (iv->var->name == "clusterCtaIdx.z" || iv->thread_tag == "clusterCtaIdx.z") {
-        clusterCtaIdx_z_ext = op->value.as_or_throw<PrimExpr>();
-      }
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    ValidateRegionStmt(op);
+    TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+        << "Cannot generate code for unlowered region op " << op->op;
+    TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+        << "Virtual thread launches must be lowered before code generation";
+    ffi::String tag = LaunchThreadTag(op);
+    PrimExpr extent = LaunchThreadExtent(op);
+    auto [it, inserted] = thread_extents_.emplace(tag, extent);
+    TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
+        << "Conflicting launch extents for " << tag;
+    if (tag == "threadIdx.x") {
+      threadIdx_x_ext = extent;
+    } else if (tag == "threadIdx.y") {
+      threadIdx_y_ext = extent;
+    } else if (tag == "threadIdx.z") {
+      threadIdx_z_ext = extent;
+    } else if (tag == "clusterCtaIdx.x") {
+      clusterCtaIdx_x_ext = extent;
+    } else if (tag == "clusterCtaIdx.y") {
+      clusterCtaIdx_y_ext = extent;
+    } else if (tag == "clusterCtaIdx.z") {
+      clusterCtaIdx_z_ext = extent;
     }
     return StmtExprVisitor::Visit_(op);
   }
+
+  sym::Analyzer analyzer_;
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
 
  public:
   PrimExpr threadIdx_x_ext = IntImm::Int32(1);
@@ -389,12 +394,12 @@ void CodeGenCUDA::Dispatch_(const WhileNode* op) {
   stream << "}\n";
 }
 
-void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
-  TVM_FFI_ICHECK(!var_idmap_.count(iv->var.get()));
-  const auto& scope = runtime::ThreadScope::Create(iv->thread_tag);
+void CodeGenCUDA::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
+  TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
+  const auto& scope = runtime::ThreadScope::Create(thread_tag);
+  TVM_FFI_ICHECK_GE(scope.dim_index, 0);
+  TVM_FFI_ICHECK_LT(scope.dim_index, 3);
   if (scope.IsClusterCtaIdx()) {
-    TVM_FFI_ICHECK_GE(scope.dim_index, 0);
-    TVM_FFI_ICHECK_LT(scope.dim_index, 3);
     const char dim = static_cast<char>('x' + scope.dim_index);
     const std::string sreg = (scope.dim_index == 0 && cluster_cta_x_is_linear_rank_)
                                  ? "cluster_ctarank"
@@ -408,9 +413,9 @@ void CodeGenCUDA::BindThreadIndex(const IterVar& iv) {
                                    ";\" : \"=r\"(ctaid) :);\n"
                                    "  return ctaid;\n"
                                    "}\n");
-    var_idmap_[iv->var.get()] = CastFromTo(func_name + "()", PrimType::UInt(32), iv->var.ty());
+    var_idmap_[var.get()] = CastFromTo(func_name + "()", PrimType::UInt(32), var.ty());
   } else {
-    var_idmap_[iv->var.get()] = CastFromTo(iv->thread_tag, PrimType::UInt(32), iv->var.ty());
+    var_idmap_[var.get()] = CastFromTo(thread_tag, PrimType::UInt(32), var.ty());
   }
 }
 
@@ -1578,7 +1583,6 @@ void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
     TVM_FFI_ICHECK(inner);
     this->Dispatch(inner->body);
     return;
-  } else if (op->attr_key == tirx::attr::thread_extent) {
   }
   CodeGenC::Dispatch_(op);
 }

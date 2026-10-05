@@ -134,30 +134,36 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    // record workgroup size
-    if (op->attr_key == tirx::attr::thread_extent) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      if (iv->thread_tag.length() != 0) {
-        runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
-        if (ts.rank == 1) {
-          TVM_FFI_ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
-          TVM_FFI_ICHECK_LT(ts.dim_index, 3);
-          auto* sizeptr = op->value.as<IntImmNode>();
-          TVM_FFI_ICHECK(sizeptr) << "CodeGenWebGPU: only allows constant thread group size "
-                                  << " get " << op->value;
-          info_.workgroup_size[ts.dim_index] = sizeptr->value.as<uint32_t>().value();
-        } else if (ts.rank == 0) {
-          if (ts.dim_index == 2) {
-            info_.has_block_index_z = true;
-          }
-        }
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    ValidateRegionStmt(op);
+    TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+        << "Cannot generate code for unlowered region op " << op->op;
+    TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+        << "Virtual thread launches must be lowered before code generation";
+    ffi::String tag = LaunchThreadTag(op);
+    PrimExpr extent = LaunchThreadExtent(op);
+    auto [it, inserted] = thread_extents_.emplace(tag, extent);
+    TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
+        << "Conflicting launch extents for " << tag;
+    runtime::ThreadScope ts = runtime::ThreadScope::Create(tag);
+    TVM_FFI_ICHECK_GE(ts.dim_index, 0);
+    TVM_FFI_ICHECK_LT(ts.dim_index, 3);
+    if (ts.rank == 1) {
+      auto* sizeptr = extent.as<IntImmNode>();
+      TVM_FFI_ICHECK(sizeptr) << "CodeGenWebGPU: only allows constant thread group size "
+                              << " get " << extent;
+      info_.workgroup_size[ts.dim_index] = sizeptr->value.as<uint32_t>().value();
+    } else {
+      TVM_FFI_ICHECK_EQ(ts.rank, 0) << "Unsupported WebGPU thread tag " << LaunchThreadTag(op);
+      if (ts.dim_index == 2) {
+        info_.has_block_index_z = true;
       }
     }
-    // normal operation
     return StmtExprVisitor::Visit_(op);
   }
   WebGPUWorkGroupInfo info_;
+  sym::Analyzer analyzer_;
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
   std::unordered_map<const VarNode*, Var> buffer_aliases_;
 };
 
@@ -350,22 +356,34 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
                                std::move(func_launch_param_tags), {});
 }
 
-void CodeGenWebGPU::BindThreadIndex(const IterVar& iv) {
-  TVM_FFI_ICHECK(!var_idmap_.count(iv->var.get()));
+void CodeGenWebGPU::Dispatch_(const RegionStmtNode* op) {
+  ValidateRegionStmt(op);
+  TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+      << "Cannot generate code for unlowered region op " << op->op;
+  TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+      << "Virtual thread launches must be lowered before code generation";
+  PrimVar var = LaunchThreadVar(op);
+  PrimExpr extent = LaunchThreadExtent(op);
+  With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
+  CodeGenC::Dispatch_(op);
+}
+
+void CodeGenWebGPU::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
+  TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
   std::ostringstream os;
-  PrintType(iv->var.ty(), os);
-  if (iv->thread_tag == "blockIdx.x") {
+  PrintType(var.ty(), os);
+  if (thread_tag == "blockIdx.x") {
     // WebGPU have restriction to limit the maximum size of blockId.x to be 65535
     // We allow runtime to spread the load out to blockIdx.z so it can be a large number.
     os << "(blockIdx.z * gridDim.x + blockIdx.x)";
     std::string tidx = os.str();
-    std::string aggregated_bidx = SSAGetID(os.str(), iv->var.ty());
-    var_idmap_[iv->var.get()] = aggregated_bidx;
+    std::string aggregated_bidx = SSAGetID(os.str(), var.ty());
+    var_idmap_[var.get()] = aggregated_bidx;
   } else {
-    os << "(" << iv->thread_tag << ")";
+    os << "(" << thread_tag << ")";
     std::string tidx = os.str();
     this->MarkConst(tidx);
-    var_idmap_[iv->var.get()] = tidx;
+    var_idmap_[var.get()] = tidx;
   }
 }
 

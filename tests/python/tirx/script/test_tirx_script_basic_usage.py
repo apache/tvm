@@ -50,8 +50,8 @@ def test_native_concise_scopes_unwind_with_their_parent():
 
     bx, tx = variables
     body = main.body
-    assert isinstance(body, tirx.AttrStmt) and isinstance(body.body, tirx.AttrStmt)
-    assert body.node.var.same_as(bx) and body.body.node.var.same_as(tx)
+    assert isinstance(body, tirx.RegionStmt) and isinstance(body.body, tirx.RegionStmt)
+    assert body.body_params[0].same_as(bx) and body.body.body_params[0].same_as(tx)
     assert body.body.body.value.a.same_as(bx) and body.body.body.value.b.same_as(tx)
 
 

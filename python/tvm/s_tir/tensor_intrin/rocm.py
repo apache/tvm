@@ -142,8 +142,7 @@ def get_mma_fill_intrin(dtype, local_size):
         with Ts.sblock("root"):
             Ts.reads()
             Ts.writes(C_warp[0:WARP_SIZE, 0:local_size])
-            tx = T.env_thread("threadIdx.x")
-            T.launch_thread(tx, WARP_SIZE)
+            tx = T.launch_thread("threadIdx.x", WARP_SIZE)
             for local_id in T.serial(0, local_size):
                 C_warp[tx, local_id] = zero
 
@@ -227,10 +226,9 @@ def get_mfma_load_intrin(
         with Ts.sblock("root"):
             Ts.reads(memory[0:row_dim, 0:col_dim])
             Ts.writes(reg[0:WARP_SIZE, 0:local_size])
-            tx = T.env_thread("threadIdx.x")
             for local_id in T.serial(0, local_size):
+                tx = T.launch_thread("threadIdx.x", WARP_SIZE)
                 matrix_indices = reverse_index_map(tx, local_id)
-                T.launch_thread(tx, WARP_SIZE)
                 reg[tx, local_id] = memory[matrix_indices[0], matrix_indices[1]]
 
     return mfma_load_desc, mfma_load_impl
@@ -313,8 +311,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                 C[0:WARP_SIZE, 0:local_size_out],
             )
             Ts.writes(C[0:WARP_SIZE, 0:local_size_out])
-            tx = T.env_thread("threadIdx.x")
-            T.launch_thread(tx, WARP_SIZE)
+            tx = T.launch_thread("threadIdx.x", WARP_SIZE)
             C[tx, T.ramp(0, 1, local_size_out)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
                 A[tx, T.ramp(0, 1, local_size) if T.constexpr(local_size > 1) else 0],
@@ -339,8 +336,7 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
                 C[0:WARP_SIZE, 0:local_size_out],
             )
             Ts.writes(C[0:WARP_SIZE, 0:local_size_out])
-            tx = T.env_thread("threadIdx.x")
-            T.launch_thread(tx, WARP_SIZE)
+            tx = T.launch_thread("threadIdx.x", WARP_SIZE)
 
             C[tx, T.ramp(0, 1, local_size_out)] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
@@ -398,8 +394,7 @@ def get_mfma_store_intrin(local_size=4, dtype="float32", scope="global"):
         with Ts.sblock("root"):
             Ts.reads(C_warp[0:WARP_SIZE, 0:local_size])
             Ts.writes(C[0:M_DIM, 0:N_DIM])
-            tx = T.env_thread("threadIdx.x")
-            T.launch_thread(tx, WARP_SIZE)
+            tx = T.launch_thread("threadIdx.x", WARP_SIZE)
             for i in range(local_size):
                 C[((tx // 16) * 4) + i, (tx % 16)] = C_warp[tx, i]
 

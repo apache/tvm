@@ -501,14 +501,10 @@ Stmt RewriteMmaStore(Stmt stmt) {
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
              /*name_hint=*/"mma_store",
-             AttrStmt(
-                 /*node=*/IterVar(
-                     /*dom=*/Range::FromMinExtent(0, 32),
-                     /*var=*/tx.as_or_throw<PrimVar>(),
-                     /*iter_type=*/IterVarType::kThreadIndex,
-                     /*thread_tag=*/"threadIdx.x"),
-                 /*attr_key=*/"thread_extent",
-                 /*value=*/IntImm::Int32(32),
+             LaunchThread(
+                 /*tag=*/"threadIdx.x",
+                 /*extent=*/IntImm::Int32(32),
+                 /*var=*/tx,
                  /*body=*/
                  For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
                      /*body=*/

@@ -212,15 +212,19 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
 }
 
 UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
+  return constraint_scope_.WithNewScope(
+      [&]() { return StmtExprMutator::Mutate_(op, inplace_mode); });
+}
+
+UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const RegionStmtNode* op,
+                                                 InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {
-    if (op->attr_key == tirx::attr::thread_extent ||
-        op->attr_key == tvm::tirx::attr::virtual_thread) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+    if (IsLaunchThread(op)) {
+      PrimVar var = LaunchThreadVar(op);
+      PrimExpr extent = LaunchThreadExtent(op);
       Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
-      analyzer_->Bind(iv->var, dom);
-      iter_vars_.Set(iv->var, dom);
+      analyzer_->Bind(var, dom);
+      iter_vars_.Set(var, dom);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   });

@@ -242,6 +242,7 @@ void CodeGenLLVM::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
 }
 
 void CodeGenLLVM::InitFuncState() {
+  thread_extents_.clear();
   var_map_.clear();
   buffer_physical_root_.clear();
   alias_var_set_.clear();
@@ -426,7 +427,7 @@ void CodeGenLLVM::AddMainFunction(const std::string& entry_func_name) {
   TVM_FFI_THROW(InternalError) << "not implemented";
 }
 
-llvm::Value* CodeGenLLVM::GetThreadIndex(const IterVar& iv) {
+llvm::Value* CodeGenLLVM::GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
   TVM_FFI_THROW(InternalError) << "not implemented";
 }
 
@@ -2260,17 +2261,31 @@ void CodeGenLLVM::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   }
 }
 
-void CodeGenLLVM::Dispatch_(const AttrStmtNode* op) {
+void CodeGenLLVM::Dispatch_(const RegionStmtNode* op) {
+  ValidateRegionStmt(op);
+  TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+      << "Cannot generate code for unlowered region op " << op->op;
+  TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+      << "Virtual thread launches must be lowered before code generation";
   EmitDebugLocation(op);
-  if (op->attr_key == tirx::attr::thread_extent) {
-    IterVar iv = op->node.as_or_throw<IterVar>();
-    if (iv->thread_tag.length() != 0) {
-      if (!var_map_.count(iv->var.get())) {
-        var_map_[iv->var.get()] = GetThreadIndex(iv);
-        analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value.as_or_throw<PrimExpr>()));
-      }
-    }
-  } else if (op->attr_key == tirx::attr::storage_alignment) {
+  PrimVar var = LaunchThreadVar(op);
+  PrimExpr extent = LaunchThreadExtent(op);
+  ffi::String tag = LaunchThreadTag(op);
+  auto [it, inserted] = thread_extents_.emplace(tag, extent);
+  TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
+      << "Conflicting launch extents for " << tag;
+  TVM_FFI_ICHECK(!var_map_.count(var.get())) << "Launch variable is already defined";
+  var_map_[var.get()] = GetThreadIndex(var, tag);
+  With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
+  this->Dispatch(op->body);
+  var_map_.erase(var.get());
+}
+
+void CodeGenLLVM::Dispatch_(const AttrStmtNode* op) {
+  TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
+      << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
+  EmitDebugLocation(op);
+  if (op->attr_key == tirx::attr::storage_alignment) {
     const VarNode* v = op->node.as<VarNode>();
     TVM_FFI_ICHECK(v);
     alloc_storage_info_[v].alignment = op->value.as<IntImmNode>()->value.as<int>().value();

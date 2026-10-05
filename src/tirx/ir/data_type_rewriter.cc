@@ -71,35 +71,16 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inpl
   return For(n);
 }
 
-UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread) {
-    Stmt s = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = s.as<AttrStmtNode>();
-    TVM_FFI_ICHECK(op != nullptr) << "Expected type to be AttrStmtNode"
-                                  << ", but get " << s->GetTypeKey();
-    const IterVarNode* iv = op->node.as<IterVarNode>();
-    TVM_FFI_ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
-                                  << ", but get " << op->node.GetTypeKey();
-    PrimExpr e = Mutate(iv->var).ValueOrUnchanged(iv->var);
-    PrimVar var = e.as_or_throw<PrimVar>();
-    if (ivmap_.find(iv) == ivmap_.end()) {
-      Range dom = iv->dom;
-      if (dom.defined()) {
-        PrimExpr extend = dom->extent;
-        PrimType extend_ty = extend.ty();
-        PrimType var_ty = var.ty();
-        TVM_FFI_ICHECK(extend_ty.MatchesCode(DLDataTypeCode::kDLInt) &&
-                       var_ty.MatchesCode(DLDataTypeCode::kDLInt));
-        if (var_ty.bits() != extend_ty.bits()) {
-          dom = Range(prim::cast(var_ty, dom->min), prim::cast(var_ty, extend), dom->span);
-        }
-      }
-      ivmap_[iv] = IterVar(dom, var, iv->iter_type, iv->thread_tag);
-    }
-    return AttrStmt(ivmap_[iv], op->attr_key,
-                    prim::cast(var.ty(), op->value.as_or_throw<PrimExpr>()), op->body);
-  }
-  return StmtExprMutator::Mutate_(op, inplace_mode);
+UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) {
+  Stmt result = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+  const auto* region = result.as<RegionStmtNode>();
+  if (!IsLaunchThread(region)) return result;
+  PrimVar var = region->body_params[0].as_or_throw<PrimVar>();
+  PrimExpr extent = region->args[1].as_or_throw<PrimExpr>();
+  if (var.ty() == extent.ty()) return result;
+  RegionStmt updated = ffi::GetRef<RegionStmt>(region);
+  updated.CopyOnWrite()->args.Set(1, prim::cast(var.ty(), extent));
+  return updated;
 }
 
 UnchangedOr<PrimExpr> DataTypeLegalizer::Mutate_(const prim::LetNode* op,
@@ -346,15 +327,13 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
   return prim_e;
 }
 
-UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread) {
-    bool is_enabled = is_enabled_;
-    is_enabled_ = true;
-    auto stmt = DataTypeLegalizer::Mutate_(op, inplace_mode);
-    is_enabled_ = is_enabled;
-    return stmt;
-  }
-  return DataTypeLegalizer::Mutate_(op, inplace_mode);
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const RegionStmtNode* op,
+                                                 InplaceMode inplace_mode) {
+  bool was_enabled = is_enabled_;
+  if (IsLaunchThread(op)) is_enabled_ = true;
+  auto result = DataTypeLegalizer::Mutate_(op, inplace_mode);
+  is_enabled_ = was_enabled;
+  return result;
 }
 
 UnchangedOr<ffi::Any> IndexDataTypeRewriter::Mutate(ffi::AnyView value, InplaceMode inplace_mode) {

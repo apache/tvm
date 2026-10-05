@@ -29,6 +29,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/ir/unique_name_supply.h>
+#include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
 #include <tvm/tirx/attrs.h>
@@ -58,11 +59,18 @@ class DeviceRegionAnnotater : public StmtExprMutator {
   }
   explicit DeviceRegionAnnotater(Target device_target) : device_target_(device_target) {}
 
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (IsLaunchThread(op)) {
+      return AttrStmt(device_target_, tvm::attr::kTarget, IntImm::Int32(0), ffi::GetRef<Stmt>(op));
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tvm::attr::kTarget) {
       // If a target attribute already exists, use it as-is.
       return ffi::Unchanged();
-    } else if (op->attr_key == attr::thread_extent || op->attr_key == attr::device_scope) {
+    } else if (op->attr_key == attr::device_scope) {
       // These attributes are only allowed in device-side code, so
       // they should be annotated with the function's default target.
       Stmt body = ffi::GetRef<Stmt>(op);
@@ -479,9 +487,9 @@ class DeviceInfoCollector : public StmtExprVisitor {
     }
 
     auto extent = thread_extent.Get(launch_param);
-    TVM_FFI_ICHECK(extent) << "Compute kernel requires launch parameter \"" << launch_param
-                           << "\", but PrimFunc does not contain AttrStmt \"" << attr::thread_extent
-                           << "\" defining this thread extent";
+    TVM_FFI_ICHECK(extent)
+        << "Compute kernel requires launch parameter \"" << launch_param
+        << "\", but PrimFunc does not contain a launch region defining this axis";
     return extent.value();
   }
 
@@ -489,7 +497,7 @@ class DeviceInfoCollector : public StmtExprVisitor {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(builtin::alloc_tensor()))
       return DispatchAllocTensor(op, call);
-    // Track Bind definitions so that thread_extent values and
+    // Track Bind definitions so that launch extents and
     // dyn_shmem_size expressions that reference locally-bound
     // variables (e.g. CSE variables) can be inlined back to
     // expressions over function parameters.  Substitute earlier
@@ -520,38 +528,35 @@ class DeviceInfoCollector : public StmtExprVisitor {
       TVM_FFI_ICHECK(op->value.as<IntImmNode>()) << "tirx.dyn_smem_bytes must be an IntImm";
       dyn_shmem_size = op->value.as_or_throw<PrimExpr>();
     }
-    if (op->attr_key == attr::thread_extent) {
-      ffi::String thread_tag;
-      if (auto iv = op->node.as<IterVar>()) {
-        thread_tag = iv.value()->thread_tag;
-        TVM_FFI_ICHECK_NE(thread_tag.length(), 0U);
-      } else if (auto var = op->node.as<Var>()) {
-        thread_tag = var.value()->name;
-      } else {
-        TVM_FFI_THROW(TypeError) << "thread_extent node must be an IterVar or Var, but was "
-                                 << op->node.GetTypeKey();
+
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (IsLaunchThread(op) && !IsVirtualThread(op)) {
+      ffi::String thread_tag = LaunchThreadTag(op);
+      auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+        if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
+        return ffi::Unchanged();
+      };
+      PrimExpr value = LaunchThreadExtent(op);
+      if (bind_map_.size()) {
+        value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(value, f_substitute)
+                    .as_or_throw<PrimExpr>();
       }
-      // thread_extent can appear multiple times
-      // use the first appearance as def.
-      std::string thread_key = thread_tag;
-      if (!defined_thread.count(thread_key)) {
-        defined_thread.insert(thread_key);
+      if (auto previous = thread_extent.Get(thread_tag)) {
+        sym::Analyzer analyzer;
+        TVM_FFI_CHECK(analyzer->CanProveEqual(previous.value(), value), ValueError)
+            << "Incompatible launch extents for " << thread_tag;
+      } else {
         info_.launch_params.push_back(thread_tag);
-        // Inline any locally-bound variables (e.g. from CSE) so
-        // that the extent is expressible in terms of function params.
-        auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-          if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
-          return ffi::Unchanged();
-        };
-        PrimExpr value = bind_map_.size() ? ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
-                                                op->value, f_substitute)
-                                                .as_or_throw<PrimExpr>()
-                                          : op->value.as_or_throw<PrimExpr>();
         thread_extent.Set(thread_tag, value);
       }
     }
-
-    return StmtExprVisitor::Visit_(op);
+    auto outer_bindings = bind_map_;
+    auto result = StmtExprVisitor::Visit_(op);
+    bind_map_ = std::move(outer_bindings);
+    return result;
   }
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op, const CallNode* call) {
@@ -590,8 +595,6 @@ class DeviceInfoCollector : public StmtExprVisitor {
 
   // The collected results.
   KernelInfo info_;
-  // Recording what thread axis have been visited.
-  std::unordered_set<std::string> defined_thread;
   // The extent of each thread.
   ffi::Map<ffi::String, PrimExpr> thread_extent;
   // The amount of dynamic shared memory used.
@@ -775,7 +778,7 @@ class DeviceKernelMutator : public StmtExprMutator {
 
     auto callee_target = dev_info.target;
 
-    // A callee with non-empty launch_params has thread_extent
+    // A callee with non-empty launch_params has launch regions
     // bindings in its body, i.e. it is a real device kernel that
     // must be invoked via a kernel-launch ABI.  Conversely a callee
     // with empty launch_params is a plain subroutine (host helper

@@ -261,9 +261,6 @@ constexpr const char* loop_partition_hint = "loop_partition_hint";
 /*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";
 
-/*! \brief Mark launching of a virtual thread. */
-constexpr const char* virtual_thread = tirx::attr::virtual_thread;
-
 // -----------------------------------------------------------------------
 // meta_schedule annotations
 // -----------------------------------------------------------------------

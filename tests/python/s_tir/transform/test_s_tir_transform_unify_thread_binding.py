@@ -115,13 +115,9 @@ def unified_element_wise_thread_x_different_dtype(
 def element_wise_env_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
-    j1_0 = T.env_thread("threadIdx.x")
-    j0_0 = T.env_thread("threadIdx.x")
-    i = T.env_thread("blockIdx.x")
-
-    T.launch_thread(i, 128)
-    T.launch_thread(j0_0, 4)
-    T.launch_thread(j1_0, 4)
+    i = T.launch_thread("blockIdx.x", 128)
+    j0_0 = T.launch_thread("threadIdx.x", 4)
+    j1_0 = T.launch_thread("threadIdx.x", 4)
 
     for j0_1 in T.serial(0, 32):
         with Ts.sblock(""):
@@ -161,13 +157,14 @@ def element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> 
 
 @Ts.prim_func
 def unified_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
-    for vthread_x in T.thread_binding(0, 2, "vthread.x"):
+    for i_0 in T.thread_binding(0, 2, "vthread.x"):
         for threadIdx_x in T.thread_binding(0, 64, "threadIdx.x"):
-            for j_1 in T.serial(0, 64):
-                with Ts.sblock(""):
-                    B[vthread_x * 64 + threadIdx_x, vthread_x * 64 + j_1] = (
-                        A[vthread_x * 64 + threadIdx_x, vthread_x * 64 + j_1] * 2.0
-                    )
+            for j_0 in T.thread_binding(0, 2, "vthread.x"):
+                for j_1 in T.serial(0, 64):
+                    with Ts.sblock(""):
+                        B[i_0 * 64 + threadIdx_x, j_0 * 64 + j_1] = (
+                            A[i_0 * 64 + threadIdx_x, j_0 * 64 + j_1] * 2.0
+                        )
 
 
 @Ts.prim_func

@@ -263,6 +263,24 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const WhileNode* op, InplaceMode inplace
   });
 }
 
+UnchangedOr<Stmt> IRConvertSSA::Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) {
+  auto attrs = Mutate(op->attrs, InplaceMode::kDisallow)
+                   .as_or_throw<UnchangedOr<DictAttrs>>()
+                   .ValueOrUnchanged(op->attrs);
+  auto args = Mutate(op->args, InplaceMode::kDisallow)
+                  .as_or_throw<UnchangedOr<ffi::Array<Expr>>>()
+                  .ValueOrUnchanged(op->args);
+  ffi::Array<Var> params;
+  Stmt body = scope_.WithNewScope([&]() -> Stmt {
+    for (const Var& var : op->body_params) params.push_back(DefineVar(var));
+    return Mutate(op->body, InplaceMode::kDisallow).ValueOrUnchanged(op->body);
+  });
+  ffi::Array<Var> results;
+  for (const Var& var : op->result_vars) results.push_back(DefineVar(var));
+  return RegionStmt(op->op, std::move(args), std::move(params), std::move(body), std::move(results),
+                    std::move(attrs), op->span);
+}
+
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
   if (const IterVarNode* iter_var = op->node.as<IterVarNode>()) {
     Range dom = iter_var->dom;
@@ -293,15 +311,8 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inpl
       // ForNode and the AttrStmt must continue using the same
       // variable defintion.
       //
-      // However, other AttrStmt, such as "thread_extent", act as
-      // points of definition for the variable they annotate.  If
-      // the variable has not been defined after visiting the body,
-      // we should mark it as defined before exiting.  This ensures
-      // correct de-duplication between multiple functions.
-      //
-      // This implementation may be simplified in the future by
-      // moving "pragma_parallel_launch_point" to be an annotation
-      // on the `ForNode`, rather than an `AttrStmt`.
+      // Preserve the annotated variable's identity for later definitions
+      // and independent functions, without introducing a lexical body binding.
       delayed_define = true;
     }
 

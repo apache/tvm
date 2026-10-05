@@ -111,7 +111,7 @@ using ExpressionSet = std::unordered_set<PrimExpr, ffi::ObjectPtrHash, ffi::Obje
 static bool IsVirtualThread(const ForNode* op) {
   if (op->kind != ForKind::kThreadBinding) return false;
   const auto& tag = op->thread_binding.value()->thread_tag;
-  return tag == "vthread" || tag == "vthread.x" || tag == "vthread.y" || tag == "vthread.z";
+  return std::string(tag).rfind("vthread", 0) == 0;
 }
 
 static bool HasPartitionHint(const ForNode* op) {
@@ -183,14 +183,12 @@ class CandidateSelector final : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::thread_extent) {
-      const IterVarNode* iv = op->node.as<IterVarNode>();
-      TVM_FFI_ICHECK(iv);
-      Var var = iv->var;
-      runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
-      auto value = op->value.as<PrimExpr>();
-      if ((scope.rank == 0) && (!value || !is_const_int(value.value()) || partition_const_loop_)) {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (IsLaunchThread(op) && !tirx::IsVirtualThread(op)) {
+      Var var = LaunchThreadVar(op);
+      runtime::ThreadScope scope = runtime::ThreadScope::Create(LaunchThreadTag(op));
+      PrimExpr extent = LaunchThreadExtent(op);
+      if ((scope.rank == 0) && (!is_const_int(extent) || partition_const_loop_)) {
         record_.insert({var.get(), false});
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
         if (record_.at(var.get()) && !no_split_) {
@@ -299,13 +297,11 @@ class PartitionFinder : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // handle thread_axis
-    if (op->attr_key == tirx::attr::thread_extent) {
-      const IterVarNode* thread_axis = op->node.as<IterVarNode>();
-      TVM_FFI_ICHECK(thread_axis);
-      const VarNode* var = thread_axis->var.get();
-      PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+    if (IsLaunchThread(op) && !tirx::IsVirtualThread(op)) {
+      const VarNode* var = LaunchThreadVar(op).get();
+      PrimExpr extent = LaunchThreadExtent(op);
       IntSet dom = IntSet::FromRange(Range(IntImm(extent.ty(), 0), extent));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
@@ -470,8 +466,8 @@ class ThreadPartitionInserter : public StmtExprMutator {
     return loop;
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tirx::attr::thread_extent) {
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (IsLaunchThread(op) && !tirx::IsVirtualThread(op)) {
       innermost_thread_scope_ = true;
       Stmt stmt =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
@@ -480,8 +476,9 @@ class ThreadPartitionInserter : public StmtExprMutator {
         Stmt simplified_body =
             ffi::make_object<ConditionEliminator>(ps_)->Mutate(op->body).ValueOrUnchanged(op->body);
         Stmt body = IfThenElse(cond_, simplified_body, op->body);
-        Expr value = this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value);
-        stmt = AttrStmt(op->node, op->attr_key, value, body);
+        auto region = stmt.as_or_throw<RegionStmt>();
+        region.CopyOnWrite()->body = body;
+        stmt = region;
       }
       innermost_thread_scope_ = false;
       return stmt;
@@ -540,15 +537,13 @@ class LoopPartitioner : public StmtExprMutator {
     return res;
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key != tirx::attr::thread_extent) {
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (!IsLaunchThread(op) || tirx::IsVirtualThread(op)) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
-    const IterVarNode* iv = op->node.as<IterVarNode>();
-    TVM_FFI_ICHECK(iv);
-    Var var = iv->var;
-    PrimExpr extent = op->value.as_or_throw<PrimExpr>();
+    Var var = LaunchThreadVar(op);
+    PrimExpr extent = LaunchThreadExtent(op);
     auto as = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(as)) {
       auto s = TryPartition(as, var, 0, extent - 1, op->body, true);
@@ -556,7 +551,7 @@ class LoopPartitioner : public StmtExprMutator {
     }
 
     // normal path when loop parittion fails.
-    runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
+    runtime::ThreadScope scope = runtime::ThreadScope::Create(LaunchThreadTag(op));
     Stmt res{ffi::UnsafeInit{}};
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.

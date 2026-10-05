@@ -337,28 +337,22 @@ TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Flo
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
 /*!
- * \brief Launch a thread.
- * \param var The iteration variable.
- * \param extent The extent of environment thread.
- * \return The result LaunchThreadFrame.
+ * \brief Construct a result-free region with lexical body parameters.
+ * \param op The region operation.
+ * \param args Operands evaluated outside the region body.
+ * \param body_params Variables defined at body entry.
+ * \param attrs Additional operation attributes.
  */
-LaunchThreadFrame LaunchThread(Var var, PrimExpr extent);
+RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params = {},
+                   DictAttrs attrs = DictAttrs());
 
 /*!
- * \brief Launch a new thread.
- * \param thread_tag The thread type tag.
- * \param extent The extent of environment thread.
- * \return The result LaunchThreadFrame.
+ * \brief Launch a thread with a fresh lexical variable.
+ * \param thread_tag The thread axis tag.
+ * \param extent The thread extent, which also determines the variable's type.
+ * \return The result RegionFrame.
  */
-LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent);
-
-/*!
- * \brief Bind a var to thread env.
- * \param thread_tag The thread type tag.
- * \param dtype The data type of the variable.
- * \return The result variable which gets bound to the thread env.
- */
-Var EnvThread(ffi::String thread_tag, PrimType dtype = PrimType::Int(32));
+RegionFrame LaunchThread(ffi::String thread_tag, PrimExpr extent);
 
 /*!
  * \brief Store data in a buffer.

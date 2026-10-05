@@ -29,6 +29,7 @@
 #include <tvm/tirx/stmt_functor.h>
 
 #include <unordered_map>
+#include <unordered_set>
 
 namespace tvm {
 namespace tirx {
@@ -54,9 +55,10 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   std::unordered_map<const VarNode*, int> buffer_def_count_;
 
  private:
+  std::unordered_set<const VarNode*> inactive_region_defs_;
   prim::ExprDeepEqual deep_equal_;
   std::unordered_map<const VarNode*, const prim::LetNode*> let_binding_;
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final;
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final;
 
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) final;
 
