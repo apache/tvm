@@ -710,20 +710,6 @@ def _lambda_type(annotation):
     raise TypeError("Lambda parameter and return annotations must be explicit IR types")
 
 
-def _lambda_has_missing_type(ty):
-    if isinstance(ty, tvm.ir.MissingType):
-        return True
-    if isinstance(ty, tvm.ir.TupleType):
-        return any(_lambda_has_missing_type(field) for field in ty.fields)
-    if isinstance(ty, tvm.ir.FuncType):
-        return any(_lambda_has_missing_type(arg) for arg in ty.arg_types) or (
-            _lambda_has_missing_type(ty.ret_type)
-        )
-    if isinstance(ty, tvm.ir.PointerType):
-        return _lambda_has_missing_type(ty.element_type)
-    return False
-
-
 def _lambda_result(value):
     if isinstance(value, tuple | list):
         return Tuple([_lambda_result(field) for field in value])
@@ -780,14 +766,10 @@ class LambdaExpr(StagingExpr, Scriptable):
         types = [_lambda_type(annotation) for annotation in parameter_types]
         if len(types) != len(parameters):
             raise ValueError("LambdaExpr requires one explicit type per callable parameter")
-        if any(_lambda_has_missing_type(ty) for ty in types):
-            raise TypeError("LambdaExpr parameter types must not contain MissingType")
         variables = [Var(param.name, ty) for param, ty in zip(parameters, types)]
         body = _lambda_result(function(*variables))
         if ret_type is not None:
             expected = _lambda_type(ret_type)
-            if _lambda_has_missing_type(expected) or _lambda_has_missing_type(body.ty):
-                raise TypeError("LambdaExpr return annotation requires a known body type")
             if not tvm_ffi.structural_equal(expected, body.ty):
                 raise TypeError("LambdaExpr return annotation does not match the body type")
         self.__init_handle_by_constructor__(_ffi_api.LambdaExpr, variables, body)

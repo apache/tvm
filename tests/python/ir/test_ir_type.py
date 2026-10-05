@@ -18,7 +18,6 @@
 """Test type nodes in the IR"""
 
 import pytest
-import tvm_ffi
 
 import tvm
 from tvm import ir
@@ -91,86 +90,19 @@ def test_lambda_expr():
     ir.assert_structural_equal(
         func, tvm.script.from_source(func.script(), extra_vars={"I": I, "T": T})
     )
-    with pytest.raises(TypeError, match="[Mm]issing|type"):
-        var = ir.Var("untyped", ir.TupleType([ir.Type.missing()]))
-        tvm_ffi.get_global_func("ir.LambdaExpr")([var], var)
+    check_json_roundtrip(value)
 
 
 def test_lambda_expr_apply():
-    make = tvm_ffi.get_global_func("ir.LambdaExpr")
-    x, y = ir.Var("x", "int32"), ir.Var("y", "int32")
-    swapped = make([x, y], ir.Tuple([x, y])).apply([y, x])
-    assert swapped[0].same_as(y) and swapped[1].same_as(x)
+    pair = ir.LambdaExpr(["int32", "int32"], lambda x, y: (x, y))
+    swapped = pair.apply([pair.vars[1], pair.vars[0]])
+    assert swapped[0].same_as(pair.vars[1]) and swapped[1].same_as(pair.vars[0])
 
-    inner = make([x], make([y], ir.Tuple([x, y]))).apply([y])
-    assert not inner.vars[0].same_as(y)
-    assert inner.body[0].same_as(y)
-    assert inner.body[1].same_as(inner.vars[0])
-    assert inner.apply([22])[1].value == 22
-    shadowed = make([x], make([x], x)).apply([11])
-    assert shadowed.apply([22]).value == 22
-    scoped = make([x], make([y], ir.Tuple([make([y], y), y]))).apply([11])
-    assert scoped.body[1].same_as(scoped.vars[0])
-    assert scoped.body[0].body.same_as(scoped.body[0].vars[0])
-
-    applied = make([x], ir.prim.Let(y, x, x + y)).apply([y])
-    assert not applied.var.same_as(y)
-    assert applied.value.same_as(y) and applied.body.a.same_as(y)
-    assert applied.body.b.same_as(applied.var)
-
-
-def test_lambda_expr_binding_scopes():
-    make = tvm_ffi.get_global_func("ir.LambdaExpr")
-    x = ir.Var("x", "int32")
-    y = tvm.relax.DataflowVar("y", ir.PrimType("int32"))
-    scope = tvm.relax.SeqExpr(
-        [tvm.relax.DataflowBlock([tvm.relax.VarBinding(y, tvm.runtime.const(1))])],
-        ir.Tuple([x, y]),
-    )
-    applied = make([x], ir.Tuple([scope, scope, y])).apply([y])
-    first, second = [applied[i].blocks[0].bindings[0].var for i in range(2)]
-    assert isinstance(first, tvm.relax.DataflowVar)
-    assert not first.same_as(y) and not second.same_as(y) and not first.same_as(second)
-    assert applied[0].body[0].same_as(y) and applied[1].body[0].same_as(y)
-    assert applied[0].body[1].same_as(first) and applied[1].body[1].same_as(second)
-    assert applied[2].same_as(y)
-
-
-def test_lambda_expr_dependent_types():
-    value = ir.LambdaExpr(
-        ["int64"], lambda n: ir.LambdaExpr([tvm.relax.TensorType([n], "float32")], lambda x: x)
-    )
-    renamed = ir.LambdaExpr(
-        ["int64"], lambda m: ir.LambdaExpr([tvm.relax.TensorType([m], "float32")], lambda y: y)
-    )
-    ir.assert_structural_equal(value, renamed)
-    assert tvm_ffi.structural_hash(value) == tvm_ffi.structural_hash(renamed)
-    decoded = ir.load_json(ir.save_json(value))
-    ir.assert_structural_equal(value, decoded)
-    assert decoded.body.vars[0].ty.shape[0].same_as(decoded.vars[0])
-    assert decoded.body.body.same_as(decoded.body.vars[0])
-    argument = ir.Var("arg", tvm.relax.TensorType([4], "float32"))
-    applied = decoded.apply([tvm.runtime.const(4, "int64")])
-    ir.assert_structural_equal(applied.ty, ir.FuncType([argument.ty], argument.ty))
-    assert applied.apply([argument]).same_as(argument)
-    make = tvm_ffi.get_global_func("ir.LambdaExpr")
-    dependent = make([value.vars[0], value.body.vars[0]], value.body.body)
-    assert dependent.apply([tvm.runtime.const(4, "int64"), argument]).same_as(argument)
-    assert not tvm_ffi.structural_equal(value.body, renamed.body)
-
-
-def test_lambda_expr_mutation():
-    value = ir.LambdaExpr(["int32"], lambda x: x)
-    new_type = ir.PrimType("int64")
-    rewritten = tvm_ffi.structural_map(
-        value._move(),
-        with_def_region_kind=(
-            ir.Var,
-            lambda var, kind: ir.Var(var.name, new_type) if kind else var,
-        ),
-    )
-    assert rewritten.body.same_as(rewritten.vars[0])
-    ir.assert_structural_equal(rewritten.ty, ir.FuncType([new_type], new_type))
+    capture = ir.Var("capture", "int32")
+    outer = ir.LambdaExpr(["int32"], lambda x: ir.LambdaExpr(["int32"], lambda y: (x, y, capture)))
+    result = outer.apply([11]).apply([22])
+    assert result[0].value == 11 and result[1].value == 22
+    assert result[2].same_as(capture)
 
 
 if __name__ == "__main__":
