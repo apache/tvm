@@ -986,22 +986,24 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
 }
 
 void CodeGenSPIRV::Dispatch_(const RegionStmtNode* op) {
-  TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
-      << "Cannot generate code for unlowered region op " << op->op;
-  TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-                ValueError)
-      << "Virtual thread launches must be lowered before code generation";
-  PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
-  PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
-  ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
-  auto [it, inserted] = thread_extents_.emplace(tag, extent);
-  TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
-      << "Conflicting launch extents for " << tag;
-  TVM_FFI_ICHECK(!var_map_.count(var.get())) << "Launch variable is already defined";
-  var_map_[var.get()] = GetThreadIndex(var, tag, extent);
-  With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
-  this->Dispatch(op->body);
-  var_map_.erase(var.get());
+  if (op->op.same_as(tirx::builtin::launch_thread())) {
+    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+                  ValueError)
+        << "Virtual thread launches must be lowered before code generation";
+    PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+    ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+    auto [it, inserted] = thread_extents_.emplace(tag, extent);
+    TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
+        << "Conflicting launch extents for " << tag;
+    TVM_FFI_ICHECK(!var_map_.count(var.get())) << "Launch variable is already defined";
+    var_map_[var.get()] = GetThreadIndex(var, tag, extent);
+    With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
+    this->Dispatch(op->body);
+    var_map_.erase(var.get());
+  } else {
+    TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
+  }
 }
 
 void CodeGenSPIRV::Dispatch_(const AttrStmtNode* op) {

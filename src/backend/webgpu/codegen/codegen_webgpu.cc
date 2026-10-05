@@ -135,32 +135,35 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
-        << "Cannot generate code for unlowered region op " << op->op;
-    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-                  ValueError)
-        << "Virtual thread launches must be lowered before code generation";
-    ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
-    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
-    auto [it, inserted] = thread_extents_.emplace(tag, extent);
-    TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
-        << "Conflicting launch extents for " << tag;
-    runtime::ThreadScope ts = runtime::ThreadScope::Create(tag);
-    TVM_FFI_ICHECK_GE(ts.dim_index, 0);
-    TVM_FFI_ICHECK_LT(ts.dim_index, 3);
-    if (ts.rank == 1) {
-      auto* sizeptr = extent.as<IntImmNode>();
-      TVM_FFI_ICHECK(sizeptr) << "CodeGenWebGPU: only allows constant thread group size "
-                              << " get " << extent;
-      info_.workgroup_size[ts.dim_index] = sizeptr->value.as<uint32_t>().value();
-    } else {
-      TVM_FFI_ICHECK_EQ(ts.rank, 0)
-          << "Unsupported WebGPU thread tag " << op->args[0].as_or_throw<StringImm>()->value;
-      if (ts.dim_index == 2) {
-        info_.has_block_index_z = true;
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      TVM_FFI_CHECK(
+          std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+          ValueError)
+          << "Virtual thread launches must be lowered before code generation";
+      ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+      auto [it, inserted] = thread_extents_.emplace(tag, extent);
+      TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
+          << "Conflicting launch extents for " << tag;
+      runtime::ThreadScope ts = runtime::ThreadScope::Create(tag);
+      TVM_FFI_ICHECK_GE(ts.dim_index, 0);
+      TVM_FFI_ICHECK_LT(ts.dim_index, 3);
+      if (ts.rank == 1) {
+        auto* sizeptr = extent.as<IntImmNode>();
+        TVM_FFI_ICHECK(sizeptr) << "CodeGenWebGPU: only allows constant thread group size "
+                                << " get " << extent;
+        info_.workgroup_size[ts.dim_index] = sizeptr->value.as<uint32_t>().value();
+      } else {
+        TVM_FFI_ICHECK_EQ(ts.rank, 0)
+            << "Unsupported WebGPU thread tag " << op->args[0].as_or_throw<StringImm>()->value;
+        if (ts.dim_index == 2) {
+          info_.has_block_index_z = true;
+        }
       }
+      return StmtExprVisitor::Visit_(op);
+    } else {
+      TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
     }
-    return StmtExprVisitor::Visit_(op);
   }
   WebGPUWorkGroupInfo info_;
   sym::Analyzer analyzer_;
@@ -358,15 +361,17 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
 }
 
 void CodeGenWebGPU::Dispatch_(const RegionStmtNode* op) {
-  TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
-      << "Cannot generate code for unlowered region op " << op->op;
-  TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-                ValueError)
-      << "Virtual thread launches must be lowered before code generation";
-  PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
-  PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
-  With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
-  CodeGenC::Dispatch_(op);
+  if (op->op.same_as(tirx::builtin::launch_thread())) {
+    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+                  ValueError)
+        << "Virtual thread launches must be lowered before code generation";
+    PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+    With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
+    CodeGenC::Dispatch_(op);
+  } else {
+    TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
+  }
 }
 
 void CodeGenWebGPU::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {

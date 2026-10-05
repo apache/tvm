@@ -198,30 +198,33 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
-        << "Cannot generate code for unlowered region op " << op->op;
-    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
-                  ValueError)
-        << "Virtual thread launches must be lowered before code generation";
-    ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
-    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
-    auto [it, inserted] = thread_extents_.emplace(tag, extent);
-    TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
-        << "Conflicting launch extents for " << tag;
-    if (tag == "threadIdx.x") {
-      threadIdx_x_ext = extent;
-    } else if (tag == "threadIdx.y") {
-      threadIdx_y_ext = extent;
-    } else if (tag == "threadIdx.z") {
-      threadIdx_z_ext = extent;
-    } else if (tag == "clusterCtaIdx.x") {
-      clusterCtaIdx_x_ext = extent;
-    } else if (tag == "clusterCtaIdx.y") {
-      clusterCtaIdx_y_ext = extent;
-    } else if (tag == "clusterCtaIdx.z") {
-      clusterCtaIdx_z_ext = extent;
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      TVM_FFI_CHECK(
+          std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+          ValueError)
+          << "Virtual thread launches must be lowered before code generation";
+      ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+      auto [it, inserted] = thread_extents_.emplace(tag, extent);
+      TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
+          << "Conflicting launch extents for " << tag;
+      if (tag == "threadIdx.x") {
+        threadIdx_x_ext = extent;
+      } else if (tag == "threadIdx.y") {
+        threadIdx_y_ext = extent;
+      } else if (tag == "threadIdx.z") {
+        threadIdx_z_ext = extent;
+      } else if (tag == "clusterCtaIdx.x") {
+        clusterCtaIdx_x_ext = extent;
+      } else if (tag == "clusterCtaIdx.y") {
+        clusterCtaIdx_y_ext = extent;
+      } else if (tag == "clusterCtaIdx.z") {
+        clusterCtaIdx_z_ext = extent;
+      }
+      return StmtExprVisitor::Visit_(op);
+    } else {
+      TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
     }
-    return StmtExprVisitor::Visit_(op);
   }
 
   sym::Analyzer analyzer_;
