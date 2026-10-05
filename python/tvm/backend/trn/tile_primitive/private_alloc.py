@@ -63,8 +63,8 @@ def alloc_const_bias_trn(
             return {"const_bias": ("const_bias", bias.value)}
     else:
         new_shape = (par_size, max_inst_size)
-    new_buffer = T.tensor(
-        new_shape, dtype=_scalar_dtype(bias), scope="trn.sbuf", tensor_name="const_bias"
+    new_buffer = T.Var(
+        "const_bias", T.Tensor(new_shape, dtype=_scalar_dtype(bias), scope="trn.sbuf")
     )
 
     # This fragment captures buffers and indices from its insertion scope.
@@ -114,8 +114,8 @@ def alloc_identity_trn(
             return {"identity": "identity"}
     else:
         new_shape = (par_size, par_size)
-    new_buffer = T.tensor(
-        new_shape, dtype=op.srcs[0].source.ty.dtype, scope="trn.sbuf", tensor_name="identity"
+    new_buffer = T.Var(
+        "identity", T.Tensor(new_shape, dtype=op.srcs[0].source.ty.dtype, scope="trn.sbuf")
     )
 
     # This fragment captures buffers and indices from its insertion scope.
@@ -137,12 +137,8 @@ def alloc_acc_psum_trn(
     if "acc_psum" in op.workspace or op.dsts[0].source.scope() == "trn.psum":
         return {}
     par_size = op.dsts[0].source.ty.layout.size("P")
-    acc_psum = T.tensor(
-        (8, par_size, 512),
-        "float32",
-        scope="trn.psum",
-        allocated_addr=(0, 0),
-        tensor_name="acc_psum",
+    acc_psum = T.Var(
+        "acc_psum", T.Tensor((8, par_size, 512), "float32", scope="trn.psum", allocated_addr=(0, 0))
     )
     # no reuse opportunity
     buffer_dict[acc_psum] = (acc_psum, None)

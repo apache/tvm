@@ -89,11 +89,8 @@ def transpose_schedule(
         assert sctx.alloc_only, (
             "Identity tensor must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         )
-        identity_tensor = T.tensor(
-            (p_size, rhs_f_size),
-            src_region.source.ty.dtype,
-            scope="trn.sbuf",
-            tensor_name="identity",
+        identity_tensor = T.Var(
+            "identity", T.Tensor((p_size, rhs_f_size), src_region.source.ty.dtype, scope="trn.sbuf")
         )
         sctx.add_alloc_buffer(identity_tensor)
 
@@ -150,12 +147,14 @@ def transpose_schedule(
         assert sctx.alloc_only, (
             "Accumulation psum buffer must be specified in workspace. Run tvm.tirx.trn.transform.TrnPrivateBufferAlloc first."  # noqa: E501
         )
-        acc_psum = T.tensor(
-            (max_psum_banks, p_size, largest_psum_per_bank),
-            "float32",
-            scope="trn.psum",
-            allocated_addr=(0, 0),
-            tensor_name="acc_psum",
+        acc_psum = T.Var(
+            "acc_psum",
+            T.Tensor(
+                (max_psum_banks, p_size, largest_psum_per_bank),
+                "float32",
+                scope="trn.psum",
+                allocated_addr=(0, 0),
+            ),
         )
         sctx.add_alloc_buffer(acc_psum)
         max_psum_slots = max_psum_banks

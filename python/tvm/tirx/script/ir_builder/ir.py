@@ -292,94 +292,6 @@ def _tensor_type(
     return _at(span, result)
 
 
-@_register_mutable_decl("tirx.tensor", syntax="parameter")
-@_annotation_constructor
-def tensor(
-    shape: list[Expr] | tuple[Expr] | Expr | Integral,
-    dtype: str = "float32",
-    data: Var = None,
-    strides: list[Expr] | None = None,
-    elem_offset: Expr = None,
-    byte_offset: Expr = None,
-    scope: str = "global",
-    align: int = 0,
-    offset_factor: int = 0,
-    layout: str | Layout | None = MISSING,
-    allocated_addr: int | tuple[int, ...] | None = None,
-    tensor_name: str = "",
-    *,
-    span=None,
-) -> Var:
-    """Construct an unbound tensor variable.
-
-    Parameters
-    ----------
-    shape : Union[List[Expr], Tuple[Expr], Expr, Integral]
-        The shape of the buffer prior to flattening.
-
-    dtype : str
-        The data type in the content of the buffer.
-
-    data : Var
-        The pointer to the head of the data.
-
-    strides : List[Expr]
-        The strides of each dimension.
-
-    elem_offset : Expr
-        The offset in terms of number of dtype elements (including lanes).
-
-    byte_offset : Expr, optional
-        The offset in bytes, as an alternative to elem_offset.
-
-    scope : str
-        The optional storage scope of buffer data pointer.
-
-    align : int
-        The alignment requirement of data pointer in bytes.
-
-    offset_factor : int
-        The factor of elem_offset field.
-
-    layout : str or Layout, optional
-        The buffer layout. "default" constructs the shape's default TileLayout;
-        omission uses the enclosing dialect and scope default. None omits a layout.
-
-    allocated_addr : int or tuple of int, optional
-        Addresses assigned to the buffer allocation.
-
-    tensor_name : str
-        The name of the buffer.
-
-    Returns
-    -------
-    res : Var
-        The declared buffer.
-    """
-    shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    shape = tuple(shape)
-    if strides is None:
-        strides = []
-    if allocated_addr is None:
-        allocated_addr = []
-    if not isinstance(allocated_addr, list | tuple):
-        allocated_addr = [allocated_addr]
-    result = _ffi_api.Tensor(  # type: ignore[attr-defined] # pylint: disable=no-member
-        shape,
-        dtype,
-        tensor_name,
-        data,
-        strides,
-        _get_elem_offset(elem_offset, byte_offset, dtype),
-        scope,
-        align,
-        offset_factor,
-        _get_layout(layout, shape, scope),
-        allocated_addr,
-    )
-    return _at(span, result)
-
-
 def Tuple(*fields: Type) -> Type:  # pylint: disable=invalid-name
     """Construct a tuple type for a TIRx function or binding annotation."""
     normalized_fields = []
@@ -602,19 +514,21 @@ def alloc_tensor(
         The allocated buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    buf = tensor(
-        shape=shape,
-        dtype=dtype,
-        data=data,
-        strides=strides,
-        elem_offset=elem_offset,
-        byte_offset=byte_offset,
-        scope=scope,
-        align=align,
-        offset_factor=offset_factor,
-        layout=layout,
-        allocated_addr=allocated_addr,
-        tensor_name="",
+    buf = Var(
+        "",
+        _tensor_type(
+            shape=shape,
+            dtype=dtype,
+            data=data,
+            strides=strides,
+            elem_offset=elem_offset,
+            byte_offset=byte_offset,
+            scope=scope,
+            align=align,
+            offset_factor=offset_factor,
+            layout=layout,
+            allocated_addr=allocated_addr,
+        ),
     )
     _record_meta_resource(buf, skip_frames=2)
 
@@ -1875,7 +1789,6 @@ __all__ = [
     "smem",
     "static_assert",
     "target",
-    "tensor",
     "thread_id",
     "thread_id_in_wg",
     "tmem",

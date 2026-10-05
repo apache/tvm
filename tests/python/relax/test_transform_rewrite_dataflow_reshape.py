@@ -495,7 +495,7 @@ def test_invalid_reshape():
         @Ts.prim_func
         def add_one(
             A: T.Tensor((T.int64(1), T.int64(1000)), "int32"),
-            T_add_one: T.tensor((T.int64(1), T.int64(1000)), "int32"),
+            T_add_one: T.Tensor((T.int64(1), T.int64(1000)), "int32"),
         ):
             for ax0, ax1 in T.grid(T.int64(1), T.int64(1000)):
                 with Ts.sblock("T_add_one"):

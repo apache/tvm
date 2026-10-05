@@ -138,10 +138,10 @@ def test_ir_builder_tir_block_base():
 def test_ir_builder_tir_block_complete():
     with IRBuilder() as ib:
         a = T.int64()
-        b = T.tensor((128, 128), "float32")
-        c = T.tensor((128, 128), "float32")
+        b = T.Var("b", T.Tensor((128, 128), "float32"))
+        c = T.Var("c", T.Tensor((128, 128), "float32"))
         d = T.int32()
-        e = T.tensor((128, 128), "float32")
+        e = T.Var("e", T.Tensor((128, 128), "float32"))
         f = T.int32()
         with Ts.sblock("block"):
             Ts.where(a > 1)

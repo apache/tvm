@@ -706,11 +706,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("script.ir_builder.tirx.Tensor",
-           static_cast<TensorVar (*)(ffi::Array<PrimExpr>, PrimType, ffi::String,
-                                     ffi::Optional<Expr>, ffi::Optional<ffi::Array<PrimExpr>>,
-                                     ffi::Optional<PrimExpr>, ffi::String, int, int,
-                                     ffi::Optional<Layout>, ffi::Array<PrimExpr>)>(TensorDecl))
       .def("script.ir_builder.tirx.TensorType", TensorTypeDecl)
       .def("script.ir_builder.tirx.PrimFunc", PrimFunc)
       .def("script.ir_builder.tirx.DeclFunction", DeclFunction)
