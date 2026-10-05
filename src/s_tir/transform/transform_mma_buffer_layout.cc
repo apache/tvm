@@ -182,7 +182,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
             << " buffers to be accessed through opaque ldmatrix/mma_sync operations, but found "
                "an explicit TensorLoad.";
       }
-      return BufferLoad(replacement.value(), indices, load->span);
+      return MakeTensorLoad(replacement.value(), indices, load->span);
     }
     return load;
   }

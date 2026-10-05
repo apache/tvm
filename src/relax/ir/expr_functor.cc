@@ -545,7 +545,7 @@ Expr ExprMutatorBase::VisitExpr_(const TensorLoadNode* op) {
   if (indices.same_as(op->indices)) {
     return ffi::GetRef<Expr>(op);
   }
-  return tirx::BufferLoad(op->source.as_or_throw<tirx::TensorVar>(), indices, op->span);
+  return tirx::MakeTensorLoad(op->source.as_or_throw<tirx::TensorVar>(), indices, op->span);
 }
 
 #define RELAX_MUTATE_TIRX_BINOP(OP)                              \

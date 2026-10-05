@@ -352,7 +352,7 @@ class DTypeMutator : public ReplaceBufferMutator {
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                           .as_or_throw<TensorLoad>();
     if (auto replacement = VarRemapGet(original_buffer).as<TensorVar>()) {
-      return Cast(src_dtype_, BufferLoad(replacement.value(), node->indices));
+      return Cast(src_dtype_, MakeTensorLoad(replacement.value(), node->indices));
     }
     return node;
   }

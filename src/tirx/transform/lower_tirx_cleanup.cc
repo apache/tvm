@@ -312,7 +312,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         return res;
       }
       if (auto tile = buffer->layout.value().as<TileLayoutNode>(); tile && tile->HasThreadAxis()) {
-        LOG(FATAL) << "Cannot lower direct BufferLoad/BufferStore on a buffer with thread-axis "
+        LOG(FATAL) << "Cannot lower direct MakeTensorLoad/BufferStore on a buffer with thread-axis "
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
@@ -343,8 +343,8 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
     TensorVar buffer = node->source.as_or_throw<tvm::tirx::TensorVar>();
     TVM_FFI_ICHECK(buffer.defined());
     if (target_->kind->name == "trn" && !buffer->layout.has_value()) return node;
-    return BufferLoad(GetFlattenedTensor(buffer), GetSimplifiedElemOffset(buffer, node->indices),
-                      node->span);
+    return MakeTensorLoad(GetFlattenedTensor(buffer),
+                          GetSimplifiedElemOffset(buffer, node->indices), node->span);
   }
 
   /*! \brief Map of variables being remapped, including buffer variables. */

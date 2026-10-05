@@ -161,7 +161,7 @@ class MatchBufferLower : public StmtExprMutator {
       const TensorVar& buffer = (*it).first;
       const TensorRegion& source = (*it).second;
       ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      return BufferLoad(source->source.as_or_throw<tvm::tirx::TensorVar>(), indices);
+      return MakeTensorLoad(source->source.as_or_throw<tvm::tirx::TensorVar>(), indices);
     }
   }
 

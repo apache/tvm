@@ -332,9 +332,9 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(TensorVar buffer, PrimType buffer_
   PrimType table_type = buffer_type.WithLanes(table_elem_count);
 
   auto table_all = MakeValue(
-      BufferLoad(buffer, {
-                             prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
-                         }));
+      MakeTensorLoad(buffer, {
+                                 prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
+                             }));
 
   // The number of value vectors should be a power of 2.
   int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);

@@ -293,7 +293,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
                         tvm::DataTypeImm(shape_buffer->dtype->dtype),
                         tvm::StringImm(shape_buffer.scope())},
                        {})),
-         tirx::Bind(extent, tirx::BufferLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
+         tirx::Bind(extent, tirx::MakeTensorLoad(shape_buffer, {axis.as_or_throw<PrimExpr>()})),
          tirx::Return(extent)});
 
     DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});

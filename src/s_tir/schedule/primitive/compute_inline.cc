@@ -508,7 +508,7 @@ class BaseInliner : public StmtExprMutator {
 /*!
  * \brief Helper to inline the producer block into its consumer(s)
  * The derived class implements the following functionalities:
- * 1) Substitute `BufferLoad` on the buffer to be inlined
+ * 1) Substitute `TensorLoad` on the buffer to be inlined
  * to its value calculation in the producer block
  * 2) Analyze the producer block to determine the remapping of index variables
  */
@@ -678,7 +678,7 @@ class ReverseComputeInliner : public BaseInliner {
                             .as_or_throw<TensorLoad>();
       if (!load->source.as_or_throw<TensorVar>().same_as(self_->inlined_buffer_)) return load;
       PrimExpr replacement =
-          BufferLoad(self_->inlined_store_->buffer, self_->inlined_store_->indices);
+          MakeTensorLoad(self_->inlined_store_->buffer, self_->inlined_store_->indices);
       return StmtExprMutator::Mutate(ffi::AnyView(replacement), InplaceMode::kDisallow)
           .ValueOrUnchanged(std::move(replacement))
           .as_or_throw<PrimExpr>();
@@ -713,7 +713,7 @@ class ReverseComputeInliner : public BaseInliner {
       // Failure: block body is not BufferStore
       return false;
     }
-    std::vector<const TensorLoadNode*> loads = ExtractBufferLoad(inlined_buffer_, inlined_store_);
+    std::vector<const TensorLoadNode*> loads = ExtractTensorLoad(inlined_buffer_, inlined_store_);
     if (loads.size() == 0) {
       // Failure: no TensorLoad from the `inlined_buffer_`
       return false;
@@ -907,9 +907,9 @@ class ReverseComputeInliner : public BaseInliner {
    * \brief Extracts expressions that loads a specific buffer
    * \param buffer The buffer to be loaded from
    * \param from The BufferStore statement to be extracted from
-   * \return A list of `BufferLoad` expressions
+   * \return A list of `TensorLoad` expressions
    */
-  static std::vector<const TensorLoadNode*> ExtractBufferLoad(const TensorVar& buffer,
+  static std::vector<const TensorLoadNode*> ExtractTensorLoad(const TensorVar& buffer,
                                                               const BufferStoreNode* from) {
     struct Extractor : public StmtExprVisitor {
       using StmtExprVisitor::Visit_;
@@ -944,7 +944,7 @@ class ReverseComputeInliner : public BaseInliner {
       buffer_load_indices_ = indices;
     } else if (!std::equal(buffer_load_indices_.begin(), buffer_load_indices_.end(),
                            indices.begin(), indices.end(), prim::ExprDeepEqual())) {
-      // Failure: indices are not consistent in different BufferLoads
+      // Failure: indices are not consistent in different TensorLoads
       return false;
     }
     return true;
@@ -952,9 +952,9 @@ class ReverseComputeInliner : public BaseInliner {
 
   /*! \brief The RHS value of the producer's BufferStore statement */
   PrimExpr producer_rhs_{ffi::UnsafeInit{}};
-  /*! \brief The indices of the consumer's BufferLoad */
+  /*! \brief The indices of the consumer's MakeTensorLoad */
   ffi::Array<PrimExpr> buffer_load_indices_;
-  /*! \brief The IterMap representing the indices of the consumer's BufferLoad */
+  /*! \brief The IterMap representing the indices of the consumer's MakeTensorLoad */
   ffi::Array<sym::IterSumExpr> buffer_load_iter_map_{nullptr};
   /*! \brief The producer block */
   const SBlockNode* producer_block_{nullptr};
@@ -1114,7 +1114,7 @@ class ReductionEpilogueFuser : public BaseInliner {
   bool IsReductionBlock(const SBlockNode* block);
   void ExtractEpilogueInfo();
   // Helper function to extract TensorLoad nodes from BufferStore
-  static std::vector<const TensorLoadNode*> ExtractBufferLoad(const TensorVar& buffer,
+  static std::vector<const TensorLoadNode*> ExtractTensorLoad(const TensorVar& buffer,
                                                               const BufferStoreNode* from) {
     struct Extractor : public StmtExprVisitor {
       using StmtExprVisitor::Visit_;
@@ -1131,7 +1131,7 @@ class ReductionEpilogueFuser : public BaseInliner {
     };
     auto extractor = ffi::make_object<Extractor>();
     extractor->buffer = buffer;
-    // Visit indices first (though they typically don't contain BufferLoad)
+    // Visit indices first (though they typically don't contain TensorLoad)
     for (const PrimExpr& expr : from->indices) {
       extractor->Visit(expr);
     }
@@ -1168,7 +1168,7 @@ bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogu
   }
 
   // 3. Check if epilogue reads from reduction buffer
-  std::vector<const TensorLoadNode*> loads = ExtractBufferLoad(inlined_buffer_, inlined_store_);
+  std::vector<const TensorLoadNode*> loads = ExtractTensorLoad(inlined_buffer_, inlined_store_);
   if (loads.size() == 0) {
     // Failure: no TensorLoad from the reduction buffer
     return false;

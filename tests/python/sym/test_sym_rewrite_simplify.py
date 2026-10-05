@@ -1298,7 +1298,7 @@ class TestDivZero(BaseCompare):
 
 class TestSubBufferload(BaseCompare):
     buf = tvm.tirx.decl_tensor([1], dtype="float32")
-    load = tvm.tirx.BufferLoad(buf, [0])
+    load = tvm.tirx.TensorLoad(buf, [0])
 
     test_case = tvm.testing.parameter(
         TestCase(load - load, 0.0),

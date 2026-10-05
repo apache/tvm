@@ -342,9 +342,9 @@ def test_scoped_storage_vars():
 
 def test_buffer_load_store():
     b = tvm.tirx.decl_tensor((10,), "float32")
-    x = tvm.tirx.BufferLoad(b, [0])
+    x = tvm.tirx.TensorLoad(b, [0])
     assert isinstance(x, tvm.ir.TensorLoad)
-    assert callable(tvm.tirx.BufferLoad)
+    assert callable(tvm.tirx.TensorLoad)
     assert x.ty.dtype == "float32"
     assert x.source == b
     assert not hasattr(x, "buffer")
@@ -417,7 +417,7 @@ def test_broadcast_to_scalable_vec():
 def test_buffer_load_scalable_vec():
     buf = tvm.tirx.decl_tensor((24,), "float32")
     index = tvm.tirx.expr.Ramp(1, 1, 8 * tvm.tirx.vscale())
-    load = tvm.tirx.BufferLoad(buf, [index])
+    load = tvm.tirx.TensorLoad(buf, [index])
 
     assert isinstance(load, tvm.ir.TensorLoad)
     assert load.ty.dtype == "float32xvscalex8"

@@ -121,7 +121,7 @@ static Expr LowerAccessPtr(const CallNode* call,
                   TensorType(storage_scope, scalar_dtype, {scalar_extent}, {}, 0, 0, 0));
     buffer_aliases->push_back({access_buffer.value(), access_data.value()});
   }
-  TensorLoad buf_load = BufferLoad(access_buffer.value(), {offset});
+  TensorLoad buf_load = MakeTensorLoad(access_buffer.value(), {offset});
   return Call(call->ty, builtin::address_of(), {buf_load});
 }
 

@@ -56,7 +56,7 @@ TensorVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType
                                 offset_factor, layout, allocated_addr);
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
-    region = BufferRegionFromLoad(load.value());
+    region = TensorRegionFromLoad(load.value());
   } else if (auto view = param.as<tvm::TensorRegion>()) {
     region = view.value();
   } else {
@@ -108,7 +108,7 @@ void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
     if (auto buffer_region = obj.as<TensorRegion>()) {
       reads.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
-      reads.push_back(BufferRegionFromLoad(buffer_load.value()));
+      reads.push_back(TensorRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer reads.";
     }
@@ -128,7 +128,7 @@ void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
     if (auto buffer_region = obj.as<TensorRegion>()) {
       writes.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
-      writes.push_back(BufferRegionFromLoad(buffer_load.value()));
+      writes.push_back(TensorRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer writes.";
     }

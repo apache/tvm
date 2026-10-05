@@ -180,7 +180,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     op = load.get();
 
     if (auto opt = GetRemappedBuffer(load->source.as_or_throw<tvm::tirx::TensorVar>())) {
-      return BufferLoad(opt.value(), load->indices, load->span);
+      return MakeTensorLoad(opt.value(), load->indices, load->span);
     }
     return load;
   }
@@ -376,7 +376,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
           TensorVar buf = reduce_results[i]
                               .as_or_throw<TensorLoad>()
                               ->source.as_or_throw<tvm::tirx::TensorVar>();
-          PrimExpr val = BufferLoad(buf, {zero_index});
+          PrimExpr val = MakeTensorLoad(buf, {zero_index});
           TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
           PrimExpr splat = WarpShuffle(tirx::builtin::tvm_warp_shuffle(), new_alloc_bufs.back(),
                                        val, reduce_extent * group_index);
@@ -422,8 +422,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         // 4. Load staging buffer.
         //    Second round of allreduce.
         for (size_t i = 0; i < size; ++i) {
-          values[i] = BufferLoad(/*buffer=*/staging_shared_bufs[i],
-                                 /*indices=*/{group_index * n_warps + reduce_index});
+          values[i] = MakeTensorLoad(/*buffer=*/staging_shared_bufs[i],
+                                     /*indices=*/{group_index * n_warps + reduce_index});
         }
         std::tie(reduce_results, local_bufs) = MakeWarpAllreduce(
             values, dtypes, combiner, reduce_index, n_warps, group_index, mask,
@@ -444,7 +444,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
           write_result.push_back(
               BufferStore(broadcast_shared_buf, reduce_results[i], {group_index}));
           // Update `reduce_results`, pointing to the value loaded from the shared memory buffer.
-          reduce_results[i] = BufferLoad(broadcast_shared_buf, {group_index});
+          reduce_results[i] = MakeTensorLoad(broadcast_shared_buf, {group_index});
         }
         seq.push_back(IfThenElse(reduce_index == zero_index, SeqStmt::Flatten(write_result)));
         seq.push_back(SyncThread("shared"));
@@ -493,7 +493,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         TVM_FFI_ICHECK(!load_remap_.count(alloc_key));
         PrimExpr pred =
             prim::MakeConst(PrimType::Bool(static_cast<int16_t>(dtypes[idx].lanes())), true);
-        TensorLoad load = BufferLoad(
+        TensorLoad load = MakeTensorLoad(
             shared_bufs[idx], {BufIndex(IntImm(reduce_index.ty(), 0), group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(load.ty(), dtypes[idx]);
         load_remap_.insert_or_assign(alloc_key, load);
@@ -581,7 +581,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       ffi::Array<PrimExpr> a, b;
       for (int i = 0; i < n_buffers; ++i) {
         TensorVar shared_buf = shared_bufs[i];
-        TensorLoad val = BufferLoad(shared_buf, zero_indices);
+        TensorLoad val = MakeTensorLoad(shared_buf, zero_indices);
         TVM_FFI_ICHECK_EQ(val.ty(), dtypes[i]);
         a.push_back(val);
 
@@ -603,7 +603,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         Stmt s = BufferStore(local_buf, other, zero_indices);
         seq->push_back(s);
 
-        TensorLoad load = BufferLoad(local_buf, zero_indices);
+        TensorLoad load = MakeTensorLoad(local_buf, zero_indices);
         TVM_FFI_ICHECK_EQ(load.ty(), dtypes[i]);
         b.push_back(load);
       }
@@ -636,7 +636,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     std::vector<PrimExpr> reduce_results;
     reduce_results.reserve(n_buffers);
     for (int i = 0; i < n_buffers; ++i) {
-      reduce_results.push_back(BufferLoad(shared_bufs[i], zero_indices));
+      reduce_results.push_back(MakeTensorLoad(shared_bufs[i], zero_indices));
     }
 
     return {reduce_results, local_bufs};
@@ -661,12 +661,12 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     auto fload = [&](int offset) {
       ffi::Array<PrimExpr> a, b;
       for (size_t i = 0; i < size; ++i) {
-        TensorLoad b_load = BufferLoad(
+        TensorLoad b_load = MakeTensorLoad(
             shared_bufs[i], {BufIndex(reduce_index + offset, group_index, reduce_extent)});
         TVM_FFI_ICHECK_EQ(b_load.ty(), dtypes[i]);
         b.push_back(b_load);
 
-        TensorLoad a_load = BufferLoad(shared_bufs[i], {buf_index});
+        TensorLoad a_load = MakeTensorLoad(shared_bufs[i], {buf_index});
         TVM_FFI_ICHECK_EQ(a_load.ty(), dtypes[i]);
         a.push_back(a_load);
       }
@@ -795,7 +795,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     ffi::Array<PrimExpr> indices = {0};
     PrimExpr mask{ffi::UnsafeInit{}};
     if (need_warp_shuffle_mask_ && mask_buffer.has_value()) {
-      mask = BufferLoad(mask_buffer.value(), indices);
+      mask = MakeTensorLoad(mask_buffer.value(), indices);
     } else {
       mask = IntImm::Int32(0);
     }

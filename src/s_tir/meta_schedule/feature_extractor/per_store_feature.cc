@@ -277,7 +277,7 @@ Pass SimplifyForFeatureExtraction() {
     }
 
    private:
-    static bool HasBufferLoad(const PrimExpr& expr) {
+    static bool HasTensorLoad(const PrimExpr& expr) {
       auto walk_fn = [](const TensorLoad&) -> ffi::Expected<ffi::WalkResult> {
         return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
       };
@@ -286,8 +286,8 @@ Pass SimplifyForFeatureExtraction() {
     }
 
     UnchangedOr<PrimExpr> Mutate_(const SelectNode* node, InplaceMode inplace_mode) final {
-      if (HasBufferLoad(node->true_value) || HasBufferLoad(node->false_value) ||
-          HasBufferLoad(node->condition)) {
+      if (HasTensorLoad(node->true_value) || HasTensorLoad(node->false_value) ||
+          HasTensorLoad(node->condition)) {
         return ffi::Unchanged();
       }
       return prim::MakeConst(node->ty.as_or_throw<PrimType>(), 1.0);

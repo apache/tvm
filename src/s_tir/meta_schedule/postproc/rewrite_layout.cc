@@ -32,7 +32,7 @@ using namespace tvm::tirx;
 
 /*!
  * \brief Collect the block and index where the buffer is read.
- * \note The buffer is expected to be read by only one BufferLoad
+ * \note The buffer is expected to be read by only one TensorLoad
  */
 class BufferReadPosCollector : public StmtExprVisitor {
  public:

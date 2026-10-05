@@ -133,7 +133,7 @@ TVM_DLL const Op& q_multiply_shift_per_axis();
  * the number of indices must be supported by the target (i.e. N>1
  * only on targets that support non-flat memory buffers).
  *
- *  Handle address_of(BufferLoad *op) {
+ *  Handle address_of(TensorLoad *op) {
  *     return &op->buffer_var[op->indices[0], op->indices[1], ..., op->indices[N-1]];
  *  }
  */

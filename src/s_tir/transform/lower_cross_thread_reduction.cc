@@ -190,7 +190,7 @@ class BufferReplacer : public StmtExprMutator {
  private:
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) final {
     auto replacement = VarRemapGet(load->source).as<TensorVar>();
-    return replacement ? BufferLoad(replacement.value(), {0}) : ffi::GetRef<TensorLoad>(load);
+    return replacement ? MakeTensorLoad(replacement.value(), {0}) : ffi::GetRef<TensorLoad>(load);
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
@@ -418,7 +418,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     // Next `n_buffers` arguments: sources
     if (it_buffers.has_value()) {
       for (int i = 0; i < n_buffers; ++i) {
-        parameters.push_back(BufferLoad(it_buffers.value()[i], {IntImm::Int32(0)}));
+        parameters.push_back(MakeTensorLoad(it_buffers.value()[i], {IntImm::Int32(0)}));
       }
     } else {
       parameters.insert(parameters.end(), combiner_rhs.begin(), combiner_rhs.end());
@@ -427,7 +427,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     parameters.push_back(IntImm::Bool(true));
     // Next `n_buffers` arguments: destinations
     for (int i = 0; i < n_buffers; ++i) {
-      parameters.push_back(BufferLoad(ct_buffers[i], {0}));
+      parameters.push_back(MakeTensorLoad(ct_buffers[i], {0}));
     }
     // Next arguments: all the reduction threads
     for (const ForNode* reduction_loop : reduction_loops) {
@@ -516,8 +516,8 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                                .as_or_throw<PrimExpr>());
     }
     for (int i = 0; i < n_buffers; ++i) {
-      wb_updates.push_back(
-          BufferStore(wb_buffers[i], BufferLoad(ct_buffers[i], {IntImm::Int32(0)}), wb_indices));
+      wb_updates.push_back(BufferStore(
+          wb_buffers[i], MakeTensorLoad(ct_buffers[i], {IntImm::Int32(0)}), wb_indices));
       wb_regions.push_back(BufferRegion(wb_buffers[i], region));
     }
 

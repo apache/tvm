@@ -429,7 +429,7 @@ class WarpAccessRewriter : public StmtExprMutator {
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
 
-    load = BufferLoad(new_buffer_, {local_index}, load->span);
+    load = MakeTensorLoad(new_buffer_, {local_index}, load->span);
 
     if (analyzer_->CanProveEqual(group, warp_index_.as_or_throw<PrimExpr>())) {
       return load;

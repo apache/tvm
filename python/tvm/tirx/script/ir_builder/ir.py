@@ -36,7 +36,7 @@ from typing import Literal
 
 from tvm import DataType, ir
 from tvm import tirx as tir
-from tvm.ir import Range, TensorLoad, Type, is_prim_expr
+from tvm.ir import Range, Type, is_prim_expr
 from tvm.script.ir_builder.base import MISSING, IRBuilder
 from tvm.script.ir_builder.ir import meta_var
 from tvm.script.parser.protocol_registry import (
@@ -53,10 +53,10 @@ from tvm.tirx.exec_scope import ExecScope, ScopeIdDef
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
 from tvm.tirx.expr import (
-    BufferLoad,
     FloatImm,
     IntImm,
     IterVar,
+    TensorLoad,
 )
 from tvm.tirx.layout import (
     ComposeLayout,
@@ -948,7 +948,7 @@ def alloc_scalar(
     scope: str = "global",
     *,
     annotations: dict[str, Any] | None = None,
-) -> TensorLoad:
+) -> _ir.TensorLoad:
     """Allocate a zero-dimensional buffer (scalar), with optional allocation annotations."""
     buf = alloc_tensor(
         shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]), annotations=annotations
@@ -959,7 +959,7 @@ def alloc_scalar(
 
 
 @_register_mutable_decl("tirx.decl_scalar")
-def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> TensorLoad:
+def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> _ir.TensorLoad:
     """Declare a zero-dimensional buffer (scalar) from a pointer."""
     buf = decl_tensor(
         shape=(1,),
@@ -980,7 +980,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
 @_register_mutable_decl("tirx.shared_scalar")
 def shared_scalar(
     dtype: str = "float32", *, annotations: dict[str, Any] | None = None
-) -> TensorLoad:
+) -> _ir.TensorLoad:
     """Allocate a zero-dimensional buffer in shared memory."""
     return alloc_scalar(dtype=dtype, scope="shared", annotations=annotations)
 
@@ -988,7 +988,7 @@ def shared_scalar(
 @_register_mutable_decl("tirx.local_scalar")
 def local_scalar(
     dtype: str = "float32", *, annotations: dict[str, Any] | None = None
-) -> TensorLoad:
+) -> _ir.TensorLoad:
     """Allocate a zero-dimensional buffer in local memory."""
     return alloc_scalar(dtype=dtype, scope="local", annotations=annotations)
 
@@ -998,7 +998,7 @@ def _is_meta_class_instance(value: Any) -> bool:
 
 
 def _meta_resource_for_value(value: Any) -> Any | None:
-    if isinstance(value, TensorLoad):
+    if isinstance(value, _ir.TensorLoad):
         return value.source
     if is_tensor_var(value):
         return value
@@ -1692,7 +1692,6 @@ def Ptr(dtype, storage_scope="global", *, span=None):
 Tensor = _tensor_type
 
 __all__ = [
-    "BufferLoad",
     "ComposeLayout",
     "DtypeConstructor",
     "ExecScope",
@@ -1709,6 +1708,7 @@ __all__ = [
     "S",
     "ScopeIdDef",
     "Tensor",
+    "TensorLoad",
     "TensorMap",
     "TileLayout",
     "Tuple",

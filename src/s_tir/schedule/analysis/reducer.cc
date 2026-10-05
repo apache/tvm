@@ -723,7 +723,7 @@ bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
   stored_values.reserve(n);
 
   for (int i = 0; i < n; ++i) {
-    buf_loads.push_back(BufferLoad(combiners[i]->buffer, combiners[i]->indices));
+    buf_loads.push_back(MakeTensorLoad(combiners[i]->buffer, combiners[i]->indices));
     stored_values.push_back(combiners[i]->value);
   }
 

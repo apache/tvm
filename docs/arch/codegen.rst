@@ -148,7 +148,7 @@ backend (x86, ARM, NVPTX, AMDGPU, etc.).
 ``StmtFunctor<void(const Stmt&)>``. Each TIR node type has a corresponding visitor:
 
 - **Expressions** (``Dispatch_``) convert TIR expressions to LLVM ``Value``\ s:
-  arithmetic ops → LLVM binary instructions, ``BufferLoad`` → load with pointer arithmetic,
+  arithmetic ops → LLVM binary instructions, ``TensorLoad`` → load with pointer arithmetic,
   ``Cast`` → LLVM type conversions, ``Call`` → intrinsic or extern function calls.
 - **Statements** (``VisitStmt_``) emit LLVM IR side effects:
   ``BufferStore`` → store instructions, ``For`` → loop basic blocks with branches,

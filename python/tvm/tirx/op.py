@@ -43,7 +43,8 @@ from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import buffer_data, is_tensor_var
-from .expr import BufferLoad, CommReducer, ExprOp, IntImm
+from .expr import CommReducer, ExprOp, IntImm
+from .expr import TensorLoad as _make_tensor_load
 from .type import TensorMapType
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
@@ -117,7 +118,7 @@ def _reject_buffer_region(value, api_name):
     if isinstance(value, TensorRegion):
         raise TypeError(
             f"tirx.{api_name} does not accept TensorRegion arguments; "
-            "construct a BufferLoad with explicit indices"
+            "construct a TensorLoad with explicit indices"
         )
     return value
 
@@ -768,12 +769,12 @@ def _buffer_element_pointer_type(buffer: Var) -> PointerType:
     return PointerType(buffer.ty.dtype, buffer.ty.storage_scope)
 
 
-def address_of(obj: Var | TensorLoad | Var, span: Span | None = None) -> Expr:
+def address_of(obj: Var | TensorLoad, span: Span | None = None) -> Expr:
     """Returns the address of a buffer element or addressable variable.
 
     Parameters
     ----------
-    obj: Union[Var, TensorLoad, Var]
+    obj: Union[Var, TensorLoad]
         The buffer, buffer load, or addressable variable.
 
     span : Optional[Span]
@@ -786,7 +787,7 @@ def address_of(obj: Var | TensorLoad | Var, span: Span | None = None) -> Expr:
     """
     if is_tensor_var(obj):
         n_dim = len(obj.ty.shape)
-        buffer_load = BufferLoad(obj, [0] * n_dim)
+        buffer_load = _make_tensor_load(obj, [0] * n_dim)
         return Call(
             "tirx.address_of",
             [buffer_load],

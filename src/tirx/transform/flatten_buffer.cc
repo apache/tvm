@@ -312,7 +312,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
   TensorLoad VisitBufferAccess(TensorLoad node, const TensorVar& original_buffer) {
     buffers_used_.insert(original_buffer);
     const FlatInfo& info = Lookup(original_buffer);
-    return BufferLoad(info.flattened, FoldIndices(info, node->indices), node->span);
+    return MakeTensorLoad(info.flattened, FoldIndices(info, node->indices), node->span);
   }
 
   /*! \brief Set of buffers accessed during visitation (used to emit DeclTensor for param buffers).

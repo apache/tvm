@@ -133,7 +133,7 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_load))
                           .as_or_throw<TensorLoad>();
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(src_)) {
-      return BufferLoad(dst_, load->indices, load->span);
+      return MakeTensorLoad(dst_, load->indices, load->span);
     }
     return load;
   }
@@ -333,7 +333,8 @@ struct ReadWriteAtImpl {
     for (int i = 0; i < n; ++i) {
       indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());
     }
-    Stmt stmt = BufferStore(copy_to, /*value=*/BufferLoad(copy_from, indices), /*indices=*/indices);
+    Stmt stmt =
+        BufferStore(copy_to, /*value=*/MakeTensorLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
       stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
                  ForKind::kSerial, stmt);

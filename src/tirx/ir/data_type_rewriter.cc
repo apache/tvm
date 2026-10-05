@@ -402,7 +402,7 @@ UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const TensorLoadNode* op,
 
   if (!new_buffer.same_as(op->source.as_or_throw<tvm::tirx::TensorVar>()) ||
       !indices.same_as(op->indices)) {
-    return BufferLoad(new_buffer, indices, op->span);
+    return MakeTensorLoad(new_buffer, indices, op->span);
   }
 
   return load;

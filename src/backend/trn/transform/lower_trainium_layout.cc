@@ -288,7 +288,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         return res;
       }
       if (tile_layout && tile_layout->HasThreadAxis()) {
-        LOG(FATAL) << "Cannot lower direct BufferLoad/BufferStore on a buffer with thread-axis "
+        LOG(FATAL) << "Cannot lower direct MakeTensorLoad/BufferStore on a buffer with thread-axis "
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }
@@ -318,10 +318,10 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK(logical_buffer.defined());
     if (!logical_buffer->layout.has_value()) {
       if (node->source.same_as(logical_buffer.var())) return node;
-      return BufferLoad(node->source.as_or_throw<TensorVar>(), node->indices, node->span);
+      return MakeTensorLoad(node->source.as_or_throw<TensorVar>(), node->indices, node->span);
     }
-    return BufferLoad(GetFlattenedTensor(logical_buffer),
-                      GetSimplifiedElemOffset(logical_buffer, node->indices), node->span);
+    return MakeTensorLoad(GetFlattenedTensor(logical_buffer),
+                          GetSimplifiedElemOffset(logical_buffer, node->indices), node->span);
   }
 };
 

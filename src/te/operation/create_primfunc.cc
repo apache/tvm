@@ -69,7 +69,7 @@ void VerifyNoOpaqueArtifacts(const PrimFunc& func) {
 
 }  // namespace
 
-/*! \brief The helper mutator that transforms Tensor-callee Calls to BufferLoad. */
+/*! \brief The helper mutator that transforms Tensor-callee Calls to MakeTensorLoad. */
 class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
  public:
   explicit TensorLoadToBufferTransformer(
@@ -127,7 +127,7 @@ class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
     auto it = tensor2buffers_.find(tensor);
     TVM_FFI_ICHECK(it != tensor2buffers_.end()) << "IndexError: Cannot find the tensor " << tensor;
     const TensorVar& buffer = it->second;
-    return BufferLoad(buffer, te::GetTensorLoadIndices(call), call->span);
+    return MakeTensorLoad(buffer, te::GetTensorLoadIndices(call), call->span);
   }
 
  private:
@@ -155,7 +155,7 @@ struct CreateFuncInfo {
   ffi::Array<te::Tensor> arg_list;
   /*! \brief The map from each Tensor to its corresponding buffer. */
   std::unordered_map<te::Tensor, TensorVar> tensor2buffers;
-  /*! \brief The transformer from Tensor-callee Calls to BufferLoad. */
+  /*! \brief The transformer from Tensor-callee Calls to MakeTensorLoad. */
   ffi::ObjectPtr<TensorLoadToBufferTransformer> transformer;
   /*! \brief The buffers should be allocated at function root. */
   ffi::Array<TensorVar> root_alloc;
@@ -446,7 +446,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
     //  - A LHS operand is the buffer storing the reduction result, with corresponding indices.
     //  - A RHS operand is the value to be reduced.
     for (int i = 0; i < n_buffers; ++i) {
-      const PrimExpr& left = BufferLoad(buffers[i], indices);
+      const PrimExpr& left = MakeTensorLoad(buffers[i], indices);
       const PrimExpr& right = analyzer->Simplify(f_transform_and_remap(reduce->source[i]));
       lhs.push_back(left);
       rhs.push_back(right);

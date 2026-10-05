@@ -82,7 +82,7 @@ ffi::ObjectRef RealizeBufferSubscript(
     for (const auto& item : slice) {
       indices.push_back(item.as<PrimExpr>().value());
     }
-    return BufferLoad(buffer, indices, span);
+    return MakeTensorLoad(buffer, indices, span);
   }
 
   // Any slice or omitted trailing dimension denotes a region.  Rejecting
@@ -134,7 +134,7 @@ ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Sp
     for (size_t i = 0; i < slice.size(); ++i) {
       indices.push_back(source->region[i]->min + slice[i].as<PrimExpr>().value());
     }
-    return BufferLoad(source->source.as_or_throw<TensorVar>(), indices, span);
+    return MakeTensorLoad(source->source.as_or_throw<TensorVar>(), indices, span);
   }
 
   sym::Analyzer analyzer;
@@ -530,7 +530,7 @@ PrimExpr TensorVar::vload(ffi::Array<PrimExpr> begin, PrimType value_dtype) cons
       indices.Set(indices.size() - 1, prim::Ramp(base, 1, factor));
     }
   }
-  return BufferLoad(*this, indices);
+  return MakeTensorLoad(*this, indices);
 }
 
 Stmt TensorVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const {
@@ -684,7 +684,7 @@ TensorVar TensorVar::with_dtype(PrimType dtype) const {
 }
 
 PrimExpr TensorVar::OffsetOf_p(const Array<PrimExpr>& indices) const {
-  return Call(PrimType::Int(32), tirx::builtin::buffer_offset(), {BufferLoad(*this, indices)})
+  return Call(PrimType::Int(32), tirx::builtin::buffer_offset(), {MakeTensorLoad(*this, indices)})
       .as_or_throw<PrimExpr>();
 }
 

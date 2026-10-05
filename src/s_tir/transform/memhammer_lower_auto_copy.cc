@@ -213,7 +213,7 @@ class AutoPadder {
                               .as_or_throw<TensorLoad>();
         TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
         if (auto replacement = VarRemapGet(buffer).as<TensorVar>()) {
-          return BufferLoad(replacement.value(), load->indices, load->span);
+          return MakeTensorLoad(replacement.value(), load->indices, load->span);
         }
         return load;
       }

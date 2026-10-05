@@ -301,7 +301,7 @@ class Reduce(ir.ExprWithOp):
         )
 
 
-def BufferLoad(buffer: Var, indices: list[Expr], span: Span | None = None) -> ir.TensorLoad:
+def TensorLoad(buffer: Var, indices: list[Expr], span: Span | None = None) -> ir.TensorLoad:
     """Construct a validated buffer load.
 
     Parameters
@@ -317,7 +317,7 @@ def BufferLoad(buffer: Var, indices: list[Expr], span: Span | None = None) -> ir
 
     """
 
-    return _ffi_api.BufferLoad(buffer, indices, span)
+    return _ffi_api.TensorLoad(buffer, indices, span)
 
 
 class CallEffectKind:

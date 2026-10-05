@@ -328,7 +328,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     PrimExpr version =
         floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
     indices.insert(indices.begin(), version);
-    return BufferLoad(new_buffer, indices, op->span);
+    return MakeTensorLoad(new_buffer, indices, op->span);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {

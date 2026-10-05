@@ -512,10 +512,10 @@ Stmt RewriteMmaStore(Stmt stmt) {
                  /*body=*/
                  For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
                      /*body=*/
-                     BufferStore(
-                         new_tgt_buffer,
-                         BufferLoad(new_src_buffer, {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
-                         {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}))),
+                     BufferStore(new_tgt_buffer,
+                                 MakeTensorLoad(new_src_buffer,
+                                                {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
+                                 {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}))),
              /*init=*/std::nullopt,
              /*alloc_buffers=*/{},
              /*match_buffers=*/

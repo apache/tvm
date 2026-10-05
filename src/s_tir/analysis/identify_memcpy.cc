@@ -78,12 +78,12 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   } else {
     return static_cast<const std::stringstream&>(
                std::stringstream()
-               << "Expected BufferStore's value to be BufferLoad, but instead found "
+               << "Expected BufferStore's value to be MakeTensorLoad, but instead found "
                << store->value)
         .str();
   }
 
-  // Now, we have a BufferStore whose value is a BufferLoad.  Because
+  // Now, we have a BufferStore whose value is a TensorLoad.  Because
   // non-flat physical indices are target-dependent, only handle cases
   // where the buffer will be flattened to a 1-d physical buffer.
   ffi::Array<PrimExpr> flattened_dst = store->buffer.OffsetOf(store->indices);

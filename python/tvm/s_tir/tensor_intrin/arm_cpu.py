@@ -639,30 +639,30 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
                         # outer product operation for now.
                         if in_dtype == "float32":
                             a_low = (
-                                T.BufferLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
+                                T.TensorLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
                                 _create_active_lane_mask(A, (k_row, 0), K),
                             )
                             b_low = (
-                                T.BufferLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
+                                T.TensorLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
                                 _create_active_lane_mask(B, (k_row, 0), K),
                             )
                             a_high = (
-                                T.BufferLoad(A, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
+                                T.TensorLoad(A, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
                                 _create_active_lane_mask(A, (k_row, in_dtype_svf), K),
                             )
                             b_high = (
-                                T.BufferLoad(B, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
+                                T.TensorLoad(B, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
                                 _create_active_lane_mask(B, (k_row, in_dtype_svf), K),
                             )
                         else:
-                            a_low = (T.BufferLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
-                            b_low = (T.BufferLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
+                            a_low = (T.TensorLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
+                            b_low = (T.TensorLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
                             a_high = (
-                                T.BufferLoad(A, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
+                                T.TensorLoad(A, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
                                 ptrue,
                             )
                             b_high = (
-                                T.BufferLoad(B, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
+                                T.TensorLoad(B, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
                                 ptrue,
                             )
 

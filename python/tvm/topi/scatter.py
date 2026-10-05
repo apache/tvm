@@ -119,7 +119,7 @@ def scatter_nd(data, indices, updates, mode):
         with IRBuilder() as ib:
             with T.seq_scope():
                 with T.serial(0, fused_shape) as i:
-                    T.buffer_store(out, data[T.buffer_indices(data, i)], T.buffer_indices(out, i))
+                    T.buffer_store(out, data[T.tensor_indices(data, i)], T.tensor_indices(out, i))
 
                 with T.serial(0, fused_indices_dimension) as i:
                     with T.parallel(0, fused_updates_dimension) as j:
@@ -132,59 +132,59 @@ def scatter_nd(data, indices, updates, mode):
                             index += (
                                 offset
                                 * indices[
-                                    T.buffer_indices(indices, i + l * fused_indices_dimension)
+                                    T.tensor_indices(indices, i + l * fused_indices_dimension)
                                 ]
                             )
                             offset *= data_ptr.shape[l]
                         if mode == "update":
                             T.buffer_store(
                                 out,
-                                updates[T.buffer_indices(updates, i * fused_updates_dimension + j)],
-                                T.buffer_indices(out, index),
+                                updates[T.tensor_indices(updates, i * fused_updates_dimension + j)],
+                                T.tensor_indices(out, index),
                             )
                         elif mode == "add":
                             T.buffer_store(
                                 out,
-                                out[T.buffer_indices(out, index)]
+                                out[T.tensor_indices(out, index)]
                                 + (
                                     updates[
-                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
+                                        T.tensor_indices(updates, i * fused_updates_dimension + j)
                                     ]
                                 ),
-                                T.buffer_indices(out, index),
+                                T.tensor_indices(out, index),
                             )
                         elif mode == "mul":
                             T.buffer_store(
                                 out,
-                                out[T.buffer_indices(out, index)]
+                                out[T.tensor_indices(out, index)]
                                 * (
                                     updates[
-                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
+                                        T.tensor_indices(updates, i * fused_updates_dimension + j)
                                     ]
                                 ),
-                                T.buffer_indices(out, index),
+                                T.tensor_indices(out, index),
                             )
                         elif mode == "min":
                             T.buffer_store(
                                 out,
                                 tirx.min(
-                                    out[T.buffer_indices(out, index)],
+                                    out[T.tensor_indices(out, index)],
                                     updates[
-                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
+                                        T.tensor_indices(updates, i * fused_updates_dimension + j)
                                     ],
                                 ),
-                                T.buffer_indices(out, index),
+                                T.tensor_indices(out, index),
                             )
                         elif mode == "max":
                             T.buffer_store(
                                 out,
                                 tirx.max(
-                                    out[T.buffer_indices(out, index)],
+                                    out[T.tensor_indices(out, index)],
                                     updates[
-                                        T.buffer_indices(updates, i * fused_updates_dimension + j)
+                                        T.tensor_indices(updates, i * fused_updates_dimension + j)
                                     ],
                                 ),
-                                T.buffer_indices(out, index),
+                                T.tensor_indices(out, index),
                             )
                         else:
                             raise NotImplementedError(

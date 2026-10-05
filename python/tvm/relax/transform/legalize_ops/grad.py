@@ -182,7 +182,7 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                     # Init loop (zero-fill output buffer)
                     with T.serial(fused_shape) as i:
                         T.buffer_store(
-                            out, tirx.const(0, dtype=x_ptr.dtype), T.buffer_indices(out, i)
+                            out, tirx.const(0, dtype=x_ptr.dtype), T.tensor_indices(out, i)
                         )
 
                     # Accumulation loop
@@ -205,7 +205,7 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                             with T.serial(indices_len) as loop_l:
                                 out_idx = (
                                     i * fused_output_grad_shape_nxt * x_axis_len
-                                    + idx[T.buffer_indices(idx, loop_l)]
+                                    + idx[T.tensor_indices(idx, loop_l)]
                                     * fused_output_grad_shape_nxt
                                     + j
                                 )
@@ -216,17 +216,17 @@ def _grad_take_backward(bb: BlockBuilder, call: Call) -> Expr:
                                 )
                                 T.buffer_store(
                                     out,
-                                    out[T.buffer_indices(out, out_idx)]
-                                    + grad[T.buffer_indices(grad, grad_idx)],
-                                    T.buffer_indices(out, out_idx),
+                                    out[T.tensor_indices(out, out_idx)]
+                                    + grad[T.tensor_indices(grad, grad_idx)],
+                                    T.tensor_indices(out, out_idx),
                                 )
                     else:
                         with T.serial(indices_len) as loop_l:
                             T.buffer_store(
                                 out,
-                                out[T.buffer_indices(out, (idx[T.buffer_indices(idx, loop_l)]))]
-                                + grad[T.buffer_indices(grad, loop_l)],
-                                T.buffer_indices(out, (idx[T.buffer_indices(idx, loop_l)])),
+                                out[T.tensor_indices(out, (idx[T.tensor_indices(idx, loop_l)]))]
+                                + grad[T.tensor_indices(grad, loop_l)],
+                                T.tensor_indices(out, (idx[T.tensor_indices(idx, loop_l)])),
                             )
 
                 return ib.get()

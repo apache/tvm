@@ -220,7 +220,7 @@ class AssertStmt : public Stmt {
  *  buffer[i, j] = value;
  *
  * \endcode
- * \sa BufferLoad
+ * \sa MakeTensorLoad
  */
 class BufferStoreNode : public StmtNode {
  public:

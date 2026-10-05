@@ -47,7 +47,7 @@
  * -----------------
  * An expression is eligible for CSE if:
  *   - It is not a leaf (Var, IntImm, FloatImm, StringImm).
- *   - It does not contain Call or BufferLoad (side-effects / memory dependence).
+ *   - It does not contain Call or TensorLoad (side-effects / memory dependence).
  *   - It is not Ramp or Broadcast (hardware-specific vector ops).
  *   - It is not bool-typed. Boolean predicates are kept inline because the
  *     consumer (if / Select / assert) reads more clearly with the condition
@@ -265,7 +265,7 @@ class CSEPlanner : public StmtExprVisitor {
    * state and cannot be safely hoisted or deduplicated.
    *
    * \param expr The expression to check.
-   * \return true if the expression is a Call or BufferLoad.
+   * \return true if the expression is a Call or TensorLoad.
    */
   static bool IsForbiddenNode(const PrimExpr& expr) {
     return (expr.as<CallNode>() != nullptr || expr.as<TensorLoadNode>() != nullptr);
@@ -276,7 +276,7 @@ class CSEPlanner : public StmtExprVisitor {
    *
    * An expression is eligible if it represents a non-trivial pure computation:
    *   - Not a leaf (Var, IntImm, FloatImm, StringImm — no computation to save).
-   *   - Not a Call or BufferLoad (side effects / memory dependence).
+   *   - Not a Call or TensorLoad (side effects / memory dependence).
    *   - Not Ramp or Broadcast (hardware-specific vector construction).
    *   - Does not transitively contain any forbidden node.
    *   - Is not bool-typed (predicates are kept inline for readability and

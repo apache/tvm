@@ -207,12 +207,12 @@ class IndexPatternFinder : public StmtExprVisitor {
   bool success_ = true;
 };
 
-class BufferLoadReplacer : public StmtExprMutator {
+class TensorLoadReplacer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  BufferLoadReplacer(const TensorVar& tgt_buffer, const TensorLoad& new_buffer_load)
+  TensorLoadReplacer(const TensorVar& tgt_buffer, const TensorLoad& new_buffer_load)
       : tgt_buffer_(tgt_buffer), new_buffer_load_(new_buffer_load) {}
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
@@ -391,9 +391,9 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   Stmt generate_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
     // copy from wmma to new cache buffer
-    TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
+    TensorLoad new_buffer_load = MakeTensorLoad(new_buffer, cache_indices);
     generate_body =
-        ffi::make_object<BufferLoadReplacer>(
+        ffi::make_object<TensorLoadReplacer>(
             target_buffer_load->source.as_or_throw<tvm::tirx::TensorVar>(), new_buffer_load)
             ->Mutate(ffi::GetRef<Stmt>(buf_store))
             .ValueOrUnchanged(ffi::GetRef<Stmt>(buf_store));
@@ -436,12 +436,12 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   }
   Stmt rewrite_body{ffi::UnsafeInit{}};
   if (is_write_cache) {
-    TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
+    TensorLoad new_buffer_load = MakeTensorLoad(new_buffer, cache_indices);
     rewrite_body =
         BufferStore(new_buffer, ffi::GetRef<TensorLoad>(target_buffer_load), cache_indices);
   } else {
-    rewrite_body =
-        BufferStore(buf_store->buffer, BufferLoad(new_buffer, cache_indices), buf_store->indices);
+    rewrite_body = BufferStore(buf_store->buffer, MakeTensorLoad(new_buffer, cache_indices),
+                               buf_store->indices);
   }
   if (predicate.has_value()) {
     rewrite_body = IfThenElse(predicate.value(), rewrite_body);

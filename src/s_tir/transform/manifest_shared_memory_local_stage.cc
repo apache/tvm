@@ -73,7 +73,7 @@ class IntermediateStageRewriter {
     Stmt local_stage = MakeLocalStage(block, new_buffer, buffer_indices, relaxed_loops, store);
 
     // Step 3: Create TensorLoad from the intermediate buffer
-    TensorLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
+    TensorLoad new_buffer_load = MakeTensorLoad(new_buffer, buffer_indices);
     BufferStore new_buffer_store = block->body.as_or_throw<BufferStore>();
     new_buffer_store.CopyOnWrite()->value = new_buffer_load;
     SBlock new_block = ffi::GetRef<SBlock>(block);

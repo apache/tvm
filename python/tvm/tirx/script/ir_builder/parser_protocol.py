@@ -570,7 +570,7 @@ def evaluate(value: Expr) -> AlreadyEmitted[_tir.Stmt]:
     if isinstance(value, TensorRegion):
         raise TypeError(
             "T.evaluate does not accept TensorRegion values; "
-            "construct a BufferLoad with explicit indices"
+            "construct a TensorLoad with explicit indices"
         )
     return AlreadyEmitted(_ffi_api.Evaluate(value))  # type: ignore[attr-defined] # pylint: disable=no-member
 

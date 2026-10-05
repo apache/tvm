@@ -1045,7 +1045,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
     for (int i = 0; i < n_buffers_; ++i) {
       update_buffers_.push_back(rf_buffers_[i]);
       update_indices_.push_back(rf_buf_access_indices_);
-      update_lhs_.push_back(BufferLoad(update_buffers_[i], rf_buf_access_indices_));
+      update_lhs_.push_back(MakeTensorLoad(update_buffers_[i], rf_buf_access_indices_));
       update_rhs_.push_back(combiner_rhs_[i]);
     }
   }
@@ -1163,7 +1163,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
       return ffi::Unchanged();
     };
     for (int i = 0; i < n_buffers_; ++i) {
-      PrimExpr rhs = BufferLoad(rf_buffers_[i], rf_buf_access_indices_);
+      PrimExpr rhs = MakeTensorLoad(rf_buffers_[i], rf_buf_access_indices_);
       update_buffers_.push_back(old_reduction_updates_[i]->buffer);
       update_indices_.push_back(old_reduction_updates_[i]->indices);
       update_lhs_.push_back(

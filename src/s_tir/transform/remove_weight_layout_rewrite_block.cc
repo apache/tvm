@@ -90,7 +90,7 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
     const auto* store = block->body.as<BufferStoreNode>();
     TVM_FFI_ICHECK(store);
 
-    // Step 2. Checking the rhs of buffer store is a BufferLoad
+    // Step 2. Checking the rhs of buffer store is a TensorLoad
     const auto* load = store->value.as<TensorLoadNode>();
     TVM_FFI_ICHECK(load);
 

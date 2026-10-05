@@ -101,7 +101,7 @@ def test_prim_func_symbolic_alloc_buffer_roundtrip():
                         ty=buf.ty,
                     ),
                 ),
-                tirx.Evaluate(tirx.BufferLoad(buf, [0])),
+                tirx.Evaluate(tirx.TensorLoad(buf, [0])),
             ]
         ),
     ).with_attr("s_tir", True)

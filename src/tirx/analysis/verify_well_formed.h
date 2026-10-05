@@ -125,7 +125,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
  *   - DeclTensor statement
  *   - Dialect-specific definitions exposed by PathVisitor
  *
- * it must not appear in a BufferLoad, BufferStore, or BufferRegion outside that declaration's
+ * it must not appear in a TensorLoad, BufferStore, or BufferRegion outside that declaration's
  * scope.
  *
  * All buffers that appear in TensorLoad or BufferStore must have a prior declaration.
@@ -259,7 +259,7 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisito
       return;
     }
 
-    TensorLoad expected = BufferLoad(buffer.value(), op->indices, op->span);
+    TensorLoad expected = MakeTensorLoad(buffer.value(), op->indices, op->span);
     ffi::Optional<PrimType> asserted_ty = op->ty.as<PrimType>();
     ffi::Optional<PrimType> expected_ty = expected->ty.as<PrimType>();
     auto valid_type = Verify(asserted_ty.has_value() && expected_ty.has_value() &&

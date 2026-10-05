@@ -191,7 +191,8 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
 
     // A write whose destination is known to already contain the
     // values to be written is a no-op.
-    PrimExpr stores_existing_value = store->value - BufferLoad(store->buffer, store->indices) == 0;
+    PrimExpr stores_existing_value =
+        store->value - MakeTensorLoad(store->buffer, store->indices) == 0;
     stores_existing_value = analyzer_->Simplify(stores_existing_value);
     if (is_one(stores_existing_value)) {
       return only_side_effects();

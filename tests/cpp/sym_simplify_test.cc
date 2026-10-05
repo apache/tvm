@@ -97,12 +97,12 @@ TEST(AnalyzerObjectRef, CloneIsIndependent) {
   TVM_FFI_ICHECK(clone->modular_set(x)->coeff == 8);
 }
 
-TEST(Simplify, AssumeConstraintKeepsBufferLoadStable) {
+TEST(Simplify, AssumeConstraintKeepsTensorLoadStable) {
   using namespace tvm;
 
   sym::Analyzer analyzer;
   tirx::TensorVar buffer = tirx::decl_tensor({1}, PrimType::Int(32));
-  PrimExpr load = tirx::BufferLoad(buffer, {IntImm::Int32(0)});
+  PrimExpr load = tirx::MakeTensorLoad(buffer, {IntImm::Int32(0)});
   PrimExpr constraint = load > 0;
 
   {

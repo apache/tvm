@@ -598,7 +598,7 @@ void CodeGenTrainium::Dispatch_(const VarNode* op, std::ostream& os) {  // NOLIN
     // nki_dim is not specified for this loop variable
     // we need to use the buffer dimension where the variable appears
     if (ctx_.buffer_index == -1) {
-      // this var is not under BufferLoad. We don't know which dim it belongs to.
+      // this var is not under TensorLoad. We don't know which dim it belongs to.
       return;
     }
     dim = ctx_.buffer_index;

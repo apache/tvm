@@ -397,7 +397,7 @@ class _TensorMethods:
     def sub(self) -> "_buffer_view.SubIndexer":
         """Numpy-style view indexer: ``buf.sub[2, 4:8, ::4]``.
 
-        Unlike plain ``buf[...]`` (BufferLoad for scalar indices, extent-1
+        Unlike plain ``buf[...]`` (TensorLoad for scalar indices, extent-1
         TensorRegion dims for tile-primitive operands), ``sub`` follows numpy
         basic-indexing semantics as a *view constructor*: an integer index
         removes the dim (``select``), ``a:b`` narrows it, and ``a::s`` takes

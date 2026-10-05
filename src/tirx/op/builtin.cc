@@ -62,7 +62,7 @@ Type InferTypeMaskedLoad(const CallNode* call) {
     indices.push_back(call->args[i].as_or_throw<PrimExpr>());
   }
   // Ordinary load typing computes vector elements and scalable index lanes.
-  return BufferLoad(buffer, indices).ty();
+  return MakeTensorLoad(buffer, indices).ty();
 }
 
 Type InferTypeIsNaN(const CallNode* call) {

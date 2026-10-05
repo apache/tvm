@@ -238,7 +238,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
     }
   }
   TensorLoad new_buf_load =
-      BufferLoad(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), read_index);
+      MakeTensorLoad(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), read_index);
   BufferStore new_buf_store = BufferStore(write_region->source.as_or_throw<tvm::tirx::TensorVar>(),
                                           new_buf_load, write_index);
   Stmt ret = new_buf_store;

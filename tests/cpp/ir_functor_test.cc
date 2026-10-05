@@ -731,7 +731,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
   {
     // test identity substitution on expression
     TensorVar buffer = fmakebuffer();
-    PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
+    PrimExpr expr = MakeTensorLoad(buffer, {IntImm::Int32(0)});
     auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       return ffi::Any(var);
     };

@@ -264,7 +264,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
       if (call->op.same_as(builtin::decl_tensor())) return DispatchDeclTensor(op, call);
     }
     scope_.push_back(StmtEntry());
-    // visit subexpr (the value may contain BufferLoad)
+    // visit subexpr (the value may contain TensorLoad)
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     StmtEntry e = scope_.back();
     scope_.pop_back();
@@ -533,7 +533,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     TensorVar remapped = RemapBuffer(buffer, it->second->alloc_var);
     ffi::Array<PrimExpr> indices = node->indices;
     indices.Set(indices.size() - 1, RemapIndex(buffer->dtype, indices.back(), it->second));
-    return BufferLoad(remapped, indices, node->span);
+    return MakeTensorLoad(remapped, indices, node->span);
   }
 
   TensorVar RemapBuffer(TensorVar buf, Var new_backing_array) {
@@ -574,8 +574,8 @@ class StoragePlanRewriter : public StmtExprMutator {
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorLoad node = indices.UnchangedOrSameAs(op->indices)
                           ? ffi::GetRef<TensorLoad>(op)
-                          : BufferLoad(op->source.as_or_throw<TensorVar>(),
-                                       std::move(indices).ValueUnchecked(), op->span);
+                          : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
+                                           std::move(indices).ValueUnchecked(), op->span);
     return VisitBufferAccess(std::move(node));
   }
 
@@ -616,7 +616,7 @@ class StoragePlanRewriter : public StmtExprMutator {
             this->Mutate(op->args[i]).ValueOrUnchanged(op->args[i]).as_or_throw<PrimExpr>());
       }
       if (is_load) {
-        TensorLoad access = BufferLoad(buffer, indices, op->span);
+        TensorLoad access = MakeTensorLoad(buffer, indices, op->span);
         access = VisitBufferAccess(std::move(access));
         ffi::Array<Expr> args{access->source.as_or_throw<TensorVar>().var()};
         for (const PrimExpr& index : access->indices) args.push_back(index);
@@ -1595,7 +1595,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
    *
    * @param indices The index at which the value is being stored/loaded.
    *
-   * @param is_buffer_load Whether the access is BufferLoad
+   * @param is_buffer_load Whether the access is TensorLoad
    */
   void OnArrayAccess(PrimType value_dtype, const VarNode* buffer,
                      const ffi::Array<PrimExpr>& indices, bool is_buffer_load) {
@@ -1820,7 +1820,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
   /*!
    * \brief Mutator for TensorLoad or BufferStore.
-   * \return The rewritten node and the shuffle index. (Only for BufferLoad) When the shuffle index
+   * \return The rewritten node and the shuffle index. (Only for TensorLoad) When the shuffle index
    * is non-negative, the caller should generate Shuffle to extract the element from the vector.
    */
   template <typename Node>
@@ -1910,7 +1910,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       indices.Set(indices.size() - 1, new_index);
     }
 
-    return {BufferLoad(RemapBuffer(buffer), indices, node->span), shuffle_index};
+    return {MakeTensorLoad(RemapBuffer(buffer), indices, node->span), shuffle_index};
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
@@ -1918,8 +1918,8 @@ class VectorTypeRewriter : public StmtExprMutator {
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorLoad node = indices.UnchangedOrSameAs(op->indices)
                           ? ffi::GetRef<TensorLoad>(op)
-                          : BufferLoad(op->source.as_or_throw<TensorVar>(),
-                                       std::move(indices).ValueUnchecked(), op->span);
+                          : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
+                                           std::move(indices).ValueUnchecked(), op->span);
     auto [modified, shuffle_index] = VisitBufferAccess(node);
 
     // Not needed for BufferStoreNode, so we can't just call
@@ -1957,7 +1957,7 @@ class VectorTypeRewriter : public StmtExprMutator {
         indices.push_back(this->Mutate(op->args[i].as_or_throw<PrimExpr>())
                               .ValueOrUnchanged(op->args[i].as_or_throw<PrimExpr>()));
       }
-      TensorLoad access = BufferLoad(buffer, indices, op->span);
+      TensorLoad access = MakeTensorLoad(buffer, indices, op->span);
       auto [modified, shuffle_index] = VisitBufferAccess(access);
       TVM_FFI_ICHECK_LT(shuffle_index, 0)
           << "A masked vector load cannot be rewritten into a scalar shuffle.";

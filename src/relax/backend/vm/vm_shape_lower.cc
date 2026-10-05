@@ -718,8 +718,8 @@ class VMShapeLowerMutator
     ffi::Map<tirx::Var, PrimExpr> var_map;
     for (const auto& [expr, slot] : slot_map_) {
       if (auto var = expr.as<tirx::Var>()) {
-        var_map.Set(var.value(),
-                    tirx::BufferLoad(buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
+        var_map.Set(var.value(), tirx::MakeTensorLoad(
+                                     buffer, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
       }
     }
     auto f_substitute =

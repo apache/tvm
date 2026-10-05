@@ -2311,7 +2311,7 @@ class Schedule(Object):
 
         4) The body of the block must be a BufferStore statement in the form of,
            ``B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)`` where the
-           indices of each `BufferLoad` on the RHS are all distinct atomic
+           indices of each `TensorLoad` on the RHS are all distinct atomic
            variables, and no variables other than those indexing variables are
            allowed in the statement.
 
@@ -3371,7 +3371,7 @@ class Schedule(Object):
             insert an annotation block to state that the padding contains
             the known value.
 
-            The pad value may not contain instances of BufferLoad,
+            The pad value may not contain instances of TensorLoad,
             except where it loads a value from the buffer being
             transformed (e.g. to create a circular buffer with
             padding that consists of repeated elements).

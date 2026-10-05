@@ -411,7 +411,7 @@ class RollingBufferRewriter : public StmtExprMutator {
       TensorVar buffer = stmt->source.as_or_throw<tvm::tirx::TensorVar>();
       ffi::Array<PrimExpr> indices = stmt->indices;
       RewriteBufferAccess(&buffer, &indices);
-      return BufferLoad(buffer, indices, stmt->span);
+      return MakeTensorLoad(buffer, indices, stmt->span);
     }
     return stmt;
   }

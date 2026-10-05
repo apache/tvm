@@ -239,7 +239,8 @@ TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, Pr
  * is derived from the buffer element type and index lanes, and every tirx
  * TensorLoad is required to have a TensorVar source.
  */
-TVM_DLL TensorLoad BufferLoad(TensorVar buffer, ffi::Array<PrimExpr> indices, Span span = Span());
+TVM_DLL TensorLoad MakeTensorLoad(TensorVar buffer, ffi::Array<PrimExpr> indices,
+                                  Span span = Span());
 
 /*! \brief Construct a region with buffer rank validation and BufferRegionType. */
 TVM_DLL TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, Span span = Span());

@@ -345,8 +345,8 @@ class VecAllocAccess : public StmtExprMutator {
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorLoad load = indices.UnchangedOrSameAs(op->indices)
                           ? ffi::GetRef<TensorLoad>(op)
-                          : BufferLoad(op->source.as_or_throw<TensorVar>(),
-                                       std::move(indices).ValueUnchecked(), op->span);
+                          : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
+                                           std::move(indices).ValueUnchecked(), op->span);
     return UpdateBufferAccess(load);
   }
 
@@ -443,7 +443,7 @@ class VecAllocAccess : public StmtExprMutator {
     ffi::Array<PrimExpr> indices = node->indices;
     indices.Set(indices.size() - 1,
                 analyzer_->Simplify(indices.back() * var_lanes_ + var_.as_or_throw<PrimExpr>()));
-    return BufferLoad(buf, indices, node->span);
+    return MakeTensorLoad(buf, indices, node->span);
   }
 
   // buffer var
@@ -880,7 +880,7 @@ class Vectorizer : public StmtExprMutator {
       }
     }
   }
-  // BufferLoad
+  // TensorLoad
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     auto load = ffi::GetRef<TensorLoad>(op);
 
@@ -890,7 +890,7 @@ class Vectorizer : public StmtExprMutator {
     ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     if (!indices.same_as(op->indices)) {
-      return BufferLoad(op->source.as_or_throw<tvm::tirx::TensorVar>(), indices, op->span);
+      return MakeTensorLoad(op->source.as_or_throw<tvm::tirx::TensorVar>(), indices, op->span);
     }
 
     return load;

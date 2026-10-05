@@ -634,7 +634,7 @@ class BufferCompactor : public StmtExprMutator {
     TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
     ffi::Array<PrimExpr> indices = load->indices;
     RewriteBufferAccess(original_buffer, &buffer, &indices);
-    return BufferLoad(buffer, indices, load->span);
+    return MakeTensorLoad(buffer, indices, load->span);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {

@@ -192,7 +192,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return buffer_row_size.as<int>().value();
   }
 
-  ffi::Array<PrimExpr> HandleBufferIndices(TensorVar buffer, ffi::Array<PrimExpr> indices) {
+  ffi::Array<PrimExpr> HandleTensorIndices(TensorVar buffer, ffi::Array<PrimExpr> indices) {
     auto buffer_row_size = CheckAndGetBufferRowSize(buffer);
 
     // Mutate the last two indices
@@ -223,7 +223,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     }
 
     auto store_node = store.CopyOnWrite();
-    store_node->indices = HandleBufferIndices(store_node->buffer, store_node->indices);
+    store_node->indices = HandleTensorIndices(store_node->buffer, store_node->indices);
     return store;
   }
 
@@ -242,9 +242,9 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
       return load;
     }
 
-    return BufferLoad(
+    return MakeTensorLoad(
         load->source.as_or_throw<tvm::tirx::TensorVar>(),
-        HandleBufferIndices(load->source.as_or_throw<tvm::tirx::TensorVar>(), load->indices),
+        HandleTensorIndices(load->source.as_or_throw<tvm::tirx::TensorVar>(), load->indices),
         load->span);
   }
 

@@ -622,7 +622,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
            "FlattenBuffer";
     ffi::Array<PrimExpr> indices = {node->indices[0] +
                                     this->GetBufferOffset(buffer.var(), buffer->dtype->dtype)};
-    return BufferLoad(GetUpdatedBuffer(buffer), indices, node->span);
+    return MakeTensorLoad(GetUpdatedBuffer(buffer), indices, node->span);
   }
 
   TensorVar GetUpdatedBuffer(TensorVar buffer) {

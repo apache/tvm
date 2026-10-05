@@ -64,7 +64,7 @@ TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
- *        access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
+ *        access(TensorLoad, BufferStore) and low-level access(Load, Store and opaque access).
  *        The LCA may be a For loop or a Block.
  * \param func The PrimFunc to be detected.
  * \return The Map from buffer to the LCA of all access to it. The lca is function root if the

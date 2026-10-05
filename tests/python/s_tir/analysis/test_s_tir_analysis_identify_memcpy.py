@@ -69,7 +69,7 @@ def test_1d_compute():
         for i in T.serial(1024):
             B[i] = A[i] + 1.0
 
-    expected = "Expected BufferStore's value to be BufferLoad"
+    expected = "Expected BufferStore's value to be TensorLoad"
     _check_memcpy_results(func, expected)
 
 

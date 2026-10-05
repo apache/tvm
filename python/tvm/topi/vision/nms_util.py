@@ -26,20 +26,20 @@ from tvm.tirx.script import ir_builder as T
 
 def _get_boundaries(output, box_idx):
     l = tvm.te.min(
-        output[T.buffer_indices(output, box_idx)],
-        output[T.buffer_indices(output, box_idx + 2)],
+        output[T.tensor_indices(output, box_idx)],
+        output[T.tensor_indices(output, box_idx + 2)],
     )
     t = tvm.te.min(
-        output[T.buffer_indices(output, box_idx + 1)],
-        output[T.buffer_indices(output, box_idx + 3)],
+        output[T.tensor_indices(output, box_idx + 1)],
+        output[T.tensor_indices(output, box_idx + 3)],
     )
     r = tvm.te.max(
-        output[T.buffer_indices(output, box_idx)],
-        output[T.buffer_indices(output, box_idx + 2)],
+        output[T.tensor_indices(output, box_idx)],
+        output[T.tensor_indices(output, box_idx + 2)],
     )
     b = tvm.te.max(
-        output[T.buffer_indices(output, box_idx + 1)],
-        output[T.buffer_indices(output, box_idx + 3)],
+        output[T.tensor_indices(output, box_idx + 1)],
+        output[T.tensor_indices(output, box_idx + 3)],
     )
     return l, t, r, b
 
@@ -71,16 +71,16 @@ def binary_search(y, num_boxes, scores, score_threshold, out):
     hi_buf = T.decl_tensor([1], "int32", scope="local")
     lo = lo_buf
     hi = hi_buf
-    T.buffer_store(lo, T.int32(0), T.buffer_indices(lo, 0))
-    T.buffer_store(hi, tvm.tirx.Cast("int32", num_boxes), T.buffer_indices(hi, 0))
-    with T.while_(lo[T.buffer_indices(lo, 0)] < hi[T.buffer_indices(hi, 0)]):
-        mid = (hi[T.buffer_indices(hi, 0)] + lo[T.buffer_indices(lo, 0)]) >> 1
+    T.buffer_store(lo, T.int32(0), T.tensor_indices(lo, 0))
+    T.buffer_store(hi, tvm.tirx.Cast("int32", num_boxes), T.tensor_indices(hi, 0))
+    with T.while_(lo[T.tensor_indices(lo, 0)] < hi[T.tensor_indices(hi, 0)]):
+        mid = (hi[T.tensor_indices(hi, 0)] + lo[T.tensor_indices(lo, 0)]) >> 1
         with T.if_(scores[y, mid] > score_threshold):
             with T.then_():
-                T.buffer_store(lo, mid + 1, T.buffer_indices(lo, 0))
+                T.buffer_store(lo, mid + 1, T.tensor_indices(lo, 0))
             with T.else_():
-                T.buffer_store(hi, mid, T.buffer_indices(hi, 0))
-    T.buffer_store(out, lo[T.buffer_indices(lo, 0)], T.buffer_indices(out, y))
+                T.buffer_store(hi, mid, T.tensor_indices(hi, 0))
+    T.buffer_store(out, lo[T.tensor_indices(lo, 0)], T.tensor_indices(out, y))
 
 
 def _estimate_max_detections(batch_class, input_image_size=None):

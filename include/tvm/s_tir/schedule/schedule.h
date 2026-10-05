@@ -607,7 +607,7 @@ class ScheduleNode : public ffi::Object {
    * 3) The only producer of the block is a read-after-write producer and a complete non-root block
    * 4) The body of the block must be a BufferStore statement in the form of,
    *    B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)
-   * where the indices of each `BufferLoad` on the RHS are all distinct atomic variables,
+   * where the indices of each `TensorLoad` on the RHS are all distinct atomic variables,
    * and no variables other than those indexing variables are allowed in the statement.
    * \param block The block to be inlined to its producer
    */

@@ -47,7 +47,7 @@ using namespace tvm::tirx;
  *
  * 1. NoPaddingRequired.  The transformation does not introduce
  * padding, so only local changes to update the indices of
- * BufferLoad/BufferStore nodes are required.  No blocks are added,
+ * TensorLoad/BufferStore nodes are required.  No blocks are added,
  * removed, or replaced.
  *
  * 2. ProloguePlan.  The transformation introduces padding, but the
@@ -526,7 +526,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<sym::Analyzer>(analyzer))[0];
-    PrimExpr expr = (!padding_predicate) || (BufferLoad(new_buffer, indices) == pad_value_at_index);
+    PrimExpr expr =
+        (!padding_predicate) || (MakeTensorLoad(new_buffer, indices) == pad_value_at_index);
     Stmt stmt =
         Evaluate(Call(PrimType::Bool(), tirx::builtin::assume(), {expr}).as_or_throw<PrimExpr>());
 
@@ -900,7 +901,7 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
       TensorVar buffer = buffer_load->source.as_or_throw<tvm::tirx::TensorVar>();
       ffi::Array<PrimExpr> indices = buffer_load->indices;
       RewriteBufferAccess(&buffer, &indices);
-      return BufferLoad(buffer, indices, buffer_load->span);
+      return MakeTensorLoad(buffer, indices, buffer_load->span);
     }
     return buffer_load;
   }
@@ -1296,7 +1297,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   new_buffer_type->shape = index_map->MapShape(old_buffer->shape, analyzer);
   TensorVar new_buffer = RebuildTensorVar(old_buffer, std::move(new_buffer_type));
 
-  // Step 3: Rewrite BufferLoad/BufferStore access indices, block read/write regions, and block
+  // Step 3: Rewrite TensorLoad/BufferStore access indices, block read/write regions, and block
   // alloc_buffers.
   auto [new_stmt, block_sref_reuse] =
       TransformLayoutRewriter::Rewrite(ffi::GetRef<SBlock>(scope_block), old_buffer, new_buffer,

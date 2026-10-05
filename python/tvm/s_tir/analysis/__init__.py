@@ -79,7 +79,7 @@ def get_sblock_read_write_region(
 
 def detect_buffer_access_lca(func: PrimFunc) -> dict[Var, Stmt]:
     """Detect the lowest common ancestor(LCA) of buffer access, including both high-level
-    access (BufferLoad, BufferStore) and low-level access (BufferLoad, BufferStore and opaque
+    access (TensorLoad, BufferStore) and low-level access (TensorLoad, BufferStore and opaque
     access).
     The LCA may be a For loop or a Block.
 

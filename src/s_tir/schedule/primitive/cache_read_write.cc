@@ -221,7 +221,7 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
       /*name_hint*/ cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
-      BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
+      BufferStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
       /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
@@ -324,7 +324,7 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
       /*name_hint=*/cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
-      BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
+      BufferStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
       /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
@@ -431,7 +431,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
       /*writes=*/{BufferRegionFromPoint(info->write_buffer, dst_indices)},
       /*name_hint=*/info->write_buffer.name() + "_reindex",
       /*body=*/
-      BufferStore(info->write_buffer, BufferLoad(info->read_buffer, src_indices), dst_indices));
+      BufferStore(info->write_buffer, MakeTensorLoad(info->read_buffer, src_indices), dst_indices));
 
   // Step 4: Create surrounding loops
 

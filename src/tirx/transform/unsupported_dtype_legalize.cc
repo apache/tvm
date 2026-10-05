@@ -263,13 +263,13 @@ class ComputeLegalizer : public StmtExprMutator {
       if (is_load) {
         for (const PrimExpr& index : indices) args.push_back(index);
         args.push_back(predicate);
-        Type type = BufferLoad(buffer, indices).ty();
+        Type type = MakeTensorLoad(buffer, indices).ty();
         return Call(type, op->op, args, op->attrs, op->ty_args, op->span);
       }
       if (MatchType(buffer->dtype)) {
-        value = CastTargetToDType(value.value(), BufferLoad(buffer, indices).ty());
+        value = CastTargetToDType(value.value(), MakeTensorLoad(buffer, indices).ty());
       }
-      PrimType storage_dtype = BufferLoad(buffer, indices).ty();
+      PrimType storage_dtype = MakeTensorLoad(buffer, indices).ty();
       if (value.value().ty() != storage_dtype) {
         TVM_FFI_ICHECK(MatchType(value.value().ty()));
         value = DTypeConversion(value.value(), storage_dtype);
@@ -382,9 +382,9 @@ class ComputeLegalizer : public StmtExprMutator {
       return ffi::Unchanged();
     } else {
       if (MatchType(new_buf->dtype)) {
-        value = CastTargetToDType(value, BufferLoad(new_buf, indices).ty());
+        value = CastTargetToDType(value, MakeTensorLoad(new_buf, indices).ty());
       }
-      PrimType storage_dtype = BufferLoad(new_buf, indices).ty();
+      PrimType storage_dtype = MakeTensorLoad(new_buf, indices).ty();
       if (value.ty() != storage_dtype) {
         // this happens when buffer get rewritten to f32
         // but values remain as fp8/bf16
@@ -449,7 +449,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (buffer.same_as(op->source) && indices.same_as(op->indices)) {
       return ffi::Unchanged();
     }
-    return BufferLoad(buffer, indices, op->span);
+    return MakeTensorLoad(buffer, indices, op->span);
   }
 
  private:
@@ -612,7 +612,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (buffer.same_as(op->source) && indices.same_as(op->indices)) {
       return ffi::Unchanged();
     }
-    return BufferLoad(buffer, indices, op->span);
+    return MakeTensorLoad(buffer, indices, op->span);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -653,7 +653,7 @@ class StorageLegalizer : public StmtExprMutator {
                          .ValueOrUnchanged(op->args[op->args.size() - 1])
                          .as_or_throw<Expr>());
       if (is_load) {
-        Type type = BufferLoad(buffer, indices).ty();
+        Type type = MakeTensorLoad(buffer, indices).ty();
         return Call(type, op->op, args, op->attrs, op->ty_args, op->span);
       } else {
         return Call(PrimType::Void(), op->op, args, op->attrs, op->ty_args, op->span);

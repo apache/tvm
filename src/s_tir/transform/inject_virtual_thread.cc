@@ -311,7 +311,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
                                .ValueOrUnchanged(op->args[op->args.size() - 1])
                                .as_or_throw<PrimExpr>();
       if (is_load) {
-        TensorLoad access = VisitBufferAccess(BufferLoad(buffer, indices, op->span));
+        TensorLoad access = VisitBufferAccess(MakeTensorLoad(buffer, indices, op->span));
         ffi::Array<Expr> args{access->source.as_or_throw<tvm::tirx::TensorVar>().var()};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(predicate);
@@ -358,7 +358,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     trigger_base_inject_ = !allow_share_;
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
-  // BufferLoad
+  // TensorLoad
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorLoad node = ffi::GetRef<TensorLoad>(op);
@@ -696,7 +696,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
    *
    * Maps from the buffer_var of an allocate node to the original
    * extent of the allocation.  Used when rewriting the indices of
-   * BufferLoad/BufferStore.
+   * TensorLoad/BufferStore.
    */
   std::unordered_map<const VarNode*, PrimExpr> alloc_remap_;
   /*! \brief Map of buffers that are modified.

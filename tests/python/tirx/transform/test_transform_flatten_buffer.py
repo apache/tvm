@@ -52,7 +52,7 @@ def _collect_defined_buffers(func):
 
 
 def _assert_loads_reference_defined_buffers(func):
-    """Every BufferLoad — direct, or embedded in a buffer's type fields —
+    """Every TensorLoad — direct, or embedded in a buffer's type fields —
     must reference a buffer defined by an AllocTensor/DeclTensor in the
     function."""
     defined = _collect_defined_buffers(func)

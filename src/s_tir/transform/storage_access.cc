@@ -302,7 +302,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(load));
     } else {
       // address_of also accepts scalar variables (e.g. tcgen registers).
-      // Recurse without assuming the argument is a BufferLoad.
+      // Recurse without assuming the argument is a TensorLoad.
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }
   } else if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {

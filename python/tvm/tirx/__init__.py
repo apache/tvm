@@ -40,7 +40,7 @@ from .expr import Var, Reduce, FloatImm, IntImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import LShift, RShift, BitwiseAnd, BitwiseOr, BitwiseXor, BitwiseNot
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
-from .expr import Select, BufferLoad, Ramp, Broadcast, Shuffle
+from .expr import Select, TensorLoad, Ramp, Broadcast, Shuffle
 from .expr import CallEffectKind, Let, IterVar, CommReducer
 
 from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Continue

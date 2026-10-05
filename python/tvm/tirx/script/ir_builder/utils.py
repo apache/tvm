@@ -110,7 +110,7 @@ def seq_scope():
     return _ffi_api.Attr(0, "pragma_scope", StringImm("seq"))
 
 
-def buffer_indices(buffer: Var, index):
+def tensor_indices(buffer: Var, index):
     """Translate logical flat or multidimensional indices for a concrete buffer.
 
     A single index is unraveled in row-major logical order, retaining the
