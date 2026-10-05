@@ -26,7 +26,6 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
 
 #include "ir_utils.h"
 
@@ -51,8 +50,8 @@ class OpaqueBlockLower : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    // Attribute metadata can reference a loop variable replaced by a fresh
-    // launch binding. Rewrite it before descending into body-local definitions.
+    // Attribute metadata can reference a unit loop variable that is replaced.
+    // Rewrite it before descending into body-local definitions.
     auto node = this->Mutate(op->node, inplace_mode);
     auto value = this->Mutate(op->value, inplace_mode);
     auto body = this->Mutate(op->body, inplace_mode);
@@ -119,52 +118,37 @@ class OpaqueBlockLower : public StmtExprMutator {
                     .as_or_throw<UnchangedOr<ffi::Optional<PrimExpr>>>()
                     .ValueOrUnchanged(op->step);
     auto previous_remap = VarRemapGet(op->loop_var);
-    PrimVar launch_var(ffi::UnsafeInit{});
-    if (op->kind == ForKind::kThreadBinding) {
-      TVM_FFI_ICHECK(is_zero(min)) << "Thread binding loops must start at zero";
-      launch_var = PrimVar(op->loop_var->name, extent.ty());
-      VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), launch_var));
-    } else if (is_one(extent) && op->annotations.empty()) {
+    if (op->kind != ForKind::kThreadBinding && is_one(extent) && op->annotations.empty()) {
       // handling unit loop
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
 
     // Step 2. Annotations may refer to the loop's own variable. Rewrite them
-    // with the launch binding active, before visiting body-local definitions.
+    // before visiting body-local definitions.
     std::vector<std::pair<std::string, Expr>> pragma_attrs;
     ffi::Map<ffi::String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
 
-    // Step 3. Visit recursively with a body-local launch binding.
+    // Step 3. Visit recursively.
     Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     VarRemapSet(op->loop_var, previous_remap);
 
-    // Step 4. Create new For loop accordingly
-    if (op->kind == ForKind::kThreadBinding) {
-      // Case 1. Thread binding
-      TVM_FFI_ICHECK(!op->annotations.count("loop_partition_hint") ||
-                     op->annotations.at("loop_partition_hint") == nullptr)
-          << "Run LoopPartition before opaque lowering of a thread-binding loop with "
-             "loop_partition_hint";
-      TVM_FFI_ICHECK(op->thread_binding.has_value());
-    } else if (is_one(extent) && op->annotations.empty() &&
-               !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
-      // Case 2. Unit loop
+    // Step 4. Keep thread-binding loops until LowerThreadBinding.
+    if (op->kind != ForKind::kThreadBinding && is_one(extent) && op->annotations.empty() &&
+        !op->annotations.count(s_tir::attr::irregular_loop_mark)) {
       return body;
-    } else {
-      // Case 3. An ordinary loop
-      body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 std::nullopt, new_annotations, std::move(step));
     }
-    // Step 5. Insert nested attrs
+    if (op->kind != ForKind::kThreadBinding) {
+      body = For(op->loop_var, min, extent, op->kind, std::move(body), op->thread_binding,
+                 new_annotations, step);
+    }
+    // Step 5. Insert nested attrs inside thread-binding scope.
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-      Var var = op->kind == ForKind::kThreadBinding ? Var(launch_var) : Var(op->loop_var);
-      body = AttrStmt(var, it->first, it->second, std::move(body));
+      body = AttrStmt(op->loop_var, it->first, it->second, std::move(body));
     }
     if (op->kind == ForKind::kThreadBinding) {
-      return RegionStmt(tirx::builtin::launch_thread(),
-                        {StringImm(op->thread_binding.value()->thread_tag), extent}, {launch_var},
-                        DictAttrs(), body, {}, op->span);
+      body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
+                 op->thread_binding, std::move(new_annotations), std::move(step), op->span);
     }
     return body;
   }

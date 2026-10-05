@@ -168,16 +168,18 @@ def InjectPermutedLayout():
     return _ffi_api.InjectPermutedLayout()  # type: ignore
 
 
-def UnifyThreadBinding():
-    """Unify all the thread bindings for "blockIdx.x/y/z",
-    "threadIdx.x/y/z", and "vthread.x/y/z".
+def LowerThreadBinding():
+    """Lower thread-binding loops to fresh lexical launch regions.
+
+    Run after LoopPartition and LowerOpaqueBlock. Each loop keeps its own
+    lexical binding, including loops that use the same hardware axis.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.UnifyThreadBinding()  # type: ignore
+    return _ffi_api.LowerThreadBinding()  # type: ignore
 
 
 def InjectSoftwarePipeline():

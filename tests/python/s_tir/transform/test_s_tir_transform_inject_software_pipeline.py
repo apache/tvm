@@ -1568,14 +1568,13 @@ def test_async_pipelined_mma_gemm_simple():
         [
             tvm.s_tir.transform.PlanAndUpdateBufferAllocationLocation(),
             tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.UnifyThreadBinding(),
             tvm.s_tir.transform.LowerMatchBuffer(),
             tvm.s_tir.transform.InjectSoftwarePipeline(),
         ]
     )
     mod = seq(sch.mod)
 
-    pipeline = mod["main"].body.block.body.body.body.body.body.block.body[1].block.body
+    pipeline = mod["main"].body.block.body.body.body.body.block.body[1].block.body
     prologue, body, epilogue = pipeline
 
     commit_queue_scope = prologue.block.body.body.block.body
@@ -1614,14 +1613,13 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
         [
             tvm.s_tir.transform.PlanAndUpdateBufferAllocationLocation(),
             tvm.s_tir.transform.ConvertBlocksToOpaque(),
-            tvm.s_tir.transform.UnifyThreadBinding(),
             tvm.s_tir.transform.LowerMatchBuffer(),
             tvm.s_tir.transform.InjectSoftwarePipeline(),
         ]
     )
     mod = seq(sch.mod)
 
-    pipeline = mod["main"].body.block.body.body.body.body.body.block.body[1].block.body
+    pipeline = mod["main"].body.block.body.body.body.body.block.body[1].block.body
     prologue, body, epilogue = pipeline
 
     commit_queue_scope = prologue.block.body.body[0].block.body

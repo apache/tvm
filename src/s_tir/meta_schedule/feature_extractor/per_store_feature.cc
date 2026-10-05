@@ -264,14 +264,17 @@ namespace transform {
  * \brief Create a pass that simplifies the IR for feature extraction
  * \return The pass created
  */
-Pass SimplifyForFeatureExtraction() {
+Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
   class Simplifier : public StmtExprMutator {
    public:
     using StmtExprMutator::Mutate;
     using StmtExprMutator::Mutate_;
 
-    static Stmt Run(Stmt stmt) {
-      return ffi::make_object<Simplifier>()
+    explicit Simplifier(bool normalize_thread_bindings)
+        : normalize_thread_bindings_(normalize_thread_bindings) {}
+
+    static Stmt Run(Stmt stmt, bool normalize_thread_bindings) {
+      return ffi::make_object<Simplifier>(normalize_thread_bindings)
           ->Mutate(stmt, InplaceMode::kAllow)
           .ValueOrUnchanged(std::move(stmt));
     }
@@ -286,6 +289,7 @@ Pass SimplifyForFeatureExtraction() {
     }
 
     UnchangedOr<PrimExpr> Mutate_(const SelectNode* node, InplaceMode inplace_mode) final {
+      if (normalize_thread_bindings_) return StmtExprMutator::Mutate_(node, inplace_mode);
       if (HasTensorLoad(node->true_value) || HasTensorLoad(node->false_value) ||
           HasTensorLoad(node->condition)) {
         return ffi::Unchanged();
@@ -294,22 +298,107 @@ Pass SimplifyForFeatureExtraction() {
     }
 
     UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
-      if (is_zero(loop->extent)) {
+      auto mutate_retained_loop = [&]() -> UnchangedOr<Stmt> {
+        if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(loop, inplace_mode);
+        auto annotations = Mutate(loop->annotations, inplace_mode)
+                               .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
+        auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
+        if (annotations.UnchangedOrSameAs(loop->annotations)) return result;
+        For updated =
+            std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(loop)).as_or_throw<For>();
+        updated.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
+        return updated;
+      };
+      if (!normalize_thread_bindings_ && is_zero(loop->extent)) {
         return Evaluate(0);
       }
-      if (is_zero(loop->min) && is_one(loop->extent) && loop->kind == ForKind::kSerial &&
-          loop->annotations.empty()) {
+      if (normalize_thread_bindings_ && loop->kind == ForKind::kThreadBinding) {
+        const auto& tag = loop->thread_binding.value()->thread_tag;
+        if (support::StartsWith(tag, "vthread")) {
+          // Virtual axes are independent iterations and isolate hardware aliases.
+          thread_bindings_.push_back(nullptr);
+          auto result = mutate_retained_loop();
+          thread_bindings_.pop_back();
+          return result;
+        }
+        for (auto it = thread_bindings_.rbegin(); it != thread_bindings_.rend() && *it; ++it) {
+          const ForNode* outer = *it;
+          if (outer->thread_binding.value()->thread_tag != tag) continue;
+          // Feature counts describe hardware work, not repeated lexical names
+          // for one axis. Normalize only nested aliases in this analysis input.
+          sym::Analyzer analyzer;
+          TVM_FFI_CHECK(analyzer->CanProveEqual(loop->min, outer->min) &&
+                            analyzer->CanProveEqual(loop->extent, outer->extent),
+                        ValueError)
+              << "Incompatible nested thread extents for " << tag;
+          auto previous_remap = VarRemapGet(loop->loop_var);
+          VarRemapSet(loop->loop_var, prim::cast(loop->loop_var.ty(), outer->loop_var));
+          auto annotations = Mutate(loop->annotations, inplace_mode)
+                                 .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>()
+                                 .ValueOrUnchanged(loop->annotations);
+          Stmt body = Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
+          VarRemapSet(loop->loop_var, previous_remap);
+          if (!annotations.empty()) {
+            PrimType ty = loop->loop_var.ty();
+            body = For(PrimVar("annotation", ty), IntImm(ty, 0), IntImm(ty, 1), ForKind::kSerial,
+                       std::move(body), std::nullopt, std::move(annotations), std::nullopt);
+          }
+          return body;
+        }
+        thread_bindings_.push_back(loop);
+        auto result = mutate_retained_loop();
+        thread_bindings_.pop_back();
+        return result;
+      }
+      if (!normalize_thread_bindings_ && is_zero(loop->min) && is_one(loop->extent) &&
+          loop->kind == ForKind::kSerial && loop->annotations.empty()) {
         VarRemapSet(loop->loop_var, MakeConst(loop->loop_var.ty(), 0.0));
         return Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
       } else {
-        return StmtExprMutator::Mutate_(loop, inplace_mode);
+        return mutate_retained_loop();
       }
     }
+
+    UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
+      if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(op, inplace_mode);
+      auto node = Mutate(op->node, inplace_mode);
+      auto value = Mutate(op->value, inplace_mode);
+      auto body = Mutate(op->body, inplace_mode);
+      if (node.UnchangedOrSameAs(op->node) && value.UnchangedOrSameAs(op->value) &&
+          body.UnchangedOrSameAs(op->body)) {
+        return ffi::Unchanged();
+      }
+      return AttrStmt(std::move(node).ValueOrUnchanged(op->node), op->attr_key,
+                      std::move(value).ValueOrUnchanged(op->value),
+                      std::move(body).ValueOrUnchanged(op->body), op->span);
+    }
+
+    UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
+      if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(op, inplace_mode);
+      auto annotations = Mutate(op->annotations, inplace_mode)
+                             .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
+      auto result = StmtExprMutator::Mutate_(op, inplace_mode);
+      if (annotations.UnchangedOrSameAs(op->annotations)) return result;
+      SBlock block =
+          std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
+      block.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
+      return block;
+    }
+
+    UnchangedOr<Stmt> Mutate_(const RegionStmtNode* region, InplaceMode inplace_mode) final {
+      thread_bindings_.push_back(nullptr);
+      auto result = StmtExprMutator::Mutate_(region, inplace_mode);
+      thread_bindings_.pop_back();
+      return result;
+    }
+
+    bool normalize_thread_bindings_;
+    std::vector<const ForNode*> thread_bindings_;
   };
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [normalize_thread_bindings](PrimFunc f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     PrimFuncNode* n = f.CopyOnWrite();
-    n->body = Simplifier::Run(std::move(n->body).value());
+    n->body = Simplifier::Run(std::move(n->body).value(), normalize_thread_bindings);
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});
@@ -330,7 +419,7 @@ tvm::transform::Sequential PassListForPerStoreFeature() {
       s_tir::transform::CompactBufferAllocation(),
       s_tir::transform::StmtSimplify(),
       s_tir::transform::LowerAutoCopy(),
-      s_tir::transform::UnifyThreadBinding(),
+      s_tir::transform::SimplifyForFeatureExtraction(/*normalize_thread_bindings=*/true),
       s_tir::transform::LowerMatchBuffer(),
       s_tir::transform::StmtSimplify(),
   });

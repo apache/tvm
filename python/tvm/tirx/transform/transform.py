@@ -243,17 +243,6 @@ def LowerThreadAllreduce():
     return _ffi_api.LowerThreadAllreduce()
 
 
-def UnifyThreadBinding():
-    """Unify loop and attribute bindings of each thread axis within a kernel.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass.
-    """
-    return _ffi_api.UnifyThreadBinding()
-
-
 def ConvertSSA():
     """Convert an IRModule to be SSA form.
 
@@ -546,7 +535,8 @@ def LowerTIRxOpaque():
 
     Handles allocation call lowering, For(thread_binding) to RegionStmt(launch_thread)
     conversion, unit loop elimination, and pragma annotation handling.
-    This is the tirx-specific counterpart of s_tir.LowerOpaqueBlock,
+    This is the tirx-specific counterpart of s_tir.LowerOpaqueBlock and
+    s_tir.LowerThreadBinding,
     without any SBlock/SBlockRealize handling.
 
     Run s_tir.transform.LoopPartition first when thread-binding loops carry

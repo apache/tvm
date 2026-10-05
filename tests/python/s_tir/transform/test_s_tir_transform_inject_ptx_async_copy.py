@@ -149,6 +149,7 @@ def test_inject_async_copy():
 
         mod = tvm.IRModule.from_expr(f)
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+        mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
         mod = tvm.tirx.transform.FlattenBuffer()(mod)
         if vec_size > 1:
             mod = tvm.tirx.transform.VectorizeLoop()(mod)
@@ -182,6 +183,7 @@ def test_inject_async_copy_shared_dyn():
 
     mod = tvm.IRModule.from_expr(f)
     mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
     mod = tvm.tirx.transform.FlattenBuffer()(mod)
     mod = tvm.tirx.transform.VectorizeLoop()(mod)
     mod = tvm.s_tir.transform.MergeSharedMemoryAllocations()(mod)
