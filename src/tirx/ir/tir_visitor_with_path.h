@@ -83,8 +83,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
       Dispatch_(buffer_region, path);
     } else if (auto* lambda = obj.as<LambdaExprNode>()) {
       VisitLambda(lambda, path);
-    } else if (obj.as<OpNode>()) {
-      return;
     } else if (obj.as<OpaqueExprNode>()) {
       Dispatch(obj, path);
     } else {

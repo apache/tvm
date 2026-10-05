@@ -39,7 +39,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     # Extract operation components
     binary_output, reduce_output = op.dsts
     binary_input1, binary_input2 = op.srcs
-    reduce_axes = [int(i) for i in op.reduce_axes]
+    reduce_axes = op.reduce_axes
     analyzer = init_analyzer(sctx)
 
     # Normalize negative axes

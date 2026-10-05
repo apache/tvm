@@ -43,7 +43,7 @@ def test_hint_keyword_arg_on_tx_op():
         config={"hint": "3-input ptx"},
     )
     assert "hint" in op_call.config
-    assert op_call.config["hint"].value == "3-input ptx"
+    assert str(op_call.config["hint"]) == "3-input ptx"
 
 
 def test_hint_keyword_arg_on_tx_op_roundtrip():

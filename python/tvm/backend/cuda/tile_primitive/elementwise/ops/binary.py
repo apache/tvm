@@ -33,7 +33,7 @@ import functools
 import operator
 from typing import Any
 
-from tvm.ir import StringImm, TensorRegion
+from tvm.ir import TensorRegion
 from tvm.script import tirx as Tx
 from tvm.tirx import TilePrimitiveCall
 
@@ -82,7 +82,7 @@ def _parse_binary_for(op_name: str):
         extras: dict[str, Any] = {}
         rm = op.config.get("rounding_mode", None)
         if rm is not None:
-            extras["rounding_mode"] = rm.value if isinstance(rm, StringImm) else rm
+            extras["rounding_mode"] = rm
         return Plan(dst=_dst, srcs=srcs, extras=extras), None
 
     return parse

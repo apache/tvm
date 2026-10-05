@@ -193,10 +193,10 @@ class TilePrimitiveCallNode : public StmtNode {
  public:
   explicit TilePrimitiveCallNode(ffi::UnsafeInit tag) : op(tag) {}
 
-  TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Optional<Expr>> args,
+  TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Any> args,
                         ffi::Map<ffi::String, BufferVar> workspace,
-                        ffi::Map<ffi::String, ffi::Optional<Expr>> config,
-                        ffi::Optional<ffi::String> dispatch, ExecScope scope)
+                        ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
+                        ExecScope scope)
       : op(std::move(op)),
         args(std::move(args)),
         workspace(std::move(workspace)),
@@ -208,13 +208,13 @@ class TilePrimitiveCallNode : public StmtNode {
   tvm::Op op;
 
   // Arguments to the operator.
-  ffi::Array<ffi::Optional<Expr>> args;
+  ffi::Array<ffi::Any> args;
 
   // Workspace (pre-allocated buffers) for the operator.
   ffi::Map<ffi::String, BufferVar> workspace;
 
   // Config for the operator/scheduler.
-  ffi::Map<ffi::String, ffi::Optional<Expr>> config;
+  ffi::Map<ffi::String, ffi::Any> config;
 
   // Optional dispatch variant name registered via @register_dispatch.
   ffi::Optional<ffi::String> dispatch{std::nullopt};
@@ -242,9 +242,9 @@ class TilePrimitiveCallNode : public StmtNode {
  */
 class TilePrimitiveCall : public Stmt {
  public:
-  TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Optional<Expr>> args,
+  TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
                             ffi::Map<ffi::String, BufferVar> workspace = {},
-                            ffi::Map<ffi::String, ffi::Optional<Expr>> config = {},
+                            ffi::Map<ffi::String, ffi::Any> config = {},
                             ffi::Optional<ffi::String> dispatch = std::nullopt,
                             ExecScope scope = ExecScope(ScopeKind::kThread));
 

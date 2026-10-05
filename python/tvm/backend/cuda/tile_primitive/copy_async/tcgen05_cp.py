@@ -196,8 +196,7 @@ def _cp_lane_replica_pattern(shape: str, multicast: str):
 
 def _resolve_cp_shape(op_call: TilePrimitiveCall):
     """Resolve (shape, multicast) from an explicit ``shape=`` config."""
-    shape = op_call.config["shape"]
-    shape = shape.value if isinstance(shape, StringImm) else str(shape)
+    shape = str(op_call.config["shape"])
     multicast = op_call.config.get("multicast")
     allowed = _CP_SHAPE_MULTICASTS.get(shape)
     if allowed is None:
@@ -213,7 +212,7 @@ def _resolve_cp_shape(op_call: TilePrimitiveCall):
                 f"choose one of {list(allowed)}"
             )
     else:
-        multicast = multicast.value if isinstance(multicast, StringImm) else str(multicast)
+        multicast = str(multicast)
         if multicast not in allowed:
             raise ValueError(
                 f"illegal multicast {multicast!r} for tcgen05.cp shape {shape!r}; "
@@ -335,8 +334,6 @@ def _build_plan(op_call: TilePrimitiveCall):
         return _plan_for_shape(op_call, shape, multicast)
     # No shape config: infer from the buffer layouts.
     multicast_cfg = op_call.config.get("multicast")
-    if isinstance(multicast_cfg, StringImm):
-        multicast_cfg = multicast_cfg.value
     errors = []
     for shape, multicast in _CP_SHAPE_CANDIDATES:
         if multicast_cfg is not None and str(multicast_cfg) != multicast:
@@ -743,10 +740,7 @@ def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
 # need synchronization.
 # -----------------------------------------------------------------------------
 def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
-    decompress = op_call.config.get("decompress")
-    if isinstance(decompress, StringImm):
-        decompress = decompress.value
-    if decompress:
+    if op_call.config.get("decompress"):
         # fp4/fp6->fp8 in-flight decompression needs dtype-pair plan derivation
         # the planner can't lower; reject loudly rather than copy undecompressed.
         raise ValueError("tcgen05.cp planner does not support decompress")

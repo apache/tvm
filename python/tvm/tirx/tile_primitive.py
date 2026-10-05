@@ -27,7 +27,7 @@ from typing import Any, ClassVar
 import tvm_ffi
 from tvm_ffi import register_object
 
-from tvm.ir import Array, Expr, Op, Range, Tuple
+from tvm.ir import Expr, Op, Range
 from tvm.runtime import Object, Scriptable
 from tvm.target import Target
 
@@ -243,9 +243,7 @@ class DispatchContext(Object, Scriptable):
         return self.scope_kind == "cluster"
 
 
-def normalize_const_arg(arg) -> Expr | None:
-    if isinstance(arg, list | tuple | Array):
-        return Tuple([normalize_const_arg(value) for value in arg])
+def normalize_const_arg(arg) -> Expr:
     if isinstance(arg, float):
         return FloatImm("float32", arg)
     return arg
@@ -266,7 +264,7 @@ class TilePrimitiveCall(Stmt):
     workspace : Map[str, Buffer]
         The workspace.
 
-    config : Map[str, Optional[Expr]]
+    config : Map[str, ObjectRef]
         The scheduler/config dictionary.
 
     dispatch : Optional[str]
@@ -276,9 +274,9 @@ class TilePrimitiveCall(Stmt):
         The cooperation scope of this call. Defaults to ``thread`` (an unscoped call).
     """
 
-    args: list[Expr | None]
+    args: list[Expr]
     workspace: dict[str, Buffer]
-    config: dict[str, Expr | None]
+    config: dict[str, Any]
     dispatch: str | None
     scope: ExecScope
     _registry: ClassVar[dict[Op, type["TilePrimitiveCall"]]] = {}
@@ -304,7 +302,6 @@ class TilePrimitiveCall(Stmt):
             )
             op = self.__class__.op
         args = list(map(normalize_const_arg, args))
-        config = {key: normalize_const_arg(value) for key, value in config.items()}
         self.__init_handle_by_constructor__(
             _ffi_api.TilePrimitiveCall,
             op,
