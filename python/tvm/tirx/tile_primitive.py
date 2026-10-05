@@ -25,13 +25,13 @@ from typing import Any, ClassVar
 import tvm_ffi
 from tvm_ffi import register_object
 
-from tvm.ir import Array, Expr, Op, Range, StringImm, Tuple, Var
-from tvm.runtime import Object, Scriptable, const
+from tvm.ir import Expr, Op, Range, Var
+from tvm.runtime import Object, Scriptable
 from tvm.target import Target
 
 from . import _ffi_api
 from .exec_scope import ExecScope
-from .expr import FloatImm, IterVar
+from .expr import IterVar
 from .stmt import Stmt
 
 
@@ -219,87 +219,6 @@ class DispatchContext(Object, Scriptable):
         return self.scope_kind == "cluster"
 
 
-def normalize_const_arg(arg, *, config=False) -> Expr:
-    """Normalize tile payloads without hiding non-expression values in the IR."""
-    if isinstance(arg, Expr):
-        return arg
-    if isinstance(arg, str):
-        return StringImm(arg)
-    if isinstance(arg, bool | int):
-        return const(arg)
-    if isinstance(arg, float):
-        return FloatImm("float64" if config else "float32", arg)
-    if isinstance(arg, list | tuple | Array):
-        return Tuple([normalize_const_arg(value, config=config) for value in arg])
-    raise TypeError(
-        f"Tile payload must be an expression, scalar or sequence, got {type(arg).__name__}"
-    )
-
-
-def _normalize_unary_defaults(op, args):
-    # Integral identities keep an omitted operand distinct from explicit floating
-    # point arithmetic (including signed zero and the scalar's chosen dtype).
-    if op.name in {"tirx.tile.sqrt", "tirx.tile.exp", "tirx.tile.exp2", "tirx.tile.log2"}:
-        bias_index, scale_index = 2, 3
-    elif op.name == "tirx.tile.unary_reduce":
-        bias_index, scale_index = 5, 6
-    else:
-        return args
-    args = list(args)
-    if len(args) <= scale_index:
-        args.extend([None] * (scale_index + 1 - len(args)))
-    if args[bias_index] is None:
-        args[bias_index] = const(0)
-    if args[scale_index] is None:
-        args[scale_index] = const(1)
-    return args
-
-
-def _normalize_config(config, op):
-    # These options already give None and an absent key the same meaning.
-    optional = {
-        "cache",
-        "cache_hint",
-        "l1_evict",
-        "l2_evict",
-        "prefetch_size",
-        "rounding_mode",
-        "shape",
-        "multicast",
-        "descI",
-        "mbar",
-        "oob",
-        "tma_dtype",
-        "tensormap_l2_promotion",
-        "use_tma_reduce",
-        "weight_stationary",
-        "decompress",
-        "is_AB_tf32",
-        "prefetch_tensormap",
-        "direct",
-        "thread_reduce",
-        "fill_mode",
-        "vec_len",
-        "remote_cta_id",
-    }
-    result = {}
-    for key, value in config.items():
-        if value is None:
-            if key == "max_inst_size":
-                # Explicitly unbounded; absence retains the backend's default.
-                value = -1
-            elif key in {"gather4", "src_selector"}:
-                value = ()
-            elif key == "prefetch_size" and op.name == "tirx.tile.copy_async":
-                raise TypeError("Async copy prefetch_size requires an explicit size")
-            elif key in optional:
-                continue
-            else:
-                raise TypeError(f"Tile config {key!r} requires an explicit expression value")
-        result[key] = normalize_const_arg(value, config=True)
-    return result
-
-
 @tvm_ffi.register_object("tirx.TilePrimitiveCall")
 class TilePrimitiveCall(Stmt):
     """TilePrimitiveCall node.
@@ -316,7 +235,9 @@ class TilePrimitiveCall(Stmt):
         The workspace.
 
     config : Map[str, Expr]
-        The scheduler/config dictionary. max_inst_size=-1 means unbounded.
+        The scheduler/config dictionary. Omit unused keys; explicit None values
+        are invalid. max_inst_size=-1 means unbounded, while omission retains
+        the backend default. A present gather4 contains exactly four coordinates.
 
     dispatch : Optional[str]
         The explicit variant name to dispatch to.
@@ -352,8 +273,6 @@ class TilePrimitiveCall(Stmt):
                 "Directly instantiating TilePrimitiveCall needs to specify the op"
             )
             op = self.__class__.op
-        args = list(map(normalize_const_arg, _normalize_unary_defaults(op, args)))
-        config = _normalize_config(config, op)
         self.__init_handle_by_constructor__(
             _ffi_api.TilePrimitiveCall,
             op,

@@ -79,17 +79,6 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
   }
   ffi::Array<Doc> args;
   size_t n = stmt->args.size();
-  if (n == 4 && (name == "sqrt" || name == "exp" || name == "exp2" || name == "log2")) {
-    auto is_default = [](const Expr& expr, bool scale) {
-      const auto* value = expr.as<IntImmNode>();
-      return value && value->ty.as_or_throw<PrimType>() == PrimType::Int(32) &&
-             value->value == (scale ? 1 : 0);
-    };
-    if (is_default(stmt->args[3], true)) {
-      n = 3;
-      if (is_default(stmt->args[2], false)) n = 2;
-    }
-  }
   if (n == 2 &&
       (stmt->op->name == "tirx.tile.exp2" || stmt->op->name == "tirx.tile.sqrt" ||
        stmt->op->name == "tirx.tile.reciprocal") &&
@@ -154,7 +143,7 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
           }
         }
         if (const auto* floating = value.template as<FloatImmNode>()) {
-          if (floating->ty.template as_or_throw<PrimType>() == PrimType::Float(64) &&
+          if (floating->ty.template as_or_throw<PrimType>() == PrimType::Float(32) &&
               std::isfinite(floating->value)) {
             values.push_back(LiteralDoc::Float(floating->value, std::nullopt));
             continue;
@@ -169,8 +158,21 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
   if (stmt->dispatch.has_value()) {
     dispatch = LiteralDoc::Str(stmt->dispatch.value(), std::nullopt);
   }
+  auto keywords = dict(stmt->config, true);
+  if (name == "sqrt_with_scale_bias" || name == "exp_with_scale_bias" ||
+      name == "exp2_with_scale_bias" || name == "log2_with_scale_bias") {
+    ffi::Array<ExprDoc> keys{LiteralDoc::Str("scale", std::nullopt),
+                             LiteralDoc::Str("bias", std::nullopt)};
+    ffi::Array<ExprDoc> values{args[2].as_or_throw<ExprDoc>(), args[3].as_or_throw<ExprDoc>()};
+    if (keywords.has_value()) {
+      for (const auto& key : keywords.value()->keys) keys.push_back(key);
+      for (const auto& value : keywords.value()->values) values.push_back(value);
+    }
+    keywords = DictDoc(keys, values);
+    args = {args[0], args[1]};
+  }
   d->Emit(OpCallDoc(NamespaceDoc("tirx")->Attr(scope)->Attr(name), args, dict(stmt->workspace),
-                    dict(stmt->config, true), dispatch),
+                    keywords, dispatch),
           ffi::GetRef<ffi::ObjectRef>(stmt));
   return std::nullopt;
 }

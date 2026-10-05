@@ -1866,9 +1866,7 @@ def _explicit_spec_for_gmem(
 
 
 def _normalize_gather4(value):
-    if value is None or (
-        isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple) and len(value) == 0
-    ):
+    if value is None:
         return ()
     if not isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(value) != 4:
         fail("tma_explicit gather4 must contain exactly four row coordinates")
@@ -1909,8 +1907,8 @@ def _validate_gather4_dst(s_buf: Var, s_starts, s_extents, spec: TensorMapSpec) 
 def _normalize_src_selector(value):
     if value is None:
         return ()
-    if not isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple):
-        fail("tma_explicit src_selector must be a list of (condition, global Var/view)")
+    if not isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(value) == 0:
+        fail("tma_explicit src_selector must be a nonempty list of (condition, global Var/view)")
     result = []
     for idx, item in enumerate(value):
         if not isinstance(item, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(item) != 2:

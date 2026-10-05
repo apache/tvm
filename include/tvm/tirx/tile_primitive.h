@@ -255,10 +255,16 @@ TVM_DLL const Op& gemm_async();
 TVM_DLL const Op& zero();
 
 TVM_DLL const Op& sqrt();
+TVM_DLL const Op& sqrt_with_scale_bias();
 
 TVM_DLL const Op& exp();
+TVM_DLL const Op& exp_with_scale_bias();
 
 TVM_DLL const Op& exp2();
+TVM_DLL const Op& exp2_with_scale_bias();
+
+TVM_DLL const Op& log2();
+TVM_DLL const Op& log2_with_scale_bias();
 
 TVM_DLL const Op& add();
 
@@ -287,6 +293,7 @@ TVM_DLL const Op& reduce_negate();
 TVM_DLL const Op& binary_reduce();
 
 TVM_DLL const Op& unary_reduce();
+TVM_DLL const Op& unary_reduce_with_scale_bias();
 
 TVM_DLL const Op& binary_chain();
 

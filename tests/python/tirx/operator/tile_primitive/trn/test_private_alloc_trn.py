@@ -97,7 +97,7 @@ def test_unary_with_bias_scale():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.exp(C_sbuf, A_sbuf, bias=bias, scale=scale)
+        Tx.exp_with_scale_bias(C_sbuf, A_sbuf, bias=bias, scale=scale)
 
     @T.prim_func
     def expected():
@@ -112,7 +112,7 @@ def test_unary_with_bias_scale():
                                 layout=T.TileLayout(T.S[(128, 4096) : (1@P, 1@F)]))
         C_sbuf = T.alloc_tensor((512, 1024), scope="trn.sbuf",
                                 layout=T.TileLayout(T.S[(128, 4096) : (1@P, 1@F)]))
-        Tx.exp(C_sbuf[0:512, 0:1024], A_sbuf[0:512, 0:1024], T.float32(1.0), T.float32(2.0), workspace={"const_bias": const_bias})  # noqa: E501
+        Tx.exp_with_scale_bias(C_sbuf[0:512, 0:1024], A_sbuf[0:512, 0:1024], scale=T.float32(2.0), bias=T.float32(1.0), workspace={"const_bias": const_bias})  # noqa: E501
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": unary})
@@ -264,7 +264,7 @@ def test_activation_reduce_two_stage():
         C = T.alloc_tensor((1, 128), scope="trn.sbuf",
                            layout=T.TileLayout(T.S[(1, 128) : (1@F, 1@P)]))
         for i in range(2):
-            Tx.unary_reduce(B[0:16, 0:512, 0:128], C[0, 0:128], A[i * 16:i * 16 + 16, 0:512, 0:128], "sqrt", "sum", None, None, [0, 1], workspace={"const_bias": const_bias, "partial_reduce": partial_reduce})  # noqa: E501
+            Tx.unary_reduce(B[0:16, 0:512, 0:128], C[0, 0:128], A[i * 16:i * 16 + 16, 0:512, 0:128], "sqrt", "sum", [0, 1], workspace={"const_bias": const_bias, "partial_reduce": partial_reduce})  # noqa: E501
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
@@ -308,7 +308,7 @@ def test_partial_workspace_specify():
         C = T.alloc_tensor((1, 128), scope="trn.sbuf",
                            layout=T.TileLayout(T.S[(1, 128) : (1@F, 1@P)]))
         for i in range(2):
-            Tx.unary_reduce(B[0:16, 0:512, 0:128], C[0, 0:128], A[i * 16:i * 16 + 16, 0:512, 0:128], "sqrt", "sum", None, None, [0, 1], workspace={"const_bias": const_bias, "partial_reduce": partial_reduce})  # noqa: E501
+            Tx.unary_reduce(B[0:16, 0:512, 0:128], C[0, 0:128], A[i * 16:i * 16 + 16, 0:512, 0:128], "sqrt", "sum", [0, 1], workspace={"const_bias": const_bias, "partial_reduce": partial_reduce})  # noqa: E501
         # fmt: on
     with target:
         mod = tvm.IRModule({"main": activation_reduce})
@@ -329,7 +329,7 @@ def test_workspace_reuse():
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
-        Tx.exp(C_sbuf, A_sbuf, bias=0.0, scale=scale, max_inst_size=1024)
+        Tx.exp_with_scale_bias(C_sbuf, A_sbuf, bias=0.0, scale=scale, max_inst_size=1024)
         Tx.exp(C_sbuf, C_sbuf)
 
     @T.prim_func
@@ -345,8 +345,8 @@ def test_workspace_reuse():
                                 layout=T.TileLayout(T.S[(128, 4096) : (1 @ P, 1 @ F)]))
         C_sbuf = T.alloc_tensor((512, 1024), scope="trn.sbuf",
                                 layout=T.TileLayout(T.S[(128, 4096) : (1 @ P, 1 @ F)]))
-        Tx.exp(C_sbuf[0:512, 0:1024], A_sbuf[0:512, 0:1024], T.float32(0.0), T.float32(2.0), workspace={"const_bias": const_bias}, max_inst_size=1024)  # noqa: E501
-        Tx.exp(C_sbuf[0:512, 0:1024], C_sbuf[0:512, 0:1024], None, None, workspace={"const_bias": const_bias})  # noqa: E501
+        Tx.exp_with_scale_bias(C_sbuf[0:512, 0:1024], A_sbuf[0:512, 0:1024], scale=T.float32(2.0), bias=T.float32(0.0), workspace={"const_bias": const_bias}, max_inst_size=1024)  # noqa: E501
+        Tx.exp(C_sbuf[0:512, 0:1024], C_sbuf[0:512, 0:1024], workspace={"const_bias": const_bias})
 
         # fmt: on
 

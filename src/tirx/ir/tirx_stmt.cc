@@ -44,6 +44,17 @@ TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<Expr> args,
   static const auto& category_map = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
   TVM_FFI_ICHECK(category_map.get(op, ffi::String("")) == "tile_primitive")
       << "Only tile primitive ops can be used in tirx::TilePrimitiveCall";
+  TVM_FFI_CHECK_GE(args.size(), op->args_info.size(), ValueError)
+      << op->name << " requires " << op->args_info.size() << " operands";
+  if (!op->var_args_info.has_value()) {
+    TVM_FFI_CHECK_EQ(args.size(), op->args_info.size(), ValueError)
+        << op->name << " expects " << op->args_info.size() << " operands";
+  }
+  if (auto gather = config.Get("gather4")) {
+    auto tuple = gather.value().as<tvm::Tuple>();
+    TVM_FFI_CHECK(tuple.has_value() && tuple.value()->fields.size() == 4, ValueError)
+        << "gather4 must contain exactly four row coordinates";
+  }
   ffi::StructuralVisit(args,
                        [](const TensorRegionNode* region,
                           ffi::StructuralVisitorObj*) -> ffi::Optional<ffi::VisitInterrupt> {

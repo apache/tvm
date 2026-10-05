@@ -19,7 +19,7 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import IntImm, PrimFunc, TilePrimitiveCall
+from tvm.tirx import PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.ops import UnaryReduce
 
@@ -39,7 +39,11 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
 
     # Extract operation components
     unary_output, reduce_output = op.dsts
-    unary_input, bias, scale = op.srcs
+    unary_input = op.unary_input
+    if op.op.name == "tirx.tile.unary_reduce_with_scale_bias":
+        scale, bias = op.scale, op.bias
+    else:
+        scale, bias = 1.0, 0.0
     analyzer = init_analyzer(sctx)
 
     # Normalize axes and default values
@@ -47,8 +51,6 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         int(i) if int(i) >= 0 else len(unary_output.source.ty.shape) + int(i)
         for i in op.reduce_axes
     ]
-    scale = 1.0 if scale is None or (isinstance(scale, IntImm) and scale.value == 1) else scale
-    bias = 0.0 if bias is None or (isinstance(bias, IntImm) and bias.value == 0) else bias
 
     inst_gen = InstructionGenerator([unary_output, unary_input, bias, reduce_output], analyzer)
     reduce_dim_map = get_reduction_dim_map(unary_output, reduce_output, reduce_axes, analyzer)
@@ -159,6 +161,21 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         return impl
 
 
+@register_dispatch(
+    "unary_reduce_with_scale_bias",
+    "trn",
+    variant="default",
+    priority=10,
+    when=[
+        predicate(
+            "exec_scope",
+            lambda op, sctx: (
+                sctx.scope_kind == "thread",
+                f"unsupported exec_scope {sctx.scope_kind}",
+            ),
+        )
+    ],
+)
 @register_dispatch(
     "unary_reduce",
     "trn",

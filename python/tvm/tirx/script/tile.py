@@ -40,10 +40,18 @@ def _require_buffer_arg(op_name, arg_name, value):
 
 
 def _validate_tile_call(op_name, args, kwargs):
+    if op_name in {"unary_reduce", "unary_reduce_with_scale_bias"}:
+        for index, name in enumerate(("unary_output", "reduce_output", "unary_input")):
+            _require_buffer_arg(op_name, name, _get_arg(args, kwargs, index, name))
+        return
     dst = _get_arg(args, kwargs, 0, "dst")
     _require_buffer_arg(op_name, "dst", dst)
 
-    if op_name in {"cast", "max", "min", "permute_layout", "silu"}:
+    if op_name.endswith("_with_scale_bias"):
+        src = _get_arg(args, kwargs, 1, "src")
+        if src is not None:
+            _require_buffer_arg(op_name, "src", src)
+    elif op_name in {"cast", "max", "min", "permute_layout", "silu"}:
         src = _get_arg(args, kwargs, 1, "src")
         _require_buffer_arg(op_name, "src", src)
     elif op_name in {"sqrt", "exp", "exp2", "log2", "reciprocal"}:
@@ -71,8 +79,11 @@ _SCOPED_TILE_OP_NAMES = [
     "copy",
     "copy_async",
     "exp",
+    "exp_with_scale_bias",
     "exp2",
+    "exp2_with_scale_bias",
     "log2",
+    "log2_with_scale_bias",
     "fdiv",
     "fill",
     "fma",
@@ -90,9 +101,11 @@ _SCOPED_TILE_OP_NAMES = [
     "select",
     "silu",
     "sqrt",
+    "sqrt_with_scale_bias",
     "sub",
     "sum",
     "unary_reduce",
+    "unary_reduce_with_scale_bias",
     "zero",
 ]
 

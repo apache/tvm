@@ -315,7 +315,7 @@ def test_workspace_default_none():
     assert len(op_br.workspace) == 0
 
     op_ur = tirx_op.UnaryReduce(
-        B, C, A, tirx_op.get_tirx_op("sqrt"), tirx_op.get_tirx_op("sum"), None, None, (-1,)
+        B, C, A, tirx_op.get_tirx_op("sqrt"), tirx_op.get_tirx_op("sum"), (-1,)
     )
     assert len(op_ur.workspace) == 0
 
