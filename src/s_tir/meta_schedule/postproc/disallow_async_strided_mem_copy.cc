@@ -158,7 +158,6 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(tirx::transform::NarrowDataType(32));
           pass_list.push_back(tirx::transform::StmtSimplify());
           pass_list.push_back(s_tir::transform::InjectVirtualThread());
-          pass_list.push_back(s_tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tirx::transform::VectorizeLoop(true));
           pass_list.push_back(tirx::transform::StorageRewrite());
           tirx::PrimFunc f = WithAttr(ffi::GetRef<tirx::PrimFunc>(prim_func), "global_symbol",

@@ -243,13 +243,6 @@ TVM_DLL Pass LoopPartition();
 TVM_DLL Pass InjectVirtualThread();
 
 /*!
- * \brief Inject double buffer statements.
- *
- * \return The pass.
- */
-TVM_DLL Pass InjectDoubleBuffer();
-
-/*!
  * \brief Hoist loop-invariant IfThenElse nodes to
  * outside the eligible loops.
  *
