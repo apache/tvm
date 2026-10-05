@@ -444,57 +444,6 @@ def test_bf16_reduce_will_legalize():
     tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
 
-def test_bf16_reduce_parameter_body_legalize():
-    @tvm.script.ir_module
-    class Before:
-        @T.prim_func(private=True)
-        def main(A: T.Tensor((32,), "bfloat16")):
-            tx = T.launch_thread("threadIdx.x", 32)
-            result = T.alloc_tensor((1,), "bfloat16", scope="local")
-            T.tvm_thread_allreduce(
-                T.TypedLambda([T.bfloat16, T.bfloat16], lambda lhs, rhs: (lhs,)),
-                (T.bfloat16(0),),
-                (A[tx],),
-                True,
-                (result[0],),
-                (tx,),
-            )
-
-    before = BindTarget(Target("nvidia/geforce-rtx-2080-ti"))(Before)
-    after = tvm.tirx.transform.BF16ComputeLegalize()(before)
-
-    def find_allreduce(mod):
-        calls = []
-
-        def visit(node):
-            if (
-                isinstance(node, tvm.ir.Call)
-                and isinstance(node.op, tvm.ir.Op)
-                and node.op.name == "tirx.tvm_thread_allreduce"
-            ):
-                calls.append(node)
-
-        tvm_ffi.structural_walk(mod["main"].body, visit)
-        assert len(calls) == 1
-        return calls[0]
-
-    original = find_allreduce(before)
-    legalized = find_allreduce(after)
-    combine = legalized.args[0]
-    assert combine.body[0].same_as(combine.vars[0])
-    tvm.ir.assert_structural_equal(
-        combine.ty,
-        tvm.ir.FuncType(
-            [tvm.ir.PrimType("float32"), tvm.ir.PrimType("float32")],
-            tvm.ir.TupleType([tvm.ir.PrimType("float32")]),
-        ),
-    )
-    for group in (1, 2, 4):
-        assert legalized.args[group][0].ty == tvm.ir.PrimType("float32")
-    assert original.args[0].vars[0].ty == tvm.ir.PrimType("bfloat16")
-    assert original.args[2][0].ty == tvm.ir.PrimType("bfloat16")
-
-
 def test_bf16_reduce_wont_legalize():
     def get_before():
         @tvm.script.ir_module

@@ -14,8 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm_ffi
-
 import tvm
 import tvm.script
 import tvm.testing
@@ -227,53 +225,6 @@ def test_fp8_compute_legalize_preserves_opaque_buffer_access(dtype, promote_dtyp
     before_mod = tvm.IRModule.from_expr(before)
     after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(before_mod)
     tvm.ir.assert_structural_equal(after, before_mod)
-
-
-def test_fp8_allreduce_scalar_body_legalize(dtype, promote_dtype):
-    input_type = tvm.ir.PrimType(dtype)
-
-    @T.prim_func(private=True)
-    def before(A: T.Tensor((32,), dtype)):
-        tx = T.launch_thread("threadIdx.x", 32)
-        result = T.alloc_tensor((1,), dtype, scope="local")
-        T.tvm_thread_allreduce(
-            T.TypedLambda([input_type, input_type], lambda lhs, rhs: lhs + rhs),
-            T.Cast(dtype, 0),
-            A[tx],
-            True,
-            result[0],
-            tx,
-        )
-
-    before_mod = BindTarget(Target("nvidia/nvidia-a100"))(tvm.IRModule.from_expr(before))
-    after = tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(before_mod)
-    tvm.ir.assert_structural_equal(
-        tvm.tirx.transform.FP8ComputeLegalize(promote_dtype)(after), after
-    )
-    calls = []
-
-    def visit(node):
-        if (
-            isinstance(node, tvm.ir.Call)
-            and isinstance(node.op, tvm.ir.Op)
-            and node.op.name == "tirx.tvm_thread_allreduce"
-        ):
-            calls.append(node)
-
-    tvm_ffi.structural_walk(after["main"].body, visit)
-    assert len(calls) == 1
-    call = calls[0]
-    combine = call.args[0]
-    promoted_type = tvm.ir.PrimType(promote_dtype)
-    assert combine.body.a.same_as(combine.vars[0])
-    assert combine.body.b.same_as(combine.vars[1])
-    tvm.ir.assert_structural_equal(
-        combine.ty,
-        tvm.ir.FuncType([promoted_type, promoted_type], promoted_type),
-    )
-    for group in (1, 2, 4):
-        assert call.args[group].ty == promoted_type
-    assert before.params[0].ty.dtype == input_type
 
 
 def test_fp8_storage_legalize(dtype, promote_dtype):

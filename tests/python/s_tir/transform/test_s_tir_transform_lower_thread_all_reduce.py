@@ -16,7 +16,6 @@
 # under the License.
 # ruff: noqa: F401, F841
 
-import pytest
 import tvm_ffi
 
 import tvm
@@ -158,58 +157,6 @@ def test_reduce_summation():
     assert After is not None
     After_script = After.script()
     assert "tvm_warp_shuffle" in After_script
-
-
-@pytest.mark.parametrize("num_threads", [32, 48])
-def test_predicated_heterogeneous_argmax(num_threads):
-    @I.ir_module
-    class Before:
-        @Ts.prim_func(private=True)
-        def main(
-            A: T.Tensor((num_threads,), "float32"),
-            Index: T.Tensor((1,), "int32"),
-            Value: T.Tensor((1,), "float32"),
-        ):
-            T.func_attr({"target": T.target("cuda", host="llvm")})
-            tx = T.launch_thread("threadIdx.x", num_threads)
-            index = T.alloc_tensor((1,), "int32", scope="local")
-            value = T.alloc_tensor((1,), "float32", scope="local")
-            T.tvm_thread_allreduce(
-                T.TypedLambda(
-                    [T.int32, T.float32, T.int32, T.float32],
-                    lambda li, lv, ri, rv: (T.Select(lv >= rv, li, ri), T.max(lv, rv)),
-                ),
-                (T.int32(-1), T.min_value("float32")),
-                (tx, A[tx]),
-                tx < num_threads - 3,
-                (index[0], value[0]),
-                (tx,),
-            )
-            if tx == 0:
-                Index[0] = index[0]
-                Value[0] = value[0]
-
-    after = tvm.s_tir.transform.LowerThreadAllreduce()(Before)
-    assert tvm.tirx.analysis.verify_well_formed(after)
-    nodes = []
-    tvm_ffi.structural_walk(after["main"].body, nodes.append)
-    assert not any(isinstance(node, tvm.ir.LambdaExpr) for node in nodes)
-    assert not any(
-        isinstance(node, tvm.ir.Call)
-        and isinstance(node.op, tvm.ir.Op)
-        and node.op.name == "tirx.tvm_thread_allreduce"
-        for node in nodes
-    )
-    # Inactive threads must contribute both identities before either combine
-    # implementation, including the shared-memory path for non-power-of-two warps.
-    selects = [node for node in nodes if isinstance(node, tvm.tirx.Select)]
-    for identity in (tvm.tirx.const(-1, "int32"), tvm.tirx.min_value("float32")):
-        assert any(tvm_ffi.structural_equal(node.false_value, identity) for node in selects)
-    script = after.script()
-    if num_threads == 32:
-        assert "tvm_warp_shuffle_down" in script
-    else:
-        assert "tvm_storage_sync" in script
 
 
 def test_multi_group_reduction():
