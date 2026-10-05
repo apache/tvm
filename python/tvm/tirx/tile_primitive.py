@@ -39,7 +39,7 @@ from .stmt import Stmt
 
 
 @register_object("tirx.LambdaExpr")
-class LambdaExpr(Object):
+class LambdaExpr(Expr):
     """A reified Python lambda: bound variables and a body over them.
 
     Used by tile primitive ops that take a per-element expression over the

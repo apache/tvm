@@ -42,7 +42,7 @@ namespace tirx {
  * At lowering time the dispatch substitutes ``vars`` with the concrete
  * instruction axes via ``Apply``.
  */
-class LambdaExprNode : public ffi::Object {
+class LambdaExprNode : public ExprNode {
  public:
   explicit LambdaExprNode(ffi::UnsafeInit tag) : pred(tag) {}
 
@@ -64,18 +64,18 @@ class LambdaExprNode : public ffi::Object {
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.LambdaExpr", LambdaExprNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.LambdaExpr", LambdaExprNode, ExprNode);
 };
 
 /*!
  * \brief Managed reference to LambdaExprNode.
  * \sa LambdaExprNode
  */
-class LambdaExpr : public ffi::ObjectRef {
+class LambdaExpr : public Expr {
  public:
   explicit LambdaExpr(Array<Var> vars, PrimExpr pred);
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(LambdaExpr, ffi::ObjectRef, LambdaExprNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LambdaExpr, Expr, LambdaExprNode);
 };
 
 /*!
