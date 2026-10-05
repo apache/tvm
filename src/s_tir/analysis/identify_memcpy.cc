@@ -78,7 +78,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   } else {
     return static_cast<const std::stringstream&>(
                std::stringstream()
-               << "Expected BufferStore's value to be MakeTensorLoad, but instead found "
+               << "Expected BufferStore's value to be TensorLoad, but instead found "
                << store->value)
         .str();
   }

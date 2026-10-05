@@ -952,9 +952,9 @@ class ReverseComputeInliner : public BaseInliner {
 
   /*! \brief The RHS value of the producer's BufferStore statement */
   PrimExpr producer_rhs_{ffi::UnsafeInit{}};
-  /*! \brief The indices of the consumer's MakeTensorLoad */
+  /*! \brief The indices of the consumer's TensorLoad */
   ffi::Array<PrimExpr> buffer_load_indices_;
-  /*! \brief The IterMap representing the indices of the consumer's MakeTensorLoad */
+  /*! \brief The IterMap representing the indices of the consumer's TensorLoad */
   ffi::Array<sym::IterSumExpr> buffer_load_iter_map_{nullptr};
   /*! \brief The producer block */
   const SBlockNode* producer_block_{nullptr};

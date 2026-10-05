@@ -312,7 +312,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         return res;
       }
       if (auto tile = buffer->layout.value().as<TileLayoutNode>(); tile && tile->HasThreadAxis()) {
-        LOG(FATAL) << "Cannot lower direct MakeTensorLoad/BufferStore on a buffer with thread-axis "
+        LOG(FATAL) << "Cannot lower direct TensorLoad/BufferStore on a buffer with thread-axis "
                    << "layout: unable to verify that the coordinate matches the current thread. "
                    << "Use .view() + .local() to decompose thread and memory axes.";
       }

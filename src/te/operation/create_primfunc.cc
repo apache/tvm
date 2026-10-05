@@ -69,7 +69,7 @@ void VerifyNoOpaqueArtifacts(const PrimFunc& func) {
 
 }  // namespace
 
-/*! \brief The helper mutator that transforms Tensor-callee Calls to MakeTensorLoad. */
+/*! \brief The helper mutator that transforms Tensor-callee Calls to TensorLoad. */
 class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
  public:
   explicit TensorLoadToBufferTransformer(
@@ -155,7 +155,7 @@ struct CreateFuncInfo {
   ffi::Array<te::Tensor> arg_list;
   /*! \brief The map from each Tensor to its corresponding buffer. */
   std::unordered_map<te::Tensor, TensorVar> tensor2buffers;
-  /*! \brief The transformer from Tensor-callee Calls to MakeTensorLoad. */
+  /*! \brief The transformer from Tensor-callee Calls to TensorLoad. */
   ffi::ObjectPtr<TensorLoadToBufferTransformer> transformer;
   /*! \brief The buffers should be allocated at function root. */
   ffi::Array<TensorVar> root_alloc;
