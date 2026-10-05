@@ -52,6 +52,11 @@ def Apply(ftransform):
 def VectorizeLoop(enable_vectorize: bool = True):
     """Lower vectorization loops.
 
+    Target-dependent vectorization uses the PrimFunc's ``target`` attribute,
+    not an ambient target context or nested target attributes. Target-independent
+    fixed-width loops do not require a target. Code needing different vectorization
+    targets must be separated into functions before this pass.
+
     Parameters
     ----------
     enable_vectorize : bool
