@@ -236,7 +236,7 @@ class While(Stmt):
 
 @tvm_ffi.register_object("tirx.BufferStore")
 class BufferStore(Stmt):
-    """Var store node.
+    """Store a value into a tensor variable.
 
     Parameters
     ----------

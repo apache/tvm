@@ -173,9 +173,9 @@ def _pack_buffer(buf, span=None):
 
 def call_packed_lowered(*args, span=None):
     """Lowered version of call packed.
-    The argument to packed function can be Expr or Var.
+    The argument to a packed function can be an Expr or a tensor variable.
     The argument is the corresponding POD type when Expr is presented.
-    When the argument is Var, the corresponding PackedFunc
+    When the argument is a Var carrying TensorType, the corresponding PackedFunc
     will receive an TVMArrayHandle whose content is valid during the callback period.
     If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
@@ -235,10 +235,10 @@ def call_cpacked_lowered(*args, span=None):
 def call_packed(*args, span=None):
     """Build expression by call an external packed function.
 
-    The argument to packed function can be Expr or Var.
+    The argument to a packed function can be an Expr or a tensor variable.
     The argument is the corresponding POD type when Expr is presented.
 
-    When the argument is Var, the corresponding PackedFunc
+    When the argument is a Var carrying TensorType, the corresponding PackedFunc
     will receive an TVMArrayHandle whose content is valid during the callback period.
     If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
