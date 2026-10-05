@@ -341,7 +341,7 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     binding = main.body
     assert isinstance(binding, tirx.Bind) and binding.value.same_as(projection)
     assert binding.var.name == "bound"
-    assert tirx.is_buffer_var(binding.var)
+    assert tirx.is_tensor_var(binding.var)
     assert not isinstance(projection, ir.Var)
     line = _line_of(
         test_native_binding_preserves_metadata_but_binds_buffer_expressions, "bound = make(2)"

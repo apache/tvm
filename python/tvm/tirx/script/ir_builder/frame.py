@@ -22,7 +22,7 @@ from tvm_ffi import Array
 from tvm_ffi import register_object as _register_object
 
 from tvm.script.ir_builder.base import IRBuilderFrame
-from tvm.tirx import Buffer, Var
+from tvm.tirx import Var
 
 from . import _ffi_api
 
@@ -90,7 +90,7 @@ class ElseFrame(TIRFrame): ...
 
 @_register_object("script.ir_builder.tirx.DeclTensorFrame")
 class DeclTensorFrame(TIRFrame):
-    def __enter__(self) -> Buffer:
+    def __enter__(self) -> Var:
         super().__enter__()
         return self.buffer
 

@@ -212,7 +212,7 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BufferStoreNode* op, InplaceMode
                           .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                           .as_or_throw<BufferStore>();
   if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
-    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
     if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&
         prim::ExprDeepEqual()(buffer->elem_offset, store->buffer->elem_offset) &&
         ArrayDeepEqual(buffer->shape, store->buffer->shape) &&

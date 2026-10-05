@@ -101,7 +101,7 @@ def test_prim_func_symbolic_alloc_buffer_roundtrip():
                         ty=buf.ty,
                     ),
                 ),
-                tirx.Evaluate(tirx.BufferLoad(buf, [0])),
+                tirx.Evaluate(tirx.TensorLoad(buf, [0])),
             ]
         ),
     ).with_attr("s_tir", True)
@@ -1380,10 +1380,18 @@ def multiple_commreducer():
     # normal_reduce_temp0 is treated as uninitialized value
     @Ts.prim_func(check_well_formed=False)
     def multiple_commreducer() -> None:
-        normal_reduce_temp0 = T.buffer([1], dtype="float32", strides=[1], scope="local")
-        normal_reduce_temp1 = T.buffer([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp0 = T.buffer([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp1 = T.buffer([1], dtype="float32", strides=[1], scope="local")
+        normal_reduce_temp0 = T.Var(
+            "normal_reduce_temp0", T.Tensor([1], dtype="float32", strides=[1], scope="local")
+        )
+        normal_reduce_temp1 = T.Var(
+            "normal_reduce_temp1", T.Tensor([1], dtype="float32", strides=[1], scope="local")
+        )
+        reduce_temp0 = T.Var(
+            "reduce_temp0", T.Tensor([1], dtype="float32", strides=[1], scope="local")
+        )
+        reduce_temp1 = T.Var(
+            "reduce_temp1", T.Tensor([1], dtype="float32", strides=[1], scope="local")
+        )
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):
                 T.attr(

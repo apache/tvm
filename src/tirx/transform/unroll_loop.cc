@@ -183,7 +183,7 @@ class LoopUnroller : public StmtExprMutator {
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     if (unroll_local_access_) {
       auto storage_scope =
-          runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());
+          runtime::StorageScope::Create(op->source.as_or_throw<tvm::tirx::TensorVar>().scope());
       if (storage_scope.rank == runtime::StorageRank::kLocal ||
           storage_scope.rank == runtime::StorageRank::kWarp) {
         auto marker = ffi::make_object<VarLocalAccessMarker>(&var_touched_local_);

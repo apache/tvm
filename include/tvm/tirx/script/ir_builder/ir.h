@@ -38,9 +38,9 @@ namespace tirx {
 using tvm::ffi::Tuple;
 using tvm::ffi::Variant;
 using tvm::runtime::Tensor;
-using tvm::tirx::BufferVar;
 using tvm::tirx::ExecScope;
 using tvm::tirx::Layout;
+using tvm::tirx::TensorVar;
 using tvm::tirx::Var;
 
 /*!
@@ -56,7 +56,7 @@ using tvm::tirx::Var;
  * \param offset_factor The factor of elem_offset field.
  * \return The declared buffer.
  */
-BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                      ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                      int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
@@ -85,7 +85,7 @@ Var Arg(ffi::String name, Var var);
  * \param buffer The buffer argument.
  * \return The buffer.
  */
-BufferVar Arg(ffi::String name, BufferVar buffer);
+TensorVar Arg(ffi::String name, TensorVar buffer);
 
 /*!
  * \brief The PrimFunc naming statement.
@@ -332,7 +332,7 @@ DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
  * \param annotations Optional annotations for the allocation.
  * \return The allocated buffer.
  */
-BufferVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                       ffi::String storage_scope = "global",
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations = std::nullopt);
 
@@ -367,7 +367,7 @@ Var EnvThread(ffi::String thread_tag, PrimType dtype = PrimType::Int(32));
  * \param indices The indices location to be stored.
  * \return The same statement that was added to the parent frame.
  */
-tvm::tirx::Stmt BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
+tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
 
 /*!
  * \brief Evaluate the input expression.

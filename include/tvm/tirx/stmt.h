@@ -220,17 +220,17 @@ class AssertStmt : public Stmt {
  *  buffer[i, j] = value;
  *
  * \endcode
- * \sa BufferLoad
+ * \sa MakeTensorLoad
  */
 class BufferStoreNode : public StmtNode {
  public:
   explicit BufferStoreNode(ffi::UnsafeInit tag) : buffer(tag), value(tag) {}
 
-  BufferStoreNode(BufferVar buffer, PrimExpr value)
+  BufferStoreNode(TensorVar buffer, PrimExpr value)
       : buffer(std::move(buffer)), value(std::move(value)) {}
 
   /*! \brief The buffer variable. */
-  BufferVar buffer;
+  TensorVar buffer;
   /*! \brief The value to be stored. */
   PrimExpr value;
   /*! \brief The indices location to be stored. */
@@ -252,7 +252,7 @@ class BufferStoreNode : public StmtNode {
  */
 class BufferStore : public Stmt {
  public:
-  TVM_DLL explicit BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
+  TVM_DLL explicit BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices,
                                Span span = Span());
 
   explicit BufferStore(ffi::ObjectPtr<BufferStoreNode> node) : Stmt(std::move(node)) {}

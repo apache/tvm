@@ -26,13 +26,12 @@ import tvm_ffi
 
 import tvm
 import tvm.runtime
-from tvm.ir import BaseFunc, Range
+from tvm.ir import BaseFunc, Range, Var
 from tvm.runtime import Object, Scriptable
 
 from ..runtime._tensor import Tensor
 from . import _ffi_api
-from .buffer import Buffer
-from .expr import Expr, Var
+from .expr import Expr
 
 
 @tvm_ffi.register_object("tirx.PrimFunc")
@@ -41,7 +40,7 @@ class PrimFunc(BaseFunc, Scriptable):
 
     Parameters
     ----------
-    params: List[Union[tvm.tirx.Var, tvm.tirx.Buffer]]
+    params: List[Union[tvm.tirx.Var, tvm.tirx.Var]]
         List of input parameters to the function.
 
     body: Optional[tvm.tirx.Stmt]
@@ -64,7 +63,7 @@ class PrimFunc(BaseFunc, Scriptable):
         for x in params:
             x = tvm.runtime.convert(x) if not isinstance(x, Object) else x
             if not isinstance(x, Var):
-                raise TypeError("params can only contain Var or Buffer")
+                raise TypeError("params can only contain Var or Var")
             param_list.append(x)
 
         if attrs is None:
@@ -108,13 +107,13 @@ class PrimFunc(BaseFunc, Scriptable):
             span=span,
         )
 
-    def specialize(self, param_map: Mapping[Var, Expr | Buffer]):
+    def specialize(self, param_map: Mapping[Var, Expr | Var]):
         """Specialize parameters of PrimFunc
 
         Parameters
         ----------
 
-        param_map : Mapping[Var, Union[Expr, Buffer]]
+        param_map : Mapping[Var, Union[Expr, Var]]
             The mapping from function params to the instance
 
         Examples

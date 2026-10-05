@@ -267,7 +267,7 @@ std::string CodeGenC::GetBufferRef(const PrimType& t, const VarNode* buffer, Pri
     return ptr_os.str();
   };
 
-  const PrimType& buffer_element_dtype = GetBufferVar(buffer)->dtype;
+  const PrimType& buffer_element_dtype = GetTensorVar(buffer)->dtype;
 
   std::string buffer_str = vid;
   if (!HandleTypeMatch(buffer_var, buffer_element_dtype) || is_vol) {
@@ -785,9 +785,9 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         if (const prim::RampNode* ramp = index.as<prim::RampNode>()) {
           index = ramp->base;
         }
-        const VarNode* data = load->source.as_or_throw<tvm::tirx::BufferVar>().get();
+        const VarNode* data = load->source.as_or_throw<tvm::tirx::TensorVar>().get();
         if (pointer_offset_vars_.count(data) &&
-            HandleTypeMatch(data, load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype) &&
+            HandleTypeMatch(data, load->source.as_or_throw<tvm::tirx::TensorVar>()->dtype) &&
             !IsVolatile(data)) {
           os << "(" << GetVarID(data) << " + ";
           this->PrintExpr(index, os);
@@ -795,7 +795,7 @@ void CodeGenC::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
         } else {
           os << "(&("
              << GetBufferRef(load->ty.as_or_throw<PrimType>(),
-                             load->source.as_or_throw<tvm::tirx::BufferVar>().get(), index)
+                             load->source.as_or_throw<tvm::tirx::TensorVar>().get(), index)
              << "))";
         }
       } else {
@@ -929,7 +929,7 @@ void CodeGenC::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_cal
   Expr data = buffer_call->args[0];
   DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[3].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* source = data.as<VarNode>();
   if (const auto* call = data.as<CallNode>();
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
@@ -969,14 +969,14 @@ void CodeGenC::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLIN
 
   PrimType value_ty = op->ty.as_or_throw<PrimType>();
   PrimExpr index = op->indices[0];
-  Var buffer_var = op->source.as_or_throw<tvm::tirx::BufferVar>().var();
-  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::BufferVar>()->dtype;
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>().var();
+  const PrimType& element_ty = op->source.as_or_throw<tvm::tirx::TensorVar>()->dtype;
 
   int lanes = value_ty.lanes();
   // delcare type.
   if (value_ty.lanes() == element_ty.lanes()) {
     std::string ref = GetBufferRef(op->ty.as_or_throw<PrimType>(),
-                                   op->source.as_or_throw<tvm::tirx::BufferVar>().get(), index);
+                                   op->source.as_or_throw<tvm::tirx::TensorVar>().get(), index);
     if (value_ty.MatchesCode(DLDataTypeCode::kDLFloat4_e2m1fn) && value_ty.lanes() == 1) {
       // GetBufferRef returns an lvalue: *(ptr + index/2), which reads the
       // full byte.  Extract the correct nibble (low for even, high for odd).
@@ -1009,7 +1009,7 @@ void CodeGenC::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLIN
     if (can_vector_load) {
       std::string ref =
           GetVecLoad(op->ty.as_or_throw<PrimType>(),
-                     op->source.as_or_throw<tvm::tirx::BufferVar>().get(), base.Eval());
+                     op->source.as_or_throw<tvm::tirx::TensorVar>().get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
     } else {
       std::ostringstream svalue_expr;
@@ -1259,7 +1259,7 @@ void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_ca
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");

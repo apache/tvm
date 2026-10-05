@@ -147,7 +147,7 @@ def arg_(name: str, annotation: Any, *, span: _Span = None) -> _ir.Var:
     ----------
     name : str
         Source parameter name.
-    annotation : Type, Var, Buffer or callable
+    annotation : Type, Var or callable
         Concrete rewritten annotation or existing native parameter. A callable
         annotation is evaluated; an existing variable retains identity.
     span : SpanEntry, Span or None, optional
@@ -453,7 +453,7 @@ def bind_(
     Requires the language variant construction context when producing IR. TIRx emits immutable Bind
     statements; Relax emits normalized bindings and match-casts. Unsupported
     values/annotations raise TypeError or ValueError. Ordinary TIRx Vars (including
-    BufferVars) pass through before general Expr binding, without naming, stamping
+    TensorVars) pass through before general Expr binding, without naming, stamping
     or another binding. Other Expr values retain ordinary language variant binding. Non-Expr
     metadata such as Layout and ordinary meta_class instances passes through
     unchanged without inspecting or naming its resources. Explicit typed declarations,

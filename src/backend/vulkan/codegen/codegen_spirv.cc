@@ -581,7 +581,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const CallNode* op) {
     return spirv::Value();
   } else if (op->op.same_as(tirx::builtin::address_of())) {
     const TensorLoadNode* load = op->args[0].as<TensorLoadNode>();
-    Var buffer_var = load->source.as_or_throw<tvm::tirx::BufferVar>().var();
+    Var buffer_var = load->source.as_or_throw<tvm::tirx::TensorVar>().var();
     const VarNode* buffer_node = buffer_var.get();
     PrimExpr index = load->indices[0];
     PrimType ele_dtype = GetElementDataType(buffer_node);
@@ -625,7 +625,7 @@ spirv::Value CodeGenSPIRV::Dispatch_(const prim::BroadcastNode* op) {
 
 spirv::Value CodeGenSPIRV::Dispatch_(const TensorLoadNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "SPIR-V codegen expects flat memory buffers";
-  Var buffer_var = op->source.as_or_throw<tvm::tirx::BufferVar>().var();
+  Var buffer_var = op->source.as_or_throw<tvm::tirx::TensorVar>().var();
   PrimExpr prim_index = op->indices[0];
 
   PrimType desired_read_type = op->ty.as_or_throw<PrimType>();
@@ -881,7 +881,7 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(!PrimType(dtype).IsVoid());
   const IntImmNode* dim_imm = shape->fields[0].as<IntImmNode>();
@@ -950,7 +950,7 @@ void CodeGenSPIRV::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
 void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call) {
   Expr data = buffer_call->args[0];
   DLDataType dtype = buffer_call->args[2].as_or_throw<DataTypeImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   const VarNode* buffer_var = buffer.get();
   TVM_FFI_ICHECK(!var_map_.count(buffer_var))
       << "Buffer variable " << buffer.name() << " is already defined";

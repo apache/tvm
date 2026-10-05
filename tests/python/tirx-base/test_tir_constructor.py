@@ -105,7 +105,7 @@ def test_expr_constructor():
 
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("float32")))
     buffer = tvm.tirx.decl_tensor([16], "float32", data=buffer_var)
-    x = tvm.tirx.BufferLoad(buffer, [1])
+    x = tvm.tirx.TensorLoad(buffer, [1])
     assert isinstance(x, tvm.ir.TensorLoad)
     assert x.ty == tvm.ir.PrimType("float32")
     assert x.source == buffer
@@ -235,7 +235,7 @@ def test_buffer_region_call_wrappers_reject():
         lambda: T.evaluate(region),
     ]
     for call in calls:
-        with pytest.raises(TypeError, match="construct a BufferLoad with explicit indices"):
+        with pytest.raises(TypeError, match="construct a TensorLoad with explicit indices"):
             call()
 
     assert not hasattr(region, "to_buffer_load")
@@ -272,7 +272,7 @@ def test_operator_base_categories_have_primitive_type():
         ),
         tvm.tirx.Cast("float32", var),
         tvm.tirx.Select(var < 1, var, 1),
-        tvm.tirx.BufferLoad(buffer, [0]),
+        tvm.tirx.TensorLoad(buffer, [0]),
         tvm.tirx.Ramp(0, 1, 4),
         tvm.tirx.Broadcast(var, 4),
         tvm.tirx.Shuffle([tvm.tirx.Broadcast(var, 2)], [0]),

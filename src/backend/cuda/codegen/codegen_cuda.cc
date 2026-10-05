@@ -1395,7 +1395,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
         call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
       var_node = call->args[0].as<VarNode>();
       TVM_FFI_ICHECK(var_node && var_node->ty.as<tirx::TensorTypeNode>())
-          << "print_buffer expects buffer_data to project a BufferVar";
+          << "print_buffer expects buffer_data to project a TensorVar";
     }
     PrimType dtype_ty = op->ty.as_or_throw<PrimType>();
     bool is_string = op->args[2].as<IntImmNode>()->value != 0;
@@ -1594,7 +1594,7 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get(), buffer.name() + "_ptr");
@@ -2020,7 +2020,7 @@ void CodeGenCUDA::HandleVolatileLoads(const std::string& value, const TensorLoad
   PrimType op_ty = op->ty.as_or_throw<PrimType>();
   if ((op_ty.MatchesElementType(DLDataTypeCode::kDLFloat, 16) ||
        op_ty.MatchesElementType(DLDataTypeCode::kDLBfloat, 16)) &&
-      IsVolatile(op->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
+      IsVolatile(op->source.as_or_throw<tvm::tirx::TensorVar>().get())) {
     os << "(";
     PrintType(op_ty, os);
     os << ")(" << value << ")";

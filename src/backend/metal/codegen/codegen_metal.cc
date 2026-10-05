@@ -56,11 +56,11 @@ Var GetSimdgroupBufferVar(const Expr& data) {
       call && call->op.same_as(tirx::builtin::buffer_data()) && call->args.size() == 1) {
     const auto* buffer = call->args[0].as<VarNode>();
     TVM_FFI_ICHECK(buffer && buffer->ty.as<TensorTypeNode>())
-        << "Metal simdgroup data operands expect buffer_data to project a BufferVar";
+        << "Metal simdgroup data operands expect buffer_data to project a TensorVar";
     return ffi::GetRef<Var>(buffer);
   }
   TVM_FFI_THROW(InternalError)
-      << "Metal simdgroup data operands must be a Var or buffer_data(BufferVar), but got " << data;
+      << "Metal simdgroup data operands must be a Var or buffer_data(TensorVar), but got " << data;
 }
 
 }  // namespace
@@ -371,7 +371,7 @@ void CodeGenMetal::DispatchAllocTensor(const BindNode* op, const CallNode* buffe
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
   ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
   TVM_FFI_ICHECK(buffer.defined());
   std::string vid = AllocVarID(buffer.get());

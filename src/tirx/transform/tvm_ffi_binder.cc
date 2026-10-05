@@ -60,7 +60,7 @@ TVMFFIABIBuilder::TVMFFIABIBuilder(const ffi::String& func_name, const ffi::Arra
   for (size_t i = 0; i < params.size(); ++i) {
     if (i > 0) os << ", ";
     Var param = params[i];
-    if (auto buf = param.as<BufferVar>()) {
+    if (auto buf = param.as<TensorVar>()) {
       std::string buf_name = buf.value().name();
       os << buf_name << ": Tensor([";
       for (size_t j = 0; j < buf.value()->shape.size(); ++j) {
@@ -396,12 +396,12 @@ void TVMFFIABIBuilder::BindArray(const ffi::Array<PrimExpr>& arg, const ffi::Arr
 // BindBuffer (buffer-to-buffer bind with ffi::reflection::AccessPath)
 // ============================================================
 
-void TVMFFIABIBuilder::BindBuffer(const BufferVar& arg, const BufferVar& value,
+void TVMFFIABIBuilder::BindBuffer(const TensorVar& arg, const TensorVar& value,
                                   ffi::reflection::AccessPath base_path, bool fuzzy_match) {
   TVM_FFI_ICHECK_EQ(arg.scope(), value.scope())
-      << "Argument " << arg.name() << " BufferVar bind scope mismatch";
+      << "Argument " << arg.name() << " TensorVar bind scope mismatch";
   TVM_FFI_ICHECK_EQ(arg->dtype, value->dtype)
-      << "Argument " << arg.name() << " BufferVar bind data type mismatch";
+      << "Argument " << arg.name() << " TensorVar bind data type mismatch";
   if (value->data_alignment % arg->data_alignment != 0) {
     LOG(WARNING) << "Trying to bind buffer to another one with lower alignment requirement "
                  << " required alignment=" << arg->data_alignment
@@ -411,7 +411,7 @@ void TVMFFIABIBuilder::BindBuffer(const BufferVar& arg, const BufferVar& value,
   if (value->elem_offset.defined()) {
     if (is_zero(arg->elem_offset)) {
       TVM_FFI_ICHECK(is_zero(value->elem_offset))
-          << "Trying to bind a BufferVar with offset into one without offset "
+          << "Trying to bind a TensorVar with offset into one without offset "
           << " required elem_offset=" << arg->elem_offset
           << ", provided elem_offset=" << value->elem_offset;
     }
@@ -445,11 +445,11 @@ void TVMFFIABIBuilder::BindBuffer(const BufferVar& arg, const BufferVar& value,
   ffi::reflection::AccessPath strides_path = base_path->Attr(ffi::String("strides"));
 
   if (arg->shape.size() < value->shape.size()) {
-    TVM_FFI_ICHECK(fuzzy_match) << "BufferVar size mismatch at " << RenderAccessPath(base_path);
+    TVM_FFI_ICHECK(fuzzy_match) << "TensorVar size mismatch at " << RenderAccessPath(base_path);
     size_t diff = value->shape.size() - arg->shape.size();
     for (size_t i = 0; i < diff; ++i) {
       TVM_FFI_ICHECK(is_one(analyzer_->Simplify(value->shape[i])))
-          << "BufferVar shape mismatch at " << RenderAccessPath(base_path) << ": " << arg->shape
+          << "TensorVar shape mismatch at " << RenderAccessPath(base_path) << ": " << arg->shape
           << " vs " << value->shape;
     }
     for (size_t i = 0; i < arg->shape.size(); ++i) {
@@ -613,7 +613,7 @@ void TVMFFIABIBuilder::DecodeAllParams() {
   // Phase 2: Bind DLTensor buffers (shape, strides, dtype, device checks)
   for (int i = 0; i < num_args; ++i) {
     Var param = params_[i];
-    if (auto buffer = param.as<BufferVar>()) {
+    if (auto buffer = param.as<TensorVar>()) {
       Var handle = buffer_handles_.at(param.get());
       ffi::reflection::AccessPath param_path = ffi::reflection::AccessPath::Root()
                                                    ->Extend(AccessStep::ArrayItem(i))
@@ -656,7 +656,7 @@ PrimExpr TVMFFIABIBuilder::LoadInt64ArrayElem(const Var& ptr, int index) {
 // Strides validation subfunctions
 // ============================================================
 
-void TVMFFIABIBuilder::BindCompactStrides(const BufferVar& buffer, const Var& strides_ptr,
+void TVMFFIABIBuilder::BindCompactStrides(const TensorVar& buffer, const Var& strides_ptr,
                                           const PrimExpr& v_strides_is_null,
                                           const ffi::reflection::AccessPath& param_path) {
   PrimType stype(buffer->DefaultIndexType());
@@ -683,7 +683,7 @@ void TVMFFIABIBuilder::BindCompactStrides(const BufferVar& buffer, const Var& st
   }
 }
 
-void TVMFFIABIBuilder::BindRegularStrides(const BufferVar& buffer, const Var& strides_ptr,
+void TVMFFIABIBuilder::BindRegularStrides(const TensorVar& buffer, const Var& strides_ptr,
                                           const Var& shape_ptr, const PrimExpr& v_strides_is_null,
                                           const ffi::reflection::AccessPath& param_path) {
   PrimExpr stride_from_shape = 1;
@@ -702,7 +702,7 @@ void TVMFFIABIBuilder::BindRegularStrides(const BufferVar& buffer, const Var& st
 // DecodeParamDLTensor (private)
 // ============================================================
 
-Expr TVMFFIABIBuilder::DecodeParamDLTensor(const BufferVar& buffer, const PrimExpr& device_type,
+Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimExpr& device_type,
                                            const PrimExpr& device_id, const Var& handle,
                                            const std::string& arg_name,
                                            ffi::reflection::AccessPath base_path) {

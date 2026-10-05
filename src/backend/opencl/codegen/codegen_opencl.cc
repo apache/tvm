@@ -62,7 +62,7 @@ struct TextureArgument {
 TextureArgument UnwrapTextureArgument(const Expr& texture) {
   const auto* var = TryUnwrapTextureVar(texture);
   TVM_FFI_ICHECK(var)
-      << "Texture arguments must be a pointer Var or a buffer_data(BufferVar) projection";
+      << "Texture arguments must be a pointer Var or a buffer_data(TensorVar) projection";
   const auto* pointer_type = texture->ty.as<PointerTypeNode>();
   TVM_FFI_ICHECK(pointer_type) << "Texture arguments must have PointerType";
   TVM_FFI_ICHECK(runtime::IsTextureStorage(std::string(pointer_type->storage_scope)))
@@ -460,7 +460,7 @@ void CodeGenOpenCL::Dispatch_(const BindNode* op) {
 void CodeGenOpenCL::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call) {
   tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
   DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
-  BufferVar buffer = op->var.as_or_throw<BufferVar>();
+  TensorVar buffer = op->var.as_or_throw<TensorVar>();
   // Compute constant_size from buffer shape
   size_t constant_size = 1;
   for (const auto& dim : shape->fields) {
@@ -480,12 +480,12 @@ void CodeGenOpenCL::Dispatch_(const CallNode* op, std::ostream& os) {
     TVM_FFI_ICHECK_EQ(load->indices.size(), 1)
         << "CodeGenOpenCL only supports flat memory allocations.";
     os << "((";
-    auto it = alloc_storage_scope_.find(load->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    auto it = alloc_storage_scope_.find(load->source.as_or_throw<tvm::tirx::TensorVar>().get());
     if (it != alloc_storage_scope_.end()) {
       PrintStorageScope(it->second, os);
     }
     this->PrintType(load->ty.as_or_throw<PrimType>().WithLanes(1), os);
-    os << " *)" << this->GetVarID(load->source.as_or_throw<tvm::tirx::BufferVar>().get()) << " + ";
+    os << " *)" << this->GetVarID(load->source.as_or_throw<tvm::tirx::TensorVar>().get()) << " + ";
     this->PrintExpr(load->indices[0], os);
     os << ')';
   } else if (op->op.same_as(tirx::builtin::texture2d_store())) {

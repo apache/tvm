@@ -51,13 +51,13 @@ from .tirx import (
     wg as wg,
 )
 from .utils import (
-    buffer_indices as buffer_indices,
-)
-from .utils import (
     frame_scope as frame_scope,
 )
 from .utils import (
     seq_scope as seq_scope,
+)
+from .utils import (
+    tensor_indices as tensor_indices,
 )
 
 supports_mutable_declarations = True
@@ -79,7 +79,7 @@ __all__ = [
     "warp",
     "warpgroup",
     "wg",
-    "buffer_indices",
+    "tensor_indices",
     "frame_scope",
     "seq_scope",
     "supports_mutable_declarations",
