@@ -549,6 +549,9 @@ def LowerTIRxOpaque():
     This is the tirx-specific counterpart of s_tir.LowerOpaqueBlock,
     without any SBlock/SBlockRealize handling.
 
+    Run s_tir.transform.LoopPartition first when thread-binding loops carry
+    loop_partition_hint.
+
     Returns
     -------
     fpass : tvm.transform.Pass
