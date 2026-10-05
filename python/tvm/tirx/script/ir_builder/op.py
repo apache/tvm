@@ -624,6 +624,7 @@ tvm_store_matrix_sync = _tir_op.tvm_store_matrix_sync
 
 
 tvm_storage_sync = _tir_op.tvm_storage_sync
+cpu_parallel_barrier = _tir_op.cpu_parallel_barrier
 
 
 tvm_kernel_replace_point = _tir_op.tvm_kernel_replace_point
@@ -940,6 +941,7 @@ __all__ = [
     "copysign",
     "cos",
     "cosh",
+    "cpu_parallel_barrier",
     "dp4a",
     "erf",
     "exp",
