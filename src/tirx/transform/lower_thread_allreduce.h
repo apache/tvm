@@ -226,7 +226,6 @@ class ThreadAllreduceBuilder final : public DialectMutator {
 
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
-    builtin::tvm_thread_allreduce().Validate(call);
     LambdaExpr combiner = call->args[0].as_or_throw<LambdaExpr>();
     tvm::Tuple inits = call->args[1].as_or_throw<tvm::Tuple>();
     tvm::Tuple inputs = call->args[2].as_or_throw<tvm::Tuple>();

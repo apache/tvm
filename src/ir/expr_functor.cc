@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ir/expr_functor.h>
 
 namespace tvm {
@@ -396,21 +395,37 @@ UnchangedOr<Expr> ExprMutator::Mutate_(const OpaqueExprNode* node, InplaceMode i
 }
 
 UnchangedOr<Expr> ExprMutator::Mutate_(const TupleNode* node, InplaceMode inplace_mode) {
+  auto ty_u = Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
   auto fields_u = Mutate(node->fields, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
-  auto fields = std::move(fields_u).ValueOrUnchanged(node->fields);
-  Tuple result(fields, node->span);
-  if (fields.same_as(node->fields) && ffi::StructuralEqual()(result->ty, node->ty))
+  if (ty_u.UnchangedOrSameAs(node->ty) && fields_u.UnchangedOrSameAs(node->fields))
     return ffi::Unchanged();
-  return result;
+  if (inplace_mode == InplaceMode::kAllow) {
+    auto* writable = const_cast<TupleNode*>(node);
+    if (!ty_u.IsUnchanged()) writable->ty = std::move(ty_u).ValueUnchecked();
+    if (!fields_u.IsUnchanged()) writable->fields = std::move(fields_u).ValueUnchecked();
+    return ffi::Unchanged();
+  }
+  auto copy = ffi::make_object<TupleNode>(*node);
+  if (!ty_u.IsUnchanged()) copy->ty = std::move(ty_u).ValueUnchecked();
+  if (!fields_u.IsUnchanged()) copy->fields = std::move(fields_u).ValueUnchecked();
+  return Expr(std::move(copy));
 }
 
 UnchangedOr<Expr> ExprMutator::Mutate_(const TupleGetItemNode* node, InplaceMode inplace_mode) {
+  auto ty_u = Mutate(node->ty, inplace_mode).as_or_throw<UnchangedOr<Type>>();
   auto tuple_u = Mutate(node->tuple, inplace_mode);
-  auto tuple = std::move(tuple_u).ValueOrUnchanged(node->tuple);
-  TupleGetItem result(tuple, node->index, node->span);
-  if (tuple.same_as(node->tuple) && ffi::StructuralEqual()(result->ty, node->ty))
+  if (ty_u.UnchangedOrSameAs(node->ty) && tuple_u.UnchangedOrSameAs(node->tuple))
     return ffi::Unchanged();
-  return result;
+  if (inplace_mode == InplaceMode::kAllow) {
+    auto* writable = const_cast<TupleGetItemNode*>(node);
+    if (!ty_u.IsUnchanged()) writable->ty = std::move(ty_u).ValueUnchecked();
+    if (!tuple_u.IsUnchanged()) writable->tuple = std::move(tuple_u).ValueUnchecked();
+    return ffi::Unchanged();
+  }
+  auto copy = ffi::make_object<TupleGetItemNode>(*node);
+  if (!ty_u.IsUnchanged()) copy->ty = std::move(ty_u).ValueUnchecked();
+  if (!tuple_u.IsUnchanged()) copy->tuple = std::move(tuple_u).ValueUnchecked();
+  return Expr(std::move(copy));
 }
 
 UnchangedOr<PrimExpr> ExprMutator::Mutate_(const TensorLoadNode* node, InplaceMode inplace_mode) {

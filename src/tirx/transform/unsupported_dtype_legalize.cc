@@ -425,7 +425,6 @@ class ComputeLegalizer : public StmtExprMutator {
   // Tuple grouping must not hide the reduction values from compute promotion.
   // Rebuild the complete typed call only after binders, body and operands agree.
   Expr LegalizeThreadAllreduce(const CallNode* op) {
-    builtin::tvm_thread_allreduce().Validate(op);
     LambdaExpr combine = op->args[0].as_or_throw<LambdaExpr>();
     auto promote_tuple = [this](const Expr& operand) {
       return tvm::Tuple(operand.as_or_throw<tvm::Tuple>()->fields.Map([this](const Expr& value) {
@@ -435,32 +434,17 @@ class ComputeLegalizer : public StmtExprMutator {
     tvm::Tuple identity = promote_tuple(op->args[1]);
     tvm::Tuple values = promote_tuple(op->args[2]);
     ffi::Array<Var> vars;
-    std::vector<ffi::Any> saved_remaps;
+    ffi::Array<Expr> arguments;
     size_t size = values->fields.size();
     for (size_t i = 0; i < combine->vars.size(); ++i) {
       const Var& var = combine->vars[i];
-      vars.push_back(var.CopyWithDType(values->fields[i % size]->ty.as_or_throw<PrimType>()));
-      saved_remaps.push_back(VarRemapGet(var));
+      Var promoted = var.CopyWithDType(values->fields[i % size]->ty.as_or_throw<PrimType>());
+      vars.push_back(promoted);
+      // Keep Apply arguments typed; compute promotion removes these temporary casts.
+      arguments.push_back(
+          prim::cast(var->ty.as_or_throw<PrimType>(), promoted.as_or_throw<PrimExpr>()));
     }
-    auto restore = [&]() {
-      for (size_t i = 0; i < combine->vars.size(); ++i) {
-        VarRemapSet(combine->vars[i], saved_remaps[i]);
-      }
-    };
-    ffi::Optional<tvm::Tuple> body;
-    try {
-      for (size_t i = 0; i < combine->vars.size(); ++i) {
-        VarRemapSet(combine->vars[i], vars[i]);
-      }
-      // Mutate the body under the new bindings, without visiting the old lambda
-      // definition (which correctly shadows outer remaps in generic traversal).
-      body = promote_tuple(combine->body);
-    } catch (...) {
-      restore();
-      throw;
-    }
-    restore();
-    LambdaExpr legalized_combine(vars, body.value());
+    LambdaExpr legalized_combine(vars, promote_tuple(combine->Apply(arguments)));
     auto mutate_tuple = [this](const Expr& operand) {
       return tvm::Tuple(operand.as_or_throw<tvm::Tuple>()->fields.Map(
           [this](const Expr& value) { return Mutate(value).ValueOrUnchanged(value); }));

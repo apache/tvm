@@ -34,12 +34,166 @@
 
 #include <cmath>
 #include <utility>
+#include <vector>
 
 #include "../support/limits.h"
 
 namespace tvm {
 
 namespace {
+
+ffi::Expected<void> ValidateLambdaParameters(const ffi::Array<Var>& vars) noexcept {
+  for (size_t i = 0; i < vars.size(); ++i) {
+    bool missing = false;
+    auto walked = ffi::StructuralWalkExpected<ffi::WalkOrder::kPreOrder>(
+        vars[i]->ty, [&](const MissingTypeNode*) {
+          missing = true;
+          return ffi::WalkResult::Skip();
+        });
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(walked);
+    if (missing) {
+      return ffi::Unexpected(
+          ffi::Error("TypeError", "LambdaExpr parameters require explicit non-Missing types", ""));
+    }
+    for (size_t j = 0; j < i; ++j) {
+      if (vars[i].same_as(vars[j])) {
+        return ffi::Unexpected(
+            ffi::Error("ValueError", "LambdaExpr parameters must be distinct variables", ""));
+      }
+    }
+  }
+  return {};
+}
+
+ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> LambdaExprVisit(
+    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  const auto* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const LambdaExprNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
+      kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->vars); }));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->body));
+  return visitor->VisitExpected(self->ty);
+}
+
+ffi::Expected<ffi::UnchangedOr<ffi::Any>> LambdaExprMutate(ffi::StructuralMutatorObj* mutator,
+                                                           ffi::AnyView value) noexcept {
+  const auto* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const LambdaExprNode>(value);
+  // Parameters shadow substitutions from the surrounding expression. Save and restore
+  // their remaps so a binder rewrite stays local to this lambda's body.
+  std::vector<ffi::Any> saved;
+  for (const Var& var : self->vars) {
+    auto previous = mutator->VarRemapGetExpected(var);
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(previous);
+    saved.push_back(std::move(previous).value());
+  }
+  auto result = [&]() -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    for (const Var& var : self->vars) {
+      auto cleared = mutator->VarRemapSetExpected(var, nullptr);
+      TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(cleared);
+    }
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_vars,
+                                      mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+                                        return mutator->MutateExpected(self->vars);
+                                      }));
+    auto vars = std::move(mapped_vars).ValueOrUnchanged(self->vars);
+    for (size_t i = 0; i < vars.size(); ++i) {
+      auto remap = mutator->VarRemapSetExpected(self->vars[i], vars[i]);
+      TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(remap);
+    }
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_body,
+                                      mutator->MutateExpected(self->body));
+    Expr body = std::move(mapped_body).ValueOrUnchanged(self->body);
+    const auto* signature = self->ty.as<FuncTypeNode>();
+    bool same_signature = signature && signature->arg_types.size() == vars.size() &&
+                          signature->ret_type.same_as(body->ty);
+    for (size_t i = 0; same_signature && i < vars.size(); ++i) {
+      same_signature = signature->arg_types[i].same_as(vars[i]->ty);
+    }
+    if (vars.same_as(self->vars) && body.same_as(self->body) && same_signature) {
+      return ffi::Unchanged();
+    }
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(ValidateLambdaParameters(vars));
+    ffi::Array<Type> param_types;
+    for (const Var& var : vars) param_types.push_back(var->ty);
+    auto copy = ffi::make_object<LambdaExprNode>(*self);
+    copy->vars = std::move(vars);
+    copy->ty = FuncType(param_types, body->ty);
+    copy->body = std::move(body);
+    return ffi::Any(std::move(copy));
+  }();
+  for (size_t i = 0; i < self->vars.size(); ++i) {
+    auto restored = mutator->VarRemapSetExpected(self->vars[i], saved[i]);
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(restored);
+  }
+  return result;
+}
+
+// The structural mutation callbacks own recursion so inserted arguments are not
+// substituted again. Definitions are freshened and scoped to their enclosing Expr.
+ffi::Any SubstituteLambdaExpr(ffi::Any value, const ffi::Map<Var, Expr>& arguments) {
+  if (arguments.empty()) return value;
+  std::vector<std::pair<Var, ffi::Any>> saved;
+  auto substitute_var =
+      [&](const Var& var,
+          ffi::StructuralMutatorObj* mutator) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    if (mutator->def_region_kind() == kTVMFFIDefRegionKindNone) {
+      auto mapped = mutator->VarRemapGetExpected(var);
+      TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(mapped);
+      if (mapped.value() != nullptr) return mapped.value();
+      if (auto replacement = arguments.Get(var)) return ffi::Any(replacement.value());
+      return mutator->DefaultMutateExpected(var, ffi::InplaceMode::kDisallow);
+    }
+    if (mutator->def_region_kind() == kTVMFFIDefRegionKindPattern) {
+      auto mapped = mutator->VarRemapGetExpected(var);
+      TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(mapped);
+      if (mapped.value() != nullptr) return mapped.value();
+    }
+    TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_type,
+                                      mutator->WithDefRegionKind(kTVMFFIDefRegionKindNone, [&]() {
+                                        return mutator->MutateExpected(var->ty);
+                                      }));
+    static ffi::reflection::TypeAttrColumn shallow_copy(ffi::reflection::type_attr::kShallowCopy);
+    auto copier = shallow_copy[var->type_index()].as<ffi::Function>();
+    if (!copier)
+      return ffi::Unexpected(ffi::Error("TypeError", "Variable has no shallow copy", ""));
+    auto copied = copier->CallExpected<Var>(var);
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(copied);
+    Var copy = std::move(copied).value();
+    if (copy.type_index() != var.type_index() || copy.same_as(var)) {
+      return ffi::Unexpected(
+          ffi::Error("TypeError", "Variable copy must preserve its type and be fresh", ""));
+    }
+    const_cast<VarNode*>(copy.get())->ty = std::move(mapped_type).ValueOrUnchanged(var->ty);
+    auto previous = mutator->VarRemapGetExpected(var);
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(previous);
+    saved.emplace_back(var, std::move(previous).value());
+    TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(mutator->VarRemapSetExpected(var, copy));
+    return ffi::Any(copy);
+  };
+  auto substitute_expr =
+      [&](const Expr& expr,
+          ffi::StructuralMutatorObj* mutator) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    size_t scope_start = saved.size();
+    // The lambda hook clears its binders before visiting definitions. Preserve
+    // enclosing mappings before the definition callback sees those cleared slots.
+    if (const auto* lambda = expr.as<LambdaExprNode>()) {
+      for (const Var& var : lambda->vars) {
+        auto previous = mutator->VarRemapGetExpected(var);
+        TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(previous);
+        saved.emplace_back(var, std::move(previous).value());
+      }
+    }
+    auto result = mutator->DefaultMutateExpected(expr, ffi::InplaceMode::kDisallow);
+    while (saved.size() > scope_start) {
+      const auto& [var, previous] = saved.back();
+      TVM_FFI_S_MUTATE_MAYBE_EARLY_RETURN(mutator->VarRemapSetExpected(var, previous));
+      saved.pop_back();
+    }
+    return result;
+  };
+  return ffi::StructuralMutate(std::move(value), substitute_var, substitute_expr);
+}
 
 template <typename TNode>
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> ConstantVisit(
@@ -268,16 +422,36 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TupleVisit(
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TupleMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  const auto* self =
+  const TupleNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_fields,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
+                                    mutator->MutateExpected(self->ty));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_fields_u,
                                     mutator->MutateExpected(self->fields));
-  auto fields = std::move(mapped_fields).ValueOrUnchanged(self->fields);
-  Tuple result(fields, self->span);
-  if (fields.same_as(self->fields) && ffi::StructuralEqual()(result->ty, self->ty)) {
+  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_fields_u.UnchangedOrSameAs(self->fields)) {
     return ffi::Unchanged();
   }
-  return ffi::Any(result);
+  ffi::ObjectPtr<TupleNode> copy = ffi::make_object<TupleNode>(*self);
+  if (!mapped_ty_u.IsUnchanged()) copy->ty = std::move(mapped_ty_u).ValueUnchecked();
+  if (!mapped_fields_u.IsUnchanged()) copy->fields = std::move(mapped_fields_u).ValueUnchecked();
+  return ffi::Any(std::move(copy));
+}
+
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TupleMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  TupleNode* self = const_cast<TupleNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
+      ffi::UnchangedOr<ffi::Array<Expr>>, mapped_fields_u,
+      mutator->MutateExpected(self->fields, ffi::InplaceMode::kAllow));
+  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_fields_u.UnchangedOrSameAs(self->fields)) {
+    return ffi::Unchanged();
+  }
+  if (!mapped_ty_u.IsUnchanged()) self->ty = std::move(mapped_ty_u).ValueUnchecked();
+  if (!mapped_fields_u.IsUnchanged()) self->fields = std::move(mapped_fields_u).ValueUnchecked();
+  return ffi::Unchanged();
 }
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TupleGetItemVisit(
@@ -291,21 +465,38 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TupleGetItemVis
 }
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TupleGetItemMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept try {
-  const auto* self =
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: index
+  const TupleGetItemNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleGetItemNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_tuple,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
+                                    mutator->MutateExpected(self->ty));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_tuple_u,
                                     mutator->MutateExpected(self->tuple));
-  auto tuple = std::move(mapped_tuple).ValueOrUnchanged(self->tuple);
-  TupleGetItem result(tuple, self->index, self->span);
-  if (tuple.same_as(self->tuple) && ffi::StructuralEqual()(result->ty, self->ty)) {
+  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_tuple_u.UnchangedOrSameAs(self->tuple)) {
     return ffi::Unchanged();
   }
-  return ffi::Any(result);
-} catch (const ffi::Error& error) {
-  return ffi::Unexpected(error);
-} catch (const std::exception& error) {
-  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+  ffi::ObjectPtr<TupleGetItemNode> copy = ffi::make_object<TupleGetItemNode>(*self);
+  if (!mapped_ty_u.IsUnchanged()) copy->ty = std::move(mapped_ty_u).ValueUnchecked();
+  if (!mapped_tuple_u.IsUnchanged()) copy->tuple = std::move(mapped_tuple_u).ValueUnchecked();
+  return ffi::Any(std::move(copy));
+}
+
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TupleGetItemMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  // skips: index
+  TupleGetItemNode* self = const_cast<TupleGetItemNode*>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleGetItemNode>(value));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
+                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_tuple_u,
+                                    mutator->MutateExpected(self->tuple, ffi::InplaceMode::kAllow));
+  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_tuple_u.UnchangedOrSameAs(self->tuple)) {
+    return ffi::Unchanged();
+  }
+  if (!mapped_ty_u.IsUnchanged()) self->ty = std::move(mapped_ty_u).ValueUnchecked();
+  if (!mapped_tuple_u.IsUnchanged()) self->tuple = std::move(mapped_tuple_u).ValueUnchecked();
+  return ffi::Unchanged();
 }
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> IntImmVisit(
@@ -683,6 +874,75 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
+// LambdaExpr
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  StagingExprNode::RegisterReflection();
+  LambdaExprNode::RegisterReflection();
+  refl::TypeAttrDef<LambdaExprNode>()
+      .def("__s_equal__",
+           [](LambdaExpr self, LambdaExpr other,
+              ffi::TypedFunction<bool(ffi::AnyView, ffi::AnyView, int, ffi::AnyView)> equal) {
+             // The derived signature may refer to these parameters. Simple binds
+             // only the parameters themselves, preserving free variables in types.
+             return equal(self->vars, other->vars, kTVMFFIDefRegionKindSimple, "vars") &&
+                    equal(self->body, other->body, kTVMFFIDefRegionKindNone, "body") &&
+                    equal(self->ty, other->ty, kTVMFFIDefRegionKindNone, "ty");
+           })
+      .def("__s_hash__",
+           [](LambdaExpr self, int64_t init,
+              ffi::TypedFunction<int64_t(ffi::AnyView, int64_t, int)> hash) {
+             int64_t result = hash(self->vars, init, kTVMFFIDefRegionKindSimple);
+             result = hash(self->body, result, kTVMFFIDefRegionKindNone);
+             return hash(self->ty, result, kTVMFFIDefRegionKindNone);
+           })
+      .attr(refl::type_attr::kStructuralVisit,
+            ffi::FStructuralVisit::FromNative<&LambdaExprVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&LambdaExprMutate>())
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            ffi::FStructuralMutate::FromNative<&LambdaExprMutate>());
+}
+
+Expr LambdaExprNode::Apply(const ffi::Array<Expr>& indices) const {
+  TVM_FFI_CHECK_EQ(indices.size(), vars.size(), ValueError) << "LambdaExpr Apply arity mismatch";
+  ffi::Map<Var, Expr> vmap;
+  for (size_t i = 0; i < vars.size(); ++i) {
+    // A later parameter type can depend on the arguments of earlier parameters.
+    Type expected = SubstituteLambdaExpr(vars[i]->ty, vmap).cast<Type>();
+    TVM_FFI_CHECK(
+        indices[i]->ty.as<MissingTypeNode>() || ffi::StructuralEqual()(indices[i]->ty, expected),
+        TypeError)
+        << "LambdaExpr Apply argument type mismatch at index " << i;
+    vmap.Set(vars[i], indices[i]);
+  }
+  return SubstituteLambdaExpr(body, vmap).cast<Expr>();
+}
+
+LambdaExpr::LambdaExpr(ffi::Array<Var> vars, Expr body) : StagingExpr(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<LambdaExprNode>(std::move(body));
+  ValidateLambdaParameters(vars).value();
+  ffi::Array<Type> types;
+  for (const Var& var : vars) types.push_back(var->ty);
+  n->ty = FuncType(types, n->body->ty);
+  n->vars = std::move(vars);
+  data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.LambdaExpr",
+                        [](ffi::Array<Var> vars, Expr body) { return LambdaExpr(vars, body); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.LambdaExprApply", [](LambdaExpr body, ffi::Array<Expr> indices) {
+    return body->Apply(indices);
+  });
+}
+
 // Tuple
 Tuple::Tuple(ffi::Array<Expr> fields, Span span) : Expr(ffi::UnsafeInit{}) {
   ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {
@@ -712,7 +972,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TupleVisit>())
       .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TupleMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&TupleMutate>());
+            ffi::FStructuralMutate::FromNative<&TupleMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.Tuple",
                         [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); });
@@ -743,7 +1003,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&TupleGetItemMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&TupleGetItemMutate>());
+            ffi::FStructuralMutate::FromNative<&TupleGetItemMaybeInplaceMutate>());
 
   refl::GlobalDef().def("ir.TupleGetItem", [](Expr tuple, int index, Span span) {
     return TupleGetItem(tuple, index, span);

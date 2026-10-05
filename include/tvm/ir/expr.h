@@ -453,12 +453,13 @@ class PrimVar : public PrimExpr {
  */
 class LambdaExprNode : public StagingExprNode {
  public:
-  explicit LambdaExprNode(ffi::UnsafeInit tag) : body(tag) {}
-  explicit LambdaExprNode(Expr body) : body(std::move(body)) {}
   /*! \brief Lambda-local parameter definitions. */
   ffi::Array<Var> vars;
   /*! \brief Computation over the parameters and captured expressions. */
   Expr body;
+
+  explicit LambdaExprNode(ffi::UnsafeInit tag) : body(tag) {}
+  explicit LambdaExprNode(Expr body) : body(std::move(body)) {}
   /*! \brief Simultaneously substitute arguments for the bound parameters. */
   TVM_DLL Expr Apply(const ffi::Array<Expr>& arguments) const;
 

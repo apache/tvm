@@ -163,36 +163,4 @@ def upgrade_json(json_str):
             fields = node.get("data", {})
             if "name_hint" in fields and "name" not in fields:
                 fields["name"] = fields.pop("name_hint")
-    # Legacy tile lambdas carried a primitive predicate and MissingType. Keep
-    # the expression/binder indices intact and append only the derived signature.
-    for node in list(nodes):
-        if node.get("type") != "tirx.LambdaExpr":
-            continue
-        fields = node.get("data", {})
-        if "pred" not in fields or "vars" not in fields:
-            raise ValueError("Legacy tirx.LambdaExpr requires vars and pred fields")
-        variables = nodes[fields["vars"]]
-        if variables.get("type") != "ffi.Array":
-            raise ValueError("Legacy tirx.LambdaExpr vars must reference an array")
-        arg_types = [nodes[index]["data"]["ty"] for index in variables["data"]]
-        body = fields.pop("pred")
-        ret_type = nodes[body]["data"]["ty"]
-        arg_types_index = len(nodes)
-        nodes.append({"type": "ffi.Array", "data": arg_types})
-        signature_index = len(nodes)
-        none_index = next((i for i, value in enumerate(nodes) if value.get("type") == "None"), None)
-        if none_index is None:
-            none_index = len(nodes)
-            nodes.append({"type": "None"})
-            signature_index = len(nodes)
-        nodes.append(
-            {
-                "type": "ir.FuncType",
-                "data": {"span": none_index, "arg_types": arg_types_index, "ret_type": ret_type},
-            }
-        )
-        node["type"] = "ir.LambdaExpr"
-        fields["body"] = body
-        fields["ty"] = signature_index
-        fields.setdefault("span", none_index)
     return json.dumps(data, indent=2)

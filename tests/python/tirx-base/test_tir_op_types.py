@@ -92,113 +92,19 @@ def test_tir_op_call_likely():
     assert expr.op.name == "prim.likely"
 
 
-def _allreduce_operands():
+def test_tir_op_tvm_thread_allreduce():
     tensor = tirx.decl_tensor((128,), "float32")
     axis = tirx.Var("thread", "int32")
     combine = tvm.ir.LambdaExpr(["float32", "float32"], lambda lhs, rhs: (lhs + rhs,))
-    return [combine, (tirx.const(0, "float32"),), (tensor[0],), True, (tensor[1],), (axis,)]
-
-
-@pytest.mark.parametrize("group_type", [tuple, list, tvm.ir.Tuple])
-def test_tir_op_tvm_thread_allreduce(group_type):
-    operands = _allreduce_operands()
-    for index in (1, 2, 4, 5):
-        operands[index] = group_type(operands[index])
-    expr = tirx.tvm_thread_allreduce(*operands)
+    expr = tirx.tvm_thread_allreduce(
+        combine, (tirx.const(0, "float32"),), (tensor[0],), True, (tensor[1],), (axis,)
+    )
     assert expr.op.name == "tirx.tvm_thread_allreduce"
     assert len(expr.args) == 6
     assert expr.ty == tvm.ir.PrimType("void")
+    assert expr.args[0].same_as(combine)
     for index in (1, 2, 4, 5):
         assert isinstance(expr.args[index], tvm.ir.Tuple)
-    assert expr.args[0].same_as(operands[0])
-
-
-def test_tir_op_tvm_thread_allreduce_boolean_destination():
-    storage = tirx.decl_tensor((1,), "int8")
-    combine = tvm.ir.LambdaExpr(["bool", "bool"], lambda lhs, rhs: (lhs | rhs,))
-    expr = tirx.tvm_thread_allreduce(
-        combine,
-        (tirx.const(False, "bool"),),
-        (tirx.Var("value", "bool"),),
-        True,
-        (tirx.Cast("bool", storage[0]),),
-        (tirx.Var("thread", "int32"),),
-    )
-    assert isinstance(expr.args[4][0], tirx.Cast)
-    assert expr.args[4][0].ty == tvm.ir.PrimType("bool")
-
-
-@pytest.mark.parametrize(
-    "case, error, diagnostic",
-    [
-        ("empty_values", ValueError, "at least one reduction value"),
-        ("identity_length", ValueError, "identity and values"),
-        ("destination_length", ValueError, "destinations and values"),
-        ("parameter_count", ValueError, "2N parameters"),
-        ("scalar_body", TypeError, "return a Tuple"),
-        ("result_length", ValueError, "result and values"),
-        ("identity_type", TypeError, "identity.*match its value type"),
-        ("parameter_type", TypeError, "lhs.*match its value type"),
-        ("result_type", TypeError, "result.*match its value type"),
-        ("predicate_type", TypeError, "predicate must be boolean"),
-        ("destination_type", TypeError, "destination.*match its value type"),
-        ("destination_form", TypeError, "destination.*TensorLoad"),
-        ("destination_cast", TypeError, "casts are only valid for boolean"),
-        ("thread_axis", TypeError, "thread_axes.*Vars or zero"),
-    ],
-)
-def test_tir_op_tvm_thread_allreduce_invalid_schema(case, error, diagnostic):
-    operands = _allreduce_operands()
-    if case == "empty_values":
-        operands[2] = ()
-    elif case == "identity_length":
-        operands[1] = ()
-    elif case == "destination_length":
-        operands[4] = ()
-    elif case == "parameter_count":
-        operands[0] = tvm.ir.LambdaExpr(["float32"], lambda lhs: (lhs,))
-    elif case == "scalar_body":
-        operands[0] = tvm.ir.LambdaExpr(["float32", "float32"], lambda lhs, rhs: lhs + rhs)
-    elif case == "result_length":
-        operands[0] = tvm.ir.LambdaExpr(["float32", "float32"], lambda lhs, rhs: (lhs, rhs))
-    elif case == "identity_type":
-        operands[1] = (tirx.const(0, "int32"),)
-    elif case == "parameter_type":
-        operands[0] = tvm.ir.LambdaExpr(["int32", "int32"], lambda lhs, rhs: (lhs + rhs,))
-    elif case == "result_type":
-        operands[0] = tvm.ir.LambdaExpr(
-            ["float32", "float32"], lambda lhs, rhs: ((lhs + rhs).astype("float16"),)
-        )
-    elif case == "predicate_type":
-        operands[3] = tirx.const(1, "int32")
-    elif case == "destination_type":
-        operands[4] = (tirx.decl_tensor((1,), "int32")[0],)
-    elif case == "destination_form":
-        operands[4] = (tirx.Var("destination", "float32"),)
-    elif case == "destination_cast":
-        operands[4] = (tirx.Cast("float32", tirx.decl_tensor((1,), "int32")[0]),)
-    elif case == "thread_axis":
-        operands[5] = (tirx.const(1, "int32"),)
-    with pytest.raises(error, match=diagnostic):
-        tirx.tvm_thread_allreduce(*operands)
-
-
-@pytest.mark.parametrize("case", ["combine", "identity", "arity", "return_type"])
-def test_tir_op_tvm_thread_allreduce_generic_call_validation(case):
-    # Bypassing the convenience helper must not bypass the native contract.
-    operands = _allreduce_operands()
-    for index in (1, 2, 4, 5):
-        operands[index] = tvm.ir.Tuple(operands[index])
-    if case == "combine":
-        operands[0] = tirx.const(1)
-    elif case == "identity":
-        operands[1] = tirx.const(0, "float32")
-    elif case == "arity":
-        operands.pop()
-    with pytest.raises((TypeError, ValueError), match="tvm_thread_allreduce"):
-        tvm.ir.Call(
-            "tirx.tvm_thread_allreduce", operands, ty="int32" if case == "return_type" else "void"
-        )
 
 
 def test_tir_op_type_annotation():
