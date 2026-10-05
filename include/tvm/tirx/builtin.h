@@ -502,11 +502,13 @@ TVM_DLL const Op& tvm_warp_activemask();
 /*!
  * \brief Cross-thread reduction with an explicit typed combiner and identities.
  *
- * void tvm_thread_allreduce(LambdaExpr combine, Tuple identity, Tuple values,
- *                           PrimExpr predicate, Tuple destinations, Tuple thread_axes);
+ * void tvm_thread_allreduce(LambdaExpr combine, Expr identity, Expr values,
+ *                           PrimExpr predicate, Expr destinations, Expr thread_axes);
  *
  * For N values, combine binds lhs[0:N] followed by rhs[0:N] and returns an
- * N-element Tuple. Each value, identity, pair of parameters and result have
+ * N-element Tuple, or a scalar when N is one. Identity, values, destinations
+ * and thread_axes may each be a scalar or an explicit Tuple of fields.
+ * Each value, identity, pair of parameters and result have
  * the same primitive type. Inactive inputs are replaced by their identities.
  * Destinations are N tensor loads (optionally cast for boolean storage), and
  * thread_axes are reduction thread variables or zero for simplified unit axes.
@@ -514,6 +516,17 @@ TVM_DLL const Op& tvm_warp_activemask();
  * to the destination tensors and returns void.
  */
 TVM_DLL const Op& tvm_thread_allreduce();
+
+/*!
+ * \brief View a scalar all-reduce operand/result as one field, or expose its Tuple fields.
+ * \param value The scalar expression or explicit Tuple.
+ * \return The fields without changing the expression's representation in IR.
+ */
+inline ffi::Array<Expr> GetAllreduceFields(const Expr& value) {
+  if (const auto* tuple = value.as<tvm::TupleNode>()) return tuple->fields;
+  return {value};
+}
+
 // Metal cooperative_tensor intrinsics (MetalPerformancePrimitives / Metal 4)
 
 /*!

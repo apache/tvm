@@ -144,7 +144,7 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
     PrimExpr origin_b =                                                             \
         PromoteToTarget(this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b)); \
                                                                                     \
-    if (origin_a.same_as(op->a) && origin_b.same_as(op->b)) {                       \
+    if (origin_a.same_as(op->a) && origin_b.same_as(op->b) && !MatchType(op->ty)) { \
       return ffi::Unchanged();                                                      \
     } else {                                                                        \
       return FUNC(origin_a, origin_b);                                              \
@@ -201,7 +201,7 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr false_value = PromoteToTarget(
         this->Mutate(op->false_value, inplace_mode).ValueOrUnchanged(op->false_value));
     if (condition_unchanged && true_value.same_as(op->true_value) &&
-        false_value.same_as(op->false_value)) {
+        false_value.same_as(op->false_value) && !MatchType(op->ty)) {
       return ffi::Unchanged();
     } else {
       return prim::Select(condition, true_value, false_value);
@@ -211,7 +211,7 @@ class ComputeLegalizer : public StmtExprMutator {
   UnchangedOr<PrimExpr> Mutate_(const prim::BroadcastNode* op, InplaceMode inplace_mode) final {
     PrimExpr value =
         PromoteToTarget(this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
-    if (value.same_as(op->value)) {
+    if (value.same_as(op->value) && !MatchType(op->ty)) {
       return ffi::Unchanged();
     } else {
       return prim::Broadcast(value, op->lanes);
@@ -222,7 +222,7 @@ class ComputeLegalizer : public StmtExprMutator {
     auto vectors = op->vectors.Map([this](const PrimExpr& value) {
       return PromoteToTarget(Mutate(value).ValueOrUnchanged(value));
     });
-    if (vectors.same_as(op->vectors)) {
+    if (vectors.same_as(op->vectors) && !MatchType(op->ty)) {
       return ffi::Unchanged();
     } else {
       return prim::Shuffle(vectors, op->indices);
@@ -422,38 +422,35 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
  private:
-  // Tuple grouping must not hide the reduction values from compute promotion.
-  // Rebuild the complete typed call only after binders, body and operands agree.
+  // Preserve scalar operands and explicit Tuple grouping while promoting computation.
   Expr LegalizeThreadAllreduce(const CallNode* op) {
     LambdaExpr combine = op->args[0].as_or_throw<LambdaExpr>();
-    auto promote_tuple = [this](const Expr& operand) {
-      return tvm::Tuple(operand.as_or_throw<tvm::Tuple>()->fields.Map([this](const Expr& value) {
-        return PromoteToTarget(Mutate(value).ValueOrUnchanged(value).as_or_throw<PrimExpr>());
-      }));
+    auto map_operand = [](const Expr& operand, const auto& transform) -> Expr {
+      if (const auto* tuple = operand.as<tvm::TupleNode>()) {
+        return tvm::Tuple(tuple->fields.Map(transform), operand->span);
+      }
+      return transform(operand);
     };
-    tvm::Tuple identity = promote_tuple(op->args[1]);
-    tvm::Tuple values = promote_tuple(op->args[2]);
+    auto promote = [this](const Expr& value) -> Expr {
+      return PromoteToTarget(Mutate(value).ValueOrUnchanged(value).as_or_throw<PrimExpr>());
+    };
+    Expr identity = map_operand(op->args[1], promote);
+    Expr values = map_operand(op->args[2], promote);
+    ffi::Array<Expr> value_fields = builtin::GetAllreduceFields(values);
     ffi::Array<Var> vars;
     ffi::Array<Expr> arguments;
-    size_t size = values->fields.size();
     for (size_t i = 0; i < combine->vars.size(); ++i) {
-      const Var& var = combine->vars[i];
-      Var promoted = var.CopyWithDType(values->fields[i % size]->ty.as_or_throw<PrimType>());
+      Var promoted = combine->vars[i].CopyWithDType(
+          value_fields[i % value_fields.size()]->ty.as_or_throw<PrimType>());
       vars.push_back(promoted);
-      // Keep Apply arguments typed; compute promotion removes these temporary casts.
-      arguments.push_back(
-          prim::cast(var->ty.as_or_throw<PrimType>(), promoted.as_or_throw<PrimExpr>()));
+      arguments.push_back(promoted);
     }
-    LambdaExpr legalized_combine(vars, promote_tuple(combine->Apply(arguments)));
-    auto mutate_tuple = [this](const Expr& operand) {
-      return tvm::Tuple(operand.as_or_throw<tvm::Tuple>()->fields.Map(
-          [this](const Expr& value) { return Mutate(value).ValueOrUnchanged(value); }));
-    };
-    Expr predicate = Mutate(op->args[3]).ValueOrUnchanged(op->args[3]);
-    // Destinations are lvalues: remap promoted allocations but do not insert a
-    // compute cast around a load from an unpromoted storage buffer.
-    tvm::Tuple destinations = mutate_tuple(op->args[4]);
-    tvm::Tuple axes = mutate_tuple(op->args[5]);
+    LambdaExpr legalized_combine(vars, map_operand(combine->Apply(arguments), promote));
+    auto mutate = [this](const Expr& value) { return Mutate(value).ValueOrUnchanged(value); };
+    Expr predicate = mutate(op->args[3]);
+    // Destinations are lvalues: remap promoted allocations without adding compute casts.
+    Expr destinations = map_operand(op->args[4], mutate);
+    Expr axes = map_operand(op->args[5], mutate);
     return Call(PrimType::Void(), op->op,
                 {legalized_combine, identity, values, predicate, destinations, axes}, op->attrs,
                 op->ty_args, op->span);

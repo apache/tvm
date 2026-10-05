@@ -596,11 +596,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.tvm_thread_allreduce")
       .signature(sig::arg<LambdaExpr>("combine", "The typed combining lambda."),
-                 sig::arg<tvm::Tuple>("identity", "The identity values."),
-                 sig::arg<tvm::Tuple>("values", "The reduction values."),
+                 sig::arg<Expr>("identity", "The identity values."),
+                 sig::arg<Expr>("values", "The reduction values."),
                  sig::arg<PrimExpr>("predicate", "Whether this thread contributes."),
-                 sig::arg<tvm::Tuple>("destinations", "The destination tensor loads."),
-                 sig::arg<tvm::Tuple>("thread_axes", "The reduction thread axes."))
+                 sig::arg<Expr>("destinations", "The destination tensor loads."),
+                 sig::arg<Expr>("thread_axes", "The reduction thread axes."))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_thread_allreduce"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))

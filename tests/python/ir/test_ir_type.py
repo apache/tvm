@@ -72,9 +72,9 @@ def test_tuple_type():
 def test_lambda_expr():
     calls = []
 
-    def body(x, y):
-        calls.append((x, y))
-        return (x + y,)
+    def body(*values):
+        calls.append(values)
+        return (values[0] + values[1],)
 
     value = ir.LambdaExpr([T.f32, "float32"], body, ret_type=T.Tuple(T.f32))
     assert isinstance(value, ir.StagingExpr)
@@ -103,6 +103,8 @@ def test_lambda_expr_apply():
     result = outer.apply([11]).apply([22])
     assert result[0].value == 11 and result[1].value == 22
     assert result[2].same_as(capture)
+    identity = ir.LambdaExpr(["int32"], lambda x, unused=None: x)
+    assert identity.apply([capture]).same_as(capture)
 
 
 if __name__ == "__main__":

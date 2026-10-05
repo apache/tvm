@@ -818,17 +818,17 @@ def tvm_thread_allreduce(combine, identity, values, predicate, destinations, thr
     ----------
     combine : tvm.ir.LambdaExpr
         Typed combining lambda with parameters ordered as all left-hand values
-        followed by all right-hand values. Its body returns a tuple of results,
-        including for a single-value reduction.
-    identity : tvm.ir.Tuple or Sequence[Expr]
+        followed by all right-hand values. Its body returns a scalar for one
+        result or a Tuple of results.
+    identity : Expr or Sequence[Expr]
         Identity value for each reduction result.
-    values : tvm.ir.Tuple or Sequence[Expr]
+    values : Expr or Sequence[Expr]
         Values contributed by the current thread.
     predicate : PrimExpr
         Boolean participation predicate. Inactive threads contribute identities.
-    destinations : tvm.ir.Tuple or Sequence[Expr]
+    destinations : Expr or Sequence[Expr]
         Tensor loads identifying the destinations of the reduction results.
-    thread_axes : tvm.ir.Tuple or Sequence[Expr]
+    thread_axes : Expr or Sequence[Expr]
         Thread variables participating in the reduction.
 
     Returns
@@ -837,18 +837,18 @@ def tvm_thread_allreduce(combine, identity, values, predicate, destinations, thr
         The void call expression with six explicit operands.
     """
 
-    def as_tuple(value):
-        return value if isinstance(value, tvm.ir.Tuple) else tvm.ir.Tuple(value)
+    def as_operand(value):
+        return tvm.ir.Tuple(value) if isinstance(value, list | tuple | Array) else value
 
     return call_intrin(
         "void",
         "tirx.tvm_thread_allreduce",
         combine,
-        as_tuple(identity),
-        as_tuple(values),
+        as_operand(identity),
+        as_operand(values),
         predicate,
-        as_tuple(destinations),
-        as_tuple(thread_axes),
+        as_operand(destinations),
+        as_operand(thread_axes),
     )
 
 

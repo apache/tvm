@@ -65,12 +65,12 @@ def test_basic():
                 reduce_1 = T.decl_tensor(1, data=reduce.data, scope="local")
 
                 T.tvm_thread_allreduce(
-                    T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
-                    (T.float32(0),),
-                    (A_flat[0],),
+                    T.TypedLambda([T.float32, T.float32], lambda x, y: x + y),
+                    T.float32(0),
+                    A_flat[0],
                     T.bool(True),
-                    (reduce_1[0],),
-                    (threadIdx_x,),
+                    reduce_1[0],
+                    threadIdx_x,
                 )
                 if threadIdx_x == 0:
                     B[i] = reduce_1[0]

@@ -16,7 +16,6 @@
 # under the License.
 """Common expressions data structures in the IR."""
 
-import inspect
 from collections.abc import Callable
 from numbers import Number
 
@@ -744,8 +743,8 @@ class LambdaExpr(StagingExpr, Scriptable):
         Explicit parameter types, in callable argument order. Primitive dtype
         strings and script scalar constructors are also accepted.
     function : Callable
-        A callable with a fixed positional signature, evaluated once with fresh
-        typed Vars. Tuple/list results become shared IR Tuple expressions.
+        A callable evaluated once with one fresh typed Var per supplied type.
+        Tuple/list results become shared IR Tuple expressions.
     ret_type : Type, optional
         An exact return-type check. No implicit conversion or cast is inserted.
     """
@@ -754,19 +753,7 @@ class LambdaExpr(StagingExpr, Scriptable):
     body: Expr
 
     def __init__(self, parameter_types, function: Callable, *, ret_type=None):
-        if not callable(function):
-            raise TypeError("LambdaExpr requires a callable")
-        parameters = list(inspect.signature(function).parameters.values())
-        if any(
-            param.kind
-            not in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
-            for param in parameters
-        ):
-            raise TypeError("LambdaExpr requires a fixed positional callable signature")
-        types = [_lambda_type(annotation) for annotation in parameter_types]
-        if len(types) != len(parameters):
-            raise ValueError("LambdaExpr requires one explicit type per callable parameter")
-        variables = [Var(param.name, ty) for param, ty in zip(parameters, types)]
+        variables = [Var(f"arg{i}", _lambda_type(ty)) for i, ty in enumerate(parameter_types)]
         body = _lambda_result(function(*variables))
         if ret_type is not None:
             expected = _lambda_type(ret_type)

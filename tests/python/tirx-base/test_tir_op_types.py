@@ -106,6 +106,19 @@ def test_tir_op_tvm_thread_allreduce():
     for index in (1, 2, 4, 5):
         assert isinstance(expr.args[index], tvm.ir.Tuple)
 
+    scalar = tirx.tvm_thread_allreduce(
+        tvm.ir.LambdaExpr(["float32", "float32"], lambda lhs, rhs: lhs + rhs),
+        tirx.const(0, "float32"),
+        tensor[0],
+        True,
+        tensor[1],
+        axis,
+    )
+    assert scalar.args[0].body.ty == tvm.ir.PrimType("float32")
+    for index in (1, 2, 4, 5):
+        assert not isinstance(scalar.args[index], tvm.ir.Tuple)
+    assert scalar.args[5].same_as(axis)
+
 
 def test_tir_op_type_annotation():
     expr = tirx.type_annotation("int32")

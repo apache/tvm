@@ -220,34 +220,35 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     ffi::Array<Expr> arguments;
     for (const PrimExpr& value : lhs) arguments.push_back(value);
     for (const PrimExpr& value : rhs) arguments.push_back(value);
-    return combiner->Apply(arguments).as_or_throw<tvm::Tuple>()->fields.Map(
-        [](const Expr& value) { return value.as_or_throw<PrimExpr>(); });
+    return builtin::GetAllreduceFields(combiner->Apply(arguments)).Map([](const Expr& value) {
+      return value.as_or_throw<PrimExpr>();
+    });
   }
 
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
     LambdaExpr combiner = call->args[0].as_or_throw<LambdaExpr>();
-    tvm::Tuple inits = call->args[1].as_or_throw<tvm::Tuple>();
-    tvm::Tuple inputs = call->args[2].as_or_throw<tvm::Tuple>();
-    tvm::Tuple destinations = call->args[4].as_or_throw<tvm::Tuple>();
-    tvm::Tuple thread_axes = call->args[5].as_or_throw<tvm::Tuple>();
-    size_t size = inputs->fields.size();
+    ffi::Array<Expr> inits = builtin::GetAllreduceFields(call->args[1]);
+    ffi::Array<Expr> inputs = builtin::GetAllreduceFields(call->args[2]);
+    ffi::Array<Expr> destinations = builtin::GetAllreduceFields(call->args[4]);
+    ffi::Array<Expr> thread_axes = builtin::GetAllreduceFields(call->args[5]);
+    size_t size = inputs.size();
     std::vector<PrimExpr> values;
     values.reserve(size);
     std::vector<PrimType> dtypes;
     dtypes.reserve(size);
     PrimExpr cond = call->args[3].as_or_throw<PrimExpr>();
     for (size_t idx = 0; idx < size; ++idx) {
-      values.push_back(inputs->fields[idx].as_or_throw<PrimExpr>());
+      values.push_back(inputs[idx].as_or_throw<PrimExpr>());
       if (!is_one(cond)) {
-        values[idx] = Select(cond, values[idx], inits->fields[idx].as_or_throw<PrimExpr>());
+        values[idx] = Select(cond, values[idx], inits[idx].as_or_throw<PrimExpr>());
       }
       dtypes.push_back(values[idx].ty());
     }
     std::vector<TensorVar> buffers;
     buffers.reserve(size);
     for (size_t idx = 0; idx < size; ++idx) {
-      PrimExpr arg = destinations->fields[idx].as_or_throw<PrimExpr>();
+      PrimExpr arg = destinations[idx].as_or_throw<PrimExpr>();
       // Loads from boolean buffers may have cast nodes inserted by
       // earlier passes.
       if (auto cast = arg.as<CastNode>()) {
@@ -257,7 +258,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     }
 
     std::unordered_set<const VarNode*> reduce_set;
-    for (const Expr& axis : thread_axes->fields) {
+    for (const Expr& axis : thread_axes) {
       auto var = axis.as<PrimVar>();
       const VarNode* v = var.has_value() ? var.value().get() : nullptr;
       // The simply optimization replace a iteration variable with a constant
