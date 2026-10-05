@@ -72,6 +72,10 @@ class TIRxOpaqueLower : public StmtExprMutator {
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding → AttrStmt(thread_extent)
+      TVM_FFI_ICHECK(!op->annotations.count("loop_partition_hint") ||
+                     op->annotations.at("loop_partition_hint") == nullptr)
+          << "Run LoopPartition before opaque lowering of a thread-binding loop with "
+             "loop_partition_hint";
       TVM_FFI_ICHECK(op->thread_binding.has_value());
       ffi::String thread_tag = op->thread_binding.value()->thread_tag;
       body = MakeLaunchThread(min, extent, op->loop_var, thread_tag, body);

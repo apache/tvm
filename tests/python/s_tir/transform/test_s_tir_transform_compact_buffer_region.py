@@ -1011,8 +1011,8 @@ class TestTileAwareCompaction(BaseCompactTest):
             B: T.Tensor((128, 128), "float32"),
             C: T.Tensor((128, 128), "float32"),
         ):
-            for i_0 in range(5, annotations={"pragma_loop_partition_hint": 1}):
-                for j_0 in range(5, annotations={"pragma_loop_partition_hint": 1}):
+            for i_0 in range(5, annotations={"loop_partition_hint": 1}):
+                for j_0 in range(5, annotations={"loop_partition_hint": 1}):
                     A_local = T.decl_tensor((26, 128), scope="local")
                     B_local = T.decl_tensor((128, 26), scope="local")
                     C_local = T.decl_tensor((26, 26), scope="local")

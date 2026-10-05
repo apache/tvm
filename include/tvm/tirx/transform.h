@@ -345,6 +345,7 @@ TVM_DLL Pass LowerTIRxCleanup();
  * \brief Lower opaque constructs in TIRX programs: allocation calls, For(thread_binding),
  *        unit loop elimination. This is the tirx-specific counterpart of
  *        s_tir::LowerOpaqueBlock, without any SBlock handling.
+ * Run LoopPartition first when thread-binding loops carry loop_partition_hint.
  * \return The pass.
  */
 TVM_DLL Pass LowerTIRxOpaque();

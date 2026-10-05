@@ -223,10 +223,10 @@ def partitioned_concat(
 def partition_from_scheduled_tir(prim_func, pass_cfg, do_flatten=True):
     with tvm.transform.PassContext(config=pass_cfg):
         mod = IRModule.from_expr(prim_func.with_attr("global_symbol", "main"))
+        mod = tvm.s_tir.transform.LoopPartition()(mod)
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
         if do_flatten:
             mod = tvm.tirx.transform.FlattenBuffer()(mod)
-        mod = tvm.s_tir.transform.LoopPartition()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)
         mod = tvm.tirx.transform.RemoveNoOp()(mod)
         return mod
@@ -262,7 +262,7 @@ def concat_func_3(
     placeholder_1_flat = T.decl_tensor([25088], "int8", data=placeholder_1.data)
     placeholder_2_flat = T.decl_tensor([25088], "int8", data=placeholder_2.data)
     T_concat_flat = T.decl_tensor([100352], "int8", data=T_concat.data)
-    for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+    for i1 in T.serial(128, annotations={"loop_partition_hint": 1}):
         for i2, i3 in T.grid(28, 28):
             if 96 <= i1:
                 T_concat_flat[i1 * 784 + i2 * 28 + i3] = placeholder_2_flat[
@@ -294,7 +294,7 @@ def test_loop_partition_unroll_hint():
         B = T.decl_tensor(25088, "int8", data=B_arg.data)
         for ax0 in T.serial(
             112,
-            annotations={"pragma_loop_partition_hint": True},
+            annotations={"loop_partition_hint": True},
         ):
             for ax1, ax2, ax3 in T.grid(224, 7, 16):
                 if 3 <= ax0 * 2 + ax2 and ax0 * 2 + ax2 < 227 and ax3 < 3:
@@ -339,8 +339,8 @@ def test_loop_partition_recursive_unroll_hint():
     @Ts.prim_func
     def main():
         placeholder_0_dm = T.decl_tensor([1, 32, 32, 16], dtype="int8")
-        for i3_0 in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
-            for i2_0 in T.serial(2, annotations={"pragma_loop_partition_hint": 1}):
+        for i3_0 in T.serial(5, annotations={"loop_partition_hint": 1}):
+            for i2_0 in T.serial(2, annotations={"loop_partition_hint": 1}):
                 pad_temp = T.decl_tensor([1, 16, 16, 16], dtype="int8")
                 for ax0, ax1, ax2 in T.grid(16, 16, 16):
                     if (
@@ -405,7 +405,7 @@ def test_loop_partition_keep_loop_annotations():
     def before(A: T.Tensor(160, "int32"), B: T.Tensor(160, "int32")) -> None:
         for i in T.serial(
             160,
-            annotations={"pragma_loop_partition_hint": True, "key": "value"},
+            annotations={"loop_partition_hint": True, "key": "value"},
         ):
             if i < 10:
                 B[i] = A[i] + 1
@@ -445,7 +445,7 @@ def test_loop_partition_with_unit_loop_in_condition():
         T_concat: T.Tensor((100352,), "int8"),
     ) -> None:
         for k in range(1, annotations={"preserve_unit_loop": True}):
-            for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+            for i1 in T.serial(128, annotations={"loop_partition_hint": 1}):
                 for i2, i3 in T.grid(28, 28):
                     if 96 <= k * 128 + i1:
                         T_concat[k * i1 * 784 + i2 * 28 + i3] = placeholder_2[
@@ -498,7 +498,7 @@ def concat_func_single_point(
     T_concat: T.Tensor((28, 128), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+        for i1 in T.serial(128, annotations={"loop_partition_hint": 1}):
             if i1 > 63:
                 T_concat[i0, i1] = placeholder[i0, i1 - 64]
             elif i1 == 63:
@@ -534,7 +534,7 @@ def concat_func_start_point_equality(
     T_concat: T.Tensor((28, 128), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in range(128, annotations={"pragma_loop_partition_hint": 1}):
+        for i1 in range(128, annotations={"loop_partition_hint": 1}):
             if i1 == 0:
                 # Special case for i1 == 0
                 T_concat[i0, i1] = placeholder_1[i0, 0]
@@ -573,7 +573,7 @@ def concat_func_end_point_equality(
     T_concat: T.Tensor((28, 128), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in range(128, annotations={"pragma_loop_partition_hint": 1}):
+        for i1 in range(128, annotations={"loop_partition_hint": 1}):
             if i1 == 127:
                 # Explicit equality check for the end point i1 == 127
                 T_concat[i0, i1] = placeholder_1[i0, 0]
@@ -612,9 +612,7 @@ def concat_func_edge_equalities(
     T_concat: T.Tensor((28, 66), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in range(
-            66, annotations={"pragma_loop_partition_hint": 1}
-        ):  # Loop from 0 to 65 inclusive
+        for i1 in range(66, annotations={"loop_partition_hint": 1}):  # Loop from 0 to 65 inclusive
             if i1 == 0:
                 # Handle equality at the start of the range: i1 == 0
                 T_concat[i0, i1] = placeholder_2[i0, 0]
@@ -654,7 +652,7 @@ def concat_five_buffers_with_equalities(
     T_concat: T.Tensor((28, 129), "int8"),
 ) -> None:
     for i0 in range(28):
-        for i1 in range(130, annotations={"pragma_loop_partition_hint": 1}):
+        for i1 in range(130, annotations={"loop_partition_hint": 1}):
             if i1 == 0:
                 T_concat[i0, i1] = buffer_a[i0, 0]
             elif i1 == 64:
@@ -694,13 +692,13 @@ def concat_five_buffers_with_equalities_expected(
 
 @Ts.prim_func
 def nested_partition_with_single_points(A: T.Tensor((25,), "int32")):
-    for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+    for i in T.serial(5, annotations={"loop_partition_hint": 1}):
         if i == 1:
-            for j in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+            for j in T.serial(5, annotations={"loop_partition_hint": 1}):
                 if j > 2:
                     A[i * 5 + j] = i * 5 + j
         else:
-            for j in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+            for j in T.serial(5, annotations={"loop_partition_hint": 1}):
                 if j > 2:
                     A[i * 5 + j] = i * 15 + j
 
@@ -745,9 +743,9 @@ def test_single_point_partition(origin, expected):
 def test_equation_on_floordiv():
     @Ts.prim_func
     def before(A: T.Tensor((2, 2, 20), "int32")):
-        for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+        for i in T.serial(5, annotations={"loop_partition_hint": 1}):
             if i == 1:
-                for vv in T.vectorized(640, annotations={"pragma_loop_partition_hint": 1}):
+                for vv in T.vectorized(640, annotations={"loop_partition_hint": 1}):
                     if i * 2 + vv // 320 == 3:
                         A[i - 1, i * 2 + vv // 320 - 3, vv % 320 // 16] = 1
 
@@ -770,7 +768,7 @@ def test_ignore_loop_partition_hint():
     def before(A: T.Tensor((10), "float32"), D: T.Tensor((10), "float32")):
         B = T.decl_tensor([2], "float32")
         C = T.decl_tensor([2], "float32")
-        for i in T.serial(12, annotations={"pragma_loop_partition_hint": 1}):
+        for i in T.serial(12, annotations={"loop_partition_hint": 1}):
             if T.ignore_loop_partition(i < 10):
                 B[i % 2] = A[i] + 1.0
             if T.ignore_loop_partition(1 <= i and i < 11):

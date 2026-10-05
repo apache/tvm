@@ -254,9 +254,9 @@ constexpr const char* fragment_shape = "fragment_shape";
 constexpr const char* fragment_layout = "fragment_layout";
 
 /*!
- * \brief Mark that the loop should be partitioned.
+ * \brief For annotation requesting partitioning when its PrimExpr value is provably true.
  */
-constexpr const char* pragma_loop_partition_hint = "pragma_loop_partition_hint";
+constexpr const char* loop_partition_hint = "loop_partition_hint";
 
 /*! \brief Mark of reduce scope */
 constexpr const char* reduce_scope = "reduce_scope";

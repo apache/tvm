@@ -236,7 +236,7 @@ def simple_compute_with_other_annotation(
             annotations={
                 "software_pipeline_stage": [0, 1],
                 "software_pipeline_order": [0, 1],
-                "pragma_loop_partition_hint": True,
+                "loop_partition_hint": True,
             },
         ):
             with Ts.sblock("compute"):
@@ -272,7 +272,7 @@ def transformed_simple_compute_with_other_annotation(
                 for i in T.serial(
                     0,
                     15,
-                    annotations={"pragma_loop_partition_hint": True},
+                    annotations={"loop_partition_hint": True},
                 ):
                     with Ts.sblock():
                         Ts.reads([A[tx, i + 1]])
