@@ -73,7 +73,9 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!IsLaunchThread(op) || IsVirtualThread(op)) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (!op->op.same_as(tirx::builtin::launch_thread()) ||
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       return DialectMutator::Mutate_(op, inplace_mode);
     }
     thread_extents_.push_back(op);
@@ -278,14 +280,14 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     std::map<int, std::pair<ThreadEntry, bool>> thread_axes;
     for (const RegionStmtNode* launch : thread_extents_) {
       ThreadEntry e;
-      IterVar iv(Range(), LaunchThreadVar(launch), IterVarType::kThreadIndex,
-                 LaunchThreadTag(launch));
+      IterVar iv(Range(), launch->body_params[0].as_or_throw<PrimVar>(), IterVarType::kThreadIndex,
+                 launch->args[0].as_or_throw<StringImm>()->value);
       e.scope = runtime::ThreadScope::Create(iv->thread_tag);
       e.iv = iv;
       TVM_FFI_ICHECK_LE(e.scope.rank, 1);
       TVM_FFI_ICHECK_GE(e.scope.dim_index, 0) << "vthread do not work with cross thread reduction";
       if (e.scope.rank == 1) {
-        const auto* ptr = LaunchThreadExtent(launch).as<IntImmNode>();
+        const auto* ptr = launch->args[1].as_or_throw<PrimExpr>().as<IntImmNode>();
         TVM_FFI_ICHECK(ptr) << "Need constant extent for reduce set " << iv;
         e.extent = ptr->value.as<int>().value();
         bool is_reduce = reduce_set.count(iv->var.get());

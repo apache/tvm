@@ -74,7 +74,7 @@ UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const ForNode* op, InplaceMode inpl
 UnchangedOr<Stmt> DataTypeLegalizer::Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) {
   Stmt result = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
   const auto* region = result.as<RegionStmtNode>();
-  if (!IsLaunchThread(region)) return result;
+  if (!region || !region->op.same_as(tirx::builtin::launch_thread())) return result;
   PrimVar var = region->body_params[0].as_or_throw<PrimVar>();
   PrimExpr extent = region->args[1].as_or_throw<PrimExpr>();
   if (var.ty() == extent.ty()) return result;
@@ -330,7 +330,7 @@ UnchangedOr<Expr> DataTypeLegalizer::Mutate_(const CallNode* op, InplaceMode inp
 UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const RegionStmtNode* op,
                                                  InplaceMode inplace_mode) {
   bool was_enabled = is_enabled_;
-  if (IsLaunchThread(op)) is_enabled_ = true;
+  if (op->op.same_as(tirx::builtin::launch_thread())) is_enabled_ = true;
   auto result = DataTypeLegalizer::Mutate_(op, inplace_mode);
   is_enabled_ = was_enabled;
   return result;

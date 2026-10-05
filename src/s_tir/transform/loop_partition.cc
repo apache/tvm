@@ -184,10 +184,13 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (IsLaunchThread(op) && !tirx::IsVirtualThread(op)) {
-      Var var = LaunchThreadVar(op);
-      runtime::ThreadScope scope = runtime::ThreadScope::Create(LaunchThreadTag(op));
-      PrimExpr extent = LaunchThreadExtent(op);
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      Var var = op->body_params[0].as_or_throw<PrimVar>();
+      runtime::ThreadScope scope =
+          runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value);
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       if ((scope.rank == 0) && (!is_const_int(extent) || partition_const_loop_)) {
         record_.insert({var.get(), false});
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -299,9 +302,11 @@ class PartitionFinder : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // handle thread_axis
-    if (IsLaunchThread(op) && !tirx::IsVirtualThread(op)) {
-      const VarNode* var = LaunchThreadVar(op).get();
-      PrimExpr extent = LaunchThreadExtent(op);
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      const VarNode* var = op->body_params[0].as_or_throw<PrimVar>().get();
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       IntSet dom = IntSet::FromRange(Range(IntImm(extent.ty(), 0), extent));
       hint_map_.insert({var, dom});
       relax_map_.insert({var, dom});
@@ -467,7 +472,9 @@ class ThreadPartitionInserter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (IsLaunchThread(op) && !tirx::IsVirtualThread(op)) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       innermost_thread_scope_ = true;
       Stmt stmt =
           StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
@@ -538,12 +545,14 @@ class LoopPartitioner : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!IsLaunchThread(op) || tirx::IsVirtualThread(op)) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (!op->op.same_as(tirx::builtin::launch_thread()) ||
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
-    Var var = LaunchThreadVar(op);
-    PrimExpr extent = LaunchThreadExtent(op);
+    Var var = op->body_params[0].as_or_throw<PrimVar>();
+    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
     auto as = ffi::GetRef<Stmt>(op);
     if (selector->candidates.count(as)) {
       auto s = TryPartition(as, var, 0, extent - 1, op->body, true);
@@ -551,7 +560,8 @@ class LoopPartitioner : public StmtExprMutator {
     }
 
     // normal path when loop parittion fails.
-    runtime::ThreadScope scope = runtime::ThreadScope::Create(LaunchThreadTag(op));
+    runtime::ThreadScope scope =
+        runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value);
     Stmt res{ffi::UnsafeInit{}};
     if (scope.rank == 1) {
       // threadIdx should be put into relax map, in case of divergence.

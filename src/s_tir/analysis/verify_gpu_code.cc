@@ -114,19 +114,20 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (IsLaunchThread(op)) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      ValidateRegionStmt(op);
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
         Reset_();
         kernels_launched_++;
       }
 
-      const auto* extent = LaunchThreadExtent(op).as<IntImmNode>();
+      const auto* extent = op->args[1].as_or_throw<PrimExpr>().as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
-      std::string name = LaunchThreadTag(op);
+      std::string name = op->args[0].as_or_throw<StringImm>()->value;
       size_t previous_virtual_extent = active_virtual_extent_;
-      if (IsVirtualThread(op)) {
+      if (name.rfind("vthread", 0) == 0) {
         // Virtual launches are lexical loops; equal tags do not identify the
         // same binding. Sibling loops contribute their maximum, nested loops
         // their product.

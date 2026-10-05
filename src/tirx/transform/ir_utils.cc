@@ -277,8 +277,8 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const RegionStmtNode* op, InplaceMode in
   });
   ffi::Array<Var> results;
   for (const Var& var : op->result_vars) results.push_back(DefineVar(var));
-  return RegionStmt(op->op, std::move(args), std::move(params), std::move(body), std::move(results),
-                    std::move(attrs), op->span);
+  return RegionStmt(op->op, std::move(args), std::move(params), std::move(attrs), std::move(body),
+                    std::move(results), op->span);
 }
 
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {

@@ -162,8 +162,9 @@ class OpaqueBlockLower : public StmtExprMutator {
       body = AttrStmt(var, it->first, it->second, std::move(body));
     }
     if (op->kind == ForKind::kThreadBinding) {
-      return LaunchThread(op->thread_binding.value()->thread_tag, extent, launch_var, body,
-                          op->span);
+      return RegionStmt(tirx::builtin::launch_thread(),
+                        {StringImm(op->thread_binding.value()->thread_tag), extent}, {launch_var},
+                        DictAttrs(), body, {}, op->span);
     }
     return body;
   }

@@ -429,7 +429,7 @@ RegionFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
   TVM_FFI_CHECK(dtype.IsScalar() && dtype.MatchesCode(kDLInt, kDLUInt), ValueError)
       << "launch_thread extent must have a scalar integer type";
   PrimVar var("", dtype);
-  return Region(Op::Get("tirx.launch_thread"), {StringImm(thread_tag), extent}, {var});
+  return Region(tvm::tirx::builtin::launch_thread(), {StringImm(thread_tag), extent}, {var});
 }
 
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {

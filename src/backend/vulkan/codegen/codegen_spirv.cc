@@ -987,13 +987,14 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
 
 void CodeGenSPIRV::Dispatch_(const RegionStmtNode* op) {
   ValidateRegionStmt(op);
-  TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+  TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
       << "Cannot generate code for unlowered region op " << op->op;
-  TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+  TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+                ValueError)
       << "Virtual thread launches must be lowered before code generation";
-  PrimVar var = LaunchThreadVar(op);
-  PrimExpr extent = LaunchThreadExtent(op);
-  ffi::String tag = LaunchThreadTag(op);
+  PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+  PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+  ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
   auto [it, inserted] = thread_extents_.emplace(tag, extent);
   TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
       << "Conflicting launch extents for " << tag;

@@ -216,7 +216,7 @@ void AssertFrameNode::ExitWithScope() {
 
 void RegionFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tirx::RegionStmt(op, args, body_params, AsStmt(stmts), {}, attrs, source_span),
+  AddToParent(tvm::tirx::RegionStmt(op, args, body_params, attrs, AsStmt(stmts), {}, source_span),
               source_span);
 }
 

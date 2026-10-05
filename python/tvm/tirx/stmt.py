@@ -288,9 +288,9 @@ class RegionStmt(Stmt):
     op: Op
     args: list[Expr]
     body_params: list[Var]
+    attrs: DictAttrs
     body: Stmt
     result_vars: list[Var]
-    attrs: DictAttrs
     span: Span | None
 
     def __init__(
@@ -298,9 +298,9 @@ class RegionStmt(Stmt):
         op: Op | str,
         args: Sequence[Expr],
         body_params: Sequence[Var],
+        attrs: DictAttrs | Mapping[str, Any] | None,
         body: Stmt,
         result_vars: Sequence[Var] | None = None,
-        attrs: DictAttrs | Mapping[str, Any] | None = None,
         span: Span | None = None,
     ) -> None:
         if isinstance(op, str):
@@ -312,9 +312,9 @@ class RegionStmt(Stmt):
             op,
             args,
             body_params,
+            attrs,
             body,
             [] if result_vars is None else result_vars,
-            attrs,
             span,
         )
 

@@ -60,7 +60,7 @@ class DeviceRegionAnnotater : public StmtExprMutator {
   explicit DeviceRegionAnnotater(Target device_target) : device_target_(device_target) {}
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (IsLaunchThread(op)) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
       return AttrStmt(device_target_, tvm::attr::kTarget, IntImm::Int32(0), ffi::GetRef<Stmt>(op));
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -533,13 +533,15 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (IsLaunchThread(op) && !IsVirtualThread(op)) {
-      ffi::String thread_tag = LaunchThreadTag(op);
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      ffi::String thread_tag = op->args[0].as_or_throw<StringImm>()->value;
       auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
         if (auto repl = bind_map_.Get(var)) return ffi::Any(*std::move(repl));
         return ffi::Unchanged();
       };
-      PrimExpr value = LaunchThreadExtent(op);
+      PrimExpr value = op->args[1].as_or_throw<PrimExpr>();
       if (bind_map_.size()) {
         value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(value, f_substitute)
                     .as_or_throw<PrimExpr>();

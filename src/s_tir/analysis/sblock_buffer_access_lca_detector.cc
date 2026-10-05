@@ -29,6 +29,7 @@
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 
 #include "../../runtime/thread_storage_scope.h"
 #include "../../support/arena.h"
@@ -262,8 +263,10 @@ class LCADetector : public s_tir::StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, ancestor_scopes_.size());
-    if (IsLaunchThread(op) && !IsVirtualThread(op) &&
-        runtime::ThreadScope::Create(LaunchThreadTag(op)).rank == 0) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
+        runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value).rank == 0) {
       blockidx_scopes_.push_back(parent_scope);
     }
     ancestor_scopes_.push_back(current_scope);

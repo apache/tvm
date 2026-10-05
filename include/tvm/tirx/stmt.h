@@ -172,16 +172,22 @@ class AttrStmt : public Stmt {
  */
 class RegionStmtNode : public StmtNode {
  public:
+  /*! \brief Operator defining the region's semantics. */
+  Op op;
+  /*! \brief Operands evaluated in the enclosing scope. */
+  ffi::Array<Expr> args;
+  /*! \brief Variables defined at body entry, visible only within the body. */
+  ffi::Array<Var> body_params;
+  /*! \brief Attributes evaluated in the enclosing scope. */
+  DictAttrs attrs;
+  /*! \brief Body evaluated with the body parameters in scope. */
+  Stmt body;
+  /*! \brief Variables defined after the region in the enclosing sequence. */
+  ffi::Array<Var> result_vars;
+
   explicit RegionStmtNode(ffi::UnsafeInit tag) : op(tag), body(tag) {}
 
   RegionStmtNode(Op op, Stmt body) : op(std::move(op)), body(std::move(body)) {}
-
-  Op op;
-  ffi::Array<Expr> args;
-  ffi::Array<Var> body_params;
-  Stmt body;
-  ffi::Array<Var> result_vars;
-  DictAttrs attrs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -201,9 +207,8 @@ class RegionStmtNode : public StmtNode {
 /*! \brief Managed reference to RegionStmtNode. */
 class RegionStmt : public Stmt {
  public:
-  TVM_DLL RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, Stmt body,
-                     ffi::Array<Var> result_vars = {}, DictAttrs attrs = DictAttrs(),
-                     Span span = Span());
+  TVM_DLL RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
+                     Stmt body, ffi::Array<Var> result_vars = {}, Span span = Span());
 
   explicit RegionStmt(ffi::ObjectPtr<RegionStmtNode> node) : Stmt(std::move(node)) {}
 
@@ -213,16 +218,6 @@ class RegionStmt : public Stmt {
 
 /*! \brief Validate a region's definitions and any known operation schema. */
 TVM_DLL void ValidateRegionStmt(const RegionStmtNode* op);
-/*! \brief Whether a region binds a hardware or virtual thread index. */
-TVM_DLL bool IsLaunchThread(const RegionStmtNode* op);
-/*! \brief Whether a launch's tag starts with vthread. */
-TVM_DLL bool IsVirtualThread(const RegionStmtNode* op);
-TVM_DLL ffi::String LaunchThreadTag(const RegionStmtNode* op);
-TVM_DLL PrimExpr LaunchThreadExtent(const RegionStmtNode* op);
-TVM_DLL PrimVar LaunchThreadVar(const RegionStmtNode* op);
-/*! \brief Construct a launch with an explicit lexical body binding. */
-TVM_DLL RegionStmt LaunchThread(ffi::String tag, PrimExpr extent, PrimVar var, Stmt body,
-                                Span span = Span());
 
 /*!
  * \brief Assert condition, if an error occurs, return the error message.

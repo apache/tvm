@@ -176,8 +176,9 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
     Var previous_index = warp_index_;
     auto previous_bindings = active_bindings_;
-    if (IsLaunchThread(op)) {
-      PrimVar var = LaunchThreadVar(op);
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      ValidateRegionStmt(op);
+      PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
       const auto& binding = bindings_.at(var.get());
       active_bindings_.insert_or_assign(var.get(), binding);
       if (binding.tag == "threadIdx.x") warp_index_ = var;
@@ -300,10 +301,13 @@ class WarpIndexFinder : public StmtExprVisitor {
 
  private:
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (IsLaunchThread(op)) {
-      WarpThreadBinding binding{LaunchThreadTag(op), LaunchThreadExtent(op)};
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      ValidateRegionStmt(op);
+      WarpThreadBinding binding{op->args[0].as_or_throw<StringImm>()->value,
+                                op->args[1].as_or_throw<PrimExpr>()};
       CheckWidth(binding);
-      bindings_.insert_or_assign(LaunchThreadVar(op).get(), std::move(binding));
+      bindings_.insert_or_assign(op->body_params[0].as_or_throw<PrimVar>().get(),
+                                 std::move(binding));
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -393,10 +397,12 @@ class WarpAccessRewriter : public StmtExprMutator {
 
  protected:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!IsLaunchThread(op)) return StmtExprMutator::Mutate_(op, inplace_mode);
-    PrimExpr old_extent = LaunchThreadExtent(op);
+    if (!op->op.same_as(tirx::builtin::launch_thread()))
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    ValidateRegionStmt(op);
+    PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
-    PrimVar var = LaunchThreadVar(op);
+    PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
     Var previous_index = warp_index_;
     auto previous_bindings = active_bindings_;
     const auto& binding = bindings_.at(var.get());
@@ -405,7 +411,8 @@ class WarpAccessRewriter : public StmtExprMutator {
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     active_bindings_ = std::move(previous_bindings);
     warp_index_ = previous_index;
-    return LaunchThread(LaunchThreadTag(op), extent, var, body, op->span);
+    return RegionStmt(op->op, {op->args[0], extent}, op->body_params, op->attrs, body,
+                      op->result_vars, op->span);
   }
 
   Expr RewriteIndicesAt(const CallNode* op, const std::vector<int>& indices) {
@@ -618,9 +625,10 @@ class BindVarBoundInfo : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (IsLaunchThread(op)) {
-      PrimVar var = LaunchThreadVar(op);
-      PrimExpr extent = LaunchThreadExtent(op);
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      ValidateRegionStmt(op);
+      PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
       analyzer_->Bind(var, dom);
     }
@@ -657,17 +665,21 @@ class WarpMemoryRewriter : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!IsLaunchThread(op)) return StmtExprMutator::Mutate_(op, inplace_mode);
-    PrimVar var = LaunchThreadVar(op);
+    if (!op->op.same_as(tirx::builtin::launch_thread()))
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    ValidateRegionStmt(op);
+    PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
     auto previous_bindings = active_bindings_;
     Var previous_index = warp_index_;
-    ffi::String tag = LaunchThreadTag(op);
-    active_bindings_.insert_or_assign(var.get(), WarpThreadBinding{tag, LaunchThreadExtent(op)});
+    ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+    active_bindings_.insert_or_assign(var.get(),
+                                      WarpThreadBinding{tag, op->args[1].as_or_throw<PrimExpr>()});
     if (tag == "threadIdx.x") warp_index_ = var;
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     active_bindings_ = std::move(previous_bindings);
     warp_index_ = previous_index;
-    return LaunchThread(tag, LaunchThreadExtent(op), var, body, op->span);
+    return RegionStmt(op->op, op->args, op->body_params, op->attrs, body, op->result_vars,
+                      op->span);
   }
 
   UnchangedOr<Stmt> Mutate_(const SeqStmtNode* op, InplaceMode inplace_mode) {

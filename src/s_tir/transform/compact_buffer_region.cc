@@ -353,10 +353,12 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (IsLaunchThread(op)) {
-      PrimExpr extent = LaunchThreadExtent(op);
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      ValidateRegionStmt(op);
+      PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
-      IterVar iter(dom, LaunchThreadVar(op), IterVarType::kThreadIndex, LaunchThreadTag(op));
+      IterVar iter(dom, op->body_params[0].as_or_throw<PrimVar>(), IterVarType::kThreadIndex,
+                   op->args[0].as_or_throw<StringImm>()->value);
       ancestor_iters_.push_back(iter);
       dom_analyzer_->Bind(iter->var, dom);
       dom_map_.emplace(iter->var.get(), sym::IntSet::FromRange(dom));

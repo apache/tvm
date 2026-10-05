@@ -347,7 +347,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         if (var.same_as(iv->var)) return launch_var;
         return std::nullopt;
       });
-      res = LaunchThread(tag, iv->dom->extent, launch_var, res);
+      res = RegionStmt(tirx::builtin::launch_thread(), {StringImm(tag), iv->dom->extent},
+                       {launch_var}, DictAttrs(), res);
     }
 
     // Insert host init stmts outside the outermost thread binding or block.

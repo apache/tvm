@@ -22,6 +22,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 
 #include "../../support/utils.h"
@@ -53,12 +54,15 @@ class ThreadBindingUnifier : public DialectMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!IsLaunchThread(op) || IsVirtualThread(op)) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (!op->op.same_as(tirx::builtin::launch_thread()) ||
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       return MutateIsolatedScope(op, inplace_mode);
     }
-    PrimExpr old_extent = LaunchThreadExtent(op);
+    PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
-    IterVar axis(Range(), LaunchThreadVar(op), IterVarType::kThreadIndex, LaunchThreadTag(op));
+    IterVar axis(Range(), op->body_params[0].as_or_throw<PrimVar>(), IterVarType::kThreadIndex,
+                 op->args[0].as_or_throw<StringImm>()->value);
     return UnifyThreadBindingImpl(
         op, axis->var, axis, Range::FromMinExtent(IntImm(extent.ty(), 0), extent), inplace_mode);
   }

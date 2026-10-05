@@ -181,7 +181,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     return this->Visit(op->body);
   }
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (!IsLaunchThread(op)) has_opaque_region_ = true;
+    if (!op->op.same_as(tirx::builtin::launch_thread())) has_opaque_region_ = true;
     expr_touched_->Reset(false);
     for (const Expr& arg : op->args) expr_touched_->Visit(arg);
     for (const Var& var : op->body_params) Record(var.get(), *expr_touched_);
@@ -452,7 +452,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       return ffi::Unchanged();
     }
     return RegionStmt(op->op, std::move(args).ValueOrUnchanged(op->args), op->body_params,
-                      std::move(body).ValueOrUnchanged(op->body), op->result_vars, op->attrs,
+                      op->attrs, std::move(body).ValueOrUnchanged(op->body), op->result_vars,
                       op->span);
   }
 
@@ -746,9 +746,11 @@ class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<RegionStmtNode>();
-    if (IsVirtualThread(op)) {
-      PrimVar var = LaunchThreadVar(op);
-      const auto* extent = LaunchThreadExtent(op).as<IntImmNode>();
+    if (op && op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op && op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
+      PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+      const auto* extent = op->args[1].as_or_throw<PrimExpr>().as<IntImmNode>();
       TVM_FFI_ICHECK(extent) << "Virtual thread extent must be a constant integer";
       int nthread = extent->value.as<int>().value();
       TVM_FFI_ICHECK_GT(nthread, 0) << "Virtual thread extent must be positive";
@@ -757,7 +759,8 @@ class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
       if (vs->has_opaque_region_) {
         // Keep unknown operations and their result definitions inside one
         // lexical loop; they have no sharing or distribution semantics.
-        return For(var, IntImm(var.ty(), 0), LaunchThreadExtent(op), ForKind::kSerial, op->body);
+        return For(var, IntImm(var.ty(), 0), op->args[1].as_or_throw<PrimExpr>(), ForKind::kSerial,
+                   op->body);
       }
       auto injector =
           ffi::make_object<VTInjector>(analyzer_, var, nthread, touched, /*allow_share=*/true);

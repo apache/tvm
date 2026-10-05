@@ -27,6 +27,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/index_map.h>
 #include <tvm/tirx/stmt_functor.h>
 
@@ -198,12 +199,13 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     ValidateRegionStmt(op);
-    TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+    TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
         << "Cannot generate code for unlowered region op " << op->op;
-    TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+                  ValueError)
         << "Virtual thread launches must be lowered before code generation";
-    ffi::String tag = LaunchThreadTag(op);
-    PrimExpr extent = LaunchThreadExtent(op);
+    ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
     auto [it, inserted] = thread_extents_.emplace(tag, extent);
     TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
         << "Conflicting launch extents for " << tag;

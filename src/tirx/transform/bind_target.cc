@@ -39,6 +39,7 @@
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -115,7 +116,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (!IsLaunchThread(op)) return StmtExprVisitor::Visit_(op);
+    if (!op->op.same_as(tirx::builtin::launch_thread())) return StmtExprVisitor::Visit_(op);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
     bool previous_scope = is_under_gpu_scope_;
     is_under_gpu_scope_ = true;
@@ -213,14 +214,17 @@ class CallSubstitutor : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!IsLaunchThread(op)) return StmtExprMutator::Mutate_(op, inplace_mode);
-    PrimExpr old_extent = LaunchThreadExtent(op);
+    if (!op->op.same_as(tirx::builtin::launch_thread()))
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    ValidateRegionStmt(op);
+    PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
     bool previous_scope = is_under_gpu_scope_;
     is_under_gpu_scope_ = true;
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     is_under_gpu_scope_ = previous_scope;
-    return LaunchThread(LaunchThreadTag(op), extent, LaunchThreadVar(op), body, op->span);
+    return RegionStmt(op->op, {op->args[0], extent}, op->body_params, op->attrs, body,
+                      op->result_vars, op->span);
   }
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {

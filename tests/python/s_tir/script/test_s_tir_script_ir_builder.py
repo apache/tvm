@@ -244,6 +244,7 @@ def test_ir_builder_tir_thread():
         tvm.ir.Op.get("tirx.launch_thread"),
         [tvm.ir.StringImm("blockIdx.y"), tirx.IntImm("int32", 1)],
         [thread_var],
+        {},
         tirx.Evaluate(0),
     )
     func = tirx.PrimFunc([], launch).with_attr("s_tir", True)

@@ -137,7 +137,7 @@ class AllocateCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (!IsLaunchThread(op)) has_opaque_region_ = true;
+    if (!op->op.same_as(tirx::builtin::launch_thread())) has_opaque_region_ = true;
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -324,11 +324,15 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // Only record the outer most thread extent.
-    if (IsLaunchThread(op) && !IsVirtualThread(op) && !in_thread_env_) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
+        !in_thread_env_) {
       in_thread_env_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
       in_thread_env_ = false;
-    } else if (!IsLaunchThread(op) || IsVirtualThread(op)) {
+    } else if (!op->op.same_as(tirx::builtin::launch_thread()) ||
+               std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -448,7 +452,10 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (IsLaunchThread(op) && !IsVirtualThread(op) && !in_thread_env_) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
+        !in_thread_env_) {
       in_thread_env_ = true;
 
       // 1. Push a fresh scope.
@@ -499,8 +506,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
       // 6. If this scope has no shmem allocs, skip the wrapper.
       if (scope.shmem_allocs.empty()) {
         scope_stack_.pop_back();
-        return RegionStmt(op->op, op->args, op->body_params, visited_body, op->result_vars,
-                          op->attrs, op->span);
+        return RegionStmt(op->op, op->args, op->body_params, op->attrs, visited_body,
+                          op->result_vars, op->span);
       }
 
       // 7. Wrap with the merged-buffer AllocTensor.
@@ -519,7 +526,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       // 8. Pop the scope.
       scope_stack_.pop_back();
 
-      return RegionStmt(op->op, op->args, op->body_params, new_body, op->result_vars, op->attrs,
+      return RegionStmt(op->op, op->args, op->body_params, op->attrs, new_body, op->result_vars,
                         op->span);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);

@@ -150,12 +150,15 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const AttrStmtNode* o
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const RegionStmtNode* op) {
-  if (IsLaunchThread(op) && !IsVirtualThread(op)) {
-    PrimExpr extent = LaunchThreadExtent(op);
+  if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+  if (op->op.same_as(tirx::builtin::launch_thread()) &&
+      std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
     // IterVars are private access-analysis metadata, not launch definitions.
     env_threads_.push_back(IterVar(Range::FromMinExtent(IntImm(extent.ty(), 0), extent),
-                                   LaunchThreadVar(op), IterVarType::kThreadIndex,
-                                   LaunchThreadTag(op)));
+                                   op->body_params[0].as_or_throw<PrimVar>(),
+                                   IterVarType::kThreadIndex,
+                                   op->args[0].as_or_throw<StringImm>()->value));
     if (!in_device_env_) {
       in_device_env_ = true;
       scope_.push_back(std::vector<StmtEntry>());

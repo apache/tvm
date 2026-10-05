@@ -617,7 +617,7 @@ class CSEPlanner : public StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
     // Unknown operations can impose their own execution policy. Preserve them
     // as an optimization boundary until that operation has a lowering contract.
-    if (!IsLaunchThread(op)) return std::nullopt;
+    if (!op->op.same_as(tirx::builtin::launch_thread())) return std::nullopt;
     int saved = current_scope_;
     current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
@@ -843,7 +843,8 @@ class CSERewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override {
-    if (IsLaunchThread(op)) return StmtExprMutator::Mutate_(op, inplace_mode);
+    if (op->op.same_as(tirx::builtin::launch_thread()))
+      return StmtExprMutator::Mutate_(op, inplace_mode);
     // Match the planner's opaque boundary: only operands outside the body
     // participate in this plan and may reference its CSE bindings.
     auto args = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();

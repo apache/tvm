@@ -26,6 +26,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -803,11 +804,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // RegionStmt
-bool IsLaunchThread(const RegionStmtNode* op) {
-  static const Op launch = Op::Get("tirx.launch_thread");
-  return op != nullptr && op->op.same_as(launch);
-}
-
 void ValidateRegionStmt(const RegionStmtNode* op) {
   TVM_FFI_CHECK(op && op->op.defined() && op->body.defined(), ValueError)
       << "RegionStmt requires an operator and a body";
@@ -818,7 +814,7 @@ void ValidateRegionStmt(const RegionStmtNode* op) {
           << "RegionStmt parameters and results must be distinct definitions";
     }
   }
-  if (!IsLaunchThread(op)) return;
+  if (!op->op.same_as(tirx::builtin::launch_thread())) return;
   TVM_FFI_CHECK(op->args.size() == 2 && op->body_params.size() == 1 && op->result_vars.empty() &&
                     op->attrs->dict.empty(),
                 ValueError)
@@ -839,43 +835,20 @@ void ValidateRegionStmt(const RegionStmtNode* op) {
       << "launch_thread expects matching scalar integer extent and body parameter types";
 }
 
-ffi::String LaunchThreadTag(const RegionStmtNode* op) {
-  TVM_FFI_CHECK(IsLaunchThread(op), ValueError) << "Expected launch_thread region";
-  ValidateRegionStmt(op);
-  return op->args[0].as_or_throw<StringImm>()->value;
-}
-PrimExpr LaunchThreadExtent(const RegionStmtNode* op) {
-  TVM_FFI_CHECK(IsLaunchThread(op), ValueError) << "Expected launch_thread region";
-  ValidateRegionStmt(op);
-  return op->args[1].as_or_throw<PrimExpr>();
-}
-PrimVar LaunchThreadVar(const RegionStmtNode* op) {
-  TVM_FFI_CHECK(IsLaunchThread(op), ValueError) << "Expected launch_thread region";
-  ValidateRegionStmt(op);
-  return op->body_params[0].as_or_throw<PrimVar>();
-}
-bool IsVirtualThread(const RegionStmtNode* op) {
-  return IsLaunchThread(op) && std::string(LaunchThreadTag(op)).rfind("vthread", 0) == 0;
-}
-RegionStmt LaunchThread(ffi::String tag, PrimExpr extent, PrimVar var, Stmt body, Span span) {
-  return RegionStmt(Op::Get("tirx.launch_thread"), {StringImm(tag), extent}, {var}, body, {},
-                    DictAttrs(), span);
-}
-RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, Stmt body,
-                       ffi::Array<Var> result_vars, DictAttrs attrs, Span span)
+RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
+                       Stmt body, ffi::Array<Var> result_vars, Span span)
     : Stmt(ffi::UnsafeInit{}) {
   auto n = ffi::make_object<RegionStmtNode>(std::move(op), std::move(body));
   n->args = std::move(args);
   n->body_params = std::move(body_params);
-  n->result_vars = std::move(result_vars);
   n->attrs = std::move(attrs);
+  n->result_vars = std::move(result_vars);
   n->span = std::move(span);
   ValidateRegionStmt(n.get());
   data_ = std::move(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.launch_thread", "Bind a thread index within a body with a launch extent.");
   namespace refl = tvm::ffi::reflection;
   RegionStmtNode::RegisterReflection();
   refl::TypeAttrDef<RegionStmtNode>()
@@ -886,9 +859,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
             ffi::FStructuralMutate::FromNative<&RegionStmtMaybeInplaceMutate>());
   refl::GlobalDef().def("tirx.RegionStmt",
-                        [](Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, Stmt body,
-                           ffi::Array<Var> result_vars, DictAttrs attrs, Span span) {
-                          return RegionStmt(op, args, body_params, body, result_vars, attrs, span);
+                        [](Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params,
+                           DictAttrs attrs, Stmt body, ffi::Array<Var> result_vars, Span span) {
+                          return RegionStmt(op, args, body_params, attrs, body, result_vars, span);
                         });
 }
 

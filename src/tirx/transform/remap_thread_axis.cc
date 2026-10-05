@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -42,18 +43,22 @@ class ThreadAxisRewriter : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (IsLaunchThread(op) && !IsVirtualThread(op)) {
-      auto it = tmap_.find(LaunchThreadTag(op));
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      auto it = tmap_.find(op->args[0].as_or_throw<StringImm>()->value);
       if (it != tmap_.end()) {
-        PrimExpr old_extent = LaunchThreadExtent(op);
+        PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
         PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
-        PrimVar old_var = LaunchThreadVar(op);
+        PrimVar old_var = op->body_params[0].as_or_throw<PrimVar>();
         PrimVar new_var(it->second->var->name, extent.ty());
         ffi::Any previous_remap = VarRemapGet(old_var);
         VarRemapSet(old_var, new_var);
         Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
         VarRemapSet(old_var, previous_remap);
-        return LaunchThread(it->second->thread_tag, extent, new_var, body, op->span);
+        return RegionStmt(tirx::builtin::launch_thread(),
+                          {StringImm(it->second->thread_tag), extent}, {new_var}, DictAttrs(), body,
+                          {}, op->span);
       }
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);

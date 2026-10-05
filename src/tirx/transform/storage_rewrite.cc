@@ -239,7 +239,9 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // Hardware axes share their outer device allocation scope.  Virtual and
     // generic regions retain a lexical allocation boundary of their own.
-    if (IsLaunchThread(op) && !IsVirtualThread(op)) {
+    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       if (in_thread_env_) return StmtExprVisitor::Visit_(op);
       in_thread_env_ = true;
       auto result = VisitNewScope(op);

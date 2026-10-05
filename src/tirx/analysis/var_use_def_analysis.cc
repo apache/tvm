@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/builtin.h>
 namespace tvm {
 namespace tirx {
 
@@ -37,7 +38,7 @@ VarUseDefAnalyzer::VarUseDefAnalyzer(const ffi::Array<Var>& defined_vars, bool v
 
 ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const RegionStmtNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->attrs));
-  if (!IsLaunchThread(op) || visit_thread_extent_) {
+  if (!op->op.same_as(tirx::builtin::launch_thread()) || visit_thread_extent_) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args));
   }
   auto outer_defs = def_count_;

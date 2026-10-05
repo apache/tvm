@@ -136,12 +136,13 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     ValidateRegionStmt(op);
-    TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+    TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
         << "Cannot generate code for unlowered region op " << op->op;
-    TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+                  ValueError)
         << "Virtual thread launches must be lowered before code generation";
-    ffi::String tag = LaunchThreadTag(op);
-    PrimExpr extent = LaunchThreadExtent(op);
+    ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
     auto [it, inserted] = thread_extents_.emplace(tag, extent);
     TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
         << "Conflicting launch extents for " << tag;
@@ -154,7 +155,8 @@ class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
                               << " get " << extent;
       info_.workgroup_size[ts.dim_index] = sizeptr->value.as<uint32_t>().value();
     } else {
-      TVM_FFI_ICHECK_EQ(ts.rank, 0) << "Unsupported WebGPU thread tag " << LaunchThreadTag(op);
+      TVM_FFI_ICHECK_EQ(ts.rank, 0)
+          << "Unsupported WebGPU thread tag " << op->args[0].as_or_throw<StringImm>()->value;
       if (ts.dim_index == 2) {
         info_.has_block_index_z = true;
       }
@@ -358,12 +360,13 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
 
 void CodeGenWebGPU::Dispatch_(const RegionStmtNode* op) {
   ValidateRegionStmt(op);
-  TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+  TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
       << "Cannot generate code for unlowered region op " << op->op;
-  TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+  TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+                ValueError)
       << "Virtual thread launches must be lowered before code generation";
-  PrimVar var = LaunchThreadVar(op);
-  PrimExpr extent = LaunchThreadExtent(op);
+  PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+  PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
   With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
   CodeGenC::Dispatch_(op);
 }

@@ -25,6 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/type.h>
 
 #include <cctype>
@@ -1288,13 +1289,14 @@ void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_ca
 
 void CodeGenC::Dispatch_(const RegionStmtNode* op) {
   ValidateRegionStmt(op);
-  TVM_FFI_CHECK(IsLaunchThread(op), ValueError)
+  TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
       << "Cannot generate code for unlowered region op " << op->op;
-  TVM_FFI_CHECK(!IsVirtualThread(op), ValueError)
+  TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+                ValueError)
       << "Virtual thread launches must be lowered before code generation";
-  PrimVar var = LaunchThreadVar(op);
-  ffi::String tag = LaunchThreadTag(op);
-  PrimExpr extent = LaunchThreadExtent(op);
+  PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+  ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+  PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
   auto [it, inserted] = thread_extents_.emplace(tag, extent);
   sym::Analyzer analyzer;
   TVM_FFI_CHECK(inserted || analyzer->CanProveEqual(it->second, extent), ValueError)
