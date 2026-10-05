@@ -62,6 +62,11 @@ TVM_DLL Pass CreatePrimFuncPass(
 /*!
  * \brief Lower vectorization loops.
  *
+ * Target-dependent vectorization uses the PrimFunc's target attribute, not an
+ * ambient target context or nested target attributes. Target-independent
+ * fixed-width loops do not require a target. Code needing different vectorization
+ * targets must be separated into functions before this pass.
+ *
  * \param enable_vectorize Whether vectorization is enabled.
  *
  * \return The pass.
