@@ -88,12 +88,12 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       }
       for (const AccessEntry& acc : s.access) {
         if (acc.type == kRead) {
-          if (FindConflict(writes, acc, false)) {
+          if (FindConflict(writes, acc)) {
             sync_before_stmt = true;
             break;
           }
         } else if (acc.type == kWrite) {
-          if (FindConflict(reads, acc, false)) {
+          if (FindConflict(reads, acc)) {
             sync_before_stmt = true;
             break;
           }
@@ -131,12 +131,12 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
         bool sync_before_stmt = false;
         for (const AccessEntry& acc : s.access) {
           if (acc.type == kRead) {
-            if (FindConflict(writes, acc, true)) {
+            if (FindConflict(writes, acc)) {
               sync_before_stmt = true;
               break;
             }
           } else if (acc.type == kWrite) {
-            if (FindConflict(reads, acc, true)) {
+            if (FindConflict(reads, acc)) {
               sync_before_stmt = true;
               break;
             }
@@ -188,28 +188,21 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       }
     }
     head.insert(head.end(), tail.begin(), tail.end());
-    if (loop != nullptr) {
-      // clear double buffer flag after a loop is finished.
-      for (AccessEntry& e : head) {
-        e.double_buffer_write = false;
-      }
-    }
     return head;
   }
 
  private:
   // find conflicting entry in vec.
-  bool FindConflict(const std::vector<AccessEntry>& prev, const AccessEntry& curr,
-                    bool loop_carry) {
+  bool FindConflict(const std::vector<AccessEntry>& prev, const AccessEntry& curr) {
     for (const AccessEntry& x : prev) {
-      if (FindConflict(x, curr, loop_carry)) {
+      if (FindConflict(x, curr)) {
         return true;
       }
     }
     return false;
   }
 
-  bool FindConflict(const AccessEntry& prev, const AccessEntry& curr, bool loop_carry) {
+  bool FindConflict(const AccessEntry& prev, const AccessEntry& curr) {
     // Access to different buffers does not conflict.
     if (!prev.buffer.same_as(curr.buffer)) {
       return false;
@@ -258,12 +251,6 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
       }
     }
     if (has_same_index && depends_on_thread_index) {
-      return false;
-    }
-
-    // If this is a read into a double buffer that was previously
-    // swapped out, then it doesn't conflict.
-    if (prev.double_buffer_write && curr.type == kRead && !loop_carry) {
       return false;
     }
 

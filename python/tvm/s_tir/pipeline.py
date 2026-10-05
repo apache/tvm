@@ -57,7 +57,6 @@ def default_s_tir_pipeline(*, prepare_only=False):
             tirx.transform.NarrowDataType(32),
             tirx.transform.VectorizeLoop(not bool(config.get("tirx.disable_vectorize", False))),
             s_tir.transform.InjectVirtualThread(),
-            s_tir.transform.InjectDoubleBuffer(),
         ]
         if not bool(config.get("tirx.disable_storage_rewrite", False)):
             passes.append(tirx.transform.StorageRewrite())

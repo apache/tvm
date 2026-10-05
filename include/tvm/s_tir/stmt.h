@@ -234,14 +234,10 @@ constexpr const char* async_scope = "async_scope";
 constexpr const char* buffer_bound = "buffer_bound";
 
 /*!
- * \brief Marks production of double buffer data
+ * \brief SBlock annotation selecting a write-buffer index for double buffering in
+ * InjectSoftwarePipeline.
  */
 constexpr const char* double_buffer_scope = "double_buffer_scope";
-
-/*!
- * \brief Marks region used by double buffer write
- */
-constexpr const char* double_buffer_write = "double_buffer_write";
 
 /*!
  * \brief String-valued allocation Call attribute containing the TensorCore fragment shape
