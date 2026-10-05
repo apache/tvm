@@ -46,7 +46,7 @@ def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
         return None
     if not tvm_ffi.structural_equal(
         buffer_store.value.a,
-        tirx.BufferLoad(buffer_store.buffer, block.body.indices),
+        tirx.TensorLoad(buffer_store.buffer, block.body.indices),
         map_free_vars=True,
     ):
         return None
@@ -64,7 +64,7 @@ def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
     )
 
 
-def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | None:
+def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Var] | None:
     """Check if the block is a low batch GEMM.
 
     Parameters
@@ -79,7 +79,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
 
     Returns
     -------
-    ret : Optional[List[tirx.Buffer]]
+    ret : Optional[List[tirx.Var]]
         The vector-like buffers used in the low batch GEMM if it is a low batch GEMM,
         otherwise None.
     """
@@ -308,7 +308,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_buffers: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):
@@ -621,7 +621,7 @@ class LowBatchGEMV(GPUScheduleRule):
         block: s_tir.schedule.SBlockRV,
         dequantize_block: s_tir.schedule.SBlockRV | None,
         pad_input_block: s_tir.schedule.SBlockRV | None,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_buffers: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
         batch_pad: int,
     ):

@@ -244,7 +244,7 @@ void AdjustParallelVectorize(const Schedule& sch, const SBlockRV& block_rv,
           break;
         }
         const auto* shape =
-            access->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i].as<IntImmNode>();
+            access->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i].as<IntImmNode>();
         if (shape == nullptr) {
           can_analyze_contiguous_access = false;
           break;

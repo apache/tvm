@@ -43,7 +43,7 @@ static Type InferTypeReturnArgType(const CallNode* call) {
 Type InferTypeAddressOf(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 1U, ValueError) << "Address type requires an object";
   if (const auto* load = call->args[0].as<TensorLoadNode>()) {
-    return load->source.as_or_throw<BufferVar>().DataPointerType();
+    return load->source.as_or_throw<TensorVar>().DataPointerType();
   }
   Var variable = call->args[0].as_or_throw<Var>();
   if (auto pointer = variable->ty.as<PointerType>();
@@ -56,13 +56,13 @@ Type InferTypeAddressOf(const CallNode* call) {
 Type InferTypeMaskedLoad(const CallNode* call) {
   TVM_FFI_CHECK_GE(call->args.size(), 2U, ValueError)
       << "Masked load type requires a buffer and index operands";
-  BufferVar buffer = call->args[0].as_or_throw<BufferVar>();
+  TensorVar buffer = call->args[0].as_or_throw<TensorVar>();
   ffi::Array<PrimExpr> indices;
   for (size_t i = 1; i + 1 < call->args.size(); ++i) {
     indices.push_back(call->args[i].as_or_throw<PrimExpr>());
   }
   // Ordinary load typing computes vector elements and scalable index lanes.
-  return BufferLoad(buffer, indices).ty();
+  return MakeTensorLoad(buffer, indices).ty();
 }
 
 Type InferTypeIsNaN(const CallNode* call) {
@@ -77,8 +77,8 @@ Type InferTypeIsNaN(const CallNode* call) {
 
 ffi::Expected<Type> InferTypeBufferData(const CallNode* call) noexcept try {
   TVM_FFI_CHECK_EQ(call->args.size(), 1U, ValueError)
-      << "tirx.buffer_data expects one BufferVar argument";
-  Type inferred = call->args[0].as_or_throw<BufferVar>().DataPointerType();
+      << "tirx.buffer_data expects one TensorVar argument";
+  Type inferred = call->args[0].as_or_throw<TensorVar>().DataPointerType();
   if (call->ty.same_as(inferred) || ffi::StructuralEqual()(call->ty, inferred)) return call->ty;
   return inferred;
 } catch (const ffi::Error& error) {

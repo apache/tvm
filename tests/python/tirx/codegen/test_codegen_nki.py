@@ -172,7 +172,7 @@ def test_nki_matmul_1():
     def func(
         lhsT: T.Tensor((K, M), "float16"),
         rhs: T.Tensor((K, N), "float16"),
-        result: T.buffer((M, N), "float16"),
+        result: T.Tensor((M, N), "float16"),
     ):
         T.func_attr({"num_inputs": 2})
         result_tiles = T.alloc_tensor(

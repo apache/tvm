@@ -176,7 +176,7 @@ def test_extern():
     A = te.placeholder((m,), name="A")
 
     def extern_func(ins, outs):
-        assert tvm.tirx.is_buffer_var(ins[0])
+        assert tvm.tirx.is_tensor_var(ins[0])
         return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, m)
 
     B = te.extern((m,), [A], extern_func)
@@ -189,7 +189,7 @@ def test_extern_multi_out():
     B = te.compute((m,), lambda i: A[i] * 10)
 
     def extern_func(ins, outs):
-        assert tvm.tirx.is_buffer_var(ins[0])
+        assert tvm.tirx.is_tensor_var(ins[0])
         return tvm.tirx.call_packed("myadd", ins[0].data, outs[0].data, outs[1].data, m)
 
     res = te.extern([A.shape, A.shape], [A, B], extern_func)

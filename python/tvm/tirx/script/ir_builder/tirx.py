@@ -22,7 +22,7 @@ from collections.abc import Callable
 import tvm
 import tvm.tirx.operator as tirx_op
 from tvm.ir import Op, TensorRegion
-from tvm.tirx import Buffer, Expr, LambdaExpr, buffer_data, is_buffer_var
+from tvm.tirx import Expr, LambdaExpr, Var, buffer_data, is_tensor_var
 from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
 from tvm.tirx.expr import FloatImm, IntImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
@@ -123,14 +123,16 @@ thread = ScopeNamespace("thread", "thread")
 
 
 def _is_buffer_or_region(x):
-    return is_buffer_var(x) or isinstance(x, TensorRegion)
+    return is_tensor_var(x) or isinstance(x, TensorRegion)
 
 
-def _to_region(buffer: TensorRegion | Buffer):
-    if is_buffer_var(buffer):
+def _to_region(buffer: TensorRegion | Var):
+    if is_tensor_var(buffer):
         return buffer[tuple(slice(None) for _ in buffer.ty.shape)]
-    if not isinstance(buffer, TensorRegion) or not is_buffer_var(buffer.source):
-        raise TypeError("Tile operands require a Buffer or a TensorRegion with a BufferVar source")
+    if not isinstance(buffer, TensorRegion) or not is_tensor_var(buffer.source):
+        raise TypeError(
+            "Tile operands require a tensor variable or a TensorRegion with a TensorVar source"
+        )
     return buffer
 
 
@@ -145,9 +147,9 @@ f_insert = _ffi_api.TilePrimitiveCall  # pylint: disable=no-member
 
 @ScopedOp
 def zero(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer | None = None,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -156,14 +158,14 @@ def zero(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for zero result.
         When src is omitted, also used as the source (in-place).
 
-    src : Union[TensorRegion, Buffer], optional
+    src : Union[TensorRegion, Var], optional
         The source buffer region. If omitted, dst is used (in-place).
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if src is None:
@@ -180,11 +182,11 @@ def zero(
 
 @ScopedOp
 def sqrt(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer | None = None,
-    bias: TensorRegion | Buffer | FloatImm | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    bias: TensorRegion | Var | FloatImm | None = None,
     scale: FloatImm | None = None,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -195,20 +197,20 @@ def sqrt(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for sqrt result.
         When src is omitted, also used as the source (in-place).
 
-    src : Union[TensorRegion, Buffer], optional
+    src : Union[TensorRegion, Var], optional
         The source buffer region. If omitted, dst is used (in-place).
 
-    bias : Optional[Union[TensorRegion, Buffer, FloatImm]]
+    bias : Optional[Union[TensorRegion, Var, FloatImm]]
         The bias of the sqrt src. Only supported on Trn.
 
     scale : Optional[FloatImm]
         The scale of the sqrt src. Only supported on Trn.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     # Expression-form overload: ``sqrt(value)`` returns the underlying expression.
@@ -223,7 +225,7 @@ def sqrt(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    if bias is not None and is_buffer_var(bias):
+    if bias is not None and is_tensor_var(bias):
         bias = _to_region(bias)
     return f_insert(
         tirx_op.Sqrt(
@@ -241,10 +243,10 @@ def sqrt(
 
 @ScopedOp
 def add(
-    dst: TensorRegion | Buffer,
-    src1: TensorRegion | Buffer | FloatImm,
-    src2: TensorRegion | Buffer | FloatImm,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src1: TensorRegion | Var | FloatImm,
+    src2: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -253,25 +255,25 @@ def add(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for add result.
 
-    src1 : Union[TensorRegion, Buffer, FloatImm]
+    src1 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 1, or float.
 
-    src2 : Union[TensorRegion, Buffer, FloatImm]
+    src2 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 2, or float.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if workspace is None:
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if is_buffer_var(src1):
+    if is_tensor_var(src1):
         src1 = _to_region(src1)
-    if is_buffer_var(src2):
+    if is_tensor_var(src2):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Add(
@@ -282,10 +284,10 @@ def add(
 
 @ScopedOp
 def sub(
-    dst: TensorRegion | Buffer,
-    src1: TensorRegion | Buffer,
-    src2: TensorRegion | Buffer | FloatImm,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src1: TensorRegion | Var,
+    src2: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -294,25 +296,25 @@ def sub(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for sub result.
 
-    src1 : Union[TensorRegion, Buffer]
+    src1 : Union[TensorRegion, Var]
         The source buffer region 1.
 
-    src2 : Union[TensorRegion, Buffer, FloatImm]
+    src2 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 2, or float.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
     """
     if workspace is None:
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if is_buffer_var(src1):
+    if is_tensor_var(src1):
         src1 = _to_region(src1)
-    if is_buffer_var(src2):
+    if is_tensor_var(src2):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Sub(
@@ -323,10 +325,10 @@ def sub(
 
 @ScopedOp
 def mul(
-    dst: TensorRegion | Buffer,
-    src1: TensorRegion | Buffer | FloatImm,
-    src2: TensorRegion | Buffer | FloatImm,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src1: TensorRegion | Var | FloatImm,
+    src2: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -335,25 +337,25 @@ def mul(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for mul result.
 
-    src1 : Union[TensorRegion, Buffer, FloatImm]
+    src1 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 1, or float.
 
-    src2 : Union[TensorRegion, Buffer, FloatImm]
+    src2 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 2, or float.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
     """
     if workspace is None:
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if is_buffer_var(src1):
+    if is_tensor_var(src1):
         src1 = _to_region(src1)
-    if is_buffer_var(src2):
+    if is_tensor_var(src2):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Mul(
@@ -364,10 +366,10 @@ def mul(
 
 @ScopedOp
 def fdiv(
-    dst: TensorRegion | Buffer,
-    src1: TensorRegion | Buffer,
-    src2: TensorRegion | Buffer | FloatImm,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src1: TensorRegion | Var,
+    src2: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -376,16 +378,16 @@ def fdiv(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for div result.
 
-    src1 : Union[TensorRegion, Buffer]
+    src1 : Union[TensorRegion, Var]
         The source buffer region 1.
 
-    src2 : Union[TensorRegion, Buffer, FloatImm]
+    src2 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 2, or float.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if workspace is None:
@@ -393,7 +395,7 @@ def fdiv(
     config = kwargs or {}
     dst = _to_region(dst)
     src1 = _to_region(src1)
-    if is_buffer_var(src2):
+    if is_tensor_var(src2):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.FDiv(
@@ -404,11 +406,11 @@ def fdiv(
 
 @ScopedOp
 def fma(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer,
-    scale: TensorRegion | Buffer | Expr,
-    bias: TensorRegion | Buffer | Expr,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var,
+    scale: TensorRegion | Var | Expr,
+    bias: TensorRegion | Var | Expr,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -417,19 +419,19 @@ def fma(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region.
 
-    src : Union[TensorRegion, Buffer]
+    src : Union[TensorRegion, Var]
         The input buffer region.
 
-    scale : Union[TensorRegion, Buffer, Expr]
+    scale : Union[TensorRegion, Var, Expr]
         The scale factor (buffer region or scalar).
 
-    bias : Union[TensorRegion, Buffer, Expr]
+    bias : Union[TensorRegion, Var, Expr]
         The bias term (buffer region or scalar).
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if workspace is None:
@@ -437,9 +439,9 @@ def fma(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    if is_buffer_var(scale):
+    if is_tensor_var(scale):
         scale = _to_region(scale)
-    if is_buffer_var(bias):
+    if is_tensor_var(bias):
         bias = _to_region(bias)
     return f_insert(
         tirx_op.FMA(
@@ -459,7 +461,7 @@ def fma(
 def cast(
     dst,
     src=None,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -496,7 +498,7 @@ def _check_copy_regions_match(dst, src, config, name, dispatch=None):
     A plain copy is elementwise between two regions over one shared logical
     iteration space; after dropping extent-1 dims the two region shapes must
     be identical (same rank, same extent per dim). Unit dims are pure
-    padding; any real reshape is the caller's job via Buffer views
+    padding; any real reshape is the caller's job via Var views
     (unflatten/select/...), never the copy's.
 
     A region is buffer shape + slice: purely logical, independent of the
@@ -584,9 +586,9 @@ def _check_copy_regions_match(dst, src, config, name, dispatch=None):
 
 @ScopedOp
 def copy(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -595,13 +597,13 @@ def copy(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region.
 
-    src : Union[TensorRegion, Buffer]
+    src : Union[TensorRegion, Var]
         The source buffer region.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if workspace is None:
@@ -617,9 +619,9 @@ def copy(
 
 @ScopedOp
 def copy_async(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -639,15 +641,15 @@ def copy_async(
 
 @ScopedOp
 def gemm_async(
-    C: TensorRegion | Buffer,
-    A: TensorRegion | Buffer,
-    B: TensorRegion | Buffer,
-    SFA: TensorRegion | Buffer | None = None,
-    SFB: TensorRegion | Buffer | None = None,
+    C: TensorRegion | Var,
+    A: TensorRegion | Var,
+    B: TensorRegion | Var,
+    SFA: TensorRegion | Var | None = None,
+    SFB: TensorRegion | Var | None = None,
     transA: bool = False,
     transB: bool = False,
     accum: bool = False,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -656,19 +658,19 @@ def gemm_async(
 
     Parameters
     ----------
-    C : Union[TensorRegion, Buffer]
+    C : Union[TensorRegion, Var]
         The buffer of matrix C.
 
-    A : Union[TensorRegion, Buffer]
+    A : Union[TensorRegion, Var]
         The buffer of matrix A.
 
-    B : Union[TensorRegion, Buffer]
+    B : Union[TensorRegion, Var]
         The buffer of matrix B.
 
-    SFA : Optional[Union[TensorRegion, Buffer]]
+    SFA : Optional[Union[TensorRegion, Var]]
         The scale factor buffer for matrix A (block-scaled MMA only).
 
-    SFB : Optional[Union[TensorRegion, Buffer]]
+    SFB : Optional[Union[TensorRegion, Var]]
         The scale factor buffer for matrix B (block-scaled MMA only).
 
     transA : bool
@@ -681,7 +683,7 @@ def gemm_async(
         Whether C is accumulated.
         C = A * B if accum is False, otherwise C += A * B.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if workspace is None:
@@ -729,9 +731,9 @@ def gemm_async(
 
 @ScopedOp
 def fill(
-    dst: TensorRegion | Buffer,
+    dst: TensorRegion | Var,
     value: Expr,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -740,13 +742,13 @@ def fill(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region.
 
     value : Expr
         The value to be filled.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if workspace is None:
@@ -760,15 +762,15 @@ def fill(
 
 @ScopedOp
 def gemm(
-    D: TensorRegion | Buffer,
-    A: TensorRegion | Buffer,
-    B: TensorRegion | Buffer,
-    C: TensorRegion | Buffer,
+    D: TensorRegion | Var,
+    A: TensorRegion | Var,
+    B: TensorRegion | Var,
+    C: TensorRegion | Var,
     transpose_A: bool = False,
     transpose_B: bool = False,
     alpha: Expr = 1.0,
     beta: Expr = 0.0,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -779,16 +781,16 @@ def gemm(
 
     Parameters
     ----------
-    D : Union[TensorRegion, Buffer]
+    D : Union[TensorRegion, Var]
         The buffer of matrix D.
 
-    A : Union[TensorRegion, Buffer]
+    A : Union[TensorRegion, Var]
         The buffer of matrix A.
 
-    B : Union[TensorRegion, Buffer]
+    B : Union[TensorRegion, Var]
         The buffer of matrix B.
 
-    C : Union[TensorRegion, Buffer]
+    C : Union[TensorRegion, Var]
         The buffer of matrix C.
 
     transpose_A : bool
@@ -803,7 +805,7 @@ def gemm(
     beta : Expr
         The scalar beta.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if workspace is None:
@@ -833,11 +835,11 @@ def gemm(
 
 @ScopedOp
 def sum(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var,
     axes: int | tuple[int] = -1,
     accum: bool = False,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -847,10 +849,10 @@ def sum(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for sum result.
 
-    src : Union[TensorRegion, Buffer]
+    src : Union[TensorRegion, Var]
         The source buffer region.
 
     axes : Union[int, Tuple[int]]
@@ -859,7 +861,7 @@ def sum(
     accum : bool
         Whether dst is accumulated.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if workspace is None:
@@ -888,7 +890,7 @@ def max(
     src=None,
     axes: int | tuple[int] = -1,
     accum: bool = False,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -929,7 +931,7 @@ def min(
     src=None,
     axes: int | tuple[int] = -1,
     accum: bool = False,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -965,9 +967,9 @@ def min(
 
 @ScopedOp
 def reciprocal(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer | None = None,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -976,14 +978,14 @@ def reciprocal(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for reciprocal result.
         When src is omitted, also used as the source (in-place).
 
-    src : Union[TensorRegion, Buffer], optional
+    src : Union[TensorRegion, Var], optional
         The source buffer region. If omitted, dst is used (in-place).
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     # Expression-form overload: ``reciprocal(value)`` returns the underlying expression.
@@ -1007,9 +1009,9 @@ def reciprocal(
 
 @ScopedOp
 def silu(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1018,13 +1020,13 @@ def silu(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for SiLU result.
 
-    src : Union[TensorRegion, Buffer]
+    src : Union[TensorRegion, Var]
         The source buffer region.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     # Expression-form overload: ``silu(value)`` returns the underlying expression.
@@ -1044,9 +1046,9 @@ def silu(
 
 @ScopedOp
 def memset(
-    dst: TensorRegion | Buffer,
+    dst: TensorRegion | Var,
     value: Expr,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1055,13 +1057,13 @@ def memset(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for memset.
 
     value : Expr
         The value to be set.
 
-    workspace : Optional[Dict[str, Buffer]]
+    workspace : Optional[Dict[str, Var]]
         The workspace of the operator.
     """
     if workspace is None:
@@ -1077,10 +1079,10 @@ def memset(
 
 @ScopedOp
 def maximum(
-    dst: TensorRegion | Buffer,
-    src1: TensorRegion | Buffer | FloatImm,
-    src2: TensorRegion | Buffer | FloatImm,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src1: TensorRegion | Var | FloatImm,
+    src2: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1089,25 +1091,25 @@ def maximum(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for maximum result.
 
-    src1 : Union[TensorRegion, Buffer, FloatImm]
+    src1 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 1, or float.
 
-    src2 : Union[TensorRegion, Buffer, FloatImm]
+    src2 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 2, or float.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
     """
     if workspace is None:
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if is_buffer_var(src1):
+    if is_tensor_var(src1):
         src1 = _to_region(src1)
-    if is_buffer_var(src2):
+    if is_tensor_var(src2):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Maximum(
@@ -1118,10 +1120,10 @@ def maximum(
 
 @ScopedOp
 def minimum(
-    dst: TensorRegion | Buffer,
-    src1: TensorRegion | Buffer | FloatImm,
-    src2: TensorRegion | Buffer | FloatImm,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src1: TensorRegion | Var | FloatImm,
+    src2: TensorRegion | Var | FloatImm,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1130,25 +1132,25 @@ def minimum(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for minimum result.
 
-    src1 : Union[TensorRegion, Buffer, FloatImm]
+    src1 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 1, or float.
 
-    src2 : Union[TensorRegion, Buffer, FloatImm]
+    src2 : Union[TensorRegion, Var, FloatImm]
         The source buffer region 2, or float.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
     """
     if workspace is None:
         workspace = {}
     config = kwargs or {}
     dst = _to_region(dst)
-    if is_buffer_var(src1):
+    if is_tensor_var(src1):
         src1 = _to_region(src1)
-    if is_buffer_var(src2):
+    if is_tensor_var(src2):
         src2 = _to_region(src2)
     return f_insert(
         tirx_op.Minimum(
@@ -1159,11 +1161,11 @@ def minimum(
 
 @ScopedOp
 def exp(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer | None = None,
-    bias: TensorRegion | Buffer | FloatImm | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    bias: TensorRegion | Var | FloatImm | None = None,
     scale: FloatImm | None = None,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1172,20 +1174,20 @@ def exp(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for exp result.
         When src is omitted, also used as the source (in-place).
 
-    src : Union[TensorRegion, Buffer], optional
+    src : Union[TensorRegion, Var], optional
         The source buffer region. If omitted, dst is used (in-place).
 
-    bias : Optional[Union[TensorRegion, Buffer, FloatImm]]
+    bias : Optional[Union[TensorRegion, Var, FloatImm]]
         The bias of the exp src. Only supported on Trn.
 
     scale : Optional[FloatImm]
         The scale of the exp src. Only supported on Trn.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
     """
     # Expression-form overload: ``exp(value)`` returns the underlying expression.
@@ -1200,7 +1202,7 @@ def exp(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    if bias is not None and is_buffer_var(bias):
+    if bias is not None and is_tensor_var(bias):
         bias = _to_region(bias)
     return f_insert(
         tirx_op.Exp(
@@ -1218,11 +1220,11 @@ def exp(
 
 @ScopedOp
 def exp2(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer | None = None,
-    bias: TensorRegion | Buffer | FloatImm | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    bias: TensorRegion | Var | FloatImm | None = None,
     scale: FloatImm | None = None,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1231,20 +1233,20 @@ def exp2(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for exp2 result.
         When src is omitted, also used as the source (in-place).
 
-    src : Union[TensorRegion, Buffer], optional
+    src : Union[TensorRegion, Var], optional
         The source buffer region. If omitted, dst is used (in-place).
 
-    bias : Optional[Union[TensorRegion, Buffer, FloatImm]]
+    bias : Optional[Union[TensorRegion, Var, FloatImm]]
         The bias of the exp2 src.
 
     scale : Optional[FloatImm]
         The scale of the exp2 src.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
     """
     # Expression-form overload: ``exp2(value)`` returns the underlying expression.
@@ -1259,7 +1261,7 @@ def exp2(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    if bias is not None and is_buffer_var(bias):
+    if bias is not None and is_tensor_var(bias):
         bias = _to_region(bias)
     return f_insert(
         tirx_op.Exp2(
@@ -1277,11 +1279,11 @@ def exp2(
 
 @ScopedOp
 def log2(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer | None = None,
-    bias: TensorRegion | Buffer | FloatImm | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var | None = None,
+    bias: TensorRegion | Var | FloatImm | None = None,
     scale: FloatImm | None = None,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1299,7 +1301,7 @@ def log2(
     config = kwargs or {}
     dst = _to_region(dst)
     src = _to_region(src)
-    if bias is not None and is_buffer_var(bias):
+    if bias is not None and is_tensor_var(bias):
         bias = _to_region(bias)
     return f_insert(
         tirx_op.Log2(
@@ -1317,14 +1319,14 @@ def log2(
 
 @ScopedOp
 def binary_reduce(
-    binary_output: TensorRegion | Buffer,
-    reduce_output: TensorRegion | Buffer,
-    binary_input1: TensorRegion | Buffer | FloatImm,
-    binary_input2: TensorRegion | Buffer | FloatImm,
+    binary_output: TensorRegion | Var,
+    reduce_output: TensorRegion | Var,
+    binary_input1: TensorRegion | Var | FloatImm,
+    binary_input2: TensorRegion | Var | FloatImm,
     binary_op: str | Op,
     reduce_op: str | Op,
     reduce_axes: int | tuple[int] = -1,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1333,16 +1335,16 @@ def binary_reduce(
 
     Parameters
     ----------
-    binary_output : Union[TensorRegion, Buffer]
+    binary_output : Union[TensorRegion, Var]
         The destination buffer region for binary operation result.
 
-    reduce_output : Union[TensorRegion, Buffer]
+    reduce_output : Union[TensorRegion, Var]
         The destination buffer region for reduction result.
 
-    binary_input1 : Union[TensorRegion, Buffer, FloatImm]
+    binary_input1 : Union[TensorRegion, Var, FloatImm]
         The first source input for binary operation.
 
-    binary_input2 : Union[TensorRegion, Buffer, FloatImm]
+    binary_input2 : Union[TensorRegion, Var, FloatImm]
         The second source input for binary operation.
 
     binary_op : Union[str, Op]
@@ -1354,7 +1356,7 @@ def binary_reduce(
     reduce_axes : Union[int, Tuple[int]]
         The axes to reduce over.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
 
     dispatch : str, optional
@@ -1370,9 +1372,9 @@ def binary_reduce(
         workspace = {}
     binary_output = _to_region(binary_output)
     reduce_output = _to_region(reduce_output)
-    if is_buffer_var(binary_input1):
+    if is_tensor_var(binary_input1):
         binary_input1 = _to_region(binary_input1)
-    if is_buffer_var(binary_input2):
+    if is_tensor_var(binary_input2):
         binary_input2 = _to_region(binary_input2)
     reduce_axes = _wrap_elem_in_tuple(reduce_axes)
 
@@ -1401,15 +1403,15 @@ def binary_reduce(
 
 @ScopedOp
 def unary_reduce(
-    unary_output: TensorRegion | Buffer,
-    reduce_output: TensorRegion | Buffer,
-    unary_input: TensorRegion | Buffer,
+    unary_output: TensorRegion | Var,
+    reduce_output: TensorRegion | Var,
+    unary_input: TensorRegion | Var,
     unary_op: str | Op,
     reduce_op: str | Op,
-    bias: TensorRegion | Buffer | FloatImm | None = None,
+    bias: TensorRegion | Var | FloatImm | None = None,
     scale: FloatImm | None = None,
     reduce_axes: int | tuple[int] = -1,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1418,13 +1420,13 @@ def unary_reduce(
 
     Parameters
     ----------
-    unary_output : Union[TensorRegion, Buffer]
+    unary_output : Union[TensorRegion, Var]
         The destination buffer region for unary operation result.
 
-    reduce_output : Union[TensorRegion, Buffer]
+    reduce_output : Union[TensorRegion, Var]
         The destination buffer region for reduction result.
 
-    unary_input : Union[TensorRegion, Buffer]
+    unary_input : Union[TensorRegion, Var]
         The source input for unary operation.
 
     unary_op : Union[str, Op]
@@ -1433,7 +1435,7 @@ def unary_reduce(
     reduce_op : Union[str, Op]
         The reduction operation to perform.
 
-    bias : Optional[Union[TensorRegion, Buffer, FloatImm]]
+    bias : Optional[Union[TensorRegion, Var, FloatImm]]
         The bias to apply before unary operation.
 
     scale : Optional[FloatImm]
@@ -1442,7 +1444,7 @@ def unary_reduce(
     reduce_axes : Union[int, Tuple[int]]
         The axes to reduce over.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
 
     dispatch : str, optional
@@ -1460,7 +1462,7 @@ def unary_reduce(
     reduce_output = _to_region(reduce_output)
     unary_input = _to_region(unary_input)
 
-    if bias is not None and is_buffer_var(bias):
+    if bias is not None and is_tensor_var(bias):
         bias = _to_region(bias)
 
     reduce_axes = _wrap_elem_in_tuple(reduce_axes)
@@ -1491,14 +1493,14 @@ def unary_reduce(
 
 @ScopedOp
 def binary_chain(
-    output: TensorRegion | Buffer,
-    data: TensorRegion | Buffer,
-    operand0: TensorRegion | Buffer | FloatImm,
-    operand1: TensorRegion | Buffer | FloatImm,
+    output: TensorRegion | Var,
+    data: TensorRegion | Var,
+    operand0: TensorRegion | Var | FloatImm,
+    operand1: TensorRegion | Var | FloatImm,
     op0: str | Op,
     op1: str | Op,
     reverse1: bool = False,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1512,16 +1514,16 @@ def binary_chain(
 
     Parameters
     ----------
-    output : Union[TensorRegion, Buffer]
+    output : Union[TensorRegion, Var]
         The destination buffer region for the result.
 
-    data : Union[TensorRegion, Buffer]
+    data : Union[TensorRegion, Var]
         The input data to operate on.
 
-    operand0 : Union[TensorRegion, Buffer, FloatImm]
+    operand0 : Union[TensorRegion, Var, FloatImm]
         The first operand to combine with data.
 
-    operand1 : Union[TensorRegion, Buffer, FloatImm]
+    operand1 : Union[TensorRegion, Var, FloatImm]
         The second operand to use in chained operation.
 
     op0 : Union[str, Op]
@@ -1533,7 +1535,7 @@ def binary_chain(
     reverse1 : bool
         Whether to reverse the order of the second binary operation.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
 
     dispatch : str, optional
@@ -1550,9 +1552,9 @@ def binary_chain(
     output = _to_region(output)
     data = _to_region(data)
 
-    if is_buffer_var(operand0):
+    if is_tensor_var(operand0):
         operand0 = _to_region(operand0)
-    if is_buffer_var(operand1):
+    if is_tensor_var(operand1):
         operand1 = _to_region(operand1)
 
     if isinstance(op0, str):
@@ -1580,12 +1582,12 @@ def binary_chain(
 
 @ScopedOp
 def reduce_negate(
-    output: TensorRegion | Buffer,
-    input: TensorRegion | Buffer,
+    output: TensorRegion | Var,
+    input: TensorRegion | Var,
     reduce_op: str | Op,
     reduce_axes: int | tuple[int] = -1,
     accum: bool = False,
-    workspace: dict[str, Buffer] | None = None,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1594,10 +1596,10 @@ def reduce_negate(
 
     Parameters
     ----------
-    output : Union[TensorRegion, Buffer]
+    output : Union[TensorRegion, Var]
         The destination buffer region for the negated reduction result.
 
-    input : Union[TensorRegion, Buffer]
+    input : Union[TensorRegion, Var]
         The input buffer region to reduce.
 
     reduce_axes : Union[int, Tuple[int]]
@@ -1609,7 +1611,7 @@ def reduce_negate(
     reduce_op : Union[str, Op]
         The reduction operation to perform before negation.
 
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         The workspace of the operator.
 
     dispatch : str, optional
@@ -1648,9 +1650,9 @@ def reduce_negate(
 
 @ScopedOp
 def select(
-    dst: TensorRegion | Buffer,
-    true_value: TensorRegion | Buffer | FloatImm,
-    false_value: TensorRegion | Buffer | FloatImm,
+    dst: TensorRegion | Var,
+    true_value: TensorRegion | Var | FloatImm,
+    false_value: TensorRegion | Var | FloatImm,
     pred: LambdaExpr | Callable[..., Expr],
     scope: ExecScope | None = None,
 ):
@@ -1658,13 +1660,13 @@ def select(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         The destination buffer region for the result.
 
-    true_value : Union[TensorRegion, Buffer, FloatImm]
+    true_value : Union[TensorRegion, Var, FloatImm]
         The value to select if the predicate is true.
 
-    false_value : Union[TensorRegion, Buffer, FloatImm]
+    false_value : Union[TensorRegion, Var, FloatImm]
         The value to select if the predicate is false.
 
     pred : Union[LambdaExpr, Callable[..., Expr]]
@@ -1672,16 +1674,16 @@ def select(
         as the dimensions of the destination buffer.
     """
     dst = _to_region(dst)
-    if is_buffer_var(true_value):
+    if is_tensor_var(true_value):
         true_value = _to_region(true_value)
-    if is_buffer_var(false_value):
+    if is_tensor_var(false_value):
         false_value = _to_region(false_value)
     if not isinstance(pred, LambdaExpr):
         pred = LambdaExpr(pred)
     return f_insert(tirx_op.Select(dst, true_value, false_value, pred, scope=scope))
 
 
-def reshape(buffer: Buffer, shape: list[Expr]):
+def reshape(buffer: Var, shape: list[Expr]):
     # auto-infer the shape if shape has only one -1
     # for example, if buffer.shape is (1024, 1024) and shape is (128, -1, 2), then the new shape will be (128, 4, 2)  # noqa: E501
     shape = list(shape)
@@ -1716,9 +1718,9 @@ def reshape(buffer: Buffer, shape: list[Expr]):
 
 @ScopedOp
 def permute_layout(
-    dst: TensorRegion | Buffer,
-    src: TensorRegion | Buffer,
-    workspace: dict[str, Buffer] | None = None,
+    dst: TensorRegion | Var,
+    src: TensorRegion | Var,
+    workspace: dict[str, Var] | None = None,
     dispatch: str | None = None,
     scope: ExecScope | None = None,
     **kwargs,
@@ -1731,20 +1733,20 @@ def permute_layout(
 
     Parameters
     ----------
-    dst : Union[TensorRegion, Buffer]
+    dst : Union[TensorRegion, Var]
         Destination view (carries the target layout).
-    src : Union[TensorRegion, Buffer]
+    src : Union[TensorRegion, Var]
         Source view (carries the current layout).
-    workspace : Dict[str, Buffer]
+    workspace : Dict[str, Var]
         Optional workspace for the operator.
     dispatch : Optional[str]
         Force a specific dispatch variant by name.
     """
 
-    # Promote Buffer to TensorRegion covering the full extent, matching the
+    # Promote Var to TensorRegion covering the full extent, matching the
     # convention used by ``Tx.<dynamic>`` fallback registration.
     def _to_region(b):
-        if is_buffer_var(b):
+        if is_tensor_var(b):
             slices = [slice(None) for _ in range(len(b.ty.shape))]
             return b[slices]
         return b

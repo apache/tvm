@@ -56,7 +56,7 @@ tvm::tirx::PrimFunc PrimFuncFrameNode::FinalizeFunction(tvm::tirx::PrimFunc func
   return func;
 }
 
-void SBlockFrameNode::BindBufferRegion(tvm::tirx::BufferVar buffer, tvm::TensorRegion region) {
+void SBlockFrameNode::BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region) {
   match_buffers.push_back(tvm::s_tir::MatchBufferRegion(std::move(buffer), std::move(region)));
 }
 
@@ -70,8 +70,8 @@ void SBlockFrameNode::ExitWithScope() {
         << "S-TIR blocks require Ts.prim_func; T.prim_func only accepts TIRx";
   }
 
-  ffi::Array<tvm::tirx::BufferVar> tir_alloc_buffers;
-  for (const tvm::tirx::BufferVar& buffer : alloc_buffers) {
+  ffi::Array<tvm::tirx::TensorVar> tir_alloc_buffers;
+  for (const tvm::tirx::TensorVar& buffer : alloc_buffers) {
     tir_alloc_buffers.push_back(buffer);
   }
   ffi::Map<ffi::String, Any> attrs = annotations.value_or({});

@@ -72,7 +72,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
  * \param buffer_data_to_buffer The map from buffer data to buffer.
  * \return The result block.
  */
-SBlock MakeSBlock(const Stmt& body, const ffi::Map<Var, BufferVar>& buffer_data_to_buffer) {
+SBlock MakeSBlock(const Stmt& body, const ffi::Map<Var, TensorVar>& buffer_data_to_buffer) {
   if (const SBlockRealizeNode* block_realize = body.as<SBlockRealizeNode>()) {
     if (is_one(block_realize->predicate)) {
       // no need to create a new block
@@ -114,8 +114,8 @@ class PipelineOpaqueAccessRewriter {
    * \param fragment_info Information about tensor core fragment
    */
   PipelineOpaqueAccessRewriter(
-      const ffi::Map<Var, BufferVar>& buffer_data_to_buffer,
-      const ffi::Map<BufferVar, BufferVar>& buffer_remap, const For& pipeline_loop,
+      const ffi::Map<Var, TensorVar>& buffer_data_to_buffer,
+      const ffi::Map<TensorVar, TensorVar>& buffer_remap, const For& pipeline_loop,
       const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info)
       : buffer_data_to_buffer_(buffer_data_to_buffer),
         buffer_remap_(buffer_remap),
@@ -132,11 +132,11 @@ class PipelineOpaqueAccessRewriter {
     static const Op ptx_ldmatrix_legacy = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op ptx_mma_legacy = Op::Get("tirx.ptx_legacy.mma");
     if (call->op.same_as(load_matrix_sync) || call->op.same_as(store_matrix_sync)) {
-      const BufferVar& buffer = buffer_data_to_buffer_.at(GetBufferDataVar(call->args[0]).value());
+      const TensorVar& buffer = buffer_data_to_buffer_.at(GetBufferDataVar(call->args[0]).value());
       auto it = buffer_remap_.find(buffer);
       if (it != buffer_remap_.end()) {
         ffi::Array<Expr> new_args = call->args;
-        const BufferVar& new_buffer = (*it).second;
+        const TensorVar& new_buffer = (*it).second;
         new_args.Set(0, new_buffer.data());
         new_args.Set(
             4, RewriteWmmaFragmentIndex(buffer, new_buffer, call->args[4].as_or_throw<PrimExpr>()));
@@ -147,10 +147,10 @@ class PipelineOpaqueAccessRewriter {
       for (int i = 0; i < 4; i++) {
         const Var& buffer_var = GetBufferDataVar(call->args[i * 2]).value();
         PrimExpr index = call->args[i * 2 + 1].as_or_throw<PrimExpr>();
-        const BufferVar& buffer = buffer_data_to_buffer_.at(buffer_var);
+        const TensorVar& buffer = buffer_data_to_buffer_.at(buffer_var);
         auto it = buffer_remap_.find(buffer);
         if (it != buffer_remap_.end()) {
-          const BufferVar& new_buffer = (*it).second;
+          const TensorVar& new_buffer = (*it).second;
           PrimExpr new_index = RewriteWmmaFragmentIndex(buffer, (*it).second, index);
           new_args.Set(i * 2, new_buffer.data());
           new_args.Set(i * 2 + 1, new_index);
@@ -168,14 +168,14 @@ class PipelineOpaqueAccessRewriter {
   }
 
  private:
-  int GetWmmaFragmentSize(const BufferVar& buffer) {
+  int GetWmmaFragmentSize(const TensorVar& buffer) {
     auto it = fragment_info_.find(buffer.get());
     TVM_FFI_ICHECK(it != fragment_info_.end());
     const FragmentInfo& info = (*it).second;
     return info.GetSize();
   }
 
-  PrimExpr RewriteWmmaFragmentIndex(const BufferVar& old_buffer, const BufferVar& new_buffer,
+  PrimExpr RewriteWmmaFragmentIndex(const TensorVar& old_buffer, const TensorVar& new_buffer,
                                     const PrimExpr& old_index) {
     PrimExpr new_buffer_offset = old_index;
 
@@ -196,10 +196,10 @@ class PipelineOpaqueAccessRewriter {
     };
     ffi::Array<Expr> new_args = call->args;
     for (int i : arg_indices) {
-      const BufferVar& buffer = buffer_data_to_buffer_.at(GetBufferDataVar(call->args[i]).value());
+      const TensorVar& buffer = buffer_data_to_buffer_.at(GetBufferDataVar(call->args[i]).value());
       auto it = buffer_remap_.find(buffer);
       if (it != buffer_remap_.end()) {
-        const BufferVar& new_buffer = (*it).second;
+        const TensorVar& new_buffer = (*it).second;
         new_args.Set(i, new_buffer.data());
         PrimExpr old_index = call->args[i + 1].as_or_throw<PrimExpr>();
         PrimExpr offset =
@@ -219,8 +219,8 @@ class PipelineOpaqueAccessRewriter {
     return Call(call->ty, call->op, new_args, call->attrs, {}, call->span);
   }
 
-  const ffi::Map<Var, BufferVar>& buffer_data_to_buffer_;
-  const ffi::Map<BufferVar, BufferVar>& buffer_remap_;
+  const ffi::Map<Var, TensorVar>& buffer_data_to_buffer_;
+  const ffi::Map<TensorVar, TensorVar>& buffer_remap_;
   const For& pipeline_loop_;
   const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info_;
 };
@@ -245,8 +245,8 @@ class PipelineBodyRewriter : public StmtExprMutator {
    *        of a two-stage software pipeline, only one version of these buffers are accessed.
    * \param fragment_info Information about tensor core fragment
    */
-  PipelineBodyRewriter(const ffi::Map<Var, BufferVar>& buffer_data_to_buffer,
-                       const ffi::Map<BufferVar, BufferVar>& buffer_remap, For pipeline_loop,
+  PipelineBodyRewriter(const ffi::Map<Var, TensorVar>& buffer_data_to_buffer,
+                       const ffi::Map<TensorVar, TensorVar>& buffer_remap, For pipeline_loop,
                        bool access_all_versions,
                        const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info)
       : buffer_data_to_buffer_(buffer_data_to_buffer),
@@ -262,10 +262,10 @@ class PipelineBodyRewriter : public StmtExprMutator {
 
  private:
   TensorRegion RewritePipelineBufferRegion(const TensorRegion& buffer_region) {
-    if (auto replacement = VarRemapGet(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>())
-                               .as<BufferVar>()) {
+    if (auto replacement = VarRemapGet(buffer_region->source.as_or_throw<tvm::tirx::TensorVar>())
+                               .as<TensorVar>()) {
       Region new_region = buffer_region->region;
-      BufferVar new_buffer = replacement.value();
+      TensorVar new_buffer = replacement.value();
       // For pipeline buffers, relax the access region of the first dimension to full extent
       // if access_all_versions == true
       Range accessed_version =
@@ -281,20 +281,20 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
-    for (const BufferVar& alloc_tensor : op->alloc_buffers) {
+    for (const TensorVar& alloc_tensor : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(alloc_tensor.var(), alloc_tensor);
     }
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                        .as_or_throw<SBlock>();
-    for (const BufferVar& alloc_tensor : op->alloc_buffers) {
+    for (const TensorVar& alloc_tensor : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(alloc_tensor.var());
     }
     return block;
   }
 
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
-    if (!op->source.as<BufferVar>()) {
+    if (!op->source.as<TensorVar>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     TensorRegion region = RewritePipelineBufferRegion(ffi::GetRef<TensorRegion>(op));
@@ -302,14 +302,14 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    auto replacement = VarRemapGet(op->buffer).as<BufferVar>();
+    auto replacement = VarRemapGet(op->buffer).as<TensorVar>();
     BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                             .as_or_throw<BufferStore>();
     if (!replacement) {
       return store;
     }
-    BufferVar new_buffer = replacement.value();
+    TensorVar new_buffer = replacement.value();
     auto* n = store.CopyOnWrite();
     n->buffer = new_buffer;
     PrimExpr version =
@@ -319,16 +319,16 @@ class PipelineBodyRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    auto replacement = VarRemapGet(op->source).as<BufferVar>();
+    auto replacement = VarRemapGet(op->source).as<TensorVar>();
     if (!replacement) return StmtExprMutator::Mutate_(op, inplace_mode);
     auto indices = Mutate(op->indices, inplace_mode)
                        .ValueOrUnchanged(op->indices)
                        .as_or_throw<ffi::Array<PrimExpr>>();
-    BufferVar new_buffer = replacement.value();
+    TensorVar new_buffer = replacement.value();
     PrimExpr version =
         floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
     indices.insert(indices.begin(), version);
-    return BufferLoad(new_buffer, indices, op->span);
+    return MakeTensorLoad(new_buffer, indices, op->span);
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -336,7 +336,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(call.get(), InplaceMode::kDisallow).ValueOrUnchanged(call);
   }
 
-  ffi::Map<Var, BufferVar> buffer_data_to_buffer_;
+  ffi::Map<Var, TensorVar> buffer_data_to_buffer_;
   For pipeline_loop_;
   bool access_all_versions_;
   PipelineOpaqueAccessRewriter opaque_access_rewriter_;
@@ -351,9 +351,9 @@ class PipelineRewriter : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
 
   static Stmt Rewrite(
-      ffi::Map<Var, BufferVar> buffer_data_to_buffer,
-      const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers,
-      const ffi::Array<BufferVar> pipeline_allocs, const For& pipeline_loop,
+      ffi::Map<Var, TensorVar> buffer_data_to_buffer,
+      const std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers,
+      const ffi::Array<TensorVar> pipeline_allocs, const For& pipeline_loop,
       const PipelineInfo& pipeline_info,
       const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
       const ffi::Map<ffi::String, ffi::Any> preserved_annotations) {
@@ -364,9 +364,9 @@ class PipelineRewriter : public StmtExprMutator {
   }
 
   PipelineRewriter(
-      ffi::Map<Var, BufferVar> buffer_data_to_buffer,
-      const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers,
-      const ffi::Array<BufferVar>& pipeline_allocs, const For& pipeline_loop,
+      ffi::Map<Var, TensorVar> buffer_data_to_buffer,
+      const std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers,
+      const ffi::Array<TensorVar>& pipeline_allocs, const For& pipeline_loop,
       const PipelineInfo& pipeline_info,
       const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
       const ffi::Map<ffi::String, ffi::Any> preserved_annotations)
@@ -383,9 +383,9 @@ class PipelineRewriter : public StmtExprMutator {
   Stmt BuildPipeline() {
     // Step 1: Analyze accesses to the buffers in the pipeline and compute the number of versions
     // need to maintain for each buffer.
-    std::unordered_map<BufferVar, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> infos =
+    std::unordered_map<TensorVar, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> infos =
         GetBufferAccessInfo();
-    for (const BufferVar& buffer : pipeline_allocs_) {
+    for (const TensorVar& buffer : pipeline_allocs_) {
       int num_versions = ComputeBufferVersions(buffer, infos.at(buffer));
       if (num_versions > 1) {
         buffer_remap_.Set(buffer, RewriteAllocTensor(buffer, num_versions));
@@ -426,9 +426,9 @@ class PipelineRewriter : public StmtExprMutator {
     SeqStmt stmt = SeqStmt({prologue, body, epilogue});
 
     // Step 3: Make a new block that contains new buffer allocations after pipeline rewriting.
-    ffi::Array<BufferVar> alloc_buffers;
+    ffi::Array<TensorVar> alloc_buffers;
     for (const auto& alloc : pipeline_allocs_) {
-      BufferVar remapped = buffer_remap_.Get(alloc).value_or(alloc);
+      TensorVar remapped = buffer_remap_.Get(alloc).value_or(alloc);
       alloc_buffers.push_back(remapped);
       buffer_data_to_buffer_.erase(alloc.var());
       buffer_data_to_buffer_.erase(remapped.var());
@@ -444,19 +444,19 @@ class PipelineRewriter : public StmtExprMutator {
    * This method check the 'define' and 'use' stage of the buffers in the software pipeline, which
    * can be used to compute the number of versions needed to maintain after rewriting.
    */
-  std::unordered_map<BufferVar, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
   GetBufferAccessInfo() {
-    std::unordered_map<BufferVar, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> infos;
+    std::unordered_map<TensorVar, BufferAccessInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> infos;
     for (const auto& pair : pipeline_info_) {
       const SBlock& block = pair.first;
       int stage = pair.second.stage;
       max_stage_ = std::max(max_stage_, stage);
 
       for (const TensorRegion& write : block->writes) {
-        if (!infos.count(write->source.as_or_throw<tvm::tirx::BufferVar>())) {
-          infos.emplace(write->source.as_or_throw<tvm::tirx::BufferVar>(), BufferAccessInfo{});
+        if (!infos.count(write->source.as_or_throw<tvm::tirx::TensorVar>())) {
+          infos.emplace(write->source.as_or_throw<tvm::tirx::TensorVar>(), BufferAccessInfo{});
         }
-        auto& info = infos.at(write->source.as_or_throw<tvm::tirx::BufferVar>());
+        auto& info = infos.at(write->source.as_or_throw<tvm::tirx::TensorVar>());
         if (info.def == -1) {
           info.def = stage;
         } else {
@@ -465,10 +465,10 @@ class PipelineRewriter : public StmtExprMutator {
       }
 
       for (const TensorRegion& read : block->reads) {
-        if (!infos.count(read->source.as_or_throw<tvm::tirx::BufferVar>())) {
-          infos.emplace(read->source.as_or_throw<tvm::tirx::BufferVar>(), BufferAccessInfo{});
+        if (!infos.count(read->source.as_or_throw<tvm::tirx::TensorVar>())) {
+          infos.emplace(read->source.as_or_throw<tvm::tirx::TensorVar>(), BufferAccessInfo{});
         }
-        auto& info = infos.at(read->source.as_or_throw<tvm::tirx::BufferVar>());
+        auto& info = infos.at(read->source.as_or_throw<tvm::tirx::TensorVar>());
         info.use = std::max(info.use, stage);
       }
     }
@@ -509,7 +509,7 @@ class PipelineRewriter : public StmtExprMutator {
    * \param buffer_info The access information of the target buffer.
    * \return The number of versions required for the target buffer.
    */
-  int ComputeBufferVersions(const BufferVar& buffer, const BufferAccessInfo& buffer_info) {
+  int ComputeBufferVersions(const TensorVar& buffer, const BufferAccessInfo& buffer_info) {
     if (buffer_info.def == -1) {
       // Keep the original number of versions as buffers defined outside the software pipeline
       // should not be mutated.
@@ -532,7 +532,7 @@ class PipelineRewriter : public StmtExprMutator {
         auto it1 = std::find_if(
             writer_block->writes.begin(), writer_block->writes.end(),
             [&](const TensorRegion& buffer_region) {
-              return buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer);
+              return buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer);
             });
         if (it1 == writer_block->writes.end()) {
           continue;
@@ -544,7 +544,7 @@ class PipelineRewriter : public StmtExprMutator {
           auto it2 = std::find_if(
               reader_block->reads.begin(), reader_block->reads.end(),
               [&](const TensorRegion& buffer_region) {
-                return buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer);
+                return buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer);
               });
           if (it2 == reader_block->reads.end()) {
             continue;
@@ -573,7 +573,7 @@ class PipelineRewriter : public StmtExprMutator {
    * \param num_versions The number of versions to keep.
    * \return The resized buffer.
    */
-  BufferVar RewriteAllocTensor(const BufferVar& buffer, int num_versions) {
+  TensorVar RewriteAllocTensor(const TensorVar& buffer, int num_versions) {
     ffi::ObjectPtr<TensorTypeNode> new_buffer = CopyTensorType(buffer);
     new_buffer->shape.insert(new_buffer->shape.begin(), PrimExpr(num_versions));
     if (new_buffer->strides.size()) {
@@ -581,7 +581,7 @@ class PipelineRewriter : public StmtExprMutator {
       PrimExpr stride_0 = new_buffer->strides[0] * new_buffer->shape[1];
       new_buffer->strides.insert(new_buffer->strides.begin(), stride_0);
     }
-    return RebuildBufferVar(buffer, std::move(new_buffer));
+    return RebuildTensorVar(buffer, std::move(new_buffer));
   }
 
   // Per-stage states that need to be tracked across pipeline prologue, body, and epilogue.
@@ -595,7 +595,7 @@ class PipelineRewriter : public StmtExprMutator {
     // is only needed to compute wait count for epilogue without async producers.
     ffi::Optional<PrimExpr> producer_head{PrimExpr(-1)};
 
-    bool writes(BufferVar buf) const { return dst_buffers.count(buf.get()) > 0; }
+    bool writes(TensorVar buf) const { return dst_buffers.count(buf.get()) > 0; }
   };
 
   // Per-stage states that are local to each of pipeline prologue, body, and epilogue.
@@ -656,7 +656,7 @@ class PipelineRewriter : public StmtExprMutator {
         // Record the fact that we have encountered these write buffers.
         for (auto write_region : new_blocks[i].block->writes) {
           (*async_states_local)[new_blocks[i].stage].seen.insert(
-              write_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
+              write_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
         }
       }
 
@@ -664,8 +664,8 @@ class PipelineRewriter : public StmtExprMutator {
       for (auto read_region : new_blocks[i].block->reads) {
         for (auto kv : async_states) {
           if (kv.first <= new_blocks[i].stage &&
-              kv.second.writes(read_region->source.as_or_throw<tvm::tirx::BufferVar>())) {
-            // Found an earlier stage where read_region->source.as_or_throw<tvm::tirx::BufferVar>()
+              kv.second.writes(read_region->source.as_or_throw<tvm::tirx::TensorVar>())) {
+            // Found an earlier stage where read_region->source.as_or_throw<tvm::tirx::TensorVar>()
             // was asynchronously written
             TVM_FFI_ICHECK(producer_stage_idx == -1 || producer_stage_idx == kv.first)
                 << "A dependency on multiple async stages is not supported";
@@ -733,14 +733,14 @@ class PipelineRewriter : public StmtExprMutator {
 
         for (auto read_region : new_blocks[i].block->reads) {
           if (!async_states[producer_stage_idx].writes(
-                  read_region->source.as_or_throw<tvm::tirx::BufferVar>()))
+                  read_region->source.as_or_throw<tvm::tirx::TensorVar>()))
             continue;
           auto commit_group_id = buffer_to_commit_group.at(
-              read_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
+              read_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
           if (!need_wait_count[commit_group_id]) continue;
 
           if (!dep_local_state.seen.count(
-                  read_region->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
+                  read_region->source.as_or_throw<tvm::tirx::TensorVar>().get())) {
             // Multiple async producers interleaved: The most recent async write is from the
             // previous iteration. This is the B_shared case above.
             producer_head_per_commit.push_back(dep_local_state.producer_head.value() - 1);
@@ -973,8 +973,8 @@ class PipelineRewriter : public StmtExprMutator {
 
         for (auto write_region : new_block->writes) {
           async_states[stage].dst_buffers.insert(
-              write_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
-          buffer_to_commit_group[write_region->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+              write_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
+          buffer_to_commit_group[write_region->source.as_or_throw<tvm::tirx::TensorVar>().get()] =
               commit_group_id;
         }
 
@@ -997,7 +997,7 @@ class PipelineRewriter : public StmtExprMutator {
         for (auto kv : async_states) {
           int producer_stage_id = kv.first;
           if (producer_stage_id <= stage &&
-              kv.second.writes(read_region->source.as_or_throw<tvm::tirx::BufferVar>())) {
+              kv.second.writes(read_region->source.as_or_throw<tvm::tirx::TensorVar>())) {
             async_states_local[producer_stage_id].consumed = true;
           }
         }
@@ -1042,14 +1042,14 @@ class PipelineRewriter : public StmtExprMutator {
   }
 
   sym::Analyzer analyzer_;
-  ffi::Map<Var, BufferVar> buffer_data_to_buffer_;
-  const std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers_;
-  ffi::Array<BufferVar> pipeline_allocs_;
+  ffi::Map<Var, TensorVar> buffer_data_to_buffer_;
+  const std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& double_buffers_;
+  ffi::Array<TensorVar> pipeline_allocs_;
   For pipeline_loop_;
   PipelineInfo pipeline_info_;
   const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info_;
   int max_stage_ = -1;
-  ffi::Map<BufferVar, BufferVar> buffer_remap_;
+  ffi::Map<TensorVar, TensorVar> buffer_remap_;
   ffi::Array<SBlock> ordered_stmts_;
   std::map<int, AsyncStateGlobal> async_states;
   ffi::Map<ffi::String, ffi::Any> preserved_annotations_;
@@ -1072,7 +1072,7 @@ void BuildDependencyGraph(const ffi::Array<SBlock>& blocks,
 
   for (const SBlock& block : blocks) {
     for (const TensorRegion& read : block->reads) {
-      auto it = buffer_writers.find(read->source.as_or_throw<tvm::tirx::BufferVar>().var());
+      auto it = buffer_writers.find(read->source.as_or_throw<tvm::tirx::TensorVar>().var());
       if (it != buffer_writers.end()) {
         for (const SBlock& writer : it->second) {
           if (dep_src2dst != nullptr) {
@@ -1085,7 +1085,7 @@ void BuildDependencyGraph(const ffi::Array<SBlock>& blocks,
       }
     }
     for (const TensorRegion& write : block->writes) {
-      buffer_writers[write->source.as_or_throw<tvm::tirx::BufferVar>().var()].push_back(block);
+      buffer_writers[write->source.as_or_throw<tvm::tirx::TensorVar>().var()].push_back(block);
     }
   }
 }
@@ -1099,7 +1099,7 @@ class PipelineInjector : public StmtExprMutator {
     auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     auto injector = ffi::make_object<PipelineInjector>(global_symbol);
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>()) {
+      if (auto buffer = param.as<TensorVar>()) {
         injector->buffer_data_to_buffer_.Set(buffer.value().var(), buffer.value());
       }
     }
@@ -1168,7 +1168,7 @@ class PipelineInjector : public StmtExprMutator {
     // the for-loop. If the for-loop has BlockRealize as its child, the pipeline body will be the
     // child of the block.
     Stmt pipeline_body = for_node->body;
-    ffi::Array<BufferVar> pipeline_allocs;
+    ffi::Array<TensorVar> pipeline_allocs;
     if (const auto* realize = for_node->body.as<SBlockRealizeNode>()) {
       const auto& block = realize->block;
       for (const auto& buffer : block->alloc_buffers) {
@@ -1271,8 +1271,8 @@ class PipelineInjector : public StmtExprMutator {
    * \param n The block pointer to which the buffer allocations are added.
    * \param alloc_buffers The buffer allocations to be added.
    */
-  void AddAllocBuffers(SBlockNode* n, const ffi::Array<BufferVar> alloc_buffers) {
-    for (const BufferVar& alloc_tensor : alloc_buffers) {
+  void AddAllocBuffers(SBlockNode* n, const ffi::Array<TensorVar> alloc_buffers) {
+    for (const TensorVar& alloc_tensor : alloc_buffers) {
       n->alloc_buffers.push_back(alloc_tensor);
       Region region;
       region.reserve(alloc_tensor->shape.size());
@@ -1295,7 +1295,7 @@ class PipelineInjector : public StmtExprMutator {
                     ValueError)
           << "Index of the buffer exceeds the size of the write regions of the block. ("
           << buffer_index << " vs. " << op->writes.size() << ")";
-      double_buffers.insert(op->writes[buffer_index]->source.as_or_throw<tvm::tirx::BufferVar>());
+      double_buffers.insert(op->writes[buffer_index]->source.as_or_throw<tvm::tirx::TensorVar>());
     }
     SBlock block = StmtExprMutator::Mutate_(op, inplace_mode)
                        .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
@@ -1324,9 +1324,9 @@ class PipelineInjector : public StmtExprMutator {
     return false;
   }
 
-  ffi::Map<Var, BufferVar> buffer_data_to_buffer_;
+  ffi::Map<Var, TensorVar> buffer_data_to_buffer_;
   std::unordered_map<const VarNode*, FragmentInfo> fragment_info_;
-  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> double_buffers;
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> double_buffers;
   ffi::Optional<ffi::String> global_symbol_;
 };
 

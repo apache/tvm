@@ -27,14 +27,13 @@ from typing import Any, ClassVar
 import tvm_ffi
 from tvm_ffi import register_object
 
-from tvm.ir import Expr, Op, Range
+from tvm.ir import Expr, Op, Range, Var
 from tvm.runtime import Object, Scriptable
 from tvm.target import Target
 
 from . import _ffi_api
-from .buffer import Buffer
 from .exec_scope import ExecScope
-from .expr import FloatImm, IterVar, Var
+from .expr import FloatImm, IterVar
 from .stmt import Stmt
 
 
@@ -127,14 +126,14 @@ class DispatchContext(Object, Scriptable):
             scope_kind,
         )
 
-    def add_alloc_buffer(self, buffer: Buffer) -> None:
+    def add_alloc_buffer(self, buffer: Var) -> None:
         """Add an allocated buffer to the dispatch context.
            Can be called only if alloc_only is True.
            The buffer will be added to the workspace of operator (the key in the workspace is the buffer name).
 
         Parameters
         ----------
-        buffer : Buffer
+        buffer : Var
             The buffer to be added.
         """  # noqa: E501
         _ffi_api.DispatchContextAddAllocBuffer(self, buffer)  # pylint: disable=no-member
@@ -156,12 +155,12 @@ class DispatchContext(Object, Scriptable):
         """  # noqa: E501
         _ffi_api.DispatchContextAddInitStmt(self, stmt, host)  # pylint: disable=no-member
 
-    def add_post_buffer_def_stmt(self, buffer: Buffer, stmt: Stmt) -> None:
+    def add_post_buffer_def_stmt(self, buffer: Var, stmt: Stmt) -> None:
         """Add a statement to be inserted after a buffer's definition (DeclTensor/AllocTensor).
 
         Parameters
         ----------
-        buffer : Buffer
+        buffer : Var
             The buffer whose definition scope the statement should appear in.
         stmt : Stmt
             The statement to be inserted.
@@ -191,7 +190,7 @@ class DispatchContext(Object, Scriptable):
         key : str
             Cache key (built by the caller from construction parameters).
         value : Object
-            The object to cache (e.g. a Buffer or Var).
+            The object to cache (e.g. a Var or Var).
         """
         _ffi_api.DispatchContextSharedStateSet(self, key, value)
 
@@ -261,7 +260,7 @@ class TilePrimitiveCall(Stmt):
     args : List[Expr]
         The arguments.
 
-    workspace : Map[str, Buffer]
+    workspace : Map[str, Var]
         The workspace.
 
     config : Map[str, ObjectRef]
@@ -275,7 +274,7 @@ class TilePrimitiveCall(Stmt):
     """
 
     args: list[Expr]
-    workspace: dict[str, Buffer]
+    workspace: dict[str, Var]
     config: dict[str, Any]
     dispatch: str | None
     scope: ExecScope
@@ -285,7 +284,7 @@ class TilePrimitiveCall(Stmt):
         self,
         *args: list[Expr],
         op: Op | None = None,
-        workspace: dict[str, Buffer] | None = None,
+        workspace: dict[str, Var] | None = None,
         config: dict[str, Any] | None = None,
         dispatch: str | None = None,
         scope: ExecScope | None = None,
@@ -360,7 +359,7 @@ class TilePrimitiveCall(Stmt):
         )
         return TilePrimitiveCall.downcast(new_call)
 
-    def with_workspace(self, workspace: dict[str, Buffer]) -> "TilePrimitiveCall":
+    def with_workspace(self, workspace: dict[str, Var]) -> "TilePrimitiveCall":
         """Return a copy with ``workspace`` replaced, preserving all other fields."""
         return self.replace(workspace=workspace)
 
@@ -373,14 +372,14 @@ class TilePrimitiveCall(Stmt):
         raise NotImplementedError("Subclass must implement this method")
 
     def get_private_buffers(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
+        self, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: "DispatchContext"
     ) -> dict[str, Any]:
         """
         Create private (intermediate) buffers needed in this operator.
 
         Parameters
         ----------
-        buffer_dict: Dict[Any, Tuple[Buffer, Optional[Stmt]]]
+        buffer_dict: Dict[Any, Tuple[Var, Optional[Stmt]]]
             A dictionary containing private buffers (and their init stmts) in other operators.
             Key can be anything to reference the buffer.
             This is used to reuse private buffers in other operators (like identity tensor etc.).
@@ -408,12 +407,12 @@ class TilePrimitiveCall(Stmt):
             raise ValueError(f"Unsupported target: {sctx.target.kind.name}")
 
     def get_private_buffers_trn(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
+        self, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: "DispatchContext"
     ) -> dict[str, Any]:
         return {}
 
     def get_private_buffers_cuda(
-        self, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: "DispatchContext"
+        self, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: "DispatchContext"
     ) -> dict[str, Any]:
         return {}
 

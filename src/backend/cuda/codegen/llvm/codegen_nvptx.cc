@@ -90,7 +90,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     tvm::Tuple shape = buffer_call->args[0].as_or_throw<tvm::Tuple>();
     DLDataType dtype = buffer_call->args[1].as_or_throw<DataTypeImm>()->value;
     ffi::String scope = buffer_call->args[2].as_or_throw<StringImm>()->value;
-    BufferVar buffer = op->var.as_or_throw<BufferVar>();
+    TensorVar buffer = op->var.as_or_throw<TensorVar>();
     DictAttrs annotations = buffer_call->attrs.as_or_throw<DictAttrs>();
     llvm::Value* buf = nullptr;
     StorageInfo& info = alloc_storage_info_[buffer.get()];

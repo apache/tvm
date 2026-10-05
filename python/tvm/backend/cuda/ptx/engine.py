@@ -414,7 +414,7 @@ def _coerce_operand(entry, slot, values, mod_map):
     re-check afterwards -- and a bare literal lane can take its dtype from the
     group instead of being typed on its own.
     """
-    # T.local_scalar / `x: T.float32` hand back a wrapper around the BufferLoad;
+    # T.local_scalar / `x: T.float32` hand back a wrapper around the TensorLoad;
     # unwrap once here so every kind sees the node itself. A PredArg is NOT
     # unwrapped here: whether the tag is present is the discriminator, so each
     # branch below has to be able to see it.

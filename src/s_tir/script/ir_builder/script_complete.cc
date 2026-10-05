@@ -48,11 +48,11 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
     return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  explicit ScriptCompleter(ffi::Map<Var, BufferVar>* buffer_var_map)
+  explicit ScriptCompleter(ffi::Map<Var, TensorVar>* buffer_var_map)
       : buffer_var_map_(buffer_var_map) {}
 
  private:
-  ffi::Map<Var, BufferVar>* buffer_var_map_;
+  ffi::Map<Var, TensorVar>* buffer_var_map_;
   UnchangedOr<Stmt> Mutate_(const s_tir::SBlockRealizeNode* op, InplaceMode inplace_mode) final {
     for (const PrimExpr& value : op->iter_values) {
       PrimType value_ty = value.ty();
@@ -68,7 +68,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
       buffer_var_map_->Set(alloc_tensor.var(), alloc_tensor);
     }
     for (const auto& match_buffer : op->match_buffers) {
-      const BufferVar& target_buffer = match_buffer->buffer;
+      const TensorVar& target_buffer = match_buffer->buffer;
       buffer_var_map_->Set(target_buffer.var(), target_buffer);
     }
 
@@ -84,7 +84,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
       buffer_var_map_->erase(alloc_tensor.var());
     }
     for (const auto& match_buffer : op->match_buffers) {
-      const BufferVar& target_buffer = match_buffer->buffer;
+      const TensorVar& target_buffer = match_buffer->buffer;
       buffer_var_map_->erase(target_buffer.var());
     }
     // Get access detection mask
@@ -121,7 +121,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
         s_tir::StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     const Var& var = stmt.as<BindNode>()->var;
     // A flat definition registers its buffer for access detection in subsequent siblings.
-    if (auto buffer = var.as<BufferVar>(); buffer && !buffer_var_map_->count(var)) {
+    if (auto buffer = var.as<TensorVar>(); buffer && !buffer_var_map_->count(var)) {
       buffer_var_map_->Set(var, buffer.value());
     }
     return stmt;
@@ -130,11 +130,11 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
   bool is_root_block_ = true;
 };
 
-PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<BufferVar>& root_allocates) {
+PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<TensorVar>& root_allocates) {
   if (!func->body.has_value()) return func;
-  ffi::Map<Var, BufferVar> buffer_var_map;
+  ffi::Map<Var, TensorVar> buffer_var_map;
   for (const Var& param : func->params) {
-    if (auto buffer = param.as<BufferVar>()) {
+    if (auto buffer = param.as<TensorVar>()) {
       buffer_var_map.Set(buffer.value().var(), buffer.value());
     }
   }

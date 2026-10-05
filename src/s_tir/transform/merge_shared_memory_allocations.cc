@@ -77,12 +77,12 @@ bool IsStaticSharedMemory(Var buffer_var) {
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
 }
 
-bool IsDynamicSharedMemory(const BufferVar& buffer) {
+bool IsDynamicSharedMemory(const TensorVar& buffer) {
   StorageScope storage_scope = runtime::StorageScope::Create(buffer.scope());
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
 }
 
-bool IsStaticSharedMemory(const BufferVar& buffer) {
+bool IsStaticSharedMemory(const TensorVar& buffer) {
   StorageScope storage_scope = runtime::StorageScope::Create(buffer.scope());
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
 }
@@ -106,7 +106,7 @@ static int64_t ConstantAllocationSize(const ffi::Array<PrimExpr>& extents) {
 }
 
 /*!
- * \brief collect the mapping from the buffer var to its BufferVar within a subtree
+ * \brief collect the mapping from the buffer var to its TensorVar within a subtree
  */
 class AllocateCollector : public StmtExprVisitor {
  public:
@@ -126,18 +126,18 @@ class AllocateCollector : public StmtExprVisitor {
     StorageScope storage_scope = StorageScope::Create(scope);
     if (is_dynamic_ && storage_scope.rank == runtime::StorageRank::kShared &&
         storage_scope.tag == ".dyn") {
-      shmem_allocs_.insert_or_assign(op->var.as_or_throw<BufferVar>().get(),
-                                     op->var.as_or_throw<BufferVar>());
+      shmem_allocs_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(),
+                                     op->var.as_or_throw<TensorVar>());
     } else if (!is_dynamic_ && storage_scope.rank == runtime::StorageRank::kShared &&
                storage_scope.tag == "") {
-      shmem_allocs_.insert_or_assign(op->var.as_or_throw<BufferVar>().get(),
-                                     op->var.as_or_throw<BufferVar>());
+      shmem_allocs_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(),
+                                     op->var.as_or_throw<TensorVar>());
     }
     return StmtExprVisitor::Visit_(op);
   }
 
-  // The mapping from the original buffer var to its BufferVar
-  std::unordered_map<const VarNode*, BufferVar> shmem_allocs_;
+  // The mapping from the original buffer var to its TensorVar
+  std::unordered_map<const VarNode*, TensorVar> shmem_allocs_;
 
  private:
   bool is_dynamic_;
@@ -177,13 +177,13 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     // the level in the scope stack
     size_t level{0};
     // The buffer object
-    BufferVar buffer;
+    TensorVar buffer;
   };
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op) {
     size_t level = scope_.size();
-    const VarNode* buf = op->var.as_or_throw<BufferVar>().get();
-    alloc_info_.insert_or_assign(buf, AllocEntry{level, op->var.as_or_throw<BufferVar>()});
+    const VarNode* buf = op->var.as_or_throw<TensorVar>().get();
+    alloc_info_.insert_or_assign(buf, AllocEntry{level, op->var.as_or_throw<TensorVar>()});
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -241,7 +241,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     if (auto source = GetBufferDataVar(call->args[0])) {
       const VarNode* allocation = ResolveAlias(source.value().get());
       if (alloc_info_.count(allocation)) {
-        buffer_alias_sources_[op->var.as_or_throw<BufferVar>().get()] = allocation;
+        buffer_alias_sources_[op->var.as_or_throw<TensorVar>().get()] = allocation;
         return std::nullopt;
       }
     }
@@ -253,7 +253,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     for (const auto& index : op->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
     }
-    const VarNode* buf = ResolveAlias(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    const VarNode* buf = ResolveAlias(op->source.as_or_throw<tvm::tirx::TensorVar>().get());
     auto it = alloc_info_.find(buf);
     if (it != alloc_info_.end() && it->second.buffer.defined()) {
       TVM_FFI_ICHECK_LT(it->second.level, scope_.size())
@@ -409,19 +409,19 @@ class SharedMemoryRewriter : public StmtExprMutator {
    */
   struct KernelScope {
     // The merged buffer var for THIS kernel launch.
-    ffi::Optional<BufferVar> merged_buffer;
+    ffi::Optional<TensorVar> merged_buffer;
     // Total byte size of THIS kernel's merged buffer.
     PrimExpr merged_alloc_size{0};
     // Allocations from THIS kernel's subtree.
-    std::unordered_map<const VarNode*, BufferVar> shmem_allocs;
+    std::unordered_map<const VarNode*, TensorVar> shmem_allocs;
     // Per-buffer byte offset into merged_buf_var.
     std::unordered_map<const VarNode*, PrimExpr> buffer_byte_offsets;
-    // BufferVar-object remap: original BufferVar -> merged-data-var BufferVar.
-    std::unordered_map<const VarNode*, BufferVar> buffer_remap;
+    // TensorVar-object remap: original TensorVar -> merged-data-var TensorVar.
+    std::unordered_map<const VarNode*, TensorVar> buffer_remap;
     // Typed views whose physical source is one of shmem_allocs.
     std::unordered_map<const VarNode*, const VarNode*> buffer_alias_sources;
     // Remapped buffers in first-use order, for deterministic alias emission.
-    std::vector<BufferVar> buffer_remap_order;
+    std::vector<TensorVar> buffer_remap_order;
     // Has any original alloc in this scope been marked volatile?
     bool has_volatile_alloc{false};
     // Liveness data (event_map, alloc_map, const_free_map, sym_free_list) — all per-scope.
@@ -435,7 +435,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
    * \brief Create a fresh merged buffer Var for a new kernel scope.
    *        Same name string is fine — Var identity is by pointer, not name.
    */
-  BufferVar MakeMergedBuffer(PrimExpr size) {
+  TensorVar MakeMergedBuffer(PrimExpr size) {
     return decl_tensor({std::move(size)}, PrimType::UInt(8),
                        is_dynamic_ ? "buf_dyn_shmem" : "buf_shmem",
                        is_dynamic_ ? "shared.dyn" : "shared");
@@ -478,7 +478,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       Stmt visited_body = StmtExprMutator::Mutate(ffi::AnyView(op->body), inplace_mode)
                               .ValueOrUnchanged(op->body)
                               .as_or_throw<Stmt>();
-      for (const BufferVar& remapped : scope.buffer_remap_order) {
+      for (const TensorVar& remapped : scope.buffer_remap_order) {
         // The uint8 merged allocation intentionally supplies storage for
         // typed views; target codegen emits the required pointer cast.
         visited_body = SeqStmt::Flatten(
@@ -525,7 +525,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         storage_scope.tag == (is_dynamic_ ? ".dyn" : "")) {
       if (!scope_stack_.empty()) {
         KernelScope& scope = scope_stack_.back();
-        if (scope.shmem_allocs.count(op->var.as_or_throw<BufferVar>().get())) {
+        if (scope.shmem_allocs.count(op->var.as_or_throw<TensorVar>().get())) {
           if (call->attrs.as<DictAttrsNode>()->dict.count(tirx::attr::kVolatile)) {
             scope.has_volatile_alloc = true;
           }
@@ -556,7 +556,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       if (auto source = GetBufferDataVar(call->args[0])) {
         KernelScope& scope = scope_stack_.back();
         if (const VarNode* allocation = ResolveAllocation(source.value().get(), scope)) {
-          scope.buffer_alias_sources[op->var.as_or_throw<BufferVar>().get()] = allocation;
+          scope.buffer_alias_sources[op->var.as_or_throw<TensorVar>().get()] = allocation;
           return Evaluate(0);
         }
       }
@@ -565,7 +565,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
     auto node = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                     .as_or_throw<Bind>();
-    if (auto new_buf = GetUpdatedBuffer(node->var.as_or_throw<BufferVar>());
+    if (auto new_buf = GetUpdatedBuffer(node->var.as_or_throw<TensorVar>());
         !new_buf.same_as(node->var)) {
       const auto* new_call = node->value.as<CallNode>();
       return Bind(new_buf,
@@ -612,7 +612,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   TensorLoad VisitBufferAccess(TensorLoad node) {
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = node->source.as_or_throw<tvm::tirx::TensorVar>();
     if (!IsAppropriateSharedMemory(buffer) || scope_stack_.empty() ||
         !ResolveAllocation(buffer.get(), scope_stack_.back())) {
       return node;
@@ -622,10 +622,10 @@ class SharedMemoryRewriter : public StmtExprMutator {
            "FlattenBuffer";
     ffi::Array<PrimExpr> indices = {node->indices[0] +
                                     this->GetBufferOffset(buffer.var(), buffer->dtype->dtype)};
-    return BufferLoad(GetUpdatedBuffer(buffer), indices, node->span);
+    return MakeTensorLoad(GetUpdatedBuffer(buffer), indices, node->span);
   }
 
-  BufferVar GetUpdatedBuffer(BufferVar buffer) {
+  TensorVar GetUpdatedBuffer(TensorVar buffer) {
     if (scope_stack_.empty()) return buffer;
     KernelScope& scope = scope_stack_.back();
     if (!ResolveAllocation(buffer.get(), scope)) return buffer;
@@ -642,7 +642,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
           << "MergeSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
           << "FlattenBuffer";
-      buffer = RebuildBufferVar(buffer, CopyTensorType(buffer));
+      buffer = RebuildTensorVar(buffer, CopyTensorType(buffer));
     }
 
     scope.buffer_remap.insert_or_assign(key, buffer);
@@ -661,7 +661,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       }
       Var buffer = buffer_opt.value();
       bool is_shared = buffer->ty.as<TensorTypeNode>()
-                           ? IsAppropriateSharedMemory(buffer.as_or_throw<BufferVar>())
+                           ? IsAppropriateSharedMemory(buffer.as_or_throw<TensorVar>())
                            : IsAppropriateSharedMemory(buffer);
       if (!is_shared || scope_stack_.empty() ||
           !ResolveAllocation(buffer.get(), scope_stack_.back())) {
@@ -669,7 +669,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       }
       PrimExpr extra_offset = GetBufferOffset(buffer, dtype);
       Expr merged_data = buffer->ty.as<TensorTypeNode>()
-                             ? GetUpdatedBuffer(buffer.as_or_throw<BufferVar>()).data()
+                             ? GetUpdatedBuffer(buffer.as_or_throw<TensorVar>()).data()
                              : scope_stack_.back().merged_buffer.value().data();
 
       PrimExpr offset = Mutate(op->args[2]).ValueOrUnchanged(op->args[2]).as_or_throw<PrimExpr>();
@@ -686,7 +686,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       DLDataType dtype;
       bool is_shared;
       if (buffer->ty.as<TensorTypeNode>()) {
-        BufferVar typed_buffer = buffer.as_or_throw<BufferVar>();
+        TensorVar typed_buffer = buffer.as_or_throw<TensorVar>();
         dtype = typed_buffer->dtype->dtype;
         is_shared = IsAppropriateSharedMemory(typed_buffer);
       } else {
@@ -704,7 +704,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       PrimExpr extra_offset = GetBufferOffset(buffer, dtype);
       PrimExpr offset = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
       if (buffer->ty.as<TensorTypeNode>()) {
-        Expr merged_data = GetUpdatedBuffer(buffer.as_or_throw<BufferVar>()).data();
+        Expr merged_data = GetUpdatedBuffer(buffer.as_or_throw<TensorVar>()).data();
         ffi::Array<Expr> args = op->args;
         args.Set(0, merged_data);
         args.Set(1, extra_offset + offset);
@@ -757,7 +757,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
     return is_dynamic_ ? IsDynamicSharedMemory(var) : IsStaticSharedMemory(var);
   }
 
-  bool IsAppropriateSharedMemory(const BufferVar& buffer) {
+  bool IsAppropriateSharedMemory(const TensorVar& buffer) {
     return is_dynamic_ ? IsDynamicSharedMemory(buffer) : IsStaticSharedMemory(buffer);
   }
 
@@ -823,7 +823,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       if (it != scope.event_map.end() && seq[i].scope_pair_offset >= 0) {
         for (const VarNode* var : it->second.gen) {
           TVM_FFI_ICHECK(scope.shmem_allocs.count(var));
-          const BufferVar& buf = scope.shmem_allocs.at(var);
+          const TensorVar& buf = scope.shmem_allocs.at(var);
           StorageEntry* dst_entry = FindAlloc(buf, scope);
           scope.alloc_map[var] = dst_entry;
         }
@@ -857,7 +857,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
     for (const StorageEntry* e : all_entry) {
       for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
         for (const VarNode* buffer : e->allocs[i]) {
-          const BufferVar& buf = scope.shmem_allocs.at(buffer);
+          const TensorVar& buf = scope.shmem_allocs.at(buffer);
           int elem_bytes = static_cast<int>(buf->dtype.StorageBytes());
           align[i] = std::max(align[i], elem_bytes);
         }
@@ -869,7 +869,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
         PrimExpr inner_offset = 0;
         for (const VarNode* buffer : e->allocs[i]) {
-          const BufferVar& buf = scope.shmem_allocs.at(buffer);
+          const TensorVar& buf = scope.shmem_allocs.at(buffer);
           ffi::Array<PrimExpr> alloc_shape = GetBufferAllocationShape(buf);
           int elem_bytes = static_cast<int>(buf->dtype.StorageBytes());
           int align_bytes = std::max(align[i], elem_bytes);
@@ -898,7 +898,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
    * \param const_nbits the size of the allocation in bits
    * \return the new storage entry
    */
-  StorageEntry* NewAlloc(const BufferVar& buf, size_t const_nbits) {
+  StorageEntry* NewAlloc(const TensorVar& buf, size_t const_nbits) {
     // Re-use not successful, allocate a new buffer.
     StorageEntry* entry = arena_.make<StorageEntry>();
     entry->allocs.push_back({buf.get()});
@@ -912,7 +912,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
    * \param scope the kernel scope whose free lists to search
    * \return the storage entry
    */
-  StorageEntry* FindAlloc(const BufferVar& buf, KernelScope& scope) {
+  StorageEntry* FindAlloc(const TensorVar& buf, KernelScope& scope) {
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
     const uint64_t match_range = 16;

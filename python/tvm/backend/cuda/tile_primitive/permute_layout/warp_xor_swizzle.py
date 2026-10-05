@@ -52,7 +52,7 @@ The algorithm:
 
 where ``project`` mixed-radix-folds the iter shard dims back onto the
 buffer's iterated slice dims (so the emit's index matches buf.shape rank,
-which TIR's BufferLoad/Store requires).
+which TIR's TensorLoad/Store requires).
 
 SHIFT and MASK are chosen by simulating the bank pattern at the **shard
 granularity** (where strides are affine), trying k = 0, 1, …, log2(P)
@@ -65,7 +65,7 @@ Correctness rests on:
 * Both layouts are verified bijections on the slice (every logical
   position has a unique byte offset under that layout).
 * The mixed-radix projection from iter shard idx to buf coord is exactly
-  what TIR's BufferLoad does internally when buf.shape rank < shard rank
+  what TIR's TensorLoad does internally when buf.shape rank < shard rank
   — so iter shard's strides and the buffer-indexed byte offset agree.
 """
 
@@ -76,7 +76,7 @@ import math
 from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import IntImm, PrimFunc, is_buffer_var
+from tvm.tirx import IntImm, PrimFunc, is_tensor_var
 from tvm.tirx.layout import TileLayout, _flatten_coord
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail, register_dispatch
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -88,13 +88,13 @@ from ..common import get_indices, get_st_extent
 
 def _as_buffer_and_region(arg):
     """Normalize a Buffer or TensorRegion to (buffer, start_list, extent_list)."""
-    if is_buffer_var(arg):
+    if is_tensor_var(arg):
         buf = arg
         extent = list(buf.ty.shape)
         st = [0] * len(extent)
     elif isinstance(arg, TensorRegion):
-        if not is_buffer_var(arg.source):
-            raise TypeError("permute_layout requires a TensorRegion with a BufferVar source")
+        if not is_tensor_var(arg.source):
+            raise TypeError("permute_layout requires a TensorRegion with a TensorVar source")
         buf = arg.source
         st, extent = get_st_extent(arg)
     else:

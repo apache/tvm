@@ -457,7 +457,7 @@ ffi::Array<TensorRegion> EvalSetRegions(const ffi::Array<TensorRegion>& regions,
   ffi::Array<TensorRegion> results;
   results.reserve(regions.size());
   for (const TensorRegion& buffer_region : regions) {
-    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
     ffi::Array<sym::IntSet> relaxed = sym::EvalSet(buffer_region->region, dom_map);
     TVM_FFI_ICHECK_EQ(relaxed.size(), buffer->shape.size());
     int ndim = buffer->shape.size();
@@ -478,9 +478,9 @@ ffi::Array<TensorRegion> EvalSetRegions(const ffi::Array<TensorRegion>& regions,
  */
 ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   typedef std::vector<ffi::Array<sym::IntSet>> ranges_t;
-  std::unordered_map<BufferVar, ranges_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> intset_map;
+  std::unordered_map<TensorVar, ranges_t, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> intset_map;
   for (const TensorRegion& buffer_region : regions) {
-    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
     if (intset_map.find(buffer) == intset_map.end()) {
       intset_map[buffer] = {buffer->shape.size(), ffi::Array<sym::IntSet>()};
     }
@@ -491,7 +491,7 @@ ffi::Array<TensorRegion> UnionRegions(const ffi::Array<TensorRegion>& regions) {
   }
   ffi::Array<TensorRegion> results;
   for (const auto& it : intset_map) {
-    const BufferVar& buffer = it.first;
+    const TensorVar& buffer = it.first;
     ffi::Array<Range> regions;
     for (size_t dim = 0; dim < buffer->shape.size(); ++dim) {
       const sym::IntSet intset = sym::Union(it.second[dim]);
@@ -843,39 +843,39 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
       << "A tensor intrinsic description must have a body";
   comparator.Dispatch(block_realize, intrin_desc->body.value());
   // Step 3: Prepare necessary mapping
-  // 1) BufferVar mapping from intrin impl buffers to intrin desc buffers.
-  // 2) BufferVar mapping from intrin impl buffers to buffers in the current AST.
+  // 1) TensorVar mapping from intrin impl buffers to intrin desc buffers.
+  // 2) TensorVar mapping from intrin impl buffers to buffers in the current AST.
   // 3) Mapping impl buffers to their accessed regions.
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> impl2desc;
+  std::unordered_map<TensorVar, TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> impl2desc;
   TVM_FFI_ICHECK_EQ(intrin_desc->params.size(), intrin_impl->params.size());
   for (int i = 0, n = intrin_desc->params.size(); i < n; ++i) {
-    BufferVar desc = intrin_desc->params[i].as_or_throw<tvm::tirx::BufferVar>();
-    BufferVar impl = intrin_impl->params[i].as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar desc = intrin_desc->params[i].as_or_throw<tvm::tirx::TensorVar>();
+    TensorVar impl = intrin_impl->params[i].as_or_throw<tvm::tirx::TensorVar>();
     impl2desc.insert_or_assign(impl, desc);
   }
-  std::unordered_map<BufferVar, BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> impl2cur;
+  std::unordered_map<TensorVar, TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> impl2cur;
   for (const auto& pair : impl2desc) {
-    const BufferVar& impl = pair.first;
-    const BufferVar& desc = pair.second;
+    const TensorVar& impl = pair.first;
+    const TensorVar& desc = pair.second;
     TVM_FFI_ICHECK(comparator.rhs_buffer_map_.count(desc));
     impl2cur.insert_or_assign(impl, comparator.rhs_buffer_map_.at(desc));
   }
-  std::unordered_map<BufferVar, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, ffi::Array<Range>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       impl2region;
   SBlock impl_block = intrin_impl->body.as_or_throw<SBlockRealize>()->block;
   for (const TensorRegion& read : impl_block->reads) {
-    impl2region.emplace(read->source.as_or_throw<tvm::tirx::BufferVar>(), read->region);
+    impl2region.emplace(read->source.as_or_throw<tvm::tirx::TensorVar>(), read->region);
   }
   for (const TensorRegion& write : impl_block->writes) {
-    impl2region.emplace(write->source.as_or_throw<tvm::tirx::BufferVar>(), write->region);
+    impl2region.emplace(write->source.as_or_throw<tvm::tirx::TensorVar>(), write->region);
   }
   // Step 4: Create MatchBufferRegion for the params of the impl function of the tensor
   // intrin to make them subregions of the buffer in the original IR.
   ffi::Array<MatchBufferRegion> match_buffer_regions;
   match_buffer_regions.reserve(intrin_impl->params.size());
   for (int i = 0, n = intrin_impl->params.size(); i < n; ++i) {
-    BufferVar impl = intrin_impl->params[i].as_or_throw<tvm::tirx::BufferVar>();
-    const BufferVar& cur = impl2cur.at(impl);
+    TensorVar impl = intrin_impl->params[i].as_or_throw<tvm::tirx::TensorVar>();
+    const TensorVar& cur = impl2cur.at(impl);
     const ffi::Array<Range>& old_region = impl2region.at(impl);
     const std::vector<PrimExpr>& indices_base = comparator.buffer_indices_.at(cur);
     int offset = static_cast<int>(indices_base.size()) - static_cast<int>(old_region.size());

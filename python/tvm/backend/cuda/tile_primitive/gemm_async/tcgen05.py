@@ -466,8 +466,8 @@ def gemm_async_tcgen05_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -
     if is_block_scaled:
         SFA_buffer_region, SFB_buffer_region = op_call.sfa, op_call.sfb
         transA, transB, accum = op_call.transA, op_call.transB, op_call.accum
-        SFA_buffer: tvm.tirx.Buffer = SFA_buffer_region.source
-        SFB_buffer: tvm.tirx.Buffer = SFB_buffer_region.source
+        SFA_buffer: tvm.ir.Var = SFA_buffer_region.source
+        SFB_buffer: tvm.ir.Var = SFB_buffer_region.source
         SFA_scope, SFB_scope = SFA_buffer.scope(), SFB_buffer.scope()
         if not (SFA_scope == "tmem" and SFB_scope == "tmem"):
             raise ValueError(

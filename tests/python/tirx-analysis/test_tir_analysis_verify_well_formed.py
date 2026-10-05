@@ -385,7 +385,7 @@ def test_tensor_load_asserted_type_matches_source_and_indices():
 def test_tensor_load_malformed_indices_return_false_without_asserting():
     buffer = tvm.tirx.decl_tensor((4, 4), "float32")
     vector_index = tvm.tirx.Ramp(0, 1, 4)
-    load = tvm.tirx.BufferLoad(buffer, [0, vector_index])
+    load = tvm.tirx.TensorLoad(buffer, [0, vector_index])
     func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(load))
 
     graph = json.loads(tvm.ir.save_json(func))

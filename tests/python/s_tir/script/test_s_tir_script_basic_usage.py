@@ -396,12 +396,12 @@ def test_alloc_inside_block():
 
 def test_ifexp():
     @Ts.prim_func(private=True)
-    def func(A: T.buffer((128, 128), "float32")):
+    def func(A: T.Tensor((128, 128), "float32")):
         for i, j in T.grid(128, 128):
             A[i, j] = i if i < j else j
 
     @Ts.prim_func(private=True)
-    def expected(A: T.buffer((128, 128), "float32")):
+    def expected(A: T.Tensor((128, 128), "float32")):
         for i, j in T.grid(128, 128):
             A[i, j] = T.if_then_else(i < j, i, j)
 
@@ -418,7 +418,7 @@ def test_sequence_compare():
                 A[i, j] = 0
 
     @Ts.prim_func(private=True)
-    def expected(A: T.buffer((128, 128), "float32")):
+    def expected(A: T.Tensor((128, 128), "float32")):
         for i, j in T.grid(128, 128):
             if (0 < i and i < 128) and (0 < j and j < 128):
                 A[i, j] = 1

@@ -43,8 +43,8 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
     lo = lo_buf
     hi = hi_buf
 
-    T.buffer_store(lo, cast(0, out_dtype), T.buffer_indices(lo, 0))
-    T.buffer_store(hi, cast(search_range, out_dtype), T.buffer_indices(hi, 0))
+    T.buffer_store(lo, cast(0, out_dtype), T.tensor_indices(lo, 0))
+    T.buffer_store(hi, cast(search_range, out_dtype), T.tensor_indices(hi, 0))
 
     # Reference: pytorch/aten/src/ATen/native/cuda/Bucketization.cu
     def condition(current_val, target_val):
@@ -52,21 +52,21 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
             return current_val <= target_val
         return current_val < target_val
 
-    with T.while_(lo[T.buffer_indices(lo, 0)] < hi[T.buffer_indices(hi, 0)]):
-        mid = lo[T.buffer_indices(lo, 0)] + (
-            hi[T.buffer_indices(hi, 0)] - lo[T.buffer_indices(lo, 0)] >> 1
+    with T.while_(lo[T.tensor_indices(lo, 0)] < hi[T.tensor_indices(hi, 0)]):
+        mid = lo[T.tensor_indices(lo, 0)] + (
+            hi[T.tensor_indices(hi, 0)] - lo[T.tensor_indices(lo, 0)] >> 1
         )
         with T.if_(
             condition(
-                sorted_sequence[T.buffer_indices(sorted_sequence, sequence_offset + mid)], value
+                sorted_sequence[T.tensor_indices(sorted_sequence, sequence_offset + mid)], value
             )
         ):
             with T.then_():
-                T.buffer_store(lo, mid + 1, T.buffer_indices(lo, 0))
+                T.buffer_store(lo, mid + 1, T.tensor_indices(lo, 0))
             with T.else_():
-                T.buffer_store(hi, mid, T.buffer_indices(hi, 0))
+                T.buffer_store(hi, mid, T.tensor_indices(hi, 0))
 
-    return lo[T.buffer_indices(lo, 0)]
+    return lo[T.tensor_indices(lo, 0)]
 
 
 def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
@@ -121,11 +121,11 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
                         sequence_offset,
                         search_range,
                         sorted_sequence,
-                        values[T.buffer_indices(values, i)],
+                        values[T.tensor_indices(values, i)],
                         right,
                         out_dtype,
                     ),
-                    T.buffer_indices(indices, i),
+                    T.tensor_indices(indices, i),
                 )
 
             return ib.get()

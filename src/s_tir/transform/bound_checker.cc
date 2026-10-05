@@ -89,7 +89,7 @@ class BoundChecker : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
-    if (UpdateIsNeeded(op->var.as_or_throw<BufferVar>().var())) {
+    if (UpdateIsNeeded(op->var.as_or_throw<TensorVar>().var())) {
       tvm::Tuple shape = call->args[0].as_or_throw<tvm::Tuple>();
       DLDataType dtype = call->args[1].as_or_throw<DataTypeImm>()->value;
       Update(op->var, shape->fields.as_or_throw<ffi::Array<PrimExpr>>(), PrimType(dtype));
@@ -128,8 +128,8 @@ class BoundChecker : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    if (CanInstrument(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var())) {
-      Collect(op->indices, op->source.as_or_throw<tvm::tirx::BufferVar>().var());
+    if (CanInstrument(op->indices, op->source.as_or_throw<tvm::tirx::TensorVar>().var())) {
+      Collect(op->indices, op->source.as_or_throw<tvm::tirx::TensorVar>().var());
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }

@@ -44,7 +44,7 @@ class TIRFrameNode : public IRBuilderFrameNode {
   ffi::Array<tvm::tirx::Stmt> stmts;
 
   /*! \brief Bind a view in frames that support region aliases. */
-  virtual void BindBufferRegion(tvm::tirx::BufferVar buffer, tvm::TensorRegion region);
+  virtual void BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region);
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -525,10 +525,10 @@ class DeclTensorFrameNode : public TIRFrameNode {
  public:
   explicit DeclTensorFrameNode(ffi::UnsafeInit tag) : buffer(tag) {}
 
-  explicit DeclTensorFrameNode(tvm::tirx::BufferVar buffer) : buffer(std::move(buffer)) {}
+  explicit DeclTensorFrameNode(tvm::tirx::TensorVar buffer) : buffer(std::move(buffer)) {}
 
   /*! \brief The declared buffer. */
-  tvm::tirx::BufferVar buffer;
+  tvm::tirx::TensorVar buffer;
   /*! \brief Physical pointer expression backing the declaration. */
   ffi::Optional<Expr> data;
   /*! \brief The buffer allocated or not. */

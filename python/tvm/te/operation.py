@@ -235,8 +235,8 @@ def extern(
         .. note::
              **Parameters**
 
-             - **ins** (list of :any:`tvm.tirx.Buffer`) - Placeholder for each inputs
-             - **outs** (list of :any:`tvm.tirx.Buffer`) - Placeholder for each outputs
+             - **ins** (list of :any:`tvm.ir.Var`) - Placeholder for each inputs
+             - **outs** (list of :any:`tvm.ir.Var`) - Placeholder for each outputs
 
              **Returns**
 
@@ -249,10 +249,10 @@ def extern(
         The data types of outputs,
         by default dtype will be same as inputs.
 
-    in_buffers: tvm.tirx.Buffer or list of tvm.tirx.Buffer, optional
+    in_buffers: tvm.ir.Var or list of tvm.ir.Var, optional
         Input buffers.
 
-    out_buffers: tvm.tirx.Buffer or list of tvm.tirx.Buffer, optional
+    out_buffers: tvm.ir.Var or list of tvm.ir.Var, optional
         Output buffers.
 
 
@@ -391,7 +391,7 @@ def extern_primfunc(input_tensors: list[_tensor.Tensor], primfunc: tvm.tirx.Prim
 
     # Preserve the function parameter order while selecting TensorType annotations.
     dt_access_map = tvm.s_tir._ffi_api.DomainTouchedAccessMap(primfunc)
-    ordered_buffers = [param for param in primfunc.params if tvm.tirx.is_buffer_var(param)]
+    ordered_buffers = [param for param in primfunc.params if tvm.tirx.is_tensor_var(param)]
     in_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][0])]
     out_buffers = [buf for buf in ordered_buffers if len(dt_access_map[buf][1])]
     assert in_buffers, "PrimFunc has no input buffers"

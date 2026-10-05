@@ -164,7 +164,7 @@ class PrimFunc : public BaseFunc {
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
-PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<BufferVar, Expr>>& param_map);
+PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map);
 
 /*!
  * \brief PrimFunc specific attribute names.

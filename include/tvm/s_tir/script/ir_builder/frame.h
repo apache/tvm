@@ -34,7 +34,7 @@ using tirx::TIRFrameNode;
 class PrimFuncFrameNode : public tirx::PrimFuncFrameNode {
  public:
   /*! \brief Buffers allocated in the implicit root block. */
-  ffi::Array<tvm::tirx::BufferVar> root_alloc_buffers;
+  ffi::Array<tvm::tirx::TensorVar> root_alloc_buffers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -72,7 +72,7 @@ class SBlockFrameNode : public TIRFrameNode {
   /*! \brief The init statement of the bolck. */
   ffi::Optional<tvm::tirx::Stmt> init;
   /*! \brief The buffer allocated in the block. */
-  ffi::Array<tvm::tirx::BufferVar> alloc_buffers;
+  ffi::Array<tvm::tirx::TensorVar> alloc_buffers;
   /*! \brief The match buffer regions. */
   ffi::Array<tvm::s_tir::MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
@@ -110,7 +110,7 @@ class SBlockFrameNode : public TIRFrameNode {
    * \brief The method called when exiting RAII scope.
    * \sa tvm::support::With
    */
-  void BindBufferRegion(tvm::tirx::BufferVar buffer, tvm::TensorRegion region) final;
+  void BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region) final;
   void ExitWithScope() final;
 };
 

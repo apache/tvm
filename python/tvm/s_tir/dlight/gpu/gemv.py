@@ -90,7 +90,7 @@ class GEMV(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_buffers: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
     ):
         """Schedule the inner reduction block."""
@@ -432,7 +432,7 @@ class GEMV(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_buffers: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
     ):
         """Schedule the outer reduction block."""
@@ -637,7 +637,7 @@ class GEMV(GPUScheduleRule):
         sch: s_tir.Schedule,
         target: Target,
         block: s_tir.schedule.SBlockRV,
-        vector_input_buffers: list[tirx.Buffer],
+        vector_input_buffers: list[tirx.Var],
         epilogue_info: SBlockInfo | None,
     ):
         """Schedule the outer reduction block."""

@@ -242,7 +242,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 namespace {
 
-ffi::Array<Doc> BufferIndices(DocTranslatorObj* d, const ffi::Array<PrimExpr>& indices,
+ffi::Array<Doc> TensorIndices(DocTranslatorObj* d, const ffi::Array<PrimExpr>& indices,
                               bool store = false) {
   ffi::Array<Doc> docs;
   for (const PrimExpr& index : indices) {
@@ -316,7 +316,7 @@ ffi::Optional<ExprDoc> BufferStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView
   ExprDoc buffer = scalar ? ExprDoc(VarDoc(d, store->buffer.as<Var>().value(), false))
                           : d->Translate(store->buffer).value();
   ExprDoc value = d->Translate(store->value).value();
-  ExprDoc lhs = scalar ? buffer : ExprDoc(IndexDoc(buffer, BufferIndices(d, store->indices, true)));
+  ExprDoc lhs = scalar ? buffer : ExprDoc(IndexDoc(buffer, TensorIndices(d, store->indices, true)));
   d->Emit(AssignDoc(lhs, value, std::nullopt), ffi::GetRef<ffi::ObjectRef>(store));
   return std::nullopt;
 }
@@ -326,20 +326,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&BufferStoreDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> BufferLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
+ffi::Optional<ExprDoc> TIRxTensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                  const ffi::Object*) {
   const auto* load =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TensorLoadNode>(input);
   if (IsScalarBuffer(d, load->source)) {
     return VarDoc(d, load->source.as<Var>().value(), false);
   }
   ExprDoc source = d->Translate(load->source).value();
-  return IndexDoc(source, BufferIndices(d, load->indices));
+  return IndexDoc(source, TensorIndices(d, load->indices));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::TensorTypeNode>().attr(
-      kTensorLoadDocTranslate, FDocTranslate::FromNative<&BufferLoadDocTranslate>());
+      kTensorLoadDocTranslate, FDocTranslate::FromNative<&TIRxTensorLoadDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
@@ -363,7 +363,7 @@ ffi::Optional<ExprDoc> TensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   }
   TVM_FFI_CHECK(hook.type_index() == ffi::TypeIndex::kTVMFFINone, TypeError)
       << "TensorLoad type hook must be a native pointer or ffi.Function";
-  return IndexDoc(d->Translate(load->source).value(), BufferIndices(d, load->indices));
+  return IndexDoc(d->Translate(load->source).value(), TensorIndices(d, load->indices));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

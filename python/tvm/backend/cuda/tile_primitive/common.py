@@ -26,7 +26,7 @@ from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import Buffer, PrimFunc
+from tvm.tirx import PrimFunc, Var
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
@@ -87,8 +87,8 @@ def validate_copy_op(
 ) -> bool:
     """Sanity check for copy op"""
     dst_buffer_region, src_buffer_region = op_call.args[:2]
-    src: Buffer = src_buffer_region.source
-    dst: Buffer = dst_buffer_region.source
+    src: Var = src_buffer_region.source
+    dst: Var = dst_buffer_region.source
     if not (src.layout and dst.layout and src.dtype == dst.dtype):
         return False
     # Extract regions and validate dimensions
@@ -112,8 +112,8 @@ def get_vec_len(
 ) -> int | None:
     """Get the vector length for the copy operation."""
 
-    dst: Buffer = dst_buffer_region.source
-    src: Buffer = src_buffer_region.source
+    dst: Var = dst_buffer_region.source
+    src: Var = src_buffer_region.source
     # layout=None (flat local buffer) is treated as trivial for vectorization purposes
     if not (
         (dst.layout is None or dst.layout.is_trivial())
@@ -159,8 +159,8 @@ def copy_vec_load_impl(
     threads in a CTA/using a single thread.
     """
     dst_buffer_region, src_buffer_region = op_call.args[:2]
-    src: Buffer = src_buffer_region.source
-    dst: Buffer = dst_buffer_region.source
+    src: Var = src_buffer_region.source
+    dst: Var = dst_buffer_region.source
     if not (
         (src.scope() == "global" and dst.scope().startswith("shared"))
         or (src.scope().startswith("shared") and dst.scope() == "global")

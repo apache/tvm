@@ -146,7 +146,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]
             ffi::BigInt tile_size = sch->Get(inverse)
                                         ->writes[0]
-                                        ->source.as_or_throw<tvm::tirx::BufferVar>()
+                                        ->source.as_or_throw<tvm::tirx::TensorVar>()
                                         ->shape[2]
                                         .as_or_throw<IntImm>()
                                         ->value;

@@ -33,8 +33,8 @@ using namespace tvm::tirx;
 namespace {
 
 struct RollingBufferInfo {
-  BufferVar old_buffer;
-  BufferVar new_buffer;
+  TensorVar old_buffer;
+  TensorVar new_buffer;
   int rolling_axis;
   PrimExpr rolling_extent;
   std::vector<int> axis_overlaps;
@@ -62,9 +62,9 @@ TensorRegion GetRelaxedBufferRegion(const SBlockRealize& realize, const TensorRe
   relaxed_region.reserve(relaxed_intsets.size());
   for (size_t i = 0; i < relaxed_intsets.size(); ++i) {
     relaxed_region.push_back(relaxed_intsets[i].CoverRange(Range::FromMinExtent(
-        0, buffer_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i])));
+        0, buffer_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i])));
   }
-  return BufferRegion(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>(), relaxed_region);
+  return BufferRegion(buffer_region->source.as_or_throw<tvm::tirx::TensorVar>(), relaxed_region);
 }
 
 class RollingBufferDependencyError : public ScheduleErrorContextObj {
@@ -124,7 +124,7 @@ class RollingBufferMatchError : public ScheduleErrorContextObj {
   }
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
-    os << "The target buffer " << buffer_region_->source.as_or_throw<tvm::tirx::BufferVar>().name()
+    os << "The target buffer " << buffer_region_->source.as_or_throw<tvm::tirx::TensorVar>().name()
        << " with region " << buffer_region_->region
        << " should have at least one dimension range that matches a rolling pattern "
           "such as hh.outer * stride + hh.inner. ";
@@ -142,7 +142,7 @@ class RollingBufferMatchError : public ScheduleErrorContextObj {
 
 class RollingBufferInsertionError : public ScheduleErrorContextObj {
  public:
-  RollingBufferInsertionError(IRModule mod, BufferVar buffer, SBlock block)
+  RollingBufferInsertionError(IRModule mod, TensorVar buffer, SBlock block)
       : mod_(mod), buffer_(std::move(buffer)), block_(block) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: rolling_buffer injection is invalid, the lca of the access "
@@ -161,7 +161,7 @@ class RollingBufferInsertionError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
   SBlock block_;
 };
 
@@ -181,7 +181,7 @@ class RollingBufferInfoCollector {
 
  private:
   bool MatchRollingBuffer(const StmtSRef& block_sref, const TensorRegion& buffer_region) {
-    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
     const Region& region = buffer_region->region;
 
     std::vector<ffi::Optional<Var>> bound_iter_vars;
@@ -262,7 +262,7 @@ class RollingBufferInfoCollector {
     new_shape.Set(roll_axis, region[roll_axis]->extent);
     auto new_buffer_type = CopyTensorType(buffer);
     new_buffer_type->shape = new_shape;
-    BufferVar new_buffer = RebuildBufferVar(buffer, std::move(new_buffer_type));
+    TensorVar new_buffer = RebuildTensorVar(buffer, std::move(new_buffer_type));
 
     info_ = RollingBufferInfo{buffer,         new_buffer,      roll_axis, region[roll_axis]->extent,
                               bound_overlaps, bound_iter_vars, {}};
@@ -291,7 +291,7 @@ class RollingBufferRewriter : public StmtExprMutator {
   void RewriteAccessRegion(ffi::Array<TensorRegion>* old_access_regions,
                            const ffi::Array<TensorRegion>& infered_access_regions) {
     auto fmutate = [this, &infered_access_regions](const TensorRegion& buffer_region) {
-      if (buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->old_buffer)) {
+      if (buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->old_buffer)) {
         TVM_FFI_ICHECK(infered_access_regions.size() == 1);
         return infered_access_regions[0];
       }
@@ -300,7 +300,7 @@ class RollingBufferRewriter : public StmtExprMutator {
     (*old_access_regions).MutateByApply(fmutate);
   }
 
-  void RewriteBufferAccess(BufferVar* buffer, ffi::Array<PrimExpr>* indices) const {
+  void RewriteBufferAccess(TensorVar* buffer, ffi::Array<PrimExpr>* indices) const {
     ffi::Array<PrimExpr> new_indices;
     new_indices.reserve(indices->size());
     // First modify the access indices to use modulo arithmetic
@@ -324,8 +324,8 @@ class RollingBufferRewriter : public StmtExprMutator {
                       .as_or_throw<SBlock>();
     SBlockNode* n = stmt.CopyOnWrite();
     if (block == scope_sref_->stmt) {
-      ffi::Array<BufferVar> new_alloc_buffers;
-      for (const BufferVar& buffer : stmt->alloc_buffers) {
+      ffi::Array<TensorVar> new_alloc_buffers;
+      for (const TensorVar& buffer : stmt->alloc_buffers) {
         if (buffer != info_->old_buffer) {
           new_alloc_buffers.push_back(buffer);
         } else {
@@ -351,7 +351,7 @@ class RollingBufferRewriter : public StmtExprMutator {
           new_iter_vars.push_back(old_iter_var);
         }
       }
-      ffi::Map<Var, BufferVar> buffer_data_to_buffer = {
+      ffi::Map<Var, TensorVar> buffer_data_to_buffer = {
           {info_->new_buffer.var(), info_->new_buffer}};
       auto infered_access_regions = GetSBlockReadWriteRegion(stmt, buffer_data_to_buffer);
 
@@ -407,11 +407,11 @@ class RollingBufferRewriter : public StmtExprMutator {
     TensorLoad stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                           .as_or_throw<TensorLoad>();
-    if (stmt->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->old_buffer)) {
-      BufferVar buffer = stmt->source.as_or_throw<tvm::tirx::BufferVar>();
+    if (stmt->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->old_buffer)) {
+      TensorVar buffer = stmt->source.as_or_throw<tvm::tirx::TensorVar>();
       ffi::Array<PrimExpr> indices = stmt->indices;
       RewriteBufferAccess(&buffer, &indices);
-      return BufferLoad(buffer, indices, stmt->span);
+      return MakeTensorLoad(buffer, indices, stmt->span);
     }
     return stmt;
   }
@@ -455,7 +455,7 @@ void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int write_buf
   StmtSRef lca = GetSRefLowestCommonAncestor(consumers_sref);
   if (!lca->StmtAs<ForNode>()) {
     throw MakeScheduleError<RollingBufferInsertionError>(
-        self->mod, buffer_region->source.as_or_throw<tvm::tirx::BufferVar>(), block);
+        self->mod, buffer_region->source.as_or_throw<tvm::tirx::TensorVar>(), block);
   }
 
   for (auto it = loop_srefs.rbegin(); it != loop_srefs.rend(); ++it) {

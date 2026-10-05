@@ -242,7 +242,7 @@ def test_altered_buffer_contents():
 
     A literal constraint must not be propagated if the values
     referenced may change.  TIR requires single assignment of
-    variables, so Var objects may be assumed constant, but BufferLoad
+    variables, so Var objects may be assumed constant, but TensorLoad
     may not.
     """
 
@@ -1228,13 +1228,13 @@ def test_simplify_trivial_let_stride():
 
 
 def test_simplify_buffer_identity_well_formed():
-    """Regression: Simplify must not diverge buffer identity between DeclTensor and BufferLoad.
+    """Regression: Simplify must not diverge buffer identity between DeclTensor and TensorLoad.
 
     The simplifier's Dispatch calls analyzer_->Simplify() directly, bypassing
     normal ExprMutator dispatch.  If VisitBufferDef remaps a buffer at a DeclTensor
-    site (e.g. inlining n_val -> n in the shape), BufferLoad inside a BufferStore
+    site (e.g. inlining n_val -> n in the shape), TensorLoad inside a BufferStore
     value would NOT pick up the remap because VisitBufferUse is never called.
-    This causes DeclTensor/BufferLoad buffer identity divergence.
+    This causes DeclTensor/TensorLoad buffer identity divergence.
     """
 
     @T.prim_func(private=True)

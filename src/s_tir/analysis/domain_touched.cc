@@ -71,7 +71,7 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
     return buffer_access_map_;
   }
 
-  Region FindUnion(const BufferVar& buffer, bool consider_loads, bool consider_stores) {
+  Region FindUnion(const TensorVar& buffer, bool consider_loads, bool consider_stores) {
     Region ret;
     auto kv = buffer_access_map_.find(buffer.get());
     if (kv == buffer_access_map_.end()) {
@@ -102,7 +102,7 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
   using Parent = s_tir::IRVisitorWithAnalyzer;
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = op->source.as_or_throw<tvm::tirx::TensorVar>();
     // Record load-exclusive buffer access
     Touch(&std::get<LoadAccess>(buffer_access_map_[buffer.get()]).set, op->indices);
     // Record load-store inclusive buffer access
@@ -134,23 +134,23 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
   std::unordered_map<const VarNode*, BufferDomainAccess> buffer_access_map_;
 };
 
-Region DomainTouched(const Stmt& stmt, const BufferVar& buffer, bool consider_loads,
+Region DomainTouched(const Stmt& stmt, const TensorVar& buffer, bool consider_loads,
                      bool consider_stores) {
   auto visitor = ffi::make_object<BufferTouchedDomain>();
   visitor->Visit(stmt);
   return visitor->FindUnion(buffer, consider_loads, consider_stores);
 }
 
-ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
+ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
   auto visitor = ffi::make_object<BufferTouchedDomain>();
   visitor->Visit(func->body);
   auto buffer_access_map = visitor->GetAccessedBufferRegions();
-  ffi::Map<BufferVar, ffi::Array<ffi::ObjectRef>> ret;
+  ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> ret;
   for (auto& var : func->params) {
     if (!var->ty.as<TensorTypeNode>()) {
       continue;
     }
-    BufferVar buffer = var.as_or_throw<BufferVar>();
+    TensorVar buffer = var.as_or_throw<TensorVar>();
     auto& access = buffer_access_map[buffer.get()];
     ffi::Array<ffi::Array<IntSet>> loads, stores, combined;
     for (std::vector<IntSet>& touch : std::get<LoadAccess>(access).set) {

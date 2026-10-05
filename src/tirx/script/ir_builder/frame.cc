@@ -70,7 +70,7 @@ void PrimFuncFrameNode::ValidateAttrs() const {
   }
 }
 
-void TIRFrameNode::BindBufferRegion(tvm::tirx::BufferVar buffer, tvm::TensorRegion region) {
+void TIRFrameNode::BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegion region) {
   TVM_FFI_THROW(ValueError) << "match_buffer requires a frame that supports region aliases";
 }
 

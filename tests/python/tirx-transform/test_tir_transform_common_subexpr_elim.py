@@ -303,8 +303,8 @@ def test_for_hoist():
 
 
 # =====================================================================
-# T9: Cannot-lift -- expressions containing BufferLoad
-# Expressions containing BufferLoad are ineligible even when duplicated,
+# T9: Cannot-lift -- expressions containing TensorLoad
+# Expressions containing TensorLoad are ineligible even when duplicated,
 # because lifting them would change semantics (buffer may alias).
 # =====================================================================
 def test_cannot_lift_bufferload():
@@ -694,8 +694,8 @@ def test_let_floordiv_pattern():
     i = tvm.tirx.Var("i", "int32")
     full_expr = tvm.tirx.Let(
         x,
-        tvm.tirx.BufferLoad(buf_a, [i]),
-        tvm.tirx.Let(y, tvm.tirx.BufferLoad(buf_b, [i]), outer_let),
+        tvm.tirx.TensorLoad(buf_a, [i]),
+        tvm.tirx.Let(y, tvm.tirx.TensorLoad(buf_b, [i]), outer_let),
     )
     store = tvm.tirx.BufferStore(buf_c, full_expr, [i])
     loop = tvm.tirx.For(

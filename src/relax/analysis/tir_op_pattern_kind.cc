@@ -43,7 +43,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
  public:
   explicit PatternKindAnalyzer(const tirx::PrimFunc& func) {
     for (const tirx::Var& param : func->params) {
-      ffi::Optional<BufferVar> param_buf = param.as<BufferVar>();
+      ffi::Optional<TensorVar> param_buf = param.as<TensorVar>();
       if (param_buf.has_value()) {
         param_buffers_.insert(param_buf.value());
       }
@@ -53,7 +53,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
  private:
   bool IsOutputBlock(const s_tir::SBlockNode* block) {
     for (const TensorRegion& write_region : block->writes) {
-      if (param_buffers_.count(write_region->source.as_or_throw<tvm::tirx::BufferVar>())) {
+      if (param_buffers_.count(write_region->source.as_or_throw<tvm::tirx::TensorVar>())) {
         return true;
       }
     }
@@ -105,7 +105,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
       // while the order amount enums: kElemWise < kBroadcast < kInjective.
       // We can simply use `std::max` to detect these three patterns.
       // E.g Here is only one store node but two load nodes, like C[i, j] = A[i, j] + B[i]
-      // BufferVar C and A are elemwise but C and B are broadcast. So the whole block follows
+      // TensorVar C and A are elemwise but C and B are broadcast. So the whole block follows
       // broadcast pattern.
       if (IsElemwisePattern(store, load)) {
         index_pair_pattern = std::max(index_pair_pattern, kElemWise);
@@ -200,11 +200,11 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
    *      A[i, j] = B[j, i] is not broadcast the load indices are not in the same order as store's
    */
   static bool IsBroadcastPattern(const BufferStore& store, const TensorLoad& load) {
-    size_t ndim_load_buf = load->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size();
+    size_t ndim_load_buf = load->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
     size_t ndim_store_buf = store->buffer->shape.size();
 
     for (size_t i = 0, j = 0; i < ndim_load_buf; ++i) {
-      if (is_const_int(load->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i], 1) &&
+      if (is_const_int(load->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i], 1) &&
           is_const_int(load->indices[i], 0)) {
         // Skip unit load dimensions
         // E.g. A[i, j] = B[1, j] is still broadcast
@@ -298,7 +298,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
         if (const auto* mul = RemoveCast(add->b).as<prim::MulNode>()) {
           const auto* store_lhs = RemoveCast(add->a).as<TensorLoadNode>();
           if (!store_lhs ||
-              !store->buffer.same_as(store_lhs->source.as_or_throw<tvm::tirx::BufferVar>()) ||
+              !store->buffer.same_as(store_lhs->source.as_or_throw<tvm::tirx::TensorVar>()) ||
               !IsSameArray(store->indices, store_lhs->indices)) {
             return false;
           }
@@ -358,7 +358,7 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
   /*! \brief The result of op pattern. */
   OpPatternKind kind_ = kElemWise;
   /*! \brief The buffers from function params. I.e. the input and output buffers. */
-  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_buffers_;
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_buffers_;
 
  public:
   OpPatternKind GetResult() { return kind_; }
@@ -379,13 +379,13 @@ bool HasReshapePattern(const PrimFunc& func) {
       return s_tir::StmtExprVisitor::Visit(value);
     }
 
-    static bool Detect(const BufferVar& src_buffer, const BufferVar& dst_buffer, Stmt stmt) {
+    static bool Detect(const TensorVar& src_buffer, const TensorVar& dst_buffer, Stmt stmt) {
       auto detector = ffi::make_object<ReshapeDetector>(src_buffer, dst_buffer);
       detector->Visit(stmt);
       return detector->is_reshape_;
     }
 
-    explicit ReshapeDetector(const BufferVar& src_buffer, const BufferVar& dst_buffer)
+    explicit ReshapeDetector(const TensorVar& src_buffer, const TensorVar& dst_buffer)
         : is_reshape_(false), src_buffer_(src_buffer), dst_buffer_(dst_buffer) {}
 
    private:
@@ -446,7 +446,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       // Further, we require the buffer being stored and being loaded to
       // match the parameter of the PrimFunc, namely `dst_buffer_` and `src_buffer_`.
       if (!(buffer_store->buffer.same_as(dst_buffer_) &&
-            buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(src_buffer_))) {
+            buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(src_buffer_))) {
         return std::nullopt;
       }
 
@@ -454,7 +454,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       // This check requires at least one of the src/dst side is a trivial buffer
       // access (e.g., buf[ax0, ax1, ax2]).
 
-      auto f_calc_flattened_idx = [&](const BufferVar& buffer,
+      auto f_calc_flattened_idx = [&](const TensorVar& buffer,
                                       const ffi::Array<PrimExpr>& indices) {
         TVM_FFI_ICHECK_EQ(indices.size(), buffer->shape.size());
         int ndim = indices.size();
@@ -472,7 +472,7 @@ bool HasReshapePattern(const PrimFunc& func) {
             /*simplify_trivial_iterators=*/true)[0];
       };
 
-      auto f_is_trivial_indices = [block, this](const BufferVar& buffer,
+      auto f_is_trivial_indices = [block, this](const TensorVar& buffer,
                                                 const ffi::Array<PrimExpr>& indices) {
         if (indices.size() != block->iter_vars.size()) {
           return false;
@@ -489,7 +489,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       };
 
       ffi::Array<PrimExpr> nontrivial_indices{nullptr};
-      ffi::Optional<BufferVar> nontrivial_buffer;
+      ffi::Optional<TensorVar> nontrivial_buffer;
       if (f_is_trivial_indices(dst_buffer_, buffer_store->indices)) {
         nontrivial_indices = buffer_load->indices;
         nontrivial_buffer = src_buffer_;
@@ -556,14 +556,14 @@ bool HasReshapePattern(const PrimFunc& func) {
     }
 
     bool is_reshape_;
-    const BufferVar& src_buffer_;
-    const BufferVar& dst_buffer_;
+    const TensorVar& src_buffer_;
+    const TensorVar& dst_buffer_;
     sym::Analyzer ana_;
   };
 
-  ffi::Array<BufferVar> buffer_args;
+  ffi::Array<TensorVar> buffer_args;
   for (const auto& param : func->params) {
-    if (auto buffer = param.as<BufferVar>()) {
+    if (auto buffer = param.as<TensorVar>()) {
       buffer_args.push_back(buffer.value());
     }
   }
@@ -571,8 +571,8 @@ bool HasReshapePattern(const PrimFunc& func) {
   if (buffer_args.size() < 2) {
     return false;
   }
-  BufferVar src_buffer = buffer_args.front();
-  BufferVar dst_buffer = buffer_args.back();
+  TensorVar src_buffer = buffer_args.front();
+  TensorVar dst_buffer = buffer_args.back();
 
   // To detect the reshape pattern, we require each For to have
   // either another For or a BlockRealize as body.

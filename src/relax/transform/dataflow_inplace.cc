@@ -765,10 +765,10 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
 
 // Replace buffers in a PrimFunc according to the mapping.
 tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
-                        const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map) {
+                        const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
   class BufferMapper : public tirx::StmtExprMutator {
    public:
-    explicit BufferMapper(const ffi::Map<tirx::BufferVar, tirx::BufferVar>& buffer_map) {
+    explicit BufferMapper(const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
       for (const auto& [source, target] : buffer_map) {
         VarRemapSet(source, target);
       }
@@ -893,7 +893,7 @@ class ModuleInplaceTransformer : public ExprMutator {
     // 2. For each output var, replace its instances with the corresponding inplace index var
     // 3. Do the same for the *buffer vars* corresponding to the output vars
     // 4. Remove the output vars from the param list
-    ffi::Map<tirx::BufferVar, tirx::BufferVar> buffer_subst_map;
+    ffi::Map<tirx::TensorVar, tirx::TensorVar> buffer_subst_map;
     ffi::Map<tirx::Var, tirx::Var> var_subst_map;
     for (size_t i = 0; i < num_outs; i++) {
       // we will substitute output i with the corresponding param indicated by inplace indices
@@ -902,8 +902,8 @@ class ModuleInplaceTransformer : public ExprMutator {
       var_subst_map.Set(output_var, inplace_var);
 
       // also do the same with the buffer vars
-      auto output_buffer = output_var.as_or_throw<tirx::BufferVar>();
-      auto inplace_buffer = inplace_var.as_or_throw<tirx::BufferVar>();
+      auto output_buffer = output_var.as_or_throw<tirx::TensorVar>();
+      auto inplace_buffer = inplace_var.as_or_throw<tirx::TensorVar>();
       var_subst_map.Set(output_buffer.var(), inplace_buffer.var());
       buffer_subst_map.Set(output_buffer, inplace_buffer);
     }

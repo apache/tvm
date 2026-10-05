@@ -250,7 +250,7 @@ class PrimFuncInliner : public StmtExprMutator {
           << "but callee " << gvar << " has TensorType-annotated parameter " << param;
     }
 
-    ffi::Map<Var, ffi::Variant<tirx::BufferVar, tvm::Expr>> param_map;
+    ffi::Map<Var, ffi::Variant<tirx::TensorVar, tvm::Expr>> param_map;
     for (size_t i = 0; i < callee->params.size(); i++) {
       param_map.Set(callee->params[i], args[i]);
     }

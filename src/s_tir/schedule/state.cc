@@ -52,7 +52,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionUpperBound(const TensorRegion& region,     
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
-      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::BufferVar>().scope()));
+      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::TensorVar>().scope()));
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   return EstimateRegionUpperBound(
       /*region=*/region->region,
@@ -79,7 +79,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,     
       /*low_inclusive=*/dom_low_inclusive,
       /*high_exclusive=*/dom_high_exclusive,
       /*extra_relax_scope=*/
-      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::BufferVar>().scope()));
+      runtime::StorageScope::Create(region->source.as_or_throw<tvm::tirx::TensorVar>().scope()));
   sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
   if (ffi::Optional<ffi::Array<sym::IntSet>> result = EstimateRegionLowerBound(
           /*region=*/region->region,
@@ -87,7 +87,7 @@ ffi::Array<sym::IntSet> AnalyzeRegionLowerBound(const TensorRegion& region,     
           /*predicate=*/predicate, /*analyzer=*/analyzer_ref)) {
     return result.value();
   }
-  return ffi::Array<sym::IntSet>(region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size(),
+  return ffi::Array<sym::IntSet>(region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size(),
                                  sym::IntSet::Nothing());
 }
 
@@ -242,7 +242,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           return Range::FromMinExtent(min, extent);
         });
         reads.push_back(
-            BufferRegion(region->source.as_or_throw<tvm::tirx::BufferVar>(), mapped_region));
+            BufferRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
       }
       block_reads_unbound.emplace(block_sref.get(), std::move(reads));
       // Step 1.2. Unbind write regions
@@ -258,7 +258,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           return Range::FromMinExtent(min, extent);
         });
         writes.push_back(
-            BufferRegion(region->source.as_or_throw<tvm::tirx::BufferVar>(), mapped_region));
+            BufferRegion(region->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
       }
       block_writes_unbound.emplace(block_sref.get(), std::move(writes));
     }
@@ -306,12 +306,12 @@ class SBlockInfoCollector : public StmtExprVisitor {
           continue;
         }
         // For each buffer, record the regions generated under this loop
-        std::unordered_map<BufferVar, std::vector<ffi::Array<sym::IntSet>>, ffi::ObjectPtrHash,
+        std::unordered_map<TensorVar, std::vector<ffi::Array<sym::IntSet>>, ffi::ObjectPtrHash,
                            ffi::ObjectPtrEqual>
             touched_regions;
         // Step 2.3.1. Find all the regions read by the consumer that we care about
         for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-          BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
+          TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
           touched_regions[buffer] = {};
         }
         // Step 2.3.2. Find all the regions written by each producer
@@ -319,7 +319,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
           const SBlockRealize& producer_realize = block2realize_.at(producer_block_sref->stmt);
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(producer_block_sref->parent);
           for (const TensorRegion& region : block_writes_unbound.at(producer_block_sref)) {
-            BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
+            TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
             auto it = touched_regions.find(buffer);
             // Skip the regions that is not read by the consumer
             if (it != touched_regions.end()) {
@@ -341,7 +341,7 @@ class SBlockInfoCollector : public StmtExprVisitor {
         {
           StmtSRef parent_sref = ffi::GetRef<StmtSRef>(consumer_block_sref->parent);
           for (const TensorRegion& region : block_reads_unbound.at(consumer_block_sref.get())) {
-            BufferVar buffer = region->source.as_or_throw<tvm::tirx::BufferVar>();
+            TensorVar buffer = region->source.as_or_throw<tvm::tirx::TensorVar>();
             const std::vector<ffi::Array<sym::IntSet>>& touched_region = touched_regions.at(buffer);
             if (!touched_region.empty()) {
               ffi::Array<sym::IntSet> produced_region =

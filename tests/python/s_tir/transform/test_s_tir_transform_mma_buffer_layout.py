@@ -29,7 +29,7 @@ from tvm import s_tir, tirx
 def test_explicit_matrix_ab_access_is_rejected(scope, shape, access_kind):
     buffer = tirx.decl_tensor(shape, "float32", scope=scope)
     if access_kind == "load":
-        body = tirx.Evaluate(tirx.BufferLoad(buffer, [0, 0]))
+        body = tirx.Evaluate(tirx.TensorLoad(buffer, [0, 0]))
     else:
         body = tirx.BufferStore(buffer, 0.0, [0, 0])
     block = s_tir.SBlock([], [], [], "root", body, alloc_buffers=[buffer])

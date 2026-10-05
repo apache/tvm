@@ -660,7 +660,7 @@ def tmem_datapath_layout(datapath: str, rows: int, cols: int, sub_slab: int = 0)
     Returns
     -------
     TileLayout
-        Buffer-shape-compatible layout for ``(rows, cols)``.
+        Var-shape-compatible layout for ``(rows, cols)``.
     """
     if datapath not in _TMEM_DATAPATH_ROWS:
         raise ValueError(

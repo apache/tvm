@@ -41,7 +41,7 @@ from tvm.script.ir_builder.frame import IRModuleFrame
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
-from tvm.tirx import Expr, is_buffer_var
+from tvm.tirx import Expr, is_tensor_var
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import Var
 
@@ -217,19 +217,19 @@ class WebGPUNamespace:
 
     @staticmethod
     def subgroup_shuffle(var, lane):
-        if is_buffer_var(var):
+        if is_tensor_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle", var, lane)
 
     @staticmethod
     def subgroup_shuffle_up(var, delta):
-        if is_buffer_var(var):
+        if is_tensor_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_up", var, delta)
 
     @staticmethod
     def subgroup_shuffle_down(var, delta):
-        if is_buffer_var(var):
+        if is_tensor_var(var):
             var = var[0]
         return _tir_op.call_intrin(var.ty, "tirx.webgpu.subgroup_shuffle_down", var, delta)
 

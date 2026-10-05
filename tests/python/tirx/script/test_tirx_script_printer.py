@@ -163,7 +163,7 @@ src[64:128, 64:128]
 
 def test_buffer_load():
     a = tirx.decl_tensor((128, 128), "float16", name="A")
-    obj = tirx.BufferLoad(a, [128, 128])
+    obj = tirx.TensorLoad(a, [128, 128])
     _assert_print(
         obj,
         """

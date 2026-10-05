@@ -30,7 +30,7 @@ using namespace tvm::tirx;
 
 class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
  public:
-  explicit StorageAlignAxisOutOfRangeError(IRModule mod, BufferVar buffer, int axis)
+  explicit StorageAlignAxisOutOfRangeError(IRModule mod, TensorVar buffer, int axis)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), axis_(axis) {}
 
   ffi::String FastErrorString() const final {
@@ -52,7 +52,7 @@ class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
   IRModule mod() const final { return mod_; }
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
-  static int CheckAndUpdate(const IRModule& mod, const BufferVar& buffer, int axis) {
+  static int CheckAndUpdate(const IRModule& mod, const TensorVar& buffer, int axis) {
     int ndim = static_cast<int>(buffer->shape.size());
     if (axis < -ndim || axis >= ndim) {
       throw MakeScheduleError<StorageAlignAxisOutOfRangeError>(mod, buffer, axis);
@@ -66,13 +66,13 @@ class StorageAlignAxisOutOfRangeError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
   int axis_;
 };
 
 class NonAllocatedBufferError : public ScheduleErrorContextObj {
  public:
-  explicit NonAllocatedBufferError(IRModule mod, BufferVar buffer) : mod_(mod), buffer_(buffer) {}
+  explicit NonAllocatedBufferError(IRModule mod, TensorVar buffer) : mod_(mod), buffer_(buffer) {}
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: The input buffer is not allocated by a block. This means the buffer is "
@@ -88,7 +88,7 @@ class NonAllocatedBufferError : public ScheduleErrorContextObj {
   }
 
   static StmtSRef CheckAndGetBufferAllocationSite(const IRModule& mod, const StmtSRef& block_sref,
-                                                  const BufferVar& buffer) {
+                                                  const TensorVar& buffer) {
     auto [defining_site_sref, is_alloc] = GetBufferDefiningSite(block_sref, buffer);
     if (!defining_site_sref.has_value() || !is_alloc) {
       throw MakeScheduleError<NonAllocatedBufferError>(mod, buffer);
@@ -102,7 +102,7 @@ class NonAllocatedBufferError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
 };
 
 class StorageAlignInvalidFactorError : public ScheduleErrorContextObj {
@@ -199,26 +199,26 @@ class StorageScopeMutator : public ReplaceBufferMutator {
    * \param block_sref_reuse The block sref reuse map to be updated
    * \return The new block after the mutation
    */
-  static SBlock Mutate(const SBlock& allocate_site, const BufferVar& old_buffer,
+  static SBlock Mutate(const SBlock& allocate_site, const TensorVar& old_buffer,
                        const ffi::String& storage_scope,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
-    BufferVar new_buffer = WithScope(old_buffer, storage_scope);
+    TensorVar new_buffer = WithScope(old_buffer, storage_scope);
     auto mutator = ffi::make_object<StorageScopeMutator>(old_buffer, new_buffer, storage_scope,
                                                          block_sref_reuse);
     Stmt new_block = mutator->Mutate(allocate_site).ValueOrUnchanged(allocate_site);
     return new_block.as_or_throw<SBlock>();
   }
 
-  StorageScopeMutator(const BufferVar& old_buffer, BufferVar new_buffer, ffi::String storage_scope,
+  StorageScopeMutator(const TensorVar& old_buffer, TensorVar new_buffer, ffi::String storage_scope,
                       ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceBufferMutator(old_buffer, std::move(new_buffer), block_sref_reuse) {}
 
  private:
   MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
     if (auto replacement =
-            VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>())
-                .as<BufferVar>()) {
-      BufferVar new_target_buffer = WithScope(match_buffer->buffer, replacement.value().scope());
+            VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::TensorVar>())
+                .as<TensorVar>()) {
+      TensorVar new_target_buffer = WithScope(match_buffer->buffer, replacement.value().scope());
       VarRemapSet(match_buffer->buffer, new_target_buffer);
       return MatchBufferRegion(new_target_buffer,
                                BufferRegion(replacement.value(), match_buffer->source->region));
@@ -231,7 +231,7 @@ class StorageScopeMutator : public ReplaceBufferMutator {
 void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_index, int axis,
                   int factor, int offset) {
   const SBlockNode* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
-  BufferVar buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block_ptr), buffer_index,
+  TensorVar buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block_ptr), buffer_index,
                                         BufferIndexType::kWrite);
   StorageAlignInvalidFactorError::Check(self->mod, factor);
   axis = StorageAlignAxisOutOfRangeError::CheckAndUpdate(self->mod, buffer, axis);
@@ -266,7 +266,7 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
 void SetScope(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
               const ffi::String& storage_scope) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  BufferVar buffer =
+  TensorVar buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, BufferIndexType::kWrite);
 
   // Step 1. If `storage_scope` equals the original storage scope of the buffer, just return.
@@ -306,15 +306,15 @@ class DTypeMutator : public ReplaceBufferMutator {
    * \param block_sref_reuse The block sref reuse map to be updated
    * \return The new block after the mutation
    */
-  static SBlock Mutate(const SBlock& allocate_site, const BufferVar& old_buffer, PrimType dtype,
+  static SBlock Mutate(const SBlock& allocate_site, const TensorVar& old_buffer, PrimType dtype,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse) {
-    BufferVar new_buffer = WithDType(old_buffer, dtype);
+    TensorVar new_buffer = WithDType(old_buffer, dtype);
     auto mutator = ffi::make_object<DTypeMutator>(old_buffer, new_buffer, dtype, block_sref_reuse);
     Stmt new_block = mutator->Mutate(allocate_site).ValueOrUnchanged(allocate_site);
     return new_block.as_or_throw<SBlock>();
   }
 
-  DTypeMutator(const BufferVar& old_buffer, BufferVar new_buffer, PrimType dtype,
+  DTypeMutator(const TensorVar& old_buffer, TensorVar new_buffer, PrimType dtype,
                ffi::Map<SBlock, SBlock>* block_sref_reuse)
       : ReplaceBufferMutator(old_buffer, std::move(new_buffer), block_sref_reuse),
         src_dtype_(old_buffer->dtype),
@@ -323,9 +323,9 @@ class DTypeMutator : public ReplaceBufferMutator {
  private:
   MatchBufferRegion VisitMatchBufferRegion(const MatchBufferRegion& match_buffer) final {
     if (auto replacement =
-            VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>())
-                .as<BufferVar>()) {
-      BufferVar new_target_buffer = WithDType(match_buffer->buffer, replacement.value()->dtype);
+            VarRemapGet(match_buffer->source->source.as_or_throw<tvm::tirx::TensorVar>())
+                .as<TensorVar>()) {
+      TensorVar new_target_buffer = WithDType(match_buffer->buffer, replacement.value()->dtype);
       VarRemapSet(match_buffer->buffer, new_target_buffer);
       return MatchBufferRegion(new_target_buffer,
                                BufferRegion(replacement.value(), match_buffer->source->region));
@@ -335,11 +335,11 @@ class DTypeMutator : public ReplaceBufferMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferVar original_buffer = op->buffer;
+    TensorVar original_buffer = op->buffer;
     BufferStore node = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                            .as_or_throw<BufferStore>();
-    if (auto replacement = VarRemapGet(original_buffer).as<BufferVar>()) {
+    if (auto replacement = VarRemapGet(original_buffer).as<TensorVar>()) {
       node.CopyOnWrite()->buffer = replacement.value();
       node.CopyOnWrite()->value = Cast(tgt_dtype_, node->value);
     }
@@ -351,8 +351,8 @@ class DTypeMutator : public ReplaceBufferMutator {
     TensorLoad node = StmtExprMutator::Mutate_(op, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                           .as_or_throw<TensorLoad>();
-    if (auto replacement = VarRemapGet(original_buffer).as<BufferVar>()) {
-      return Cast(src_dtype_, BufferLoad(replacement.value(), node->indices));
+    if (auto replacement = VarRemapGet(original_buffer).as<TensorVar>()) {
+      return Cast(src_dtype_, MakeTensorLoad(replacement.value(), node->indices));
     }
     return node;
   }
@@ -363,7 +363,7 @@ class DTypeMutator : public ReplaceBufferMutator {
 void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                     const ffi::String& dtype) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  BufferVar buffer =
+  TensorVar buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, BufferIndexType::kWrite);
   PrimType target_dtype(ffi::StringToDLDataType(dtype));
 

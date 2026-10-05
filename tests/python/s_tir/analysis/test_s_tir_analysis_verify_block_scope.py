@@ -131,7 +131,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
         iter_vars=[tvm.tirx.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
         reads=[tvm.tirx.BufferRegion(A, [tvm.ir.Range(bi, bi + 1)])],
         writes=[tvm.tirx.BufferRegion(B, [tvm.ir.Range(bi, bi + 1)])],
-        body=tvm.tirx.BufferStore(B, tvm.tirx.BufferLoad(A, [bi]), [bi]),
+        body=tvm.tirx.BufferStore(B, tvm.tirx.TensorLoad(A, [bi]), [bi]),
         name_hint="write_B",
     )
     block_realize = tvm.s_tir.SBlockRealize(

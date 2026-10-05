@@ -62,7 +62,7 @@ TEST(Expr, RequiredIRReferences) {
   CheckRequiredIRReference<TypedExpr<PrimType>>();
   CheckRequiredIRReference<IntExpr>();
   CheckRequiredIRReference<PrimVar>();
-  CheckRequiredIRReference<tirx::BufferVar>();
+  CheckRequiredIRReference<tirx::TensorVar>();
   CheckRequiredIRReference<tirx::Stmt>();
   CheckRequiredIRReference<tirx::Evaluate>();
   CheckRequiredIRReference<s_tir::SBlock>();

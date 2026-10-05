@@ -93,7 +93,7 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
               NamespaceDoc("s_tir")->Attr("sblock_attr")->Call({AnyValue(d, block->annotations)})),
           block->annotations);
     }
-    for (const tirx::BufferVar& buffer : block->alloc_buffers) {
+    for (const tirx::TensorVar& buffer : block->alloc_buffers) {
       CallDoc rhs = d->Translate(buffer.var()->ty).value().as_or_throw<CallDoc>();
       TVM_FFI_CHECK(rhs->callee.as_or_throw<AttrAccessDoc>()->name == "Tensor", TypeError)
           << "Ts.sblock_alloc_buffer cannot reconstruct this nonrepresentable TensorType";

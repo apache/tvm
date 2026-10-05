@@ -19,7 +19,7 @@
 import contextlib
 
 from tvm.ir import StringImm
-from tvm.tirx import Buffer
+from tvm.tirx import Var
 
 from . import _ffi_api, frame
 
@@ -110,7 +110,7 @@ def seq_scope():
     return _ffi_api.Attr(0, "pragma_scope", StringImm("seq"))
 
 
-def buffer_indices(buffer: Buffer, index):
+def tensor_indices(buffer: Var, index):
     """Translate logical flat or multidimensional indices for a concrete buffer.
 
     A single index is unraveled in row-major logical order, retaining the
@@ -120,7 +120,7 @@ def buffer_indices(buffer: Buffer, index):
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The concrete buffer whose logical shape determines the coordinates.
     index : Expr or sequence of Expr
         A flat logical index or explicit multidimensional coordinates.

@@ -107,7 +107,7 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         with IRBuilder() as ib:
             with T.seq_scope():
                 with T.parallel(0, full_range) as i:
-                    T.buffer_store(out, data[T.buffer_indices(data, i)], T.buffer_indices(out, i))
+                    T.buffer_store(out, data[T.tensor_indices(data, i)], T.tensor_indices(out, i))
 
                 with T.parallel(0, ind_before_axis_range * ind_after_axis_range) as fused:
                     i = fused // ind_after_axis_range
@@ -118,50 +118,50 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
                         # Offset along indices or updates
                         index1 = pre_index1 + k * ind_after_axis_range
                         # Get index and shift to positive side if need
-                        k_new = indices[T.buffer_indices(indices, index1)]
+                        k_new = indices[T.tensor_indices(indices, index1)]
                         shifted_index = k_new + (k_new < 0) * axis_range
                         # Offset along data
                         index2 = pre_index2 + shifted_index * after_axis_range
-                        reduce_func(out, index2, updates[T.buffer_indices(updates, index1)])
+                        reduce_func(out, index2, updates[T.tensor_indices(updates, index1)])
 
             return ib.get()
 
     def update_func(dst_ptr, dst_index, update):
-        T.buffer_store(dst_ptr, update, T.buffer_indices(dst_ptr, dst_index))
+        T.buffer_store(dst_ptr, update, T.tensor_indices(dst_ptr, dst_index))
 
     def add_func(dst_ptr, dst_index, update):
         T.buffer_store(
             dst_ptr,
-            dst_ptr[T.buffer_indices(dst_ptr, dst_index)] + (update),
-            T.buffer_indices(dst_ptr, dst_index),
+            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + (update),
+            T.tensor_indices(dst_ptr, dst_index),
         )
 
     def mul_func(dst_ptr, dst_index, update):
         T.buffer_store(
             dst_ptr,
-            dst_ptr[T.buffer_indices(dst_ptr, dst_index)] * (update),
-            T.buffer_indices(dst_ptr, dst_index),
+            dst_ptr[T.tensor_indices(dst_ptr, dst_index)] * (update),
+            T.tensor_indices(dst_ptr, dst_index),
         )
 
     def mean_func(dst_ptr, dst_index, update):
         T.buffer_store(
             dst_ptr,
-            (dst_ptr[T.buffer_indices(dst_ptr, dst_index)] + update) / 2,
-            T.buffer_indices(dst_ptr, dst_index),
+            (dst_ptr[T.tensor_indices(dst_ptr, dst_index)] + update) / 2,
+            T.tensor_indices(dst_ptr, dst_index),
         )
 
     def min_func(dst_ptr, dst_index, update):
         T.buffer_store(
             dst_ptr,
-            tirx.min(dst_ptr[T.buffer_indices(dst_ptr, dst_index)], update),
-            T.buffer_indices(dst_ptr, dst_index),
+            tirx.min(dst_ptr[T.tensor_indices(dst_ptr, dst_index)], update),
+            T.tensor_indices(dst_ptr, dst_index),
         )
 
     def max_func(dst_ptr, dst_index, update):
         T.buffer_store(
             dst_ptr,
-            tirx.max(dst_ptr[T.buffer_indices(dst_ptr, dst_index)], update),
-            T.buffer_indices(dst_ptr, dst_index),
+            tirx.max(dst_ptr[T.tensor_indices(dst_ptr, dst_index)], update),
+            T.tensor_indices(dst_ptr, dst_index),
         )
 
     reduce_func = None

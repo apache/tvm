@@ -273,8 +273,8 @@ def test_optional_param_present_and_absent_ir():
     assert_structural_equal(absent, expected_absent, map_free_vars=True)
     assert [param.name for param in present.params] == ["a", "out"]
     assert [param.name for param in absent.params] == ["out"]
-    assert all(tvm.tirx.is_buffer_var(param) for param in present.params)
-    assert all(tvm.tirx.is_buffer_var(param) for param in absent.params)
+    assert all(tvm.tirx.is_tensor_var(param) for param in present.params)
+    assert all(tvm.tirx.is_tensor_var(param) for param in absent.params)
 
 
 def test_optional_specialization_cache_includes_presence():
@@ -374,8 +374,8 @@ def test_compile_time_if_binding_uses_python_scope():
     absent = kernel.specialize(a=None)
     assert len(present.params) == 2
     assert len(absent.params) == 1
-    assert sum(tvm.tirx.is_buffer_var(param) for param in present.params) == 2
-    assert sum(tvm.tirx.is_buffer_var(param) for param in absent.params) == 1
+    assert sum(tvm.tirx.is_tensor_var(param) for param in present.params) == 2
+    assert sum(tvm.tirx.is_tensor_var(param) for param in absent.params) == 1
 
 
 def test_compile_time_bool_ops_and_if_expression_short_circuit():

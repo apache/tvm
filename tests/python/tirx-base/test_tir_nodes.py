@@ -314,7 +314,7 @@ def test_prim_func():
     assert func.params[2].same_as(b)
     assert not hasattr(func, "buffer_map")
 
-    assert sum(tvm.tirx.is_buffer_var(param) for param in func.params) == 1
+    assert sum(tvm.tirx.is_tensor_var(param) for param in func.params) == 1
     assert func.with_body(tvm.tirx.Evaluate(0)).params[2].same_as(b)
     f2 = func.with_attr({"calling_conv": 1, "tirx.noalias": True})
     assert f2.attrs["calling_conv"] == 1
@@ -342,9 +342,9 @@ def test_scoped_storage_vars():
 
 def test_buffer_load_store():
     b = tvm.tirx.decl_tensor((10,), "float32")
-    x = tvm.tirx.BufferLoad(b, [0])
+    x = tvm.tirx.TensorLoad(b, [0])
     assert isinstance(x, tvm.ir.TensorLoad)
-    assert callable(tvm.tirx.BufferLoad)
+    assert callable(tvm.tirx.TensorLoad)
     assert x.ty.dtype == "float32"
     assert x.source == b
     assert not hasattr(x, "buffer")
@@ -417,7 +417,7 @@ def test_broadcast_to_scalable_vec():
 def test_buffer_load_scalable_vec():
     buf = tvm.tirx.decl_tensor((24,), "float32")
     index = tvm.tirx.expr.Ramp(1, 1, 8 * tvm.tirx.vscale())
-    load = tvm.tirx.BufferLoad(buf, [index])
+    load = tvm.tirx.TensorLoad(buf, [index])
 
     assert isinstance(load, tvm.ir.TensorLoad)
     assert load.ty.dtype == "float32xvscalex8"
