@@ -222,6 +222,7 @@ TVM_DEFINE_CACHED_OP_GETTER(tvm_thread_invariant, "tirx.tvm_thread_invariant")
 TVM_DEFINE_CACHED_OP_GETTER(tvm_call_packed_lowered, "tirx.tvm_call_packed_lowered")
 TVM_DEFINE_CACHED_OP_GETTER(tvm_call_cpacked_lowered, "tirx.tvm_call_cpacked_lowered")
 TVM_DEFINE_CACHED_OP_GETTER(tvm_storage_sync, "tirx.tvm_storage_sync")
+TVM_DEFINE_CACHED_OP_GETTER(parallel_barrier, "tirx.parallel_barrier")
 TVM_DEFINE_CACHED_OP_GETTER(tvm_kernel_replace_point, "tirx.tvm_kernel_replace_point")
 TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle, "tirx.tvm_warp_shuffle")
 TVM_DEFINE_CACHED_OP_GETTER(tvm_warp_shuffle_up, "tirx.tvm_warp_shuffle_up")
@@ -526,6 +527,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .signature(sig::arg("storage_scope", "The storage scope."), sig::var_args("args"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_storage_sync"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
+
+  OpDef("tirx.parallel_barrier")
+      .signature()
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.parallel_barrier"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 

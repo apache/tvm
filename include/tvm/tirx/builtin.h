@@ -444,6 +444,14 @@ TVM_DLL const Op& tvm_call_cpacked_lowered();
 TVM_DLL const Op& tvm_storage_sync();
 
 /*!
+ * \brief Synchronize all workers in the current CPU parallel launch.
+ *
+ * Every worker must reach this operation. It must be outside partitioned
+ * parallel loops, whose iteration counts can differ between workers.
+ */
+TVM_DLL const Op& parallel_barrier();
+
+/*!
  * \brief Marker where a transform should replace generated kernel initialization.
  */
 TVM_DLL const Op& tvm_kernel_replace_point();
