@@ -500,15 +500,18 @@ TVM_DLL const Op& tvm_warp_shuffle_xor();
 TVM_DLL const Op& tvm_warp_activemask();
 
 /*!
- * \brief See pesudo code
+ * \brief Cross-thread reduction with an explicit typed combiner and identities.
  *
- *  void tvm_thread_allreduce(UIntImm size, Expr source0, ..., Expr cond,
- *                            Var reduce_temp0, .., Var thread_idx1, ...) {
- *     // constraint by the other thread_idx remain the same.
- *     // reduce_temp is used to save intermediate result.
- *     reduce_temp0, ... = reduce(combiner, source0, ..., cond
- *       over [thread_idx1, thread_idx2] passed by any caller)
- *  }
+ * void tvm_thread_allreduce(LambdaExpr combine, Tuple identity, Tuple values,
+ *                           PrimExpr predicate, Tuple destinations, Tuple thread_axes);
+ *
+ * For N values, combine binds lhs[0:N] followed by rhs[0:N] and returns an
+ * N-element Tuple. Each value, identity, pair of parameters and result have
+ * the same primitive type. Inactive inputs are replaced by their identities.
+ * Destinations are N tensor loads (optionally cast for boolean storage), and
+ * thread_axes are reduction thread variables or zero for simplified unit axes.
+ * Other thread indices remain fixed. The operation writes the reduced values
+ * to the destination tensors and returns void.
  */
 TVM_DLL const Op& tvm_thread_allreduce();
 // Metal cooperative_tensor intrinsics (MetalPerformancePrimitives / Metal 4)

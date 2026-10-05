@@ -811,20 +811,45 @@ def address_of(obj: Var | TensorLoad, span: Span | None = None) -> Expr:
         raise ValueError(f"Invalid object type: {type(obj)}")
 
 
-def tvm_thread_allreduce(*freduce_args):
-    """Perform allreduce inside threadblock.
+def tvm_thread_allreduce(combine, identity, values, predicate, destinations, thread_axes):
+    """Perform an all-reduce inside a thread block.
 
     Parameters
     ----------
-    freduce_args : Expr
-        The args.
+    combine : tvm.ir.LambdaExpr
+        Typed combining lambda with parameters ordered as all left-hand values
+        followed by all right-hand values. Its body returns a tuple of results,
+        including for a single-value reduction.
+    identity : tvm.ir.Tuple or Sequence[Expr]
+        Identity value for each reduction result.
+    values : tvm.ir.Tuple or Sequence[Expr]
+        Values contributed by the current thread.
+    predicate : PrimExpr
+        Boolean participation predicate. Inactive threads contribute identities.
+    destinations : tvm.ir.Tuple or Sequence[Expr]
+        Tensor loads identifying the destinations of the reduction results.
+    thread_axes : tvm.ir.Tuple or Sequence[Expr]
+        Thread variables participating in the reduction.
 
     Returns
     -------
     call : Expr
-        The call expression.
+        The void call expression with six explicit operands.
     """
-    return call_intrin("void", "tirx.tvm_thread_allreduce", *freduce_args)
+
+    def as_tuple(value):
+        return value if isinstance(value, tvm.ir.Tuple) else tvm.ir.Tuple(value)
+
+    return call_intrin(
+        "void",
+        "tirx.tvm_thread_allreduce",
+        combine,
+        as_tuple(identity),
+        as_tuple(values),
+        predicate,
+        as_tuple(destinations),
+        as_tuple(thread_axes),
+    )
 
 
 def tvm_thread_invariant(cond):

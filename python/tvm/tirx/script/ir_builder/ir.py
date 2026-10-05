@@ -38,7 +38,7 @@ from tvm import DataType, ir
 from tvm import tirx as tir
 from tvm.ir import Range, Type, is_prim_expr
 from tvm.script.ir_builder.base import MISSING, IRBuilder
-from tvm.script.ir_builder.ir import meta_var
+from tvm.script.ir_builder.ir import TypedLambda, meta_var
 from tvm.script.parser.protocol_registry import (
     register_mutable_decl as _register_mutable_decl,
 )
@@ -1626,6 +1626,7 @@ __all__ = [
     "TensorMap",
     "TileLayout",
     "Tuple",
+    "TypedLambda",
     "Var",
     "alloc_cast_frag",
     "alloc_local",

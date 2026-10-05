@@ -24,8 +24,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/builtin.h>
-#include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -230,6 +230,9 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(builtin::tvm_thread_allreduce())) {
+      return LegalizeThreadAllreduce(op);
+    }
     if (op->op.same_as(builtin::alloc_tensor()) || op->op.same_as(builtin::decl_tensor())) {
       Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
@@ -403,40 +406,6 @@ class ComputeLegalizer : public StmtExprMutator {
       if (mapped != nullptr) {
         return AttrStmt(mapped.as_or_throw<Var>(), op->attr_key, op->value, op->body);
       }
-    } else if (auto reducer = op->node.as<te::CommReducerNode>()) {
-      auto reducer_mode = op->unique() && reducer->unique() ? inplace_mode : InplaceMode::kDisallow;
-      auto legalized_identity_elements = Mutate(reducer->identity_element, reducer_mode)
-                                             .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
-                                             .ValueOrUnchanged(reducer->identity_element);
-
-      // Remap input variables
-      for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
-        Var lhs_var = reducer->lhs[i];
-        if (lhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          VarRemapSet(lhs_var, lhs_var.CopyWithDType(legalized_identity_elements[i].ty()));
-        }
-        Var rhs_var = reducer->rhs[i];
-        if (rhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          VarRemapSet(rhs_var, rhs_var.CopyWithDType(legalized_identity_elements[i].ty()));
-        }
-      }
-
-      auto legalized_results = Mutate(reducer->result, reducer_mode)
-                                   .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
-                                   .ValueOrUnchanged(reducer->result);
-
-      auto legalized_lhs = reducer->lhs.Map([this](PrimVar var) {
-        auto mapped = VarRemapGet(var);
-        return mapped == nullptr ? var : mapped.as_or_throw<PrimVar>();
-      });
-
-      auto legalized_rhs = reducer->rhs.Map([this](PrimVar var) {
-        auto mapped = VarRemapGet(var);
-        return mapped == nullptr ? var : mapped.as_or_throw<PrimVar>();
-      });
-      return AttrStmt(te::CommReducer(legalized_lhs, legalized_rhs, legalized_results,
-                                      legalized_identity_elements, reducer->span),
-                      op->attr_key, op->value, op->body);
     }
     return ret;
   }
@@ -453,6 +422,59 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
  private:
+  // Tuple grouping must not hide the reduction values from compute promotion.
+  // Rebuild the complete typed call only after binders, body and operands agree.
+  Expr LegalizeThreadAllreduce(const CallNode* op) {
+    builtin::tvm_thread_allreduce().Validate(op);
+    LambdaExpr combine = op->args[0].as_or_throw<LambdaExpr>();
+    auto promote_tuple = [this](const Expr& operand) {
+      return tvm::Tuple(operand.as_or_throw<tvm::Tuple>()->fields.Map([this](const Expr& value) {
+        return PromoteToTarget(Mutate(value).ValueOrUnchanged(value).as_or_throw<PrimExpr>());
+      }));
+    };
+    tvm::Tuple identity = promote_tuple(op->args[1]);
+    tvm::Tuple values = promote_tuple(op->args[2]);
+    ffi::Array<Var> vars;
+    std::vector<ffi::Any> saved_remaps;
+    size_t size = values->fields.size();
+    for (size_t i = 0; i < combine->vars.size(); ++i) {
+      const Var& var = combine->vars[i];
+      vars.push_back(var.CopyWithDType(values->fields[i % size]->ty.as_or_throw<PrimType>()));
+      saved_remaps.push_back(VarRemapGet(var));
+    }
+    auto restore = [&]() {
+      for (size_t i = 0; i < combine->vars.size(); ++i) {
+        VarRemapSet(combine->vars[i], saved_remaps[i]);
+      }
+    };
+    ffi::Optional<tvm::Tuple> body;
+    try {
+      for (size_t i = 0; i < combine->vars.size(); ++i) {
+        VarRemapSet(combine->vars[i], vars[i]);
+      }
+      // Mutate the body under the new bindings, without visiting the old lambda
+      // definition (which correctly shadows outer remaps in generic traversal).
+      body = promote_tuple(combine->body);
+    } catch (...) {
+      restore();
+      throw;
+    }
+    restore();
+    LambdaExpr legalized_combine(vars, body.value());
+    auto mutate_tuple = [this](const Expr& operand) {
+      return tvm::Tuple(operand.as_or_throw<tvm::Tuple>()->fields.Map(
+          [this](const Expr& value) { return Mutate(value).ValueOrUnchanged(value); }));
+    };
+    Expr predicate = Mutate(op->args[3]).ValueOrUnchanged(op->args[3]);
+    // Destinations are lvalues: remap promoted allocations but do not insert a
+    // compute cast around a load from an unpromoted storage buffer.
+    tvm::Tuple destinations = mutate_tuple(op->args[4]);
+    tvm::Tuple axes = mutate_tuple(op->args[5]);
+    return Call(PrimType::Void(), op->op,
+                {legalized_combine, identity, values, predicate, destinations, axes}, op->attrs,
+                op->ty_args, op->span);
+  }
+
   /*!
    * \brief promote value to target datatype F16/F32 and keep other values unchanged.
    * \param value The input value.

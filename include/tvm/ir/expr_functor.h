@@ -73,6 +73,9 @@ class ExprFunctor<R(const Expr&, Args...)> {
     return (*vtable_)(node, this, std::forward<Args>(args)...);
   }
 
+  virtual R Dispatch_(const LambdaExprNode* node, Args... args) {
+    return DispatchDefault_(node, std::forward<Args>(args)...);
+  }
   virtual R Dispatch_(const OpaqueExprNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
@@ -230,6 +233,7 @@ class ExprFunctor<R(const Expr&, Args...)> {
    * \param vtable The table to initialize before adding derived registrations.
    */
   static void InitVTable(VTable* vtable) {
+    SetDispatch<TSelf, LambdaExprNode>(vtable);
     SetDispatch<TSelf, OpaqueExprNode>(vtable);
     SetDispatch<TSelf, TupleNode>(vtable);
     SetDispatch<TSelf, TupleGetItemNode>(vtable);

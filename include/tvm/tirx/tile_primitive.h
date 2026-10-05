@@ -34,51 +34,6 @@ namespace tvm {
 namespace tirx {
 
 /*!
- * \brief A reified Python lambda: a list of bound variables and a body over them.
- *
- * Used by tile primitive ops that take a per-element expression over the
- * destination axes (e.g. ``tirx.tile.select``). ``vars`` are the abstract
- * axis variables (lambda-bound); ``pred`` is the body referencing them.
- * At lowering time the dispatch substitutes ``vars`` with the concrete
- * instruction axes via ``Apply``.
- */
-class LambdaExprNode : public ExprNode {
- public:
-  explicit LambdaExprNode(ffi::UnsafeInit tag) : pred(tag) {}
-
-  explicit LambdaExprNode(PrimExpr pred) : pred(std::move(pred)) {}
-
-  /*! \brief The bound variables of the lambda. */
-  Array<Var> vars;
-  /*! \brief The lambda body over ``vars``. */
-  PrimExpr pred;
-
-  /*! \brief Replace the bound variables with the given indices, returning the substituted body. */
-  PrimExpr Apply(const Array<PrimExpr>& indices) const;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LambdaExprNode>()
-        .def_ro("vars", &LambdaExprNode::vars, refl::AttachFieldFlag::SEqHashDefPattern())
-        .def_ro("pred", &LambdaExprNode::pred);
-  }
-
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.LambdaExpr", LambdaExprNode, ExprNode);
-};
-
-/*!
- * \brief Managed reference to LambdaExprNode.
- * \sa LambdaExprNode
- */
-class LambdaExpr : public Expr {
- public:
-  explicit LambdaExpr(Array<Var> vars, PrimExpr pred);
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LambdaExpr, Expr, LambdaExprNode);
-};
-
-/*!
  * \brief The type of the function that sanitizes the arguments of a TIRX operator.
  * \param op The operator.
  * \param args The arguments.

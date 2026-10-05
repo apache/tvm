@@ -21,8 +21,8 @@ from collections.abc import Callable
 
 import tvm
 import tvm.tirx.operator as tirx_op
-from tvm.ir import Op, TensorRegion
-from tvm.tirx import Expr, LambdaExpr, Var, buffer_data, is_tensor_var
+from tvm.ir import LambdaExpr, Op, PrimType, TensorRegion
+from tvm.tirx import Expr, Var, buffer_data, is_tensor_var
 from tvm.tirx.exec_scope import _SCOPE_KIND_TO_NAME, ExecScope
 from tvm.tirx.expr import FloatImm, IntImm
 from tvm.tirx.lang.alloc_pool import SMEMPool, TMEMPool
@@ -1679,7 +1679,11 @@ def select(
     if is_tensor_var(false_value):
         false_value = _to_region(false_value)
     if not isinstance(pred, LambdaExpr):
-        pred = LambdaExpr(pred)
+        pred = LambdaExpr([PrimType("int32")] * len(dst.region), pred, ret_type=PrimType("bool"))
+    if len(pred.vars) != len(dst.region) or any(var.ty != PrimType("int32") for var in pred.vars):
+        raise TypeError("Tile select requires one int32 lambda parameter per destination axis")
+    if pred.ty.ret_type != PrimType("bool"):
+        raise TypeError("Tile select requires a scalar boolean lambda result")
     return f_insert(tirx_op.Select(dst, true_value, false_value, pred, scope=scope))
 
 

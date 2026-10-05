@@ -23,6 +23,7 @@
  *  builtin intrinsic operators.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/attrs.h>
 #include <tvm/tirx/builtin.h>
@@ -122,6 +123,82 @@ ffi::Expected<void> ValidateDeclTensor(const CallNode* call) noexcept try {
              scope == "local") {
     TVM_FFI_CHECK(buffer->allocated_addr.empty(), ValueError)
         << "For `" << scope << "` scope, decl_tensor does not accept `allocated_addr`";
+  }
+  return {};
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
+}
+
+// The operands form one typed reduction contract, including direct generic Call users.
+ffi::Expected<void> ValidateThreadAllreduce(const CallNode* call) noexcept try {
+  TVM_FFI_CHECK_EQ(call->args.size(), 6U, ValueError)
+      << "tvm_thread_allreduce expects combine, identity, values, predicate, destinations, "
+         "and thread_axes";
+  auto return_type = call->ty.as<PrimType>();
+  TVM_FFI_CHECK(return_type.has_value() && return_type.value().IsVoid(), TypeError)
+      << "tvm_thread_allreduce must return void";
+  auto combine = call->args[0].as<LambdaExpr>();
+  TVM_FFI_CHECK(combine.has_value(), TypeError)
+      << "tvm_thread_allreduce combine must be a LambdaExpr";
+  auto tuple_arg = [&](size_t index, const char* name) {
+    auto tuple = call->args[index].as<tvm::Tuple>();
+    TVM_FFI_CHECK(tuple.has_value(), TypeError)
+        << "tvm_thread_allreduce " << name << " must be a Tuple";
+    return tuple.value();
+  };
+  tvm::Tuple identity = tuple_arg(1, "identity");
+  tvm::Tuple values = tuple_arg(2, "values");
+  tvm::Tuple destinations = tuple_arg(4, "destinations");
+  tvm::Tuple axes = tuple_arg(5, "thread_axes");
+  size_t size = values->fields.size();
+  TVM_FFI_CHECK_GT(size, 0U, ValueError)
+      << "tvm_thread_allreduce requires at least one reduction value";
+  TVM_FFI_CHECK_EQ(identity->fields.size(), size, ValueError)
+      << "tvm_thread_allreduce identity and values must have equal length";
+  TVM_FFI_CHECK_EQ(destinations->fields.size(), size, ValueError)
+      << "tvm_thread_allreduce destinations and values must have equal length";
+  TVM_FFI_CHECK_EQ(combine.value()->vars.size(), 2 * size, ValueError)
+      << "tvm_thread_allreduce combine must take lhs followed by rhs (2N parameters)";
+  auto result = combine.value()->body.as<tvm::Tuple>();
+  TVM_FFI_CHECK(result.has_value(), TypeError)
+      << "tvm_thread_allreduce combine must return a Tuple, including for one value";
+  TVM_FFI_CHECK_EQ(result.value()->fields.size(), size, ValueError)
+      << "tvm_thread_allreduce combine result and values must have equal length";
+  auto predicate = call->args[3].as<PrimExpr>();
+  TVM_FFI_CHECK(
+      predicate.has_value() && predicate.value().ty().MatchesCode(DLDataTypeCode::kDLBool),
+      TypeError)
+      << "tvm_thread_allreduce predicate must be boolean";
+  for (size_t i = 0; i < size; ++i) {
+    auto value_type = values->fields[i]->ty.as<PrimType>();
+    TVM_FFI_CHECK(value_type.has_value() && !value_type.value().IsVoid(), TypeError)
+        << "tvm_thread_allreduce value " << i << " must have a primitive value type";
+    auto check_type = [&](const Expr& expr, const char* role) {
+      TVM_FFI_CHECK(ffi::StructuralEqual()(expr->ty, value_type.value()), TypeError)
+          << "tvm_thread_allreduce " << role << " " << i << " must match its value type";
+    };
+    check_type(identity->fields[i], "identity");
+    check_type(combine.value()->vars[i], "lhs parameter");
+    check_type(combine.value()->vars[size + i], "rhs parameter");
+    check_type(result.value()->fields[i], "combine result");
+    check_type(destinations->fields[i], "destination");
+    Expr destination = destinations->fields[i];
+    if (const auto* cast = destination.as<prim::CastNode>()) {
+      TVM_FFI_CHECK(value_type.value().MatchesCode(DLDataTypeCode::kDLBool), TypeError)
+          << "tvm_thread_allreduce destination casts are only valid for boolean storage";
+      destination = cast->value;
+    }
+    TVM_FFI_CHECK(destination.as<TensorLoadNode>(), TypeError)
+        << "tvm_thread_allreduce destination " << i << " must be a TensorLoad";
+  }
+  for (const Expr& axis : axes->fields) {
+    const auto* zero = axis.as<IntImmNode>();
+    TVM_FFI_CHECK(
+        (axis.as<VarNode>() && axis.as<PrimExpr>().has_value()) || (zero && zero->value == 0),
+        TypeError)
+        << "tvm_thread_allreduce thread_axes must contain primitive Vars or zero immediates";
   }
   return {};
 } catch (const ffi::Error& error) {
@@ -594,7 +671,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_thread_allreduce")
-      .signature(sig::arg<IntExpr>("size", "The size."), sig::var_args("args"))
+      .set_validator(ffi::reflection::NativeFunctionView<void(
+                         const CallNode*)>::FromNative<&ValidateThreadAllreduce>())
+      .signature(sig::arg<LambdaExpr>("combine", "The typed combining lambda."),
+                 sig::arg<tvm::Tuple>("identity", "The identity values."),
+                 sig::arg<tvm::Tuple>("values", "The reduction values."),
+                 sig::arg<PrimExpr>("predicate", "Whether this thread contributes."),
+                 sig::arg<tvm::Tuple>("destinations", "The destination tensor loads."),
+                 sig::arg<tvm::Tuple>("thread_axes", "The reduction thread axes."))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_thread_allreduce"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));

@@ -54,6 +54,8 @@ from .expr import (
     ExprOperand,
     ExprWithOp,
     GlobalVar,
+    LambdaExpr,
+    StagingExpr,
     OpaqueExpr,
     Range,
     TensorLoad,

@@ -314,7 +314,7 @@ void TIRVisitorWithPath::VisitLambda(const LambdaExprNode* op, AccessPath path) 
   for (size_t i = 0; i < op->vars.size(); ++i) {
     context.push_back(WithDef(op->vars[i], path->Attr("vars")->ArrayItem(i)));
   }
-  Visit(op->pred, path->Attr("pred"));
+  Visit(op->body, path->Attr("body"));
 }
 
 void TIRVisitorWithPath::Dispatch_(const TupleNode* op, AccessPath path) {

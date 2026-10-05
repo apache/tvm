@@ -190,18 +190,14 @@ def test_sync_bind():
         A_temp_4 = T.bind(in_thread_A_temp_1[0] + A_shared_1[threadIdx_x + 384])
         in_thread_A_temp_1[0] = A_temp_4
         cross_thread_A_temp_1 = T.decl_tensor((1,), data=cross_thread_A_temp.data, scope="local")
-        with T.attr(
-            T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-            "reduce_scope",
-            T.int32(0),
-        ):
-            T.tvm_thread_allreduce(
-                T.uint32(1),
-                in_thread_A_temp_1[0],
-                T.bool(True),
-                cross_thread_A_temp_1[0],
-                threadIdx_x,
-            )
+        T.tvm_thread_allreduce(
+            T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+            (T.float32(0),),
+            (in_thread_A_temp_1[0],),
+            T.bool(True),
+            (cross_thread_A_temp_1[0],),
+            (threadIdx_x,),
+        )
 
     @Ts.prim_func(private=True)
     def expected(A: T.Tensor((8192,), "float32")):
@@ -227,17 +223,13 @@ def test_sync_bind():
         cross_thread_A_temp_1_1 = T.decl_tensor(
             (1,), data=cross_thread_A_temp_1.data, scope="local"
         )
-        T.attr(
-            T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-            "reduce_scope",
-            T.int32(0),
-        )
         T.tvm_thread_allreduce(
-            T.uint32(1),
-            in_thread_A_temp_1_1[0],
+            T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+            (T.float32(0),),
+            (in_thread_A_temp_1_1[0],),
             T.bool(True),
-            cross_thread_A_temp_1_1[0],
-            threadIdx_x,
+            (cross_thread_A_temp_1_1[0],),
+            (threadIdx_x,),
         )
 
     mod = tvm.IRModule({"main": func})

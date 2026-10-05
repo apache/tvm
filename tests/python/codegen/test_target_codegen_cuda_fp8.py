@@ -574,12 +574,14 @@ def test_moe_gemv_shfl_down_illegal_instr():
                                 )
                                 * T.Cast("float16", scale[0])
                             )
-                        with T.attr(
-                            T.comm_reducer(lambda x, y: x + y, [T.float16(0)]), "reduce_scope", 0
-                        ):
-                            T.tvm_thread_allreduce(
-                                T.uint32(1), partial[0], True, reduced[0], reduction
-                            )
+                        T.tvm_thread_allreduce(
+                            T.TypedLambda([T.float16, T.float16], lambda x, y: (x + y,)),
+                            (T.float16(0),),
+                            (partial[0],),
+                            True,
+                            (reduced[0],),
+                            (reduction,),
+                        )
                         if reduction == 0:
                             output[expert, block * 4 + spatial] = reduced[0]
 

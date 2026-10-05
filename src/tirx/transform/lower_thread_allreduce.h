@@ -22,11 +22,11 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/target/target.h>
-#include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
@@ -83,18 +83,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     return result;
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == "reduce_scope") {
-      const te::CommReducerNode* combiner = op->node.as<te::CommReducerNode>();
-      TVM_FFI_ICHECK(combiner);
-      reduce_combiner_.push_back(combiner);
-      Stmt ret = DialectMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-      reduce_combiner_.pop_back();
-      return ret;
-    } else {
-      return DialectMutator::Mutate_(op, inplace_mode);
-    }
-  }
+
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = DialectMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<EvaluateNode>();
@@ -225,32 +214,41 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     }
   };
 
+  static ffi::Array<PrimExpr> ApplyCombiner(const LambdaExpr& combiner,
+                                            const ffi::Array<PrimExpr>& lhs,
+                                            const ffi::Array<PrimExpr>& rhs) {
+    ffi::Array<Expr> arguments;
+    for (const PrimExpr& value : lhs) arguments.push_back(value);
+    for (const PrimExpr& value : rhs) arguments.push_back(value);
+    return combiner->Apply(arguments).as_or_throw<tvm::Tuple>()->fields.Map(
+        [](const Expr& value) { return value.as_or_throw<PrimExpr>(); });
+  }
+
   // make allreduce.
   Stmt MakeAllreduce(const CallNode* call) {
-    TVM_FFI_ICHECK(!reduce_combiner_.empty());
-    const te::CommReducerNode* combiner = reduce_combiner_.back();
-    size_t size = combiner->result.size();
-
-    const IntImmNode* size_of_args = call->args[0].as<IntImmNode>();
-    TVM_FFI_ICHECK(size_of_args) << call->args[0]->GetTypeKey();
-    TVM_FFI_ICHECK_EQ(size, size_of_args->value);
-    ffi::Array<PrimExpr> inits = combiner->identity_element;
+    builtin::tvm_thread_allreduce().Validate(call);
+    LambdaExpr combiner = call->args[0].as_or_throw<LambdaExpr>();
+    tvm::Tuple inits = call->args[1].as_or_throw<tvm::Tuple>();
+    tvm::Tuple inputs = call->args[2].as_or_throw<tvm::Tuple>();
+    tvm::Tuple destinations = call->args[4].as_or_throw<tvm::Tuple>();
+    tvm::Tuple thread_axes = call->args[5].as_or_throw<tvm::Tuple>();
+    size_t size = inputs->fields.size();
     std::vector<PrimExpr> values;
     values.reserve(size);
     std::vector<PrimType> dtypes;
     dtypes.reserve(size);
-    PrimExpr cond = call->args[size + 1].as_or_throw<PrimExpr>();
+    PrimExpr cond = call->args[3].as_or_throw<PrimExpr>();
     for (size_t idx = 0; idx < size; ++idx) {
-      values.push_back(call->args[1 + idx].as_or_throw<PrimExpr>());
+      values.push_back(inputs->fields[idx].as_or_throw<PrimExpr>());
       if (!is_one(cond)) {
-        values[idx] = Select(cond, values[idx], inits[idx]);
+        values[idx] = Select(cond, values[idx], inits->fields[idx].as_or_throw<PrimExpr>());
       }
       dtypes.push_back(values[idx].ty());
     }
     std::vector<TensorVar> buffers;
     buffers.reserve(size);
     for (size_t idx = 0; idx < size; ++idx) {
-      PrimExpr arg = call->args[2 + size + idx].as_or_throw<PrimExpr>();
+      PrimExpr arg = destinations->fields[idx].as_or_throw<PrimExpr>();
       // Loads from boolean buffers may have cast nodes inserted by
       // earlier passes.
       if (auto cast = arg.as<CastNode>()) {
@@ -260,8 +258,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     }
 
     std::unordered_set<const VarNode*> reduce_set;
-    for (size_t i = 2 + 2 * size; i < call->args.size(); ++i) {
-      auto var = call->args[i].as<PrimVar>();
+    for (const Expr& axis : thread_axes->fields) {
+      auto var = axis.as<PrimVar>();
       const VarNode* v = var.has_value() ? var.value().get() : nullptr;
       // The simply optimization replace a iteration variable with a constant
       // when extent of the iteration is 1. As threaded IterVar always started from 0,
@@ -269,8 +267,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       if (v) {
         reduce_set.insert(v);
       } else {
-        TVM_FFI_ICHECK(call->args[i].as<IntImmNode>() && call->args[i].as<IntImmNode>()->value == 0)
-            << "arg" << i << "should be a VarNode or IntImmNode";
+        TVM_FFI_ICHECK(axis.as<IntImmNode>() && axis.as<IntImmNode>()->value == 0)
+            << "Reduction thread axis should be a VarNode or zero IntImmNode";
       }
     }
 
@@ -537,7 +535,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   std::pair<std::vector<PrimExpr>, std::vector<TensorVar>> MakeWarpAllreduce(
       std::vector<PrimExpr> src_values,                  //
       std::vector<PrimType> dtypes,                      //
-      const te::CommReducerNode* combiner,               //
+      const LambdaExpr& combiner,                        //
       PrimExpr reduce_index, int reduce_extent,          //
       PrimExpr group_index,                              //
       PrimExpr mask, ffi::Optional<PrimExpr> predicate,  //
@@ -622,7 +620,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       }
 
       // Do reductions.
-      ffi::Array<PrimExpr> ret = (*combiner)(a, b);
+      ffi::Array<PrimExpr> ret = ApplyCombiner(combiner, a, b);
 
       // Store the reduction result to itself.
       std::vector<Stmt> stores;
@@ -656,7 +654,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
 
   // make allreduce.
-  Stmt MakeBufAllreduce(const te::CommReducerNode* combiner, const std::vector<PrimType>& dtypes,
+  Stmt MakeBufAllreduce(const LambdaExpr& combiner, const std::vector<PrimType>& dtypes,
                         const ffi::Array<TensorVar>& shared_bufs, PrimExpr reduce_index,
                         PrimExpr group_index, int reduce_extent, int group_extent,
                         int contiguous_reduce_extent) {
@@ -683,7 +681,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         TVM_FFI_ICHECK_EQ(a_load.ty(), dtypes[i]);
         a.push_back(a_load);
       }
-      ffi::Array<PrimExpr> ret = (*combiner)(a, b);
+      ffi::Array<PrimExpr> ret = ApplyCombiner(combiner, a, b);
       return ret;
     };
     auto fstore = [&](const ffi::Array<PrimExpr>& ret) {
@@ -904,7 +902,6 @@ class ThreadAllreduceBuilder final : public DialectMutator {
 
   // surrounding scope of thread extent.
   std::vector<const RegionStmtNode*> thread_extents_;
-  std::vector<const te::CommReducerNode*> reduce_combiner_;
   // The load remap
   std::unordered_map<const VarNode*, PrimExpr> load_remap_;
   // Internal analyzer

@@ -268,36 +268,16 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TupleVisit(
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TupleMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  const TupleNode* self =
+  const auto* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
-                                    mutator->MutateExpected(self->ty));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_fields_u,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_fields,
                                     mutator->MutateExpected(self->fields));
-  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_fields_u.UnchangedOrSameAs(self->fields)) {
+  auto fields = std::move(mapped_fields).ValueOrUnchanged(self->fields);
+  Tuple result(fields, self->span);
+  if (fields.same_as(self->fields) && ffi::StructuralEqual()(result->ty, self->ty)) {
     return ffi::Unchanged();
   }
-  ffi::ObjectPtr<TupleNode> copy = ffi::make_object<TupleNode>(*self);
-  if (!mapped_ty_u.IsUnchanged()) copy->ty = std::move(mapped_ty_u).ValueUnchecked();
-  if (!mapped_fields_u.IsUnchanged()) copy->fields = std::move(mapped_fields_u).ValueUnchecked();
-  return ffi::Any(std::move(copy));
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TupleMaybeInplaceMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  TupleNode* self = const_cast<TupleNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
-                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Array<Expr>>, mapped_fields_u,
-      mutator->MutateExpected(self->fields, ffi::InplaceMode::kAllow));
-  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_fields_u.UnchangedOrSameAs(self->fields)) {
-    return ffi::Unchanged();
-  }
-  if (!mapped_ty_u.IsUnchanged()) self->ty = std::move(mapped_ty_u).ValueUnchecked();
-  if (!mapped_fields_u.IsUnchanged()) self->fields = std::move(mapped_fields_u).ValueUnchecked();
-  return ffi::Unchanged();
+  return ffi::Any(result);
 }
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TupleGetItemVisit(
@@ -311,38 +291,21 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> TupleGetItemVis
 }
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TupleGetItemMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: index
-  const TupleGetItemNode* self =
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept try {
+  const auto* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleGetItemNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
-                                    mutator->MutateExpected(self->ty));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_tuple_u,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_tuple,
                                     mutator->MutateExpected(self->tuple));
-  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_tuple_u.UnchangedOrSameAs(self->tuple)) {
+  auto tuple = std::move(mapped_tuple).ValueOrUnchanged(self->tuple);
+  TupleGetItem result(tuple, self->index, self->span);
+  if (tuple.same_as(self->tuple) && ffi::StructuralEqual()(result->ty, self->ty)) {
     return ffi::Unchanged();
   }
-  ffi::ObjectPtr<TupleGetItemNode> copy = ffi::make_object<TupleGetItemNode>(*self);
-  if (!mapped_ty_u.IsUnchanged()) copy->ty = std::move(mapped_ty_u).ValueUnchecked();
-  if (!mapped_tuple_u.IsUnchanged()) copy->tuple = std::move(mapped_tuple_u).ValueUnchecked();
-  return ffi::Any(std::move(copy));
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TupleGetItemMaybeInplaceMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: index
-  TupleGetItemNode* self = const_cast<TupleGetItemNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TupleGetItemNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Type>, mapped_ty_u,
-                                    mutator->MutateExpected(self->ty, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_tuple_u,
-                                    mutator->MutateExpected(self->tuple, ffi::InplaceMode::kAllow));
-  if (mapped_ty_u.UnchangedOrSameAs(self->ty) && mapped_tuple_u.UnchangedOrSameAs(self->tuple)) {
-    return ffi::Unchanged();
-  }
-  if (!mapped_ty_u.IsUnchanged()) self->ty = std::move(mapped_ty_u).ValueUnchecked();
-  if (!mapped_tuple_u.IsUnchanged()) self->tuple = std::move(mapped_tuple_u).ValueUnchecked();
-  return ffi::Unchanged();
+  return ffi::Any(result);
+} catch (const ffi::Error& error) {
+  return ffi::Unexpected(error);
+} catch (const std::exception& error) {
+  return ffi::Unexpected(ffi::Error("InternalError", error.what(), ""));
 }
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> IntImmVisit(
@@ -749,7 +712,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&TupleVisit>())
       .attr(refl::type_attr::kStructuralMutate, ffi::FStructuralMutate::FromNative<&TupleMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&TupleMaybeInplaceMutate>());
+            ffi::FStructuralMutate::FromNative<&TupleMutate>());
 
   refl::GlobalDef().def("ir.Tuple",
                         [](ffi::Array<Expr> fields, Span span) { return Tuple(fields, span); });
@@ -780,7 +743,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .attr(refl::type_attr::kStructuralMutate,
             ffi::FStructuralMutate::FromNative<&TupleGetItemMutate>())
       .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&TupleGetItemMaybeInplaceMutate>());
+            ffi::FStructuralMutate::FromNative<&TupleGetItemMutate>());
 
   refl::GlobalDef().def("ir.TupleGetItem", [](Expr tuple, int index, Span span) {
     return TupleGetItem(tuple, index, span);

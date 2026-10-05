@@ -16,6 +16,10 @@
 # under the License.
 """Common expressions data structures in the IR."""
 
+import inspect
+from collections.abc import Callable
+from numbers import Number
+
 import tvm_ffi
 
 import tvm
@@ -57,6 +61,11 @@ class Expr(Node):
         return _ffi_api.SubscriptExprRealize(
             self, [_convert_subscript_index(item) for item in indices], None
         )
+
+
+@tvm_ffi.register_object("ir.StagingExpr")
+class StagingExpr(Expr):
+    """A traversable expression eliminated before executable IR."""
 
 
 @tvm_ffi.register_object("ir.OpaqueExpr")
@@ -679,6 +688,113 @@ class Var(_CallableExprWithOp):
             if not isinstance(ty, Type):
                 raise TypeError("ty must be a Type or primitive dtype string")
         self.__init_handle_by_constructor__(_ffi_api.Var, name, ty, span)
+
+
+def _lambda_type(annotation):
+    """Normalize explicit types and the script scalar constructor forms."""
+    if isinstance(annotation, tvm.ir.Type):
+        return annotation
+    if isinstance(annotation, str):
+        return Var("", annotation).ty
+    if isinstance(annotation, tvm.DataType):
+        return tvm.ir.PrimType(annotation)
+    dtype = getattr(annotation, "_dtype_str", None)
+    if dtype is not None:
+        return tvm.ir.PrimType(dtype)
+    if callable(annotation):
+        value = annotation()
+        if isinstance(value, Expr):
+            return value.ty
+        if isinstance(value, tvm.ir.Type):
+            return value
+    raise TypeError("Lambda parameter and return annotations must be explicit IR types")
+
+
+def _lambda_has_missing_type(ty):
+    if isinstance(ty, tvm.ir.MissingType):
+        return True
+    if isinstance(ty, tvm.ir.TupleType):
+        return any(_lambda_has_missing_type(field) for field in ty.fields)
+    if isinstance(ty, tvm.ir.FuncType):
+        return any(_lambda_has_missing_type(arg) for arg in ty.arg_types) or (
+            _lambda_has_missing_type(ty.ret_type)
+        )
+    if isinstance(ty, tvm.ir.PointerType):
+        return _lambda_has_missing_type(ty.element_type)
+    return False
+
+
+def _lambda_result(value):
+    if isinstance(value, tuple | list):
+        return Tuple([_lambda_result(field) for field in value])
+    if isinstance(value, Number):
+        value = const(value)
+    elif isinstance(value, str):
+        value = StringImm(value)
+    else:
+        value = tvm.runtime.convert(value)
+    if not isinstance(value, Expr):
+        raise TypeError("Lambda body must be an Expr or a tuple/list of expressions")
+    return value
+
+
+@tvm_ffi.register_object("ir.LambdaExpr")
+class LambdaExpr(StagingExpr, Scriptable):
+    """A typed staging expression representing a lambda computation.
+
+    LambdaExpr records computations such as reduction combiners and predication
+    rules. Its body may describe computations on runtime values.
+
+    Parameters are bound within the expression body, which may produce a scalar
+    or tuple result. The lambda has a FuncType describing its parameter and
+    return types.
+
+    As a StagingExpr, LambdaExpr is eliminated during compilation and does not
+    remain in executable IR.
+
+    Parameters
+    ----------
+    parameter_types : list[Type]
+        Explicit parameter types, in callable argument order. Primitive dtype
+        strings and script scalar constructors are also accepted.
+    function : Callable
+        A callable with a fixed positional signature, evaluated once with fresh
+        typed Vars. Tuple/list results become shared IR Tuple expressions.
+    ret_type : Type, optional
+        An exact return-type check. No implicit conversion or cast is inserted.
+    """
+
+    vars: list[Var]
+    body: Expr
+
+    def __init__(self, parameter_types, function: Callable, *, ret_type=None):
+        if not callable(function):
+            raise TypeError("LambdaExpr requires a callable")
+        parameters = list(inspect.signature(function).parameters.values())
+        if any(
+            param.kind
+            not in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+            for param in parameters
+        ):
+            raise TypeError("LambdaExpr requires a fixed positional callable signature")
+        types = [_lambda_type(annotation) for annotation in parameter_types]
+        if len(types) != len(parameters):
+            raise ValueError("LambdaExpr requires one explicit type per callable parameter")
+        if any(_lambda_has_missing_type(ty) for ty in types):
+            raise TypeError("LambdaExpr parameter types must not contain MissingType")
+        variables = [Var(param.name, ty) for param, ty in zip(parameters, types)]
+        body = _lambda_result(function(*variables))
+        if ret_type is not None:
+            expected = _lambda_type(ret_type)
+            if _lambda_has_missing_type(expected) or _lambda_has_missing_type(body.ty):
+                raise TypeError("LambdaExpr return annotation requires a known body type")
+            if not tvm_ffi.structural_equal(expected, body.ty):
+                raise TypeError("LambdaExpr return annotation does not match the body type")
+        self.__init_handle_by_constructor__(_ffi_api.LambdaExpr, variables, body)
+
+    def apply(self, arguments: list[Expr]) -> Expr:
+        """Substitute arguments simultaneously for the lambda's bound variables."""
+        return _ffi_api.LambdaExprApply(self, [_lambda_result(arg) for arg in arguments])
 
 
 @tvm_ffi.register_object("ir.Range")

@@ -359,18 +359,14 @@ def test_bf16_reduce_will_legalize():
 
                     reduce = T.decl_tensor(1, dtype="bfloat16", scope="local")
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
-                            A_flat[0],
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                    T.tvm_thread_allreduce(
+                        T.TypedLambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return Before
 
@@ -388,13 +384,10 @@ def test_bf16_reduce_will_legalize():
 
                     reduce = T.decl_tensor(1, dtype="float32", scope="local")
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
+                    T.tvm_thread_allreduce(
+                        T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        (T.float32(0),),
+                        (
                             T.reinterpret(
                                 "float32",
                                 T.shift_left(
@@ -402,10 +395,11 @@ def test_bf16_reduce_will_legalize():
                                     T.uint32(16),
                                 ),
                             ),
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                        ),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return After
 
@@ -423,13 +417,10 @@ def test_bf16_reduce_will_legalize():
 
                     reduce = T.decl_tensor(1, dtype="float32", scope="local")
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
+                    T.tvm_thread_allreduce(
+                        T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        (T.float32(0),),
+                        (
                             T.reinterpret(
                                 "float32",
                                 T.shift_left(
@@ -437,10 +428,11 @@ def test_bf16_reduce_will_legalize():
                                     T.uint32(16),
                                 ),
                             ),
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                        ),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return After
 
@@ -450,6 +442,57 @@ def test_bf16_reduce_will_legalize():
     after_storage = tvm.tirx.transform.BF16StorageLegalize()(after_compute)
     tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
     tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
+
+def test_bf16_reduce_parameter_body_legalize():
+    @tvm.script.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def main(A: T.Tensor((32,), "bfloat16")):
+            tx = T.launch_thread("threadIdx.x", 32)
+            result = T.alloc_tensor((1,), "bfloat16", scope="local")
+            T.tvm_thread_allreduce(
+                T.TypedLambda([T.bfloat16, T.bfloat16], lambda lhs, rhs: (lhs,)),
+                (T.bfloat16(0),),
+                (A[tx],),
+                True,
+                (result[0],),
+                (tx,),
+            )
+
+    before = BindTarget(Target("nvidia/geforce-rtx-2080-ti"))(Before)
+    after = tvm.tirx.transform.BF16ComputeLegalize()(before)
+
+    def find_allreduce(mod):
+        calls = []
+
+        def visit(node):
+            if (
+                isinstance(node, tvm.ir.Call)
+                and isinstance(node.op, tvm.ir.Op)
+                and node.op.name == "tirx.tvm_thread_allreduce"
+            ):
+                calls.append(node)
+
+        tvm_ffi.structural_walk(mod["main"].body, visit)
+        assert len(calls) == 1
+        return calls[0]
+
+    original = find_allreduce(before)
+    legalized = find_allreduce(after)
+    combine = legalized.args[0]
+    assert combine.body[0].same_as(combine.vars[0])
+    tvm.ir.assert_structural_equal(
+        combine.ty,
+        tvm.ir.FuncType(
+            [tvm.ir.PrimType("float32"), tvm.ir.PrimType("float32")],
+            tvm.ir.TupleType([tvm.ir.PrimType("float32")]),
+        ),
+    )
+    for group in (1, 2, 4):
+        assert legalized.args[group][0].ty == tvm.ir.PrimType("float32")
+    assert original.args[0].vars[0].ty == tvm.ir.PrimType("bfloat16")
+    assert original.args[2][0].ty == tvm.ir.PrimType("bfloat16")
 
 
 def test_bf16_reduce_wont_legalize():
@@ -467,18 +510,14 @@ def test_bf16_reduce_wont_legalize():
 
                     reduce = T.decl_tensor(1, dtype="bfloat16", scope="local")
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
-                            A_flat[0],
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                    T.tvm_thread_allreduce(
+                        T.TypedLambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return Before
 
@@ -496,18 +535,14 @@ def test_bf16_reduce_wont_legalize():
 
                     reduce = T.decl_tensor(1, dtype="bfloat16", scope="local")
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
-                            A_flat[0],
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                    T.tvm_thread_allreduce(
+                        T.TypedLambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return After
 
@@ -525,18 +560,14 @@ def test_bf16_reduce_wont_legalize():
 
                     reduce = T.decl_tensor(1, dtype="bfloat16", scope="local")
 
-                    with T.attr(
-                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
-                        "reduce_scope",
-                        T.int32(0),
-                    ):
-                        T.tvm_thread_allreduce(
-                            T.uint32(1),
-                            A_flat[0],
-                            T.bool(True),
-                            reduce[0],
-                            threadIdx_x,
-                        )
+                    T.tvm_thread_allreduce(
+                        T.TypedLambda([T.bfloat16, T.bfloat16], lambda x, y: (x + y,)),
+                        (T.bfloat16(0),),
+                        (A_flat[0],),
+                        T.bool(True),
+                        (reduce[0],),
+                        (threadIdx_x,),
+                    )
 
         return After
 
