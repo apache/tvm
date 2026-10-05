@@ -70,7 +70,7 @@ MultiLevelTilingWideVectorNode::SplitLoop(const Schedule& sch, SBlockRV block_rv
   const s_tir::SBlockRealize block_realize = s_tir::GetSBlockRealize(sch->state(), block_sref);
   TVM_FFI_ICHECK(block_node && block_node->writes.size() == 1);
 
-  const auto out_dtype = block_node->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()->dtype;
+  const auto out_dtype = block_node->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()->dtype;
   const int vec_len = vector_length_in_bits / out_dtype.bits();
 
   // Determine if this loop is over the innermost axis of the output buffer.

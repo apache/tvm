@@ -453,7 +453,7 @@ struct ProducerConsumerSplit {
  * \return The buffer of the n-th read/write region of the block.
  * \throw ScheduleError If the buffer index is out of bound.
  */
-BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
+TensorVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
                              BufferIndexType index_type);
 
 /*!
@@ -476,7 +476,7 @@ TensorRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
  *         buffer is from match_buffer).
  */
 std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
-                                                               const BufferVar& buffer);
+                                                               const TensorVar& buffer);
 
 /******** Reduction SBlock Related ********/
 
@@ -603,7 +603,7 @@ bool CanReverseComputeAt(const ScheduleState& self, const StmtSRef& block_sref,
  * \param predicate The predicate of the access
  * \param analyzer Arithmetic analyzer
  */
-ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
+ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& buffer,
                                         const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
                                         sym::AnalyzerObj* analyzer);
@@ -792,9 +792,9 @@ class AutoTensorizeMappingInfoNode : public ffi::Object {
   /* Additional information from AutoTensorizeComparator */
 
   /*! \brief Mapping from LHS buffer to RHS buffer */
-  ffi::Map<BufferVar, BufferVar> lhs_buffer_map;
-  /*! \brief BufferVar indices on RHS */
-  ffi::Map<BufferVar, ffi::Array<PrimExpr>> rhs_buffer_indices;
+  ffi::Map<TensorVar, TensorVar> lhs_buffer_map;
+  /*! \brief TensorVar indices on RHS */
+  ffi::Map<TensorVar, ffi::Array<PrimExpr>> rhs_buffer_indices;
   /*! \brief SBlock iters on LHS */
   ffi::Array<IterVar> lhs_iters;
   /*! \brief SBlock iters on RHS */

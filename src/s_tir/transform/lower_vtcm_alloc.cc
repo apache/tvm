@@ -57,7 +57,7 @@ class VtcmAllocator : public StmtExprMutator {
       args.push_back(IntImm::Int64(shape->fields.size()));
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           shape->fields));
-      BufferVar buffer = op->var.as_or_throw<BufferVar>();
+      TensorVar buffer = op->var.as_or_throw<TensorVar>();
       return Bind(
           buffer,
           Call(buffer.type(), tirx::builtin::decl_tensor(),

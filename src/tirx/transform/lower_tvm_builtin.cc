@@ -116,7 +116,7 @@ class BuiltinLower : public StmtExprMutator {
 
   // Record stack frame for existing scope.
   struct AllocaScope {
-    ffi::Optional<BufferVar> stack_shape;
+    ffi::Optional<TensorVar> stack_shape;
     Var stack_array = Var("stack_array", PointerType::VoidPointerTy());
     Var stack_ffi_any = Var("stack_ffi_any", PointerType::VoidPointerTy());
 
@@ -305,7 +305,7 @@ class BuiltinLower : public StmtExprMutator {
         Call(PrimType::Int(32), builtin::tvm_throw_last_error(), {}).as_or_throw<PrimExpr>());
 
     Stmt alloc_nullptr_check = IfThenElse(
-        Call(PrimType::Bool(), builtin::isnullptr(), {op->var.as_or_throw<BufferVar>().data()})
+        Call(PrimType::Bool(), builtin::isnullptr(), {op->var.as_or_throw<TensorVar>().data()})
             .as_or_throw<PrimExpr>(),
         throw_last_error);
 
@@ -314,7 +314,7 @@ class BuiltinLower : public StmtExprMutator {
     PrimExpr free_op = Call(PrimType::Int(32), free_workspace_op,
                             {prim::cast(PrimType::Int(32), device_type_.value()),
                              prim::cast(PrimType::Int(32), device_id_.value()),
-                             op->var.as_or_throw<BufferVar>().data()})
+                             op->var.as_or_throw<TensorVar>().data()})
                            .as_or_throw<PrimExpr>();
     Stmt free_stmt = IfThenElse(free_op != IntImm::Int32(0), throw_last_error);
 
@@ -322,15 +322,15 @@ class BuiltinLower : public StmtExprMutator {
     scope_.Current().pending_frees.push_back(free_stmt);
 
     Stmt alloc_bind =
-        Bind(op->var.as_or_throw<BufferVar>(),
-             Call(op->var.as_or_throw<BufferVar>().type(), builtin::decl_tensor(),
-                  {Call(op->var.as_or_throw<BufferVar>().DataPointerType(), alloc_workspace_op,
+        Bind(op->var.as_or_throw<TensorVar>(),
+             Call(op->var.as_or_throw<TensorVar>().type(), builtin::decl_tensor(),
+                  {Call(op->var.as_or_throw<TensorVar>().DataPointerType(), alloc_workspace_op,
                         {prim::cast(PrimType::Int(32), device_type_.value()),
                          prim::cast(PrimType::Int(32), device_id_.value()), total_bytes,
                          IntImm::Int32(element_type.code()), IntImm::Int32(element_type.bits())}),
-                   tvm::Tuple(op->var.as_or_throw<BufferVar>()->shape),
-                   DataTypeImm(op->var.as_or_throw<BufferVar>()->dtype->dtype),
-                   StringImm(op->var.as_or_throw<BufferVar>().scope())},
+                   tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
+                   DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
+                   StringImm(op->var.as_or_throw<TensorVar>().scope())},
                   {}, buffer_call->ty_args, buffer_call->span),
              op->span);
 
@@ -501,7 +501,7 @@ class BuiltinLower : public StmtExprMutator {
                       {ConstInt32(stack_begin + i)}));
     }
     PrimExpr offset = ConstInt32(stack_begin);
-    TensorLoad load = BufferLoad(scope.stack_shape.value(), {offset});
+    TensorLoad load = MakeTensorLoad(scope.stack_shape.value(), {offset});
     return Call(scope.stack_shape.value().DataPointerType(), builtin::address_of(), {load});
   }
   // make array

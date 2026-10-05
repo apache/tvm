@@ -349,7 +349,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
    * vector are to be accessed. The number lanes of the mask must be equal to the
    * number of lanes being accessed.
    *
-   * \param value_dtype The datatype to be read from (BufferLoad) or
+   * \param value_dtype The datatype to be read from (TensorLoad) or
    * written to (BufferStore) the buffer.
    *
    * \param make_instruction A callback function that generates that
@@ -370,7 +370,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
+      TensorVar buffer, ffi::Array<PrimExpr> indices, ffi::Optional<PrimExpr> predicate,
       PrimType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>

@@ -58,7 +58,7 @@ inline DLDataType DefaultIndexType() {
  *
  * A tensor value is an ordinary VarNode whose ExprNode::ty is TensorType.
  * TensorType owns the immutable access contract.  The physical pointer is
- * deliberately not stored here; it is obtained with buffer_data(BufferVar)
+ * deliberately not stored here; it is obtained with buffer_data(TensorVar)
  * and is bound by the surrounding buffer definition.
  */
 class TensorTypeNode : public TypeNode {
@@ -74,7 +74,7 @@ class TensorTypeNode : public TypeNode {
   /*! \brief The type of the buffer prior to flattening
    *
    * This contains the shape as it is accessed by
-   * BufferLoad/BufferStore nodes, and used by the low-level code
+   * TensorLoad/BufferStore nodes, and used by the low-level code
    * generators.
    */
   ffi::Array<PrimExpr> shape;

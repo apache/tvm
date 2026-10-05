@@ -133,7 +133,7 @@ TVM_DLL const Op& q_multiply_shift_per_axis();
  * the number of indices must be supported by the target (i.e. N>1
  * only on targets that support non-flat memory buffers).
  *
- *  Handle address_of(BufferLoad *op) {
+ *  Handle address_of(TensorLoad *op) {
  *     return &op->buffer_var[op->indices[0], op->indices[1], ..., op->indices[N-1]];
  *  }
  */
@@ -641,10 +641,10 @@ TVM_DLL const Op& ignore_loop_partition();
 TVM_DLL const Op& buffer_offset();
 
 /*!
- * \brief Project the physical pointer associated with a BufferVar definition.
+ * \brief Project the physical pointer associated with a TensorVar definition.
  *
  * The result pointer type is derived from the TensorType dtype and storage
- * scope of the sole BufferVar argument.  This operation is consumed by TIRx
+ * scope of the sole TensorVar argument.  This operation is consumed by TIRx
  * lowering and code generation.
  */
 TVM_DLL const Op& buffer_data();

@@ -31,7 +31,7 @@ using namespace tvm::tirx;
  * \param buffer The buffer
  * \return The strides
  */
-ffi::Array<PrimExpr> GetStrides(const BufferVar& buffer) {
+ffi::Array<PrimExpr> GetStrides(const TensorVar& buffer) {
   if (!buffer->strides.empty()) {
     TVM_FFI_ICHECK_EQ(buffer->strides.size(), buffer->shape.size());
     return buffer->strides;
@@ -133,7 +133,7 @@ class SplitExprCollector {
   std::vector<SplitExpr> exprs_;
 };
 
-ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
+ffi::Optional<IndexMap> SuggestIndexMap(const TensorVar& buffer,
                                         const ffi::Array<PrimExpr>& indices,
                                         const ffi::Array<For>& loops, const PrimExpr& predicate,
                                         sym::AnalyzerObj* analyzer) {
@@ -253,7 +253,7 @@ ffi::Optional<IndexMap> SuggestIndexMap(const BufferVar& buffer,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("s_tir.schedule.SuggestIndexMap",
-                        [](BufferVar buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops,
+                        [](TensorVar buffer, ffi::Array<PrimExpr> indices, ffi::Array<For> loops,
                            PrimExpr predicate) {
                           sym::Analyzer analyzer;
                           return SuggestIndexMap(buffer, indices, loops, predicate, analyzer.get());

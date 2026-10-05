@@ -194,7 +194,7 @@ void CheckSRefHigherOrEqual(const StmtSRef& sref_a, const StmtSRef& sref_b) {
  */
 bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
                      const StmtSRef& block_sref) {
-  std::unordered_map<BufferVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, ffi::Array<StmtSRef>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       buffer_writers;
   CheckSRefHigherOrEqual(scope_root_sref, block_sref);
   const SBlockNode* maybe_root_block = scope_root_sref->StmtAs<SBlockNode>();
@@ -214,8 +214,8 @@ bool IsDominantBlock(const ScheduleState& self, const StmtSRef& scope_root_sref,
   // Check whether the input block is the only writer of its outputs
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   for (const TensorRegion& write_region : block->writes) {
-    if (buffer_writers.count(write_region->source.as_or_throw<tvm::tirx::BufferVar>())) {
-      if (buffer_writers.at(write_region->source.as_or_throw<tvm::tirx::BufferVar>()).size() != 1) {
+    if (buffer_writers.count(write_region->source.as_or_throw<tvm::tirx::TensorVar>())) {
+      if (buffer_writers.at(write_region->source.as_or_throw<tvm::tirx::TensorVar>()).size() != 1) {
         return false;
       }
     }
@@ -250,10 +250,10 @@ int CheckCompleteBlockErrorCode(const ScheduleState& self, const StmtSRef& block
   std::unordered_set<const VarNode*> written_buffers;
   written_buffers.reserve(block->writes.size());
   for (const TensorRegion& write : block->writes) {
-    written_buffers.insert(write->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    written_buffers.insert(write->source.as_or_throw<tvm::tirx::TensorVar>().get());
   }
   for (const TensorRegion& read : block->reads) {
-    if (written_buffers.count(read->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
+    if (written_buffers.count(read->source.as_or_throw<tvm::tirx::TensorVar>().get())) {
       return 3;
     }
   }
@@ -501,11 +501,11 @@ bool IsOutputBlock(const ScheduleState& self, const StmtSRef& block_sref,
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   std::unordered_set<const VarNode*> scope_allocated;
   scope_allocated.reserve(scope_root->alloc_buffers.size());
-  for (const BufferVar& buffer : scope_root->alloc_buffers) {
+  for (const TensorVar& buffer : scope_root->alloc_buffers) {
     scope_allocated.insert(buffer.get());
   }
   for (const TensorRegion& buffer_region : block->writes) {
-    if (!scope_allocated.count(buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get())) {
+    if (!scope_allocated.count(buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get())) {
       return true;
     }
   }
@@ -1306,14 +1306,14 @@ TensorRegion GetNthAccessBufferRegion(const ScheduleState& self, const SBlock& b
   return access_region[n];
 }
 
-BufferVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
+TensorVar GetNthAccessBuffer(const ScheduleState& self, const SBlock& block, int n,
                              BufferIndexType index_type) {
   return GetNthAccessBufferRegion(self, block, n, index_type)
-      ->source.as_or_throw<tvm::tirx::BufferVar>();
+      ->source.as_or_throw<tvm::tirx::TensorVar>();
 }
 
 std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_sref,
-                                                               const BufferVar& buffer) {
+                                                               const TensorVar& buffer) {
   // Climb up along the sref tree, and find the block where `buffer` is in alloc_buffers or
   // match_buffers.
   const StmtSRefNode* defining_site_sref = block_sref.get();
@@ -1325,7 +1325,7 @@ std::pair<ffi::Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& b
       continue;
     }
     // Try to find the buffer in `allloc_buffers`
-    for (const BufferVar& alloc_tensor : block->alloc_buffers) {
+    for (const TensorVar& alloc_tensor : block->alloc_buffers) {
       if (buffer.same_as(alloc_tensor)) {
         return {ffi::GetRef<StmtSRef>(defining_site_sref), true};
       }
@@ -1359,7 +1359,7 @@ void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
   }
   const PrimFuncNode* f = GetRootPrimFunc(state->mod, sref->stmt, nullptr);
   for (const Var& param : f->params) {
-    if (auto buffer = param.as<BufferVar>()) {
+    if (auto buffer = param.as<TensorVar>()) {
       for (const PrimExpr& e : buffer.value()->shape) {
         analyzer->MarkGlobalNonNegValue(e);
       }
@@ -1420,7 +1420,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   static constexpr const std::tuple<bool, bool, bool, bool, bool, bool> kNotExist =
       std::make_tuple(false, false, false, false, false, false);
   // Step 1. Extract the write indices
-  int w_dim = write_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size();
+  int w_dim = write_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
   std::unordered_map<const VarNode*, int> var2idx;
   var2idx.reserve(w_dim);
   for (int i = 0; i < w_dim; ++i) {
@@ -1437,7 +1437,7 @@ AnalyzeReadWritePattern(const TensorRegion& read_region, const TensorRegion& wri
   // Step 2. Map each read index to a write index
   bool no_const_read = true;
   bool no_shift_read = true;
-  int r_dim = read_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size();
+  int r_dim = read_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size();
   std::vector<int> mapped(r_dim, -1);
   for (int i = 0; i < r_dim; ++i) {
     const Range& dom = read_region->region[i];
@@ -1565,7 +1565,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
       !IsTrivialBinding(self, block_sref)) {
     return false;
   }
-  const VarNode* write_buffer = block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>().get();
+  const VarNode* write_buffer = block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>().get();
   // Step 1. Sort out spatial block variables. Skip the block iters of domain [0, 1), since such
   // block iters distracts the following check of the unused block iters.
   std::vector<const VarNode*> spatial_block_vars;
@@ -1582,7 +1582,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   std::unordered_set<const VarNode*> read_buffers;
   read_buffers.reserve(block->reads.size());
   for (const TensorRegion& buffer_region : block->reads) {
-    const VarNode* buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get();
+    const VarNode* buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get();
     const ffi::Array<Range>& regions = buffer_region->region;
     // Step 2.1. Duplication of read buffers are not allowed
     if (read_buffers.insert(buffer).second == false) {
@@ -2006,13 +2006,13 @@ class AutoTensorizeMappingProposer {
     using BufferMask = std::vector<bool>;
 
     // Step 1: Assign an index to each buffer in LHS and RHS
-    std::unordered_map<BufferVar, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rhs_buffer_index;
-    std::unordered_map<BufferVar, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> lhs_buffer_index;
+    std::unordered_map<TensorVar, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rhs_buffer_index;
+    std::unordered_map<TensorVar, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> lhs_buffer_index;
     {
       int i = 0;
       for (const auto& kv : extractor_->rhs_buffer_map_) {
-        const BufferVar& rhs_buffer = kv.first;
-        const BufferVar& lhs_buffer = kv.second;
+        const TensorVar& rhs_buffer = kv.first;
+        const TensorVar& lhs_buffer = kv.second;
         rhs_buffer_index[rhs_buffer] = i;
         lhs_buffer_index[lhs_buffer] = i;
         ++i;
@@ -2033,7 +2033,7 @@ class AutoTensorizeMappingProposer {
     };
 
     for (const auto& it : extractor_->rhs_buffer_indices_map_) {
-      const BufferVar& rhs_buffer = it.first;
+      const TensorVar& rhs_buffer = it.first;
       for (const PrimExpr& rhs_index : it.second) {
         if (auto var = rhs_index.as<PrimVar>()) {
           update_mask(var.value().get(), &rhs_buffer_masks, rhs_buffer_index.at(rhs_buffer));
@@ -2046,7 +2046,7 @@ class AutoTensorizeMappingProposer {
 
       auto lhs_buffer_it = extractor_->rhs_buffer_map_.find(rhs_buffer);
       TVM_FFI_ICHECK(lhs_buffer_it != extractor_->rhs_buffer_map_.end());
-      const BufferVar& lhs_buffer = lhs_buffer_it->second;
+      const TensorVar& lhs_buffer = lhs_buffer_it->second;
       auto walk_fn = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
         if (auto prim_var = var.as<PrimVar>()) {
           update_mask(prim_var.value().get(), &lhs_buffer_masks, lhs_buffer_index.at(lhs_buffer));

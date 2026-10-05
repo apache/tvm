@@ -105,7 +105,7 @@ def stft(
                             output,
                             output[(batch, row, col, 0)]
                             + (
-                                window[T.buffer_indices(window, wlen)]
+                                window[T.tensor_indices(window, wlen)]
                                 * data[(batch, col * hop_length + wlen)]
                                 * tirx.cos(2 * pi * row * wlen / win_length)
                             ),
@@ -115,7 +115,7 @@ def stft(
                             output,
                             output[(batch, row, col, 1)]
                             - (
-                                window[T.buffer_indices(window, wlen)]
+                                window[T.tensor_indices(window, wlen)]
                                 * data[(batch, col * hop_length + wlen)]
                                 * tirx.sin(2 * pi * row * wlen / win_length)
                             ),
@@ -213,12 +213,12 @@ def dft(
                     T.buffer_store(
                         re_output_ptr,
                         tirx.Cast(re_output_ptr.dtype, 0),
-                        T.buffer_indices(re_output_ptr, n_idx),
+                        T.tensor_indices(re_output_ptr, n_idx),
                     )
                     T.buffer_store(
                         im_output_ptr,
                         tirx.Cast(im_output_ptr.dtype, 0),
-                        T.buffer_indices(im_output_ptr, n_idx),
+                        T.tensor_indices(im_output_ptr, n_idx),
                     )
                     _w = sign * -2 * pi * n / n_fft
                     with T.serial(0, n_fft) as k:
@@ -228,34 +228,34 @@ def dft(
                         sin_w = tirx.Cast(re_output_ptr.dtype, tirx.sin(w))
                         T.buffer_store(
                             re_output_ptr,
-                            re_output_ptr[T.buffer_indices(re_output_ptr, n_idx)]
+                            re_output_ptr[T.tensor_indices(re_output_ptr, n_idx)]
                             + (
-                                re_data_ptr[T.buffer_indices(re_data_ptr, k_idx)] * cos_w
-                                - im_data_ptr[T.buffer_indices(im_data_ptr, k_idx)] * sin_w
+                                re_data_ptr[T.tensor_indices(re_data_ptr, k_idx)] * cos_w
+                                - im_data_ptr[T.tensor_indices(im_data_ptr, k_idx)] * sin_w
                             ),
-                            T.buffer_indices(re_output_ptr, n_idx),
+                            T.tensor_indices(re_output_ptr, n_idx),
                         )
                         T.buffer_store(
                             im_output_ptr,
-                            im_output_ptr[T.buffer_indices(im_output_ptr, n_idx)]
+                            im_output_ptr[T.tensor_indices(im_output_ptr, n_idx)]
                             + (
-                                re_data_ptr[T.buffer_indices(re_data_ptr, k_idx)] * sin_w
-                                + im_data_ptr[T.buffer_indices(im_data_ptr, k_idx)] * cos_w
+                                re_data_ptr[T.tensor_indices(re_data_ptr, k_idx)] * sin_w
+                                + im_data_ptr[T.tensor_indices(im_data_ptr, k_idx)] * cos_w
                             ),
-                            T.buffer_indices(im_output_ptr, n_idx),
+                            T.tensor_indices(im_output_ptr, n_idx),
                         )
 
                     T.buffer_store(
                         re_output_ptr,
-                        re_output_ptr[T.buffer_indices(re_output_ptr, n_idx)]
+                        re_output_ptr[T.tensor_indices(re_output_ptr, n_idx)]
                         * (tirx.Cast(re_output_ptr.dtype, factor)),
-                        T.buffer_indices(re_output_ptr, n_idx),
+                        T.tensor_indices(re_output_ptr, n_idx),
                     )
                     T.buffer_store(
                         im_output_ptr,
-                        im_output_ptr[T.buffer_indices(im_output_ptr, n_idx)]
+                        im_output_ptr[T.tensor_indices(im_output_ptr, n_idx)]
                         * (tirx.Cast(im_output_ptr.dtype, factor)),
-                        T.buffer_indices(im_output_ptr, n_idx),
+                        T.tensor_indices(im_output_ptr, n_idx),
                     )
 
             return ib.get()

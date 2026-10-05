@@ -239,7 +239,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
   // create new write region
   TVM_FFI_ICHECK_EQ(block->writes.size(), 1U);
   TensorRegion write_region =
-      BufferRegion(block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>(),
+      BufferRegion(block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
                    block->writes[0]->region.Map([rewrite_expr](const Range& r) {
                      return Range::FromMinExtent(rewrite_expr(r->min), rewrite_expr(r->extent));
                    }));
@@ -347,11 +347,11 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   // create new read/write region for in-bound accesses
   ffi::Array<TensorRegion> reads, writes;
   for (const TensorRegion& read : block->reads) {
-    reads.push_back(BufferRegion(read->source.as_or_throw<tvm::tirx::BufferVar>(),
+    reads.push_back(BufferRegion(read->source.as_or_throw<tvm::tirx::TensorVar>(),
                                  rewrite_region(read->region)));
   }
   for (const TensorRegion& write : block->writes) {
-    writes.push_back(BufferRegion(write->source.as_or_throw<tvm::tirx::BufferVar>(),
+    writes.push_back(BufferRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(),
                                   rewrite_region(write->region)));
   }
 

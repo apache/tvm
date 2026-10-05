@@ -48,7 +48,7 @@ class ValidateBufferScopes(PyExprVisitor):  # pylint: disable=abstract-method
             if not self.is_matched:
                 # All scopes should be global in before pass
                 for buf in pfunc.params:
-                    if not tvm.tirx.is_buffer_var(buf):
+                    if not tvm.tirx.is_tensor_var(buf):
                         continue
                     assert "global" == buf.data.ty.storage_scope, (
                         f"expected to be global scoped, but got {val.data.ty.storage_scope}"

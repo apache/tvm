@@ -19,9 +19,8 @@ import functools
 
 import tvm_ffi
 
-from tvm.ir import Call, Op
+from tvm.ir import Call, Op, Var
 from tvm.tirx import Bind, IntImm
-from tvm.tirx.buffer import Buffer
 from tvm.tirx.transform.function_pass import prim_func_pass
 
 
@@ -32,7 +31,7 @@ def is_const_shape(shape) -> bool:
     return True
 
 
-def get_buffer_size(buffer: Buffer, shape, dtype, scope: str) -> int:
+def get_buffer_size(buffer: Var, shape, dtype, scope: str) -> int:
     if scope == "trn.sbuf":
         if buffer.ty.layout is None:
             # the first dimension is partition size
@@ -46,7 +45,7 @@ def get_buffer_size(buffer: Buffer, shape, dtype, scope: str) -> int:
         return None
     if not is_const_shape(shape):
         raise ValueError(
-            f"Buffer {buffer.name} has non-constant shape. Do not know how to allocate it."
+            f"Var {buffer.name} has non-constant shape. Do not know how to allocate it."
         )
     return int(num_elem * dtype.itemsize)
 
@@ -109,7 +108,7 @@ def _allocate_missing_buffers(stmt, alloc_pool_start: int):
 
     return tvm_ffi.structural_map(
         stmt,
-        [(Bind, allocate_buffer), (Buffer, replace_buffer)],
+        [(Bind, allocate_buffer), (Var, replace_buffer)],
         order="pre",
     )
 

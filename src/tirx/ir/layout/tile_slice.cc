@@ -67,7 +67,7 @@ ffi::Optional<TileLayout> SlicePerGroup(TileLayout layout, PrimExpr begin, PrimE
     // ``[begin, begin + extent)`` is required to lie within
     // ``[0, Ek)`` on a single-shard group, which implies ``begin < Ek``
     // and hence ``floormod(begin, Ek) == begin``. For runtime ``begin``
-    // (e.g. pipeline-stage ``BufferLoad``), the analyzer cannot prove
+    // (e.g. pipeline-stage ``TensorLoad``), the analyzer cannot prove
     // this, so the defensive ``floormod`` survives codegen and shows up
     // as dead ``stage % depth`` work in every per-MMA SMEM-descriptor
     // offset (fa4 s1024: 72 redundant floormod-3 in the inner GEMM

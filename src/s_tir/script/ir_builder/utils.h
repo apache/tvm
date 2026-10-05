@@ -30,7 +30,7 @@ namespace s_tir {
 
 using tirx::AddToParent;
 using tirx::AsStmt;
-using tirx::BufferRegionFromLoad;
+using tirx::TensorRegionFromLoad;
 
 /*!
  * \brief Check whether the top frame in IRBuilder frame stack is SBlockFrame.

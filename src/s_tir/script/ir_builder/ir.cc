@@ -28,8 +28,8 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 
-using tirx::BufferDecl;
 using tirx::ForFrameNode;
+using tirx::TensorDecl;
 using tvm::tirx::IterVar;
 using tvm::tirx::IterVarType;
 
@@ -47,16 +47,16 @@ PrimFuncFrame DeclFunction(bool is_private, bool persistent) {
   return frame;
 }
 
-BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
+TensorVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape, PrimType dtype,
                       ffi::Optional<Expr> data, ffi::Array<PrimExpr> strides,
                       ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                       int offset_factor, ffi::Optional<Layout> layout,
                       ffi::Array<PrimExpr> allocated_addr) {
-  BufferVar buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
+  TensorVar buffer = TensorDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                                 offset_factor, layout, allocated_addr);
   tvm::TensorRegion region{ffi::UnsafeInit{}};
   if (auto load = param.as<TensorLoad>()) {
-    region = BufferRegionFromLoad(load.value());
+    region = TensorRegionFromLoad(load.value());
   } else if (auto view = param.as<tvm::TensorRegion>()) {
     region = view.value();
   } else {
@@ -108,7 +108,7 @@ void Reads(ffi::Array<ffi::ObjectRef> buffer_slices) {
     if (auto buffer_region = obj.as<TensorRegion>()) {
       reads.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
-      reads.push_back(BufferRegionFromLoad(buffer_load.value()));
+      reads.push_back(TensorRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer reads.";
     }
@@ -128,7 +128,7 @@ void Writes(ffi::Array<ffi::ObjectRef> buffer_slices) {
     if (auto buffer_region = obj.as<TensorRegion>()) {
       writes.push_back(buffer_region.value());
     } else if (auto buffer_load = obj.as<TensorLoad>()) {
-      writes.push_back(BufferRegionFromLoad(buffer_load.value()));
+      writes.push_back(TensorRegionFromLoad(buffer_load.value()));
     } else {
       TVM_FFI_THROW(InternalError) << "Invalid type for buffer writes.";
     }
@@ -185,7 +185,7 @@ void BlockAttrs(ffi::Map<ffi::String, Any> attrs) {
       << "frame, but Ts.sblock_attr occurred outside of any such frame";
 }
 
-BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
+TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Optional<Expr> data,
                             ffi::Array<PrimExpr> strides, ffi::Optional<PrimExpr> elem_offset,
                             ffi::String storage_scope, int align, int offset_factor,
                             ffi::Optional<Layout> layout, ffi::Array<PrimExpr> allocated_addr) {
@@ -198,7 +198,7 @@ BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
         << "ValueError: For `" << scope
         << "` scope, Ts.alloc_tensor does not accept `allocated_addr`";
   }
-  BufferVar buffer = BufferDecl(shape, dtype, "", std::nullopt, strides, elem_offset, storage_scope,
+  TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, strides, elem_offset, storage_scope,
                                 align, offset_factor, layout, allocated_addr);
   IRBuilder builder = IRBuilder::Current();
   auto opt_func_frame = builder->FindFrame<tirx::PrimFuncFrame>();

@@ -107,7 +107,7 @@ class CodeGenHexagon final : public CodeGenCPU {
 
   bool IsQHLFunction(const std::string& func);
 
-  llvm::Value* VectorLookupLoad(BufferVar buffer, PrimType buffer_type,
+  llvm::Value* VectorLookupLoad(TensorVar buffer, PrimType buffer_type,
                                 ffi::Array<PrimExpr> indices);
   llvm::Value* Intrinsic(llvm::Intrinsic::ID, llvm::ArrayRef<llvm::Value*> args);
   std::vector<std::string> fqhl_list_ = {
@@ -202,7 +202,7 @@ llvm::Value* CodeGenHexagon::CreateCallExtern(Type ret_type, ffi::String global_
 llvm::Value* CodeGenHexagon::Dispatch_(const TensorLoadNode* op) {
   // Check if we can generate a vector lookup.
   if (!op->indices[0].as<prim::RampNode>()) {
-    if (auto* vlut = VectorLookupLoad(op->source.as_or_throw<tvm::tirx::BufferVar>(),
+    if (auto* vlut = VectorLookupLoad(op->source.as_or_throw<tvm::tirx::TensorVar>(),
                                       op->ty.as_or_throw<PrimType>(), op->indices)) {
       return vlut;
     }
@@ -306,7 +306,7 @@ llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
   return builder_->CreateCall(intf_callee, conv_args);
 }
 
-llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_type,
+llvm::Value* CodeGenHexagon::VectorLookupLoad(TensorVar buffer, PrimType buffer_type,
                                               ffi::Array<PrimExpr> indices) {
   PrimExpr index = indices[0];
   PrimType index_ty = index.ty();
@@ -332,9 +332,9 @@ llvm::Value* CodeGenHexagon::VectorLookupLoad(BufferVar buffer, PrimType buffer_
   PrimType table_type = buffer_type.WithLanes(table_elem_count);
 
   auto table_all = MakeValue(
-      BufferLoad(buffer, {
-                             prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
-                         }));
+      MakeTensorLoad(buffer, {
+                                 prim::Ramp(IntImm(int32, 0), IntImm(int32, 1), table_elem_count),
+                             }));
 
   // The number of value vectors should be a power of 2.
   int table_vec_count = llvm::PowerOf2Ceil(GetVectorBytes(table_type) / native_vector_bytes);

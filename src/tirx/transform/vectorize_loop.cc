@@ -291,7 +291,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
 
   PrimExpr TryPredicateBufferAccess(TensorLoad load) {
     if (auto mask = GetLaneMask(load->indices)) {
-      ffi::Array<Expr> args{load->source.as_or_throw<tvm::tirx::BufferVar>().var()};
+      ffi::Array<Expr> args{load->source.as_or_throw<tvm::tirx::TensorVar>().var()};
       for (const PrimExpr& index : load->indices) args.push_back(index);
       args.push_back(mask.value());
       return Call(load->ty, builtin::masked_load(), args, {}, {}, load->span);
@@ -345,8 +345,8 @@ class VecAllocAccess : public StmtExprMutator {
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorLoad load = indices.UnchangedOrSameAs(op->indices)
                           ? ffi::GetRef<TensorLoad>(op)
-                          : BufferLoad(op->source.as_or_throw<BufferVar>(),
-                                       std::move(indices).ValueUnchecked(), op->span);
+                          : MakeTensorLoad(op->source.as_or_throw<TensorVar>(),
+                                           std::move(indices).ValueUnchecked(), op->span);
     return UpdateBufferAccess(load);
   }
 
@@ -370,11 +370,11 @@ class VecAllocAccess : public StmtExprMutator {
       return node;
     }
 
-    // Find/make a BufferVar object with the correct updated shape.
-    BufferVar buf{ffi::UnsafeInit{}};
+    // Find/make a TensorVar object with the correct updated shape.
+    TensorVar buf{ffi::UnsafeInit{}};
     ffi::Any mapped = VarRemapGet(node->buffer);
     if (mapped != nullptr) {
-      buf = mapped.as_or_throw<BufferVar>();
+      buf = mapped.as_or_throw<TensorVar>();
     } else {
       // Extend the least significant dimension by a factor of
       // var_lanes_.  Typically, this will be a 1-d index into a flat
@@ -402,7 +402,7 @@ class VecAllocAccess : public StmtExprMutator {
       auto type = CopyTensorType(node->buffer);
       type->shape = shape;
       type->strides = strides;
-      buf = RebuildBufferVar(node->buffer, std::move(type));
+      buf = RebuildTensorVar(node->buffer, std::move(type));
       VarRemapSet(node->buffer, buf);
     }
 
@@ -419,12 +419,12 @@ class VecAllocAccess : public StmtExprMutator {
   }
 
   TensorLoad UpdateBufferAccess(TensorLoad node) {
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = node->source.as_or_throw<tvm::tirx::TensorVar>();
     if (buffer.get() != buf_) return node;
-    BufferVar buf{ffi::UnsafeInit{}};
+    TensorVar buf{ffi::UnsafeInit{}};
     auto mapped = VarRemapGet(buffer);
     if (mapped != nullptr) {
-      buf = mapped.as_or_throw<BufferVar>();
+      buf = mapped.as_or_throw<TensorVar>();
     } else {
       ffi::Array<PrimExpr> shape = buffer->shape;
       shape.Set(shape.size() - 1, analyzer_->Simplify(shape.back() * var_lanes_));
@@ -437,13 +437,13 @@ class VecAllocAccess : public StmtExprMutator {
       auto type = CopyTensorType(buffer);
       type->shape = shape;
       type->strides = strides;
-      buf = RebuildBufferVar(buffer, std::move(type));
+      buf = RebuildTensorVar(buffer, std::move(type));
       VarRemapSet(buffer, buf);
     }
     ffi::Array<PrimExpr> indices = node->indices;
     indices.Set(indices.size() - 1,
                 analyzer_->Simplify(indices.back() * var_lanes_ + var_.as_or_throw<PrimExpr>()));
-    return BufferLoad(buf, indices, node->span);
+    return MakeTensorLoad(buf, indices, node->span);
   }
 
   // buffer var
@@ -880,7 +880,7 @@ class Vectorizer : public StmtExprMutator {
       }
     }
   }
-  // BufferLoad
+  // TensorLoad
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     auto load = ffi::GetRef<TensorLoad>(op);
 
@@ -890,7 +890,7 @@ class Vectorizer : public StmtExprMutator {
     ffi::Array<PrimExpr> indices = op->indices.Map(fmutate);
 
     if (!indices.same_as(op->indices)) {
-      return BufferLoad(op->source.as_or_throw<tvm::tirx::BufferVar>(), indices, op->span);
+      return MakeTensorLoad(op->source.as_or_throw<tvm::tirx::TensorVar>(), indices, op->span);
     }
 
     return load;

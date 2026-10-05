@@ -53,7 +53,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) {
     SBlock block = ffi::GetRef<SBlock>(op);
     auto* n = block.CopyOnWrite();
-    auto fmutate = [this](const BufferVar& buffer) {
+    auto fmutate = [this](const TensorVar& buffer) {
       // m16n8k8.matrix[A/B/C] buffers are composed ofseveral small blocks. Assume the block's
       // shape is [bi, bj]. Inside each small block, we have 8 threads in stride dimension and 4
       // threads in contiguous dimension, so we change the buffer's shape from [i, j]
@@ -75,7 +75,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 16), IntImm::Int32(dim1->value / 8), 2, 2});
 
-        BufferVar new_buffer =
+        TensorVar new_buffer =
             decl_tensor(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         VarRemapSet(buffer, new_buffer);
         return new_buffer;
@@ -96,7 +96,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 32), IntImm::Int32(dim1->value / 8), 4, 2});
 
-        BufferVar new_buffer =
+        TensorVar new_buffer =
             decl_tensor(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         VarRemapSet(buffer, new_buffer);
         return new_buffer;
@@ -117,7 +117,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         new_shape.insert(new_shape.end(),
                          {IntImm::Int32(dim0->value / 8), IntImm::Int32(dim1->value / 32), 1, 8});
 
-        BufferVar new_buffer =
+        TensorVar new_buffer =
             decl_tensor(std::move(new_shape), buffer->dtype, buffer.name(), "local");
         VarRemapSet(buffer, new_buffer);
         return new_buffer;
@@ -130,7 +130,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {
-    BufferVar original_buffer = op->buffer;
+    TensorVar original_buffer = op->buffer;
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -140,7 +140,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
       n->value = std::move(value).ValueOrUnchanged(op->value);
       n->indices = std::move(indices).ValueOrUnchanged(op->indices);
     }
-    if (auto replacement = VarRemapGet(original_buffer).as<BufferVar>()) {
+    if (auto replacement = VarRemapGet(original_buffer).as<TensorVar>()) {
       auto* n = store.CopyOnWrite();
       if (original_buffer.scope() == "m16n8k8.matrixC") {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
@@ -161,7 +161,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
-    BufferVar buffer = op->source.as_or_throw<BufferVar>();
+    TensorVar buffer = op->source.as_or_throw<TensorVar>();
     // Remap the source together with its indices below, after the scope checks.
     auto indices_result =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -169,7 +169,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     if (!indices_result.UnchangedOrSameAs(op->indices)) {
       load.CopyOnWrite()->indices = std::move(indices_result).ValueUnchecked();
     }
-    if (auto replacement = VarRemapGet(buffer).as<BufferVar>()) {
+    if (auto replacement = VarRemapGet(buffer).as<TensorVar>()) {
       ffi::Array<PrimExpr> indices = load->indices;
       if (buffer.scope() == "m16n8k8.matrixC") {
         const auto index_map_func = tvm::ffi::Function::GetGlobal("tirx.index_map_m16n8k8.matrixC");
@@ -182,7 +182,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
             << " buffers to be accessed through opaque ldmatrix/mma_sync operations, but found "
                "an explicit TensorLoad.";
       }
-      return BufferLoad(replacement.value(), indices, load->span);
+      return MakeTensorLoad(replacement.value(), indices, load->span);
     }
     return load;
   }

@@ -194,7 +194,7 @@ def test_ir_builder_tir_if_then_else():
 
 
 def test_ir_builder_tir_buffer_store():
-    buffer_a = T.buffer((10, 10), "float32")
+    buffer_a = T.Var("buffer_a", T.Tensor((10, 10), "float32"))
     i = T.int32()
     with IRBuilder() as ib:
         T.buffer_store(buffer_a, 0.1, [0, i])
@@ -210,7 +210,7 @@ def test_ir_builder_tir_buffer_store():
 
 
 def test_ir_builder_tir_buffer_store_scalable_vec():
-    buffer_a = T.buffer((30,), "float32")
+    buffer_a = T.Var("buffer_a", T.Tensor((30,), "float32"))
     value = T.broadcast(0.11, 4 * tvm.tirx.vscale())
     index = T.ramp(0, 1, 4 * tvm.tirx.vscale())
 
@@ -270,13 +270,13 @@ def test_ir_builder_tir_inline():
 )
 def test_concrete_buffer_indices(shape, index, expected):
     buffer = tirx.decl_tensor(shape, "float32")
-    assert T.buffer_indices(buffer, index) == expected
+    assert T.tensor_indices(buffer, index) == expected
 
 
 def test_symbolic_buffer_indices():
     m, n, k = [tirx.Var(name, "int32") for name in ("m", "n", "k")]
     buffer = tirx.decl_tensor((m, n), "float32")
-    actual = T.buffer_indices(buffer, k)
+    actual = T.tensor_indices(buffer, k)
     for index, expected in zip(actual, [k // n, k % n]):
         tvm.ir.assert_structural_equal(index, expected)
 
@@ -284,7 +284,7 @@ def test_symbolic_buffer_indices():
 @pytest.mark.parametrize("layout", [None, TileLayout(S[(2, 3) : (1, 2)])])
 def test_flat_buffer_store_preserves_identity_and_emits_once(layout):
     buffer = tirx.decl_tensor((2, 3), "float32", strides=(5, 1), elem_offset=2, layout=layout)
-    indices = T.buffer_indices(buffer, 4)
+    indices = T.tensor_indices(buffer, 4)
     load = buffer[indices]
     assert load.source.same_as(buffer)
     with IRBuilder() as ib:

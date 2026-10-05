@@ -35,7 +35,7 @@ from itertools import pairwise
 import tvm
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
-from tvm.tirx import Buffer, IntImm, PrimFunc, is_buffer_var
+from tvm.tirx import IntImm, PrimFunc, Var, is_tensor_var
 from tvm.tirx.layout import Layout, TileLayout
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
@@ -96,7 +96,7 @@ class TensorMapSpec:
     target_arch: str
     coordinates: tuple
     gather4: tuple
-    smem_buffer: Buffer
+    smem_buffer: Var
     smem_start: tuple
     smem_base_offset: object
     mbar: object | None
@@ -278,7 +278,7 @@ def _layout_offset(layout: TileLayout):
     return Analyzer().simplify(value)
 
 
-def _slice_layout(buffer: Buffer, starts, extents, label: str) -> tuple[TileLayout, TileLayout]:
+def _slice_layout(buffer: Var, starts, extents, label: str) -> tuple[TileLayout, TileLayout]:
     tile = _to_tile_layout(buffer.layout, buffer.shape)
     _assert_plain_memory_layout(tile, label)
     region = [(start, start + extent) for start, extent in zip(starts, extents)]
@@ -293,7 +293,7 @@ def _slice_layout(buffer: Buffer, starts, extents, label: str) -> tuple[TileLayo
     return tile, sliced
 
 
-def _slice_global_layout(buffer: Buffer, starts, extents) -> tuple[TileLayout, TileLayout]:
+def _slice_global_layout(buffer: Var, starts, extents) -> tuple[TileLayout, TileLayout]:
     """Slice each logical global dimension without fusing across its boundary.
 
     ``TileLayout.slice`` canonicalizes the complete layout before grouping it
@@ -428,7 +428,7 @@ def _elements_to_bytes(
     return analyzer.simplify(tvm.tirx.floordiv(total_bits, 8))
 
 
-def _buffer_base(buffer: Buffer, *, auto: bool, stage: str):
+def _buffer_base(buffer: Var, *, auto: bool, stage: str):
     analyzer = Analyzer()
     layout = _to_tile_layout(buffer.layout, buffer.shape)
     layout_offset = _layout_offset(layout)
@@ -909,7 +909,7 @@ def _copy_region_parts(region):
 
 
 def _build_auto_gt(
-    g_buf: Buffer,
+    g_buf: Var,
     g_starts,
     g_extents,
     sliced_smem: TileLayout,
@@ -1714,7 +1714,7 @@ def _build_auto_plan(op_call: TilePrimitiveCall, sctx: DispatchContext) -> TMAPl
     return best
 
 
-def _explicit_smem_layout(s_buf: Buffer, starts, extents, swizzle: SwizzleMode):
+def _explicit_smem_layout(s_buf: Var, starts, extents, swizzle: SwizzleMode):
     _, sliced = _slice_layout(s_buf, starts, extents, "shared")
     # LayoutSlice preserves the layout's physical base and adds the selected
     # region offset, so the sliced offset is already the complete layout-side
@@ -1749,11 +1749,11 @@ def _explicit_smem_layout(s_buf: Buffer, starts, extents, swizzle: SwizzleMode):
     )
 
 
-def _direct_global_layout(g_buf: Buffer):
+def _direct_global_layout(g_buf: Var):
     layout = g_buf.layout
     if not isinstance(layout, TileLayout):
         fail(
-            "tma_explicit stage=global-layout: global Buffer/view layout must be "
+            "tma_explicit stage=global-layout: global Var/view layout must be "
             f"TileLayout, got {type(layout).__name__}"
         )
     _assert_plain_memory_layout(layout, "explicit global")
@@ -1865,7 +1865,7 @@ def _normalize_gather4(value):
     return tuple(value)
 
 
-def _validate_gather4_dst(s_buf: Buffer, s_starts, s_extents, spec: TensorMapSpec) -> None:
+def _validate_gather4_dst(s_buf: Var, s_starts, s_extents, spec: TensorMapSpec) -> None:
     analyzer = Analyzer()
     if len(s_extents) < 1:
         fail("tma_explicit gather4 requires a non-scalar shared destination")
@@ -1900,18 +1900,18 @@ def _normalize_src_selector(value):
     if value is None:
         return ()
     if not isinstance(value, list | tuple | tvm.ir.Array):
-        fail("tma_explicit src_selector must be a list of (condition, global Buffer/view)")
+        fail("tma_explicit src_selector must be a list of (condition, global Var/view)")
     result = []
     for idx, item in enumerate(value):
         if not isinstance(item, list | tuple | tvm.ir.Array) or len(item) != 2:
-            fail(f"tma_explicit src_selector[{idx}] must be a (condition, Buffer/view) pair")
+            fail(f"tma_explicit src_selector[{idx}] must be a (condition, Var/view) pair")
         condition, buffer = item
         if not isinstance(condition, tvm.tirx.Expr):
             fail(f"tma_explicit src_selector[{idx}] condition must be a TIR expression")
-        if not is_buffer_var(buffer):
+        if not is_tensor_var(buffer):
             fail(
                 f"tma_explicit src_selector[{idx}] candidate must be a global "
-                "Buffer/view, not a region"
+                "Var/view, not a region"
             )
         if buffer.scope() != "global":
             fail(
@@ -2167,7 +2167,7 @@ def _emit_plan(
             T.evaluate(T.ptx[chain](*args))
 
     def shared_ptr(element_offset=0):
-        # Keep the sliced offset in the pointer index instead of the Buffer's
+        # Keep the sliced offset in the pointer index instead of the Var's
         # elem_offset.  The latter is part of a flat DeclTensor definition;
         # after loop unrolling, CSE may otherwise lift an offset containing a
         # locally bound coordinate above that coordinate's Bind statement.

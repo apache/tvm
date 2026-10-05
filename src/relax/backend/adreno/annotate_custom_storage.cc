@@ -258,7 +258,7 @@ using namespace tvm::prim;
 namespace backend {
 namespace adreno {
 
-using tvm::tirx::BufferVar;
+using tvm::tirx::TensorVar;
 
 static ffi::Array<PrimExpr> GetShapeFromTensorType(const TensorType& tensor_ty) {
   auto shape = tensor_ty->GetShape();

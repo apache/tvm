@@ -26,7 +26,7 @@ from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
 from tvm.script.ir_builder.base import MISSING
 from tvm.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
-from tvm.tirx import Buffer, Expr, IntImm, Var
+from tvm.tirx import Expr, IntImm, Var
 from tvm.tirx.layout import Layout
 from tvm.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
 
@@ -46,16 +46,16 @@ def match_buffer(
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     allocated_addr: Expr | int | tuple[Expr | int, ...] | None = None,
-) -> Buffer:
+) -> Var:
     """Bind a buffer subregion inside an S-TIR block.
 
-    Function inputs use Buffer annotations in the function signature.
+    Function inputs use Tensor annotations in the function signature.
     Shape and dtype are inferred when the source is a TensorRegion.
     """
     if not isinstance(param, TensorLoad | TensorRegion):
-        raise TypeError("match_buffer requires a buffer subregion; use Buffer for function inputs")
-    if isinstance(param, TensorRegion) and not tir.is_buffer_var(param.source):
-        raise TypeError("match_buffer requires a TensorRegion with a BufferVar source")
+        raise TypeError("match_buffer requires a buffer subregion; use Tensor for function inputs")
+    if isinstance(param, TensorRegion) and not tir.is_tensor_var(param.source):
+        raise TypeError("match_buffer requires a TensorRegion with a TensorVar source")
     if shape is None:
         if isinstance(param, TensorRegion):
             dtype = param.source.ty.dtype
@@ -194,7 +194,7 @@ def sblock_alloc_buffer(
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
-) -> Buffer:
+) -> Var:
     """SBlock-level buffer allocation function.
 
     Parameters
@@ -226,7 +226,7 @@ def sblock_alloc_buffer(
 
     Returns
     -------
-    res : Buffer
+    res : Var
         The allocated buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape

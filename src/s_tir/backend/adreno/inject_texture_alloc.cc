@@ -99,13 +99,13 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
       args.push_back(Call(PointerType(PrimType::Int(64)), tirx::builtin::tvm_stack_make_shape(),
                           {texture.width, texture.height, texture.depth}));
       args.push_back(IntImm::Int64(channel_size));
-      stmt = Bind(op->var.as_or_throw<BufferVar>(),
-                  Call(op->var.as_or_throw<BufferVar>().type(), tirx::builtin::decl_tensor(),
-                       {Call(op->var.as_or_throw<BufferVar>().DataPointerType(),
+      stmt = Bind(op->var.as_or_throw<TensorVar>(),
+                  Call(op->var.as_or_throw<TensorVar>().type(), tirx::builtin::decl_tensor(),
+                       {Call(op->var.as_or_throw<TensorVar>().DataPointerType(),
                              tirx::builtin::nd_mem_alloc_with_scope(), args),
-                        tvm::Tuple(op->var.as_or_throw<BufferVar>()->shape),
-                        DataTypeImm(op->var.as_or_throw<BufferVar>()->dtype->dtype),
-                        StringImm(op->var.as_or_throw<BufferVar>().scope())},
+                        tvm::Tuple(op->var.as_or_throw<TensorVar>()->shape),
+                        DataTypeImm(op->var.as_or_throw<TensorVar>()->dtype->dtype),
+                        StringImm(op->var.as_or_throw<TensorVar>().scope())},
                        {}, allocation->ty_args, allocation->span),
                   op->span);
     }

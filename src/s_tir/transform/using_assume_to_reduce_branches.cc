@@ -138,7 +138,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   std::vector<PrimExpr> conditions_;
 
   // Storing all the buffer assumptions data in map
-  std::unordered_map<tirx::BufferVar, assume_struct, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<tirx::TensorVar, assume_struct, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       map_buffer_assumption;
 
   struct InternalConstraintContext {
@@ -199,14 +199,14 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override {
-    if (map_buffer_assumption.find(op->source.as_or_throw<tvm::tirx::BufferVar>()) !=
+    if (map_buffer_assumption.find(op->source.as_or_throw<tvm::tirx::TensorVar>()) !=
         map_buffer_assumption.end()) {
       /* If the cuurent context where the buffer load is present is same as
       the context of the buffer assumption then, return the buffer value present in the assumption.
       This will eventually replace the bufferload value in the complete expresison */
 
       auto buffer_assumption =
-          map_buffer_assumption.at(op->source.as_or_throw<tvm::tirx::BufferVar>());
+          map_buffer_assumption.at(op->source.as_or_throw<tvm::tirx::TensorVar>());
       PrimExpr current_predicate_and_context = CurrentScopePredicate();
       PrimExpr buffer_predicate_and_context =
           buffer_assumption.buffer_context && buffer_assumption.buffer_predicate;
@@ -366,11 +366,11 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
       buf_data.buffer_indices.push_back(analyzer_->Simplify(load->indices[i]));
     }
     map_buffer_assumption.insert_or_assign(
-        buf_data.buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), buf_data);
+        buf_data.buffer_load->source.as_or_throw<tvm::tirx::TensorVar>(), buf_data);
 
     auto has_side_effect = SideEffect(value) > CallEffectKind::kPure;
     TVM_FFI_ICHECK(!has_side_effect)
-        << "BufferVar value in constraint must be pure expression, but was " << value;
+        << "TensorVar value in constraint must be pure expression, but was " << value;
     if (has_side_effect) {
       return;
     }

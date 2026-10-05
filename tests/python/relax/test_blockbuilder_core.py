@@ -389,8 +389,8 @@ def test_call_te_unique_tensor_name():
     param_A = f_matmul.params[0]
     param_B = f_matmul.params[1]
     assert param_A.name != param_B.name
-    assert tvm.tirx.is_buffer_var(param_A)
-    assert tvm.tirx.is_buffer_var(param_B)
+    assert tvm.tirx.is_tensor_var(param_A)
+    assert tvm.tirx.is_tensor_var(param_B)
     assert not param_A.same_as(param_B)
 
 

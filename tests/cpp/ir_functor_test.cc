@@ -218,7 +218,7 @@ TEST(IRF, StmtVisitor) {
     auto z = x + 1;
     Stmt eval_body = Evaluate(z);
     PrimType dtype = PrimType::Float(32);
-    BufferVar buf("b", TensorType("global", dtype, {z, z}, {}, std::nullopt, 0, 0));
+    TensorVar buf("b", TensorType("global", dtype, {z, z}, {}, std::nullopt, 0, 0));
     // AllocTensor is flat (no body). Return as SeqStmt with eval.
     return SeqStmt({Bind(buf.var(), Call(buf.type(), tirx::builtin::alloc_tensor(),
                                          {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype),
@@ -236,7 +236,7 @@ TEST(IRF, StmtVisitor) {
     Stmt body = fmaketest();
     PrimType dtype = PrimType::Float(32);
     tirx::Var buf_var("b", PointerType(dtype));
-    BufferVar buffer = decl_tensor({16});
+    TensorVar buffer = decl_tensor({16});
     body =
         SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
                                    {buf_var, tvm::Tuple(buffer->shape),
@@ -273,7 +273,7 @@ TEST(IRF, StmtExprMutator) {
   auto fmakealloc = [&]() {
     auto z = x + 1;
     PrimType dtype = PrimType::Float(32);
-    BufferVar buf("b", TensorType("global", dtype, {1, z}, {}, std::nullopt, 0, 0));
+    TensorVar buf("b", TensorType("global", dtype, {1, z}, {}, std::nullopt, 0, 0));
     return Bind(buf.var(), Call(buf.type(), tirx::builtin::alloc_tensor(),
                                 {tvm::Tuple(buf->shape), DataTypeImm(buf->dtype->dtype),
                                  StringImm(buf.scope())},
@@ -369,7 +369,7 @@ TEST(IRF, StmtExprMutator) {
     // tests for block and block_realize
     // AllocTensor and DeclTensor are flat (no body), placed as siblings in SeqStmt
     Stmt eval_body = Evaluate(x + 1);
-    BufferVar buffer = decl_tensor({16});
+    TensorVar buffer = decl_tensor({16});
     tirx::Var buffer_data("buffer_data", buffer.DataPointerType());
     Stmt decl = Bind(buffer, Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
                                   {buffer_data, tvm::Tuple(buffer->shape),
@@ -685,7 +685,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
   PrimVar n("n", PrimType::Int(32));
 
   auto fmakebuffer = [&]() {
-    return BufferVar("buf", TensorType(/*storage_scope=*/"global",
+    return TensorVar("buf", TensorType(/*storage_scope=*/"global",
                                        /*dtype=*/PrimType::Float(32),
                                        /*shape=*/{n},
                                        /*strides=*/{},
@@ -700,7 +700,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     // that is shared by the declaration and every use.
     tirx::Var y = x.CopyWithSuffix("subst");
     PrimVar m("m", PrimType::Int(32));
-    BufferVar buffer = fmakebuffer();
+    TensorVar buffer = fmakebuffer();
     Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl =
         SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::builtin::decl_tensor(),
@@ -721,7 +721,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     auto* decl_call = decl_node->value.as<CallNode>();
     TVM_FFI_ICHECK(decl_call && decl_call->op.same_as(tirx::builtin::decl_tensor()));
     TVM_FFI_ICHECK(decl_call->args[0].same_as(y));
-    TVM_FFI_ICHECK(decl_node->var.as_or_throw<BufferVar>()->shape[0].same_as(m));
+    TVM_FFI_ICHECK(decl_node->var.as_or_throw<TensorVar>()->shape[0].same_as(m));
     TVM_FFI_ICHECK(!decl_node->var.same_as(buffer));
     auto* store_node = seq_node->seq[1].as<BufferStoreNode>();
     TVM_FFI_ICHECK(store_node != nullptr);
@@ -730,8 +730,8 @@ TEST(IRF, StructuralMapBufferDefinition) {
 
   {
     // test identity substitution on expression
-    BufferVar buffer = fmakebuffer();
-    PrimExpr expr = BufferLoad(buffer, {IntImm::Int32(0)});
+    TensorVar buffer = fmakebuffer();
+    PrimExpr expr = MakeTensorLoad(buffer, {IntImm::Int32(0)});
     auto f_subst = [&](const tirx::Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
       return ffi::Any(var);
     };

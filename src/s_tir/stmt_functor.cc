@@ -52,7 +52,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::VisitBlock(tirx::StmtExprVisitor*
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom->min));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->Visit(iter_var->dom->extent));
   }
-  for (const BufferVar& buf : op->alloc_buffers) {
+  for (const TensorVar& buf : op->alloc_buffers) {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
         kTVMFFIDefRegionKindSimple, [&]() { return visitor->Visit(buf); }));
   }
@@ -128,7 +128,7 @@ UnchangedOr<Stmt> StmtExprMutator::MutateBlock(tirx::StmtExprMutator* mutator, c
       mutator
           ->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
                               [&] { return mutator->Mutate(op->alloc_buffers, inplace_mode); })
-          .as_or_throw<UnchangedOr<ffi::Array<BufferVar>>>();
+          .as_or_throw<UnchangedOr<ffi::Array<TensorVar>>>();
   auto match_buffers = mutator->Mutate(op->match_buffers, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Array<MatchBufferRegion>>>();
   auto reads =

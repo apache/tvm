@@ -25,13 +25,13 @@ from tvm.ir import IRModule, TensorRegion
 from tvm.tirx.expr import Var
 from tvm.s_tir import SBlock
 
-from tvm.tirx import Buffer, Stmt
+from tvm.tirx import Stmt
 from tvm.tirx.function import PrimFunc
 from . import _ffi_api
 
 
 def get_sblock_access_region(
-    block: SBlock, buffer_var_map: dict[Var, Buffer]
+    block: SBlock, buffer_var_map: dict[Var, Var]
 ) -> list[list[TensorRegion]]:
     """Detect which regions of tensors in this block are read or written to.
        Regions are sorted by order of appearance in the AST.
@@ -41,7 +41,7 @@ def get_sblock_access_region(
     block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
-    buffer_var_map : Dict[Var, Buffer]
+    buffer_var_map : Dict[Var, Var]
         The outside buffers which may access the block. Mapping from buffer var to the buffer
 
     Returns
@@ -56,7 +56,7 @@ def get_sblock_access_region(
 
 
 def get_sblock_read_write_region(
-    block: SBlock, buffer_var_map: dict[Var, Buffer]
+    block: SBlock, buffer_var_map: dict[Var, Var]
 ) -> list[list[TensorRegion]]:
     """Auto detect the block read/write region according to its body stmt.
        An opaque access will be counted as both a read and a write access
@@ -66,7 +66,7 @@ def get_sblock_read_write_region(
     block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
-    buffer_var_map : Dict[Var, Buffer]
+    buffer_var_map : Dict[Var, Var]
         The outside buffers which may access the block. Mapping from buffer var to the buffer
 
     Returns
@@ -77,9 +77,9 @@ def get_sblock_read_write_region(
     return _ffi_api.GetSBlockReadWriteRegion(block, buffer_var_map)  # type: ignore
 
 
-def detect_buffer_access_lca(func: PrimFunc) -> dict[Buffer, Stmt]:
+def detect_buffer_access_lca(func: PrimFunc) -> dict[Var, Stmt]:
     """Detect the lowest common ancestor(LCA) of buffer access, including both high-level
-    access (BufferLoad, BufferStore) and low-level access (BufferLoad, BufferStore and opaque
+    access (TensorLoad, BufferStore) and low-level access (TensorLoad, BufferStore and opaque
     access).
     The LCA may be a For loop or a Block.
 
@@ -90,7 +90,7 @@ def detect_buffer_access_lca(func: PrimFunc) -> dict[Buffer, Stmt]:
 
     Returns
     -------
-    result : Dict[Buffer, Stmt]
+    result : Dict[Var, Stmt]
         Map from buffer to the LCA of all access to it.
     """
     return _ffi_api.detect_buffer_access_lca(func)  # type: ignore # pylint: disable=no-member

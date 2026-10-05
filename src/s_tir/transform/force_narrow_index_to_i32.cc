@@ -52,7 +52,7 @@ class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     auto result = IndexDataTypeNormalizer::Mutate_(op, inplace_mode);
     auto block = std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).as_or_throw<SBlock>();
-    for (const BufferVar& buf : block->alloc_buffers) {
+    for (const TensorVar& buf : block->alloc_buffers) {
       CheckAllocatedBuffer(buf);
     }
     return block;

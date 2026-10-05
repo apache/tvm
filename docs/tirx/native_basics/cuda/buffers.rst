@@ -22,7 +22,7 @@ Buffers and memory
 shape, dtype, strides, offsets, layout and storage scope describe the same
 low-level storage contract used by the allocation and declaration helpers.
 Scratch tensors are created in the body with the APIs below. Index a tensor with
-``A[i, j]``, slice it with ``A[m0:m0+BM, 0:BK]`` (a ``BufferRegion``), and take a
+``A[i, j]``, slice it with ``A[m0:m0+BM, 0:BK]`` (a ``TensorRegion``), and take a
 pointer with ``A.ptr_to([i, j])`` or the raw data pointer ``A.data``.
 
 Declaring buffers
@@ -408,10 +408,11 @@ helpers when the MMA datapath determines the layout:
 
 See the :doc:`../../tile_primitives` walkthroughs for full examples.
 
-Buffer APIs
------------
+Tensor variable APIs
+--------------------
 
-A ``Buffer`` is metadata over a pointer (see *Declaring buffers* above), so most of
+A tensor variable is an ``ir.Var`` carrying ``tirx.TensorType`` metadata
+(see *Declaring buffers* above), so most of
 its methods are *compile-time* reshapes/reinterprets that change index arithmetic
 or hand you a pointer — they emit no runtime op of their own. The common ones:
 

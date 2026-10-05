@@ -27,7 +27,7 @@ consecutive fused-index slots. Layout / partition algorithm lives in
 
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, PrimFunc
+from tvm.tirx import PrimFunc, Var
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -95,8 +95,8 @@ def _is_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bo
 
 def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.source
-    dst: Buffer = op_call.dst.source
+    src: Var = op_call.src.source
+    dst: Var = op_call.dst.source
     if src.scope() == "global":
         g_buf, g_br, s_buf, s_br = src, op_call.src, dst, op_call.dst
         g_is_src = True

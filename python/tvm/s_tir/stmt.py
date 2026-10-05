@@ -20,9 +20,8 @@ from collections.abc import Mapping
 
 import tvm_ffi
 
-from tvm.ir import Expr, Span, TensorRegion
+from tvm.ir import Expr, Span, TensorRegion, Var
 from tvm.runtime import Object, Scriptable, const
-from tvm.tirx.buffer import Buffer
 from tvm.tirx.expr import IterVar
 from tvm.tirx.stmt import Stmt
 
@@ -35,17 +34,17 @@ class MatchBufferRegion(Object, Scriptable):
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The target buffer
 
     source : TensorRegion
         The region of source buffer
     """
 
-    buffer: Buffer
+    buffer: Var
     source: TensorRegion
 
-    def __init__(self, buffer: Buffer, source: TensorRegion) -> None:
+    def __init__(self, buffer: Var, source: TensorRegion) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.MatchBufferRegion,
             buffer,
@@ -77,7 +76,7 @@ class SBlock(Stmt):
     init: Optional[Stmt]
         The init block of the reduction block
 
-    alloc_buffers: Optional[list[Buffer]]
+    alloc_buffers: Optional[list[Var]]
         The buffer allocations
 
     match_buffers: Optional[List[MatchBufferRegion]]
@@ -96,7 +95,7 @@ class SBlock(Stmt):
     name_hint: str
     body: Stmt
     init: Stmt | None
-    alloc_buffers: list[Buffer]
+    alloc_buffers: list[Var]
     match_buffers: list[MatchBufferRegion]
     annotations: Mapping[str, Object]
     span: Span | None
@@ -109,7 +108,7 @@ class SBlock(Stmt):
         name_hint: str,
         body: Stmt,
         init: Stmt | None = None,
-        alloc_buffers: list[Buffer] | None = None,
+        alloc_buffers: list[Var] | None = None,
         match_buffers: list[MatchBufferRegion] | None = None,
         annotations: Mapping[str, Object] | None = None,
         span: Span | None = None,

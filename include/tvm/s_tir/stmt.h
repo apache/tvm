@@ -45,11 +45,11 @@ class MatchBufferRegionNode : public ffi::Object {
  public:
   explicit MatchBufferRegionNode(ffi::UnsafeInit tag) : buffer(tag), source(tag) {}
 
-  MatchBufferRegionNode(tirx::BufferVar buffer, TensorRegion source)
+  MatchBufferRegionNode(tirx::TensorVar buffer, TensorRegion source)
       : buffer(std::move(buffer)), source(std::move(source)) {}
 
   /*! \brief The target buffer. */
-  tirx::BufferVar buffer;
+  tirx::TensorVar buffer;
   /*! \brief The source buffer region. */
   TensorRegion source;
 
@@ -70,7 +70,7 @@ class MatchBufferRegionNode : public ffi::Object {
  */
 class MatchBufferRegion : public ffi::ObjectRef {
  public:
-  TVM_DLL explicit MatchBufferRegion(tirx::BufferVar buffer, TensorRegion source);
+  TVM_DLL explicit MatchBufferRegion(tirx::TensorVar buffer, TensorRegion source);
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(MatchBufferRegion, ffi::ObjectRef,
                                              MatchBufferRegionNode);
@@ -113,7 +113,7 @@ class SBlockNode : public tirx::StmtNode {
   /*! \brief The name_hint of the block. */
   ffi::String name_hint;
   /*! \brief The buffer allocated in the block. */
-  ffi::Array<tirx::BufferVar> alloc_buffers;
+  ffi::Array<tirx::TensorVar> alloc_buffers;
   /*! \brief The match buffer regions. */
   ffi::Array<MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
@@ -156,13 +156,13 @@ class SBlock : public tirx::Stmt {
       ffi::Array<tirx::IterVar> iter_vars, ffi::Array<TensorRegion> reads,
       ffi::Array<TensorRegion> writes, ffi::String name_hint, tirx::Stmt body,
       ffi::Optional<tirx::Stmt> init = std::nullopt,
-      ffi::Array<tirx::BufferVar> alloc_buffers = ffi::Array<tirx::BufferVar>(),
+      ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
       ffi::Array<MatchBufferRegion> match_buffers = ffi::Array<MatchBufferRegion>(),
       ffi::Map<ffi::String, ffi::Any> annotations = ffi::Map<ffi::String, ffi::Any>(),
       Span span = Span());
 
   TVM_DLL explicit SBlock(ffi::String name_hint, tirx::Stmt body,
-                          ffi::Array<tirx::BufferVar> alloc_buffers = ffi::Array<tirx::BufferVar>(),
+                          ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),
                           Span span = Span());
 
   explicit SBlock(ffi::ObjectPtr<SBlockNode> node) : tirx::Stmt(std::move(node)) {}

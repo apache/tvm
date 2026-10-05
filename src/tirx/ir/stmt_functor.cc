@@ -413,7 +413,7 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ContinueNode* op, InplaceMode i
 }
 
 UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {
-  auto buffer = Mutate(op->buffer, inplace_mode).as_or_throw<UnchangedOr<BufferVar>>();
+  auto buffer = Mutate(op->buffer, inplace_mode).as_or_throw<UnchangedOr<TensorVar>>();
   auto value = Mutate(op->value, inplace_mode);
   auto indices = Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
   if (buffer.UnchangedOrSameAs(op->buffer) && value.UnchangedOrSameAs(op->value) &&
@@ -558,8 +558,8 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     auto result = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow);
     if (result.UnchangedOrSameAs(ffi::GetRef<PrimExpr>(op))) return ffi::Unchanged();
     auto load = std::move(result).ValueUnchecked().as_or_throw<TensorLoad>();
-    if (auto buffer = load->source.as<BufferVar>()) {
-      return BufferLoad(buffer.value(), load->indices, load->span);
+    if (auto buffer = load->source.as<TensorVar>()) {
+      return MakeTensorLoad(buffer.value(), load->indices, load->span);
     }
     return load;
   }

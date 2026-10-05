@@ -22,7 +22,7 @@ import operator
 
 import tvm
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, PrimFunc
+from tvm.tirx import PrimFunc, Var
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
     fail,
@@ -68,8 +68,8 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     # Extract buffer regions
     dst_buffer_region = op_call.dst
     src_buffer_region = op_call.src
-    src_buf: Buffer = src_buffer_region.source
-    dst_buf: Buffer = dst_buffer_region.source
+    src_buf: Var = src_buffer_region.source
+    dst_buf: Var = dst_buffer_region.source
 
     src_st = [r.min for r in src_buffer_region.region]
     src_ext = [r.extent for r in src_buffer_region.region]

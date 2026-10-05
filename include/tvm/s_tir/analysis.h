@@ -49,7 +49,7 @@ namespace tirx {
  *           - third: opaque regions
  */
 TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
-    const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
+    const s_tir::SBlock& block, const ffi::Map<Var, TensorVar>& buffer_var_map);
 
 /*!
  * \brief Auto detect the block read/write region according to its body stmt. An opaque access will
@@ -60,17 +60,17 @@ TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockAccessRegion(
  * \return An array only consisting of the read regions and write regions of the input block
  */
 TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
-    const s_tir::SBlock& block, const ffi::Map<Var, BufferVar>& buffer_var_map);
+    const s_tir::SBlock& block, const ffi::Map<Var, TensorVar>& buffer_var_map);
 
 /*!
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
- *        access(BufferLoad, BufferStore) and low-level access(Load, Store and opaque access).
+ *        access(TensorLoad, BufferStore) and low-level access(Load, Store and opaque access).
  *        The LCA may be a For loop or a Block.
  * \param func The PrimFunc to be detected.
  * \return The Map from buffer to the LCA of all access to it. The lca is function root if the
  *         return stmt is std::nullopt.
  */
-TVM_DLL ffi::Map<BufferVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
+TVM_DLL ffi::Map<TensorVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
 
 /*!
  * \brief Find the "anchor block" of the given module.
@@ -154,7 +154,7 @@ TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, const sym::
  * \param consider_stores Whether to include stores.
  * \return The domain covering the selected accesses.
  */
-TVM_DLL Region DomainTouched(const Stmt& body, const BufferVar& buffer, bool consider_loads,
+TVM_DLL Region DomainTouched(const Stmt& body, const TensorVar& buffer, bool consider_loads,
                              bool consider_stores);
 
 /*!

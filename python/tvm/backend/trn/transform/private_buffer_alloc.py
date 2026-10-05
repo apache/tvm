@@ -16,9 +16,8 @@
 # under the License.
 import tvm_ffi
 
-from tvm.ir import Call, DataTypeImm, DictAttrs, Range, StringImm, Tuple
+from tvm.ir import Call, DataTypeImm, DictAttrs, Range, StringImm, Tuple, Var
 from tvm.target import Target
-from tvm.tirx.buffer import Buffer
 from tvm.tirx.stmt import (
     AttrStmt,
     Bind,
@@ -69,9 +68,9 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
 
 def _inject_private_allocations(
     stmt: Stmt,
-    alloc_buffers: list[Buffer],
+    alloc_buffers: list[Var],
     init_stmts: list[Stmt],
-    added_workspace: dict[TilePrimitiveCall, dict[str, Buffer]],
+    added_workspace: dict[TilePrimitiveCall, dict[str, Var]],
 ) -> Stmt:
     is_outer_block = True
 

@@ -490,7 +490,7 @@ def test_track_forward_declarations_in_attr_stmt():
 
     index = i0_outer_outer * 52 + i0_outer_inner * 4 + i0_inner
 
-    stmt = tirx.BufferStore(B, tirx.BufferLoad(A, [index]), [index])
+    stmt = tirx.BufferStore(B, tirx.TensorLoad(A, [index]), [index])
     stmt = tirx.IfThenElse(i0_outer_outer * 13 + i0_outer_inner < 256, stmt, None)
     stmt = tirx.For(i0_inner, 0, 4, tirx.ForKind.VECTORIZED, stmt)
     stmt = tirx.For(i0_outer_inner, 0, 13, tirx.ForKind.PARALLEL, stmt)
@@ -594,7 +594,7 @@ def test_reused_loop_var_in_decl_buffer_elem_offset():
                         ty=buffer.ty,
                     ),
                 ),
-                tirx.Evaluate(tirx.BufferLoad(buffer, [0])),
+                tirx.Evaluate(tirx.TensorLoad(buffer, [0])),
             ]
         ),
     )

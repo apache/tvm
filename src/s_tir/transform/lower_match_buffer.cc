@@ -62,7 +62,7 @@ class MatchBufferLower : public StmtExprMutator {
     }
     // Preserve match-buffer lookup keys when the inherited Var environment
     // remaps their buffer type annotations.
-    std::vector<BufferVar> orig_buffers;
+    std::vector<TensorVar> orig_buffers;
     for (const auto& kv : match_buffers_) {
       orig_buffers.push_back(kv.first);
     }
@@ -70,8 +70,8 @@ class MatchBufferLower : public StmtExprMutator {
                       .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                       .as_or_throw<SBlock>();
     // Add remapped buffer keys to match_buffers_
-    for (const BufferVar& orig_buf : orig_buffers) {
-      if (auto remapped = VarRemapGet(orig_buf).as<BufferVar>()) {
+    for (const TensorVar& orig_buf : orig_buffers) {
+      if (auto remapped = VarRemapGet(orig_buf).as<TensorVar>()) {
         if (!match_buffers_.count(remapped.value())) {
           match_buffers_.Set(remapped.value(), match_buffers_[orig_buf]);
         }
@@ -105,7 +105,7 @@ class MatchBufferLower : public StmtExprMutator {
          op->op.same_as(tirx::builtin::masked_store())) &&
         !op->args.empty()) {
       if (auto var = op->args[0].as<Var>(); var && var.value()->ty.as<TensorTypeNode>()) {
-        BufferVar buffer = var.value().as_or_throw<BufferVar>();
+        TensorVar buffer = var.value().as_or_throw<TensorVar>();
         TVM_FFI_ICHECK(!match_buffers_.count(buffer))
             << "Predicated buffer access is not currently supported in lower match buffer pass.";
       }
@@ -113,9 +113,9 @@ class MatchBufferLower : public StmtExprMutator {
     if (op->op.same_as(tirx::builtin::buffer_data()) && op->args.size() == 1) {
       if (auto var = op->args[0].as<Var>();
           var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
-        auto it = match_buffers_.find(var.value().as_or_throw<BufferVar>());
+        auto it = match_buffers_.find(var.value().as_or_throw<TensorVar>());
         if (it != match_buffers_.end()) {
-          return (*it).second->source.as_or_throw<tvm::tirx::BufferVar>().data();
+          return (*it).second->source.as_or_throw<tvm::tirx::TensorVar>().data();
         }
       }
     }
@@ -124,7 +124,7 @@ class MatchBufferLower : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     // Save the original buffer before base class mutation may remap it
-    BufferVar orig_buffer = op->buffer;
+    TensorVar orig_buffer = op->buffer;
     BufferStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                            .as_or_throw<BufferStore>();
@@ -136,19 +136,19 @@ class MatchBufferLower : public StmtExprMutator {
     if (it == match_buffers_.end()) {
       return stmt;
     } else {
-      const BufferVar& buffer = (*it).first;
+      const TensorVar& buffer = (*it).first;
       const TensorRegion& source = (*it).second;
 
       auto* n = stmt.CopyOnWrite();
       n->indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      n->buffer = source->source.as_or_throw<tvm::tirx::BufferVar>();
+      n->buffer = source->source.as_or_throw<tvm::tirx::TensorVar>();
       return stmt;
     }
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     // Save the original buffer before base class mutation may remap it
-    BufferVar orig_buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar orig_buffer = op->source.as_or_throw<tvm::tirx::TensorVar>();
     PrimExpr expr =
         StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<PrimExpr>(op));
     op = expr.as<TensorLoadNode>();
@@ -158,30 +158,30 @@ class MatchBufferLower : public StmtExprMutator {
     if (it == match_buffers_.end()) {
       return expr;
     } else {
-      const BufferVar& buffer = (*it).first;
+      const TensorVar& buffer = (*it).first;
       const TensorRegion& source = (*it).second;
       ffi::Array<PrimExpr> indices = ConvertIndices(MatchBufferRegion(buffer, source), op->indices);
-      return BufferLoad(source->source.as_or_throw<tvm::tirx::BufferVar>(), indices);
+      return MakeTensorLoad(source->source.as_or_throw<tvm::tirx::TensorVar>(), indices);
     }
   }
 
   TensorRegion VisitBufferRegion(const TensorRegion& buffer_region) {
-    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
     auto it = match_buffers_.find(buffer);
     if (it == match_buffers_.end()) {
       return buffer_region;
     } else {
       const TensorRegion& source = (*it).second;
       Region region = ConvertRegion(MatchBufferRegion(buffer, source), buffer_region->region);
-      return BufferRegion(source->source.as_or_throw<tvm::tirx::BufferVar>(), std::move(region));
+      return BufferRegion(source->source.as_or_throw<tvm::tirx::TensorVar>(), std::move(region));
     }
   }
 
   void CheckAndUpdateVarMap(const MatchBufferRegion& match_buffer) {
     // Step.1. Check
-    const BufferVar& buffer = match_buffer->buffer;
+    const TensorVar& buffer = match_buffer->buffer;
     const TensorRegion& source = VisitBufferRegion(match_buffer->source);
-    const BufferVar& source_buffer = source->source.as_or_throw<tvm::tirx::BufferVar>();
+    const TensorVar& source_buffer = source->source.as_or_throw<tvm::tirx::TensorVar>();
 
     // Step.1.1. Check scope & dtype
     TVM_FFI_ICHECK_EQ(buffer.scope(), source_buffer.scope())
@@ -199,7 +199,7 @@ class MatchBufferLower : public StmtExprMutator {
     }
     if (is_zero(buffer->elem_offset)) {
       TVM_FFI_ICHECK(is_zero(source_buffer->elem_offset))
-          << "Trying to bind a BufferVar with offset into one without offset "
+          << "Trying to bind a TensorVar with offset into one without offset "
           << " required elem_offset=" << buffer->elem_offset
           << ", provided elem_offset=" << source_buffer->elem_offset;
     }
@@ -310,8 +310,8 @@ class MatchBufferLower : public StmtExprMutator {
     }
   }
 
-  /*! \brief BufferVar region mapping. */
-  ffi::Map<BufferVar, TensorRegion> match_buffers_;
+  /*! \brief TensorVar region mapping. */
+  ffi::Map<TensorVar, TensorRegion> match_buffers_;
   /*! \brief The analyzer */
   sym::Analyzer analyzer_;
 };

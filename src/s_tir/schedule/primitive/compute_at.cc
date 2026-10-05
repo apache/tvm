@@ -388,7 +388,7 @@ void RelaxBufferRegions(const ffi::Map<Var, PrimExpr>& binding,
   };
   // Enumerate every buffer region
   for (const TensorRegion& buffer_region : buffer_regions) {
-    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
     const ffi::Array<Range>& region = buffer_region->region;
     // Skip the buffer regions we are not interested in
     auto it = relaxed->find(buffer.get());
@@ -508,11 +508,11 @@ std::pair<Var, BlockVarDomainInfo> SolveBlockVarDomain(const sym::IntSet& provid
 void UpdateBlockVarDomainDimwise(
     const VarNode* buffer, const NDIntSet& provided_region, const NDIntSet& required_region,
     sym::AnalyzerObj* analyzer, std::unordered_map<const VarNode*, BlockVarDomainInfo>* iter_doms) {
-  size_t ndim = GetBufferVar(buffer)->shape.size();
+  size_t ndim = GetTensorVar(buffer)->shape.size();
   for (size_t i = 0; i < ndim; ++i) {
     sym::IntSet provided = provided_region[i];
     sym::IntSet required = required_region[i];
-    PrimExpr dim_max = max(GetBufferVar(buffer)->shape[i] - 1, 0);
+    PrimExpr dim_max = max(GetTensorVar(buffer)->shape[i] - 1, 0);
     sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
 
     if (provided.CanProveSinglePoint(analyzer_ref) && is_const_int(provided.min())) {
@@ -584,7 +584,7 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   for (const IterVar& iter_var : iter_vars) {
     dom_map.Set(iter_var->var, iter_var->dom);
   }
-  size_t ndim = GetBufferVar(buffer)->shape.size();
+  size_t ndim = GetTensorVar(buffer)->shape.size();
   ffi::Array<PrimExpr> provide_indices;
   provide_indices.reserve(ndim);
   for (size_t i = 0; i < ndim; ++i) {
@@ -598,8 +598,8 @@ bool UpdateBlockVarDomainAffine(const VarNode* buffer, const ffi::Array<IterVar>
   // calculate backward mapping (required region point -> block vars)
   NDIntSet required_bound;
   for (size_t i = 0; i < ndim; ++i) {
-    required_bound.push_back(sym::IntSet::Interval(IntImm(GetBufferVar(buffer)->shape[i].ty(), 0),
-                                                   max(GetBufferVar(buffer)->shape[i] - 1, 0)));
+    required_bound.push_back(sym::IntSet::Interval(IntImm(GetTensorVar(buffer)->shape[i].ty(), 0),
+                                                   max(GetTensorVar(buffer)->shape[i] - 1, 0)));
   }
   ffi::Map<Var, sym::IntSet> var_dom =
       InverseAffineIterMap(res->indices, required_region, analyzer);
@@ -645,8 +645,8 @@ std::vector<BlockVarDomainInfo> CalculateBlockVarDomain(
     }
     NDIntSet required_region = support::NDIntSetUnion(it->second);
     NDIntSet provided_region = support::NDIntSetUnion(many_provided_regions);
-    TVM_FFI_ICHECK_EQ(provided_region.size(), GetBufferVar(buffer)->shape.size());
-    TVM_FFI_ICHECK_EQ(required_region.size(), GetBufferVar(buffer)->shape.size());
+    TVM_FFI_ICHECK_EQ(provided_region.size(), GetTensorVar(buffer)->shape.size());
+    TVM_FFI_ICHECK_EQ(required_region.size(), GetTensorVar(buffer)->shape.size());
     // Try update iter var domains with current required and provided region pair.
     if (!UpdateBlockVarDomainAffine(buffer, iter_vars, provided_region, required_region, analyzer,
                                     &iter_doms)) {
@@ -696,7 +696,7 @@ void CalculateProvidedRequiredRegions(
   required_regions->reserve(provided_buffers.size());
   for (const TensorRegion& provided_buffer_region : provided_buffers) {
     const VarNode* buffer =
-        provided_buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().get();
+        provided_buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().get();
     const ffi::Array<Range>& region = provided_buffer_region->region;
     (*provided_regions)[buffer].push_back(support::NDIntSetFromRegion(region));
     (*required_regions)[buffer].clear();

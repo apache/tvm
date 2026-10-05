@@ -191,7 +191,8 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
 
     // A write whose destination is known to already contain the
     // values to be written is a no-op.
-    PrimExpr stores_existing_value = store->value - BufferLoad(store->buffer, store->indices) == 0;
+    PrimExpr stores_existing_value =
+        store->value - MakeTensorLoad(store->buffer, store->indices) == 0;
     stores_existing_value = analyzer_->Simplify(stores_existing_value);
     if (is_one(stores_existing_value)) {
       return only_side_effects();
@@ -200,7 +201,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     // If the stored value is a load from the same location, the
     // statement is a no-op, regardless of contextual information.
     if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
-      BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+      TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
       if (buffer.same_as(store->buffer) &&
           analyzer_->CanProveEqual(buffer->elem_offset, store->buffer->elem_offset) &&
           ArrayValueEqual(buffer->shape, store->buffer->shape) &&

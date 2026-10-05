@@ -40,7 +40,7 @@ using namespace tvm::tirx;
 
 class NotSingleWriteBlock : public ScheduleErrorContextObj {
  public:
-  explicit NotSingleWriteBlock(IRModule mod, BufferVar buffer, ffi::Array<StmtSRef> write_blocks)
+  explicit NotSingleWriteBlock(IRModule mod, TensorVar buffer, ffi::Array<StmtSRef> write_blocks)
       : mod_(std::move(mod)), buffer_(std::move(buffer)) {
     TVM_FFI_ICHECK_GT(write_blocks.size(), 1);
     write_blocks_.reserve(write_blocks.size());
@@ -67,7 +67,7 @@ class NotSingleWriteBlock : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
   ffi::Array<SBlock> write_blocks_;
 };
 
@@ -76,11 +76,11 @@ class NotSingleWriteBlock : public ScheduleErrorContextObj {
 /*! \brief The auxiliary info used for the insertion point and content of the cache stage. */
 struct CacheStageInfo {
   /*! \brief The buffer to be read. */
-  BufferVar read_buffer{ffi::UnsafeInit{}};
+  TensorVar read_buffer{ffi::UnsafeInit{}};
   /*! \brief The buffer to be written. */
-  BufferVar write_buffer{ffi::UnsafeInit{}};
+  TensorVar write_buffer{ffi::UnsafeInit{}};
   /*! \brief The buffer allocation to be inserted into the block signature. */
-  ffi::Optional<BufferVar> alloc;
+  ffi::Optional<TensorVar> alloc;
   /*! \brief The AST node whose body is where the cache stage should be inserted. */
   StmtSRef loc_sref;
   /*! \brief The index to insert the cache_read/cache_write stage. */
@@ -97,10 +97,10 @@ struct CacheStageInfo {
 
 /*! \brief Return the buffer region related with the buffer */
 ffi::Optional<TensorRegion> GetBufferRegionFromBuffer(
-    const ffi::Array<TensorRegion>& buffer_regions, const BufferVar& buffer) {
+    const ffi::Array<TensorRegion>& buffer_regions, const TensorVar& buffer) {
   ffi::Optional<TensorRegion> res = std::nullopt;
   for (const auto& region : buffer_regions) {
-    if (region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer)) {
+    if (region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer)) {
       TVM_FFI_ICHECK(!res.has_value());
       res = region;
     }
@@ -218,10 +218,10 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
       /*iter_vars*/ std::move(block_vars),
       /*reads=*/{BufferRegion(info->read_buffer, read_access_region)},
       /*writes=*/{BufferRegion(info->write_buffer, write_access_region)},
-      /*name_hint*/ cache_region->source.as_or_throw<tvm::tirx::BufferVar>().name() + "_" +
+      /*name_hint*/ cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
-      BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
+      BufferStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
       /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
@@ -277,12 +277,12 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
   ffi::Array<PrimExpr> write_access_indices;
   // Create block vars, block's accessed region and accessing indices
   for (int i = 0;
-       i < static_cast<int>(cache_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size());
+       i < static_cast<int>(cache_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size());
        ++i) {
     Range axis_range = cache_region->region[i];
     PrimVar var("v" + std::to_string(read_access_indices.size()), axis_range->extent.ty());
     if (cache_full_region) {
-      PrimExpr dim = cache_region->source.as_or_throw<tvm::tirx::BufferVar>()->shape[i];
+      PrimExpr dim = cache_region->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i];
       block_vars.push_back(IterVar(/*dom=*/Range::FromMinExtent(IntImm(dim.ty(), 0), dim),
                                    /*var=*/var,
                                    /*IterVarType=*/kDataPar));
@@ -295,7 +295,7 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
           /*dom=*/Range::FromMinExtent(IntImm(axis_range->extent.ty(), 0), axis_range->extent),
           /*var=*/var,
           /*IterVarType=*/kDataPar));
-      if (cache_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info->read_buffer)) {
+      if (cache_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info->read_buffer)) {
         // cache_read
         read_access_indices.push_back(axis_range->min + var);
         read_access_region.push_back(
@@ -321,10 +321,10 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
       /*iter_vars=*/std::move(block_vars),
       /*reads=*/{BufferRegion(info->read_buffer, read_access_region)},
       /*writes=*/{BufferRegion(info->write_buffer, write_access_region)},
-      /*name_hint=*/cache_region->source.as_or_throw<tvm::tirx::BufferVar>().name() + "_" +
+      /*name_hint=*/cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
-      BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
+      BufferStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
       /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
@@ -431,7 +431,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
       /*writes=*/{BufferRegionFromPoint(info->write_buffer, dst_indices)},
       /*name_hint=*/info->write_buffer.name() + "_reindex",
       /*body=*/
-      BufferStore(info->write_buffer, BufferLoad(info->read_buffer, src_indices), dst_indices));
+      BufferStore(info->write_buffer, MakeTensorLoad(info->read_buffer, src_indices), dst_indices));
 
   // Step 4: Create surrounding loops
 
@@ -521,7 +521,7 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
  * \throw NotSingleWriteBlock if there are more than one interested block.
  */
 ffi::Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& scope_sref,
-                                          const BufferVar& buffer) {
+                                          const TensorVar& buffer) {
   SBlockScope scope = self->GetSBlockScope(scope_sref);
   auto it = scope->buffer_writers.find(buffer);
   if (it == scope->buffer_writers.end()) {
@@ -546,7 +546,7 @@ ffi::Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& sc
  * \return A boolean indicating if all the consumer blocks of the input buffer
  *         meet the requirement.
  */
-bool AllConsumersUnderStmt(ScheduleState self, BufferVar buffer, StmtSRef scope_sref,
+bool AllConsumersUnderStmt(ScheduleState self, TensorVar buffer, StmtSRef scope_sref,
                            StmtSRef stmt_sref) {
   // Collect all children blocks of the target stmt.
   std::unordered_set<const SBlockNode*> blocks_under_target;
@@ -585,7 +585,7 @@ bool AllConsumersUnderStmt(ScheduleState self, BufferVar buffer, StmtSRef scope_
  * \param index_type Whether to look for reads (kRead) or writes (kWrite).
  * \return The OR-combination of all nested block predicates found.
  */
-static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& buffer,
+static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const TensorVar& buffer,
                                              BufferIndexType index_type) {
   struct Collector : public StmtExprVisitor {
     using StmtExprVisitor::Visit_;
@@ -595,7 +595,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& 
       return StmtExprVisitor::Visit(value);
     }
 
-    Collector(const BufferVar& buf, BufferIndexType idx_type)
+    Collector(const TensorVar& buf, BufferIndexType idx_type)
         : buffer_(buf), index_type_(idx_type), result_(IntImm::Bool(false)), found_(false) {}
 
     ffi::Optional<VisitInterrupt> Visit_(const SBlockRealizeNode* realize) final {
@@ -603,7 +603,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& 
       const auto& regions = (index_type_ == BufferIndexType::kRead) ? block->reads : block->writes;
       bool accesses_buffer = false;
       for (const TensorRegion& region : regions) {
-        if (region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+        if (region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer_)) {
           accesses_buffer = true;
           break;
         }
@@ -635,7 +635,7 @@ static PrimExpr CollectNestedBlockPredicates(const Stmt& body, const BufferVar& 
       return StmtExprVisitor::Visit_(realize);
     }
 
-    const BufferVar& buffer_;
+    const TensorVar& buffer_;
     BufferIndexType index_type_;
     PrimExpr result_;
     bool found_;
@@ -665,7 +665,7 @@ TensorRegion RelaxBufferRegion(ScheduleState self, const TensorRegion& buffer_re
                                PrimExpr extra_predicate = IntImm::Bool(true)) {
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
   ffi::Map<Var, PrimExpr> binding = GetBindings(realize);
-  const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+  const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
   sym::Analyzer analyzer;
   auto f_substitute = [&binding](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto repl = binding.Get(var)) return ffi::Any(*std::move(repl));
@@ -996,7 +996,7 @@ class CacheReadRewriter : public StmtExprMutator {
 
       ffi::Array<TensorRegion> ret;
       for (const TensorRegion& region : regions) {
-        if (region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer)) {
+        if (region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_buffer)) {
           ret.push_back(BufferRegion(info_->write_buffer,
                                      update_region(region->region, info_->cache_region->region)));
         } else {
@@ -1012,7 +1012,7 @@ class CacheReadRewriter : public StmtExprMutator {
 
       ffi::Array<MatchBufferRegion> ret;
       for (const MatchBufferRegion& match_buffer : match_buffers) {
-        if (match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+        if (match_buffer->source->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
                 info_->read_buffer)) {
           ret.push_back(MatchBufferRegion(
               match_buffer->buffer,
@@ -1120,7 +1120,7 @@ class CacheReadRewriter : public StmtExprMutator {
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
     if (!op->op.same_as(tirx::builtin::buffer_data()) || op->args.size() != 1) return result;
-    PointerType type = op->args[0].as_or_throw<BufferVar>().DataPointerType();
+    PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
       const_cast<CallNode*>(op)->ty = std::move(type);
@@ -1132,7 +1132,7 @@ class CacheReadRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) override {
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_buffer) &&
         current_block_consumes) {
       ffi::Array<PrimExpr> indices = load->indices;
       if (!cache_full_region_) {
@@ -1153,7 +1153,7 @@ class CacheReadRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
-    if (!op->source.as<BufferVar>()) {
+    if (!op->source.as<TensorVar>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
@@ -1208,7 +1208,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
     update_access_regions = [&](ffi::Array<TensorRegion> reads) {
       ffi::Array<TensorRegion> new_reads;
       for (const TensorRegion& buf_region : reads) {
-        if (buf_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer)) {
+        if (buf_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
@@ -1224,7 +1224,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
       ffi::Array<MatchBufferRegion> new_match_buffers;
       for (const MatchBufferRegion& match_buffer_region : match_buffers) {
         TensorRegion source = match_buffer_region->source;
-        if (source->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer)) {
+        if (source->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
@@ -1241,7 +1241,7 @@ class ReindexCacheReadRewriter : public CacheReadRewriter {
 
  private:
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) final {
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->read_buffer) &&
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->read_buffer) &&
         current_block_consumes) {
       TensorLoad node = ffi::GetRef<TensorLoad>(load);
       auto* n = node.CopyOnWrite();
@@ -1305,7 +1305,7 @@ class CacheWriteRewriter : public StmtExprMutator {
 
       ffi::Array<TensorRegion> ret;
       for (const TensorRegion& region : regions) {
-        if (region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
+        if (region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_buffer)) {
           ret.push_back(BufferRegion(info_->read_buffer,
                                      update_region(region->region, info_->cache_region->region)));
         } else {
@@ -1321,7 +1321,7 @@ class CacheWriteRewriter : public StmtExprMutator {
 
       ffi::Array<MatchBufferRegion> ret;
       for (const MatchBufferRegion& match_buffer : match_buffers) {
-        if (match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
+        if (match_buffer->source->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
                 info_->write_buffer)) {
           ret.push_back(MatchBufferRegion(
               match_buffer->buffer,
@@ -1464,7 +1464,7 @@ class CacheWriteRewriter : public StmtExprMutator {
     }
     // Cache remapping can change pointer storage scope; the base Call hook preserves its type.
     if (!op->op.same_as(tirx::builtin::buffer_data()) || op->args.size() != 1) return result;
-    PointerType type = op->args[0].as_or_throw<BufferVar>().DataPointerType();
+    PointerType type = op->args[0].as_or_throw<TensorVar>().DataPointerType();
     if (ffi::StructuralEqual()(op->ty, type)) return result;
     if (inplace_mode == InplaceMode::kAllow) {
       const_cast<CallNode*>(op)->ty = std::move(type);
@@ -1476,7 +1476,7 @@ class CacheWriteRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) override {
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_buffer)) {
       ffi::Array<PrimExpr> indices = load->indices;
       if (!cache_full_region_) {
         indices = RewriteIndices(indices);
@@ -1496,7 +1496,7 @@ class CacheWriteRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
-    if (!op->source.as<BufferVar>()) {
+    if (!op->source.as<TensorVar>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
@@ -1557,7 +1557,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
     update_access_regions = [&](ffi::Array<TensorRegion> reads) {
       ffi::Array<TensorRegion> new_reads;
       for (const TensorRegion& buf_region : reads) {
-        if (buf_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
+        if (buf_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
@@ -1573,7 +1573,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
       ffi::Array<MatchBufferRegion> new_match_buffers;
       for (const MatchBufferRegion& match_buffer_region : match_buffers) {
         TensorRegion source = match_buffer_region->source;
-        if (source->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
+        if (source->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_buffer)) {
           Region region;
           for (const PrimExpr index : new_indices_) {
             region.push_back(Range::FromMinExtent(index, IntImm::Int32(1)));
@@ -1610,7 +1610,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* load, InplaceMode inplace_mode) final {
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(info_->write_buffer)) {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(info_->write_buffer)) {
       TensorLoad node = ffi::GetRef<TensorLoad>(load);
       auto* n = node.CopyOnWrite();
       n->source = info_->read_buffer;
@@ -1636,7 +1636,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
  * \param covered Set of block iter vars covered by the buffer access indices
  * \return The new buffer with target shape.
  */
-BufferVar CreateReindexBuffer(const BufferVar& buffer, const ffi::Array<IterVar>& block_iters,
+TensorVar CreateReindexBuffer(const TensorVar& buffer, const ffi::Array<IterVar>& block_iters,
                               const std::unordered_set<Var>& covered) {
   ffi::ObjectPtr<TensorTypeNode> new_buffer = CopyTensorType(buffer);
   std::vector<PrimExpr> new_shape;
@@ -1649,7 +1649,7 @@ BufferVar CreateReindexBuffer(const BufferVar& buffer, const ffi::Array<IterVar>
   new_strides.clear();
   new_buffer->shape = new_shape;
   new_buffer->strides = new_strides;
-  return RebuildBufferVar(buffer, std::move(new_buffer), buffer.name() + "_reindex");
+  return RebuildTensorVar(buffer, std::move(new_buffer), buffer.name() + "_reindex");
 }
 
 /*!
@@ -1681,7 +1681,7 @@ class InvalidBufferAccessError : public ScheduleErrorContextObj {
     kOpaqueAccess,     // opaque access to the buffer
   };
 
-  InvalidBufferAccessError(IRModule mod, BufferVar buffer, SBlock block, ErrorKind kind)
+  InvalidBufferAccessError(IRModule mod, TensorVar buffer, SBlock block, ErrorKind kind)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), block_(std::move(block)), kind_(kind) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: The target buffer should be accessed via TensorLoad or BufferStore. The "
@@ -1707,7 +1707,7 @@ class InvalidBufferAccessError : public ScheduleErrorContextObj {
 
  private:
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
   SBlock block_;
   ErrorKind kind_;
 };
@@ -1717,7 +1717,7 @@ class ReIndexCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
 
-  static ffi::Array<PrimExpr> Collect(const IRModule& mod, const BufferVar& buffer,
+  static ffi::Array<PrimExpr> Collect(const IRModule& mod, const TensorVar& buffer,
                                       const SBlock& block) {
     auto collector = ffi::make_object<ReIndexCollector>(mod, buffer, block);
     collector->Visit(block->body);
@@ -1728,7 +1728,7 @@ class ReIndexCollector : public StmtExprVisitor {
     return collector->buffer_access_indices_.value();
   }
 
-  explicit ReIndexCollector(const IRModule& mod, const BufferVar& buffer, const SBlock& block)
+  explicit ReIndexCollector(const IRModule& mod, const TensorVar& buffer, const SBlock& block)
       : mod_(mod), buffer_(buffer), block_(block) {}
 
  private:
@@ -1736,7 +1736,7 @@ class ReIndexCollector : public StmtExprVisitor {
     for (const PrimExpr& index : load->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
     }
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buffer_)) {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buffer_)) {
       CheckAndUpdateBufferAccessIndices(load->indices);
     }
     return std::nullopt;
@@ -1781,7 +1781,7 @@ class ReIndexCollector : public StmtExprVisitor {
   /*! \brief The IR module */
   IRModule mod_;
   /*! \brief The buffer to rewrite */
-  BufferVar buffer_;
+  TensorVar buffer_;
   /*! \brief The block to visit */
   SBlock block_;
   /*! \brief The indices of buffer acess to rewrite */
@@ -1870,7 +1870,7 @@ class ReIndexRewriter : public StmtExprMutator {
     return node;
   }
   TensorLoad VisitBufferAccess(TensorLoad node) {
-    if (node->source.as_or_throw<tvm::tirx::BufferVar>().same_as(old_buffer_)) {
+    if (node->source.as_or_throw<tvm::tirx::TensorVar>().same_as(old_buffer_)) {
       auto* n = node.CopyOnWrite();
       n->source = new_buffer_;
       n->indices = indices_;
@@ -1907,16 +1907,16 @@ class ReIndexRewriter : public StmtExprMutator {
   /*! \brief Whether the current block is scope block */
   bool is_scope_{true};
   /*! \brief The  buffer to be replaced */
-  BufferVar old_buffer_;
+  TensorVar old_buffer_;
   /*! \brief The reindex buffer */
-  BufferVar new_buffer_;
+  TensorVar new_buffer_;
   /*! \brief The new indices */
   ffi::Array<PrimExpr> indices_;
   /*! \brief The new region */
   Region region_;
 };
 
-void CheckRegionCover(const ScheduleState& self, StmtSRef scope_root, BufferVar read_buffer) {
+void CheckRegionCover(const ScheduleState& self, StmtSRef scope_root, TensorVar read_buffer) {
   class NotRegionCoverError : public ScheduleErrorContextObj {
    public:
     explicit NotRegionCoverError(IRModule mod, SBlock block) : mod_(mod), block_(block) {}
@@ -1937,7 +1937,7 @@ The region cover property require to hold for every of its child blocks
   for (const auto& child_block_sref : GetChildBlocks(self, scope_root)) {
     const SBlockNode* child_block = TVM_SREF_TO_SBLOCK(child_block_sref);
     for (const TensorRegion& region : child_block->reads) {
-      if (region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(read_buffer)) {
+      if (region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(read_buffer)) {
         if (!self->block_info.at(child_block_sref).region_cover) {
           const SBlockNode* block = TVM_SREF_TO_SBLOCK(scope_root);
           throw MakeScheduleError<NotRegionCoverError>(self->mod, ffi::GetRef<SBlock>(block));
@@ -1967,7 +1967,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
 
   // Step 1. Check index, getting the target buffer and the parent scope
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  BufferVar read_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
+  TensorVar read_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
                                              BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   // Check required region cover for cache_read
@@ -2040,7 +2040,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
       shape.push_back(cache_range->extent);
     }
     write_buffer->shape = std::move(shape);
-    info.write_buffer = RebuildBufferVar(info.write_buffer, std::move(write_buffer));
+    info.write_buffer = RebuildTensorVar(info.write_buffer, std::move(write_buffer));
   }
   info.alloc = info.write_buffer;
 
@@ -2078,7 +2078,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
 
   // Step 1. Checking index, getting the target buffer and the parent scope
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  BufferVar write_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), write_buffer_index,
+  TensorVar write_buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), write_buffer_index,
                                               BufferIndexType::kWrite);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
@@ -2130,7 +2130,7 @@ StmtSRef CacheWrite(ScheduleState self, const StmtSRef& block_sref, int write_bu
       shape.push_back(cache_range->extent);
     }
     read_buffer_type->shape = std::move(shape);
-    info.read_buffer = RebuildBufferVar(info.read_buffer, std::move(read_buffer_type));
+    info.read_buffer = RebuildTensorVar(info.read_buffer, std::move(read_buffer_type));
   }
   info.alloc = info.read_buffer;
 
@@ -2221,7 +2221,7 @@ template <bool is_cache_read>
 void CollectReindexCacheStageInfoAndCreateBuffer(
     ReindexCacheStageInfo* info, const IRModule& mod, const StmtSRef& block_sref,
     const ffi::String& storage_scope, const IndexMap& index_map, const SBlock& block,
-    const SBlockRealize& realize, const BufferVar& old_buffer, const TensorRegion& cache_region) {
+    const SBlockRealize& realize, const TensorVar& old_buffer, const TensorRegion& cache_region) {
   sym::Analyzer analyzer;
   ffi::Array<PrimExpr> block_iter_vars, block_shape;
   for (const IterVar& iter_var : block->iter_vars) {
@@ -2274,8 +2274,8 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   ffi::ObjectPtr<TensorTypeNode> new_buffer = CopyTensorType(old_buffer);
   new_buffer->storage_scope = storage_scope;
   new_buffer->shape = new_shape;
-  BufferVar rebuilt =
-      RebuildBufferVar(old_buffer, std::move(new_buffer), old_buffer.name() + "_" + storage_scope);
+  TensorVar rebuilt =
+      RebuildTensorVar(old_buffer, std::move(new_buffer), old_buffer.name() + "_" + storage_scope);
 
   if (is_cache_read) {
     info->write_buffer = rebuilt;
@@ -2320,7 +2320,7 @@ StmtSRef ReindexCacheRead(ScheduleState self, const StmtSRef& block_sref, int re
   // Step 1. Check index, getting the target buffer and the parent scope
   SBlock block = ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(block_sref));
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
-  BufferVar read_buffer =
+  TensorVar read_buffer =
       GetNthAccessBuffer(self, block, read_buffer_index, BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
@@ -2392,7 +2392,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
   // Step 1. Checking index, getting the target buffer and the parent scope
   SBlock block = ffi::GetRef<SBlock>(TVM_SREF_TO_SBLOCK(block_sref));
   SBlockRealize realize = GetSBlockRealize(self, block_sref);
-  BufferVar write_buffer =
+  TensorVar write_buffer =
       GetNthAccessBuffer(self, block, write_buffer_index, BufferIndexType::kWrite);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
 
@@ -2443,7 +2443,7 @@ StmtSRef ReindexCacheWrite(ScheduleState self, const StmtSRef& block_sref, int w
 /*! \brief The schedule error that the target block doesn't both read&write target buffer. */
 class NotReadWriteError : public ScheduleErrorContextObj {
  public:
-  NotReadWriteError(IRModule mod, SBlock block, BufferVar buffer)
+  NotReadWriteError(IRModule mod, SBlock block, TensorVar buffer)
       : mod_(std::move(mod)), block_(std::move(block)), buffer_(std::move(buffer)) {}
   ffi::String FastErrorString() const final {
     return "ScheduleError: The target block does not both read & write target buffer.";
@@ -2457,7 +2457,7 @@ class NotReadWriteError : public ScheduleErrorContextObj {
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {block_, buffer_}; }
   IRModule mod_;
   SBlock block_;
-  BufferVar buffer_;
+  TensorVar buffer_;
 };
 
 ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref,
@@ -2471,7 +2471,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
 
   // Check 1. Check index, get the target buffer and the parent scope
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  BufferVar buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
+  TensorVar buffer = GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), read_buffer_index,
                                         BufferIndexType::kRead);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
 
@@ -2487,7 +2487,7 @@ ffi::Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref
   }
 
   ffi::Array<StmtSRef> results_block_sref;
-  BufferVar new_buffer = WithScope(buffer, storage_scope);
+  TensorVar new_buffer = WithScope(buffer, storage_scope);
 
   // Do cache read
   // Cache read step 0. Create CacheStageInfo
@@ -2553,7 +2553,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
                  BufferIndexType buffer_index_type) {
   const SBlockNode* block_ptr = TVM_SREF_TO_SBLOCK(block_sref);
   SBlock block = ffi::GetRef<SBlock>(block_ptr);
-  BufferVar buffer = GetNthAccessBuffer(self, block, buffer_index, buffer_index_type);
+  TensorVar buffer = GetNthAccessBuffer(self, block, buffer_index, buffer_index_type);
   StmtSRef scope_sref = GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/true);
   sym::Analyzer analyzer;
 

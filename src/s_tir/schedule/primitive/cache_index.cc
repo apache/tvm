@@ -39,7 +39,7 @@ struct IndexInfo {
   /*! \brief Record the common subexpr extract threshold */
   size_t cse_thresh;
   /*! \brief The cache buffer to store the precomputed index */
-  std::vector<BufferVar> cache_buffer;
+  std::vector<TensorVar> cache_buffer;
   /*! \brief The expr to be precomputed */
   std::vector<PrimExpr> index_exprs;
   /*! \brief The range of the loop vars relating to index computation */
@@ -282,7 +282,7 @@ ffi::Array<SBlock> MakeIndexCacheStage(IndexInfo* info, const ffi::String& stora
       buffer_shape.push_back(
           sym::EvalSet(info->var_binding.at(it), sym::AsIntSet(info->range_map)).max() + 1);
     }
-    info->cache_buffer.push_back(BufferVar(
+    info->cache_buffer.push_back(TensorVar(
         index_buffer_name, TensorType(storage_scope, data_ty, buffer_shape, {1}, {0}, 0, 0)));
 
     // Create loop vars and block vars' binding_value
@@ -433,7 +433,7 @@ class CacheIndexRewriter : public StmtExprMutator {
       // If so, put buffer allocation and insert cache stages on the parent scope
       ffi::ObjectPtr<SBlockNode> n = ffi::make_object<SBlockNode>(*stmt.as<SBlockNode>());
       n->body = InsertIndexStage(n->body, info_->loc_pos, info_->cache_stage);
-      for (const BufferVar& it : info_->cache_buffer) {
+      for (const TensorVar& it : info_->cache_buffer) {
         n->alloc_buffers.push_back(it);
       }
       stmt = SBlock(n);
@@ -453,7 +453,7 @@ class CacheIndexRewriter : public StmtExprMutator {
             [computation](const PrimExpr& current_expr) {
               return (EquivalentTerms(current_expr, computation, true));
             };
-        TensorLoad load = BufferLoad(info_->cache_buffer[i], cache_indices_[i]);
+        TensorLoad load = MakeTensorLoad(info_->cache_buffer[i], cache_indices_[i]);
         ret_stmt = ReplaceSelectedExpr::ReplaceSelectedExprInStmt(
             ret_stmt, predicate_selector, std::move(load),
             [](const PrimExpr& expr) { return true; });

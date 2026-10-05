@@ -74,7 +74,7 @@ class Var2BufferCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
   /*! \brief Map the buffer var to all aliased buffers. */
-  std::unordered_map<Var, std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
+  std::unordered_map<Var, std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
       var2buffer_;
 
  private:
@@ -84,25 +84,25 @@ class Var2BufferCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = op->source.as_or_throw<tvm::tirx::TensorVar>();
     var2buffer_[buffer.var()].insert(buffer);
     return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    for (const BufferVar& buffer : op->alloc_buffers) {
+    for (const TensorVar& buffer : op->alloc_buffers) {
       var2buffer_[buffer.var()].insert(buffer);
     }
     for (const MatchBufferRegion& region : op->match_buffers) {
       var2buffer_[region->buffer.var()].insert(region->buffer);
-      var2buffer_[region->source->source.as_or_throw<tvm::tirx::BufferVar>().var()].insert(
-          region->source->source.as_or_throw<tvm::tirx::BufferVar>());
+      var2buffer_[region->source->source.as_or_throw<tvm::tirx::TensorVar>().var()].insert(
+          region->source->source.as_or_throw<tvm::tirx::TensorVar>());
     }
     return StmtExprVisitor::Visit_(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) final {
-    if (auto buffer = op->var.as<BufferVar>()) {
+    if (auto buffer = op->var.as<TensorVar>()) {
       var2buffer_[op->var].insert(buffer.value());
     }
     return StmtExprVisitor::Visit_(op);
@@ -116,7 +116,7 @@ class Var2BufferCollector : public StmtExprVisitor {
 class BufferAccessRegionCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
-  static std::unordered_map<BufferVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
+  static std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
       const PrimFunc& f, bool collect_inbound) {
     auto region_collector = ffi::make_object<BufferAccessRegionCollector>(collect_inbound);
     // collect buffer var to aliased buffer mapping
@@ -134,11 +134,11 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
  private:
   struct BufferAccessInfo {
     /*! \brief The buffer. */
-    BufferVar buffer;
+    TensorVar buffer;
     /*! \brief The buffer access region, which can be updated during visiting. */
     NDIntSet accessed_region;
 
-    explicit BufferAccessInfo(const BufferVar& buffer, const NDIntSet& region)
+    explicit BufferAccessInfo(const TensorVar& buffer, const NDIntSet& region)
         : buffer(buffer), accessed_region(region) {}
   };
 
@@ -150,7 +150,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   // Declared regions carry bounds, not opaque runtime accesses.
   ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
-    if (!op->source.as<BufferVar>()) return StmtExprVisitor::Visit_(op);
+    if (!op->source.as<TensorVar>()) return StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
@@ -164,7 +164,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    BufferVar buffer = op->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = op->source.as_or_throw<tvm::tirx::TensorVar>();
     auto explicit_it = explicit_access_annotations_.find(buffer);
     if (explicit_it != explicit_access_annotations_.end()) {
       VisitBufferAccess(explicit_it->second);
@@ -275,14 +275,14 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     TVM_FFI_ICHECK(!op->init.has_value());
     TVM_FFI_ICHECK_EQ(op->iter_vars.size(), 0) << "CompactBufferRegion only works on opaque blocks";
     // Step 1. Record and update current read/write region annotations
-    std::unordered_map<BufferVar, std::vector<TensorRegion>, ffi::ObjectPtrHash,
+    std::unordered_map<TensorVar, std::vector<TensorRegion>, ffi::ObjectPtrHash,
                        ffi::ObjectPtrEqual>
         cur_access_annotations;
     for (const TensorRegion& region : op->reads) {
-      cur_access_annotations[region->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(region);
+      cur_access_annotations[region->source.as_or_throw<tvm::tirx::TensorVar>()].push_back(region);
     }
     for (const TensorRegion& region : op->writes) {
-      cur_access_annotations[region->source.as_or_throw<tvm::tirx::BufferVar>()].push_back(region);
+      cur_access_annotations[region->source.as_or_throw<tvm::tirx::TensorVar>()].push_back(region);
     }
     for (auto& p : cur_access_annotations) {
       auto& regions = access_annotations_[p.first];
@@ -301,7 +301,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
                                                       ? op->reads[buffer_index]
                                                       : op->writes[buffer_index];
             explicit_access_annotations_.insert_or_assign(
-                explicit_region->source.as_or_throw<tvm::tirx::BufferVar>(), explicit_region);
+                explicit_region->source.as_or_throw<tvm::tirx::TensorVar>(), explicit_region);
           }
         }
       }
@@ -311,7 +311,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     record_explicit_region(s_tir::attr::explicit_write_region, BufferIndexType::kWrite);
 
     // Step 3. Record relax position of ancestor_loops_
-    for (const BufferVar& buffer : op->alloc_buffers) {
+    for (const TensorVar& buffer : op->alloc_buffers) {
       RecordBufferDefinition(buffer.var());
     }
     // Step 4. Visit match buffers
@@ -332,7 +332,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     // Step 7. Clear explicit access annotations
     explicit_access_annotations_.clear();
     // Step 8. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
-    for (const BufferVar& buffer : op->alloc_buffers) {
+    for (const TensorVar& buffer : op->alloc_buffers) {
       TVM_FFI_ICHECK_EQ(var2buffer_[buffer.var()].size(), 1)
           << "Block allocation buffer shoud not be alised";
       SimplifyAndNarrowBufferRegionFromNDIntSet(buffer);
@@ -347,8 +347,8 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> DispatchAllocTensor(const BindNode* op) {
     // AllocTensor is flat: register the buffer def and track for post-scope compaction.
-    RecordBufferDefinition(op->var.as_or_throw<BufferVar>().var());
-    pending_flat_alloc_buffers_.push_back(op->var.as_or_throw<BufferVar>());
+    RecordBufferDefinition(op->var.as_or_throw<TensorVar>().var());
+    pending_flat_alloc_buffers_.push_back(op->var.as_or_throw<TensorVar>());
     return StmtExprVisitor::Visit_(op);
   }
 
@@ -383,7 +383,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitBufferAccess(const TensorRegion& buffer_region) {
-    const BufferVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::BufferVar>();
+    const TensorVar& buffer = buffer_region->source.as_or_throw<tvm::tirx::TensorVar>();
     auto it = buffer_scope_depth_.find(buffer.var());
     if (it != buffer_scope_depth_.end()) {
       size_t n_ancestor_loops = it->second;
@@ -436,7 +436,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     if (it == var2buffer_.end()) {
       return;
     }
-    for (const BufferVar& buffer : it->second) {
+    for (const TensorVar& buffer : it->second) {
       auto annotation_it = access_annotations_.find(buffer);
       if (annotation_it != access_annotations_.end()) {
         // opaque buffer has explicit accessed region annotations
@@ -464,7 +464,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
    * Update the `relaxed_accesses_` dict. If `collect_inbound_` is true,
    * the result region would never exceed the original buffer shape.
    */
-  void SimplifyAndNarrowBufferRegionFromNDIntSet(const BufferVar& buffer) {
+  void SimplifyAndNarrowBufferRegionFromNDIntSet(const TensorVar& buffer) {
     auto it = relaxed_accesses_.find(buffer);
     TVM_FFI_ICHECK(it != relaxed_accesses_.end())
         << buffer << " is allocated but not accessed within block scope";
@@ -529,7 +529,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
    */
   void CompactPendingFlatAllocTensors(size_t n_before = 0) {
     for (size_t i = n_before; i < pending_flat_alloc_buffers_.size(); ++i) {
-      const BufferVar& buf = pending_flat_alloc_buffers_[i];
+      const TensorVar& buf = pending_flat_alloc_buffers_[i];
       auto it = relaxed_accesses_.find(buf);
       if (it != relaxed_accesses_.end()) {
         SimplifyAndNarrowBufferRegionFromNDIntSet(buf);
@@ -543,7 +543,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /*! \brief Only collect accessed region within original buffer shape bound. */
   bool collect_inbound_{true};
   /*! \brief Pending flat AllocTensor nodes to compact when leaving scope. */
-  std::vector<BufferVar> pending_flat_alloc_buffers_;
+  std::vector<TensorVar> pending_flat_alloc_buffers_;
 
   /*! \brief The iteration scopes from the current node up to the root. */
   std::vector<IterVar> ancestor_iters_;
@@ -556,7 +556,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   std::unordered_map<Var, size_t> buffer_scope_depth_;
 
   /*! \brief Map the buffer var to all aliased buffers. */
-  std::unordered_map<Var, std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
+  std::unordered_map<Var, std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>>
       var2buffer_;
 
   /*! \brief The map from loop vars to their iter range. */
@@ -567,23 +567,23 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   std::vector<PrimExpr> pending_conditions_;
   /*! \brief The analyzer aware of loop domains. */
   sym::Analyzer dom_analyzer_;
-  /*! \brief The map from BufferVar to it's relaxed access set. */
-  std::unordered_map<BufferVar, NDIntSet, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  /*! \brief The map from TensorVar to it's relaxed access set. */
+  std::unordered_map<TensorVar, NDIntSet, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       relaxed_accesses_;
 
   /*!
-   * \brief The map from BufferVar to it entire access region, used for returning.
+   * \brief The map from TensorVar to it entire access region, used for returning.
    * The entire access region should get updated on the buffer's define point
    * and we sanity check that every buffer is defined only once.
    */
-  std::unordered_map<BufferVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       buffer_access_region_;
 
-  /*! \brief The map from BufferVar to it's access regions annotated by current block. */
-  std::unordered_map<BufferVar, std::vector<TensorRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  /*! \brief The map from TensorVar to it's access regions annotated by current block. */
+  std::unordered_map<TensorVar, std::vector<TensorRegion>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       access_annotations_;
-  /*! \brief The map from BufferVar to its explicit access region annotated by the block. */
-  std::unordered_map<BufferVar, TensorRegion, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  /*! \brief The map from TensorVar to its explicit access region annotated by the block. */
+  std::unordered_map<TensorVar, TensorRegion, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       explicit_access_annotations_;
 };
 
@@ -604,7 +604,7 @@ struct BufferAllocInfo {
    * \brief The reallocated buffer with minimal size.
    * \note The value if std::nullopt if the buffer do not need reallocate (e.g parameter buffer).
    */
-  BufferVar new_buffer{ffi::UnsafeInit{}};
+  TensorVar new_buffer{ffi::UnsafeInit{}};
 };
 
 /*! \brief Reallocate the buffers with minimal region. */
@@ -617,7 +617,7 @@ class BufferCompactor : public StmtExprMutator {
       : buffer_info_(std::move(buffer_info)) {}
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _op, InplaceMode inplace_mode) final {
-    BufferVar original_buffer = _op->buffer;
+    TensorVar original_buffer = _op->buffer;
     BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
                             .as_or_throw<BufferStore>();
@@ -627,14 +627,14 @@ class BufferCompactor : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* _op, InplaceMode inplace_mode) final {
-    BufferVar original_buffer = _op->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar original_buffer = _op->source.as_or_throw<tvm::tirx::TensorVar>();
     TensorLoad load = StmtExprMutator::Mutate_(_op, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<PrimExpr>(_op))
                           .as_or_throw<TensorLoad>();
-    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
     ffi::Array<PrimExpr> indices = load->indices;
     RewriteBufferAccess(original_buffer, &buffer, &indices);
-    return BufferLoad(buffer, indices, load->span);
+    return MakeTensorLoad(buffer, indices, load->span);
   }
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
@@ -647,7 +647,7 @@ class BufferCompactor : public StmtExprMutator {
     RewriteBufferRegions(&n->writes);
     RewriteMatchBuffers(&n->match_buffers);
     n->alloc_buffers =
-        op->alloc_buffers.Map([this](const BufferVar& buf) { return RewriteAllocTensor(buf); });
+        op->alloc_buffers.Map([this](const TensorVar& buf) { return RewriteAllocTensor(buf); });
     // Recursively rewrite the body after installing the allocation remaps.
     return StmtExprMutator::Mutate_(block.get(),
                                     block.unique() ? inplace_mode : InplaceMode::kDisallow)
@@ -660,8 +660,8 @@ class BufferCompactor : public StmtExprMutator {
                   !call->op.same_as(tirx::builtin::decl_tensor()))) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
-    BufferVar buffer = op->var.as_or_throw<BufferVar>();
-    BufferVar new_buffer = RewriteAllocTensor(buffer);
+    TensorVar buffer = op->var.as_or_throw<TensorVar>();
+    TensorVar new_buffer = RewriteAllocTensor(buffer);
     bool is_alloc = call->op.same_as(tirx::builtin::alloc_tensor());
     if (new_buffer.same_as(buffer) ||
         (is_alloc &&
@@ -680,10 +680,10 @@ class BufferCompactor : public StmtExprMutator {
     return StmtExprMutator::Mutate_(binding.get(), inplace_mode).ValueOrUnchanged(binding);
   }
 
-  BufferVar RewriteAllocTensor(const BufferVar& buffer) {
+  TensorVar RewriteAllocTensor(const TensorVar& buffer) {
     auto it = buffer_info_.find(buffer.var());
     if (it != buffer_info_.end()) {
-      const BufferVar& new_buffer = it->second.new_buffer;
+      const TensorVar& new_buffer = it->second.new_buffer;
       if (!new_buffer.same_as(buffer)) {
         VarRemapSet(buffer, new_buffer);
       }
@@ -692,7 +692,7 @@ class BufferCompactor : public StmtExprMutator {
     return buffer;
   }
 
-  void RewriteBufferAccess(const BufferVar& original_buffer, BufferVar* buffer,
+  void RewriteBufferAccess(const TensorVar& original_buffer, TensorVar* buffer,
                            ffi::Array<PrimExpr>* indices) const {
     auto it = buffer_info_.find(original_buffer.var());
     if (it == buffer_info_.end()) {
@@ -710,7 +710,7 @@ class BufferCompactor : public StmtExprMutator {
     *indices = std::move(new_indices);
   }
 
-  void RewriteBufferRegion(BufferVar* buffer, Region* region) const {
+  void RewriteBufferRegion(TensorVar* buffer, Region* region) const {
     auto it = buffer_info_.find((*buffer).var());
     if (it == buffer_info_.end()) {
       // Skip if the buffer is parameter
@@ -734,7 +734,7 @@ class BufferCompactor : public StmtExprMutator {
     for (const auto& region : *regions) {
       TensorRegion buffer_region = region;
       TensorRegionNode* p = buffer_region.CopyOnWrite();
-      BufferVar source = p->source.as_or_throw<tvm::tirx::BufferVar>();
+      TensorVar source = p->source.as_or_throw<tvm::tirx::TensorVar>();
       RewriteBufferRegion(&source, &p->region);
       p->source = source;
       new_regions.push_back(buffer_region);
@@ -748,7 +748,7 @@ class BufferCompactor : public StmtExprMutator {
     for (const auto& match_buffer : *match_buffers) {
       const TensorRegion& buffer_region = match_buffer->source;
       auto p = ffi::make_object<TensorRegionNode>(*buffer_region.get());
-      BufferVar source = p->source.as_or_throw<tvm::tirx::BufferVar>();
+      TensorVar source = p->source.as_or_throw<tvm::tirx::TensorVar>();
       RewriteBufferRegion(&source, &p->region);
       p->source = source;
       result.push_back(MatchBufferRegion(match_buffer->buffer, TensorRegion(p)));
@@ -787,12 +787,12 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
 
 Stmt BufferCompactorCompact(
     const PrimFunc& f,
-    const std::unordered_map<BufferVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& regions,
+    const std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& regions,
     const std::unordered_map<Var, StorageAlignAnnotation>& storage_align) {
   // collect buffer allocation info for no-alias buffers
   std::unordered_map<Var, BufferAllocInfo> buffer_info;
   for (const auto& kv : regions) {
-    const BufferVar& buffer = kv.first;
+    const TensorVar& buffer = kv.first;
     // set dim alignment info
     Region region = kv.second;
     BufferAllocInfo alloc_info;
@@ -814,7 +814,7 @@ Stmt BufferCompactorCompact(
     ffi::ObjectPtr<TensorTypeNode> n = CopyTensorType(buffer);
     n->shape = std::move(shape);
     n->strides = std::move(strides);
-    alloc_info.new_buffer = RebuildBufferVar(buffer, std::move(n));
+    alloc_info.new_buffer = RebuildTensorVar(buffer, std::move(n));
     alloc_info.region = region;
     buffer_info.emplace(buffer.var(), std::move(alloc_info));
   }

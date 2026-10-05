@@ -94,10 +94,10 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     Dispatch(obj, path);
   }
 
-  // Visit a buffer at a use site (BufferLoad, BufferStore, reads/writes).
+  // Visit a buffer at a use site (TensorLoad, BufferStore, reads/writes).
   // By default, does not re-visit buffer fields (shape, strides, elem_offset),
   // as those are visited at the definition site via EnterDef.
-  virtual void VisitBufferUse(const BufferVar& obj, ffi::reflection::AccessPath path);
+  virtual void VisitBufferUse(const TensorVar& obj, ffi::reflection::AccessPath path);
 
   // Visit type metadata through its reflected fields, preserving source access paths.
   virtual void Visit(const Type& obj, ffi::reflection::AccessPath path);
@@ -270,7 +270,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
     }
   }
 
-  std::vector<DefContext<Var>> WithMatchBufferDefs(BufferVar buf,
+  std::vector<DefContext<Var>> WithMatchBufferDefs(TensorVar buf,
                                                    ffi::reflection::AccessPath path) {
     std::vector<DefContext<Var>> context;
 

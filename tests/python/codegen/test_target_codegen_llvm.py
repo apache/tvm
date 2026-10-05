@@ -1052,7 +1052,7 @@ def test_debug_symbol_for_float64():
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_debug_symbol_for_buffer_var():
-    """BufferVars use their physical data pointer type in LLVM debug info."""
+    """TensorVars use their physical data pointer type in LLVM debug info."""
 
     @I.ir_module
     class Module:

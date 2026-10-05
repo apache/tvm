@@ -58,10 +58,10 @@ class CollectManagedAllocations : public StmtExprVisitor {
 class BufferAllocateOrderCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
-  static ffi::Array<BufferVar> Collect(const PrimFunc& func) {
+  static ffi::Array<TensorVar> Collect(const PrimFunc& func) {
     auto collector = ffi::make_object<BufferAllocateOrderCollector>();
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>()) {
+      if (auto buffer = param.as<TensorVar>()) {
         collector->buffer_alloc_recorder_.push_back(buffer.value());
       }
     }
@@ -70,21 +70,21 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
   }
 
  private:
-  bool find(const BufferVar& buf) {
+  bool find(const TensorVar& buf) {
     return std::find(buffer_alloc_recorder_.begin(), buffer_alloc_recorder_.end(), buf) !=
            buffer_alloc_recorder_.end();
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const SBlockNode* op) final {
-    for (const BufferVar& buffer : op->alloc_buffers) {
+    for (const TensorVar& buffer : op->alloc_buffers) {
       buffer_alloc_recorder_.push_back(buffer);
     }
     // Also visit match_buffers to collect buffers that only appear in read and match_buffer
     // regions.
     for (const auto& region : op->match_buffers) {
-      if (!find(region->source->source.as_or_throw<tvm::tirx::BufferVar>())) {
+      if (!find(region->source->source.as_or_throw<tvm::tirx::TensorVar>())) {
         buffer_alloc_recorder_.push_back(
-            region->source->source.as_or_throw<tvm::tirx::BufferVar>());
+            region->source->source.as_or_throw<tvm::tirx::TensorVar>());
       }
     }
 
@@ -92,8 +92,8 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    if (!find(op->source.as_or_throw<tvm::tirx::BufferVar>())) {
-      buffer_alloc_recorder_.push_back(op->source.as_or_throw<tvm::tirx::BufferVar>());
+    if (!find(op->source.as_or_throw<tvm::tirx::TensorVar>())) {
+      buffer_alloc_recorder_.push_back(op->source.as_or_throw<tvm::tirx::TensorVar>());
     }
     return StmtExprVisitor::Visit_(op);
   }
@@ -106,7 +106,7 @@ class BufferAllocateOrderCollector : public StmtExprVisitor {
   }
 
   /*! \brief The buffer allocated order recorder. */
-  ffi::Array<BufferVar> buffer_alloc_recorder_;
+  ffi::Array<TensorVar> buffer_alloc_recorder_;
 };
 
 class BufferAllocationLocator : public StmtExprMutator {
@@ -115,17 +115,17 @@ class BufferAllocationLocator : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
 
   explicit BufferAllocationLocator(const PrimFunc& func) {
-    ffi::Map<BufferVar, ffi::Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
+    ffi::Map<TensorVar, ffi::Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
     // The buffer_alloc_recorder Array is used to keep the buffer allocation order
     // since the buffer_lca Map is unordered.
-    ffi::Array<BufferVar> buffer_alloc_recorder = BufferAllocateOrderCollector::Collect(func);
+    ffi::Array<TensorVar> buffer_alloc_recorder = BufferAllocateOrderCollector::Collect(func);
     std::unordered_set<const VarNode*> arg_buffer_vars;
     auto collector = ffi::make_object<CollectManagedAllocations>();
     collector->Visit(func->body);
     managed_allocations_ = collector->managed_allocations;
 
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>()) {
+      if (auto buffer = param.as<TensorVar>()) {
         arg_buffer_vars.emplace(buffer.value().get());
         buffer_data_to_buffer_.Set(buffer.value().var(), buffer.value());
       }
@@ -152,15 +152,15 @@ class BufferAllocationLocator : public StmtExprMutator {
     if (it == alloc_buffers_.end()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
-    for (const BufferVar& buf : it->second) {
+    for (const TensorVar& buf : it->second) {
       buffer_data_to_buffer_.Set(buf.var(), buf);
     }
     auto node = StmtExprMutator::Mutate_(op, inplace_mode)
                     .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                     .as_or_throw<For>();
 
-    ffi::Array<BufferVar> new_block_alloc_bufs;
-    for (const BufferVar& buf : it->second) {
+    ffi::Array<TensorVar> new_block_alloc_bufs;
+    for (const TensorVar& buf : it->second) {
       if (managed_allocations_.count(buf.get())) {
         buffer_data_to_buffer_.erase(buf.var());
         new_block_alloc_bufs.push_back(buf);
@@ -176,17 +176,17 @@ class BufferAllocationLocator : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     TVM_FFI_ICHECK(!op->init.has_value());
-    ffi::Array<BufferVar> alloc_buffers;
+    ffi::Array<TensorVar> alloc_buffers;
     auto it = alloc_buffers_.find(op);
     if (it != alloc_buffers_.end()) {
       alloc_buffers = it->second;
-      for (const BufferVar& buf : it->second) {
+      for (const TensorVar& buf : it->second) {
         buffer_data_to_buffer_.Set(buf.var(), buf);
       }
     }
     for (const MatchBufferRegion match_buffer : op->match_buffers) {
       const Var target_var = match_buffer->buffer.var();
-      const Var source_var = match_buffer->source->source.as_or_throw<tvm::tirx::BufferVar>().var();
+      const Var source_var = match_buffer->source->source.as_or_throw<tvm::tirx::TensorVar>().var();
       TVM_FFI_ICHECK(buffer_data_to_buffer_.count(source_var));
       buffer_data_to_buffer_.Set(target_var, match_buffer->buffer);
     }
@@ -204,7 +204,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     }
     // No longer consider buffers allocated inside the block when updating access region.
     if (it != alloc_buffers_.end()) {
-      for (const BufferVar& buf : it->second) {
+      for (const TensorVar& buf : it->second) {
         buffer_data_to_buffer_.erase(buf.var());
       }
     }
@@ -217,7 +217,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     return stmt;
   }
 
-  Stmt InjectOpaqueBlock(Stmt body, const ffi::Array<BufferVar>& alloc_buffers) {
+  Stmt InjectOpaqueBlock(Stmt body, const ffi::Array<TensorVar>& alloc_buffers) {
     TVM_FFI_ICHECK(!alloc_buffers.empty());
     SBlock opaque_block(/*iter_vars=*/{},
                         /*reads=*/{},
@@ -240,7 +240,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     ffi::Array<TensorRegion> result;
     for (const TensorRegion& buffer_region : region) {
       if (buffer_data_to_buffer_.count(
-              buffer_region->source.as_or_throw<tvm::tirx::BufferVar>().var())) {
+              buffer_region->source.as_or_throw<tvm::tirx::TensorVar>().var())) {
         result.push_back(buffer_region);
       }
     }
@@ -248,9 +248,9 @@ class BufferAllocationLocator : public StmtExprMutator {
   }
 
   /*! \brief The map from stmt to the buffers to be allocated under it. */
-  std::unordered_map<const StmtNode*, ffi::Array<BufferVar>> alloc_buffers_;
+  std::unordered_map<const StmtNode*, ffi::Array<TensorVar>> alloc_buffers_;
   /*! \brief The buffer already allocated during recursive visiting. */
-  ffi::Map<Var, BufferVar> buffer_data_to_buffer_;
+  ffi::Map<Var, TensorVar> buffer_data_to_buffer_;
   /*! \brief Buffers that are allocated within a BlockNode, and may be moved. */
   std::unordered_set<const VarNode*> managed_allocations_;
 };

@@ -502,7 +502,7 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
 
   explicit BufferIndicesMapExtractor(Var loop_var) : loop_var_(loop_var) {}
 
-  static ffi::Map<BufferVar, ffi::Array<Var>> Extract(Var loop_var, SBlock& block) {
+  static ffi::Map<TensorVar, ffi::Array<Var>> Extract(Var loop_var, SBlock& block) {
     auto extractor = ffi::make_object<BufferIndicesMapExtractor>(loop_var);
     extractor->Visit(std::move(block->body));
     return extractor->buffer_indices_map;
@@ -536,7 +536,7 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
       }
       indices.push_back(var.value());
     }
-    BufferVar buffer = load->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
     if (buffer_indices_map.find(buffer) == buffer_indices_map.end() && !check_) {
       buffer_indices_map.Set(buffer, indices);
     }
@@ -544,17 +544,17 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
   }
 
   Var loop_var_;
-  ffi::Map<BufferVar, ffi::Array<Var>> buffer_indices_map;
+  ffi::Map<TensorVar, ffi::Array<Var>> buffer_indices_map;
 };
 
-ffi::Array<TensorRegion> MutateBufferRegion(ffi::Map<BufferVar, ffi::Array<Var>> buffer_indices_map,
+ffi::Array<TensorRegion> MutateBufferRegion(ffi::Map<TensorVar, ffi::Array<Var>> buffer_indices_map,
                                             ffi::Map<Var, Range> index_range_map,
                                             ffi::Array<TensorRegion> region_arr) {
   // Update the region with new Ranges and return new TensorRegion
   ffi::Array<TensorRegion> new_region_arr =
       region_arr.Map([&buffer_indices_map, &index_range_map](const TensorRegion& region) {
         TensorRegion new_region = region;
-        auto it = buffer_indices_map.find(new_region->source.as_or_throw<BufferVar>());
+        auto it = buffer_indices_map.find(new_region->source.as_or_throw<TensorVar>());
         if (it == buffer_indices_map.end()) return new_region;
 
         ffi::Array<Var> old_indices = (*it).second;
@@ -623,8 +623,8 @@ class BlockMutator : public StmtExprMutator {
       index_range_map.Set(_op->iter_vars[i]->var, iter->dom);
     }
 
-    // Get the (BufferVar, indices) map
-    ffi::Map<BufferVar, ffi::Array<Var>> buffer_indices_map =
+    // Get the (TensorVar, indices) map
+    ffi::Map<TensorVar, ffi::Array<Var>> buffer_indices_map =
         BufferIndicesMapExtractor::Extract(new_loop_var_, new_block);
     ffi::Array<TensorRegion> new_writes =
         MutateBufferRegion(buffer_indices_map, index_range_map, new_block->writes);

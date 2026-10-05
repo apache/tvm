@@ -180,7 +180,7 @@ def extract_func_info_from_prim_func(
     func_args = []
     dym_var = {}
     for param in func.params:
-        if not tvm.tirx.is_buffer_var(param):
+        if not tvm.tirx.is_tensor_var(param):
             continue
         buffer = param
         shape = []

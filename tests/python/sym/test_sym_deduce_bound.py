@@ -228,7 +228,7 @@ def test_deduce_non_support():
     test_non_support(tvm.tirx.EQ(a, 16))
     test_non_support(tvm.tirx.NE(a, 16))
     test_non_support(tvm.tirx.log(a))
-    test_non_support(tvm.tirx.BufferLoad(decl_tensor([16], "int32"), [a]))
+    test_non_support(tvm.tirx.TensorLoad(decl_tensor([16], "int32"), [a]))
 
 
 def test_deduce_floordiv():

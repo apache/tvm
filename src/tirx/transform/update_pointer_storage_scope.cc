@@ -52,10 +52,10 @@ UpdatePointerStorageScope::UpdatePointerStorageScope(
         new_storage_scopes) {
   for (auto& kv : new_storage_scopes) {
     if (kv.first->ty.as<TensorTypeNode>()) {
-      BufferVar buffer = GetBufferVar(kv.first.get());
+      TensorVar buffer = GetTensorVar(kv.first.get());
       auto type = CopyTensorType(buffer);
       type->storage_scope = kv.second;
-      BufferVar replacement = RebuildBufferVar(buffer, std::move(type));
+      TensorVar replacement = RebuildTensorVar(buffer, std::move(type));
       VarRemapSet(kv.first, replacement);
     } else {
       VarRemapSet(kv.first, WithStorageScope(kv.first.get(), kv.second));
@@ -68,7 +68,7 @@ UnchangedOr<Stmt> UpdatePointerStorageScope::Mutate_(const BindNode* op, Inplace
   if (call &&
       (call->op.same_as(builtin::alloc_tensor()) || call->op.same_as(builtin::decl_tensor()))) {
     if (auto mapped = VarRemapGet(op->var); mapped != nullptr) {
-      buffer_scopes_.emplace(call, mapped.as_or_throw<BufferVar>().scope());
+      buffer_scopes_.emplace(call, mapped.as_or_throw<TensorVar>().scope());
       auto result = StmtExprMutator::Mutate_(op, inplace_mode);
       buffer_scopes_.erase(call);
       return result;

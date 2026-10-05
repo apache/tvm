@@ -470,8 +470,8 @@ class HoistExpressionConfig(_ffi.Object):
 
 
 def FlattenBuffer():
-    """Flatten the multi-dimensional BufferLoad and BufferStore to single dimensional
-    BufferLoad/BufferStore for the TIR not contains opaque block.
+    """Flatten the multi-dimensional TensorLoad and BufferStore to single dimensional
+    TensorLoad/BufferStore for the TIR not contains opaque block.
 
     Returns
     -------

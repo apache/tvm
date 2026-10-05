@@ -77,7 +77,7 @@ class ExprTouched final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
-    HandleUseVar(op->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    HandleUseVar(op->source.as_or_throw<tvm::tirx::TensorVar>().get());
     return StmtExprVisitor::Visit_(op);
   }
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
@@ -195,7 +195,7 @@ class VarTouchedAnalysis : public StmtExprVisitor {
     for (const Expr& extent : shape->fields) {
       expr_touched_->Visit(extent);
     }
-    Record(op->var.as_or_throw<BufferVar>().get(), *expr_touched_);
+    Record(op->var.as_or_throw<TensorVar>().get(), *expr_touched_);
     return StmtExprVisitor::Visit_(op);
   }
   void Record(const VarNode* var, const ExprTouched& tc) {
@@ -270,7 +270,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   }
   // Variable
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
-    if (!op->source.as<BufferVar>()) {
+    if (!op->source.as<TensorVar>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
@@ -283,7 +283,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   UnchangedOr<Expr> Mutate_(const VarNode* op, InplaceMode inplace_mode) final {
     if (def_region_kind() == kTVMFFIDefRegionKindNone) {
       TVM_FFI_ICHECK(!alloc_remap_.count(op))
-          << "BufferVar address may get rewritten in virtual thread";
+          << "TensorVar address may get rewritten in virtual thread";
       if (touched_var_.count(op)) {
         visit_touched_var_ = true;
       }
@@ -298,7 +298,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     if (op->op.same_as(tirx::builtin::masked_load()) ||
         op->op.same_as(tirx::builtin::masked_store())) {
       bool is_load = op->op.same_as(tirx::builtin::masked_load());
-      BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
+      TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
       ffi::Optional<PrimExpr> value;
       if (!is_load)
         value = Mutate(op->args[1]).ValueOrUnchanged(op->args[1]).as_or_throw<PrimExpr>();
@@ -311,8 +311,8 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
                                .ValueOrUnchanged(op->args[op->args.size() - 1])
                                .as_or_throw<PrimExpr>();
       if (is_load) {
-        TensorLoad access = VisitBufferAccess(BufferLoad(buffer, indices, op->span));
-        ffi::Array<Expr> args{access->source.as_or_throw<tvm::tirx::BufferVar>().var()};
+        TensorLoad access = VisitBufferAccess(MakeTensorLoad(buffer, indices, op->span));
+        ffi::Array<Expr> args{access->source.as_or_throw<tvm::tirx::TensorVar>().var()};
         for (const PrimExpr& index : access->indices) args.push_back(index);
         args.push_back(predicate);
         return Call(op->ty, op->op, args, op->attrs, op->ty_args, op->span);
@@ -329,7 +329,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
       visit_touched_var_ = true;
-      return GetRemappedBuffer(buffer.as_or_throw<BufferVar>(), it->second).data();
+      return GetRemappedBuffer(buffer.as_or_throw<TensorVar>(), it->second).data();
     } else if (op->op.same_as(tirx::builtin::tvm_access_ptr())) {
       TVM_FFI_ICHECK_EQ(op->args.size(), 5U);
       PrimType dtype = op->args[0].as_or_throw<PrimExpr>().ty();
@@ -346,7 +346,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
       offset = RewriteIndex(offset, stride);
       Expr data =
           buffer.value()->ty.as<TensorTypeNode>()
-              ? GetRemappedBuffer(buffer.value().as_or_throw<BufferVar>(), it->second).data()
+              ? GetRemappedBuffer(buffer.value().as_or_throw<TensorVar>(), it->second).data()
               : op->args[1];
 
       return Call(op->ty, op->op, {op->args[0], data, offset, extent, op->args[4]});
@@ -358,7 +358,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     trigger_base_inject_ = !allow_share_;
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
-  // BufferLoad
+  // TensorLoad
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
     TensorLoad node = ffi::GetRef<TensorLoad>(op);
@@ -400,7 +400,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   }
 
   TensorLoad VisitBufferAccess(TensorLoad node) {
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = node->source.as_or_throw<tvm::tirx::TensorVar>();
     if (touched_var_.count(buffer.get())) {
       visit_touched_var_ = true;
     }
@@ -414,15 +414,15 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
     return node;
   }
 
-  BufferVar GetRemappedBuffer(BufferVar buf, PrimExpr alloc_extent) {
-    if (auto replacement = VarRemapGet(buf).as<BufferVar>()) return replacement.value();
-    BufferVar original = buf;
+  TensorVar GetRemappedBuffer(TensorVar buf, PrimExpr alloc_extent) {
+    if (auto replacement = VarRemapGet(buf).as<TensorVar>()) return replacement.value();
+    TensorVar original = buf;
 
     TVM_FFI_ICHECK_EQ(buf->shape.size(), 1)
         << "Expected buffers being rewritten to already be flattened.";
     auto writer = CopyTensorType(buf);
     writer->shape = {buf->shape[0] * alloc_extent};
-    buf = RebuildBufferVar(buf, std::move(writer));
+    buf = RebuildTensorVar(buf, std::move(writer));
 
     VarRemapSet(original, buf);
     return buf;
@@ -607,21 +607,21 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
 
     visit_touched_var_ = false;
 
-    if (touched_var_.count(op->var.as_or_throw<BufferVar>().get()) || !allow_share_) {
+    if (touched_var_.count(op->var.as_or_throw<TensorVar>().get()) || !allow_share_) {
       TVM_FFI_ICHECK_EQ(new_shape.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
       PrimExpr stride = new_shape[0];
       new_shape = {stride * num_threads_};
-      alloc_remap_.insert_or_assign(op->var.as_or_throw<BufferVar>().get(), stride);
+      alloc_remap_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(), stride);
     }
 
     if (new_shape.same_as(original_shape)) {
       return ffi::Unchanged();
     } else {
-      auto type = CopyTensorType(op->var.as_or_throw<BufferVar>());
+      auto type = CopyTensorType(op->var.as_or_throw<TensorVar>());
       type->shape = new_shape;
-      BufferVar new_buffer = RebuildBufferVar(op->var.as_or_throw<BufferVar>(), std::move(type));
-      VarRemapSet(op->var.as_or_throw<BufferVar>(), new_buffer);
+      TensorVar new_buffer = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
+      VarRemapSet(op->var.as_or_throw<TensorVar>(), new_buffer);
       return Bind(new_buffer.var(),
                   Call(new_buffer.type(), tirx::builtin::alloc_tensor(),
                        {tvm::Tuple(new_buffer->shape, call->args[0]->span),
@@ -696,7 +696,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
    *
    * Maps from the buffer_var of an allocate node to the original
    * extent of the allocation.  Used when rewriting the indices of
-   * BufferLoad/BufferStore.
+   * TensorLoad/BufferStore.
    */
   std::unordered_map<const VarNode*, PrimExpr> alloc_remap_;
   /*! \brief Map of buffers that are modified.

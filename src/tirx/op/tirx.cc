@@ -48,8 +48,8 @@ Value getOrSetDefault(ffi::Map<ffi::String, ffi::ObjectRef>& m, const Key& key,
 
 /********************* DispatchContext **********************/
 
-void DispatchContextNode::AddAllocBuffer(BufferVar buffer) {
-  auto buffers = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<BufferVar>());
+void DispatchContextNode::AddAllocBuffer(TensorVar buffer) {
+  auto buffers = getOrSetDefault(callbacks, callback::kPrivateAlloc, ffi::Array<TensorVar>());
   buffers.push_back(buffer);
   callbacks.Set(callback::kPrivateAlloc, buffers);
 }
@@ -61,9 +61,9 @@ void DispatchContextNode::AddInitStmt(Stmt stmt, bool host) {
   callbacks.Set(tag, stmts);
 }
 
-void DispatchContextNode::AddPostBufferDefStmt(BufferVar buffer, Stmt stmt) {
+void DispatchContextNode::AddPostBufferDefStmt(TensorVar buffer, Stmt stmt) {
   auto mapping = getOrSetDefault(callbacks, callback::kPostBufferDefStmt,
-                                 ffi::Map<BufferVar, ffi::Array<Stmt>>());
+                                 ffi::Map<TensorVar, ffi::Array<Stmt>>());
   auto it = mapping.find(buffer);
   ffi::Array<Stmt> stmts;
   if (it != mapping.end()) {

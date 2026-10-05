@@ -91,8 +91,8 @@ class RenewDefMutator : public StmtExprMutator {
         op->iter_vars.Map(std::bind(&RenewDefMutator::VisitIterVar, this, std::placeholders::_1));
 
     // Step 1. Re-define buffers allocated under the block
-    ffi::Array<BufferVar> alloc_buffers = op->alloc_buffers.Map([this](const BufferVar& buf) {
-      return this->ReDefineVar(buf.var()).as_or_throw<BufferVar>();
+    ffi::Array<TensorVar> alloc_buffers = op->alloc_buffers.Map([this](const TensorVar& buf) {
+      return this->ReDefineVar(buf.var()).as_or_throw<TensorVar>();
     });
 
     // Step 2. Re-define match_buffers
@@ -152,7 +152,7 @@ class RenewDefMutator : public StmtExprMutator {
   }
 
   MatchBufferRegion VisitMatchBuffer(const MatchBufferRegion& match_buffer) {
-    BufferVar buffer = ReDefineVar(match_buffer->buffer.var()).as_or_throw<BufferVar>();
+    TensorVar buffer = ReDefineVar(match_buffer->buffer.var()).as_or_throw<TensorVar>();
     TensorRegion region = VisitBufferRegion(match_buffer->source);
     return MatchBufferRegion(std::move(buffer), std::move(region));
   }

@@ -385,7 +385,7 @@ def test_decl_buffer_is_not_vectorized():
     """StorageRewrite leaves explicit DeclTensor views unchanged.
 
     Vectorization of DeclTensor views was dropped because the rewritten result
-    violates the immutable BufferVar binding invariants.
+    violates the immutable TensorVar binding invariants.
     """
 
     @I.ir_module

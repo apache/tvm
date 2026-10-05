@@ -97,7 +97,7 @@ constexpr const char* kDeviceInitStmt = "device_init_stmt";
  */
 constexpr const char* kHostInitStmt = "host_init_stmt";
 /*! \brief Statements to be inserted after a specific buffer's definition (DeclTensor/AllocTensor).
- *  Stored as Map<BufferVar, ffi::Array<Stmt>>.
+ *  Stored as Map<TensorVar, ffi::Array<Stmt>>.
  */
 constexpr const char* kPostBufferDefStmt = "post_buffer_def_stmt";
 }  // namespace callback
@@ -152,13 +152,13 @@ class DispatchContextNode : public ffi::Object {
   }
 
   /*! \brief Add a buffer to be allocated in the kernel. */
-  void AddAllocBuffer(BufferVar buffer);
+  void AddAllocBuffer(TensorVar buffer);
 
   /*! \brief Add an initialization statement to be inserted. */
   void AddInitStmt(Stmt stmt, bool host = false);
 
   /*! \brief Add a statement to be inserted after a buffer's definition. */
-  void AddPostBufferDefStmt(BufferVar buffer, Stmt stmt);
+  void AddPostBufferDefStmt(TensorVar buffer, Stmt stmt);
 
   /*! \brief Set a value in the shared state cache. */
   void SharedStateSet(ffi::String key, ffi::ObjectRef value);
@@ -194,7 +194,7 @@ class TilePrimitiveCallNode : public StmtNode {
   explicit TilePrimitiveCallNode(ffi::UnsafeInit tag) : op(tag) {}
 
   TilePrimitiveCallNode(tvm::Op op, ffi::Array<ffi::Any> args,
-                        ffi::Map<ffi::String, BufferVar> workspace,
+                        ffi::Map<ffi::String, TensorVar> workspace,
                         ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
                         ExecScope scope)
       : op(std::move(op)),
@@ -211,7 +211,7 @@ class TilePrimitiveCallNode : public StmtNode {
   ffi::Array<ffi::Any> args;
 
   // Workspace (pre-allocated buffers) for the operator.
-  ffi::Map<ffi::String, BufferVar> workspace;
+  ffi::Map<ffi::String, TensorVar> workspace;
 
   // Config for the operator/scheduler.
   ffi::Map<ffi::String, ffi::Any> config;
@@ -243,7 +243,7 @@ class TilePrimitiveCallNode : public StmtNode {
 class TilePrimitiveCall : public Stmt {
  public:
   TVM_DLL TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
-                            ffi::Map<ffi::String, BufferVar> workspace = {},
+                            ffi::Map<ffi::String, TensorVar> workspace = {},
                             ffi::Map<ffi::String, ffi::Any> config = {},
                             ffi::Optional<ffi::String> dispatch = std::nullopt,
                             ExecScope scope = ExecScope(ScopeKind::kThread));
@@ -287,7 +287,7 @@ TVM_DLL const Op& fill();
 /*!
  * \brief See pesudo code below:
  *
- * Tx.gemm(BufferVar A, BufferVar B, BufferVar C, BufferVar D, PrimExpr alpha, PrimExpr beta)
+ * Tx.gemm(TensorVar A, TensorVar B, TensorVar C, TensorVar D, PrimExpr alpha, PrimExpr beta)
  */
 TVM_DLL const Op& gemm();
 

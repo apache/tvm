@@ -89,7 +89,7 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   }
 
   for (size_t i = 0; i < func->params.size(); i++) {
-    if (auto opt = func->params[i].as<BufferVar>()) {
+    if (auto opt = func->params[i].as<TensorVar>()) {
       auto buf = opt.value();
       auto buf_path = ppath->ArrayItem(i)->Attr("ty");
 
@@ -102,7 +102,7 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   // Only after all the implicit definitions have been visited can we
   // visit the buffer definition itself.
   for (size_t i = 0; i < func->params.size(); i++) {
-    if (auto opt = func->params[i].as<BufferVar>()) {
+    if (auto opt = func->params[i].as<TensorVar>()) {
       context.push_back(WithDef(opt.value().var(), ppath->ArrayItem(i)));
     }
   }
@@ -149,10 +149,10 @@ void TIRVisitorWithPath::Visit(ffi::AnyView obj, AccessPath path) {
 }
 
 // Uses retain their definition's identity without revisiting its type metadata.
-void TIRVisitorWithPath::VisitBufferUse(const BufferVar& buffer, AccessPath path) {}
+void TIRVisitorWithPath::VisitBufferUse(const TensorVar& buffer, AccessPath path) {}
 
 void TIRVisitorWithPath::Visit(const TensorRegion& region, AccessPath path) {
-  if (auto buffer = region->source.as<BufferVar>()) {
+  if (auto buffer = region->source.as<TensorVar>()) {
     VisitBufferUse(buffer.value(), path->Attr("source"));
   } else {
     Visit(region->source, path->Attr("source"));
@@ -262,7 +262,7 @@ void TIRVisitorWithPath::Dispatch_(const tirx::TilePrimitiveCallNode* op, Access
       Visit(expr.value(), path->Attr("args")->ArrayItem(i));
     } else if (auto stmt = op->args[i].as<Stmt>()) {
       Visit(stmt.value(), path->Attr("args")->ArrayItem(i));
-    } else if (auto buf = op->args[i].as<BufferVar>()) {
+    } else if (auto buf = op->args[i].as<TensorVar>()) {
       VisitBufferUse(buf.value(), path->Attr("args")->ArrayItem(i));
     }
   }
@@ -289,7 +289,7 @@ void TIRVisitorWithPath::Dispatch_(const ScopeIdDefStmtNode* op, AccessPath path
 void TIRVisitorWithPath::Dispatch_(const VarNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const TensorLoadNode* op, AccessPath path) {
-  VisitBufferUse(op->source.as_or_throw<tvm::tirx::BufferVar>(), path->Attr("source"));
+  VisitBufferUse(op->source.as_or_throw<tvm::tirx::TensorVar>(), path->Attr("source"));
   Visit(op->indices, path->Attr("indices"));
 }
 
