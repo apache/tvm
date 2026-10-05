@@ -25,6 +25,7 @@
 #include <tvm/tirx/tile_primitive.h>
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <utility>
@@ -78,7 +79,17 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
   }
   ffi::Array<Doc> args;
   size_t n = stmt->args.size();
-  while (n && stmt->args[n - 1].type_index() == ffi::TypeIndex::kTVMFFINone) --n;
+  if (n == 4 && (name == "sqrt" || name == "exp" || name == "exp2" || name == "log2")) {
+    auto is_default = [](const Expr& expr, bool scale) {
+      const auto* value = expr.as<IntImmNode>();
+      return value && value->ty.as_or_throw<PrimType>() == PrimType::Int(32) &&
+             value->value == (scale ? 1 : 0);
+    };
+    if (is_default(stmt->args[3], true)) {
+      n = 3;
+      if (is_default(stmt->args[2], false)) n = 2;
+    }
+  }
   if (n == 2 &&
       (stmt->op->name == "tirx.tile.exp2" || stmt->op->name == "tirx.tile.sqrt" ||
        stmt->op->name == "tirx.tile.reciprocal") &&
@@ -115,7 +126,7 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
       args.push_back(AnyValue(d, stmt->args[i]));
     }
   }
-  auto dict = [&](const auto& source) -> ffi::Optional<DictDoc> {
+  auto dict = [&](const auto& source, bool config = false) -> ffi::Optional<DictDoc> {
     if (source.empty()) return std::nullopt;
     std::vector<std::pair<ffi::String, ffi::Any>> sorted;
     for (const auto& [key, value] : source) sorted.emplace_back(key, value);
@@ -125,6 +136,31 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
     ffi::Array<ExprDoc> values;
     for (const auto& [key, value] : sorted) {
       keys.push_back(LiteralDoc::Str(key, std::nullopt));
+      if (config) {
+        if (const auto* string = value.template as<StringImmNode>()) {
+          values.push_back(LiteralDoc::Str(string->value, std::nullopt));
+          continue;
+        }
+        if (const auto* integer = value.template as<IntImmNode>()) {
+          PrimType type = integer->ty.template as_or_throw<PrimType>();
+          if (type == PrimType::Bool()) {
+            values.push_back(LiteralDoc::Boolean(integer->value != 0, std::nullopt));
+            continue;
+          }
+          int bits = integer->value >= INT32_MIN && integer->value <= INT32_MAX ? 32 : 64;
+          if (type == PrimType::Int(bits)) {
+            values.push_back(LiteralDoc::Int(ffi::GetRef<IntImm>(integer), std::nullopt));
+            continue;
+          }
+        }
+        if (const auto* floating = value.template as<FloatImmNode>()) {
+          if (floating->ty.template as_or_throw<PrimType>() == PrimType::Float(64) &&
+              std::isfinite(floating->value)) {
+            values.push_back(LiteralDoc::Float(floating->value, std::nullopt));
+            continue;
+          }
+        }
+      }
       values.push_back(AnyValue(d, value));
     }
     return DictDoc(keys, values);
@@ -134,7 +170,7 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
     dispatch = LiteralDoc::Str(stmt->dispatch.value(), std::nullopt);
   }
   d->Emit(OpCallDoc(NamespaceDoc("tirx")->Attr(scope)->Attr(name), args, dict(stmt->workspace),
-                    dict(stmt->config), dispatch),
+                    dict(stmt->config, true), dispatch),
           ffi::GetRef<ffi::ObjectRef>(stmt));
   return std::nullopt;
 }

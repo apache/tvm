@@ -18,7 +18,7 @@
 """Implementation of unary with bias and scale operator dispatches."""
 
 from tvm.ir import TensorRegion
-from tvm.tirx import PrimFunc
+from tvm.tirx import IntImm, PrimFunc
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -39,8 +39,8 @@ def unary_with_bias_scale_trn(
 
     # Extract operation arguments with defaults
     dst_buffer_region, src_buffer_region, _bias, scale = op.args
-    scale = 1.0 if scale is None else scale
-    _bias = 0.0 if _bias is None else _bias
+    scale = 1.0 if scale is None or (isinstance(scale, IntImm) and scale.value == 1) else scale
+    _bias = 0.0 if _bias is None or (isinstance(_bias, IntImm) and _bias.value == 0) else _bias
 
     # Initialize analyzer and validate operation type
     analyzer = init_analyzer(sctx)

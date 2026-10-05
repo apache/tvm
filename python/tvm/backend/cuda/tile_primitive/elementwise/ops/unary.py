@@ -28,7 +28,7 @@ from typing import Any
 from tvm.ir import TensorRegion, is_prim_expr
 from tvm.script import tirx as T
 from tvm.tirx import TilePrimitiveCall
-from tvm.tirx.expr import FloatImm
+from tvm.tirx.expr import FloatImm, IntImm
 
 from .._common import scalar_dtype
 from . import OpSpec, Plan, SrcSpec
@@ -58,6 +58,11 @@ def _parse_unary(op: TilePrimitiveCall) -> tuple[Plan | None, str | None]:
         extras["has_bias_buf"] = True
     else:
         extras["has_bias_buf"] = False
+    # Integral zero bias is already absent from bias_const above.  Integral one
+    # scale likewise needs no arithmetic or dtype constraint.  Explicit floating
+    # point operands retain their arithmetic and original dtype validation.
+    if isinstance(_scale, IntImm) and _scale.value == 1 and str(_scale.ty.dtype) == "int32":
+        extras["scale"] = None
     return Plan(dst=_dst, srcs=srcs, extras=extras), None
 
 

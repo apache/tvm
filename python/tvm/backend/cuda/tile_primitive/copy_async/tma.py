@@ -339,6 +339,8 @@ def _target_sm(arch: str) -> int:
 
 
 def _normalize_l2_promotion(value) -> int:
+    if isinstance(value, tvm.ir.StringImm):
+        value = value.value
     if value is None:
         return 2
     if isinstance(value, IntImm):
@@ -360,6 +362,8 @@ def _normalize_l2_promotion(value) -> int:
 
 
 def _normalize_oob(value) -> int:
+    if isinstance(value, tvm.ir.StringImm):
+        value = value.value
     if value is None or value == "zero":
         return 0
     if value == "nan":
@@ -368,6 +372,8 @@ def _normalize_oob(value) -> int:
 
 
 def _normalize_cache_hint(cache_hint):
+    if isinstance(cache_hint, tvm.ir.StringImm):
+        cache_hint = cache_hint.value
     if cache_hint is None:
         return "", None
     if isinstance(cache_hint, str):
@@ -1585,6 +1591,8 @@ def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
             fail("cta_mask is only valid for global-to-shared TMA")
 
     use_tma_reduce = op_call.config.get("use_tma_reduce")
+    if isinstance(use_tma_reduce, tvm.ir.StringImm):
+        use_tma_reduce = use_tma_reduce.value
     if use_tma_reduce is not None:
         if direction != "s2g":
             fail("use_tma_reduce is only valid for shared-to-global TMA")
@@ -1612,7 +1620,7 @@ def _runtime_config(op_call, sctx, direction: str, *, explicit: bool):
         "l2_promotion": _normalize_l2_promotion(op_call.config.get("tensormap_l2_promotion")),
         "oob_fill": _normalize_oob(op_call.config.get("oob")),
         "prefetch": bool(op_call.config.get("prefetch_tensormap", False)),
-        "tma_dtype": op_call.config.get("tma_dtype"),
+        "tma_dtype": (op_call.config["tma_dtype"].value if "tma_dtype" in op_call.config else None),
         "target_arch": sctx.target.arch,
     }
 
@@ -1858,9 +1866,11 @@ def _explicit_spec_for_gmem(
 
 
 def _normalize_gather4(value):
-    if value is None:
+    if value is None or (
+        isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple) and len(value) == 0
+    ):
         return ()
-    if not isinstance(value, list | tuple | tvm.ir.Array) or len(value) != 4:
+    if not isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(value) != 4:
         fail("tma_explicit gather4 must contain exactly four row coordinates")
     return tuple(value)
 
@@ -1899,11 +1909,11 @@ def _validate_gather4_dst(s_buf: Var, s_starts, s_extents, spec: TensorMapSpec) 
 def _normalize_src_selector(value):
     if value is None:
         return ()
-    if not isinstance(value, list | tuple | tvm.ir.Array):
+    if not isinstance(value, list | tuple | tvm.ir.Array | tvm.ir.Tuple):
         fail("tma_explicit src_selector must be a list of (condition, global Var/view)")
     result = []
     for idx, item in enumerate(value):
-        if not isinstance(item, list | tuple | tvm.ir.Array) or len(item) != 2:
+        if not isinstance(item, list | tuple | tvm.ir.Array | tvm.ir.Tuple) or len(item) != 2:
             fail(f"tma_explicit src_selector[{idx}] must be a (condition, Var/view) pair")
         condition, buffer = item
         if not isinstance(condition, tvm.tirx.Expr):

@@ -137,7 +137,7 @@ def _to_region(buffer: TensorRegion | Var):
 
 
 def _wrap_elem_in_tuple(e):
-    if isinstance(e, tuple | list):
+    if isinstance(e, tuple | list | tvm.ir.Array | tvm.ir.Tuple):
         return e
     return (e,)
 
@@ -531,10 +531,15 @@ def _check_copy_regions_match(dst, src, config, name, dispatch=None):
         dst_bits = _payload_bits(dst)
         src_bits = _payload_bits(src)
         gather4 = config.get("gather4")
-        if gather4 is not None:
+        if gather4 is not None and not (
+            isinstance(gather4, list | tuple | tvm.ir.Array | tvm.ir.Tuple) and len(gather4) == 0
+        ):
             if dispatch != "tma_explicit":
                 raise ValueError("copy_async: gather4 is only supported by dispatch='tma_explicit'")
-            if not isinstance(gather4, list | tuple | tvm.ir.Array) or len(gather4) != 4:
+            if (
+                not isinstance(gather4, list | tuple | tvm.ir.Array | tvm.ir.Tuple)
+                or len(gather4) != 4
+            ):
                 raise ValueError("copy_async: gather4 must contain exactly four row coordinates")
             if len(src.region) != 2:
                 raise ValueError("copy_async: gather4 requires a rank-2 global source")

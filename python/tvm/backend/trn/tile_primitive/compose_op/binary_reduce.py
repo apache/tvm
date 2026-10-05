@@ -43,7 +43,9 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
     analyzer = init_analyzer(sctx)
 
     # Normalize negative axes
-    reduce_axes = [i if i >= 0 else len(binary_output.source.ty.shape) + i for i in reduce_axes]
+    reduce_axes = [
+        int(i) if int(i) >= 0 else len(binary_output.source.ty.shape) + int(i) for i in reduce_axes
+    ]
 
     # Find instruction patterns
     inst_gen = InstructionGenerator(

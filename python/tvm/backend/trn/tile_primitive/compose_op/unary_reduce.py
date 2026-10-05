@@ -19,7 +19,7 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx import IntImm, PrimFunc, TilePrimitiveCall
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 from tvm.tirx.operator.tile_primitive.ops import UnaryReduce
 
@@ -43,9 +43,12 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     analyzer = init_analyzer(sctx)
 
     # Normalize axes and default values
-    reduce_axes = [i if i >= 0 else len(unary_output.source.ty.shape) + i for i in op.reduce_axes]
-    scale = 1.0 if scale is None else scale
-    bias = 0.0 if bias is None else bias
+    reduce_axes = [
+        int(i) if int(i) >= 0 else len(unary_output.source.ty.shape) + int(i)
+        for i in op.reduce_axes
+    ]
+    scale = 1.0 if scale is None or (isinstance(scale, IntImm) and scale.value == 1) else scale
+    bias = 0.0 if bias is None or (isinstance(bias, IntImm) and bias.value == 0) else bias
 
     inst_gen = InstructionGenerator([unary_output, unary_input, bias, reduce_output], analyzer)
     reduce_dim_map = get_reduction_dim_map(unary_output, reduce_output, reduce_axes, analyzer)

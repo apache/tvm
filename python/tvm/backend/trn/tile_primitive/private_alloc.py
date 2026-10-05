@@ -21,7 +21,7 @@ from tvm.backend.trn.tile_primitive.common import init_analyzer, nki_dim
 from tvm.backend.trn.tile_primitive.dim_utils import get_ewise_dim_map
 from tvm.backend.trn.tile_primitive.instruction_generator import InstructionGenerator
 from tvm.script import tirx as T
-from tvm.tirx import FloatImm, Stmt, Var
+from tvm.tirx import FloatImm, IntImm, Stmt, Var
 from tvm.tirx.operator.tile_primitive.ops import (
     BinaryReduce,
     Copy,
@@ -48,13 +48,17 @@ def _scalar_dtype(scalar) -> str:
 def alloc_const_bias_trn(
     op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
-    bias = op.bias if op.bias is not None else FloatImm(op.dsts[0].source.ty.dtype, 0.0)
+    bias = op.bias
+    if bias is None or (isinstance(bias, IntImm) and bias.value == 0):
+        bias = FloatImm(op.dsts[0].source.ty.dtype, 0.0)
     if "const_bias" in op.workspace:
         return {}
     if not isinstance(bias, (FloatImm)):
         return {}
     par_size = op.dsts[0].source.ty.layout.size("P")
     max_inst_size = op.config.get("max_inst_size", 512)
+    if isinstance(max_inst_size, int | IntImm) and int(max_inst_size) == -1:
+        raise ValueError("Constant bias workspace allocation requires a finite max_inst_size")
     if ("const_bias", bias.value) in buffer_dict:
         bias_buffer, bias_init_stmt = buffer_dict[("const_bias", bias.value)]
         old_shape = bias_buffer.ty.shape

@@ -196,8 +196,10 @@ def _cp_lane_replica_pattern(shape: str, multicast: str):
 
 def _resolve_cp_shape(op_call: TilePrimitiveCall):
     """Resolve (shape, multicast) from an explicit ``shape=`` config."""
-    shape = str(op_call.config["shape"])
+    shape = op_call.config["shape"].value
     multicast = op_call.config.get("multicast")
+    if isinstance(multicast, tvm.ir.StringImm):
+        multicast = multicast.value
     allowed = _CP_SHAPE_MULTICASTS.get(shape)
     if allowed is None:
         raise ValueError(
@@ -334,6 +336,8 @@ def _build_plan(op_call: TilePrimitiveCall):
         return _plan_for_shape(op_call, shape, multicast)
     # No shape config: infer from the buffer layouts.
     multicast_cfg = op_call.config.get("multicast")
+    if isinstance(multicast_cfg, tvm.ir.StringImm):
+        multicast_cfg = multicast_cfg.value
     errors = []
     for shape, multicast in _CP_SHAPE_CANDIDATES:
         if multicast_cfg is not None and str(multicast_cfg) != multicast:
@@ -740,7 +744,10 @@ def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
 # need synchronization.
 # -----------------------------------------------------------------------------
 def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
-    if op_call.config.get("decompress"):
+    decompress = op_call.config.get("decompress")
+    if isinstance(decompress, StringImm):
+        decompress = decompress.value
+    if decompress:
         # fp4/fp6->fp8 in-flight decompression needs dtype-pair plan derivation
         # the planner can't lower; reject loudly rather than copy undecompressed.
         raise ValueError("tcgen05.cp planner does not support decompress")

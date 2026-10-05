@@ -35,9 +35,9 @@ namespace tvm {
 namespace tirx {
 
 // TilePrimitiveCall
-TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
+TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<Expr> args,
                                      ffi::Map<ffi::String, TensorVar> workspace,
-                                     ffi::Map<ffi::String, ffi::Any> config,
+                                     ffi::Map<ffi::String, Expr> config,
                                      ffi::Optional<ffi::String> dispatch, ExecScope scope)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined(), ValueError) << "TilePrimitiveCall expects a defined operator";
@@ -78,11 +78,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMutate
   const TilePrimitiveCallNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
           value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<ffi::Any>>, mapped_args,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_args,
                                     mutator->MutateExpected(self->args));
 
   using WorkspaceMap = ffi::Map<ffi::String, TensorVar>;
-  using ConfigMap = ffi::Map<ffi::String, ffi::Any>;
+  using ConfigMap = ffi::Map<ffi::String, Expr>;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
                                     mutator->MutateExpected(self->workspace));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ConfigMap>, mapped_config,
@@ -106,11 +106,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMaybeI
   TilePrimitiveCallNode* self = const_cast<TilePrimitiveCallNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
           value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<ffi::Any>>, mapped_args,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_args,
                                     mutator->MutateExpected(self->args, ffi::InplaceMode::kAllow));
 
   using WorkspaceMap = ffi::Map<ffi::String, TensorVar>;
-  using ConfigMap = ffi::Map<ffi::String, ffi::Any>;
+  using ConfigMap = ffi::Map<ffi::String, Expr>;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
       mutator->MutateExpected(self->workspace, ffi::InplaceMode::kAllow));
@@ -136,9 +136,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TilePrimitiveCallNode::RegisterReflection();
   refl::GlobalDef().def(
       "tirx.TilePrimitiveCall",
-      [](tvm::Op op, ffi::Array<ffi::Any> args, ffi::Map<ffi::String, TensorVar> workspace,
-         ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
-         ExecScope scope) {
+      [](tvm::Op op, ffi::Array<Expr> args, ffi::Map<ffi::String, TensorVar> workspace,
+         ffi::Map<ffi::String, Expr> config, ffi::Optional<ffi::String> dispatch, ExecScope scope) {
         return TilePrimitiveCall(op, args, workspace, config, dispatch, scope);
       });
   refl::TypeAttrDef<TilePrimitiveCallNode>()
