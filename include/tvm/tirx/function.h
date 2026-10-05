@@ -174,29 +174,6 @@ PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<TensorVar, E
 namespace attr {
 
 /*!
- * \brief Ordered C-family source snippets to include in the generated module.
- *
- * Type: ffi::Array<ffi::String>
- *
- * Snippets are emitted verbatim, once per exact payload, in first-seen order.
- * Host/device splitting routes imports to targets that consume C-family source.
- * Distinct host/device C-family targets require explicit PrimFuncs when the host
- * also calls external helpers, so each target's source can be specified separately.
- */
-constexpr const char* kImportC = "tirx.import_c";
-
-/*!
- * \brief Ordered LLVM IR sources to link into the generated module.
- *
- * Type: ffi::Array<ffi::String>
- *
- * Each entry is inline LLVM IR or a filename ending in .ll or .bc. Exact payloads
- * are imported once in first-seen order. Host/device splitting retains these imports
- * on LLVM host wrappers and copies them to extracted LLVM device functions.
- */
-constexpr const char* kImportLLVM = "tirx.import_llvm";
-
-/*!
  * \brief List of thread IterVar that a DeviceLaunch function corresponds to.
  *
  * Type: ffi::Array<ffi::String>

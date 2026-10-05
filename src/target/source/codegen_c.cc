@@ -46,13 +46,6 @@ void CodeGenC::Init(bool output_ssa) { print_ssa_form_ = output_ssa; }
 
 void CodeGenC::InitFuncState(const PrimFunc& f) {
   thread_extents_.clear();
-  if (auto imports = f->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kImportC)) {
-    for (const ffi::String& source : imports.value()) {
-      if (imported_sources_.insert(source).second) {
-        decl_stream << source;
-      }
-    }
-  }
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
   pointer_offset_vars_.clear();

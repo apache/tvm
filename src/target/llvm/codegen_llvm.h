@@ -481,8 +481,6 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
-  // handle module import
-  void HandleImport(const std::string& code);
   // cast operatpr
   llvm::Value* CreateCast(PrimType from, PrimType to, llvm::Value* value);
   // comparison op
@@ -558,8 +556,6 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::MDNode* md_tbaa_alias_set_{nullptr};
   // modules to be linked.
   std::vector<std::unique_ptr<llvm::Module>> link_modules_;
-  // Exact source payloads already imported into this module.
-  std::unordered_set<std::string> imported_sources_;
   /*! \brief native vector bits of current targetx*/
   int native_vector_bits_{0};
   /*! \brief the storage scope of allocation */

@@ -27,7 +27,7 @@ import tvm
 import tvm.testing
 from tvm.script import ir as I
 from tvm.script import tirx as T
-from tvm.support import clang, utils
+from tvm.support import utils
 from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 from tvm.testing import env
 
@@ -870,45 +870,6 @@ def test_llvm_large_stack_allocation_uses_64bit_extent(extent):
     llvm_ir = module.inspect_source("ll")
 
     assert re.search(rf"alloca float, i64 {extent}(?:,|$)", llvm_ir)
-
-
-@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-@tvm.testing.skip_if_32bit
-def test_llvm_import():
-    """all-platform-minimal-test: check shell dependent clang behavior."""
-    # extern "C" is necessary to get the correct signature
-    cc_code = """
-    extern "C" float my_add(float x, float y) {
-      return x + y;
-    }
-    """
-
-    def check_llvm(use_file):
-        if not clang.find_clang(required=False):
-            print("skip because clang is not available")
-            return
-        temp = utils.tempdir()
-        ll_path = temp.relpath("temp.ll")
-        ll_code = clang.create_llvm(cc_code, output=ll_path)
-        import_val = ll_path if use_file else ll_code
-
-        @I.ir_module
-        class Module:
-            @T.prim_func
-            def main(A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32")):
-                T.func_attr({"tirx.noalias": True, "tirx.import_llvm": [import_val]})
-                for i in T.serial(10):
-                    B[i] = T.call_pure_extern("float32", "my_add", A[i], T.float32(1.0))
-
-        f = tvm.compile(Module, target="llvm")
-        dev = tvm.cpu(0)
-        a = tvm.runtime.tensor(np.random.uniform(size=10).astype("float32"), dev)
-        b = tvm.runtime.tensor(np.random.uniform(size=10).astype("float32"), dev)
-        f(a, b)
-        tvm.testing.assert_allclose(b.numpy(), a.numpy() + 1.0)
-
-    check_llvm(use_file=True)
-    check_llvm(use_file=False)
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")

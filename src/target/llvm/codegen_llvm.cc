@@ -160,7 +160,6 @@ void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target,
   md_builder_.reset(new llvm::MDBuilder(*ctx));
   functions_.clear();
   function_symbol_owners_.clear();
-  imported_sources_.clear();
   // types
   t_void_ = llvm::Type::getVoidTy(*ctx);
   t_void_p_ = llvmGetPointerTo(llvm::Type::getInt8Ty(*ctx), GetGlobalAddressSpace());
@@ -322,13 +321,6 @@ llvm::Function* CodeGenLLVM::DeclareFunctionInternal(const GlobalVar& gvar, cons
 }
 
 void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) {
-  if (auto imports = f->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kImportLLVM)) {
-    for (const ffi::String& source : imports.value()) {
-      if (imported_sources_.insert(source).second) {
-        HandleImport(source);
-      }
-    }
-  }
   this->InitFuncState();
 
   function_ = DeclareFunctionInternal(gvar, f);
@@ -396,36 +388,6 @@ std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
   this->Optimize();
   this->Verify();
   return std::move(module_);
-}
-
-void CodeGenLLVM::HandleImport(const std::string& code) {
-  llvm::StringRef code_str(code);
-  std::unique_ptr<llvm::Module> mlib;
-#if TVM_LLVM_VERSION >= 180
-  if (code_str.ends_with(".ll") || code_str.ends_with(".bc")) {
-#else
-  if (code_str.endswith(".ll") || code_str.endswith(".bc")) {
-#endif
-    mlib = llvm_target_->GetInstance().LoadIR(code);
-  } else {
-    mlib = llvm_target_->GetInstance().ParseIR(code);
-  }
-
-#if TVM_LLVM_VERSION >= 210
-  mlib->setTargetTriple(llvm::Triple(llvm_target_->GetTargetTriple()));
-#else
-  mlib->setTargetTriple(llvm_target_->GetTargetTriple());
-#endif
-  mlib->setDataLayout(llvm_target_->GetOrCreateTargetMachine()->createDataLayout());
-  // mark all the functions as force inline
-  for (llvm::Function& f : mlib->functions()) {
-    f.removeFnAttr(llvm::Attribute::OptimizeNone);
-    f.removeFnAttr(llvm::Attribute::NoInline);
-    f.addFnAttr(llvm::Attribute::AlwaysInline);
-    f.setLinkage(llvm::GlobalValue::AvailableExternallyLinkage);
-  }
-  // add to linker libraries.
-  this->AddLinkModule(std::move(mlib));
 }
 
 void CodeGenLLVM::AddLinkModule(std::unique_ptr<llvm::Module>&& mod) {
