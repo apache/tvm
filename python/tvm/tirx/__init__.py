@@ -27,13 +27,12 @@ from tvm.ir import Expr
 from tvm.runtime import const
 
 from .buffer import (
-    Buffer,
     BufferAccessKind,
     TensorType,
     buffer_data,
     buffer_data_pointer_type,
     decl_tensor,
-    is_buffer_var,
+    is_tensor_var,
 )
 from .type import TensorMapType
 from .expr import convert

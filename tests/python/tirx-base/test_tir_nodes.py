@@ -314,7 +314,7 @@ def test_prim_func():
     assert func.params[2].same_as(b)
     assert not hasattr(func, "buffer_map")
 
-    assert sum(tvm.tirx.is_buffer_var(param) for param in func.params) == 1
+    assert sum(tvm.tirx.is_tensor_var(param) for param in func.params) == 1
     assert func.with_body(tvm.tirx.Evaluate(0)).params[2].same_as(b)
     f2 = func.with_attr({"calling_conv": 1, "tirx.noalias": True})
     assert f2.attrs["calling_conv"] == 1

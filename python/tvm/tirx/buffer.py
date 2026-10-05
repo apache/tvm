@@ -22,7 +22,7 @@ from numbers import Integral
 import tvm_ffi
 
 import tvm
-from tvm.ir import PointerType, PrimType, Type
+from tvm.ir import PointerType, PrimType, Type, Var
 from tvm.runtime import convert
 
 from . import _buffer_view, _ffi_api
@@ -45,12 +45,11 @@ class TensorType(Type):
     allocated_addr: list
 
 
-def is_buffer_var(value) -> bool:
+def is_tensor_var(value) -> bool:
     """Return whether ``value`` is an ordinary Var carrying TensorType.
 
-    Use this predicate instead of ``isinstance(value, Buffer)``.  ``Buffer`` is
-    a source-compatibility alias for :class:`tvm.ir.Var` and therefore does not
-    discriminate buffer variables from scalar or pointer variables.
+    Unlike ``isinstance(value, Var)``, this predicate distinguishes tensor
+    variables from scalar or pointer variables.
     """
 
     return isinstance(value, tvm.ir.Var) and isinstance(value.ty, TensorType)
@@ -63,11 +62,8 @@ class BufferAccessKind(IntEnum):
     WRITE = 2
 
 
-class _BufferMethods:
-    """Symbolic data buffer in TVM.
-
-    Buffer provide a way to represent data layout
-    specialization of data structure in TVM.
+class _TensorMethods:
+    """Operations on tensor variables carrying layout and storage metadata.
 
     Do not construct directly, use :py:func:`~decl_tensor` instead.
     See the documentation of :py:func:`decl_tensor` for more details.
@@ -139,7 +135,7 @@ class _BufferMethods:
             ptr_type = PointerType(ptr_type)
         offset = convert(offset)
         extent = convert(extent)
-        return _ffi_api.BufferAccessPtr(
+        return _ffi_api.TensorAccessPtr(
             self,
             access_mask,
             ptr_type,
@@ -154,11 +150,11 @@ class _BufferMethods:
         Parameters
         ----------
         begin : Array of Expr
-            The beginning index in unit of Buffer.dtype
+            The beginning index in unit of Var.dtype
 
         dtype : str
             The data type to be loaded,
-            can be vector type which have lanes that is multiple of Buffer.dtype
+            can be vector type which have lanes that is multiple of Var.dtype
 
         Returns
         -------
@@ -167,7 +163,7 @@ class _BufferMethods:
         """
         begin = (begin,) if isinstance(begin, int) or tvm.ir.is_prim_expr(begin) else begin
         dtype = dtype if dtype else self.ty.dtype
-        return _ffi_api.BufferVLoad(self, begin, dtype)  # type: ignore
+        return _ffi_api.TensorVLoad(self, begin, dtype)  # type: ignore
 
     def vstore(self, begin, value):
         """Generate a Stmt that store value into begin index.
@@ -175,7 +171,7 @@ class _BufferMethods:
         Parameters
         ----------
         begin : Array of Expr
-            The beginning index in unit of Buffer.dtype
+            The beginning index in unit of Var.dtype
 
         value : Expr
             The value to be stored.
@@ -186,7 +182,7 @@ class _BufferMethods:
             The corresponding store stmt.
         """
         begin = (begin,) if isinstance(begin, int) or tvm.ir.is_prim_expr(begin) else begin
-        return _ffi_api.BufferVStore(self, begin, value)  # type: ignore
+        return _ffi_api.TensorVStore(self, begin, value)  # type: ignore
 
     def scope(self):
         """Return the storage scope associated with this buffer.
@@ -195,25 +191,25 @@ class _BufferMethods:
         scope : str
             The storage scope associated with this buffer.
         """
-        return _ffi_api.BufferStorageScope(self)  # type: ignore
+        return _ffi_api.TensorStorageScope(self)  # type: ignore
 
     def get_flattened_buffer(self):
-        """Generate a Buffer that is a flattened version of this buffer.
+        """Generate a Var that is a flattened version of this buffer.
 
         Returns
         -------
-        flattened : Buffer
+        flattened : Var
             The corresponding flat buffer.
         """
-        return _ffi_api.BufferGetFlattenedBuffer(self)  # type: ignore
+        return _ffi_api.TensorGetFlattenedTensor(self)  # type: ignore
 
     def with_allocated_addr(self, allocated_addr):
         """Return a new buffer with the allocated address."""
-        return _ffi_api.BufferWithAllocatedAddr(self, allocated_addr)  # type: ignore
+        return _ffi_api.TensorWithAllocatedAddr(self, allocated_addr)  # type: ignore
 
     def with_dtype(self, dtype):
         """Return a new buffer with the dtype."""
-        return _ffi_api.BufferWithDtype(self, dtype)  # type: ignore
+        return _ffi_api.TensorWithDtype(self, dtype)  # type: ignore
 
     def offset_of(self, indices):
         """Determine the offset of the provided indices in the flattened buffer.
@@ -230,7 +226,7 @@ class _BufferMethods:
 
             The offset indices of the element in the flattened buffer.
         """
-        return _ffi_api.BufferOffsetOf(self, indices)  # type: ignore
+        return _ffi_api.TensorOffsetOf(self, indices)  # type: ignore
 
     @property
     def byte_offset(self):
@@ -256,8 +252,8 @@ class _BufferMethods:
             The element offset of the buffer at the given indices.
         """
         if inner:
-            return _ffi_api.BufferOffsetOfp(self, indices)
-        return self.ty.elem_offset + _ffi_api.BufferOffsetOfp(self, indices)
+            return _ffi_api.TensorOffsetOfp(self, indices)
+        return self.ty.elem_offset + _ffi_api.TensorOffsetOfp(self, indices)
 
     def byte_offset_of(self, indices, inner=True):
         """Get the byte offset of the buffer at the given indices.
@@ -292,7 +288,7 @@ class _BufferMethods:
         -------
             bool: True if the buffer is a scalar, False otherwise.
         """
-        return _ffi_api.BufferIsScalar(self, alloc_or_decl)
+        return _ffi_api.TensorIsScalar(self, alloc_or_decl)
 
     def ptr_to(self, indices):
         """Get the pointer to the buffer at the given indices (logical indices).
@@ -305,7 +301,7 @@ class _BufferMethods:
         )
         return tvm.tirx.address_of(self[tuple(indices)])
 
-    def view(self, *args, **kwargs) -> "Buffer":
+    def view(self, *args, **kwargs) -> "Var":
         """Creates a new view of the buffer. (used by parser)
 
         Supported signatures are ``view(*shape, layout=None)``, where shape can contain
@@ -320,7 +316,7 @@ class _BufferMethods:
 
         return _buffer_view.view(self, *args, **kwargs)
 
-    def local(self, *shape, layout=None) -> "Buffer":
+    def local(self, *shape, layout=None) -> "Var":
         """Create a thread-local view of this buffer.
 
         By default, both the inferred and explicit-shape forms address the
@@ -356,7 +352,7 @@ class _BufferMethods:
         """
         return _buffer_view.local(self, *shape, layout=layout)
 
-    def permute(self, *dims) -> "Buffer":
+    def permute(self, *dims) -> "Var":
         """Permute the dimensions of the buffer.
 
         Parameters
@@ -371,7 +367,7 @@ class _BufferMethods:
         """
         return _buffer_view.permute(self, *dims)
 
-    def rearrange(self, pattern: str = _REARRANGE_PATTERN_UNSET, /, **sizes) -> "Buffer":
+    def rearrange(self, pattern: str = _REARRANGE_PATTERN_UNSET, /, **sizes) -> "Var":
         """einops-style relayout in one line: ``buf.rearrange("b (2 r) -> 2 b r")``.
 
         A pure reshape+permute+reshape over the SAME physical bytes, spelled as
@@ -393,7 +389,7 @@ class _BufferMethods:
         """
         if pattern is _REARRANGE_PATTERN_UNSET:
             if "pattern" not in sizes:
-                raise TypeError("Buffer.rearrange() missing required argument: 'pattern'")
+                raise TypeError("Var.rearrange() missing required argument: 'pattern'")
             pattern = sizes.pop("pattern")
         return _buffer_view.rearrange(self, pattern, **sizes)
 
@@ -493,9 +489,9 @@ def decl_tensor(
     storage_scope = scope
     if data is not None:
         if not isinstance(data, tvm.ir.Expr) or not isinstance(data.ty, PointerType):
-            raise TypeError("Buffer data must be an Expr with PointerType")
+            raise TypeError("Tensor data must be an Expr with PointerType")
         if not isinstance(data.ty.element_type, PrimType):
-            raise TypeError("Buffer data must point to a primitive type")
+            raise TypeError("Tensor data must point to a primitive type")
         storage_scope = data.ty.storage_scope
     buffer_type = _ffi_api.TensorType(  # type: ignore
         storage_scope,
@@ -509,46 +505,46 @@ def decl_tensor(
         (),
         span,
     )
-    return _ffi_api.BufferVar(name, buffer_type, span)  # type: ignore
+    return _ffi_api.TensorVar(name, buffer_type, span)  # type: ignore
 
 
 def buffer_data(buffer):
     """Project the physical pointer associated with a buffer variable."""
 
-    if not is_buffer_var(buffer):
+    if not is_tensor_var(buffer):
         raise TypeError("buffer_data expects a Var with TensorType")
-    return _ffi_api.BufferData(buffer)
+    return _ffi_api.TensorData(buffer)
 
 
 def buffer_data_pointer_type(buffer):
     """Return the pointer type produced by :func:`buffer_data`."""
 
-    if not is_buffer_var(buffer):
+    if not is_tensor_var(buffer):
         raise TypeError("buffer_data_pointer_type expects a Var with TensorType")
-    return _ffi_api.BufferDataPointerType(buffer)
+    return _ffi_api.TensorDataPointerType(buffer)
 
 
-# Buffer values intentionally retain runtime type key ``ir.Var``.  Importing
+# Tensor variables intentionally retain runtime type key ``ir.Var``.  Importing
 # ``tvm.tirx`` therefore augments ``tvm.ir.Var`` process-wide with the legacy
 # buffer operation and metadata surface.  Non-buffer Vars reject the metadata
 # properties with AttributeError, preserving correct ``hasattr`` behavior.
-for _name, _value in _BufferMethods.__dict__.items():
+for _name, _value in _TensorMethods.__dict__.items():
     if _name.startswith("__"):
         continue
     if callable(_value) or isinstance(_value, property):
         setattr(tvm.ir.Var, _name, _value)
 
 
-def _buffer_type_field(name):
+def _tensor_type_field(name):
     def getter(value):
-        if not is_buffer_var(value):
+        if not is_tensor_var(value):
             raise AttributeError(f"{name} is only available on a Var with TensorType")
         return getattr(value.ty, name)
 
     return property(getter)
 
 
-# Preserve Buffer's public metadata surface while keeping TensorType as the
+# Preserve the tensor variable metadata surface while keeping TensorType as the
 # single source of truth.
 for _name in (
     "shape",
@@ -559,32 +555,26 @@ for _name in (
     "layout",
     "allocated_addr",
 ):
-    setattr(tvm.ir.Var, _name, _buffer_type_field(_name))
+    setattr(tvm.ir.Var, _name, _tensor_type_field(_name))
 
 
-def _buffer_dtype_property(value):
-    if not is_buffer_var(value):
+def _tensor_dtype_property(value):
+    if not is_tensor_var(value):
         raise AttributeError("dtype is only available on a Var with TensorType")
-    # Preserve the pre-migration Python Buffer surface.  TensorType stores a
+    # Preserve the tensor variable Python dtype surface.  TensorType stores a
     # PrimType, while Python callers historically receive its runtime DataType.
     return value.ty.dtype.dtype
 
 
-tvm.ir.Var.dtype = property(_buffer_dtype_property)
+tvm.ir.Var.dtype = property(_tensor_dtype_property)
 
 
 # Keep the established ``A.data`` TVMScript surface as syntax sugar.  Compiler
 # and builder code calls ``buffer_data(A)`` directly.
 def _buffer_data_property(value):
-    if not is_buffer_var(value):
+    if not is_tensor_var(value):
         raise AttributeError("data is only available on a Var with TensorType")
     return buffer_data(value)
 
 
 tvm.ir.Var.data = property(_buffer_data_property)
-
-# Source compatibility for annotations and imports only.  There is no
-# ``tirx.Buffer`` runtime object; constructors return ``tvm.ir.Var``.  In
-# particular, ``isinstance(value, Buffer)`` matches every Var.  Runtime checks
-# must use ``is_buffer_var(value)``.
-Buffer = tvm.ir.Var

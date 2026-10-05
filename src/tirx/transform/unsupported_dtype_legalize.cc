@@ -245,8 +245,8 @@ class ComputeLegalizer : public StmtExprMutator {
     }
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
-      BufferVar original = op->args[0].as_or_throw<BufferVar>();
-      BufferVar buffer = GetRemappedBuffer(original);
+      TensorVar original = op->args[0].as_or_throw<TensorVar>();
+      TensorVar buffer = GetRemappedBuffer(original);
       ffi::Array<Expr> args{buffer.var()};
       ffi::Optional<PrimExpr> value;
       if (!is_load) {
@@ -376,7 +376,7 @@ class ComputeLegalizer : public StmtExprMutator {
     auto indices = Mutate(op->indices, inplace_mode)
                        .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
                        .ValueOrUnchanged(op->indices);
-    BufferVar new_buf = GetRemappedBuffer(op->buffer);
+    TensorVar new_buf = GetRemappedBuffer(op->buffer);
 
     if (value_unchanged && indices.same_as(op->indices) && new_buf.same_as(op->buffer)) {
       return ffi::Unchanged();
@@ -442,7 +442,7 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    BufferVar buffer = GetRemappedBuffer(op->source.as_or_throw<BufferVar>());
+    TensorVar buffer = GetRemappedBuffer(op->source.as_or_throw<TensorVar>());
     auto indices = Mutate(op->indices, inplace_mode)
                        .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
                        .ValueOrUnchanged(op->indices);
@@ -480,9 +480,9 @@ class ComputeLegalizer : public StmtExprMutator {
     return DTypeConversion(value, dtype);
   }
 
-  BufferVar GetRemappedBuffer(BufferVar buf) {
+  TensorVar GetRemappedBuffer(TensorVar buf) {
     auto mapped = VarRemapGet(buf);
-    return mapped == nullptr ? buf : mapped.as_or_throw<BufferVar>();
+    return mapped == nullptr ? buf : mapped.as_or_throw<TensorVar>();
   }
 
  protected:
@@ -577,7 +577,7 @@ class StorageLegalizer : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     PrimExpr value =
         this->ChangeToUInt(Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
-    BufferVar new_buf = GetRemappedBuffer(op->buffer);
+    TensorVar new_buf = GetRemappedBuffer(op->buffer);
     auto indices = Mutate(op->indices, inplace_mode)
                        .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
                        .ValueOrUnchanged(op->indices);
@@ -605,7 +605,7 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    BufferVar buffer = GetRemappedBuffer(op->source.as_or_throw<BufferVar>());
+    TensorVar buffer = GetRemappedBuffer(op->source.as_or_throw<TensorVar>());
     auto indices = Mutate(op->indices, inplace_mode)
                        .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
                        .ValueOrUnchanged(op->indices);
@@ -631,7 +631,7 @@ class StorageLegalizer : public StmtExprMutator {
     }
     if (op->op.same_as(builtin::masked_load()) || op->op.same_as(builtin::masked_store())) {
       bool is_load = op->op.same_as(builtin::masked_load());
-      BufferVar buffer = GetRemappedBuffer(op->args[0].as_or_throw<BufferVar>());
+      TensorVar buffer = GetRemappedBuffer(op->args[0].as_or_throw<TensorVar>());
       ffi::Array<Expr> args{buffer.var()};
       ffi::Optional<PrimExpr> value;
       if (!is_load) {
@@ -726,9 +726,9 @@ class StorageLegalizer : public StmtExprMutator {
     return var;
   }
 
-  BufferVar GetRemappedBuffer(BufferVar buf) {
+  TensorVar GetRemappedBuffer(TensorVar buf) {
     auto mapped = VarRemapGet(buf);
-    if (mapped != nullptr) return mapped.as_or_throw<BufferVar>();
+    if (mapped != nullptr) return mapped.as_or_throw<TensorVar>();
     TVM_FFI_ICHECK(!MatchType(buf->dtype)) << "Cannot find var remap for " << buf;
     return buf;
   }

@@ -52,7 +52,7 @@ class Int32DTypeNarrowerBase : public Normalizer {
   /*! \brief Reject integer buffer parameters wider than int32. */
   static void CheckBufferParams(const PrimFunc& func) {
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>();
+      if (auto buffer = param.as<TensorVar>();
           buffer && buffer.value()->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
           buffer.value()->dtype.bits() > 32) {
         TVM_FFI_THROW(InternalError) << "The buffer parameter " << buffer.value() << " has dtype "
@@ -62,7 +62,7 @@ class Int32DTypeNarrowerBase : public Normalizer {
   }
 
   /*! \brief Reject allocated integer buffers wider than int32. */
-  void CheckAllocatedBuffer(const BufferVar& buf) const {
+  void CheckAllocatedBuffer(const TensorVar& buf) const {
     // Scalar assignments in TVMScript use local scalar storage.  Keep its explicit
     // dtype (e.g. an int64 opaque call result) and cast at narrowed index uses.
     // IsScalar checks the scalar layout contract, not merely the allocation size.
@@ -99,7 +99,7 @@ class Int32DTypeNarrowerBase : public Normalizer {
     auto result = Normalizer::Mutate_(op, inplace_mode);
     auto alloc =
         std::move(result).ValueOrUnchanged(ffi::GetRef<Stmt>(op)).template as_or_throw<Bind>();
-    CheckAllocatedBuffer(alloc->var.template as_or_throw<BufferVar>());
+    CheckAllocatedBuffer(alloc->var.template as_or_throw<TensorVar>());
     return alloc;
   }
 

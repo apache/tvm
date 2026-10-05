@@ -45,7 +45,7 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  static std::tuple<PrimFunc, ffi::Map<BufferVar, BufferVar>,
+  static std::tuple<PrimFunc, ffi::Map<TensorVar, TensorVar>,
                     std::unordered_map<const VarNode*, IndexMap>,
                     std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>>
   Rewrite(PrimFunc f) {
@@ -67,8 +67,8 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
     if (it == block->annotations.end() || !is_one((*it).second.cast<PrimExpr>())) {
       // The block is not a weight layout block
       // Remove allocates if needed
-      ffi::Array<BufferVar> alloc_buffers;
-      for (const BufferVar& buffer : block->alloc_buffers) {
+      ffi::Array<TensorVar> alloc_buffers;
+      for (const TensorVar& buffer : block->alloc_buffers) {
         if (!rewritten_buffers_.count(buffer)) {
           alloc_buffers.push_back(buffer);
         }
@@ -94,8 +94,8 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
     const auto* load = store->value.as<TensorLoadNode>();
     TVM_FFI_ICHECK(load);
 
-    // Step 3. Update BufferVar
-    buf_map_.Set(load->source.as_or_throw<tvm::tirx::BufferVar>(), store->buffer);
+    // Step 3. Update TensorVar
+    buf_map_.Set(load->source.as_or_throw<tvm::tirx::TensorVar>(), store->buffer);
     rewritten_buffers_.insert(store->buffer);
 
     // Step 4. Set block body as no_op
@@ -110,19 +110,19 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
       TVM_FFI_ICHECK(ind.as<PrimVar>());
       load_indices.push_back(ind.as_or_throw<PrimVar>());
     }
-    buffer_var_to_index_map_[load->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+    buffer_var_to_index_map_[load->source.as_or_throw<tvm::tirx::TensorVar>().get()] =
         IndexMap(load_indices, store->indices);
 
-    buffer_var_to_rewritten_shape_[load->source.as_or_throw<tvm::tirx::BufferVar>().get()] =
+    buffer_var_to_rewritten_shape_[load->source.as_or_throw<tvm::tirx::TensorVar>().get()] =
         store->buffer->shape;
 
     return block;
   }
 
   /*! \brief The buffer map from original layout buffer to rewritten buffer */
-  ffi::Map<BufferVar, BufferVar> buf_map_;
+  ffi::Map<TensorVar, TensorVar> buf_map_;
   /*! \brief The buffer map from original layout buffer to rewritten buffer */
-  std::unordered_set<BufferVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rewritten_buffers_;
+  std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> rewritten_buffers_;
   /*! \brief Maps a buffer load to an index map associated with the load / store
     in a layout rewrite block. */
   std::unordered_map<const VarNode*, IndexMap> buffer_var_to_index_map_;
@@ -147,12 +147,12 @@ class WeightLayoutRewriteBlockRemover : public StmtExprMutator {
 
     ffi::Array<tirx::Var> params;
     for (const tirx::Var& param : f_->params) {
-      auto opt_buffer = param.as<BufferVar>();
+      auto opt_buffer = param.as<TensorVar>();
       if (!opt_buffer.has_value()) {
         params.push_back(param);
         continue;
       }
-      BufferVar buffer = opt_buffer.value();
+      TensorVar buffer = opt_buffer.value();
       auto it = buf_map.find(buffer);
       if (it != buf_map.end()) {
         params.push_back((*it).second.var());

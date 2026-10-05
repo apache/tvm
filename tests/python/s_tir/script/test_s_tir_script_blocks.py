@@ -94,7 +94,7 @@ def func_with_part_access_region(
 
 def test_complete_matmul():
     func = matmul
-    A, B, C = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    A, B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
 
     block = func.body.block.body.body.body.body.block
     assert isinstance(block, tvm.s_tir.SBlock)
@@ -114,7 +114,7 @@ def test_complete_matmul():
 
 def test_complete_matmul_original():
     func = matmul_original
-    A, B, C = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    A, B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
 
     block1 = func.body.block.body.body.body[0].block
     assert isinstance(block1, tvm.s_tir.SBlock)
@@ -142,7 +142,7 @@ def test_complete_matmul_original():
 
 
 def _check_elementwise(func):
-    A, B, C = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    A, B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
 
     root_block = func.body.block
     assert len(root_block.reads) == 0

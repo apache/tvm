@@ -25,15 +25,26 @@ from tvm_ffi import Array
 import tvm
 import tvm.ir.prim._ffi_api as _prim_ffi_api
 from tvm import tirx
-from tvm.ir import Call, Expr, ExprWithOp, Op, PointerType, PrimType, TensorLoad, TensorRegion
+from tvm.ir import (
+    Call,
+    Expr,
+    ExprWithOp,
+    Op,
+    PointerType,
+    PrimType,
+    TensorLoad,
+    TensorRegion,
+    Var,
+    buffer_data,
+    is_tensor_var,
+)
 from tvm.ir.base import Span
 from tvm.ir.prim import clz as clz
 from tvm.ir.prim import max_value, min_value
 from tvm.runtime import const
 
 from . import _ffi_api
-from .buffer import Buffer, buffer_data, is_buffer_var
-from .expr import BufferLoad, CommReducer, ExprOp, IntImm, Var
+from .expr import BufferLoad, CommReducer, ExprOp, IntImm
 from .type import TensorMapType
 
 tir = tirx  # alias for backward compat with upstream tir.convert() calls
@@ -163,15 +174,15 @@ def _pack_buffer(buf, span=None):
 
 def call_packed_lowered(*args, span=None):
     """Lowered version of call packed.
-    The argument to packed function can be Expr or Buffer.
+    The argument to packed function can be Expr or Var.
     The argument is the corresponding POD type when Expr is presented.
-    When the argument is Buffer, the corresponding PackedFunc
+    When the argument is Var, the corresponding PackedFunc
     will receive an TVMArrayHandle whose content is valid during the callback period.
     If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
     Parameters
     ----------
-    args : list of Expr or Buffer.
+    args : list of Expr or Var.
         Positional arguments.
 
     span : Optional[Span]
@@ -187,7 +198,7 @@ def call_packed_lowered(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [
-        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_packed_lowered")
+        _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_packed_lowered")
         for x in args
     ]
     return Call(Op.get("tirx.tvm_call_packed_lowered"), call_args, span=span, ty="int32")
@@ -200,7 +211,7 @@ def call_cpacked_lowered(*args, span=None):
 
     Parameters
     ----------
-    args : list of Expr or Buffer.
+    args : list of Expr or Var.
         Positional arguments.
 
     span : Optional[Span]
@@ -216,7 +227,7 @@ def call_cpacked_lowered(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [
-        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_cpacked_lowered")
+        _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_cpacked_lowered")
         for x in args
     ]
     return Call(Op.get("tirx.tvm_call_cpacked_lowered"), call_args, span=span, ty="int32")
@@ -225,16 +236,16 @@ def call_cpacked_lowered(*args, span=None):
 def call_packed(*args, span=None):
     """Build expression by call an external packed function.
 
-    The argument to packed function can be Expr or Buffer.
+    The argument to packed function can be Expr or Var.
     The argument is the corresponding POD type when Expr is presented.
 
-    When the argument is Buffer, the corresponding PackedFunc
+    When the argument is Var, the corresponding PackedFunc
     will receive an TVMArrayHandle whose content is valid during the callback period.
     If the PackedFunc is a python callback, then the corresponding argument is Tensor.
 
     Parameters
     ----------
-    args : list of Expr or Buffer.
+    args : list of Expr or Var.
         Positional arguments.
 
     span : Optional[Span]
@@ -250,7 +261,7 @@ def call_packed(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [
-        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_packed")
+        _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_packed")
         for x in args
     ]
     return Call(Op.get("tirx.tvm_call_packed"), call_args, span=span, ty="int32")
@@ -348,7 +359,7 @@ def call_cpacked(*args, span=None):
 
     Parameters
     ----------
-    args : list of Expr or Buffer.
+    args : list of Expr or Var.
         Positional arguments.
 
     span : Optional[Span]
@@ -364,7 +375,7 @@ def call_cpacked(*args, span=None):
     te.extern : Create tensor with extern function call.
     """
     call_args = [
-        _pack_buffer(x) if is_buffer_var(x) else _reject_buffer_region(x, "call_cpacked")
+        _pack_buffer(x) if is_tensor_var(x) else _reject_buffer_region(x, "call_cpacked")
         for x in args
     ]
     return Call(Op.get("tirx.tvm_call_cpacked"), call_args, span=span, ty="int32")
@@ -753,17 +764,17 @@ def _is_tensormap_var(obj: Var) -> bool:
     return isinstance(obj.ty, PointerType) and isinstance(obj.ty.element_type, TensorMapType)
 
 
-def _buffer_element_pointer_type(buffer: Buffer) -> PointerType:
+def _buffer_element_pointer_type(buffer: Var) -> PointerType:
     """Return a pointer to ``buffer`` elements in the buffer's storage scope."""
     return PointerType(buffer.ty.dtype, buffer.ty.storage_scope)
 
 
-def address_of(obj: Buffer | TensorLoad | Var, span: Span | None = None) -> Expr:
+def address_of(obj: Var | TensorLoad | Var, span: Span | None = None) -> Expr:
     """Returns the address of a buffer element or addressable variable.
 
     Parameters
     ----------
-    obj: Union[Buffer, TensorLoad, Var]
+    obj: Union[Var, TensorLoad, Var]
         The buffer, buffer load, or addressable variable.
 
     span : Optional[Span]
@@ -774,7 +785,7 @@ def address_of(obj: Buffer | TensorLoad | Var, span: Span | None = None) -> Expr
     call : Expr
         The call expression.
     """
-    if is_buffer_var(obj):
+    if is_tensor_var(obj):
         n_dim = len(obj.ty.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
         return Call(
@@ -2921,7 +2932,7 @@ def masked_load(dtype, buffer, *indices_and_mask):
     dtype : str
         The vector data type to load.
 
-    buffer : Buffer
+    buffer : Var
         The buffer to load.
 
     indices_and_mask : Expr
@@ -2941,7 +2952,7 @@ def masked_store(buffer, value, *indices_and_mask):
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The buffer to update.
 
     value : Expr

@@ -139,10 +139,10 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
   const TensorLoadNode* buf_load = TVM_TYPE_AS(buf_store->value, TensorLoadNode);
 
-  BufferVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::BufferVar>();
-  BufferVar tgt_buffer = buf_store->buffer;
+  TensorVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::TensorVar>();
+  TensorVar tgt_buffer = buf_store->buffer;
   std::string layout = tgt_buffer.scope() == "wmma.matrix_a" ? "row_major" : "col_major";
-  BufferVar new_src_buffer(
+  TensorVar new_src_buffer(
       /*name=*/"src", TensorType(/*storage_scope=*/src_buffer.scope(),
                                  /*dtype=*/dtype,
                                  /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
@@ -150,7 +150,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                                  /*elem_offset=*/PrimVar("src_elem_offset", int32_ty),
                                  /*data_alignment=*/64,
                                  /*offset_factor=*/16));
-  BufferVar new_tgt_buffer(
+  TensorVar new_tgt_buffer(
       /*name=*/"tgt", TensorType(/*storage_scope=*/tgt_buffer.scope(),
                                  /*dtype=*/dtype,
                                  /*shape=*/{IntImm::Int32(16), IntImm::Int32(16)},
@@ -236,26 +236,26 @@ Stmt RewriteWmmaStore(Stmt stmt) {
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
   const TensorLoadNode* buf_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "wmma.accumulator") {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "wmma.accumulator") {
       TVM_FFI_ICHECK(buf_load == nullptr ||
-                     buf_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-                         load->source.as_or_throw<tvm::tirx::BufferVar>()))
+                     buf_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
+                         load->source.as_or_throw<tvm::tirx::TensorVar>()))
           << "More than one source buffer of wmma accumulator found";
       buf_load = load.get();
     }
     return ffi::WalkResult::Advance();
   };
   ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(buf_store->value, walk_fn);
-  BufferVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::BufferVar>();
-  BufferVar tgt_buffer = buf_store->buffer;
+  TensorVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::TensorVar>();
+  TensorVar tgt_buffer = buf_store->buffer;
 
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
 
-  BufferVar new_src_buffer(
+  TensorVar new_src_buffer(
       "src", TensorType(src_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)}, {},
                         PrimVar("src_elem_offset", int32_ty), 64, 16));
-  BufferVar new_tgt_buffer(
+  TensorVar new_tgt_buffer(
       "tgt", TensorType(tgt_buffer.scope(), dtype, {IntImm::Int32(16), IntImm::Int32(16)},
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                         PrimVar("tgt_elem_offset", int32_ty), 64, 16));
@@ -311,14 +311,14 @@ Stmt RewriteWmmaStore(Stmt stmt) {
 Stmt SharedToWmma::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt after_tiling = TileWmmaBlock(stmt).first;
-  output->padding_min.Set(constraints.read_region->source.as_or_throw<tvm::tirx::BufferVar>(), 8);
+  output->padding_min.Set(constraints.read_region->source.as_or_throw<tvm::tirx::TensorVar>(), 8);
   return RewriteWmmaLoad(after_tiling);
 }
 
 Stmt WmmaToShared::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   Stmt after_tiling = TileWmmaBlock(stmt).first;
-  output->padding_min.Set(constraints.write_region->source.as_or_throw<tvm::tirx::BufferVar>(), 8);
+  output->padding_min.Set(constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>(), 8);
   return RewriteWmmaStore(after_tiling);
 }
 
@@ -350,7 +350,7 @@ Stmt WmmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                            OutputSet* output) const {
   auto [body, compute_location] = TileWmmaBlock(stmt);
   SeqStmt seq{ffi::UnsafeInit{}};
-  BufferVar cache_buffer{ffi::UnsafeInit{}};
+  TensorVar cache_buffer{ffi::UnsafeInit{}};
   // Step 1. add a shared memory cache
   std::tie(body, seq) = InsertCacheStage(std::move(body), true, "shared.dyn", compute_location,
                                          constraints.outer_loops, &cache_buffer);
@@ -453,10 +453,10 @@ Stmt RewriteMmaStore(Stmt stmt) {
   const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
   const TensorLoadNode* buf_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "m16n8k8.matrixC") {
       TVM_FFI_ICHECK(buf_load == nullptr ||
-                     buf_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-                         load->source.as_or_throw<tvm::tirx::BufferVar>()))
+                     buf_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
+                         load->source.as_or_throw<tvm::tirx::TensorVar>()))
           << "More than one source buffer of mma accumulator found";
       buf_load = load.get();
     }
@@ -473,14 +473,14 @@ Stmt RewriteMmaStore(Stmt stmt) {
   // https://docs.nvidia.com/cuda/archive/11.1.0/pdf/ptx_isa_7.1.pdf
 
   // Step 3.1. Generate new buffer
-  BufferVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::BufferVar>();
-  BufferVar tgt_buffer = buf_store->buffer;
+  TensorVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::TensorVar>();
+  TensorVar tgt_buffer = buf_store->buffer;
   PrimType dtype_ty = src_buffer->dtype;
   const PrimType& dtype = dtype_ty;
-  BufferVar new_src_buffer(
+  TensorVar new_src_buffer(
       "src", TensorType(src_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)}, {},
                         PrimVar("src_elem_offset", int32_ty), 64, 8));
-  BufferVar new_tgt_buffer(
+  TensorVar new_tgt_buffer(
       "tgt", TensorType(tgt_buffer.scope(), dtype, {IntImm::Int32(8), IntImm::Int32(8)},
                         {PrimVar("s1", int32_ty), PrimVar("s0", int32_ty)},
                         PrimVar("tgt_elem_offset", int32_ty), 64, 8));
@@ -565,7 +565,7 @@ Stmt MmaToGlobal::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                           OutputSet* output) const {
   auto [body, compute_location] = TileMmaToGlobalBlock(stmt);
   SeqStmt seq{ffi::UnsafeInit{}};
-  BufferVar cache_buffer{ffi::UnsafeInit{}};
+  TensorVar cache_buffer{ffi::UnsafeInit{}};
   // Step 1. add a shared memory cache
   std::tie(body, seq) = InsertCacheStage(std::move(body), true, "shared.dyn", compute_location,
                                          constraints.outer_loops, &cache_buffer);

@@ -77,12 +77,12 @@ tvm::tirx::TensorType TensorTypeDecl(ffi::Array<PrimExpr> shape, PrimType dtype,
 
 }  // namespace
 
-BufferVar BufferDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
                      ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
                      ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
                      int offset_factor, ffi::Optional<Layout> layout,
                      ffi::Array<PrimExpr> allocated_addr) {
-  return BufferVar(buffer_name,
+  return TensorVar(buffer_name,
                    TensorTypeDecl(shape, dtype, data, strides, elem_offset, storage_scope, align,
                                   offset_factor, layout, allocated_addr));
 }
@@ -112,7 +112,7 @@ Var Arg(ffi::String name, Var var) {
   return var;
 }
 
-BufferVar Arg(ffi::String name, BufferVar buffer) {
+TensorVar Arg(ffi::String name, TensorVar buffer) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
   details::Namer::Name(buffer, name);
   frame->args.push_back(buffer.var());
@@ -534,7 +534,7 @@ Var EnvThread(ffi::String thread_tag, PrimType dtype) {
   return var;
 }
 
-tvm::tirx::Stmt BufferStore(BufferVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices) {
+tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices) {
   PrimType buffer_dtype = buffer->dtype;
   PrimType index_ty = indices.empty() ? PrimType::Int(32) : indices.back().ty();
   bool is_index_scalable = !indices.empty() && index_ty.IsScalableVector();
@@ -637,7 +637,7 @@ DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
   }
 
   ffi::ObjectPtr<DeclTensorFrameNode> n = ffi::make_object<DeclTensorFrameNode>(
-      BufferDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope, align,
+      TensorDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope, align,
                  offset_factor, layout, allocated_addr_arr));
   if (data.has_value()) {
     n->data = data.value();
@@ -653,9 +653,9 @@ DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
   return DeclTensorFrame(n);
 }
 
-BufferVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
+TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
                       ffi::Optional<ffi::Map<ffi::String, ffi::Any>> annotations) {
-  BufferVar buffer = BufferDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
+  TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, std::nullopt, std::nullopt,
                                 storage_scope, 0, 0, std::nullopt, {});
   AddToParent(tvm::tirx::Bind(
       buffer.var(), Call(buffer.type(), tvm::tirx::builtin::alloc_tensor(),
@@ -683,7 +683,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       [](const ffi::ObjectRef& node, ffi::String name) -> void {
         using namespace tvm::tirx;
         TensorLoadNode* buffer = const_cast<TensorLoadNode*>(node.as<TensorLoadNode>());
-        Namer::Name(buffer->source.as_or_throw<tvm::tirx::BufferVar>(), name);
+        Namer::Name(buffer->source.as_or_throw<tvm::tirx::TensorVar>(), name);
       });
 }
 
@@ -706,18 +706,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("script.ir_builder.tirx.Buffer",
-           static_cast<BufferVar (*)(ffi::Array<PrimExpr>, PrimType, ffi::String,
+      .def("script.ir_builder.tirx.Tensor",
+           static_cast<TensorVar (*)(ffi::Array<PrimExpr>, PrimType, ffi::String,
                                      ffi::Optional<Expr>, ffi::Optional<ffi::Array<PrimExpr>>,
                                      ffi::Optional<PrimExpr>, ffi::String, int, int,
-                                     ffi::Optional<Layout>, ffi::Array<PrimExpr>)>(BufferDecl))
+                                     ffi::Optional<Layout>, ffi::Array<PrimExpr>)>(TensorDecl))
       .def("script.ir_builder.tirx.TensorType", TensorTypeDecl)
       .def("script.ir_builder.tirx.PrimFunc", PrimFunc)
       .def("script.ir_builder.tirx.DeclFunction", DeclFunction)
       .def("script.ir_builder.tirx.Arg",
            [](ffi::String name, ffi::ObjectRef obj) -> ffi::ObjectRef {
              using namespace tvm::tirx;
-             if (auto buffer = obj.as<BufferVar>()) {
+             if (auto buffer = obj.as<TensorVar>()) {
                return Arg(name, buffer.value());
              }
              if (auto var = obj.as<Var>()) {

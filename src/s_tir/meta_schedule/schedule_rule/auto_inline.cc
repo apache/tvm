@@ -244,7 +244,7 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
     // }
     auto block = sch->Get(block_rv);
     if (block->reads.size() == 0 && block->writes.size() == 1 &&
-        block->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size() == 0) {
+        block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size() == 0) {
       auto sref = sch->GetSRef(block_rv);
       if (!s_tir::IsOutputBlock(sch->state(), sref,
                                 s_tir::GetScopeRoot(sch->state(), sref, true))) {

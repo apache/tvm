@@ -76,7 +76,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
   explicit PermutedLayoutInjector(PrimFunc func, const Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
     for (const Var& param : func->params) {
-      if (auto buffer = param.as<BufferVar>()) {
+      if (auto buffer = param.as<TensorVar>()) {
         buffer_map_.insert({buffer.value().var(), buffer.value()});
       }
     }
@@ -169,9 +169,9 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return block;
   }
 
-  int CheckAndGetBufferRowSize(BufferVar buffer) {
+  int CheckAndGetBufferRowSize(TensorVar buffer) {
     TVM_FFI_ICHECK(buffer->shape.size() >= 2)
-        << "The dimension of BufferVar \"" << buffer.name() << "\" with shape " << buffer->shape
+        << "The dimension of TensorVar \"" << buffer.name() << "\" with shape " << buffer->shape
         << " should be at least 2";
 
     auto dim = buffer->shape.size();
@@ -180,10 +180,10 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
 
     if (buffer_row_size % 64 != 0) {
       TVM_FFI_ICHECK(buffer_row_size % 32 == 0)
-          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape "
+          << "Permuted SLayout for TensorVar \"" << buffer.name() << "\" with shape "
           << buffer->shape << " is not supported since its second dimension is not divisible by 32";
       TVM_FFI_ICHECK(buffer_col_size % 2 == 0)
-          << "Permuted SLayout for BufferVar \"" << buffer.name() << "\" with shape "
+          << "Permuted SLayout for TensorVar \"" << buffer.name() << "\" with shape "
           << buffer->shape
           << " is not supported since its first dimension is not divisible by 2 and second "
              "dimension is not divisible by 64";
@@ -192,7 +192,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return buffer_row_size.as<int>().value();
   }
 
-  ffi::Array<PrimExpr> HandleBufferIndices(BufferVar buffer, ffi::Array<PrimExpr> indices) {
+  ffi::Array<PrimExpr> HandleBufferIndices(TensorVar buffer, ffi::Array<PrimExpr> indices) {
     auto buffer_row_size = CheckAndGetBufferRowSize(buffer);
 
     // Mutate the last two indices
@@ -233,18 +233,18 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
                     .ValueOrUnchanged(ffi::GetRef<PrimExpr>(op))
                     .as_or_throw<TensorLoad>();
 
-    if (!permute_ || load->source.as_or_throw<tvm::tirx::BufferVar>()->shape.size() < 2) {
+    if (!permute_ || load->source.as_or_throw<tvm::tirx::TensorVar>()->shape.size() < 2) {
       return load;
     }
 
-    auto scope = StorageScope::Create(load->source.as_or_throw<tvm::tirx::BufferVar>().scope());
+    auto scope = StorageScope::Create(load->source.as_or_throw<tvm::tirx::TensorVar>().scope());
     if (scope.rank != StorageRank::kShared) {
       return load;
     }
 
     return BufferLoad(
-        load->source.as_or_throw<tvm::tirx::BufferVar>(),
-        HandleBufferIndices(load->source.as_or_throw<tvm::tirx::BufferVar>(), load->indices),
+        load->source.as_or_throw<tvm::tirx::TensorVar>(),
+        HandleBufferIndices(load->source.as_or_throw<tvm::tirx::TensorVar>(), load->indices),
         load->span);
   }
 
@@ -308,7 +308,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
       return call;
     } else if (call->op.same_as(mma_store_op)) {
       // TODO(yixin): mma_store is not fully tested yet
-      // because we will directly store result to BufferVar instead of calling mma_store now
+      // because we will directly store result to TensorVar instead of calling mma_store now
       Expr access_ptr = call->args[2];
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr);
       auto new_call = call.CopyOnWrite();
@@ -322,8 +322,8 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
   static constexpr size_t VECTORIZE_FACTOR = 8;
   static constexpr size_t BANK_SIZE_BYTES = 128;
 
-  // Mapping from data Var of a BufferVar to BufferVar, for lookup
-  std::unordered_map<Var, BufferVar> buffer_map_;
+  // Mapping from data Var of a TensorVar to TensorVar, for lookup
+  std::unordered_map<Var, TensorVar> buffer_map_;
   bool permute_ = false;
 };
 

@@ -216,7 +216,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
    public:
     using StmtExprMutator::Mutate;
     using StmtExprMutator::Mutate_;
-    static Stmt Rewrite(const Stmt& stmt, const BufferVar& src, const BufferVar& dst) {
+    static Stmt Rewrite(const Stmt& stmt, const TensorVar& src, const TensorVar& dst) {
       if (src.same_as(dst)) {
         return stmt;
       }
@@ -224,7 +224,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
           ->Mutate(stmt, InplaceMode::kAllow)
           .ValueOrUnchanged(stmt);
     }
-    BufferRefRewriter(const BufferVar& src, const BufferVar& dst) { VarRemapSet(src, dst); }
+    BufferRefRewriter(const TensorVar& src, const TensorVar& dst) { VarRemapSet(src, dst); }
   };
 
   class KernelReplacePointSearcher : public StmtExprMutator {
@@ -391,8 +391,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         if (const auto* call = bind->value.as<CallNode>();
             call && (call->op.same_as(builtin::alloc_tensor()) ||
                      call->op.same_as(builtin::decl_tensor()))) {
-          changed |= AppendPostBufferDefStmts(&rebuilt, bind->var.as_or_throw<BufferVar>(),
-                                              bind->var.as_or_throw<BufferVar>());
+          changed |= AppendPostBufferDefStmts(&rebuilt, bind->var.as_or_throw<TensorVar>(),
+                                              bind->var.as_or_throw<TensorVar>());
         }
       }
     }
@@ -480,7 +480,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
             var.has_value() && var.value()->ty.as<TensorTypeNode>()) {
           auto it = buffer_root_.find(var.value());
           if (it != buffer_root_.end() && !it->second.same_as(var.value())) {
-            return it->second.as_or_throw<BufferVar>().data();
+            return it->second.as_or_throw<TensorVar>().data();
           }
         }
       }
@@ -491,19 +491,19 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   };
 
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
-    BufferVar old_buffer = op->var.as_or_throw<BufferVar>();
+    TensorVar old_buffer = op->var.as_or_throw<TensorVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
     RegisterStorageRoot(old_buffer.var(), op->var, std::nullopt);
 
     std::vector<Stmt> seq{stmt};
-    AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<BufferVar>());
+    AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<TensorVar>());
     return SeqStmt::Flatten(seq);
   }
 
   UnchangedOr<Stmt> MutateDeclTensor(const BindNode* op, InplaceMode inplace_mode) {
-    BufferVar old_buffer = op->var.as_or_throw<BufferVar>();
+    TensorVar old_buffer = op->var.as_or_throw<TensorVar>();
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<BindNode>();
     TVM_FFI_ICHECK(op);
@@ -511,7 +511,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     RegisterStorageRoot(old_buffer.var(), op->var, buffer_call->args[0]);
 
     std::vector<Stmt> seq{stmt};
-    AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<BufferVar>());
+    AppendPostBufferDefStmts(&seq, old_buffer, op->var.as_or_throw<TensorVar>());
     return SeqStmt::Flatten(seq);
   }
 
@@ -578,7 +578,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a PrimFunc";
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::callback::kPrivateAlloc)) {
-      auto buf_list = bufs.value().as<Array<BufferVar>>().value();
+      auto buf_list = bufs.value().as<Array<TensorVar>>().value();
       alloc_buffers_.insert(alloc_buffers_.end(), buf_list.begin(), buf_list.end());
     }
     if (auto stmts = sctx->callbacks.Get(tirx::callback::kDeviceInitStmt)) {
@@ -590,7 +590,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       host_init_stmts_.insert(host_init_stmts_.end(), stmt_list.begin(), stmt_list.end());
     }
     if (auto mapping = sctx->callbacks.Get(tirx::callback::kPostBufferDefStmt)) {
-      auto map = mapping.value().as_or_throw<ffi::Map<BufferVar, Array<Stmt>>>();
+      auto map = mapping.value().as_or_throw<ffi::Map<TensorVar, Array<Stmt>>>();
       for (const auto& [buffer, stmts] : map) {
         auto& vec = post_buffer_def_stmts_[buffer];
         vec.insert(vec.end(), stmts.begin(), stmts.end());
@@ -1467,12 +1467,12 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   std::vector<std::vector<ScopeIdDef>> scope_id_defs_at_level_;
   std::vector<ExecContext> ctx_stack_;
   std::unordered_map<ffi::String, IterVar> launch_params_;
-  std::vector<BufferVar> alloc_buffers_;
+  std::vector<TensorVar> alloc_buffers_;
   std::vector<Stmt> device_init_stmts_;
   std::vector<Stmt> host_init_stmts_;
   /*! \brief Storage root of each buffer variable defined in the body. */
   std::unordered_map<Var, Var, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffer_root_;
-  std::unordered_map<BufferVar, std::vector<Stmt>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, std::vector<Stmt>, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       post_buffer_def_stmts_;
   ffi::Map<ffi::String, ffi::ObjectRef> shared_state_;
   std::vector<std::pair<std::string, int64_t>> cluster_cta_axis_extents_;
@@ -1480,10 +1480,10 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   bool is_first_block_{true};
   bool is_first_thread_attr_{true};
 
-  bool AppendPostBufferDefStmts(std::vector<Stmt>* seq, const BufferVar& old_buffer,
-                                const BufferVar& new_buffer) {
+  bool AppendPostBufferDefStmts(std::vector<Stmt>* seq, const TensorVar& old_buffer,
+                                const TensorVar& new_buffer) {
     auto append_with_remap = [this, seq, &new_buffer](auto it) -> bool {
-      BufferVar src = it->first;
+      TensorVar src = it->first;
       for (const auto& stmt : it->second) {
         Stmt remapped = BufferRefRewriter::Rewrite(stmt, src, new_buffer);
         seq->push_back(KernelReplacePointSearcher::Seek(remapped, Evaluate(0)));

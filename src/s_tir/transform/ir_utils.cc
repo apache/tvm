@@ -89,7 +89,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
                                     const ffi::Array<PrimExpr>& indices) {
-  const BufferVar& target = match_buffer->buffer;
+  const TensorVar& target = match_buffer->buffer;
   const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(indices.size(), target->shape.size());
 
@@ -111,7 +111,7 @@ ffi::Array<PrimExpr> ConvertIndices(const MatchBufferRegion& match_buffer,
 }
 
 Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region) {
-  const BufferVar& target = match_buffer->buffer;
+  const TensorVar& target = match_buffer->buffer;
   const TensorRegion& source = match_buffer->source;
   TVM_FFI_ICHECK_EQ(region.size(), target->shape.size());
 
@@ -151,7 +151,7 @@ class StorageAlignCollector : public StmtExprVisitor {
     if (it != op->annotations.end()) {
       auto annotation = (*it).second.as_or_throw<StorageAlignAnnotation>();
       for (const auto& item : annotation) {
-        storage_align_[op->writes[item.get<0>()]->source.as_or_throw<BufferVar>().var()].push_back(
+        storage_align_[op->writes[item.get<0>()]->source.as_or_throw<TensorVar>().var()].push_back(
             item);
       }
     }
@@ -177,7 +177,7 @@ class StorageAlignCollector : public StmtExprVisitor {
         // the first buffer idx info is meaningless for alloc
         // stmt and should set as negative intentionally.
         TVM_FFI_ICHECK_EQ(buffer_index, -1);
-        storage_align_[op->var.as_or_throw<BufferVar>().var()].push_back(storage_align_tuple);
+        storage_align_[op->var.as_or_throw<TensorVar>().var()].push_back(storage_align_tuple);
       }
     }
     return StmtExprVisitor::Visit_(op);

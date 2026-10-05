@@ -43,7 +43,7 @@ async pipeline.
 
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, PrimFunc
+from tvm.tirx import PrimFunc, Var
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.operator.tile_primitive.dispatcher import (
     predicate,
@@ -142,8 +142,8 @@ def _is_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool,
 
 def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.source
-    dst: Buffer = op_call.dst.source
+    src: Var = op_call.src.source
+    dst: Var = op_call.dst.source
     # Predicate above guarantees src is global, dst is shared.
     g_buf, g_br = src, op_call.src
     s_buf, s_br = dst, op_call.dst

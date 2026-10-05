@@ -369,8 +369,8 @@ UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const BufferStoreNode* op,
                                                  InplaceMode inplace_mode) {
   BufferStore store = ffi::GetRef<BufferStore>(op);
 
-  BufferVar new_buffer = Mutate(op->buffer, inplace_mode)
-                             .as_or_throw<UnchangedOr<BufferVar>>()
+  TensorVar new_buffer = Mutate(op->buffer, inplace_mode)
+                             .as_or_throw<UnchangedOr<TensorVar>>()
                              .ValueOrUnchanged(op->buffer);
   auto value_result = this->Mutate(op->value, inplace_mode);
   bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
@@ -396,11 +396,11 @@ UnchangedOr<PrimExpr> IndexDataTypeRewriter::Mutate_(const TensorLoadNode* op,
                                                      InplaceMode inplace_mode) {
   TensorLoad load = ffi::GetRef<TensorLoad>(op);
 
-  BufferVar new_buffer =
-      Mutate(op->source, inplace_mode).ValueOrUnchanged(op->source).as_or_throw<BufferVar>();
+  TensorVar new_buffer =
+      Mutate(op->source, inplace_mode).ValueOrUnchanged(op->source).as_or_throw<TensorVar>();
   auto indices = VisitIndices(op->indices, inplace_mode);
 
-  if (!new_buffer.same_as(op->source.as_or_throw<tvm::tirx::BufferVar>()) ||
+  if (!new_buffer.same_as(op->source.as_or_throw<tvm::tirx::TensorVar>()) ||
       !indices.same_as(op->indices)) {
     return BufferLoad(new_buffer, indices, op->span);
   }
@@ -602,7 +602,7 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
   auto collector = ffi::make_object<IndexVarCollector>(seed);
   collector->Mutate(func->body);
   for (const Var& param : func->params) {
-    if (param.as<BufferVar>()) {
+    if (param.as<TensorVar>()) {
       collector->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
                                    [&] { return collector->Mutate(param); });
     } else {

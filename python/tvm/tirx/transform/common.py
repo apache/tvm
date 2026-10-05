@@ -18,22 +18,19 @@
 
 import tvm_ffi
 
-from tvm.ir import Call, Op, is_prim_expr
-from tvm.tirx import Evaluate, Expr, Stmt, TilePrimitiveCall, Var, decl_tensor
-from tvm.tirx.buffer import Buffer, is_buffer_var
+from tvm.ir import Call, Op, Var, is_prim_expr
+from tvm.tirx import Evaluate, Expr, Stmt, TilePrimitiveCall, decl_tensor, is_tensor_var
 from tvm.tirx.layout import Iter, TileLayout
 
 
 class BufferReplacer:
     """
     Replace buffer with another buffer.
-    Buffer values are ordinary Vars, so the same mapping also rewrites
+    Var values are ordinary Vars, so the same mapping also rewrites
     ``buffer_data`` projections.
     """
 
-    def __init__(
-        self, buffer_map: dict[Buffer, Buffer] | None = None, var_map: dict[Var, Var] | None = None
-    ):
+    def __init__(self, buffer_map: dict[Var] | None = None, var_map: dict[Var] | None = None):
         super().__init__()
         self.buffer_map = buffer_map if buffer_map is not None else {}
         self.var_map = var_map if var_map is not None else {}
@@ -42,7 +39,7 @@ class BufferReplacer:
 
     def __call__(self, node):
         def replace_var(op: Var):
-            if is_buffer_var(op):
+            if is_tensor_var(op):
                 return self._mutate_buffer(op)
             return self.var_map.get(op, op)
 
@@ -74,7 +71,7 @@ class BufferReplacer:
             order="post",
         )
 
-    def _mutate_buffer(self, buffer: Buffer):
+    def _mutate_buffer(self, buffer: Var):
         if buffer in self.buffer_map:
             return self.buffer_map[buffer]
 

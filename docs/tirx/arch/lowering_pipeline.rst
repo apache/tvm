@@ -68,7 +68,7 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - lowers remaining opaque constructs to lower-level TIRx forms
    * - 5
      - ``FlattenBuffer``
-     - flattens multi-dimensional ``BufferLoad`` / ``BufferStore`` to 1-D
+     - flattens multi-dimensional ``TensorLoad`` / ``BufferStore`` to 1-D
    * - 6
      - ``BF16ComputeLegalize``
      - rewrites ``bfloat16`` compute to a legal (f32-up-cast) form

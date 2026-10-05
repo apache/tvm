@@ -49,12 +49,12 @@ scope**:
   ``Tx.tile.warpgroup``) / ``Tx.tile.cta.<name>`` /
   ``Tx.tile.cluster.<name>`` / ``Tx.tile.thread.<name>`` — bind a wider scope.
 
-Most primitive constructors also carry ``workspace: dict[str, Buffer] | None``,
+Most primitive constructors also carry ``workspace: dict[str, Var] | None``,
 ``dispatch: str | None`` (force a named lowering variant), and ``**kwargs``
 collected into a ``config`` dict that tunes the chosen lowering.  ``ScopedOp``
 fills the underlying ``scope`` argument from the namespace prefix; select a
 scope with ``Tx.tile.warp`` / ``Tx.tile.wg`` / ``Tx.tile.cta`` rather than
-passing it to the callable directly. Operands are ``Buffer`` / ``BufferRegion``
+passing it to the callable directly. Operands are tensor variables / ``TensorRegion``
 values, each carrying a :doc:`TileLayout <layout>` that dispatch reads.
 
 Primitive catalog
@@ -117,7 +117,7 @@ everything dispatch needs (``python/tvm/tirx/tile_primitive.py``):
      - ``Array``
      - operands (regions / scalars), in the order shown above
    * - ``workspace``
-     - ``Map[str, Buffer]``
+     - ``Map[str, Var]``
      - pre-allocated scratch buffers
    * - ``config``
      - ``Map[str, Any]``
@@ -187,7 +187,7 @@ configuration key.
 Three dispatch inputs are **implicit**, not config keys: the **execution scope**
 (set by the namespace, then refined against the active thread set tracked through
 control flow into ``inter``/``intra`` maps and a ``scope_kind``), the **operand
-layouts** (each ``Buffer.layout``), and the **target** (the dispatch table is
+layouts** (each tensor variable's ``layout``), and the **target** (the dispatch table is
 keyed by its kind, e.g. ``"cuda"``).
 
 See also

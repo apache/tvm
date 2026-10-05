@@ -112,7 +112,7 @@ class DoubleBufferDetector : public StmtExprVisitor {
 
   // Declared regions carry bounds, not opaque runtime accesses.
   ffi::Optional<VisitInterrupt> Visit_(const TensorRegionNode* op) final {
-    if (!op->source.as<BufferVar>()) return StmtExprVisitor::Visit_(op);
+    if (!op->source.as<TensorVar>()) return StmtExprVisitor::Visit_(op);
     for (const Range& range : op->region) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->min));
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(range->extent));
@@ -184,7 +184,7 @@ class DoubleBufferInjector : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_AllocTensor(const BindNode* op, const CallNode* call,
                                        InplaceMode inplace_mode) {
-    const VarNode* buf = op->var.as_or_throw<BufferVar>().get();
+    const VarNode* buf = op->var.as_or_throw<TensorVar>().get();
     auto it = dbuffer_info_.find(buf);
     if (it != dbuffer_info_.end()) {
       StorageEntry& entry = it->second;
@@ -217,7 +217,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       if (db_it != dbuffer_info_.end() && db_it->second.loop != nullptr) {
         StorageEntry& entry = db_it->second;
         const Bind& alloc = pend_it->second;
-        auto new_buf = GetRemappedBuffer(alloc->var.as_or_throw<BufferVar>(), entry.stride.value());
+        auto new_buf = GetRemappedBuffer(alloc->var.as_or_throw<TensorVar>(), entry.stride.value());
         auto& alloc_nest = loop_allocs_[entry.loop];
         const auto* call = alloc->value.as<CallNode>();
         alloc_nest.emplace_back(Bind(new_buf.var(),
@@ -321,7 +321,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     if (!indices.UnchangedOrSameAs(op->indices)) {
       node.CopyOnWrite()->indices = std::move(indices).ValueUnchecked();
     }
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = node->source.as_or_throw<tvm::tirx::TensorVar>();
 
     auto it = dbuffer_info_.find(buffer.get());
     if (it != dbuffer_info_.end()) {
@@ -340,9 +340,9 @@ class DoubleBufferInjector : public StmtExprMutator {
     return node;
   }
 
-  BufferVar GetRemappedBuffer(BufferVar buf, PrimExpr stride) {
-    BufferVar original = buf;
-    if (auto replacement = VarRemapGet(buf).as<BufferVar>()) return replacement.value();
+  TensorVar GetRemappedBuffer(TensorVar buf, PrimExpr stride) {
+    TensorVar original = buf;
+    if (auto replacement = VarRemapGet(buf).as<TensorVar>()) return replacement.value();
 
     TVM_FFI_ICHECK(stride.defined());
     // TODO(Lunderberg): Move this pass to before
@@ -356,14 +356,14 @@ class DoubleBufferInjector : public StmtExprMutator {
     // double-buffer, not the stride of the buffer's index.
     auto type = CopyTensorType(buf);
     type->shape = {buf->shape[0] + stride};
-    buf = RebuildBufferVar(buf, std::move(type));
+    buf = RebuildTensorVar(buf, std::move(type));
 
     VarRemapSet(original, buf);
     return buf;
   }
 
   UnchangedOr<Expr> Mutate_(const TensorRegionNode* op, InplaceMode inplace_mode) final {
-    if (!op->source.as<BufferVar>()) {
+    if (!op->source.as<TensorVar>()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     auto region = Mutate(op->region).as_or_throw<UnchangedOr<ffi::Array<Range>>>();
@@ -412,7 +412,7 @@ class DoubleBufferInjector : public StmtExprMutator {
     vmap.insert_or_assign(e.loop->loop_var.get(), loop_shift);
     vmap.insert_or_assign(e.switch_write_var.value().get(), indexmod(loop_shift, two));
     body = ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(body, map_var).as_or_throw<Stmt>();
-    body = AttrStmt(GetRemappedBuffer(buffer.as_or_throw<BufferVar>(), e.stride.value()).data(),
+    body = AttrStmt(GetRemappedBuffer(buffer.as_or_throw<TensorVar>(), e.stride.value()).data(),
                     s_tir::attr::double_buffer_write, IntImm::Int32(1), body);
     body = IfThenElse(loop_shift < e.loop->extent, body);
     return body;
@@ -442,7 +442,7 @@ class DoubleBufferInjector : public StmtExprMutator {
   std::unordered_map<const ForNode*, std::vector<Stmt>> loop_pre_;
   // The allocation size of the buffer
   std::unordered_map<const VarNode*, StorageEntry> dbuffer_info_;
-  // The updated BufferVar objects
+  // The updated TensorVar objects
   // Pending double-buffer AllocTensor nodes (deferred from flat AllocTensor visit)
   std::unordered_map<const VarNode*, Bind> pending_dbuffer_allocs_;
 };

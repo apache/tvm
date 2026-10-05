@@ -54,7 +54,7 @@ SBlock WithAnnotation(const SBlockNode* block, const ffi::String& attr_key,
  * \param scope The target storage scope.
  * \return The new buffer with target storage scope.
  */
-BufferVar WithScope(const BufferVar& buffer, const ffi::String& scope);
+TensorVar WithScope(const TensorVar& buffer, const ffi::String& scope);
 
 /*!
  * \brief Create a new buffer by changint the data type.
@@ -62,7 +62,7 @@ BufferVar WithScope(const BufferVar& buffer, const ffi::String& scope);
  * \param scope The target data type.
  * \return The new buffer with target data type.
  */
-BufferVar WithDType(const BufferVar& buffer, PrimType dtype);
+TensorVar WithDType(const TensorVar& buffer, PrimType dtype);
 
 /*!
  * \brief Replaces the buffer within the specific sequence of regions
@@ -71,8 +71,8 @@ BufferVar WithDType(const BufferVar& buffer, PrimType dtype);
  * \param target The buffer to be replaced to
  * \return The new sequence of regions after replacement
  */
-ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions, const BufferVar& source,
-                                       const BufferVar& target);
+ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions, const TensorVar& source,
+                                       const TensorVar& target);
 
 /*!
  * \brief Replaces the buffer within the specific sequence of regions
@@ -81,7 +81,7 @@ ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions, const B
  * \return The new sequence of regions after replacement
  */
 ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions,
-                                       const ffi::Map<BufferVar, BufferVar>& buffer_map);
+                                       const ffi::Map<TensorVar, TensorVar>& buffer_map);
 
 /*!
  * \brief Replaces the buffer within the specific sequence of match_buffers
@@ -91,7 +91,7 @@ ffi::Array<TensorRegion> ReplaceBuffer(ffi::Array<TensorRegion> regions,
  * \return The new sequence of match_buffers after replacement
  */
 ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_buffers,
-                                            const BufferVar& source, const BufferVar& target);
+                                            const TensorVar& source, const TensorVar& target);
 
 /*!
  * \brief Replaces the buffer region within the specific sequence of regions
@@ -101,7 +101,7 @@ ffi::Array<MatchBufferRegion> ReplaceBuffer(ffi::Array<MatchBufferRegion> match_
  * \return The new sequence of regions after replacement
  */
 ffi::Array<TensorRegion> ReplaceBufferRegion(ffi::Array<TensorRegion> regions,
-                                             const BufferVar& source_buffer,
+                                             const TensorVar& source_buffer,
                                              const TensorRegion& target);
 
 /*!
@@ -112,7 +112,7 @@ ffi::Array<TensorRegion> ReplaceBufferRegion(ffi::Array<TensorRegion> regions,
  * \return The new sequence of match_buffers after replacement
  */
 ffi::Array<MatchBufferRegion> ReplaceBufferRegion(ffi::Array<MatchBufferRegion> match_buffers,
-                                                  const BufferVar& source_buffer,
+                                                  const TensorVar& source_buffer,
                                                   const TensorRegion& target);
 
 /*!
@@ -135,10 +135,10 @@ class ReplaceBufferMutator : public StmtExprMutator {
    * \param block_sref_reuse Optional map to record mapping between old and new blocks that reuse
    *        sref.
    */
-  ReplaceBufferMutator(const BufferVar& old_buffer, BufferVar new_buffer,
+  ReplaceBufferMutator(const TensorVar& old_buffer, TensorVar new_buffer,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse);
 
-  ReplaceBufferMutator(const ffi::Map<BufferVar, BufferVar>& buffer_map,
+  ReplaceBufferMutator(const ffi::Map<TensorVar, TensorVar>& buffer_map,
                        ffi::Map<SBlock, SBlock>* block_sref_reuse);
 
  protected:

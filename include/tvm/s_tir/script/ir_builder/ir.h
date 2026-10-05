@@ -27,8 +27,8 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 
-using tvm::tirx::BufferVar;
 using tvm::tirx::Layout;
+using tvm::tirx::TensorVar;
 using tvm::tirx::Var;
 
 PrimFuncFrame PrimFunc(bool is_private = false, bool persistent = false);
@@ -49,7 +49,7 @@ PrimFuncFrame DeclFunction(bool is_private = false, bool persistent = false);
  * \param allocated_addr Addresses assigned to the buffer allocation.
  * \return The matched buffer.
  */
-BufferVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
+TensorVar MatchBuffer(ffi::ObjectRef param, ffi::Array<PrimExpr> shape,
                       PrimType dtype = PrimType::Float(32), ffi::Optional<Expr> data = std::nullopt,
                       ffi::Array<PrimExpr> strides = {},
                       ffi::Optional<PrimExpr> elem_offset = std::nullopt,
@@ -109,7 +109,7 @@ void BlockAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
  * \param allocated_addr The allocated address of the buffer. Might be multi-dimensional.
  * \return The buffer attached to its enclosing block or function allocation list.
  */
-BufferVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                             ffi::Optional<Expr> data = std::nullopt,
                             ffi::Array<PrimExpr> strides = {},
                             ffi::Optional<PrimExpr> elem_offset = std::nullopt,

@@ -21,7 +21,7 @@ from tvm.backend.trn.tile_primitive.common import init_analyzer, nki_dim
 from tvm.backend.trn.tile_primitive.dim_utils import get_ewise_dim_map
 from tvm.backend.trn.tile_primitive.instruction_generator import InstructionGenerator
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, FloatImm, Stmt
+from tvm.tirx import FloatImm, Stmt, Var
 from tvm.tirx.operator.tile_primitive.ops import (
     BinaryReduce,
     Copy,
@@ -46,7 +46,7 @@ def _scalar_dtype(scalar) -> str:
 
 
 def alloc_const_bias_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: DispatchContext
+    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     bias = op.bias if op.bias is not None else FloatImm(op.dsts[0].source.ty.dtype, 0.0)
     if "const_bias" in op.workspace:
@@ -63,8 +63,8 @@ def alloc_const_bias_trn(
             return {"const_bias": ("const_bias", bias.value)}
     else:
         new_shape = (par_size, max_inst_size)
-    new_buffer = T.buffer(
-        new_shape, dtype=_scalar_dtype(bias), scope="trn.sbuf", buffer_name="const_bias"
+    new_buffer = T.tensor(
+        new_shape, dtype=_scalar_dtype(bias), scope="trn.sbuf", tensor_name="const_bias"
     )
 
     # This fragment captures buffers and indices from its insertion scope.
@@ -81,7 +81,7 @@ def alloc_const_bias_trn(
 
 
 def alloc_partial_reduce_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: DispatchContext
+    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     if "partial_reduce" in op.workspace:
         return {}
@@ -101,7 +101,7 @@ def alloc_partial_reduce_trn(
 
 
 def alloc_identity_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: DispatchContext
+    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     if "identity" in op.workspace:
         return {}
@@ -114,8 +114,8 @@ def alloc_identity_trn(
             return {"identity": "identity"}
     else:
         new_shape = (par_size, par_size)
-    new_buffer = T.buffer(
-        new_shape, dtype=op.srcs[0].source.ty.dtype, scope="trn.sbuf", buffer_name="identity"
+    new_buffer = T.tensor(
+        new_shape, dtype=op.srcs[0].source.ty.dtype, scope="trn.sbuf", tensor_name="identity"
     )
 
     # This fragment captures buffers and indices from its insertion scope.
@@ -132,17 +132,17 @@ def alloc_identity_trn(
 
 
 def alloc_acc_psum_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: DispatchContext
+    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
 ) -> dict[str, Any]:
     if "acc_psum" in op.workspace or op.dsts[0].source.scope() == "trn.psum":
         return {}
     par_size = op.dsts[0].source.ty.layout.size("P")
-    acc_psum = T.buffer(
+    acc_psum = T.tensor(
         (8, par_size, 512),
         "float32",
         scope="trn.psum",
         allocated_addr=(0, 0),
-        buffer_name="acc_psum",
+        tensor_name="acc_psum",
     )
     # no reuse opportunity
     buffer_dict[acc_psum] = (acc_psum, None)
@@ -150,8 +150,8 @@ def alloc_acc_psum_trn(
 
 
 def alloc_copy_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: DispatchContext
-) -> dict[str, Buffer]:
+    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+) -> dict[str, Var]:
     src_region = op.srcs[0]
     dst_region = op.dsts[0]
     analyzer = init_analyzer(sctx)
@@ -167,8 +167,8 @@ def alloc_copy_trn(
 
 
 def alloc_unary_reduce_trn(
-    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Buffer, Stmt | None]], sctx: DispatchContext
-) -> dict[str, Buffer]:
+    op: TilePrimitiveCall, buffer_dict: dict[Any, tuple[Var, Stmt | None]], sctx: DispatchContext
+) -> dict[str, Var]:
     if "max_inst_size" in op.config:
         partial_reduce_dict = alloc_partial_reduce_trn(op, buffer_dict, sctx)
         const_bias_dict = alloc_const_bias_trn(op, buffer_dict, sctx)

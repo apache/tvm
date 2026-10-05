@@ -28,9 +28,9 @@ namespace tvm {
 namespace tirx {
 
 // BufferLoad
-TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span) {
+TensorLoad BufferLoad(TensorVar buffer, ffi::Array<PrimExpr> indices, Span span) {
   TVM_FFI_ICHECK_EQ(buffer->shape.size(), indices.size())
-      << "BufferVar " << buffer.name() << " is " << buffer->shape.size()
+      << "TensorVar " << buffer.name() << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
@@ -70,7 +70,7 @@ TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span)
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.BufferLoad",
-                        [](BufferVar buffer, ffi::Array<PrimExpr> indices, Span span) {
+                        [](TensorVar buffer, ffi::Array<PrimExpr> indices, Span span) {
                           return BufferLoad(buffer, indices, span);
                         });
 }

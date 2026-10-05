@@ -33,11 +33,11 @@ def test_buffer():
     Bb = tvm.tirx.decl_tensor((n, l), "float32")
 
     assert type(Ab) is tvm.ir.Var
-    assert tvm.tirx.is_buffer_var(Ab)
+    assert tvm.tirx.is_tensor_var(Ab)
     assert isinstance(Ab.ty, tvm.tirx.TensorType)
     assert Ab.ty.dtype == tvm.ir.PrimType("float32")
     assert tuple(Ab.ty.shape) == (m, n)
-    assert not tvm.tirx.is_buffer_var(m)
+    assert not tvm.tirx.is_tensor_var(m)
 
     serialized = tvm.ir.save_json(Ab.ty)
     assert '"tirx.TensorType"' in serialized
@@ -50,10 +50,10 @@ def test_buffer_compatibility_alias_and_global_var_properties():
     scalar = tvm.ir.Var("scalar", tvm.ir.PrimType("int32"))
     buffer = tvm.tirx.decl_tensor((8,), "float32")
 
-    assert tvm.tirx.Buffer is tvm.ir.Var
-    assert isinstance(scalar, tvm.tirx.Buffer)
-    assert not tvm.tirx.is_buffer_var(scalar)
-    assert tvm.tirx.is_buffer_var(buffer)
+    assert isinstance(buffer, tvm.ir.Var)
+    assert isinstance(scalar, tvm.ir.Var)
+    assert not tvm.tirx.is_tensor_var(scalar)
+    assert tvm.tirx.is_tensor_var(buffer)
 
     assert tuple(buffer.shape) == (8,)
     assert buffer.dtype == tvm.DataType("float32")

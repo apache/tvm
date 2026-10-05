@@ -46,7 +46,7 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   // be accessible to the users.
   bool visit_thread_extent_{true};
   ffi::Array<Var> undefined_;
-  ffi::Array<BufferVar> undefined_buffers_;
+  ffi::Array<TensorVar> undefined_buffers_;
 
   std::unordered_map<const VarNode*, int> use_count_;
   std::unordered_map<const VarNode*, int> def_count_;
@@ -67,8 +67,8 @@ class VarUseDefAnalyzer : public StmtExprVisitor {
   void HandleDef(const Var& v);
   void HandleUse(const Var& v);
 
-  void HandleDef(const BufferVar& buf);
-  void HandleUse(const BufferVar& buf);
+  void HandleDef(const TensorVar& buf);
+  void HandleUse(const TensorVar& buf);
 };
 
 }  // namespace tirx

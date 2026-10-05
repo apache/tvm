@@ -31,7 +31,7 @@ namespace tvm {
 namespace s_tir {
 
 tvm::tirx::PrimFunc ScriptComplete(tvm::tirx::PrimFunc func,
-                                   const ffi::Array<tvm::tirx::BufferVar>& root_allocates);
+                                   const ffi::Array<tvm::tirx::TensorVar>& root_allocates);
 
 }  // namespace s_tir
 }  // namespace tvm

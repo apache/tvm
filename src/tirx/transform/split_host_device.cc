@@ -209,7 +209,7 @@ class HostDeviceSplitter : public StmtExprMutator {
  private:
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
     auto [params,
-          buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<BufferVar>> {
+          buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<TensorVar>> {
       auto use_def =
           ffi::make_object<VarUseDefAnalyzer>(ffi::Array<Var>{}, /*visit_thread_extent=*/true);
       use_def->Visit(body);
@@ -231,7 +231,7 @@ class HostDeviceSplitter : public StmtExprMutator {
       } else {
         std::unordered_map<Var, int, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> param_order;
         for (size_t i = 0; i < cur_func_->params.size(); ++i) {
-          param_order[cur_func_->params[i].as_or_throw<tvm::tirx::BufferVar>().var()] = i;
+          param_order[cur_func_->params[i].as_or_throw<tvm::tirx::TensorVar>().var()] = i;
         }
         // sort by original order
         std::sort(params.begin(), params.end(),
@@ -249,8 +249,8 @@ class HostDeviceSplitter : public StmtExprMutator {
     auto kernel_rewriter = ffi::make_object<StmtExprMutator>();
     for (const Var& param : params) {
       if (param->ty.as<TensorTypeNode>()) {
-        BufferVar buffer = param.as_or_throw<BufferVar>();
-        BufferVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
+        TensorVar buffer = param.as_or_throw<TensorVar>();
+        TensorVar kernel_buffer(buffer.name(), buffer.type(), buffer.span());
         Var data_param(buffer.name() + "_ptr", buffer.DataPointerType());
         kernel_params.push_back(data_param);
         call_args.push_back(buffer.data());
@@ -280,18 +280,18 @@ class HostDeviceSplitter : public StmtExprMutator {
       kernel_ret_type = VoidType();
     }
 
-    for (BufferVar buf : buffers_to_declare) {
+    for (TensorVar buf : buffers_to_declare) {
       auto data_param = buffer_data_params.Get(buf.var());
       auto kernel_buffer = kernel_rewriter->VarRemapGet(buf);
       TVM_FFI_ICHECK(data_param.has_value())
           << "Undefined buffer " << buf.name() << " was not captured as a kernel parameter";
       TVM_FFI_ICHECK(kernel_buffer != nullptr);
       body = SeqStmt::Flatten(
-          Bind(kernel_buffer.as_or_throw<BufferVar>(),
-               Call(kernel_buffer.as_or_throw<BufferVar>().type(), builtin::decl_tensor(),
-                    {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<BufferVar>()->shape),
-                     DataTypeImm(kernel_buffer.as_or_throw<BufferVar>()->dtype->dtype),
-                     StringImm(kernel_buffer.as_or_throw<BufferVar>().scope())},
+          Bind(kernel_buffer.as_or_throw<TensorVar>(),
+               Call(kernel_buffer.as_or_throw<TensorVar>().type(), builtin::decl_tensor(),
+                    {data_param.value(), tvm::Tuple(kernel_buffer.as_or_throw<TensorVar>()->shape),
+                     DataTypeImm(kernel_buffer.as_or_throw<TensorVar>()->dtype->dtype),
+                     StringImm(kernel_buffer.as_or_throw<TensorVar>().scope())},
                     {})),
           std::move(body));
     }

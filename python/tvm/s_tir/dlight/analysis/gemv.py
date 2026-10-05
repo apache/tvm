@@ -59,7 +59,7 @@ def get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     return buffer_store.value.b
 
 
-def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | None:
+def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Var] | None:
     """Check if the block is a GEMV.
 
     Parameters
@@ -74,7 +74,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Buffer] | 
 
     Returns
     -------
-    ret : Optional[List[tirx.Buffer]]
+    ret : Optional[List[tirx.Var]]
         The vector buffers used in the GEMV if it is a GEMV, otherwise None.
     """
     block = block_info.block_rv

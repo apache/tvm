@@ -33,13 +33,12 @@ from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span, StringImm, TensorRegion, Type
+from tvm.ir import Expr, Range, Span, StringImm, TensorRegion, Type, Var
 from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
-from .buffer import Buffer
 from .exec_scope import ScopeIdDef
-from .expr import IterVar, Var
+from .expr import IterVar
 
 
 @tvm_ffi.register_object("tirx.Stmt")
@@ -237,11 +236,11 @@ class While(Stmt):
 
 @tvm_ffi.register_object("tirx.BufferStore")
 class BufferStore(Stmt):
-    """Buffer store node.
+    """Var store node.
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The buffer.
 
     value : Expr
@@ -254,14 +253,14 @@ class BufferStore(Stmt):
         The location of the stmt in the source code.
     """
 
-    buffer: Buffer
+    buffer: Var
     value: Expr
     indices: list[Expr]
     span: Span | None
 
     def __init__(
         self,
-        buffer: Buffer,
+        buffer: Var,
         value: Expr,
         indices: list[Expr],
         span: Span | None = None,
@@ -405,12 +404,12 @@ class BufferRegionType(Type):
         self.__init_handle_by_constructor__(_ffi_api.BufferRegionType)  # type: ignore
 
 
-def BufferRegion(buffer: Buffer, region: list[Range]) -> TensorRegion:
+def BufferRegion(buffer: Var, region: list[Range]) -> TensorRegion:
     """Construct a buffer-backed tensor region with TIRX subscript semantics.
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The source buffer.
 
     region : List[Range]

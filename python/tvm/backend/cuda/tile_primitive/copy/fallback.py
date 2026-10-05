@@ -21,7 +21,7 @@ import warnings
 
 import tvm
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, PrimFunc
+from tvm.tirx import PrimFunc, Var
 from tvm.tirx.operator.tile_primitive.dispatcher import (
     predicate,
     register_dispatch,
@@ -41,8 +41,8 @@ def _region_st_extent(buffer_region):
 
 def _emit_fallback(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     op_call = TilePrimitiveCall.downcast(op_call)
-    src: Buffer = op_call.src.source
-    dst: Buffer = op_call.dst.source
+    src: Var = op_call.src.source
+    dst: Var = op_call.dst.source
     src_st, src_extent = _region_st_extent(op_call.src)
     dst_st, dst_extent = _region_st_extent(op_call.dst)
 

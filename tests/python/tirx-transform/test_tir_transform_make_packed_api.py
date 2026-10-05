@@ -473,7 +473,7 @@ def test_forward_reference_symbolic_variable():
 
 
 def test_buffer_alignment_attached_to_buffer_var():
-    """Packed ABI alignment metadata remains keyed by the logical BufferVar."""
+    """Packed ABI alignment metadata remains keyed by the logical TensorVar."""
 
     @I.ir_module
     class Before:

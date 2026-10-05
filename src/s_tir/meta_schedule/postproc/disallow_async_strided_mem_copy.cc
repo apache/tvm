@@ -82,7 +82,7 @@ struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
         auto bufferstore = bufferstorenode->buffer.as<TensorTypeNode>();
 
         // get load buffer; assert it exists and is contiguous given it uses a single index
-        BufferVar load_buffer = bufferloadnode->source.as_or_throw<BufferVar>();
+        TensorVar load_buffer = bufferloadnode->source.as_or_throw<TensorVar>();
         auto bufferload = load_buffer.as<TensorTypeNode>();
 
         if (!bufferstore || !bufferload) {

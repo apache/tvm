@@ -52,8 +52,8 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
 }  // namespace
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadNode* op) {
-  Var buf = ResolveBuffer(op->source.as_or_throw<tvm::tirx::BufferVar>().var());
-  StorageScope scope = StorageScope::Create(op->source.as_or_throw<tvm::tirx::BufferVar>().scope());
+  Var buf = ResolveBuffer(op->source.as_or_throw<tvm::tirx::TensorVar>().var());
+  StorageScope scope = StorageScope::Create(op->source.as_or_throw<tvm::tirx::TensorVar>().scope());
   if (Enabled(buf.get(), scope)) {
     TVM_FFI_ICHECK(allow_append_) << op << " " << scope.to_string();
     AccessEntry e;
@@ -118,7 +118,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>();
       call && call->op.same_as(tirx::builtin::decl_tensor())) {
     if (auto source = GetBufferDataVar(call->args[0])) {
-      buffer_aliases_.insert_or_assign(op->var.as_or_throw<BufferVar>().get(),
+      buffer_aliases_.insert_or_assign(op->var.as_or_throw<TensorVar>().get(),
                                        ResolveBuffer(source.value()));
     }
     return StmtExprVisitor::Visit_(op);
@@ -276,7 +276,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const CallNode* op) {
   if (op->op.same_as(tirx::builtin::masked_load()) ||
       op->op.same_as(tirx::builtin::masked_store())) {
     bool is_load = op->op.same_as(tirx::builtin::masked_load());
-    BufferVar buffer = op->args[0].as_or_throw<BufferVar>();
+    TensorVar buffer = op->args[0].as_or_throw<TensorVar>();
     PrimType value_dtype =
         is_load ? op->ty.as_or_throw<PrimType>() : op->args[1].as_or_throw<PrimExpr>().ty();
     Var buf = ResolveBuffer(buffer.var());

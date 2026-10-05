@@ -22,12 +22,12 @@ from typing import Literal
 from tvm.s_tir import TensorIntrin
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx import Buffer, Expr, PrimFunc
+from tvm.tirx import Expr, PrimFunc, Var
 
 ######## simdgroup matrix intrinsics ########
 
 
-def get_simdgroup_index(buffer: Buffer, stride: Expr, col: int, row: int):
+def get_simdgroup_index(buffer: Var, stride: Expr, col: int, row: int):
     """Compute simdgroup index using elem_offset of the buffer"""
 
     # NOTE: Need further check the usage between `col`` and `row`

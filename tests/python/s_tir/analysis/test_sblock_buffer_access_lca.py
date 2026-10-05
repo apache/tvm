@@ -107,7 +107,7 @@ def global_buffer_with_blockidx(
 
 def test_buffer_load_store():
     func = buffer_load_store_func
-    A, B = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     C, D = func.body.block.alloc_buffers
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
@@ -131,7 +131,7 @@ def test_buffer_load_store():
 
 def test_opaque_access():
     func = buffer_opaque_access
-    B, C = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    B, C = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     # Cannot detect buffer A since it is define by low-level Allocate
@@ -146,14 +146,14 @@ def test_opaque_access():
 
 def test_lca_func_root():
     func = lca_is_func_root
-    (A,) = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    (A,) = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
     assert lca[A] is None
 
 
 def test_match_buffer():
     func = match_buffer_func
-    A, B = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     root_block = func.body.block
@@ -169,7 +169,7 @@ def test_match_buffer():
 
 def test_global_buffer_with_blockidx():
     func = global_buffer_with_blockidx
-    A, B = [x for x in func.params if tvm.tirx.is_buffer_var(x)]
+    A, B = [x for x in func.params if tvm.tirx.is_tensor_var(x)]
     lca = s_tir.analysis.detect_buffer_access_lca(func)
 
     root_block = func.body.block

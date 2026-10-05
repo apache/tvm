@@ -41,7 +41,7 @@ namespace tirx {
 // (var, axis)
 using TIRVarAxis = std::pair<Var, int>;
 // (buffer, axis)
-using BufferAxis = std::pair<BufferVar, int>;
+using BufferAxis = std::pair<TensorVar, int>;
 class BufferAxisHash {
  public:
   size_t operator()(const BufferAxis& buffer_axis) const {
@@ -71,10 +71,10 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
   static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
     auto extractor = ffi::make_object<BufferAxisGraphExtractor>();
     extractor->Visit(prim_func->body);
-    ffi::Map<BufferVar, Var> inverse_buffer_map;
+    ffi::Map<TensorVar, Var> inverse_buffer_map;
     for (const Var& param : prim_func->params) {
       if (param->ty.as<TensorTypeNode>()) {
-        inverse_buffer_map.Set(param.as_or_throw<BufferVar>(), param);
+        inverse_buffer_map.Set(param.as_or_throw<TensorVar>(), param);
       }
     }
     std::vector<std::vector<TIRVarAxis>> tir_var_axis_group_list;
@@ -83,7 +83,7 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
       if (!param->ty.as<TensorTypeNode>()) {
         continue;
       }
-      BufferVar buffer = param.as_or_throw<BufferVar>();
+      TensorVar buffer = param.as_or_throw<TensorVar>();
       for (int i = 0; i < static_cast<int>(buffer->shape.size()); i++) {
         if (extractor->buffer_axis_graph_.count({buffer, i})) {
           std::vector<BufferAxis> buffer_axis_group;
@@ -128,7 +128,7 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
-    buffer_access_indices_.push_back({op->source.as_or_throw<tvm::tirx::BufferVar>(), op->indices});
+    buffer_access_indices_.push_back({op->source.as_or_throw<tvm::tirx::TensorVar>(), op->indices});
 
     return std::nullopt;
   }
@@ -171,14 +171,14 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
     }
     sym::Analyzer analyzer;
     for (const auto& access_pr : buffer_access_indices_) {
-      BufferVar buffer = access_pr.first;
+      TensorVar buffer = access_pr.first;
       ffi::Array<PrimExpr> indices = access_pr.second;
       for (int i = 0; i < static_cast<int>(indices.size()); i++) {
         for (const auto& another_access_pr : buffer_access_indices_) {
           if (another_access_pr.first.same_as(buffer)) {
             continue;
           }
-          BufferVar another_buffer = another_access_pr.first;
+          TensorVar another_buffer = another_access_pr.first;
           ffi::Array<PrimExpr> another_indices = another_access_pr.second;
           for (int j = 0; j < static_cast<int>(another_indices.size()); j++) {
             if (Match(indices[i], buffer->shape[i], another_indices[j], another_buffer->shape[j],
@@ -204,7 +204,7 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
     buffer_axis_graph_[axis2].push_back(axis1);
   }
 
-  std::vector<std::pair<BufferVar, ffi::Array<PrimExpr>>> buffer_access_indices_;
+  std::vector<std::pair<TensorVar, ffi::Array<PrimExpr>>> buffer_access_indices_;
   std::unordered_map<BufferAxis, std::vector<BufferAxis>, BufferAxisHash> buffer_axis_graph_;
   ffi::Map<Var, Range> iter_var_range_;
   std::string func_name;

@@ -149,14 +149,14 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisi
   }
 
   void EnterDef(const Var& var, AccessPath path) override {
-    if (auto buffer = var.as<BufferVar>()) {
+    if (auto buffer = var.as<TensorVar>()) {
       currently_defined_.insert({buffer.value(), path});
     }
   }
 
   void ExitDef(const Var& var, AccessPath path) override {
     if (!var->ty.as<TensorTypeNode>()) return;
-    auto buffer = var.as_or_throw<BufferVar>();
+    auto buffer = var.as_or_throw<TensorVar>();
     auto active_def = currently_defined_.find(buffer);
     if (active_def != currently_defined_.end()) {
       currently_defined_.erase(active_def);
@@ -164,30 +164,30 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisi
     previously_defined_.insert({buffer, path});
   }
 
-  void VisitBufferUse(const BufferVar& buffer, AccessPath path) override {
+  void VisitBufferUse(const TensorVar& buffer, AccessPath path) override {
     bool is_declared = currently_defined_.count(buffer);
     bool was_declared = previously_defined_.count(buffer);
 
     if (was_declared && !is_declared) {
-      // BufferVar was previously declared but is now out of scope — always an error.
+      // TensorVar was previously declared but is now out of scope — always an error.
       auto prev_def = previously_defined_.find(buffer);
       Verify(false) << "TIR is ill-formed: buffer " << buffer.name() << " is used at " << path
                     << " but its declaration is no longer in-scope. "
                     << "It was declared at " << prev_def->second << ".";
     } else if (!is_declared && !was_declared) {
-      // BufferVar was never declared — error.
+      // TensorVar was never declared — error.
       Verify(false) << "TIR is ill-formed: buffer " << buffer.name() << " is used at " << path
                     << " without a prior DeclTensor or other declaration.";
     }
-    // BufferVar fields are visited at definition site (EnterDef), not here.
+    // TensorVar fields are visited at definition site (EnterDef), not here.
     Verifier::VisitBufferUse(buffer, path);
   }
 
   // Buffers defined in the currently-visited scope.
-  std::unordered_map<BufferVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       currently_defined_;
   // Buffers that were previously defined and are now out of scope.
-  std::unordered_map<BufferVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
+  std::unordered_map<TensorVar, AccessPath, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>
       previously_defined_;
 };
 
@@ -203,10 +203,10 @@ class TensorLoadTypeVerifier : public Verifier<TensorLoadTypeVerifier<PathVisito
  private:
   using Verifier::Visit;
   void Dispatch_(const TensorLoadNode* op, AccessPath path) override {
-    auto buffer = op->source.as<BufferVar>();
+    auto buffer = op->source.as<TensorVar>();
     auto valid_source = Verify(buffer.has_value());
     valid_source << "TypeError: TIR TensorLoad source at " << path->Attr("source")
-                 << " must be a BufferVar.";
+                 << " must be a TensorVar.";
     if (!buffer.has_value()) {
       Visit(op->indices, path->Attr("indices"));
       return;

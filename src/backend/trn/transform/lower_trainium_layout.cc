@@ -59,18 +59,18 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     auto storage_lower = ffi::make_object<TrainiumLayoutApplier>(ana);
     ffi::Array<Var> new_params;
     new_params.reserve(params.size());
-    std::vector<std::pair<BufferVar, BufferVar>> param_flattened_buffers;
+    std::vector<std::pair<TensorVar, TensorVar>> param_flattened_buffers;
     for (const Var& param : params) {
-      auto buffer = param.as<BufferVar>();
+      auto buffer = param.as<TensorVar>();
       if (!buffer) {
         new_params.push_back(param);
         continue;
       }
       if (buffer.value()->layout.has_value()) {
-        BufferVar flattened = storage_lower->GetFlattenedBuffer(buffer.value());
+        TensorVar flattened = storage_lower->GetFlattenedTensor(buffer.value());
         auto type = CopyTensorType(buffer.value());
         type->layout = std::nullopt;
-        BufferVar source = RebuildBufferVar(buffer.value(), std::move(type));
+        TensorVar source = RebuildTensorVar(buffer.value(), std::move(type));
         param_flattened_buffers.emplace_back(flattened, source);
         new_params.push_back(source.var());
       } else {
@@ -96,8 +96,8 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::Mutate_;
 
   ffi::Any MutateTileArgument(const ffi::Any& any) {
-    if (auto buffer = any.as<BufferVar>()) {
-      return GetFlattenedBuffer(buffer.value());
+    if (auto buffer = any.as<TensorVar>()) {
+      return GetFlattenedTensor(buffer.value());
     }
     if (auto expr = any.as<PrimExpr>()) {
       return Mutate(expr.value()).ValueOrUnchanged(expr.value());
@@ -111,11 +111,11 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::alloc_tensor())) {
-      BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
+      TensorVar original_buffer = op->var.as_or_throw<TensorVar>();
       if (!original_buffer->layout.has_value()) {
         return ffi::Unchanged();
       }
-      auto buffer = GetFlattenedBuffer(original_buffer, /*is_alloc=*/true);
+      auto buffer = GetFlattenedTensor(original_buffer, /*is_alloc=*/true);
       if (buffer.same_as(original_buffer)) {
         return ffi::Unchanged();
       }
@@ -129,12 +129,12 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
     if (const auto* call = op->value.as<CallNode>();
         call && call->op.same_as(tirx::builtin::decl_tensor())) {
-      BufferVar original_buffer = op->var.as_or_throw<BufferVar>();
+      TensorVar original_buffer = op->var.as_or_throw<TensorVar>();
       Expr original_data = call->args[0];
       auto data_update = Mutate(original_data, inplace_mode);
       bool data_unchanged = data_update.UnchangedOrSameAs(original_data);
       Expr data = std::move(data_update).ValueOrUnchanged(original_data);
-      auto buffer = GetFlattenedBuffer(original_buffer);
+      auto buffer = GetFlattenedTensor(original_buffer);
       if (buffer.same_as(original_buffer) && data_unchanged) {
         return ffi::Unchanged();
       }
@@ -148,13 +148,13 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return IRMutatorWithAnalyzer::Mutate_(op, inplace_mode);
   }
 
-  BufferVar GetFlattenedBuffer(BufferVar buf, bool is_alloc = false) {
+  TensorVar GetFlattenedTensor(TensorVar buf, bool is_alloc = false) {
     ffi::Any mapped = VarRemapGet(buf);
     if (mapped.type_index() != ffi::TypeIndex::kTVMFFINone) {
-      return std::move(mapped).as_or_throw<UnchangedOr<BufferVar>>().ValueOrUnchanged(buf);
+      return std::move(mapped).as_or_throw<UnchangedOr<TensorVar>>().ValueOrUnchanged(buf);
     }
     auto trn_layout = buf->layout.as<TileLayoutNode>();
-    BufferVar flattened = buf;
+    TensorVar flattened = buf;
     ffi::ObjectPtr<TensorTypeNode> type;
     if (IsTrainiumLayout(trn_layout)) {
       ffi::Array<PrimExpr> new_shape =
@@ -192,11 +192,11 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
         type->shape = {ana->Simplify(mem_span)};
         type->strides = {};
       } else {
-        flattened = buf.GetFlattenedBuffer();
+        flattened = buf.GetFlattenedTensor();
         type = CopyTensorType(flattened);
       }
     } else {
-      flattened = buf.GetFlattenedBuffer();
+      flattened = buf.GetFlattenedTensor();
       type = CopyTensorType(flattened);
     }
     if (flattened->dtype->dtype == DLDataType{kDLBool, 8, 1}) {
@@ -208,7 +208,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     type->layout = std::nullopt;
     type->elem_offset = StmtExprMutator::Mutate(buf->elem_offset, InplaceMode::kDisallow)
                             .ValueOrUnchanged(buf->elem_offset);
-    flattened = RebuildBufferVar(flattened, std::move(type));
+    flattened = RebuildTensorVar(flattened, std::move(type));
 
     VarRemapSet(buf, flattened);
     return flattened;
@@ -216,7 +216,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
 
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
     // Index conversion needs the original logical layout after the parent remaps the buffer.
-    BufferVar logical_buffer = op->buffer;
+    TensorVar logical_buffer = op->buffer;
     BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
                             .as_or_throw<BufferStore>();
@@ -235,7 +235,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
-    BufferVar logical_buffer = op->source.as_or_throw<BufferVar>();
+    TensorVar logical_buffer = op->source.as_or_throw<TensorVar>();
     PrimType load_ty = op->ty.as_or_throw<PrimType>();
     bool load_returns_bool = load_ty.MatchesCode(DLDataTypeCode::kDLBool);
     TensorLoad load = StmtExprMutator::Mutate_(op, inplace_mode)
@@ -243,7 +243,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
                           .as_or_throw<TensorLoad>();
     load = VisitBufferAccess(load, logical_buffer);
     if (load_returns_bool) {
-      TVM_FFI_ICHECK_EQ(load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype->dtype,
+      TVM_FFI_ICHECK_EQ(load->source.as_or_throw<tvm::tirx::TensorVar>()->dtype->dtype,
                         (DLDataType{kDLInt, 8, 1}))
           << "Expected int8 backing array for boolean tensor";
       load.CopyOnWrite()->ExprNode::ty = PrimType::Int(8);
@@ -268,7 +268,7 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     }
   }
 
-  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const BufferVar& buffer,
+  ffi::Array<PrimExpr> GetSimplifiedElemOffset(const TensorVar& buffer,
                                                const ffi::Array<PrimExpr>& indices) {
     if (buffer->layout.has_value()) {
       auto tile_layout = buffer->layout.value().as<TileLayoutNode>();
@@ -301,26 +301,26 @@ class TrainiumLayoutApplier : public tirx::IRMutatorWithAnalyzer {
     return {analyzer_->Simplify(flattened_indices[0])};
   }
 
-  BufferStore VisitBufferAccess(BufferStore node, const BufferVar& logical_buffer) {
+  BufferStore VisitBufferAccess(BufferStore node, const TensorVar& logical_buffer) {
     TVM_FFI_ICHECK(logical_buffer.defined());
     if (!logical_buffer->layout.has_value()) {
       return node;
     }
     auto flattened_indices = GetSimplifiedElemOffset(logical_buffer, node->indices);
-    BufferVar flattened_buffer = GetFlattenedBuffer(logical_buffer);
+    TensorVar flattened_buffer = GetFlattenedTensor(logical_buffer);
     auto writer = node.CopyOnWrite();
     writer->buffer = flattened_buffer;
     writer->indices = flattened_indices;
     return node;
   }
 
-  TensorLoad VisitBufferAccess(TensorLoad node, const BufferVar& logical_buffer) {
+  TensorLoad VisitBufferAccess(TensorLoad node, const TensorVar& logical_buffer) {
     TVM_FFI_ICHECK(logical_buffer.defined());
     if (!logical_buffer->layout.has_value()) {
       if (node->source.same_as(logical_buffer.var())) return node;
-      return BufferLoad(node->source.as_or_throw<BufferVar>(), node->indices, node->span);
+      return BufferLoad(node->source.as_or_throw<TensorVar>(), node->indices, node->span);
     }
-    return BufferLoad(GetFlattenedBuffer(logical_buffer),
+    return BufferLoad(GetFlattenedTensor(logical_buffer),
                       GetSimplifiedElemOffset(logical_buffer, node->indices), node->span);
   }
 };

@@ -18,8 +18,8 @@
 
 import tvm_ffi
 
+from tvm.ir import Var
 from tvm.runtime import Object
-from tvm.tirx.buffer import Buffer
 from tvm.tirx.expr import Expr
 from tvm.tirx.function import IndexMap, PrimFunc
 from tvm.tirx.stmt import For
@@ -29,7 +29,7 @@ from .schedule import SBlockRV, Schedule
 
 
 def suggest_index_map(
-    buffer: Buffer,
+    buffer: Var,
     indices: list[Expr],
     loops: list[For],
     predicate: Expr,
@@ -39,7 +39,7 @@ def suggest_index_map(
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The buffer to be transformed.
     indices : List[Expr]
         The access pattern to the buffer.

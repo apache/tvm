@@ -58,7 +58,7 @@ inline DLDataType DefaultIndexType() {
  *
  * A tensor value is an ordinary VarNode whose ExprNode::ty is TensorType.
  * TensorType owns the immutable access contract.  The physical pointer is
- * deliberately not stored here; it is obtained with buffer_data(BufferVar)
+ * deliberately not stored here; it is obtained with buffer_data(TensorVar)
  * and is bound by the surrounding buffer definition.
  */
 class TensorTypeNode : public TypeNode {

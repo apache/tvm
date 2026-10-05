@@ -23,7 +23,7 @@ from typing import Any
 
 from tvm import ir as _ir
 from tvm.backend.cuda import op as _cuda_op
-from tvm.tirx import is_buffer_var
+from tvm.tirx import is_tensor_var
 from tvm.tirx import op as _tir_op
 from tvm.tirx.script.ir_builder.op import _dtype_forward, _op_wrapper
 
@@ -122,25 +122,25 @@ class IketNamespace:
 
 
 def _shfl_sync(mask, var, lane, width):
-    if is_buffer_var(var):
+    if is_tensor_var(var):
         var = var[0]
     return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_sync", mask, var, lane, width)
 
 
 def _shfl_up_sync(mask, var, delta, width):
-    if is_buffer_var(var):
+    if is_tensor_var(var):
         var = var[0]
     return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_up_sync", mask, var, delta, width)
 
 
 def _shfl_down_sync(mask, var, delta, width):
-    if is_buffer_var(var):
+    if is_tensor_var(var):
         var = var[0]
     return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_down_sync", mask, var, delta, width)
 
 
 def _shfl_xor_sync(mask, var, lane_mask, width):
-    if is_buffer_var(var):
+    if is_tensor_var(var):
         var = var[0]
     return _tir_op.call_intrin(var.ty, "tirx.cuda.__shfl_xor_sync", mask, var, lane_mask, width)
 

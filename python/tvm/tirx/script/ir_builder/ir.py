@@ -48,8 +48,8 @@ from tvm.script.parser.protocol_registry import (
 from tvm.target import Target
 
 # pylint: disable=unused-import
-from tvm.tirx import Buffer, Expr, IndexMap, is_buffer_var, type_annotation
-from tvm.tirx.exec_scope import ExecScope, ScopeIdDef, Var
+from tvm.tirx import Expr, IndexMap, Var, is_tensor_var, type_annotation
+from tvm.tirx.exec_scope import ExecScope, ScopeIdDef
 
 # import tirx.expr for direct ir construction to pass structural_equal comparison
 from tvm.tirx.expr import (
@@ -292,9 +292,9 @@ def _tensor_type(
     return _at(span, result)
 
 
-@_register_mutable_decl("tirx.buffer", syntax="parameter")
+@_register_mutable_decl("tirx.tensor", syntax="parameter")
 @_annotation_constructor
-def buffer(
+def tensor(
     shape: list[Expr] | tuple[Expr] | Expr | Integral,
     dtype: str = "float32",
     data: Var = None,
@@ -306,11 +306,11 @@ def buffer(
     offset_factor: int = 0,
     layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
-    buffer_name: str = "",
+    tensor_name: str = "",
     *,
     span=None,
-) -> Buffer:
-    """The buffer declaration function.
+) -> Var:
+    """Construct an unbound tensor variable.
 
     Parameters
     ----------
@@ -348,12 +348,12 @@ def buffer(
     allocated_addr : int or tuple of int, optional
         Addresses assigned to the buffer allocation.
 
-    buffer_name : str
+    tensor_name : str
         The name of the buffer.
 
     Returns
     -------
-    res : Buffer
+    res : Var
         The declared buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
@@ -364,10 +364,10 @@ def buffer(
         allocated_addr = []
     if not isinstance(allocated_addr, list | tuple):
         allocated_addr = [allocated_addr]
-    result = _ffi_api.Buffer(  # type: ignore[attr-defined] # pylint: disable=no-member
+    result = _ffi_api.Tensor(  # type: ignore[attr-defined] # pylint: disable=no-member
         shape,
         dtype,
-        buffer_name,
+        tensor_name,
         data,
         strides,
         _get_elem_offset(elem_offset, byte_offset, dtype),
@@ -562,7 +562,7 @@ def alloc_tensor(
     layout: str | Layout | None = MISSING,
     allocated_addr: int | tuple[int, ...] | None = None,
     annotations: dict[str, Any] | None = None,
-) -> Buffer:
+) -> Var:
     """Allocate a tensor and return its variable.
 
     Emits a Bind statement with a ``tirx.alloc_tensor`` Call::
@@ -598,11 +598,11 @@ def alloc_tensor(
 
     Returns
     -------
-    res : Buffer
+    res : Var
         The allocated buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
-    buf = buffer(
+    buf = tensor(
         shape=shape,
         dtype=dtype,
         data=data,
@@ -614,7 +614,7 @@ def alloc_tensor(
         offset_factor=offset_factor,
         layout=layout,
         allocated_addr=allocated_addr,
-        buffer_name="",
+        tensor_name="",
     )
     _record_meta_resource(buf, skip_frames=2)
 
@@ -647,7 +647,7 @@ def alloc_tensor(
     return buf
 
 
-def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Buffer:
+def wg_reg_tile(elem_per_thread: int, dtype: str = "float32") -> Var:
     """Warpgroup-wide ``(128, elem_per_thread)`` register tile in local scope.
 
     Sugar for the recurring pattern::
@@ -769,7 +769,7 @@ def decl_tensor(
     offset_factor=0,
     layout=MISSING,
     allocated_addr=None,
-) -> Buffer:
+) -> Var:
     """Declare a tensor backed by a pointer, or allocate its storage.
 
     With ``data``, bind a ``tirx.decl_tensor`` Call to the tensor variable.
@@ -810,7 +810,7 @@ def decl_tensor(
 
     Returns
     -------
-    res : Buffer
+    res : Var
         The declared buffer.
     """
     shape = (shape,) if is_prim_expr(shape) or isinstance(shape, Integral) else shape
@@ -877,7 +877,7 @@ def alloc_tcgen05_ldst_frag(instr_shape, tensor_shape, dtype):
 
     Returns
     -------
-    Buffer
+    Var
         2-D view of shape ``tensor_shape`` whose layout matches
         ``tcgen05_atom_layout(instr_shape, tensor_shape, dtype)``.
 
@@ -926,14 +926,14 @@ def alloc_cast_frag(src, dtype):
 
     Parameters
     ----------
-    src : Buffer
+    src : Var
         Source register frag (e.g. from ``alloc_tcgen05_ldst_frag``).
     dtype : str
         Destination element dtype.
 
     Returns
     -------
-    Buffer
+    Var
         Fresh ``local`` frag, ``src.shape`` shaped, ``src.layout``, dtype-cast.
     """
     rows, cols = src.ty.shape
@@ -953,7 +953,7 @@ def alloc_scalar(
     buf = alloc_tensor(
         shape=(1,), dtype=dtype, scope=scope, layout=TileLayout(S[1]), annotations=annotations
     )
-    assert is_buffer_var(buf)
+    assert is_tensor_var(buf)
     scalar = buf[0]
     return scalar
 
@@ -972,7 +972,7 @@ def decl_scalar(dtype, data, scope, elem_offset=None, byte_offset=None) -> Tenso
         offset_factor=0,
         layout=TileLayout(S[1]),
     )
-    assert is_buffer_var(buf)
+    assert is_tensor_var(buf)
     scalar = buf[0]
     return scalar
 
@@ -1000,7 +1000,7 @@ def _is_meta_class_instance(value: Any) -> bool:
 def _meta_resource_for_value(value: Any) -> Any | None:
     if isinstance(value, TensorLoad):
         return value.source
-    if is_buffer_var(value):
+    if is_tensor_var(value):
         return value
     return None
 
@@ -1722,7 +1722,6 @@ __all__ = [
     "bf16",
     "bfloat16",
     "boolean",
-    "buffer",
     "cluster_id",
     "cta_id",
     "cta_id_in_cluster",
@@ -1876,6 +1875,7 @@ __all__ = [
     "smem",
     "static_assert",
     "target",
+    "tensor",
     "thread_id",
     "thread_id_in_wg",
     "tmem",

@@ -26,7 +26,7 @@ from tvm.error import register_error
 from tvm.ir import Expr, GlobalVar, IRModule, is_prim_expr
 from tvm.runtime import DataTypeCode, Object
 from tvm.s_tir import SBlock
-from tvm.tirx import Buffer, FloatImm, For, IntImm, PrimFunc, is_buffer_var
+from tvm.tirx import FloatImm, For, IntImm, PrimFunc, Var, is_tensor_var
 from tvm.tirx.function import IndexMap
 
 from . import _ffi_api
@@ -1360,7 +1360,7 @@ class Schedule(Object):
     def cache_read(
         self,
         block: SBlockRV | str,
-        read_buffer_index: int | str | Buffer,
+        read_buffer_index: int | str | Var,
         storage_scope: str,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
@@ -1376,9 +1376,9 @@ class Schedule(Object):
         block : SBlockRV | str
             The consumer block of the target buffer.
 
-        buffer: int | str | Buffer
+        buffer: int | str | Var
             The index of the buffer in block's read region, the unique
-            name of a read buffer in the block, or a Buffer object
+            name of a read buffer in the block, or a Var object
             that is within the blocks read region.
 
         storage_scope: str
@@ -1455,7 +1455,7 @@ class Schedule(Object):
     def cache_write(
         self,
         block: SBlockRV | str,
-        write_buffer_index: int | str | Buffer,
+        write_buffer_index: int | str | Var,
         storage_scope: str,
         consumer_blocks: list[SBlockRV | str] | None = None,
     ) -> SBlockRV:
@@ -1473,7 +1473,7 @@ class Schedule(Object):
 
         write_buffer_index: int
             The index of the buffer in block's write region, the unique
-            name of a write buffer in the block, or a Buffer object
+            name of a write buffer in the block, or a Var object
             that is within the blocks write region.
 
         storage_scope: str
@@ -1748,7 +1748,7 @@ class Schedule(Object):
     def cache_inplace(
         self,
         block: SBlockRV | str,
-        read_buffer_index: int | str | Buffer,
+        read_buffer_index: int | str | Var,
         storage_scope: str,
     ) -> list[SBlockRV]:
         """Create blocks that reads & write a buffer region into a cache block.
@@ -1762,7 +1762,7 @@ class Schedule(Object):
 
         read_buffer_index: int
             The index of the buffer in block's read region, the unique
-            name of a read buffer in the block, or a Buffer object
+            name of a read buffer in the block, or a Var object
             that is within the blocks read region.
 
         storage_scope: str
@@ -1920,7 +1920,7 @@ class Schedule(Object):
         )
 
     @type_checked
-    def reindex(self, block: SBlockRV | str, buffer: tuple[str, int] | str | Buffer) -> SBlockRV:
+    def reindex(self, block: SBlockRV | str, buffer: tuple[str, int] | str | Var) -> SBlockRV:
         """Create a block that read/write a buffer region into a read/write cache with reindexing.
         The layout of the cache will be the same as by the iterators of the block that reads/writes
         the buffer. It requires:
@@ -1935,7 +1935,7 @@ class Schedule(Object):
             The block that accesses the target buffer.  If a string,
             this must uniquely identify a block.
 
-        buffer: Union[Tuple[str,int], Buffer, str]
+        buffer: Union[Tuple[str,int], Var, str]
 
             The buffer to be transformed, or a specification of how to
             identify the buffer to be transformed.
@@ -1949,7 +1949,7 @@ class Schedule(Object):
             addition, the reads/writes of the block may not contain
             more than one buffer with this name.
 
-            If `buffer` is a Buffer object, it must exist within the
+            If `buffer` is a Var object, it must exist within the
             reads/writes of the block.
 
         Returns
@@ -2488,7 +2488,7 @@ class Schedule(Object):
 
             @Ts.prim_func
             def after_decompose(
-                A: tirx.Buffer([128, 128]), B: tirx.Buffer([128, 128]), C: tirx.Buffer([128, 128])
+                A: Ts.Tensor([128, 128]), B: Ts.Tensor([128, 128]), C: Ts.Tensor([128, 128])
             ) -> None:
 
                 for i in tirx.serial(128):
@@ -2737,7 +2737,7 @@ class Schedule(Object):
 
     @type_checked
     def set_scope(
-        self, block: SBlockRV | str, buffer_index: int | str | Buffer, storage_scope: str
+        self, block: SBlockRV | str, buffer_index: int | str | Var, storage_scope: str
     ) -> None:
         """Set the storage scope of a buffer, where the buffer is
         specified by the a block and a write-index.
@@ -3256,9 +3256,9 @@ class Schedule(Object):
     def _normalize_buffer_arg(
         self,
         block: SBlockRV,
-        buffer: tuple[str, int] | int | str | Buffer,
+        buffer: tuple[str, int] | int | str | Var,
         required_buffer_type=None,
-    ) -> tuple[str, int, Buffer]:
+    ) -> tuple[str, int, Var]:
         block_obj: SBlock = self.get(block)
         block_name = block_obj.name_hint
 
@@ -3284,8 +3284,8 @@ class Schedule(Object):
             )
             buffer_obj, (buffer_index_type, buffer_index) = next(iter(possible_buffers.items()))
 
-        elif is_buffer_var(buffer):
-            # Buffer lookup has unique id, can break out early
+        elif is_tensor_var(buffer):
+            # Var lookup has unique id, can break out early
             found = False
             for buffer_index_type, buffer_index, buffer_obj in iter_buffers():
                 if buffer_obj.same_as(buffer):
@@ -3325,7 +3325,7 @@ class Schedule(Object):
     def transform_layout(
         self,
         block: SBlockRV | str,
-        buffer: tuple[str, int] | str | Buffer,
+        buffer: tuple[str, int] | str | Var,
         index_map: IndexMap | Callable,
         pad_value: int | float | Expr | IndexMap | Callable | None = None,
         *,
@@ -3340,7 +3340,7 @@ class Schedule(Object):
             The block that accesses the target buffer.  If a string,
             this must uniquely identify a block.
 
-        buffer: Union[Tuple[str,int], Buffer, str]
+        buffer: Union[Tuple[str,int], Var, str]
 
             The buffer to be transformed, or a specification of how to
             identify the buffer to be transformed.
@@ -3354,7 +3354,7 @@ class Schedule(Object):
             addition, the reads/writes of the block may not contain
             more than one buffer with this name.
 
-            If `buffer` is a Buffer object, it must exist within the
+            If `buffer` is a Var object, it must exist within the
             reads/writes of the block.
 
         index_map : IndexMap | Callable
@@ -3735,7 +3735,7 @@ class Schedule(Object):
             self, block, padding
         )
 
-    ######## Schedule: Buffer transformation ########
+    ######## Schedule: Var transformation ########
 
     @type_checked
     def rolling_buffer(self, block: SBlockRV | str, write_buffer_index: int) -> None:

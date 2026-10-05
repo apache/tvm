@@ -42,18 +42,18 @@ class Stmt;
 /*!
  * \brief Checked zero-state view over an ordinary VarNode with TensorType.
  *
- * BufferVar does not introduce a runtime object or a second identity.  It
+ * TensorVar does not introduce a runtime object or a second identity.  It
  * safely widens to Var, and get() returns the underlying VarNode used by
  * identity-sensitive maps.  operator-> exposes the immutable TensorType
  * access contract for concise compiler-side metadata access.
  */
-class BufferVar : public Var {
+class TensorVar : public Var {
  public:
   /*! \brief Construct a fresh buffer variable from an explicit TensorType. */
-  TVM_DLL explicit BufferVar(ffi::String name, TensorType type, Span span = Span());
+  TVM_DLL explicit TensorVar(ffi::String name, TensorType type, Span span = Span());
 
   /*! \brief Create a checked buffer view over an existing ordinary Var. */
-  explicit BufferVar(Var var) : Var(std::move(var)) {
+  explicit TensorVar(Var var) : Var(std::move(var)) {
     TVM_FFI_ICHECK(get() != nullptr && get()->ty.as<TensorTypeNode>())
         << "Expected a non-null Var with TensorType";
   }
@@ -78,7 +78,7 @@ class BufferVar : public Var {
    *  but always add stride field.
    * \return The strided version of the buffer.
    */
-  TVM_DLL BufferVar MakeStrideView() const;
+  TVM_DLL TensorVar MakeStrideView() const;
   /*!
    * \brief Make a new symbolic buffer representing a slice of the buffer.
    * \param begins The beginning position of each dimension.
@@ -87,7 +87,7 @@ class BufferVar : public Var {
    *  If stride is not needed in the slice, it won't be presented
    * \return the result buffer.
    */
-  TVM_DLL BufferVar MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const;
+  TVM_DLL TensorVar MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr> extents) const;
   /*!
    * \brief Get access ptr to the entire buffer.
    * \param access_mask The access mask
@@ -115,11 +115,11 @@ class BufferVar : public Var {
   /*!
    * \brief Get a flattened version of the buffer.
    *
-   * If flattening changes the type, the result is a fresh BufferVar.  Callers
+   * If flattening changes the type, the result is a fresh TensorVar.  Callers
    * that use it as a view over this buffer must bind the returned variable with
    * a `Bind` of `flattened` to a `decl_tensor` Call over `this->data()`.
    */
-  BufferVar GetFlattenedBuffer() const;
+  TensorVar GetFlattenedTensor() const;
 
   /*! \brief Determine the offset in the buffer of the given index.
    *
@@ -144,7 +144,7 @@ class BufferVar : public Var {
   /*!
    * \brief Return a new buffer with the allocated address.
    */
-  TVM_DLL BufferVar with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const;
+  TVM_DLL TensorVar with_allocated_addr(ffi::Array<PrimExpr> allocated_addr) const;
 
   /*!
    * \brief Return true if the buffer is a scalar.
@@ -156,7 +156,7 @@ class BufferVar : public Var {
   /*!
    * \brief Return a new buffer with the dtype.
    */
-  TVM_DLL BufferVar with_dtype(PrimType dtype) const;
+  TVM_DLL TensorVar with_dtype(PrimType dtype) const;
 
   /*! \return primitive element type for compiler-side uses. */
   PrimType ElementType() const { return (*this)->ElementType(); }
@@ -164,9 +164,9 @@ class BufferVar : public Var {
   /*! \return type of the physical pointer projected by buffer_data. */
   PointerType DataPointerType() const { return (*this)->DataPointerType(); }
 
-  explicit BufferVar(ffi::ObjectPtr<VarNode> node) : Var(std::move(node)) {}
-  explicit BufferVar(ffi::UnsafeInit tag) : Var(tag) {}
-  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(BufferVar);
+  explicit TensorVar(ffi::ObjectPtr<VarNode> node) : Var(std::move(node)) {}
+  explicit TensorVar(ffi::UnsafeInit tag) : Var(tag) {}
+  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TensorVar);
 
   const TensorTypeNode* operator->() const {
     const auto* var_node = static_cast<const VarNode*>(data_.get());
@@ -184,22 +184,22 @@ class BufferVar : public Var {
   using ContainerType = VarNode;
 };
 
-// Preserve ObjectRef-style identity comparison for exact BufferVar operands.
+// Preserve ObjectRef-style identity comparison for exact TensorVar operands.
 // Comparisons widened to Var or Expr continue to build symbolic expressions.
-inline bool operator==(const BufferVar& lhs, const BufferVar& rhs) { return lhs.same_as(rhs); }
+inline bool operator==(const TensorVar& lhs, const TensorVar& rhs) { return lhs.same_as(rhs); }
 
-inline bool operator!=(const BufferVar& lhs, const BufferVar& rhs) { return !lhs.same_as(rhs); }
+inline bool operator!=(const TensorVar& lhs, const TensorVar& rhs) { return !lhs.same_as(rhs); }
 
 /*! \brief Recover a checked buffer view from an ordinary VarNode pointer. */
-inline BufferVar GetBufferVar(const VarNode* var) { return BufferVar(ffi::GetRef<Var>(var)); }
+inline TensorVar GetTensorVar(const VarNode* var) { return TensorVar(ffi::GetRef<Var>(var)); }
 
-inline ffi::ObjectPtr<TensorTypeNode> CopyTensorType(const BufferVar& var) {
+inline ffi::ObjectPtr<TensorTypeNode> CopyTensorType(const TensorVar& var) {
   return ffi::make_object<TensorTypeNode>(*var.operator->());
 }
 
-inline BufferVar RebuildBufferVar(const BufferVar& var, ffi::ObjectPtr<TensorTypeNode> type,
+inline TensorVar RebuildTensorVar(const TensorVar& var, ffi::ObjectPtr<TensorTypeNode> type,
                                   ffi::Optional<ffi::String> name = std::nullopt) {
-  return BufferVar(name.value_or(var.name()), TensorType(std::move(type)), var.span());
+  return TensorVar(name.value_or(var.name()), TensorType(std::move(type)), var.span());
 }
 
 /*!
@@ -210,9 +210,9 @@ inline BufferVar RebuildBufferVar(const BufferVar& var, ffi::ObjectPtr<TensorTyp
  * \param storage_scope The storage scope associated with this buffer
  * \param span The location of this object in the source code.
  * \return The created buffer.
- * \sa BufferVar for complete constructor.
+ * \sa TensorVar for complete constructor.
  */
-TVM_DLL BufferVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
+TVM_DLL TensorVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimType::Float(32),
                               ffi::String name = "buffer", ffi::String storage_scope = "",
                               Span span = Span());
 
@@ -228,25 +228,25 @@ TVM_DLL BufferVar decl_tensor(ffi::Array<PrimExpr> shape, PrimType dtype = PrimT
  *                      A default value will be picked.
  * \param memory_scope memory scope of the buffer
  */
-TVM_DLL tirx::BufferVar BufferWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
+TVM_DLL tirx::TensorVar TensorWithOffsetAlignment(ffi::Array<PrimExpr> shape, PrimType dtype,
                                                   std::string name, int data_alignment,
                                                   int offset_factor, std::string memory_scope = "");
 
 /*!
- * \brief Construct a TensorLoad from a BufferVar.
+ * \brief Construct a TensorLoad from a TensorVar.
  *
  * This is the sole typed construction path for tirx loads.  The result type
  * is derived from the buffer element type and index lanes, and every tirx
- * TensorLoad is required to have a BufferVar source.
+ * TensorLoad is required to have a TensorVar source.
  */
-TVM_DLL TensorLoad BufferLoad(BufferVar buffer, ffi::Array<PrimExpr> indices, Span span = Span());
+TVM_DLL TensorLoad BufferLoad(TensorVar buffer, ffi::Array<PrimExpr> indices, Span span = Span());
 
 /*! \brief Construct a region with buffer rank validation and BufferRegionType. */
-TVM_DLL TensorRegion BufferRegion(BufferVar buffer, ffi::Array<Range> region, Span span = Span());
+TVM_DLL TensorRegion BufferRegion(TensorVar buffer, ffi::Array<Range> region, Span span = Span());
 /*! \brief Select the entire buffer. */
-TVM_DLL TensorRegion FullBufferRegion(BufferVar buffer);
+TVM_DLL TensorRegion FullBufferRegion(TensorVar buffer);
 /*! \brief Construct unit or vector-lane ranges from point indices. */
-TVM_DLL TensorRegion BufferRegionFromPoint(BufferVar buffer, ffi::Array<PrimExpr> indices);
+TVM_DLL TensorRegion BufferRegionFromPoint(TensorVar buffer, ffi::Array<PrimExpr> indices);
 
 }  // namespace tirx
 }  // namespace tvm
@@ -254,11 +254,11 @@ TVM_DLL TensorRegion BufferRegionFromPoint(BufferVar buffer, ffi::Array<PrimExpr
 namespace tvm::ffi {
 
 template <>
-inline constexpr bool use_default_type_traits_v<tirx::BufferVar> = false;
+inline constexpr bool use_default_type_traits_v<tirx::TensorVar> = false;
 
 template <>
-struct TypeTraits<tirx::BufferVar> : public ObjectRefTypeTraitsBase<tirx::BufferVar> {
-  using Base = ObjectRefTypeTraitsBase<tirx::BufferVar>;
+struct TypeTraits<tirx::TensorVar> : public ObjectRefTypeTraitsBase<tirx::TensorVar> {
+  using Base = ObjectRefTypeTraitsBase<tirx::TensorVar>;
   using Base::CopyFromAnyViewAfterCheck;
   using Base::CopyToAnyView;
   using Base::GetMismatchTypeInfo;
@@ -279,9 +279,9 @@ struct TypeTraits<tirx::BufferVar> : public ObjectRefTypeTraitsBase<tirx::Buffer
     return details::AnyUnsafe::CheckAnyStrict<tirx::TensorType>(var->ExprNode::ty);
   }
 
-  TVM_FFI_INLINE static std::optional<tirx::BufferVar> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<tirx::TensorVar> TryCastFromAnyView(const TVMFFIAny* src) {
     if (CheckAnyStrict(src)) {
-      return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::BufferVar>(
+      return details::ObjectUnsafe::ObjectRefFromObjectPtr<tirx::TensorVar>(
           details::ObjectUnsafe::ObjectPtrFromUnowned<tirx::VarNode>(src->v_obj));
     }
     return std::nullopt;

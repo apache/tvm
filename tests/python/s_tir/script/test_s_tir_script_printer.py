@@ -1380,10 +1380,10 @@ def multiple_commreducer():
     # normal_reduce_temp0 is treated as uninitialized value
     @Ts.prim_func(check_well_formed=False)
     def multiple_commreducer() -> None:
-        normal_reduce_temp0 = T.buffer([1], dtype="float32", strides=[1], scope="local")
-        normal_reduce_temp1 = T.buffer([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp0 = T.buffer([1], dtype="float32", strides=[1], scope="local")
-        reduce_temp1 = T.buffer([1], dtype="float32", strides=[1], scope="local")
+        normal_reduce_temp0 = T.tensor([1], dtype="float32", strides=[1], scope="local")
+        normal_reduce_temp1 = T.tensor([1], dtype="float32", strides=[1], scope="local")
+        reduce_temp0 = T.tensor([1], dtype="float32", strides=[1], scope="local")
+        reduce_temp1 = T.tensor([1], dtype="float32", strides=[1], scope="local")
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):
                 T.attr(

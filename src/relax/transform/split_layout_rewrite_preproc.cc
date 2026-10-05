@@ -109,14 +109,14 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
     ffi::Array<Var> params = original_func_->params;
     for (const auto& info : rewrite_infos_) {
       const Var& param = params[info.buffer_index];
-      TVM_FFI_ICHECK(param.as<tirx::BufferVar>().value() == info.pre_rewrite_buffer);
+      TVM_FFI_ICHECK(param.as<tirx::TensorVar>().value() == info.pre_rewrite_buffer);
       params.Set(info.buffer_index, info.post_rewrite_buffer.var());
     }
 
     // Step 2: Create the body for the new PrimFunc
     Stmt body = compute_stmts_.size() == 1 ? compute_stmts_[0] : SeqStmt(compute_stmts_);
     s_tir::SBlock original_block = original_func_->body.as<s_tir::SBlockRealizeNode>()->block;
-    ffi::Array<BufferVar> alloc_buffers;
+    ffi::Array<TensorVar> alloc_buffers;
     for (const auto& buffer : original_block->alloc_buffers) {
       auto it =
           std::find_if(rewrite_infos_.begin(), rewrite_infos_.end(),
@@ -196,10 +196,10 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
           << "There should be no alloc buffer in the layout rewrite";
       TVM_FFI_ICHECK(op->match_buffers.empty())
           << "There should be no match buffer in the layout rewrite";
-      const BufferVar& preproc_buffer = op->reads[0]->source.as_or_throw<tvm::tirx::BufferVar>();
+      const TensorVar& preproc_buffer = op->reads[0]->source.as_or_throw<tvm::tirx::TensorVar>();
       int buffer_index = -1;
       for (size_t i = 0; i < original_func_->params.size(); ++i) {
-        BufferVar buffer = original_func_->params[i].as_or_throw<tvm::tirx::BufferVar>();
+        TensorVar buffer = original_func_->params[i].as_or_throw<tvm::tirx::TensorVar>();
         if (buffer == preproc_buffer) {
           buffer_index = i;
           break;
@@ -208,8 +208,8 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
       TVM_FFI_ICHECK(buffer_index != -1)
           << "The preproc buffer is not found in the original primfunc.";
       rewrite_infos_.push_back(
-          RewriteInfo{buffer_index, op->reads[0]->source.as_or_throw<tvm::tirx::BufferVar>(),
-                      op->writes[0]->source.as_or_throw<tvm::tirx::BufferVar>()});
+          RewriteInfo{buffer_index, op->reads[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
+                      op->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()});
 
       auto new_annotations = op->annotations;
       new_annotations.erase(s_tir::attr::meta_schedule_layout_rewrite_preproc);
@@ -223,8 +223,8 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
  public:
   struct RewriteInfo {
     int buffer_index;
-    BufferVar pre_rewrite_buffer;
-    BufferVar post_rewrite_buffer;
+    TensorVar pre_rewrite_buffer;
+    TensorVar post_rewrite_buffer;
   };
   std::vector<RewriteInfo> rewrite_infos_;
 
@@ -311,7 +311,7 @@ class SplitLayoutRewritePreproc : public ExprMutator {
     ffi::Array<Type> preproc_ty_list;
     for (const auto& info : rewrite_infos) {
       preproc_args.push_back(call_tir_args[info.buffer_index]);
-      tirx::BufferVar rewritten_buffer = info.post_rewrite_buffer;
+      tirx::TensorVar rewritten_buffer = info.post_rewrite_buffer;
       for (const auto& shape_expr : rewritten_buffer->shape) {
         TVM_FFI_ICHECK(shape_expr.as<IntImmNode>())
             << "Currently does not support rewrite buffer with "

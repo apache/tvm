@@ -30,7 +30,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  AnnotateRegionRewriter(BufferVar buffer, int buffer_index, TensorRegion new_region,
+  AnnotateRegionRewriter(TensorVar buffer, int buffer_index, TensorRegion new_region,
                          BufferIndexType buffer_index_type)
       : buffer_(buffer),
         buffer_index_(buffer_index),
@@ -84,7 +84,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
   }
 
  private:
-  BufferVar buffer_;
+  TensorVar buffer_;
   int buffer_index_;
   TensorRegion new_region_;
   BufferIndexType buffer_index_type_;
@@ -93,7 +93,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
 void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                           BufferIndexType buffer_index_type, const IndexMap& index_map) {
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
-  BufferVar buffer =
+  TensorVar buffer =
       GetNthAccessBuffer(self, ffi::GetRef<SBlock>(block), buffer_index, buffer_index_type);
 
   sym::Analyzer analyzer;

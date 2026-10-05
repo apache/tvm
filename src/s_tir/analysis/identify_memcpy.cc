@@ -88,7 +88,7 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   // where the buffer will be flattened to a 1-d physical buffer.
   ffi::Array<PrimExpr> flattened_dst = store->buffer.OffsetOf(store->indices);
   ffi::Array<PrimExpr> flattened_src =
-      load->source.as_or_throw<tvm::tirx::BufferVar>().OffsetOf(load->indices);
+      load->source.as_or_throw<tvm::tirx::TensorVar>().OffsetOf(load->indices);
 
   if (flattened_dst.size() != 1 || flattened_src.size() != 1) {
     return static_cast<const std::stringstream&>(
@@ -274,8 +274,8 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   }
 
   TensorRegion src_region = BufferRegion(
-      load->source.as_or_throw<tvm::tirx::BufferVar>(),
-      DomainTouched(loop, load->source.as_or_throw<tvm::tirx::BufferVar>(), true, true));
+      load->source.as_or_throw<tvm::tirx::TensorVar>(),
+      DomainTouched(loop, load->source.as_or_throw<tvm::tirx::TensorVar>(), true, true));
   TensorRegion dst_region =
       BufferRegion(store->buffer, DomainTouched(loop, store->buffer, true, true));
 

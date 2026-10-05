@@ -51,7 +51,7 @@ def function_(*, private=False, persistent=False, decl=False, span=None):
 def arg_(name, annotation, *, span=None):
     """Preserve parameter annotations, including explicitly constructed layouts.
 
-    Buffer annotations are evaluated inside the function frame, which already
+    Tensor annotations are evaluated inside the function frame, which already
     supplies the S-TIR default layout when the constructor omits it.
     """
     return _shared_arg(name, annotation, span=span)

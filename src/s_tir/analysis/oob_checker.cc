@@ -32,7 +32,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 namespace transform {
 struct OOBLocation {
-  BufferVar buf;
+  TensorVar buf;
   size_t dimension;
   ffi::ObjectRef index;
   sym::IntSet index_bounds;
@@ -80,7 +80,7 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
     return IRVisitorWithAnalyzer::Visit_(node);
   }
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* node) final {
-    BufferVar buffer = node->source.as_or_throw<tvm::tirx::BufferVar>();
+    TensorVar buffer = node->source.as_or_throw<tvm::tirx::TensorVar>();
     for (size_t i = 0; i < buffer->shape.size(); i++) {
       CheckBounds(node, buffer, i);
     }
@@ -88,7 +88,7 @@ class OOBCheckerVisitor final : public s_tir::IRVisitorWithAnalyzer {
   }
 
   template <class T>
-  void CheckBounds(const T* node, const BufferVar& buffer, size_t i) {
+  void CheckBounds(const T* node, const TensorVar& buffer, size_t i) {
     auto ind_bounds = analyzer_->int_set(node->indices[i]);
     auto shape_bounds = analyzer_->int_set(buffer->shape[i]);
     // We would expect that

@@ -87,10 +87,10 @@ class DecomposeReductionBlockReplacer : public StmtExprMutator {
       ffi::Array<TensorRegion> new_reads;
       std::unordered_set<const VarNode*> read_bufs;
       for (const TensorRegion& read_access : block->reads) {
-        read_bufs.insert(read_access->source.as_or_throw<tvm::tirx::BufferVar>().get());
+        read_bufs.insert(read_access->source.as_or_throw<tvm::tirx::TensorVar>().get());
       }
       for (const TensorRegion& write_access : block->writes) {
-        if (read_bufs.find(write_access->source.as_or_throw<tvm::tirx::BufferVar>().get()) ==
+        if (read_bufs.find(write_access->source.as_or_throw<tvm::tirx::TensorVar>().get()) ==
             read_bufs.end()) {
           new_reads.push_back(write_access);
         }
@@ -266,7 +266,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
       return Range::FromMinExtent(min, extent);
     });
     init_block->writes.push_back(
-        BufferRegion(write->source.as_or_throw<tvm::tirx::BufferVar>(), mapped_region));
+        BufferRegion(write->source.as_or_throw<tvm::tirx::TensorVar>(), mapped_region));
   }
   // Step 3. Scan loops not higher than the specified loop above the reduction block.
   //         If the loop is used in the init block binding, then it is chosen.
@@ -585,7 +585,7 @@ class NotSerialLoopKindError : public ScheduleErrorContextObj {
 
 class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
  public:
-  explicit FactorAxisOutOfRangeError(IRModule mod, BufferVar buffer, int factor_axis)
+  explicit FactorAxisOutOfRangeError(IRModule mod, TensorVar buffer, int factor_axis)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), factor_axis_(factor_axis) {}
 
   ffi::String FastErrorString() const final {
@@ -606,7 +606,7 @@ class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
   IRModule mod() const final { return mod_; }
   ffi::Array<ffi::ObjectRef> LocationsOfInterest() const final { return {}; }
 
-  static int CheckAndUpdate(const IRModule& mod, const BufferVar& buffer, int factor_axis) {
+  static int CheckAndUpdate(const IRModule& mod, const TensorVar& buffer, int factor_axis) {
     int ndim = static_cast<int>(buffer->shape.size());
     if (factor_axis < -(ndim + 1) || factor_axis > ndim) {
       throw MakeScheduleError<FactorAxisOutOfRangeError>(mod, buffer, factor_axis);
@@ -619,7 +619,7 @@ class FactorAxisOutOfRangeError : public ScheduleErrorContextObj {
   }
 
   IRModule mod_;
-  BufferVar buffer_;
+  TensorVar buffer_;
   int factor_axis_;
 };
 
@@ -741,18 +741,18 @@ std::unordered_map<const VarNode*, For> GetLoopVar2LoopMap(const ffi::Array<For>
  * \param rf_loop The rfactor loop
  * \return The new created intermediate rfactor buffer
  */
-ffi::Array<BufferVar> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_stores,
+ffi::Array<TensorVar> CreateRFactorBuffers(const ffi::Array<BufferStore>& buf_stores,
                                            int factor_axis, const ForNode* rf_loop) {
-  ffi::Array<BufferVar> rf_buffers;
+  ffi::Array<TensorVar> rf_buffers;
   rf_buffers.reserve(buf_stores.size());
   for (const BufferStore& buf_store : buf_stores) {
-    BufferVar buffer = buf_store->buffer;
+    TensorVar buffer = buf_store->buffer;
     ffi::Array<PrimExpr> rf_shape = buffer->shape;
     rf_shape.insert(rf_shape.begin() + factor_axis, rf_loop->extent);
 
     ffi::ObjectPtr<TensorTypeNode> n = CopyTensorType(buffer);
     n->shape = rf_shape;
-    rf_buffers.push_back(RebuildBufferVar(buffer, std::move(n), buffer.name() + ".rf"));
+    rf_buffers.push_back(RebuildTensorVar(buffer, std::move(n), buffer.name() + ".rf"));
   }
   return rf_buffers;
 }
@@ -769,7 +769,7 @@ class BaseBlockCreator {
  public:
   explicit BaseBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                             ffi::Array<BufferStore> old_reduction_updates, te::CommReducer reducer,
-                            ffi::Array<BufferVar> rf_buffers, bool is_rf_block)
+                            ffi::Array<TensorVar> rf_buffers, bool is_rf_block)
       : old_block_realize_(std::move(old_block_realize)),
         rf_loop_(std::move(rf_loop)),
         old_reduction_updates_(std::move(old_reduction_updates)),
@@ -912,7 +912,7 @@ class BaseBlockCreator {
   /*! \brief The matched commutative reducer */
   te::CommReducer reducer_;
   /*! \brief The intermediate rfactor buffers */
-  ffi::Array<BufferVar> rf_buffers_;
+  ffi::Array<TensorVar> rf_buffers_;
   /*! \brief The number of rfactor buffers. */
   const int n_buffers_;
   /*!
@@ -928,7 +928,7 @@ class BaseBlockCreator {
   /*! \brief The new block iter bindings of the new created block-realize */
   std::vector<PrimExpr> iter_values_;
   /*! \brief The buffers updated in this block */
-  ffi::Array<BufferVar> update_buffers_;
+  ffi::Array<TensorVar> update_buffers_;
   /*! \brief The indices of the buffers updated in this block, respectively */
   ffi::Array<ffi::Array<PrimExpr>> update_indices_;
   /*! \brief The LHS values of the reduction in this block */
@@ -967,7 +967,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
  public:
   explicit RFactorBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                                ffi::Array<BufferStore> old_reduction_updates,
-                               te::CommReducer reducer, ffi::Array<BufferVar> rf_buffers,
+                               te::CommReducer reducer, ffi::Array<TensorVar> rf_buffers,
                                std::unordered_map<const VarNode*, For> loop_vars2loop,
                                int factor_axis, ffi::Array<PrimExpr> combiner_rhs)
       : BaseBlockCreator(std::move(old_block_realize), std::move(rf_loop),
@@ -1051,7 +1051,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
   }
 
   void CreateReadWriteRegions() final {
-    ffi::Map<BufferVar, BufferVar> buffer_map;
+    ffi::Map<TensorVar, TensorVar> buffer_map;
     for (int i = 0; i < n_buffers_; ++i) {
       buffer_map.Set(old_reduction_updates_[i]->buffer, rf_buffers_[i]);
     }
@@ -1071,7 +1071,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
         return Range::FromMinExtent(min, extent);
       });
       read_regions_.push_back(
-          BufferRegion(read_region->source.as_or_throw<tvm::tirx::BufferVar>(), region));
+          BufferRegion(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), region));
     }
     write_regions_.reserve(old_block->writes.size());
     for (const TensorRegion& write_region : old_block->writes) {
@@ -1079,8 +1079,8 @@ class RFactorBlockCreator : public BaseBlockCreator {
       region.insert(
           region.begin() + factor_axis_,
           Range::FromMinExtent(additional_iter_->var, IntImm(additional_iter_->var.ty(), 1)));
-      ffi::Optional<BufferVar> rf_buffer =
-          buffer_map.Get(write_region->source.as_or_throw<tvm::tirx::BufferVar>());
+      ffi::Optional<TensorVar> rf_buffer =
+          buffer_map.Get(write_region->source.as_or_throw<tvm::tirx::TensorVar>());
       TVM_FFI_ICHECK(rf_buffer.has_value());
       region.MutateByApply([&map_block_var](const Range& range) {
         PrimExpr min = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(range->min, map_block_var)
@@ -1124,7 +1124,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
  public:
   explicit WriteBackBlockCreator(SBlockRealize old_block_realize, For rf_loop,
                                  ffi::Array<BufferStore> old_reduction_updates,
-                                 te::CommReducer reducer, ffi::Array<BufferVar> rf_buffers,
+                                 te::CommReducer reducer, ffi::Array<TensorVar> rf_buffers,
                                  IterVar rf_additional_iter, ffi::Array<PrimExpr> combiner_lhs,
                                  ffi::Array<PrimExpr> rf_buf_access_indices)
       : BaseBlockCreator(std::move(old_block_realize), std::move(rf_loop),
@@ -1191,7 +1191,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
         region.push_back(Range::FromMinExtent(index, prim::MakeConst(index.ty(), 1)));
       }
       buf_regions.push_back(
-          BufferRegion(buf_load->source.as_or_throw<tvm::tirx::BufferVar>(), std::move(region)));
+          BufferRegion(buf_load->source.as_or_throw<tvm::tirx::TensorVar>(), std::move(region)));
     }
   }
 
@@ -1291,7 +1291,7 @@ class BlockReplacer : public StmtExprMutator {
                         SBlockRealize wb_block_realize, SBlockRealize old_block_realize,
                         For rf_loop, std::unordered_set<const VarNode*> reduce_loop_vars,
                         std::unordered_map<const VarNode*, For> loop_vars2loop,
-                        const ffi::Array<BufferVar>& rf_buffers) {
+                        const ffi::Array<TensorVar>& rf_buffers) {
     auto replacer = ffi::make_object<BlockReplacer>(
         std::move(rf_body), std::move(outermost_loop), std::move(wb_block_realize),
         std::move(old_block_realize), std::move(rf_loop), std::move(reduce_loop_vars),
@@ -1300,7 +1300,7 @@ class BlockReplacer : public StmtExprMutator {
                                 .ValueOrUnchanged(std::move(scope_root_block))
                                 .as_or_throw<SBlock>();
     SBlockNode* p = new_scope_root.CopyOnWrite();
-    for (const BufferVar& rf_buffer : rf_buffers) {
+    for (const TensorVar& rf_buffer : rf_buffers) {
       p->alloc_buffers.push_back(rf_buffer);
     }
     return new_scope_root;
@@ -1434,7 +1434,7 @@ StmtSRef RFactor(ScheduleState self, const StmtSRef& rf_loop_sref, int factor_ax
 
   // Step 1. Create the intermediate buffer (a.k.a. rfactor buffer), which has an additional
   // dimension that specified by `factor_axis` and `rf_loop`.
-  ffi::Array<BufferVar> rf_buffers = CreateRFactorBuffers(updates, factor_axis, rf_loop);
+  ffi::Array<TensorVar> rf_buffers = CreateRFactorBuffers(updates, factor_axis, rf_loop);
 
   // Step 2. Create the rfactor block.
   RFactorBlockCreator rf_block_creator(block_realize, ffi::GetRef<For>(rf_loop), updates, reducer,

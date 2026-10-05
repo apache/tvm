@@ -35,7 +35,7 @@ def apply_transformations(func, suggested_transfoms, print_transformation=False)
                     print("Block transformation: ", block_name, " :: ", index_map)
                 sch.transform_block_layout(block_name, index_map)
             else:
-                assert tirx.is_buffer_var(obj)
+                assert tirx.is_tensor_var(obj)
                 buffer = obj
                 if print_transformation:
                     print("Buffer transformation: ", buffer, " :: ", index_map)

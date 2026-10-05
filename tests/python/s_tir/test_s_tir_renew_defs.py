@@ -19,10 +19,10 @@ from __future__ import annotations
 
 import tvm
 import tvm.testing
+from tvm.ir import Var
 from tvm.s_tir import SBlock
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx.buffer import Buffer
 from tvm.tirx.function import PrimFunc
 
 
@@ -30,10 +30,10 @@ def _check_func_signature_remap(lhs: PrimFunc, rhs: PrimFunc):
     assert lhs != rhs
     for x, y in zip(lhs.params, rhs.params):
         assert x != y
-        assert tvm.tirx.is_buffer_var(x) == tvm.tirx.is_buffer_var(y)
+        assert tvm.tirx.is_tensor_var(x) == tvm.tirx.is_tensor_var(y)
 
 
-def _check_buffer_decl(lhs: Buffer, rhs: Buffer):
+def _check_buffer_decl(lhs: Var, rhs: Var):
     assert lhs != rhs
     assert lhs.data != rhs.data
 
@@ -52,9 +52,9 @@ def _check_block_signature_remap(lhs: SBlock, rhs: SBlock):
 
 def test_simple():
     @Ts.prim_func
-    # Buffer A should be remapped
+    # Var A should be remapped
     def elementwise(A: T.Tensor((128, 128), "float32")):
-        # Buffer B should be remapped
+        # Var B should be remapped
         B = Ts.sblock_alloc_buffer((128, 128), "float32")
         # i, j should be remapped
         for i, j in T.grid(128, 128):
@@ -138,7 +138,7 @@ def test_match_buffer():
 def test_undefined_buffer():
     @Ts.prim_func
     def access_alloc():
-        # Buffer A should be remapped
+        # Var A should be remapped
         A = T.alloc_tensor((128,), "float16")
         T.evaluate(A.data)
         for i in range(128):

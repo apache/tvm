@@ -41,8 +41,7 @@ from tvm.runtime import convert
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import AlreadyEmitted
 from tvm.script.ir_builder.base import IRBuilder as _IRBuilder
-from tvm.tirx import Buffer, Expr
-from tvm.tirx.exec_scope import Var
+from tvm.tirx import Expr, Var
 from tvm.tirx.expr import (
     IntImm,
 )
@@ -254,7 +253,7 @@ def bind_(
                 )
         elif isinstance(value, _ir.Var | _tir.Layout):
             _name(value, name, name_span)
-        elif isinstance(value, _ir.TensorLoad) and _tir.is_buffer_var(value.source):
+        elif isinstance(value, _ir.TensorLoad) and _tir.is_tensor_var(value.source):
             _name(value.source, name, name_span)
         return value
     if isinstance(ty, _native.LetAnnotation):
@@ -304,7 +303,7 @@ def decl_mutable_cell_(
     """Implements :func:`tvm.script.ir_builder.parser_protocol.decl_mutable_cell_`.
 
     Primitive annotations allocate scalar local storage; vector annotations
-    allocate their declared shape. Buffer declaration producers retain their own effects.
+    allocate their declared shape. Var declaration producers retain their own effects.
     """
     name_span = span if name_span is None else name_span
     if isinstance(ty, _native.LocalVectorAnnotation):
@@ -327,7 +326,7 @@ def decl_mutable_cell_(
         storage = value
     if isinstance(storage, _ir.TensorLoad):
         _name(storage.source, name, name_span)
-    elif _tir.is_buffer_var(storage):
+    elif _tir.is_tensor_var(storage):
         _name(storage, name, name_span)
     else:
         raise TypeError("A mutable declaration requires scalar or vector storage")
@@ -344,7 +343,7 @@ def set_mutable_cell_(
     if isinstance(target, _ir.TensorLoad):
         return _base.at_(span, buffer_store(target.source, value, list(target.indices)))
     elif (
-        _tir.is_buffer_var(target)
+        _tir.is_tensor_var(target)
         and len(target.ty.shape) == 1
         and isinstance(target.ty.shape[0], _tir.IntImm)
         and target.ty.shape[0].value == 1
@@ -412,7 +411,7 @@ def setattr_(
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setattr_`."""
     previous = getattr(target, name, _base.MISSING)
     buffer = previous.source if isinstance(previous, _ir.TensorLoad) else previous
-    if _tir.is_buffer_var(buffer):
+    if _tir.is_tensor_var(buffer):
         shape = buffer.ty.shape
         if len(shape) == 1 and _python.bool(shape[0] == 1):
             return set_mutable_cell_(previous, value, span=span)
@@ -504,7 +503,7 @@ def attr(
 
 
 def buffer_store(
-    buffer: Buffer,  # pylint: disable=redefined-outer-name
+    buffer: Var,  # pylint: disable=redefined-outer-name
     value: Expr,
     indices: list[Expr | slice],
 ) -> AlreadyEmitted[_tir.Stmt]:
@@ -512,7 +511,7 @@ def buffer_store(
 
     Parameters
     ----------
-    buffer : Buffer
+    buffer : Var
         The buffer.
 
     value : Expr

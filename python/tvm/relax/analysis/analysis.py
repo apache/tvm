@@ -27,10 +27,10 @@ from enum import IntEnum
 import tvm
 from tvm import IRModule, tirx
 from tvm.ir import Call, Type
-from tvm.relax.expr import Binding, DataflowBlock, Expr, Function, GlobalVar, Var
+from tvm.relax.expr import Binding, DataflowBlock, Expr, Function, GlobalVar
 from tvm.relax.type import FuncType
 from tvm.s_tir import SBlock
-from tvm.tirx import Buffer, IndexMap, PrimFunc
+from tvm.tirx import IndexMap, PrimFunc, Var
 
 from . import _ffi_api
 
@@ -530,7 +530,7 @@ def check_well_formed(obj: IRModule | Function, check_ty: bool = True) -> bool:
 def _get_prim_func_default_dtype(func: PrimFunc):
     """Detect default index dtype from TensorType-annotated parameters."""
     for param in func.params:
-        if tirx.is_buffer_var(param):
+        if tirx.is_tensor_var(param):
             for value in param.shape:
                 return value.ty
     return "int64"
@@ -538,7 +538,7 @@ def _get_prim_func_default_dtype(func: PrimFunc):
 
 def suggest_layout_transforms(
     func: PrimFunc, write_buffer_transforms: list[IndexMap | Callable]
-) -> dict[SBlock, dict[SBlock | Buffer, IndexMap]]:
+) -> dict[SBlock, dict[SBlock | Var, IndexMap]]:
     """Suggest Layout transformations of blocks and buffers in a PrimFunc.
 
     Parameters
@@ -552,7 +552,7 @@ def suggest_layout_transforms(
 
     Returns
     -------
-    ret: Dict[SBlock, Dict[Union[SBlock, Buffer], IndexMap]]
+    ret: Dict[SBlock, Dict[Union[SBlock, Var], IndexMap]]
          Suggested transforms per block in `func`. For each block the returned value is a map
          from the object (block or buffer) to it's index map transformation.
     """

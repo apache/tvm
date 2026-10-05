@@ -633,10 +633,10 @@ TVM_DLL const Op& ignore_loop_partition();
 TVM_DLL const Op& buffer_offset();
 
 /*!
- * \brief Project the physical pointer associated with a BufferVar definition.
+ * \brief Project the physical pointer associated with a TensorVar definition.
  *
  * The result pointer type is derived from the TensorType dtype and storage
- * scope of the sole BufferVar argument.  This operation is consumed by TIRx
+ * scope of the sole TensorVar argument.  This operation is consumed by TIRx
  * lowering and code generation.
  */
 TVM_DLL const Op& buffer_data();

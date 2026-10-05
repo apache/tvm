@@ -270,8 +270,8 @@ class PatternMatcher : public StmtExprVisitor {
     if (ptr == nullptr) {
       match_success_ = false;
     } else {
-      if (!op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-              ptr->source.as_or_throw<tvm::tirx::BufferVar>()) ||
+      if (!op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
+              ptr->source.as_or_throw<tvm::tirx::TensorVar>()) ||
           op->indices.size() != ptr->indices.size()) {
         match_success_ = false;
       } else {
@@ -564,12 +564,12 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   std::unordered_set<const VarNode*> buffer_written;
   buffer_written.reserve(block->writes.size());
   for (const TensorRegion& write_region : block->writes) {
-    buffer_written.insert(write_region->source.as_or_throw<tvm::tirx::BufferVar>().get());
+    buffer_written.insert(write_region->source.as_or_throw<tvm::tirx::TensorVar>().get());
   }
 
   std::unordered_set<const VarNode*> buffer_allocated;
   buffer_allocated.reserve(block->alloc_buffers.size());
-  for (const BufferVar& buffer : block->alloc_buffers) {
+  for (const TensorVar& buffer : block->alloc_buffers) {
     buffer_allocated.insert(buffer.get());
   }
 
@@ -585,12 +585,12 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
   std::unordered_map<const VarNode*, const VarNode*> match_buffer_sources;
   for (const MatchBufferRegion& region : block->match_buffers) {
     match_buffer_sources[region->buffer.get()] =
-        region->source->source.as_or_throw<tvm::tirx::BufferVar>().get();
+        region->source->source.as_or_throw<tvm::tirx::TensorVar>().get();
   }
   auto visit_block = [&](const SBlock& nested_block) -> ffi::Expected<ffi::WalkResult> {
     for (const MatchBufferRegion& region : nested_block->match_buffers) {
       match_buffer_sources[region->buffer.get()] =
-          region->source->source.as_or_throw<tvm::tirx::BufferVar>().get();
+          region->source->source.as_or_throw<tvm::tirx::TensorVar>().get();
     }
     return ffi::WalkResult::Advance();
   };

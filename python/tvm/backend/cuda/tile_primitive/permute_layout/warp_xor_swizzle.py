@@ -76,7 +76,7 @@ import math
 from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import IntImm, PrimFunc, is_buffer_var
+from tvm.tirx import IntImm, PrimFunc, is_tensor_var
 from tvm.tirx.layout import TileLayout, _flatten_coord
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail, register_dispatch
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -88,13 +88,13 @@ from ..common import get_indices, get_st_extent
 
 def _as_buffer_and_region(arg):
     """Normalize a Buffer or TensorRegion to (buffer, start_list, extent_list)."""
-    if is_buffer_var(arg):
+    if is_tensor_var(arg):
         buf = arg
         extent = list(buf.ty.shape)
         st = [0] * len(extent)
     elif isinstance(arg, TensorRegion):
-        if not is_buffer_var(arg.source):
-            raise TypeError("permute_layout requires a TensorRegion with a BufferVar source")
+        if not is_tensor_var(arg.source):
+            raise TypeError("permute_layout requires a TensorRegion with a TensorVar source")
         buf = arg.source
         st, extent = get_st_extent(arg)
     else:

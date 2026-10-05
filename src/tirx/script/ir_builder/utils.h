@@ -122,7 +122,7 @@ inline tvm::TensorRegion BufferRegionFromLoad(tvm::TensorLoad buffer_load) {
   for (const PrimExpr& index : buffer_load->indices) {
     ranges.push_back(Range::FromMinExtent(index, IntImm(index.ty(), 1)));
   }
-  return tvm::tirx::BufferRegion(buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), ranges);
+  return tvm::tirx::BufferRegion(buffer_load->source.as_or_throw<tvm::tirx::TensorVar>(), ranges);
 }
 
 }  // namespace tirx

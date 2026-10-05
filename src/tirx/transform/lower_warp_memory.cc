@@ -108,7 +108,7 @@ using namespace tvm::prim;
 
 // Visitor to find m in pattern
 // store warp_mem[m * warp_index + (width * m) * y + x]
-const VarNode* GetBufferVar(const Expr& expr) {
+const VarNode* GetTensorVar(const Expr& expr) {
   if (const auto* var = expr.as<VarNode>()) {
     return var;
   }
@@ -135,16 +135,16 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
     static const Op mma_fill_op = Op::Get("tirx.mma_fill");
     static const Op ptx_ldmatrix_legacy_op = Op::Get("tirx.ptx_legacy.ldmatrix");
     static const Op mma_fill_legacy_op = Op::Get("tirx.mma_fill_legacy");
-    if (op->op.same_as(mma_fill_op) && GetBufferVar(op->args[1]) == buffer_) {
+    if (op->op.same_as(mma_fill_op) && GetTensorVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
       warp_coeff_ = local_size->value.as<int>().value();
-    } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && GetBufferVar(op->args[3]) == buffer_) {
+    } else if (op->op.same_as(ptx_ldmatrix_legacy_op) && GetTensorVar(op->args[3]) == buffer_) {
       // ldmatrix writes the warp buffer; its local_offset carries
       // ``... + lift(local_size) * tx`` from which the warp coefficient
       // is derived.
       UpdatePattern(op->args[4].as_or_throw<PrimExpr>());
-    } else if (op->op.same_as(mma_fill_legacy_op) && GetBufferVar(op->args[1]) == buffer_) {
+    } else if (op->op.same_as(mma_fill_legacy_op) && GetTensorVar(op->args[1]) == buffer_) {
       auto* local_size = op->args[0].as<IntImmNode>();
       TVM_FFI_ICHECK(local_size) << "Integer expected for the first argument of mma_fill_legacy";
       warp_coeff_ = local_size->value.as<int>().value();
@@ -299,12 +299,12 @@ class WarpAccessRewriter : public StmtExprMutator {
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
 
-    auto type = CopyTensorType(op->var.as_or_throw<BufferVar>());
+    auto type = CopyTensorType(op->var.as_or_throw<TensorVar>());
     type->storage_scope = "local";
     type->shape = {IntImm::Int32(alloc_size / width_)};
     type->strides = {};
-    type->elem_offset = IntImm(op->var.as_or_throw<BufferVar>()->elem_offset.ty(), 0);
-    BufferVar new_buf = RebuildBufferVar(op->var.as_or_throw<BufferVar>(), std::move(type));
+    type->elem_offset = IntImm(op->var.as_or_throw<TensorVar>()->elem_offset.ty(), 0);
+    TensorVar new_buf = RebuildTensorVar(op->var.as_or_throw<TensorVar>(), std::move(type));
     new_buffer_ = new_buf;
     Stmt rewritten_body = this->Mutate(body, InplaceMode::kDisallow).ValueOrUnchanged(body);
     return SeqStmt::Flatten(
@@ -323,7 +323,7 @@ class WarpAccessRewriter : public StmtExprMutator {
     ffi::Array<Expr> new_args = op->args;
     for (int i : indices) {
       // Preserve the pointer operand as an Expr and narrow only its scalar index.
-      if (GetBufferVar(op->args[i]) == buffer_) {
+      if (GetTensorVar(op->args[i]) == buffer_) {
         PrimExpr local_index = SplitIndexByGroup(op->args[i + 1].as_or_throw<PrimExpr>()).first;
         new_args.Set(i, new_buffer_.data());
         new_args.Set(i + 1, local_index);
@@ -412,7 +412,7 @@ class WarpAccessRewriter : public StmtExprMutator {
       load.CopyOnWrite()->indices = std::move(indices).ValueUnchecked();
     }
 
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().get() != buffer_) {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().get() != buffer_) {
       return load;
     }
 
@@ -479,7 +479,7 @@ class WarpAccessRewriter : public StmtExprMutator {
   // The buffer variable
   const VarNode* buffer_;
   // The fresh local buffer replacing the warp-scoped definition.
-  BufferVar new_buffer_{ffi::UnsafeInit{}};
+  TensorVar new_buffer_{ffi::UnsafeInit{}};
   // number of threads involved in one shuffle
   int width_{0};
   // Warp index

@@ -173,7 +173,7 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
   const ffi::Array<PrimExpr>& write_index = buf_store->indices;
   TVM_FFI_ICHECK(
       write_region->region.size() == write_index.size() &&
-      write_region->source.as_or_throw<tvm::tirx::BufferVar>().same_as(buf_store->buffer));
+      write_region->source.as_or_throw<tvm::tirx::TensorVar>().same_as(buf_store->buffer));
   ffi::Array<PrimExpr> result;
   sym::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
@@ -238,8 +238,8 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
     }
   }
   TensorLoad new_buf_load =
-      BufferLoad(read_region->source.as_or_throw<tvm::tirx::BufferVar>(), read_index);
-  BufferStore new_buf_store = BufferStore(write_region->source.as_or_throw<tvm::tirx::BufferVar>(),
+      BufferLoad(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), read_index);
+  BufferStore new_buf_store = BufferStore(write_region->source.as_or_throw<tvm::tirx::TensorVar>(),
                                           new_buf_load, write_index);
   Stmt ret = new_buf_store;
   // Step 3.3 construct loop body

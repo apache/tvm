@@ -64,19 +64,19 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
   Stmt InjectPTX(const TensorLoadNode* load, const BufferStoreNode* store, bool predicated = false,
                  ffi::Optional<PrimExpr> predicate_value = std::nullopt) {
     TVM_FFI_ICHECK(!predicated || predicate_value.has_value());
-    if (load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "global") {
+    if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "global") {
       TVM_FFI_ICHECK(load->indices.size() == 1 && store->indices.size() == 1);
       TVM_FFI_ICHECK(load->indices[0].ty().lanes() == store->indices[0].ty().lanes());
 
       const int indices_lanes = load->indices[0].ty().lanes();
       const int bytes =
           indices_lanes *
-          static_cast<int>(load->source.as_or_throw<tvm::tirx::BufferVar>()->dtype.StorageBytes());
+          static_cast<int>(load->source.as_or_throw<tvm::tirx::TensorVar>()->dtype.StorageBytes());
 
       if (bytes == 4 || bytes == 8 || bytes == 16) {
         auto dst_elem_type = GetPointerType(store->buffer.DataPointerType());
         auto src_elem_type =
-            GetPointerType(load->source.as_or_throw<tvm::tirx::BufferVar>().DataPointerType());
+            GetPointerType(load->source.as_or_throw<tvm::tirx::TensorVar>().DataPointerType());
         TVM_FFI_ICHECK(dst_elem_type.has_value() && src_elem_type.has_value())
             << "Both store and load buffer should have a pointer type annotation.";
 
@@ -98,7 +98,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
           auto src_offset = load->indices[0];
           auto dst_offset = store->indices[0];
           ffi::Array<Expr> args = {store->buffer.data(), mul(dst_offset, PrimExpr(index_factor)),
-                                   load->source.as_or_throw<tvm::tirx::BufferVar>().data(),
+                                   load->source.as_or_throw<tvm::tirx::TensorVar>().data(),
                                    src_offset, PrimExpr(bytes)};
           // use arguments size to indicate whether or not to use predicated cp.async
           if (predicated) {
@@ -139,7 +139,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
             return Evaluate(
                 Call(store->buffer->dtype, ptx_cp_async_op,
                      {store->buffer.data(), mul(dst_offset.value(), PrimExpr(index_factor)),
-                      load->source.as_or_throw<tvm::tirx::BufferVar>().data(), src_offset.value(),
+                      load->source.as_or_throw<tvm::tirx::TensorVar>().data(), src_offset.value(),
                       PrimExpr(bytes)})
                     .as_or_throw<PrimExpr>());
           }
@@ -173,7 +173,7 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
             return Evaluate(
                 Call(store->buffer->dtype, ptx_cp_async_op,
                      {store->buffer.data(), mul(dst_offset.value(), PrimExpr(index_factor)),
-                      load->source.as_or_throw<tvm::tirx::BufferVar>().data(), src_offset.value(),
+                      load->source.as_or_throw<tvm::tirx::TensorVar>().data(), src_offset.value(),
                       PrimExpr(bytes), predicate_value.value()})
                     .as_or_throw<PrimExpr>());
           }

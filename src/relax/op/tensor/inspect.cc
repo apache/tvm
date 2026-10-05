@@ -264,7 +264,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     tirx::Var ndim("ndim", PrimType::Int(32));
 
-    tirx::BufferVar shape_buffer =
+    tirx::TensorVar shape_buffer =
         tirx::decl_tensor({ndim.as_or_throw<PrimExpr>()}, field_ty, "shape");
 
     tirx::Var extent("extent", field_ty);
@@ -341,7 +341,7 @@ Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
     // `FLegalize` function for most operators is implemented in terms
     // of `topi`, and is then converted from TE to `tirx::PrimFunc`
     // using `tvm::tirx::CreatePrimFunc`.  The `te::Tensor` is
-    // converted to a `tirx::BufferVar` in `RewriteStageToBlock`, and uses
+    // converted to a `tirx::TensorVar` in `RewriteStageToBlock`, and uses
     // the default empty list for the strides.  The empty strides
     // represent a compact data array.
     //

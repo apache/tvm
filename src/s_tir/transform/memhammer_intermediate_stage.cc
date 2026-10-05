@@ -212,18 +212,18 @@ class BufferLoadReplacer : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  BufferLoadReplacer(const BufferVar& tgt_buffer, const TensorLoad& new_buffer_load)
+  BufferLoadReplacer(const TensorVar& tgt_buffer, const TensorLoad& new_buffer_load)
       : tgt_buffer_(tgt_buffer), new_buffer_load_(new_buffer_load) {}
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) {
-    if (op->source.as_or_throw<tvm::tirx::BufferVar>().same_as(tgt_buffer_)) {
+    if (op->source.as_or_throw<tvm::tirx::TensorVar>().same_as(tgt_buffer_)) {
       return new_buffer_load_;
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
-  BufferVar tgt_buffer_;
+  TensorVar tgt_buffer_;
   TensorLoad new_buffer_load_;
 };
 
@@ -241,7 +241,7 @@ class BufferLoadReplacer : public StmtExprMutator {
 std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::String storage_scope,
                                           ffi::Optional<For> compute_location,
                                           const ffi::Array<For>& outer_loops,
-                                          BufferVar* alloc_tensor) {
+                                          TensorVar* alloc_tensor) {
   Stmt body = stmt;
   std::vector<const ForNode*> loops;
   std::vector<const ForNode*> loops_under_compute_location;
@@ -292,13 +292,13 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   const TensorLoadNode* target_buffer_load = nullptr;
   if (is_write_cache) {
     auto walk_fn = [&](const TensorLoad& buffer_load) -> ffi::Expected<ffi::WalkResult> {
-      if (buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "wmma.accumulator" ||
-          buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().scope() == "m16n8k8.matrixC") {
+      if (buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "wmma.accumulator" ||
+          buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "m16n8k8.matrixC") {
         if (target_buffer_load == nullptr) {
           target_buffer_load = buffer_load.get();
         } else {
-          TVM_FFI_ICHECK(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>().same_as(
-              buffer_load->source.as_or_throw<tvm::tirx::BufferVar>()))
+          TVM_FFI_ICHECK(target_buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(
+              buffer_load->source.as_or_throw<tvm::tirx::TensorVar>()))
               << "More than one target buffer found";
           TVM_FFI_ICHECK(target_buffer_load->indices.size() == buffer_load->indices.size());
           for (size_t i = 0; i < target_buffer_load->indices.size(); i++) {
@@ -374,18 +374,18 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
         ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(e, map_var).as_or_throw<PrimExpr>());
   }
 
-  BufferVar new_buffer{ffi::UnsafeInit{}};
+  TensorVar new_buffer{ffi::UnsafeInit{}};
   if (is_write_cache) {
     // this is needed for global <- cast(load(wmma))
     // shared stage should have the same dtype as wmma
     new_buffer =
-        WithScope(target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), storage_scope);
+        WithScope(target_buffer_load->source.as_or_throw<tvm::tirx::TensorVar>(), storage_scope);
   } else {
     new_buffer = WithScope(buf_store->buffer, storage_scope);
   }
   ffi::ObjectPtr<TensorTypeNode> buffer_type = CopyTensorType(new_buffer);
   buffer_type->shape = new_shape;
-  new_buffer = RebuildBufferVar(new_buffer, std::move(buffer_type));
+  new_buffer = RebuildTensorVar(new_buffer, std::move(buffer_type));
   *alloc_tensor = new_buffer;
 
   Stmt generate_body{ffi::UnsafeInit{}};
@@ -394,7 +394,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
     TensorLoad new_buffer_load = BufferLoad(new_buffer, cache_indices);
     generate_body =
         ffi::make_object<BufferLoadReplacer>(
-            target_buffer_load->source.as_or_throw<tvm::tirx::BufferVar>(), new_buffer_load)
+            target_buffer_load->source.as_or_throw<tvm::tirx::TensorVar>(), new_buffer_load)
             ->Mutate(ffi::GetRef<Stmt>(buf_store))
             .ValueOrUnchanged(ffi::GetRef<Stmt>(buf_store));
     generate_body =
@@ -465,7 +465,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
 Stmt CreateLocalStage::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
                                OutputSet* output) const {
   auto [body, compute_location] = LiftThreadBindingLoops(stmt);
-  BufferVar cache_buffer{ffi::UnsafeInit{}};
+  TensorVar cache_buffer{ffi::UnsafeInit{}};
   Stmt after_caching = InsertCacheStage(body, false, "local", compute_location,
                                         constraints.outer_loops, &cache_buffer)
                            .first;

@@ -683,7 +683,7 @@ def test_dispatch_cumsum_webgpu_axes_and_dtypes(
     assert called_kernels == [expected_kernel]
 
     cumsum = mod[expected_kernel]
-    buffers = [param for param in cumsum.params if tvm.tirx.is_buffer_var(param)]
+    buffers = [param for param in cumsum.params if tvm.tirx.is_tensor_var(param)]
     assert len(buffers) == 2
     assert all(len(buffer.shape) == expected_kernel_rank for buffer in buffers)
     assert str(buffers[0].dtype) == in_dtype
