@@ -1288,7 +1288,6 @@ void CodeGenC::DispatchAllocTensor(const BindNode* op, const CallNode* buffer_ca
 }
 
 void CodeGenC::Dispatch_(const RegionStmtNode* op) {
-  ValidateRegionStmt(op);
   TVM_FFI_CHECK(op->op.same_as(tirx::builtin::launch_thread()), ValueError)
       << "Cannot generate code for unlowered region op " << op->op;
   TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,

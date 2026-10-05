@@ -804,47 +804,44 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // RegionStmt
-void ValidateRegionStmt(const RegionStmtNode* op) {
-  TVM_FFI_CHECK(op && op->op.defined() && op->body.defined(), ValueError)
+RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
+                       Stmt body, ffi::Array<Var> result_vars, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
+  TVM_FFI_CHECK(op.defined() && body.defined(), ValueError)
       << "RegionStmt requires an operator and a body";
   std::unordered_set<const VarNode*> definitions;
-  for (const auto& vars : {op->body_params, op->result_vars}) {
+  for (const auto& vars : {body_params, result_vars}) {
     for (const Var& var : vars) {
       TVM_FFI_CHECK(definitions.insert(var.get()).second, ValueError)
           << "RegionStmt parameters and results must be distinct definitions";
     }
   }
-  if (!op->op.same_as(tirx::builtin::launch_thread())) return;
-  TVM_FFI_CHECK(op->args.size() == 2 && op->body_params.size() == 1 && op->result_vars.empty() &&
-                    op->attrs->dict.empty(),
-                ValueError)
-      << "launch_thread expects tag, extent, one body parameter, and no results or attrs";
-  auto tag = op->args[0].as<StringImm>();
-  auto extent = op->args[1].as<PrimExpr>();
-  auto var = op->body_params[0].as<PrimVar>();
-  TVM_FFI_CHECK(tag && !tag.value()->value.empty(), ValueError)
-      << "launch_thread expects a nonempty StringImm thread tag";
-  auto integer = [](PrimType ty) {
-    return ty.IsScalar() &&
-           (ty.MatchesCode(DLDataTypeCode::kDLInt) || ty.MatchesCode(DLDataTypeCode::kDLUInt)) &&
-           ty.bits() > 1;
-  };
-  TVM_FFI_CHECK(extent && var && integer(extent.value().ty()) && integer(var.value().ty()) &&
-                    extent.value().ty() == var.value().ty(),
-                ValueError)
-      << "launch_thread expects matching scalar integer extent and body parameter types";
-}
-
-RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
-                       Stmt body, ffi::Array<Var> result_vars, Span span)
-    : Stmt(ffi::UnsafeInit{}) {
+  if (op.same_as(tirx::builtin::launch_thread())) {
+    TVM_FFI_CHECK(
+        args.size() == 2 && body_params.size() == 1 && result_vars.empty() && attrs->dict.empty(),
+        ValueError)
+        << "launch_thread expects tag, extent, one body parameter, and no results or attrs";
+    auto tag = args[0].as<StringImm>();
+    auto extent = args[1].as<PrimExpr>();
+    auto var = body_params[0].as<PrimVar>();
+    TVM_FFI_CHECK(tag && !tag.value()->value.empty(), ValueError)
+        << "launch_thread expects a nonempty StringImm thread tag";
+    auto integer = [](PrimType ty) {
+      return ty.IsScalar() &&
+             (ty.MatchesCode(DLDataTypeCode::kDLInt) || ty.MatchesCode(DLDataTypeCode::kDLUInt)) &&
+             ty.bits() > 1;
+    };
+    TVM_FFI_CHECK(extent && var && integer(extent.value().ty()) && integer(var.value().ty()) &&
+                      extent.value().ty() == var.value().ty(),
+                  ValueError)
+        << "launch_thread expects matching scalar integer extent and body parameter types";
+  }
   auto n = ffi::make_object<RegionStmtNode>(std::move(op), std::move(body));
   n->args = std::move(args);
   n->body_params = std::move(body_params);
   n->attrs = std::move(attrs);
   n->result_vars = std::move(result_vars);
   n->span = std::move(span);
-  ValidateRegionStmt(n.get());
   data_ = std::move(n);
 }
 

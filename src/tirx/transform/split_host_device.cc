@@ -533,7 +533,6 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (op->op.same_as(tirx::builtin::launch_thread()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       ffi::String thread_tag = op->args[0].as_or_throw<StringImm>()->value;

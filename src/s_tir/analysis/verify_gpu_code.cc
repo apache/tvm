@@ -115,7 +115,6 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::builtin::launch_thread())) {
-      ValidateRegionStmt(op);
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
         Reset_();

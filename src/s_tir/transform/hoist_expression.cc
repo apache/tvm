@@ -296,7 +296,6 @@ class HoistInfoCollector : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::builtin::launch_thread())) {
-      ValidateRegionStmt(op);
       Var var = op->body_params[0].as_or_throw<PrimVar>();
       active_block_vars.insert(var.get());
       active_loop_vars.insert(var.get());

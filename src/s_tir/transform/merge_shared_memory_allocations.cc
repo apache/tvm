@@ -324,7 +324,6 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // Only record the outer most thread extent.
-    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (op->op.same_as(tirx::builtin::launch_thread()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
         !in_thread_env_) {
@@ -452,7 +451,6 @@ class SharedMemoryRewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (op->op.same_as(tirx::builtin::launch_thread()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
         !in_thread_env_) {

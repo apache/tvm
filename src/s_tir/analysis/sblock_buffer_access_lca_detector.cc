@@ -263,7 +263,6 @@ class LCADetector : public s_tir::StmtExprVisitor {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
     const ScopeInfo* parent_scope = ancestor_scopes_.back();
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, ancestor_scopes_.size());
-    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (op->op.same_as(tirx::builtin::launch_thread()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
         runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value).rank == 0) {

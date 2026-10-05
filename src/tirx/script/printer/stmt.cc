@@ -354,7 +354,6 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::RegionStmtNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
-  tirx::ValidateRegionStmt(stmt);
   TVM_FFI_CHECK(stmt->result_vars.empty(), ValueError)
       << "RegionStmt with result_vars has no supported outward-result script syntax";
 

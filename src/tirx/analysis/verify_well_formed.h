@@ -28,26 +28,17 @@ namespace tvm {
 namespace tirx {
 using AccessPath = ffi::reflection::AccessPath;
 
-/*! \brief Validate regions and reject retired launch attributes, including loaded IR. */
+/*! \brief Reject retired launch attributes, including loaded IR. */
 template <typename PathVisitor>
-class RegionStmtVerifier : public Verifier<RegionStmtVerifier<PathVisitor>, PathVisitor> {
-  using Verifier = tirx::Verifier<RegionStmtVerifier<PathVisitor>, PathVisitor>;
+class RetiredLaunchAttrVerifier
+    : public Verifier<RetiredLaunchAttrVerifier<PathVisitor>, PathVisitor> {
+  using Verifier = tirx::Verifier<RetiredLaunchAttrVerifier<PathVisitor>, PathVisitor>;
 
  public:
   using Verifier::Verifier;
   using Verifier::Verify;
 
  private:
-  void Dispatch_(const RegionStmtNode* op, AccessPath path) override {
-    try {
-      ValidateRegionStmt(op);
-    } catch (const std::exception& error) {
-      Verify(false) << "ValueError: Invalid RegionStmt at " << path << ": " << error.what();
-      return;
-    }
-    PathVisitor::Dispatch_(op, path);
-  }
-
   void Dispatch_(const AttrStmtNode* op, AccessPath path) override {
     bool retired = op->attr_key == "thread_extent" || op->attr_key == "virtual_thread";
     Verify(!retired) << "ValueError: Retired thread launch attribute at " << path
@@ -331,7 +322,7 @@ class LoopControlVerifier : public Verifier<LoopControlVerifier<PathVisitor>, Pa
 
 template <typename PathVisitor, typename NodeRef>
 bool VerifyWellFormedCommon(const NodeRef& node, bool assert_mode) {
-  return RegionStmtVerifier<PathVisitor>::Verify(node, assert_mode) &&
+  return RetiredLaunchAttrVerifier<PathVisitor>::Verify(node, assert_mode) &&
          UndefinedVarVerifier<PathVisitor>::Verify(node, assert_mode) &&
          UndefinedBufferVerifier<PathVisitor>::Verify(node, assert_mode) &&
          TensorLoadTypeVerifier<PathVisitor>::Verify(node, assert_mode) &&

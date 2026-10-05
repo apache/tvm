@@ -54,7 +54,6 @@ class ThreadBindingUnifier : public DialectMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (!op->op.same_as(tirx::builtin::launch_thread()) ||
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       return MutateIsolatedScope(op, inplace_mode);

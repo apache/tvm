@@ -150,7 +150,6 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const AttrStmtNode* o
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const RegionStmtNode* op) {
-  if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
   if (op->op.same_as(tirx::builtin::launch_thread()) &&
       std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
     PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();

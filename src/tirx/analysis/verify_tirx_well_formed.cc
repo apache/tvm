@@ -143,7 +143,7 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
 };
 
 bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode, bool device_func) {
-  if (!RegionStmtVerifier<TIRVisitorWithPath>::Verify(func, assert_mode)) {
+  if (!RetiredLaunchAttrVerifier<TIRVisitorWithPath>::Verify(func, assert_mode)) {
     return false;
   }
   if (!ExecScopeVerifier::Verify(func, assert_mode)) {

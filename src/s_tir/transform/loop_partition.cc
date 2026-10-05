@@ -184,7 +184,6 @@ class CandidateSelector final : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (op->op.same_as(tirx::builtin::launch_thread()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       Var var = op->body_params[0].as_or_throw<PrimVar>();
@@ -302,7 +301,6 @@ class PartitionFinder : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // handle thread_axis
-    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (op->op.same_as(tirx::builtin::launch_thread()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       const VarNode* var = op->body_params[0].as_or_throw<PrimVar>().get();
@@ -472,7 +470,6 @@ class ThreadPartitionInserter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (op->op.same_as(tirx::builtin::launch_thread()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
       innermost_thread_scope_ = true;
@@ -545,7 +542,6 @@ class LoopPartitioner : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (!op->op.same_as(tirx::builtin::launch_thread()) ||
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       return StmtExprMutator::Mutate_(op, inplace_mode);

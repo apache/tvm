@@ -216,7 +216,6 @@ class CallSubstitutor : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (!op->op.same_as(tirx::builtin::launch_thread()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
-    ValidateRegionStmt(op);
     PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
     bool previous_scope = is_under_gpu_scope_;

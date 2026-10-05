@@ -177,7 +177,6 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
     Var previous_index = warp_index_;
     auto previous_bindings = active_bindings_;
     if (op->op.same_as(tirx::builtin::launch_thread())) {
-      ValidateRegionStmt(op);
       PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
       const auto& binding = bindings_.at(var.get());
       active_bindings_.insert_or_assign(var.get(), binding);
@@ -302,7 +301,6 @@ class WarpIndexFinder : public StmtExprVisitor {
  private:
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::builtin::launch_thread())) {
-      ValidateRegionStmt(op);
       WarpThreadBinding binding{op->args[0].as_or_throw<StringImm>()->value,
                                 op->args[1].as_or_throw<PrimExpr>()};
       CheckWidth(binding);
@@ -399,7 +397,6 @@ class WarpAccessRewriter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (!op->op.same_as(tirx::builtin::launch_thread()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
-    ValidateRegionStmt(op);
     PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
     PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
     PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
@@ -626,7 +623,6 @@ class BindVarBoundInfo : public StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::builtin::launch_thread())) {
-      ValidateRegionStmt(op);
       PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       Range dom = Range::FromMinExtent(IntImm(extent.ty(), 0), extent);
@@ -667,7 +663,6 @@ class WarpMemoryRewriter : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     if (!op->op.same_as(tirx::builtin::launch_thread()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
-    ValidateRegionStmt(op);
     PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
     auto previous_bindings = active_bindings_;
     Var previous_index = warp_index_;

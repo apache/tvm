@@ -746,7 +746,6 @@ class VirtualThreadInjector : public s_tir::IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<RegionStmtNode>();
-    if (op && op->op.same_as(tirx::builtin::launch_thread())) ValidateRegionStmt(op);
     if (op && op->op.same_as(tirx::builtin::launch_thread()) &&
         std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       PrimVar var = op->body_params[0].as_or_throw<PrimVar>();

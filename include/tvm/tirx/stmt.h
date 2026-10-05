@@ -216,9 +216,6 @@ class RegionStmt : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(RegionStmtNode);
 };
 
-/*! \brief Validate a region's definitions and any known operation schema. */
-TVM_DLL void ValidateRegionStmt(const RegionStmtNode* op);
-
 /*!
  * \brief Assert condition, if an error occurs, return the error message.
  *

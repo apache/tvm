@@ -86,7 +86,6 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AttrStmtNode* 
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const RegionStmtNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     if (op->op.same_as(tirx::builtin::launch_thread())) {
-      ValidateRegionStmt(op);
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
       analyzer_->Bind(op->body_params[0].as_or_throw<PrimVar>(),
                       Range::FromMinExtent(IntImm(extent.ty(), 0), extent));
