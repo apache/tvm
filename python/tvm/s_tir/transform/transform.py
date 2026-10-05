@@ -255,22 +255,6 @@ def InjectVirtualThread():
     return _ffi_api.InjectVirtualThread()  # type: ignore
 
 
-@_ffi.register_object("s_tir.transform.InjectDoubleBufferConfig")
-class InjectDoubleBufferConfig(_ffi.Object):
-    """Config for inject double buffer pass"""
-
-
-def InjectDoubleBuffer():
-    """Inject double buffer statements.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectDoubleBuffer()  # type: ignore
-
-
 def HoistIfThenElse(variant=None):
     """Hoist loop-invariant IfThenElse nodes to outside the eligible loops.
 

@@ -139,28 +139,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const AttrStmtNode* op) {
-  if (op->attr_key == s_tir::attr::double_buffer_write) {
-    TVM_FFI_ICHECK(double_buffer_write_ == nullptr);
-    auto buffer = GetBufferDataVar(op->node);
-    TVM_FFI_ICHECK(buffer.has_value())
-        << "Expected a buffer data expression for double-buffer writes, but received " << op->node;
-    double_buffer_write_ = ResolveBuffer(buffer.value()).get();
-    scope_.push_back(std::vector<StmtEntry>());
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    StmtEntry s;
-    s.stmt = op;
-    s.access = Summarize(std::move(scope_.back()), nullptr);
-    scope_.pop_back();
-    if (!s.access.empty()) {
-      for (AccessEntry& e : s.access) {
-        if (e.type == kWrite && e.buffer.get() == double_buffer_write_) {
-          e.double_buffer_write = true;
-        }
-      }
-      scope_.back().emplace_back(std::move(s));
-    }
-    double_buffer_write_ = nullptr;
-  } else if (op->attr_key == s_tir::attr::hand_threaded) {
+  if (op->attr_key == s_tir::attr::hand_threaded) {
     // skip this pass on blocks that were hand_threaded
     // this avoids control flow and read/write conflicts
     // between hand-threaded kernels and automatic threading

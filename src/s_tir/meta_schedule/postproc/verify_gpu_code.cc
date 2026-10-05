@@ -190,7 +190,6 @@ class VerifyGPUCodeNode : public PostprocNode {
           // Phase 2
           pass_list.push_back(tirx::transform::VectorizeLoop(true));
           pass_list.push_back(s_tir::transform::InjectVirtualThread());
-          pass_list.push_back(s_tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tirx::transform::StorageRewrite());
           pass_list.push_back(s_tir::transform::MergeSharedMemoryAllocations());
           pass_list.push_back(tirx::transform::LowerIntrin());
