@@ -53,7 +53,7 @@ def test_matmul():
                 for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -145,7 +145,7 @@ def test_matmul_int32():
                 for ax2_1 in T.thread_binding(1, thread="vthread.y"):
                     for ax1_1 in T.thread_binding(1, thread="vthread.x"):
                         for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
                                     for ax2_3_1_init in T.vectorized(2):
                                         with Ts.sblock("matmul_init"):
@@ -247,7 +247,7 @@ def test_fused_matmul():
                 for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -416,7 +416,7 @@ def test_output_fp32():
                 for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("matmul_init"):
@@ -548,7 +548,7 @@ def test_inline_consumer_chain():
                 for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
                         for ax2_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
-                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(4), T.int64(2)):
                                     for ax2_3_1_init in T.vectorized(T.int64(2)):
                                         with Ts.sblock("NT_matmul_init"):

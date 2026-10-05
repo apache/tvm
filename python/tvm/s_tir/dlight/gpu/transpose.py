@@ -122,8 +122,8 @@ class Transpose(GPUScheduleRule):
         sch.unroll(v)
         sch.storage_align(block=cache_read, buffer_index=0, axis=0, factor=32, offset=1)
 
-        sch.annotate(bi, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-        sch.annotate(bi, ann_key="pragma_unroll_explicit", ann_val=1)
+        sch.annotate(bi, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
+        sch.annotate(bi, ann_key="unroll_explicit", ann_val=1)
 
         if prologue is not None:
             sch.compute_inline(prologue)

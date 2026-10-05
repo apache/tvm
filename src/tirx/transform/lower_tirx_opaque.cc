@@ -88,12 +88,20 @@ class TIRxOpaqueLower : public StmtExprMutator {
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
 
+    // Keep policy on surviving descendants when this owner is lowered away.
+    auto enclosing_policy = unroll_policy_;
+    UpdateUnrollPolicy(op->annotations);
+    auto annotations = op->annotations;
+    for (const auto& kv : unroll_policy_) {
+      annotations.Set(kv.first, kv.second);
+    }
     // Annotations share the loop binding's scope. Mutate them before the body
     // so body-local definitions cannot escape into annotation expressions.
-    auto annotations = this->Mutate(op->annotations, inplace_mode)
+    annotations = this->Mutate(annotations, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>()
-                           .ValueOrUnchanged(op->annotations);
+                           .ValueOrUnchanged(annotations);
     Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    unroll_policy_ = std::move(enclosing_policy);
     VarRemapSet(op->loop_var, previous_remap);
 
     // Step 3. Handle annotations
@@ -146,6 +154,17 @@ class TIRxOpaqueLower : public StmtExprMutator {
     return body;
   }
 
+  void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {
+    for (const char* key : {tirx::attr::auto_unroll_max_step, tirx::attr::unroll_explicit}) {
+      if (auto value = annotations.Get(key); value.has_value() && value.value() != nullptr) {
+        unroll_policy_.Set(key, value.value());
+      }
+    }
+  }
+
+  // Effective policy is materialized on each surviving loop, preserving nested overrides.
+  ffi::Map<ffi::String, ffi::Any> unroll_policy_;
+
   /*! \brief Convert attr value from annotation map into Expr. */
   Expr ConvertAttrValue(const ffi::String& key, const Any& obj) {
     if (auto expr = obj.try_cast<Expr>()) {
@@ -173,6 +192,10 @@ class TIRxOpaqueLower : public StmtExprMutator {
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
       const ffi::String& key = kv.first;
+      if ((key == tirx::attr::auto_unroll_max_step || key == tirx::attr::unroll_explicit) &&
+          kv.second == nullptr) {
+        continue;
+      }
       if (key == "pragma_unroll") {
         if (kv.second != nullptr) {
           preserved_annotations.Set(key, kv.second);

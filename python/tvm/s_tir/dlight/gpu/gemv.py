@@ -256,26 +256,22 @@ class GEMV(GPUScheduleRule):
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf)[3],
-                ann_key="pragma_auto_unroll_max_step",
+                ann_key="auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(
-                block_or_loop=sch.get_loops(rf)[3], ann_key="pragma_unroll_explicit", ann_val=1
-            )
+            sch.annotate(block_or_loop=sch.get_loops(rf)[3], ann_key="unroll_explicit", ann_val=1)
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf2)[3],
-                ann_key="pragma_auto_unroll_max_step",
+                ann_key="auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(
-                block_or_loop=sch.get_loops(rf2)[3], ann_key="pragma_unroll_explicit", ann_val=1
-            )
+            sch.annotate(block_or_loop=sch.get_loops(rf2)[3], ann_key="unroll_explicit", ann_val=1)
 
             if LOAD_V_SHARED:
                 sch.annotate(
                     block_or_loop=sch.get_loops(V_shared)[-4],
-                    ann_key="pragma_unroll_explicit",
+                    ann_key="unroll_explicit",
                     ann_val=unroll_factor,
                 )
                 sch.annotate(
@@ -533,12 +529,10 @@ class GEMV(GPUScheduleRule):
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf2)[3],
-                ann_key="pragma_auto_unroll_max_step",
+                ann_key="auto_unroll_max_step",
                 ann_val=UNROLL,
             )
-            sch.annotate(
-                block_or_loop=sch.get_loops(rf2)[3], ann_key="pragma_unroll_explicit", ann_val=1
-            )
+            sch.annotate(block_or_loop=sch.get_loops(rf2)[3], ann_key="unroll_explicit", ann_val=1)
 
             # Schedule epilogue
             if epilogue_info is not None:
@@ -663,8 +657,8 @@ class GEMV(GPUScheduleRule):
         sch.bind(tx, "threadIdx.x")
         sch.reorder(bx, tx, r0, r1, c, vec)
 
-        sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=8)
-        sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
+        sch.annotate(tx, ann_key="auto_unroll_max_step", ann_val=8)
+        sch.annotate(tx, ann_key="unroll_explicit", ann_val=1)
 
         if LOAD_V_SHARED:
             V_shared = sch.cache_read(block, vector_input_buffers[0], storage_scope="shared")

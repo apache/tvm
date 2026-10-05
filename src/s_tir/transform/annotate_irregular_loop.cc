@@ -58,7 +58,7 @@ class IrregularLoopAnnotator : public StmtExprMutator {
       TVM_FFI_ICHECK(op->kind == ForKind::kSerial)
           << "Loop kind " << op->kind << " is invalid for irregular loop " << op->loop_var;
       for (const char* key :
-           {tirx::attr::pragma_auto_unroll_max_step, tirx::attr::pragma_unroll_explicit,
+           {tirx::attr::auto_unroll_max_step, tirx::attr::unroll_explicit,
             s_tir::attr::loop_partition_hint, s_tir::attr::software_pipeline_stage}) {
         TVM_FFI_ICHECK(!res->annotations.count(key))
             << "Annotation `" << key << "` is invalid for irregular loop " << op->loop_var;

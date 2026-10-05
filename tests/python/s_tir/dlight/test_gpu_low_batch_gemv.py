@@ -84,7 +84,7 @@ def test_batch_decode_gemv():
                                     Ts.reads()
                                     Ts.writes(NT_matmul_intermediate_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1])
                                     NT_matmul_intermediate_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] = T.float16(0)
-                        for ax2_fused_u_fused_0 in T.serial(T.int64(112), annotations={"pragma_auto_unroll_max_step": 8, "pragma_unroll_explicit": 1}):
+                        for ax2_fused_u_fused_0 in T.serial(T.int64(112), annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
                             for ax0_0_1, ax1 in T.grid(T.int64(2), T.int64(8)):
                                 for ax0_1 in T.vectorized(T.int64(1)):
                                     with Ts.sblock("dequantize"):
@@ -105,7 +105,7 @@ def test_batch_decode_gemv():
                                         NT_matmul_intermediate_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] = NT_matmul_intermediate_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] + T.if_then_else(v0 < batch_size, lv807[v0, T.int64(0), vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)], T.float16(0)) * dequantize_intermediate_intermediate_local[v1, vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)]
                 for ax3_fused_0_ax3_fused_1_fused in T.thread_binding(T.int64(8), thread="threadIdx.x"):
                     for ax0 in T.thread_binding(T.int64(32), thread="threadIdx.y"):
-                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 8, "pragma_unroll_explicit": 1}):
+                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
                             for ax2 in T.serial(T.int64(0), T.int64(4)):
                                 for ax3_fused_2_1 in T.vectorized(T.int64(2)):
                                     with Ts.sblock("NT_matmul_rf_init"):
@@ -197,7 +197,7 @@ def test_batch_gemv():
                                     Ts.reads()
                                     Ts.writes(NT_matmul_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1])
                                     NT_matmul_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] = T.float16(0)
-                        for ax2_fused_u_fused_0 in T.serial(T.int64(16), annotations={"pragma_auto_unroll_max_step": 8, "pragma_unroll_explicit": 1}):
+                        for ax2_fused_u_fused_0 in T.serial(T.int64(16), annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
                             for ax0_1, u_fused_ax1_fused_fused_2, ax2_fused_u_fused_2 in T.grid(T.int64(4), T.int64(2), T.int64(2)):
                                 for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1 in T.vectorized(T.int64(4)):
                                     with Ts.sblock("NT_matmul_rf_update"):
@@ -210,7 +210,7 @@ def test_batch_gemv():
                                         NT_matmul_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] = NT_matmul_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, T.int64(0), v1] + T.if_then_else(v0 < batch_size, A[v0, T.int64(0), vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)], T.float16(0)) * B[v1, vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)]
                 for ax3_fused_0_ax3_fused_1_fused in T.thread_binding(T.int64(8), thread="threadIdx.x"):
                     for ax0 in T.thread_binding(T.int64(32), thread="threadIdx.y"):
-                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 8, "pragma_unroll_explicit": 1}):
+                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 8, "unroll_explicit": 1}):
                             for ax2 in T.serial(T.int64(0), T.int64(4)):
                                 for ax3_fused_2_1 in T.vectorized(T.int64(2)):
                                     with Ts.sblock("NT_matmul_rf_init"):
@@ -326,7 +326,7 @@ def test_small_spatial_axis():
                                     Ts.reads()
                                     Ts.writes(C_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, v1])
                                     C_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, v1] = T.float16(0)
-                        for ax2_fused_u_fused_0 in T.serial(T.int64(16), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax2_fused_u_fused_0 in T.serial(T.int64(16), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             for ax0_1, u_fused_ax1_fused_fused_2, ax2_fused_u_fused_2 in T.grid(T.int64(4), T.int64(2), T.int64(2)):
                                 for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_1 in T.vectorized(T.int64(4)):
                                     with Ts.sblock("NT_matmul_rf_update"):
@@ -340,7 +340,7 @@ def test_small_spatial_axis():
                                         C_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, v1] = C_pad_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, v0, v1] + T.if_then_else(v0 < batch_size, A[v0, vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)], T.float16(0)) * B[v1, vax2_fused_u_fused_0 * T.int64(256) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused // T.int64(4) * T.int64(8) + vax2_fused_u_fused_2 * T.int64(4) + vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused % T.int64(4)]
                 for ax3_fused_0_ax3_fused_1_fused in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                     for ax0 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
-                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax3_fused_2_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             for ax2 in T.serial(T.int64(0), T.int64(4)):
                                 for ax3_fused_2_1 in T.vectorized(T.int64(2)):
                                     with Ts.sblock("NT_matmul_rf_init"):

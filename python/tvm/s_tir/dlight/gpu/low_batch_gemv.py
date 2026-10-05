@@ -470,26 +470,22 @@ class LowBatchGEMV(GPUScheduleRule):
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf)[4],
-                ann_key="pragma_auto_unroll_max_step",
+                ann_key="auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(
-                block_or_loop=sch.get_loops(rf)[4], ann_key="pragma_unroll_explicit", ann_val=1
-            )
+            sch.annotate(block_or_loop=sch.get_loops(rf)[4], ann_key="unroll_explicit", ann_val=1)
 
             sch.annotate(
                 block_or_loop=sch.get_loops(rf2)[4],
-                ann_key="pragma_auto_unroll_max_step",
+                ann_key="auto_unroll_max_step",
                 ann_val=unroll_factor,
             )
-            sch.annotate(
-                block_or_loop=sch.get_loops(rf2)[4], ann_key="pragma_unroll_explicit", ann_val=1
-            )
+            sch.annotate(block_or_loop=sch.get_loops(rf2)[4], ann_key="unroll_explicit", ann_val=1)
 
             if LOAD_V_SHARED:
                 sch.annotate(
                     block_or_loop=sch.get_loops(V_shared)[-4],
-                    ann_key="pragma_unroll_explicit",
+                    ann_key="unroll_explicit",
                     ann_val=unroll_factor,
                 )
                 sch.annotate(

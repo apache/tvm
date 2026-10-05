@@ -84,7 +84,7 @@ def test_gemv_basic():
         for ax0_fused in range(32):
             for ax1_fused_0 in T.parallel((n + 63) // 64):
                 for ax1_fused_1 in T.vectorized(64):
-                    for ax2_fused_0 in T.serial(2, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax2_fused_0 in T.serial(2, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax2_fused_1, u_0, u_1 in T.grid(64, 1, 1):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(32, ax0_fused)
@@ -140,7 +140,7 @@ def test_decode_gemv_256_threads():
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(172):
                 for ax0_fused_1 in T.vectorized(128):
-                    for ax1_0_fused_0 in T.serial(8, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax1_0_fused_0 in T.serial(8, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax1_0_fused_1, ax1_1_0, ax1_1_1 in T.grid(64, 1, 8):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(22016, ax0_fused_0 * 128 + ax0_fused_1)
@@ -188,7 +188,7 @@ def test_decode_gemv1():
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(172):
                 for ax0_fused_1 in T.vectorized(128):
-                    for ax1_0_fused_0 in T.serial(8, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax1_0_fused_0 in T.serial(8, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax1_0_fused_1, ax1_1_0, ax1_1_1 in T.grid(64, 1, 8):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(22016, ax0_fused_0 * 128 + ax0_fused_1)
@@ -244,7 +244,7 @@ def test_decode_gemv2():
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(250):
                 for ax0_fused_1 in T.vectorized(128):
-                    for ax1_0_fused_0 in T.serial(8, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax1_0_fused_0 in T.serial(8, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax1_0_fused_1, ax1_1_0, ax1_1_1 in T.grid(64, 1, 8):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(32000, ax0_fused_0 * 128 + ax0_fused_1)
@@ -306,7 +306,7 @@ def test_decode_gemv3():
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(T.int64(64)):
                 for ax0_fused_1 in T.vectorized(T.int64(64)):
-                    for ax1_0_fused_0 in T.serial(T.int64(11), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax1_0_fused_0 in T.serial(T.int64(11), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         for ax1_0_fused_1, ax1_1_0, ax1_1_1 in T.grid(T.int64(128), T.int64(1), T.int64(8)):
                             with Ts.sblock("NT_matmul"):
                                 v0 = Ts.axis.spatial(T.int64(4096), ax0_fused_0 * T.int64(64) + ax0_fused_1)
@@ -535,7 +535,7 @@ def test_blockized_gemv():
                 for u_fused in range(1):
                     for ax0_fused_0 in T.parallel(128):
                         for ax0_fused_1 in T.vectorized(128):
-                            for ax1_fused_0 in T.serial(64, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            for ax1_fused_0 in T.serial(64, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                                 for ax1_fused_1, u_0, u_1 in T.grid(64, 1, 1):
                                     with Ts.sblock("gemv"):
                                         v0 = Ts.axis.spatial(16384, ax0_fused_0 * 128 + ax0_fused_1)

@@ -896,8 +896,8 @@ def test_llvm_import():
         class Module:
             @T.prim_func
             def main(A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32")):
-                T.func_attr({"tirx.noalias": True})
-                for i in T.serial(10, annotations={"pragma_import_llvm": import_val}):
+                T.func_attr({"tirx.noalias": True, "tirx.import_llvm": [import_val]})
+                for i in T.serial(10):
                     B[i] = T.call_pure_extern("float32", "my_add", A[i], T.float32(1.0))
 
         f = tvm.compile(Module, target="llvm")

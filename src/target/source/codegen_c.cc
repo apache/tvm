@@ -46,6 +46,13 @@ void CodeGenC::Init(bool output_ssa) { print_ssa_form_ = output_ssa; }
 
 void CodeGenC::InitFuncState(const PrimFunc& f) {
   thread_extents_.clear();
+  if (auto imports = f->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kImportC)) {
+    for (const ffi::String& source : imports.value()) {
+      if (imported_sources_.insert(source).second) {
+        decl_stream << source;
+      }
+    }
+  }
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
   pointer_offset_vars_.clear();
@@ -1311,11 +1318,6 @@ void CodeGenC::Dispatch_(const RegionStmtNode* op) {
 void CodeGenC::Dispatch_(const AttrStmtNode* op) {
   TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
       << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
-  if (op->attr_key == tirx::attr::pragma_import_c) {
-    const StringImmNode* value = op->value.as<StringImmNode>();
-    TVM_FFI_ICHECK(value != nullptr);
-    decl_stream << value->value;
-  }
   this->PrintStmt(op->body);
 }
 

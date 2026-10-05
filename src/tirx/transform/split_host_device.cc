@@ -105,6 +105,43 @@ PrimFunc AnnotateDeviceRegionsForSplit(PrimFunc func) {
 
 // Host/device function extraction
 
+namespace {
+
+ffi::String SourceImportKey(const Target& target) {
+  const auto& kind = target->kind->name;
+  if (kind == "llvm" || kind == "hexagon" || kind == "rocm" || kind == "nvptx") {
+    return tirx::attr::kImportLLVM;
+  }
+  if (kind == "c" || kind == "cuda" || kind == "opencl" || kind == "metal" || kind == "webgpu" ||
+      kind == "trn") {
+    return tirx::attr::kImportC;
+  }
+  return "";
+}
+
+class HostExternCallFinder : public StmtExprVisitor {
+ public:
+  explicit HostExternCallFinder(IRModule device_mod) : device_mod_(std::move(device_mod)) {}
+
+  bool found{false};
+
+ private:
+  ffi::Optional<VisitInterrupt> Visit_(const CallNode* op) final {
+    if (op->op.same_as(builtin::call_extern()) || op->op.same_as(builtin::call_pure_extern())) {
+      found = true;
+    } else if (const auto* gvar = op->op.as<GlobalVarNode>();
+               gvar && !device_mod_->functions.count(ffi::GetRef<GlobalVar>(gvar))) {
+      // A non-kernel call may refer to a helper declared by imported source.
+      found = true;
+    }
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  IRModule device_mod_;
+};
+
+}  // namespace
+
 class LaunchBoundsAttrExtractor : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
@@ -205,6 +242,8 @@ class HostDeviceSplitter : public StmtExprMutator {
   explicit HostDeviceSplitter(IRModule* device_mod, std::function<GlobalVar()> var_supply,
                               PrimFunc cur_func)
       : device_mod_(device_mod), var_supply_(var_supply), cur_func_(cur_func) {}
+
+  bool has_distinct_c_source_target() const { return has_distinct_c_source_target_; }
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     if (op->attr_key == tvm::attr::kTarget) {
@@ -309,6 +348,19 @@ class HostDeviceSplitter : public StmtExprMutator {
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
                                                      {tirx::attr::kIsGlobalFunc, true}});
+    ffi::String import_key = SourceImportKey(device_target);
+    if (!import_key.empty()) {
+      if (auto imports = cur_func_->GetAttr<ffi::Array<ffi::String>>(import_key)) {
+        device_func = WithAttr(std::move(device_func), import_key, imports.value());
+      }
+    }
+    auto target = cur_func_->GetAttr<Target>(tvm::attr::kTarget).value();
+    auto host_target = target->GetHost().value_or(target.WithoutHost());
+    if (import_key == tirx::attr::kImportC &&
+        SourceImportKey(host_target) == tirx::attr::kImportC &&
+        host_target->kind->name != device_target->kind->name) {
+      has_distinct_c_source_target_ = true;
+    }
     bool is_stir = cur_func_->attrs->dict.count(tvm::attr::kSTir);
     if (is_stir) {
       device_func = WithAttr(std::move(device_func), tvm::attr::kSTir, true);
@@ -362,16 +414,43 @@ class HostDeviceSplitter : public StmtExprMutator {
   std::function<GlobalVar()> var_supply_;
   // Current function being split
   PrimFunc cur_func_;
+  // C-family source cannot be shared implicitly across distinct target languages.
+  bool has_distinct_c_source_target_{false};
 };
 
 PrimFunc SplitHostDevice(PrimFunc func, IRModule* device_mod,
                          std::function<GlobalVar()> var_supply) {
   auto splitter = ffi::make_object<HostDeviceSplitter>(device_mod, var_supply, func);
+  size_t num_device_funcs = (*device_mod)->functions.size();
 
   auto body_result =
       splitter->Mutate(func->body, func.unique() ? InplaceMode::kAllow : InplaceMode::kDisallow);
   if (!body_result.UnchangedOrSameAs(func->body)) {
     func.CopyOnWrite()->body = std::move(body_result).ValueUnchecked();
+  }
+  if ((*device_mod)->functions.size() != num_device_funcs) {
+    auto target = func->GetAttr<Target>(tvm::attr::kTarget).value();
+    auto host_target = target->GetHost().value_or(target.WithoutHost());
+    ffi::String host_import_key = SourceImportKey(host_target);
+    if (splitter->has_distinct_c_source_target()) {
+      if (auto imports = func->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kImportC);
+          imports && !imports.value().empty()) {
+        auto finder = ffi::make_object<HostExternCallFinder>(*device_mod);
+        finder->Visit(func->body);
+        TVM_FFI_CHECK(!finder->found, ValueError)
+            << "SplitHostDevice: tirx.import_c is ambiguous between host target "
+            << host_target->kind->name
+            << " and a distinct C-family device target because the residual host body contains "
+               "an external or non-kernel function call. Place host and device imports on explicit "
+               "host and device PrimFuncs with their respective targets.";
+      }
+      host_import_key = "";
+    }
+    for (const char* key : {tirx::attr::kImportC, tirx::attr::kImportLLVM}) {
+      if (host_import_key != key) {
+        func = WithoutAttr(std::move(func), key);
+      }
+    }
   }
 
   return func;

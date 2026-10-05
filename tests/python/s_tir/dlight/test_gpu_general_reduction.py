@@ -156,7 +156,7 @@ def test_softmax_1():
             for ax0_ax1_fused in T.thread_binding(n * T.int64(32), thread="blockIdx.x"):
                 for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
                     for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                        for ax2_fused_0 in T.serial((m + T.int64(255)) // T.int64(256), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax2_fused_0 in T.serial((m + T.int64(255)) // T.int64(256), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             with Ts.sblock("T_softmax_maxelem"):
                                 v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n + ax0)
                                 v1 = Ts.axis.spatial(n, ax0_ax1_fused % n + ax1)
@@ -169,7 +169,7 @@ def test_softmax_1():
                                 T_softmax_maxelem_shared[T.int64(0), v0, v1] = T.max(T_softmax_maxelem_shared[T.int64(0), v0, v1], lv44[T.int64(0), v0, v1, v2])
                 for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
                     for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                        for ax2_fused_0 in T.serial((m + T.int64(255)) // T.int64(256), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax2_fused_0 in T.serial((m + T.int64(255)) // T.int64(256), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             with Ts.sblock("T_softmax_expsum"):
                                 v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n + ax0)
                                 v1 = Ts.axis.spatial(n, ax0_ax1_fused % n + ax1)
@@ -181,7 +181,7 @@ def test_softmax_1():
                                     T_softmax_expsum_shared[T.int64(0), v0, v1] = T.float32(0)
                                 T_softmax_expsum_shared[T.int64(0), v0, v1] = T_softmax_expsum_shared[T.int64(0), v0, v1] + T.exp(lv44[T.int64(0), v0, v1, v2] - T_softmax_maxelem_shared[T.int64(0), v0, v1])
                 for ax2_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                    for ax2_0 in T.serial((m + T.int64(255)) // T.int64(256), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax2_0 in T.serial((m + T.int64(255)) // T.int64(256), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("compute"):
                             v0 = Ts.axis.spatial(T.int64(32), ax0_ax1_fused // n)
                             v1 = Ts.axis.spatial(n, ax0_ax1_fused % n)
@@ -245,7 +245,7 @@ def test_softmax_2():
             for ax0_fused in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                        for ax1_fused_0 in T.serial(T.int64(125), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax1_fused_0 in T.serial(T.int64(125), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             with Ts.sblock("T_softmax_maxelem"):
                                 v0 = Ts.axis.spatial(T.int64(1), ax0)
                                 v1 = Ts.axis.reduce(T.int64(32000), ax1_fused_0 * T.int64(256) + ax1_fused_1)
@@ -256,7 +256,7 @@ def test_softmax_2():
                                 T_softmax_maxelem_shared[T.int64(0), T.int64(0)] = T.max(T_softmax_maxelem_shared[T.int64(0), T.int64(0)], A[T.int64(0), T.int64(0), v1])
                 for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                        for ax1_fused_0 in T.serial(T.int64(125), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax1_fused_0 in T.serial(T.int64(125), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             with Ts.sblock("T_softmax_expsum"):
                                 v0 = Ts.axis.spatial(T.int64(1), ax0)
                                 v1 = Ts.axis.reduce(T.int64(32000), ax1_fused_0 * T.int64(256) + ax1_fused_1)
@@ -266,7 +266,7 @@ def test_softmax_2():
                                     T_softmax_expsum_shared[T.int64(0), T.int64(0)] = T.float32(0)
                                 T_softmax_expsum_shared[T.int64(0), T.int64(0)] = T_softmax_expsum_shared[T.int64(0), T.int64(0)] + T.exp(A[T.int64(0), T.int64(0), v1] - T_softmax_maxelem_shared[T.int64(0), T.int64(0)])
                 for ax1_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                    for ax1_0 in T.serial(T.int64(125), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax1_0 in T.serial(T.int64(125), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("T_softmax_norm"):
                             v0 = Ts.axis.spatial(T.int64(1), T.int64(0))
                             v1 = Ts.axis.spatial(T.int64(32000), ax1_0 * T.int64(256) + ax1_1)
@@ -330,7 +330,7 @@ def test_softmax_3():
             for ax0_ax2_fused in T.thread_binding(T.int64(32768), thread="blockIdx.x"):
                 for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
                     for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                        for ax2_fused_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax2_fused_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             with Ts.sblock("T_softmax_maxelem"):
                                 v0 = Ts.axis.spatial(T.int64(4), ax0_ax2_fused // T.int64(8192) + ax0)
                                 v1 = Ts.axis.spatial(T.int64(8192), ax0_ax2_fused % T.int64(8192) + ax1)
@@ -343,7 +343,7 @@ def test_softmax_3():
                                 T_softmax_maxelem_shared[T.int64(0), v0, v1] = T.max(T_softmax_maxelem_shared[T.int64(0), v0, v1], input[T.int64(0), v0, v2, v1])
                 for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
                     for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                        for ax2_fused_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax2_fused_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             with Ts.sblock("T_softmax_expsum"):
                                 v0 = Ts.axis.spatial(T.int64(4), ax0_ax2_fused // T.int64(8192) + ax0)
                                 v1 = Ts.axis.spatial(T.int64(8192), ax0_ax2_fused % T.int64(8192) + ax1)
@@ -355,7 +355,7 @@ def test_softmax_3():
                                     T_softmax_expsum_shared[T.int64(0), v0, v1] = T.float32(0.0)
                                 T_softmax_expsum_shared[T.int64(0), v0, v1] = T_softmax_expsum_shared[T.int64(0), v0, v1] + T.exp(input[T.int64(0), v0, v2, v1] - T_softmax_maxelem_shared[T.int64(0), v0, v1])
                 for ax1_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                    for ax1_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax1_0 in T.serial(T.int64(1), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("T_softmax_norm"):
                             v0 = Ts.axis.spatial(T.int64(4), ax0_ax2_fused // T.int64(8192))
                             v1 = Ts.axis.spatial(T.int64(32), ax1_0 * T.int64(256) + ax1_1)
@@ -422,7 +422,7 @@ def test_layer_norm():
             for ax0_fused in T.thread_binding(n, thread="blockIdx.x"):
                 for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                        for ax1_fused_0 in T.serial(T.int64(10), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax1_fused_0 in T.serial(T.int64(10), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             with Ts.sblock("A_red_temp"):
                                 v0 = Ts.axis.spatial(n, ax0_fused + ax0)
                                 v1 = Ts.axis.reduce(T.int64(2560), ax1_fused_0 * T.int64(256) + ax1_fused_1)
@@ -436,7 +436,7 @@ def test_layer_norm():
                                 A_red_temp_v0_shared[T.int64(0), v0] = v_A_red_temp_v0
                                 A_red_temp_v1_shared[T.int64(0), v0] = v_A_red_temp_v1
                 for ax1_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                    for ax1_0 in T.serial(T.int64(10), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax1_0 in T.serial(T.int64(10), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("compute"):
                             v0 = Ts.axis.spatial(n, ax0_fused)
                             v1 = Ts.axis.spatial(T.int64(2560), ax1_0 * T.int64(256) + ax1_1)
@@ -487,7 +487,7 @@ def test_rms_norm():
             for ax0_fused in T.thread_binding(n, thread="blockIdx.x"):
                 for ax0 in T.serial(T.int64(0), T.int64(1)):
                     for ax1_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                        for ax1_fused_0 in T.serial(T.int64(16), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax1_fused_0 in T.serial(T.int64(16), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             with Ts.sblock("Ared_temp"):
                                 v0 = Ts.axis.spatial(n, ax0_fused + ax0)
                                 v1 = Ts.axis.reduce(T.int64(4096), ax1_fused_0 * T.int64(256) + ax1_fused_1)
@@ -497,7 +497,7 @@ def test_rms_norm():
                                     Ared_temp_shared[T.int64(0), v0] = T.float32(0)
                                 Ared_temp_shared[T.int64(0), v0] = Ared_temp_shared[T.int64(0), v0] + T.Cast("float32", A[T.int64(0), v0, v1]) * T.Cast("float32", A[T.int64(0), v0, v1])
                 for ax1_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
-                    for ax1_0 in T.serial(T.int64(16), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax1_0 in T.serial(T.int64(16), annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("rms_norm"):
                             v0 = Ts.axis.spatial(n, ax0_fused)
                             v1 = Ts.axis.spatial(T.int64(4096), ax1_0 * T.int64(256) + ax1_1)
@@ -575,7 +575,7 @@ def test_group_norm():
             for ax0_fused in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for ax0 in range(32):
                     for ax1_fused_1 in T.thread_binding(256, thread="threadIdx.x"):
-                        for ax1_fused_0 in T.serial(1, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        for ax1_fused_0 in T.serial(1, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                             with Ts.sblock("A_red_temp"):
                                 v0 = Ts.axis.spatial(32, ax0)
                                 v1 = Ts.axis.reduce(64, ax1_fused_0 * 256 + ax1_fused_1)
@@ -590,7 +590,7 @@ def test_group_norm():
                                 A_red_temp_v0_shared[0, v0] = v_A_red_temp_v0
                                 A_red_temp_v1_shared[0, v0] = v_A_red_temp_v1
                 for ax1_1 in T.thread_binding(256, thread="threadIdx.x"):
-                    for ax1_0 in T.serial(8, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                    for ax1_0 in T.serial(8, annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                         with Ts.sblock("T_reshape_3"):
                             v0 = Ts.axis.spatial(T.int64(1), T.int64(0))
                             v1 = Ts.axis.spatial(2048, ax1_0 * 256 + ax1_1)
@@ -670,8 +670,8 @@ def test_logsumexp():
                         for ax2_fused_0 in T.serial(
                             T.int64(16),
                             annotations={
-                                "pragma_auto_unroll_max_step": 256,
-                                "pragma_unroll_explicit": 1,
+                                "auto_unroll_max_step": 256,
+                                "unroll_explicit": 1,
                             },
                         ):
                             with Ts.sblock("max"):
@@ -700,8 +700,8 @@ def test_logsumexp():
                         for ax2_fused_0 in T.serial(
                             T.int64(16),
                             annotations={
-                                "pragma_auto_unroll_max_step": 256,
-                                "pragma_unroll_explicit": 1,
+                                "auto_unroll_max_step": 256,
+                                "unroll_explicit": 1,
                             },
                         ):
                             with Ts.sblock("sum_exp"):
@@ -733,8 +733,8 @@ def test_logsumexp():
                     for ax2_0 in T.serial(
                         T.int64(1),
                         annotations={
-                            "pragma_auto_unroll_max_step": 256,
-                            "pragma_unroll_explicit": 1,
+                            "auto_unroll_max_step": 256,
+                            "unroll_explicit": 1,
                         },
                     ):
                         with Ts.sblock("log"):

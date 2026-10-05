@@ -362,6 +362,9 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   bool has_tvm_ffi_main_func_{false};
 
  private:
+  /*! \brief Exact source payloads already emitted in this compilation unit. */
+  std::unordered_set<std::string> imported_sources_;
+
   /*! \brief set of volatile buf access */
   std::unordered_set<const VarNode*> volatile_buf_;
 

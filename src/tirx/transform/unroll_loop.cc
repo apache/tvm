@@ -107,25 +107,24 @@ class LoopUnroller : public StmtExprMutator {
         explicit_unroll_(explicit_unroll),
         unroll_local_access_(unroll_local_access) {}
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == "pragma_auto_unroll_max_step") {
-      int value = op->value.as_or_throw<IntImm>()->value.as<int>().value();
-      std::swap(value, auto_max_step_);
-      Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-      std::swap(value, auto_max_step_);
-      return ret;
-    } else if (op->attr_key == "pragma_unroll_explicit") {
-      bool explicit_unroll = static_cast<bool>(op->value.as_or_throw<IntImm>()->value);
-      std::swap(explicit_unroll, explicit_unroll_);
-      Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-      std::swap(explicit_unroll, explicit_unroll_);
-      return ret;
-    } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    int enclosing_max_step = auto_max_step_;
+    bool enclosing_explicit = explicit_unroll_;
+    if (auto value = op->annotations.Get(attr::auto_unroll_max_step);
+        value.has_value() && value.value() != nullptr) {
+      auto_max_step_ = value.value().cast<IntImm>()->value.as<int>().value();
     }
+    if (auto value = op->annotations.Get(attr::unroll_explicit);
+        value.has_value() && value.value() != nullptr) {
+      explicit_unroll_ = static_cast<bool>(value.value().cast<IntImm>()->value);
+    }
+    auto result = RewriteLoop(op, inplace_mode);
+    auto_max_step_ = enclosing_max_step;
+    explicit_unroll_ = enclosing_explicit;
+    return result;
   }
 
-  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> RewriteLoop(const ForNode* op, InplaceMode inplace_mode) {
     // Post order so we can collect more information
     auto result = StmtExprMutator::Mutate_(op, inplace_mode);
     if (!result.IsUnchanged()) {
@@ -133,6 +132,20 @@ class LoopUnroller : public StmtExprMutator {
       if (!op->unique()) {
         inplace_mode = InplaceMode::kDisallow;
       }
+    }
+    if (op->annotations.count(attr::auto_unroll_max_step) ||
+        op->annotations.count(attr::unroll_explicit)) {
+      ForNode* node;
+      if (inplace_mode == InplaceMode::kAllow) {
+        node = const_cast<ForNode*>(op);
+      } else {
+        auto copy = ffi::make_object<ForNode>(*op);
+        node = copy.get();
+        result = For(std::move(copy));
+      }
+      node->annotations.erase(attr::auto_unroll_max_step);
+      node->annotations.erase(attr::unroll_explicit);
+      op = node;
     }
     int value = GetExtent(op);
     // condition for auto unroll

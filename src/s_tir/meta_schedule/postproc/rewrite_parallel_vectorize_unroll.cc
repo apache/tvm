@@ -440,8 +440,8 @@ void RewriteUnroll(const Schedule& sch, int unroll_explicit, int max_step, const
     return;
   }
 
-  sch->Annotate(loop, tirx::attr::pragma_auto_unroll_max_step, IntImm::Int32(max_step));
-  sch->Annotate(loop, tirx::attr::pragma_unroll_explicit, IntImm::Int32(unroll_explicit));
+  sch->Annotate(loop, tirx::attr::auto_unroll_max_step, IntImm::Int32(max_step));
+  sch->Annotate(loop, tirx::attr::unroll_explicit, IntImm::Int32(unroll_explicit));
 }
 
 }  // namespace s_tir

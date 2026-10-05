@@ -370,13 +370,13 @@ def test_flatten_inside_block():
     tvm.ir.assert_structural_equal(After, Expected)
 
 
-def test_build_with_optional_pragma_unroll_explicit():
+def test_build_with_optional_unroll_explicit():
     def check(value):
         @I.ir_module
         class Module:
             @T.prim_func
             def main(A: T.Tensor((4, 5, 6), "int16"), B: T.Tensor((4, 5, 6), "int16")):
-                for ax0 in T.serial(4, annotations={"pragma_unroll_explicit": value}):
+                for ax0 in T.serial(4, annotations={"unroll_explicit": value}):
                     for ax1, ax2 in T.grid(5, 6):
                         B[ax0, ax1, ax2] = A[ax0, ax1, ax2]
 
