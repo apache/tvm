@@ -46,7 +46,7 @@ def test_buffer():
     tvm.ir.assert_structural_equal(restored, Ab.ty, map_free_vars=True)
 
 
-def test_buffer_compatibility_alias_and_global_var_properties():
+def test_tensor_var_identity_and_global_var_properties():
     scalar = tvm.ir.Var("scalar", tvm.ir.PrimType("int32"))
     buffer = tvm.tirx.decl_tensor((8,), "float32")
 

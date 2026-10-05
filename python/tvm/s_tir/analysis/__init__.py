@@ -30,7 +30,9 @@ from tvm.tirx.function import PrimFunc
 from . import _ffi_api
 
 
-def get_sblock_access_region(block: SBlock, buffer_var_map: dict[Var]) -> list[list[TensorRegion]]:
+def get_sblock_access_region(
+    block: SBlock, buffer_var_map: dict[Var, Var]
+) -> list[list[TensorRegion]]:
     """Detect which regions of tensors in this block are read or written to.
        Regions are sorted by order of appearance in the AST.
 
@@ -39,7 +41,7 @@ def get_sblock_access_region(block: SBlock, buffer_var_map: dict[Var]) -> list[l
     block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
-    buffer_var_map : Dict[Var]
+    buffer_var_map : Dict[Var, Var]
         The outside buffers which may access the block. Mapping from buffer var to the buffer
 
     Returns
@@ -54,7 +56,7 @@ def get_sblock_access_region(block: SBlock, buffer_var_map: dict[Var]) -> list[l
 
 
 def get_sblock_read_write_region(
-    block: SBlock, buffer_var_map: dict[Var]
+    block: SBlock, buffer_var_map: dict[Var, Var]
 ) -> list[list[TensorRegion]]:
     """Auto detect the block read/write region according to its body stmt.
        An opaque access will be counted as both a read and a write access
@@ -64,7 +66,7 @@ def get_sblock_read_write_region(
     block: tvm.s_tir.SBlock
         The block in which we are detecting read/write regions.
 
-    buffer_var_map : Dict[Var]
+    buffer_var_map : Dict[Var, Var]
         The outside buffers which may access the block. Mapping from buffer var to the buffer
 
     Returns

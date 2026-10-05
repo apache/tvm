@@ -35,8 +35,6 @@ from tvm.ir import (
     TensorLoad,
     TensorRegion,
     Var,
-    buffer_data,
-    is_tensor_var,
 )
 from tvm.ir.base import Span
 from tvm.ir.prim import clz as clz
@@ -44,6 +42,7 @@ from tvm.ir.prim import max_value, min_value
 from tvm.runtime import const
 
 from . import _ffi_api
+from .buffer import buffer_data, is_tensor_var
 from .expr import BufferLoad, CommReducer, ExprOp, IntImm
 from .type import TensorMapType
 

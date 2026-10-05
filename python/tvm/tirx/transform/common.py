@@ -30,7 +30,9 @@ class BufferReplacer:
     ``buffer_data`` projections.
     """
 
-    def __init__(self, buffer_map: dict[Var] | None = None, var_map: dict[Var] | None = None):
+    def __init__(
+        self, buffer_map: dict[Var, Var] | None = None, var_map: dict[Var, Var] | None = None
+    ):
         super().__init__()
         self.buffer_map = buffer_map if buffer_map is not None else {}
         self.var_map = var_map if var_map is not None else {}
