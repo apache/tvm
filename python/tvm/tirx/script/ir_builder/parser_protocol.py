@@ -778,7 +778,13 @@ def parallel(
         The maximum value of iteration.
 
     annotations : Dict[str, Any]
-        The optional annotations of the For statement.
+        The optional annotations of the For statement. On CPU,
+        ``{"parallel_stride_pattern": True}`` assigns iterations cyclically:
+        worker ``t`` executes ``t, t + P, t + 2 * P, ...`` for ``P`` workers.
+        Absent or false selects contiguous chunks. Each loop selects its own
+        policy. When migrating ``pragma_parallel_stride_pattern``, annotate
+        every intended loop, including later loops in the same launch outside
+        the former attribute body.
 
     step : Expr
         The optional step value of iteration.

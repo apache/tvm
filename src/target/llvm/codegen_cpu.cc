@@ -1000,6 +1000,15 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     return CreateCallPacked(op);
   } else if (op->op.same_as(tirx::builtin::tvm_call_cpacked_lowered())) {
     return CreateCallPacked(op);
+  } else if (op->op.same_as(tirx::builtin::cpu_parallel_barrier())) {
+    TVM_FFI_ICHECK_EQ(args.size(), 0U);
+    TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
+        << "cpu_parallel_barrier requires a parallel launch";
+    TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
+        << "cpu_parallel_barrier must be outside parallel loops so every worker reaches it";
+    auto callee = llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
+    return builder_->CreateCall(callee,
+                                {MakeValue(parallel_env_.task_id.value()), parallel_env_.penv});
   } else if (op->op.same_as(tirx::builtin::tvm_static_handle())) {
     return CreateStaticHandle();
   } else if (op->op.same_as(tirx::builtin::tvm_throw_last_error())) {
@@ -1128,23 +1137,16 @@ void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
     this->CreateComputeScope(op);
   } else if (tirx::attr::IsPragmaKey(op->attr_key)) {
     if (op->attr_key == "pragma_parallel_stride_pattern") {
-      TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
-          << "Pragma parallel_stride_pattern only valid in parallel launch";
-      parallel_env_.stride_pattern = true;
-      this->Dispatch(op->body);
+      TVM_FFI_THROW(ValueError)
+          << "pragma_parallel_stride_pattern is retired; annotate every affected parallel For "
+          << "with parallel_stride_pattern=True, including later loops in the same launch "
+          << "outside the former attribute body";
     } else if (op->attr_key == "pragma_parallel_launch_point") {
       CreateParallelLaunch(op->body, 0, "pragma_parallel");
     } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
-      TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
-          << "Cannot run barrier without parallel environment";
-      TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
-          << "Cannot not place within parallel loop as the workload may differ, "
-          << " place it between parallel and parallel_launch_point";
-      this->Dispatch(op->body);
-      auto bar_callee =
-          llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
-      builder_->CreateCall(bar_callee,
-                           {MakeValue(parallel_env_.task_id.value()), parallel_env_.penv});
+      TVM_FFI_THROW(ValueError)
+          << "pragma_parallel_barrier_when_finish is retired; place cpu_parallel_barrier() "
+          << "after the former attribute body inside the parallel launch";
     } else if (op->attr_key == tirx::attr::pragma_import_llvm) {
       const StringImmNode* value = op->value.as<StringImmNode>();
       TVM_FFI_ICHECK(value != nullptr);
@@ -1184,7 +1186,19 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;
       PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
-      if (parallel_env_.stride_pattern) {
+      bool stride_pattern = false;
+      if (auto it = op->annotations.find("parallel_stride_pattern"); it != op->annotations.end()) {
+        ffi::Any annotation = (*it).second;
+        if (auto value = annotation.as<bool>()) {
+          stride_pattern = value.value();
+        } else if (auto value = annotation.try_cast<IntImm>();
+                   value && value.value().ty() == PrimType::Bool()) {
+          stride_pattern = is_one(value.value());
+        } else {
+          TVM_FFI_THROW(ValueError) << "parallel_stride_pattern must be a constant boolean";
+        }
+      }
+      if (stride_pattern) {
         CreateSerialFor(MakeValue(task_id), MakeValue(end), MakeValue(num_task), op->loop_var,
                         op->body);
       } else {
