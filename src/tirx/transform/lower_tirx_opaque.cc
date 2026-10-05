@@ -27,10 +27,13 @@
 
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
+
+#include <optional>
 
 #include "ir_utils.h"
 
@@ -55,6 +58,11 @@ class TIRxOpaqueLower : public StmtExprMutator {
   }
 
  private:
+  struct UnrollPolicy {
+    std::optional<ffi::Any> auto_unroll_max_step;
+    std::optional<ffi::Any> unroll_explicit;
+  };
+
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     // Attribute subjects may contain references to the loop binding being
     // replaced, including expressions and IterVar fields. Rewrite metadata
@@ -89,19 +97,24 @@ class TIRxOpaqueLower : public StmtExprMutator {
     }
 
     // Keep policy on surviving descendants when this owner is lowered away.
-    auto enclosing_policy = unroll_policy_;
-    UpdateUnrollPolicy(op->annotations);
+    auto parent_policy = unroll_policy_.Current();
     auto annotations = op->annotations;
-    for (const auto& kv : unroll_policy_) {
-      annotations.Set(kv.first, kv.second);
-    }
-    // Annotations share the loop binding's scope. Mutate them before the body
-    // so body-local definitions cannot escape into annotation expressions.
-    annotations = this->Mutate(annotations, inplace_mode)
-                           .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>()
-                           .ValueOrUnchanged(annotations);
-    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    unroll_policy_ = std::move(enclosing_policy);
+    Stmt body = unroll_policy_.WithNewScope([&]() {
+      unroll_policy_.Current() = parent_policy;
+      UpdateUnrollPolicy(op->annotations);
+      const auto& policy = unroll_policy_.Current();
+      if (policy.auto_unroll_max_step.has_value()) {
+        annotations.Set(tirx::attr::auto_unroll_max_step, policy.auto_unroll_max_step.value());
+      }
+      if (policy.unroll_explicit.has_value()) {
+        annotations.Set(tirx::attr::unroll_explicit, policy.unroll_explicit.value());
+      }
+      // Rewrite annotations before visiting body-local definitions.
+      annotations = this->Mutate(annotations, inplace_mode)
+                        .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>()
+                        .ValueOrUnchanged(annotations);
+      return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    });
     VarRemapSet(op->loop_var, previous_remap);
 
     // Step 3. Handle annotations
@@ -155,15 +168,19 @@ class TIRxOpaqueLower : public StmtExprMutator {
   }
 
   void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {
-    for (const char* key : {tirx::attr::auto_unroll_max_step, tirx::attr::unroll_explicit}) {
-      if (auto value = annotations.Get(key); value.has_value() && value.value() != nullptr) {
-        unroll_policy_.Set(key, value.value());
-      }
+    auto& policy = unroll_policy_.Current();
+    if (auto value = annotations.Get(tirx::attr::auto_unroll_max_step);
+        value.has_value() && value.value() != nullptr) {
+      policy.auto_unroll_max_step = value.value();
+    }
+    if (auto value = annotations.Get(tirx::attr::unroll_explicit);
+        value.has_value() && value.value() != nullptr) {
+      policy.unroll_explicit = value.value();
     }
   }
 
   // Effective policy is materialized on each surviving loop, preserving nested overrides.
-  ffi::Map<ffi::String, ffi::Any> unroll_policy_;
+  ScopeStack<UnrollPolicy> unroll_policy_;
 
   /*! \brief Convert attr value from annotation map into Expr. */
   Expr ConvertAttrValue(const ffi::String& key, const Any& obj) {

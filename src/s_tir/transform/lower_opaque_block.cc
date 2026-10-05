@@ -23,9 +23,12 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
+
+#include <optional>
 
 #include "ir_utils.h"
 
@@ -49,6 +52,11 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
  private:
+  struct UnrollPolicy {
+    std::optional<ffi::Any> auto_unroll_max_step;
+    std::optional<ffi::Any> unroll_explicit;
+  };
+
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     // Attribute metadata can reference a unit loop variable that is replaced.
     // Rewrite it before descending into body-local definitions.
@@ -70,11 +78,14 @@ class OpaqueBlockLower : public StmtExprMutator {
         << "Non-opaque blocks are not allowed in FlattenBuffer. Please "
            "call pass ConvertBlocksToOpaque before.";
     // Block policy belongs to the loops inside the block after opaque lowering.
-    auto enclosing_policy = unroll_policy_;
-    UpdateUnrollPolicy(op->block->annotations);
-    SBlock new_block =
-        this->Mutate(op->block, inplace_mode).ValueOrUnchanged(op->block).as_or_throw<SBlock>();
-    unroll_policy_ = std::move(enclosing_policy);
+    auto parent_policy = unroll_policy_.Current();
+    SBlock new_block = unroll_policy_.WithNewScope([&]() {
+      unroll_policy_.Current() = parent_policy;
+      UpdateUnrollPolicy(op->block->annotations);
+      return this->Mutate(op->block, inplace_mode)
+          .ValueOrUnchanged(op->block)
+          .as_or_throw<SBlock>();
+    });
     PrimExpr predicate = this->Mutate(op->predicate, inplace_mode).ValueOrUnchanged(op->predicate);
     // Step 2. Transform the `predicate` to if-then-else
     Stmt body = new_block->body;
@@ -127,22 +138,24 @@ class OpaqueBlockLower : public StmtExprMutator {
     }
 
     // Keep policy on surviving descendants when this owner is lowered away.
-    auto enclosing_policy = unroll_policy_;
-    UpdateUnrollPolicy(op->annotations);
-    auto annotations = op->annotations;
-    for (const auto& kv : unroll_policy_) {
-      annotations.Set(kv.first, kv.second);
-    }
-
-    // Step 2. Annotations may refer to the loop's own variable. Rewrite them
-    // before visiting body-local definitions.
+    auto parent_policy = unroll_policy_.Current();
     std::vector<std::pair<std::string, Expr>> pragma_attrs;
-    ffi::Map<ffi::String, ffi::Any> new_annotations =
-        HandleAnnotations(annotations, &pragma_attrs, /*is_block=*/false);
-
-    // Step 3. Visit recursively.
-    Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    unroll_policy_ = std::move(enclosing_policy);
+    ffi::Map<ffi::String, ffi::Any> new_annotations;
+    auto annotations = op->annotations;
+    Stmt body = unroll_policy_.WithNewScope([&]() {
+      unroll_policy_.Current() = parent_policy;
+      UpdateUnrollPolicy(op->annotations);
+      const auto& policy = unroll_policy_.Current();
+      if (policy.auto_unroll_max_step.has_value()) {
+        annotations.Set(tirx::attr::auto_unroll_max_step, policy.auto_unroll_max_step.value());
+      }
+      if (policy.unroll_explicit.has_value()) {
+        annotations.Set(tirx::attr::unroll_explicit, policy.unroll_explicit.value());
+      }
+      // Rewrite annotations before visiting body-local definitions.
+      new_annotations = HandleAnnotations(annotations, &pragma_attrs, /*is_block=*/false);
+      return this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    });
     VarRemapSet(op->loop_var, previous_remap);
 
     // Step 4. Keep thread-binding loops until LowerThreadBinding.
@@ -166,15 +179,19 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   void UpdateUnrollPolicy(const ffi::Map<ffi::String, ffi::Any>& annotations) {
-    for (const char* key : {tirx::attr::auto_unroll_max_step, tirx::attr::unroll_explicit}) {
-      if (auto value = annotations.Get(key); value.has_value() && value.value() != nullptr) {
-        unroll_policy_.Set(key, value.value());
-      }
+    auto& policy = unroll_policy_.Current();
+    if (auto value = annotations.Get(tirx::attr::auto_unroll_max_step);
+        value.has_value() && value.value() != nullptr) {
+      policy.auto_unroll_max_step = value.value();
+    }
+    if (auto value = annotations.Get(tirx::attr::unroll_explicit);
+        value.has_value() && value.value() != nullptr) {
+      policy.unroll_explicit = value.value();
     }
   }
 
   // Effective policy is materialized on each surviving loop, preserving nested overrides.
-  ffi::Map<ffi::String, ffi::Any> unroll_policy_;
+  ScopeStack<UnrollPolicy> unroll_policy_;
 
   /*! \brief Convert attr value from annotation map into Expr. */
   Expr ConvertAttrValue(const ffi::String& key, const Any& obj) {
