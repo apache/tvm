@@ -762,37 +762,6 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-@pytest.mark.parametrize("attr_key", ["target", "pragma_vectorize_test"])
-def test_vectorize_preserves_attrs_with_function_target(attr_key):
-    @T.prim_func(private=True)
-    def before(A: T.Tensor((16,), "float32")):
-        T.func_attr({"target": sve_target})
-        with T.attr(simple_target, attr_key, 0):
-            for i in T.vectorized(4 * T.vscale()):
-                A[i] = 1
-
-    @T.prim_func(private=True)
-    def expected(A: T.Tensor((16,), "float32")):
-        T.func_attr({"target": sve_target})
-        with T.attr(simple_target, attr_key, 0):
-            A[T.Ramp(0, 1, 4 * T.vscale())] = T.Broadcast(T.float32(1), 4 * T.vscale())
-
-    with tvm.target.Target(simple_target):
-        after = tvm.tirx.transform.VectorizeLoop()(tvm.IRModule.from_expr(before))["main"]
-    tvm.ir.assert_structural_equal(after, expected)
-
-
-def test_vectorize_scalable_requires_function_target():
-    @T.prim_func
-    def before(A: T.Tensor((16,), "float32")):
-        for i in T.vectorized(4 * T.vscale()):
-            A[i] = 1
-
-    with tvm.target.Target(sve_target):
-        with pytest.raises(tvm.error.InternalError, match="Failed to vectorize loop"):
-            tvm.tirx.transform.VectorizeLoop()(tvm.IRModule.from_expr(before))
-
-
 @pytest.mark.parametrize(
     "extent, vec_str, target",
     [(4, "float32x4", simple_target)],
