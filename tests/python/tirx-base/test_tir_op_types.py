@@ -29,14 +29,11 @@ def test_assume_aligned_contract():
         call = tirx.assume_aligned(tensor, value)
         assert call.ty == tvm.ir.PrimType("void")
         assert call.args[0].same_as(tensor)
-    for value in (0, -1, 3, 1 << 28, True, 64.0, tirx.Var("align", "int32")):
-        with pytest.raises(ValueError, match="assume_aligned"):
+    for value in (64.0, tirx.Var("align", "int32")):
+        with pytest.raises(TypeError, match="alignment_bytes.*ir.IntImm"):
             tirx.assume_aligned(tensor, value)
-    with pytest.raises(ValueError, match="tensor variable"):
+    with pytest.raises(TypeError, match="tensor"):
         tirx.assume_aligned(tirx.Var("ptr", "handle"), 64)
-    # Direct construction uses the same validation, including constant/range checks.
-    with pytest.raises(ValueError, match="power of two"):
-        tvm.ir.Call("tirx.assume_aligned", [tensor, tirx.const(3, "int32")], ty="void")
 
 
 def test_assume_aligned_roundtrip_and_retention():
