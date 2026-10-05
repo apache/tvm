@@ -449,7 +449,7 @@ TVM_DLL const Op& tvm_storage_sync();
  * Every worker must reach this operation. It must be outside partitioned
  * parallel loops, whose iteration counts can differ between workers.
  */
-TVM_DLL const Op& parallel_barrier();
+TVM_DLL const Op& cpu_parallel_barrier();
 
 /*!
  * \brief Marker where a transform should replace generated kernel initialization.

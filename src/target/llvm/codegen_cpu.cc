@@ -1000,11 +1000,12 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     return CreateCallPacked(op);
   } else if (op->op.same_as(tirx::builtin::tvm_call_cpacked_lowered())) {
     return CreateCallPacked(op);
-  } else if (op->op.same_as(tirx::builtin::parallel_barrier())) {
+  } else if (op->op.same_as(tirx::builtin::cpu_parallel_barrier())) {
     TVM_FFI_ICHECK_EQ(args.size(), 0U);
-    TVM_FFI_ICHECK(parallel_env_.penv != nullptr) << "parallel_barrier requires a parallel launch";
+    TVM_FFI_ICHECK(parallel_env_.penv != nullptr)
+        << "cpu_parallel_barrier requires a parallel launch";
     TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
-        << "parallel_barrier must be outside parallel loops so every worker reaches it";
+        << "cpu_parallel_barrier must be outside parallel loops so every worker reaches it";
     auto callee = llvm::FunctionCallee(ftype_tvm_parallel_barrier_, RuntimeTVMParallelBarrier());
     return builder_->CreateCall(callee,
                                 {MakeValue(parallel_env_.task_id.value()), parallel_env_.penv});
@@ -1144,7 +1145,7 @@ void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
       CreateParallelLaunch(op->body, 0, "pragma_parallel");
     } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
       TVM_FFI_THROW(ValueError)
-          << "pragma_parallel_barrier_when_finish is retired; place parallel_barrier() "
+          << "pragma_parallel_barrier_when_finish is retired; place cpu_parallel_barrier() "
           << "after the former attribute body inside the parallel launch";
     } else if (op->attr_key == tirx::attr::pragma_import_llvm) {
       const StringImmNode* value = op->value.as<StringImmNode>();

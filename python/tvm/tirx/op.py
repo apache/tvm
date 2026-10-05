@@ -868,7 +868,7 @@ def tvm_storage_sync(storage_scope, is_load=False, num_blocks=-1, *, dtype="void
     return call_intrin(dtype, "tirx.tvm_storage_sync", *args)
 
 
-def parallel_barrier():
+def cpu_parallel_barrier():
     """Synchronize all workers in the current CPU parallel launch.
 
     Every worker must reach this operation at the same program point. Place it
@@ -879,7 +879,7 @@ def parallel_barrier():
     To replace ``pragma_parallel_barrier_when_finish``, place this operation
     after the former attribute body.
     """
-    return call_intrin("void", "tirx.parallel_barrier")
+    return call_intrin("void", "tirx.cpu_parallel_barrier")
 
 
 def tvm_kernel_replace_point():
