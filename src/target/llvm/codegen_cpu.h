@@ -79,6 +79,8 @@ class CodeGenCPU : public CodeGenLLVM {
                                 const ffi::Array<Expr>& args, bool skip_first_arg) override;
 
  protected:
+  // Set attributes on the function outlined from a compute scope.
+  virtual void SetComputeScopeAttributes(llvm::Function* func) { SetTargetAttributes(func); }
   void AddStartupFunction() final;
   // meta data
   llvm::MDNode* md_tbaa_ctx_ptr_{nullptr};
