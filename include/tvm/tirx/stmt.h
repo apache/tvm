@@ -116,6 +116,15 @@ class Bind : public Stmt {
 };
 
 /*!
+ * \brief Validate region operands and construct fresh typed body parameters.
+ * \param op The region operation.
+ * \param args Operands evaluated in the enclosing scope.
+ * \param attrs Attributes evaluated in the enclosing scope.
+ * \return Parameters from FRegionGetBodyParams, or an empty array without a hook.
+ */
+TVM_DLL ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attrs);
+
+/*!
  * \brief A single-body statement whose semantics are defined by an operator.
  * Operands are evaluated in the enclosing scope. Body parameters are definitions
  * at body entry; result variables are definitions following the region.

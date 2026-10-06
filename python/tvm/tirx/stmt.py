@@ -278,7 +278,10 @@ class BufferStore(Stmt):
 class RegionStmt(Stmt):
     """An operation with enclosing-scope operands and one lexical body.
 
-    ``body_params`` define variables visible only within ``body``. ``result_vars``
+    ``body_params`` define variables visible only within ``body``. Their count
+    and types must match the operation's ``FRegionGetBodyParams`` hook; an
+    operation without a hook accepts no body parameters. Explicit parameter
+    identities and their references in ``body`` are preserved. ``result_vars``
     define variables after the region in the enclosing sequence. Attributes are
     evaluated outside the body-parameter scope. Direct construction and JSON
     serialization support result variables; structured script syntax currently

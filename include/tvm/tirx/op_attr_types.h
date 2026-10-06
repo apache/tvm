@@ -29,11 +29,22 @@
 #define TVM_TIR_OP_ATTR_TYPES_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/native_function.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 
 namespace tvm {
 namespace tirx {
+/*!
+ * \brief Construct fresh typed variables for a region's lexical body parameters.
+ *
+ * The input carries only the operation, operands and attributes, without a body
+ * or builder state. Parameters are ordered, distinct definitions and may have
+ * name hints. An absent hook means the operation has no body parameters.
+ */
+using FRegionGetBodyParams =
+    ffi::reflection::NativeFunctionView<ffi::Array<Var>(const CallNode* call)>;
+
 /*!
  * \brief Global symbol of the op after lowering.
  */

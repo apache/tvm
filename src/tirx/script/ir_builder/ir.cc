@@ -416,20 +416,15 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var
   return bind_var;
 }
 
-RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs) {
+RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Optional<ffi::Array<Var>> body_params,
+                   DictAttrs attrs) {
+  auto params = body_params.has_value() ? body_params.value()
+                                        : tvm::tirx::GetRegionBodyParams(op, args, attrs);
   auto n = ffi::make_object<RegionFrameNode>(std::move(op));
   n->args = std::move(args);
-  n->body_params = std::move(body_params);
+  n->body_params = std::move(params);
   n->attrs = std::move(attrs);
   return RegionFrame(n);
-}
-
-RegionFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
-  PrimType dtype = extent.ty();
-  TVM_FFI_CHECK(dtype.IsScalar() && dtype.MatchesCode(kDLInt, kDLUInt), ValueError)
-      << "launch_thread extent must have a scalar integer type";
-  PrimVar var("", dtype);
-  return Region(tvm::tirx::builtin::launch_thread(), {StringImm(thread_tag), extent}, {var});
 }
 
 WhileFrame While(PrimExpr condition) {
@@ -707,7 +702,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Else", Else)
       .def("script.ir_builder.tirx.DeclTensor", DeclTensor)
       .def("script.ir_builder.tirx.Region", Region)
-      .def("script.ir_builder.tirx.LaunchThread", LaunchThread)
       .def("script.ir_builder.tirx.BufferStore", BufferStore)
       .def("script.ir_builder.tirx.Evaluate", Evaluate)
       .def("script.ir_builder.tirx.Ptr", Ptr);
