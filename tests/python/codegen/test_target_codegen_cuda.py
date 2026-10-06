@@ -533,10 +533,14 @@ def test_crossthread_reduction1(target):
                         for m_1 in range((m + nthd - 1) // nthd):
                             if m_0 * ((m + nthd - 1) // nthd) + m_1 < m:
                                 partial[0] = partial[0] + A[i, m_0 * ((m + nthd - 1) // nthd) + m_1]
-                        with T.attr(
-                            T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", 0
-                        ):
-                            T.tvm_thread_allreduce(T.uint32(1), partial[0], True, reduced[0], m_0)
+                        T.tvm_thread_allreduce(
+                            T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                            (T.float32(0),),
+                            (partial[0],),
+                            True,
+                            (reduced[0],),
+                            (m_0,),
+                        )
                         if m_0 == 0:
                             B[i] = reduced[0]
 
@@ -608,14 +612,14 @@ def test_crossthread_reduction2(target):
                                             k1_0 * ((k1 + nthdy - 1) // nthdy) + k1_1,
                                         ]
                                     )
-                            with T.attr(
-                                T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                                "reduce_scope",
-                                0,
-                            ):
-                                T.tvm_thread_allreduce(
-                                    T.uint32(1), partial[0], True, reduced[0], k0_0, k1_0
-                                )
+                            T.tvm_thread_allreduce(
+                                T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                                (T.float32(0),),
+                                (partial[0],),
+                                True,
+                                (reduced[0],),
+                                (k0_0, k1_0),
+                            )
                             if k0_0 == 0 and k1_0 == 0:
                                 B[i] = reduced[0]
 

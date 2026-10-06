@@ -169,20 +169,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&IndexMapDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> LambdaExprDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                              const ffi::Object*) {
-  const auto* lambda =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::LambdaExprNode>(input);
-  ffi::Array<IdDoc> args;
-  for (const Var& var : lambda->vars) args.push_back(VarDoc(d, var));
-  return LambdaDoc(args, d->Translate(lambda->pred).value());
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::LambdaExprNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&LambdaExprDocTranslate>());
-}
-
 ffi::Optional<ExprDoc> StorageSyncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                const ffi::Object*) {
   const auto* call =

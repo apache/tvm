@@ -29,6 +29,26 @@ namespace script {
 namespace printer {
 namespace details {
 
+ffi::Optional<ExprDoc> LambdaExprDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object*) {
+  const auto* lambda =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const LambdaExprNode>(input);
+  VarScope scope(d);
+  ffi::Array<IdDoc> args;
+  ffi::Array<ExprDoc> types;
+  for (const Var& var : lambda->vars) {
+    args.push_back(VarDoc(d, var));
+    types.push_back(TypeValue(d, var->ty, false));
+  }
+  ExprDoc body = d->Translate(lambda->body).value();
+  return NamespaceDoc("ir")->Attr("Lambda")->Call({ListDoc(types), LambdaDoc(args, body)});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<LambdaExprNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&LambdaExprDocTranslate>());
+}
+
 namespace {
 
 template <typename T, OperationDocNode::Kind kind, PrimExpr (*operation)(PrimExpr, PrimExpr, Span)>

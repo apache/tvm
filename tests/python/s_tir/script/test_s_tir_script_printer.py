@@ -1318,18 +1318,16 @@ def comm_reducer_single_reduce_group():
         for i in T.serial(0, 128):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             reduce_temp0 = T.alloc_tensor((1,), scope="local")
-            with T.attr(
-                T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.int32(0)
-            ):
-                T.evaluate(
-                    T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        A[i * 128 + threadIdx_x],
-                        True,
-                        reduce_temp0.data,
-                        threadIdx_x,
-                    )
+            T.evaluate(
+                T.tvm_thread_allreduce(
+                    T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                    (T.float32(0),),
+                    (A[i * 128 + threadIdx_x],),
+                    True,
+                    (reduce_temp0[0],),
+                    (threadIdx_x,),
                 )
+            )
 
     return comm_reducer_single_reduce_group
 
@@ -1343,27 +1341,24 @@ def comm_reducer_multiple_reduce_groups():
 
         for i in T.serial(0, 128):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            reduce_temp0 = T.alloc_tensor((1,), scope="local")
-            with T.attr(
-                T.comm_reducer(
-                    lambda x0, x1, y0, y1: (
-                        T.Select((x1 >= y1), x0, y0),
-                        T.Select((x1 >= y1), x1, y1),
+            reduce_temp0 = T.alloc_tensor((1,), "int32", scope="local")
+            reduce_temp1 = T.alloc_tensor((1,), "float32", scope="local")
+            T.evaluate(
+                T.tvm_thread_allreduce(
+                    T.Lambda(
+                        [T.int32, T.float32, T.int32, T.float32],
+                        lambda x0, x1, y0, y1: (
+                            T.Select(x1 >= y1, x0, y0),
+                            T.Select(x1 >= y1, x1, y1),
+                        ),
                     ),
-                    [T.int32(-1), T.min_value("float32")],
-                ),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                T.evaluate(
-                    T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        A[i * 128 + threadIdx_x],
-                        True,
-                        reduce_temp0.data,
-                        threadIdx_x,
-                    )
+                    (T.int32(-1), T.min_value("float32")),
+                    (i * 128 + threadIdx_x, A[i * 128 + threadIdx_x]),
+                    True,
+                    (reduce_temp0[0], reduce_temp1[0]),
+                    (threadIdx_x,),
                 )
+            )
 
     return comm_reducer_multiple_reduce_groups
 
@@ -1386,32 +1381,26 @@ def multiple_commreducer():
         )
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):
-                T.attr(
-                    T.comm_reducer(lambda x, y: T.max(x, y), [T.min_value("float32")]),
-                    "reduce_scope",
-                    T.int32(0),
-                )
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        normal_reduce_temp0[0],
+                        T.Lambda([T.float32, T.float32], lambda x, y: (T.max(x, y),)),
+                        (T.min_value("float32"),),
+                        (normal_reduce_temp0[0],),
                         True,
-                        reduce_temp0.data,
-                        ax0_1,
+                        (reduce_temp0[0],),
+                        (ax0_1,),
                     )
                 )
         for ax0_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
             with Ts.sblock("T_softmax_expsum_cross_thread_reduction"):
-                T.attr(
-                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.int32(0)
-                )
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        normal_reduce_temp1[0],
+                        T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        (T.float32(0),),
+                        (normal_reduce_temp1[0],),
                         True,
-                        reduce_temp1.data,
-                        ax0_1,
+                        (reduce_temp1[0],),
+                        (ax0_1,),
                     )
                 )
 
@@ -1884,30 +1873,25 @@ def tvm_shfl_builtins():
             T.tvm_warp_activemask(), A_warp_1[0], threadIdx_x % 4 * 8 + threadIdx_x // 4, 32, 32
         ) + T.float32(1)
         red_buf0_1 = T.decl_tensor((1,), data=red_buf0.data, scope="local")
-        with T.attr(
-            T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-            "reduce_scope",
-            T.int32(0),
-        ):
-            mask = T.alloc_tensor((1,), "uint32", scope="local")
-            t0 = T.alloc_tensor((1,), scope="local")
-            red_buf0_1[0] = A_warp_1[0]
-            mask_1 = T.decl_tensor((1,), "uint32", data=mask.data, scope="local")
-            mask_1[0] = T.tvm_warp_activemask()
-            t0_1 = T.decl_tensor((1,), data=t0.data, scope="local")
-            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
-            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)
-            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 4, 32, 32)
-            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 2, 32, 32)
-            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-            t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 1, 32, 32)
-            red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
-            red_buf0_1[0] = T.tvm_warp_shuffle(mask_1[0], red_buf0_1[0], 0, 32, 32)
-            # NOTE(Zihao): test tvm_warp_shuffle_up
-            red_buf0_1[0] = T.tvm_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
+        mask = T.alloc_tensor((1,), "uint32", scope="local")
+        t0 = T.alloc_tensor((1,), scope="local")
+        red_buf0_1[0] = A_warp_1[0]
+        mask_1 = T.decl_tensor((1,), "uint32", data=mask.data, scope="local")
+        mask_1[0] = T.tvm_warp_activemask()
+        t0_1 = T.decl_tensor((1,), data=t0.data, scope="local")
+        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 16, 32, 32)
+        red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 8, 32, 32)
+        red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 4, 32, 32)
+        red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 2, 32, 32)
+        red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+        t0_1[0] = T.tvm_warp_shuffle_down(mask_1[0], red_buf0_1[0], 1, 32, 32)
+        red_buf0_1[0] = red_buf0_1[0] + t0_1[0]
+        red_buf0_1[0] = T.tvm_warp_shuffle(mask_1[0], red_buf0_1[0], 0, 32, 32)
+        # NOTE(Zihao): test tvm_warp_shuffle_up
+        red_buf0_1[0] = T.tvm_warp_shuffle_up(mask_1[0], red_buf0_1[0], 0, 32, 32)
         if threadIdx_x == 0:
             C_1 = T.decl_tensor((1,), data=C)
             C_1[0] = red_buf0_1[0]
@@ -2322,18 +2306,14 @@ def lowered_loop_split(
             with Ts.sblock("B_cross_thread_reduction"):
                 Ts.reads([normal_reduce_temp0[0]])
                 Ts.writes([reduce_temp0[0]])
-                T.attr(
-                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                    "reduce_scope",
-                    T.int32(0),
-                )
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        normal_reduce_temp0[0],
+                        T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        (T.float32(0),),
+                        (normal_reduce_temp0[0],),
                         True,
-                        reduce_temp0.data,
-                        ki,
+                        (reduce_temp0[0],),
+                        (ki,),
                     )
                 )
             with Ts.sblock("B_write_back"):
