@@ -985,17 +985,17 @@ def device_context(device_type: Expr, device_id: Expr) -> frame.RegionFrame:
 
     This region does not change the active runtime device.
     """
-    return _ffi_api.DeviceContext(device_type, device_id)
+    return region("tirx.device_context", [device_type, device_id])
 
 
 def compute_scope(name: str) -> frame.RegionFrame:
     """Outline the body as a named CPU compute helper."""
-    return _ffi_api.ComputeScope(name)
+    return region("tirx.compute_scope", [_StringImm(name)])
 
 
 def parallel_launch() -> frame.RegionFrame:
     """Launch a CPU worker team around parallel loops and team barriers."""
-    return _ffi_api.ParallelLaunch()
+    return region("tirx.parallel_launch", [])
 
 
 def launch_thread(thread_tag: str, extent: Expr) -> frame.RegionFrame:
