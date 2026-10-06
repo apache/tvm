@@ -611,6 +611,20 @@ class CSEPlanner : public StmtExprVisitor {
     return std::nullopt;
   }
 
+  /*! \brief Region inputs belong to the parent and the body is a child scope. */
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) override {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
+    // Unknown operations can impose their own execution policy. Preserve them
+    // as an optimization boundary until that operation has a lowering contract.
+    if (!op->op.same_as(tirx::builtin::launch_thread())) return std::nullopt;
+    int saved = current_scope_;
+    current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
+    current_scope_ = saved;
+    return std::nullopt;
+  }
+
   /*! \brief AttrStmt: value in parent scope, body in child scope. */
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) override {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
@@ -826,6 +840,22 @@ class CSERewriter : public StmtExprMutator {
     }
     new_stmts.push_back(visited);
     return SeqStmt(new_stmts);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override {
+    if (op->op.same_as(tirx::builtin::launch_thread()))
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    // Match the planner's opaque boundary: only operands outside the body
+    // participate in this plan and may reference its CSE bindings.
+    auto args = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
+    auto attrs = Mutate(op->attrs, inplace_mode).as_or_throw<UnchangedOr<DictAttrs>>();
+    if (args.UnchangedOrSameAs(op->args) && attrs.UnchangedOrSameAs(op->attrs)) {
+      return ffi::Unchanged();
+    }
+    auto copy = ffi::make_object<RegionStmtNode>(*op);
+    if (!args.IsUnchanged()) copy->args = std::move(args).ValueUnchecked();
+    if (!attrs.IsUnchanged()) copy->attrs = std::move(attrs).ValueUnchecked();
+    return Stmt(std::move(copy));
   }
 
  private:

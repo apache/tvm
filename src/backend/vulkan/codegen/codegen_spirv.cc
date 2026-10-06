@@ -159,6 +159,7 @@ runtime::SPIRVShader CodeGenSPIRV::BuildFunction(const PrimFunc& f, const std::s
 }
 
 void CodeGenSPIRV::InitFuncState() {
+  thread_extents_.clear();
   std::fill(workgroup_size_, workgroup_size_ + 3, 1);
   var_map_.clear();
   storage_info_.clear();
@@ -169,21 +170,23 @@ void CodeGenSPIRV::InitFuncState() {
   fragment_info_.clear();
 }
 
-spirv::Value CodeGenSPIRV::GetThreadIndex(const IterVar& iv, const PrimExpr& extent) {
-  runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
+spirv::Value CodeGenSPIRV::GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag,
+                                          const PrimExpr& extent) {
+  runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+  TVM_FFI_ICHECK_GE(ts.dim_index, 0);
+  TVM_FFI_ICHECK_LT(ts.dim_index, 3);
   spirv::Value v;
   if (ts.rank == 1) {
     v = builder_->GetLocalID(ts.dim_index);
     auto* sizeptr = extent.as<IntImmNode>();
     TVM_FFI_ICHECK(sizeptr) << "SPIRV only allows constant thread group size "
                             << " get " << extent;
-    TVM_FFI_ICHECK_GE(ts.dim_index, 0) << "vthread should have been optimized out by here";
-    TVM_FFI_ICHECK_LT(ts.dim_index, 3);
     workgroup_size_[ts.dim_index] = sizeptr->value.as<uint32_t>().value();
   } else {
+    TVM_FFI_ICHECK_EQ(ts.rank, 0) << "Unsupported SPIRV thread tag " << thread_tag;
     v = builder_->GetWorkgroupID(ts.dim_index);
   }
-  return builder_->Cast(builder_->GetSType(iv->var.ty()), v);
+  return builder_->Cast(builder_->GetSType(var.ty()), v);
 }
 
 spirv::Value CodeGenSPIRV::CreateStorageSync(const CallNode* op) {
@@ -982,19 +985,30 @@ void CodeGenSPIRV::DispatchDeclTensor(const BindNode* op, const CallNode* buffer
   storage_info_[buffer_var] = std::move(info);
 }
 
-void CodeGenSPIRV::Dispatch_(const AttrStmtNode* op) {
-  if (op->attr_key == tirx::attr::thread_extent) {
-    auto iv_opt = op->node.as<IterVar>();
-    TVM_FFI_ICHECK(iv_opt);
-    IterVar iv = iv_opt.value();
-    if (iv->thread_tag.length() != 0) {
-      // Will throw error if rebinding same local variable to a different extent.
-      analyzer_->Bind(iv->var, Range::FromMinExtent(0, op->value.as_or_throw<PrimExpr>()));
-      if (!var_map_.count(iv->var.get())) {
-        var_map_[iv->var.get()] = GetThreadIndex(iv, op->value.as_or_throw<PrimExpr>());
-      }
-    }
+void CodeGenSPIRV::Dispatch_(const RegionStmtNode* op) {
+  if (op->op.same_as(tirx::builtin::launch_thread())) {
+    TVM_FFI_CHECK(std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0,
+                  ValueError)
+        << "Virtual thread launches must be lowered before code generation";
+    PrimVar var = op->body_params[0].as_or_throw<PrimVar>();
+    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+    ffi::String tag = op->args[0].as_or_throw<StringImm>()->value;
+    auto [it, inserted] = thread_extents_.emplace(tag, extent);
+    TVM_FFI_CHECK(inserted || analyzer_->CanProveEqual(it->second, extent), ValueError)
+        << "Conflicting launch extents for " << tag;
+    TVM_FFI_ICHECK(!var_map_.count(var.get())) << "Launch variable is already defined";
+    var_map_[var.get()] = GetThreadIndex(var, tag, extent);
+    With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
+    this->Dispatch(op->body);
+    var_map_.erase(var.get());
+  } else {
+    TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
   }
+}
+
+void CodeGenSPIRV::Dispatch_(const AttrStmtNode* op) {
+  TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
+      << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
   this->Dispatch(op->body);
 }
 

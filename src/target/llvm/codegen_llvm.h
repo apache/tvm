@@ -245,6 +245,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   void Dispatch_(const ContinueNode* op) override;
   void Dispatch_(const IfThenElseNode* op) override;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const RegionStmtNode* op) override;
   void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const BindNode* op) override;
@@ -327,7 +328,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   llvm::Value* CreateLookupReturnAddress(unsigned int level = 0);
 
   // Get the corresponding thread index
-  virtual llvm::Value* GetThreadIndex(const IterVar& iv);
+  virtual llvm::Value* GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag);
   // Get the corresponding thread index
   virtual llvm::Value* CreateStorageSync(const CallNode* op);
 #if TVM_LLVM_VERSION < 160
@@ -562,6 +563,8 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   /*! \brief the storage scope of allocation */
   std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
   // The definition of local variable.
+  /*! \brief Extents of physical thread axes in the current function. */
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
   std::unordered_map<const VarNode*, llvm::Value*> var_map_;
   // Canonical physical storage identity for DeclTensor aliases.
   std::unordered_map<const VarNode*, const VarNode*> buffer_physical_root_;

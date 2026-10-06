@@ -95,8 +95,10 @@ class DeclTensorFrame(TIRFrame):
         return self.buffer
 
 
-@_register_object("script.ir_builder.tirx.LaunchThreadFrame")
-class LaunchThreadFrame(TIRFrame):
-    def __enter__(self) -> Var:
+@_register_object("script.ir_builder.tirx.RegionFrame")
+class RegionFrame(TIRFrame):
+    """A result-free region whose body parameters are lexical bindings."""
+
+    def __enter__(self) -> Var | Array[Var]:  # type: ignore[override]
         super().__enter__()
-        return self.iter_var.var
+        return self.body_params[0] if len(self.body_params) == 1 else self.body_params

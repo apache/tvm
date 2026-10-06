@@ -278,6 +278,8 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
 }
 
 void CodeGenTrainium::Dispatch_(const AttrStmtNode* op) {
+  TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
+      << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
   if (op->attr_key == tirx::attr::tensorized_nki_instruction) {
     ctx_.tensorizing = true;
     ctx_.mask = std::nullopt;

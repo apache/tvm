@@ -122,6 +122,9 @@ UnchangedOr<ffi::Any> StmtSimplifier::Mutate(ffi::AnyView input, InplaceMode inp
   if (input.as<TensorType>()) {
     return ffi::Unchanged();
   }
+  if (def_region_kind() != kTVMFFIDefRegionKindNone && input.as<Var>()) {
+    return Parent::Mutate(input, inplace_mode);
+  }
   if (auto expr = input.as<PrimExpr>()) {
     PrimExpr simplified = analyzer_->Simplify(*expr);
     if (simplified.same_as(*expr)) return ffi::Unchanged();

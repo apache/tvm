@@ -55,8 +55,8 @@ class CodeGenWebGPU final : public CodeGenC {
   void InitFuncState(const PrimFunc& f) final;
   void PrintStorageSync(const CallNode* op) final;  // NOLINT(*)
   using CodeGenC::PrintType;
-  void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
-  void BindThreadIndex(const IterVar& iv) final;              // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;                      // NOLINT(*)
+  void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final;  // NOLINT(*)
 
   // assignment printing
   void PrintSSAAssign(const std::string& target, const std::string& src, const Type& type) final;
@@ -79,6 +79,7 @@ class CodeGenWebGPU final : public CodeGenC {
   void Dispatch_(const IntImmNode* op, std::ostream& os) final;           // NOLINT(*)
 
   // stmt printing
+  void Dispatch_(const RegionStmtNode* op) final;
   void Dispatch_(const BindNode* op) final;
   void Dispatch_(const BufferStoreNode* op) final;
   void Dispatch_(const ForNode* op) final;

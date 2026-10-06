@@ -26,12 +26,14 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/op.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
 
 #include <iterator>
 #include <limits>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -198,6 +200,91 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> AttrStmtMaybeInplaceMut
   if (!mapped_node.IsUnchanged()) self->node = std::move(mapped_node).ValueUnchecked();
   if (!mapped_value.IsUnchanged()) self->value = std::move(mapped_value).ValueUnchecked();
   if (!mapped_body.IsUnchanged()) self->body = std::move(mapped_body).ValueUnchecked();
+  return ffi::Unchanged();
+}
+
+TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> RegionStmtVisit(
+    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
+  const RegionStmtNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RegionStmtNode>(value);
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->attrs));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->args));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
+      kTVMFFIDefRegionKindSimple, [&]() { return visitor->VisitExpected(self->body_params); }));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->body));
+  return visitor->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
+                                    [&]() { return visitor->VisitExpected(self->result_vars); });
+}
+
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> RegionStmtMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  const RegionStmtNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RegionStmtNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<DictAttrs>, mapped_attrs,
+                                    mutator->MutateExpected(self->attrs));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_args,
+                                    mutator->MutateExpected(self->args));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_body_params,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+                                      return mutator->MutateExpected(self->body_params);
+                                    }));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
+                                    mutator->MutateExpected(self->body));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_result_vars,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+                                      return mutator->MutateExpected(self->result_vars);
+                                    }));
+  if (mapped_args.UnchangedOrSameAs(self->args) && mapped_attrs.UnchangedOrSameAs(self->attrs) &&
+      mapped_body_params.UnchangedOrSameAs(self->body_params) &&
+      mapped_body.UnchangedOrSameAs(self->body) &&
+      mapped_result_vars.UnchangedOrSameAs(self->result_vars)) {
+    return ffi::Unchanged();
+  }
+  auto copy = ffi::make_object<RegionStmtNode>(*self);
+  if (!mapped_args.IsUnchanged()) copy->args = std::move(mapped_args).ValueUnchecked();
+  if (!mapped_attrs.IsUnchanged()) copy->attrs = std::move(mapped_attrs).ValueUnchecked();
+  if (!mapped_body_params.IsUnchanged())
+    copy->body_params = std::move(mapped_body_params).ValueUnchecked();
+  if (!mapped_body.IsUnchanged()) copy->body = std::move(mapped_body).ValueUnchecked();
+  if (!mapped_result_vars.IsUnchanged())
+    copy->result_vars = std::move(mapped_result_vars).ValueUnchecked();
+  return ffi::Any(std::move(copy));
+}
+
+TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> RegionStmtMaybeInplaceMutate(
+    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
+  const RegionStmtNode* self =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const RegionStmtNode>(value);
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<DictAttrs>, mapped_attrs,
+                                    mutator->MutateExpected(self->attrs, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_args,
+                                    mutator->MutateExpected(self->args, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_body_params,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+                                      return mutator->MutateExpected(self->body_params,
+                                                                     ffi::InplaceMode::kAllow);
+                                    }));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
+                                    mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_result_vars,
+                                    mutator->WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+                                      return mutator->MutateExpected(self->result_vars,
+                                                                     ffi::InplaceMode::kAllow);
+                                    }));
+  if (mapped_args.UnchangedOrSameAs(self->args) && mapped_attrs.UnchangedOrSameAs(self->attrs) &&
+      mapped_body_params.UnchangedOrSameAs(self->body_params) &&
+      mapped_body.UnchangedOrSameAs(self->body) &&
+      mapped_result_vars.UnchangedOrSameAs(self->result_vars)) {
+    return ffi::Unchanged();
+  }
+  auto* copy = const_cast<RegionStmtNode*>(self);
+  if (!mapped_args.IsUnchanged()) copy->args = std::move(mapped_args).ValueUnchecked();
+  if (!mapped_attrs.IsUnchanged()) copy->attrs = std::move(mapped_attrs).ValueUnchecked();
+  if (!mapped_body_params.IsUnchanged())
+    copy->body_params = std::move(mapped_body_params).ValueUnchecked();
+  if (!mapped_body.IsUnchanged()) copy->body = std::move(mapped_body).ValueUnchecked();
+  if (!mapped_result_vars.IsUnchanged())
+    copy->result_vars = std::move(mapped_result_vars).ValueUnchecked();
   return ffi::Unchanged();
 }
 
@@ -691,6 +778,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 // AttrStmt
 AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span)
     : Stmt(ffi::UnsafeInit{}) {
+  TVM_FFI_CHECK(attr_key != "thread_extent" && attr_key != "virtual_thread", ValueError)
+      << "Thread launch attributes are retired; use launch_thread(tag, extent)";
   auto n = ffi::make_object<AttrStmtNode>(std::move(value), std::move(body));
   n->node = node;
   n->attr_key = std::move(attr_key);
@@ -711,6 +800,65 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def("tirx.AttrStmt",
                         [](Any node, ffi::String attr_key, Expr value, Stmt body, Span span) {
                           return AttrStmt(node, attr_key, value, body, span);
+                        });
+}
+
+// RegionStmt
+RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
+                       Stmt body, ffi::Array<Var> result_vars, Span span)
+    : Stmt(ffi::UnsafeInit{}) {
+  TVM_FFI_CHECK(op.defined() && body.defined(), ValueError)
+      << "RegionStmt requires an operator and a body";
+  std::unordered_set<const VarNode*> definitions;
+  for (const auto& vars : {body_params, result_vars}) {
+    for (const Var& var : vars) {
+      TVM_FFI_CHECK(definitions.insert(var.get()).second, ValueError)
+          << "RegionStmt parameters and results must be distinct definitions";
+    }
+  }
+  if (op.same_as(tirx::builtin::launch_thread())) {
+    TVM_FFI_CHECK(
+        args.size() == 2 && body_params.size() == 1 && result_vars.empty() && attrs->dict.empty(),
+        ValueError)
+        << "launch_thread expects tag, extent, one body parameter, and no results or attrs";
+    auto tag = args[0].as<StringImm>();
+    auto extent = args[1].as<PrimExpr>();
+    auto var = body_params[0].as<PrimVar>();
+    TVM_FFI_CHECK(tag && !tag.value()->value.empty(), ValueError)
+        << "launch_thread expects a nonempty StringImm thread tag";
+    auto integer = [](PrimType ty) {
+      return ty.IsScalar() &&
+             (ty.MatchesCode(DLDataTypeCode::kDLInt) || ty.MatchesCode(DLDataTypeCode::kDLUInt)) &&
+             ty.bits() > 1;
+    };
+    TVM_FFI_CHECK(extent && var && integer(extent.value().ty()) && integer(var.value().ty()) &&
+                      extent.value().ty() == var.value().ty(),
+                  ValueError)
+        << "launch_thread expects matching scalar integer extent and body parameter types";
+  }
+  auto n = ffi::make_object<RegionStmtNode>(std::move(op), std::move(body));
+  n->args = std::move(args);
+  n->body_params = std::move(body_params);
+  n->attrs = std::move(attrs);
+  n->result_vars = std::move(result_vars);
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  RegionStmtNode::RegisterReflection();
+  refl::TypeAttrDef<RegionStmtNode>()
+      .attr(refl::type_attr::kStructuralVisit,
+            ffi::FStructuralVisit::FromNative<&RegionStmtVisit>())
+      .attr(refl::type_attr::kStructuralMutate,
+            ffi::FStructuralMutate::FromNative<&RegionStmtMutate>())
+      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
+            ffi::FStructuralMutate::FromNative<&RegionStmtMaybeInplaceMutate>());
+  refl::GlobalDef().def("tirx.RegionStmt",
+                        [](Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params,
+                           DictAttrs attrs, Stmt body, ffi::Array<Var> result_vars, Span span) {
+                          return RegionStmt(op, args, body_params, attrs, body, result_vars, span);
                         });
 }
 

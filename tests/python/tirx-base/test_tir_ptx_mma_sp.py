@@ -51,12 +51,9 @@ def mma_sp_m16n8k16_f16f16f16(
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
-    brow = T.env_thread("blockIdx.y")
-    bcol = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(brow, 1)
-    T.launch_thread(bcol, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.y", 1)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     multi_a = T.decl_tensor([4], "float16", scope="local")
     multi_b = T.decl_tensor([4], "float16", scope="local")
     accum = T.decl_tensor([4], "float16", scope="local")
@@ -101,12 +98,9 @@ def mma_sp_m16n8k16_f16f16f32(
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
-    brow = T.env_thread("blockIdx.y")
-    bcol = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(brow, 1)
-    T.launch_thread(bcol, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.y", 1)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     multi_a = T.decl_tensor([4], "float16", scope="local")
     multi_b = T.decl_tensor([4], "float16", scope="local")
     accum = T.decl_tensor([4], "float32", scope="local")
@@ -154,12 +148,9 @@ def mma_sp_m16n8k32_f16f16f16(
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
-    brow = T.env_thread("blockIdx.y")
-    bcol = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(brow, 1)
-    T.launch_thread(bcol, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.y", 1)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     multi_a = T.decl_tensor([8], "float16", scope="local")
     multi_b = T.decl_tensor([8], "float16", scope="local")
     accum = T.decl_tensor([4], "float16", scope="local")
@@ -208,12 +199,9 @@ def mma_sp_m16n8k32_f16f16f32(
 ):
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
 
-    brow = T.env_thread("blockIdx.y")
-    bcol = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(brow, 1)
-    T.launch_thread(bcol, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.y", 1)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     multi_a = T.decl_tensor([8], "float16", scope="local")
     multi_b = T.decl_tensor([8], "float16", scope="local")
     accum = T.decl_tensor([4], "float32", scope="local")

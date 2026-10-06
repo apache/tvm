@@ -120,6 +120,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   void Dispatch_(const IfThenElseNode* op) override;
   void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
+  void Dispatch_(const RegionStmtNode* op) override;
   void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const BindNode* op) override;
@@ -196,7 +197,8 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   // Reset the state so it works for a new function.
   void InitFuncState();
   // Get the thread index
-  spirv::Value GetThreadIndex(const IterVar& iv, const PrimExpr& extent);
+  spirv::Value GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag,
+                              const PrimExpr& extent);
 
   spirv::Value CreateStorageSync(const CallNode* op);
   void Scalarize(const PrimExpr& e, std::function<void(int i, spirv::Value v)> f);
@@ -229,6 +231,8 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   std::unordered_map<const VarNode*, StorageInfo> storage_info_;
 
   // The definition of local variable.
+  /*! \brief Extents of physical thread axes in the current function. */
+  std::unordered_map<std::string, PrimExpr> thread_extents_;
   std::unordered_map<const VarNode*, spirv::Value> var_map_;
 
   // The analyzer.
