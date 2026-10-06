@@ -132,7 +132,7 @@ def reduction_trn(
         @T.prim_func(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
@@ -148,14 +148,14 @@ def reduction_trn(
         def two_stage_reduction():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                             for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
                                 if inst_gen.make_guard(src_buffer_region):
                                     src_indices = T.meta_var(inst_gen.generate_indices(src_buffer_region))  # noqa: E501
                                     T.evaluate(T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], src[src_indices], opcode, False, -1))  # noqa: E501
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map(src_buffer_region, {p_var: p_loop, f_var: 0, spatial_b_var: b_loop, reduction_b_var: f_loop})  # noqa: E501

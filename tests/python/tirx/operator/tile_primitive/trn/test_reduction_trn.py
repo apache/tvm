@@ -77,7 +77,7 @@ def test_simple_reduction(op_type):
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 1), scope="trn.sbuf")
         for b_loop in range(1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.tensorreduce(B_sbuf[p_loop, 0], A_sbuf[p_loop, f_loop], opcode, False, -1)
@@ -109,7 +109,7 @@ def test_reduction_with_multiple_axes():
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 1), scope="trn.sbuf")
         for b_loop in range(1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 2048, annotations={"nki_dim":"F"}):
                     T.nki.tensorreduce(B_sbuf[p_loop, 0], A_sbuf[p_loop, f_loop], "add", False, -1)
@@ -142,7 +142,7 @@ def test_reduction_in_loop():
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
         for i, b_loop in T.grid(4, 1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.tensorreduce(B_sbuf[p_loop, i], A_sbuf[p_loop, f_loop * 4 + i], "add", False, -1)  # noqa: E501
@@ -175,11 +175,11 @@ def test_reduction_two_stage():
         B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
         for b_loop in range(4):
             for reduction_b_loop in range(32):
-                T.attr(0, "tensorized_nki_instruction", 1)
+                T.nki.tensorized_instruction()
                 for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                     for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
                         T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], A_sbuf[p_loop, reduction_b_loop * 128 + b_loop * 32 + f_loop], "add", False, -1)  # noqa: E501
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
                     T.nki.tensorreduce(B_sbuf[p_loop, b_loop], intermediate_buffer[p_loop, f_loop], "add", False, -1)  # noqa: E501
@@ -217,7 +217,7 @@ def test_reduction_with_guard():
         for i, j in T.grid(4, 4):
             for b_loop in range(4):
                 for reduction_b_loop in range(2):
-                    T.attr(0, "tensorized_nki_instruction", 1)
+                    T.nki.tensorized_instruction()
                     for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                         for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
                             if (
@@ -225,7 +225,7 @@ def test_reduction_with_guard():
                                 and reduction_b_loop * 512 + f_loop < j * 256 + 256
                             ):
                                 T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], A_sbuf[p_loop, b_loop * 2048 + reduction_b_loop * 512 + f_loop], "add", T.bool(False), -1)  # noqa: E501
-                T.attr(0, "tensorized_nki_instruction", 1)
+                T.nki.tensorized_instruction()
                 for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                     for f_loop in T.serial(2, annotations={"nki_dim": "F"}):
                         if b_loop - i < 1 and f_loop * 2 - j < 1:
@@ -262,11 +262,11 @@ def test_reduction_two_stage_workspace():
         B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
         for b_loop in range(4):
             for reduction_b_loop in range(32):
-                T.attr(0, "tensorized_nki_instruction", 1)
+                T.nki.tensorized_instruction()
                 for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                     for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
                         T.nki.tensorreduce(intermediate_buffer[p_loop, reduction_b_loop], A_sbuf[p_loop, reduction_b_loop * 128 + b_loop * 32 + f_loop], "add", False, -1)  # noqa: E501
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
                     T.nki.tensorreduce(B_sbuf[p_loop, b_loop], intermediate_buffer[p_loop, f_loop], "add", False, -1)  # noqa: E501

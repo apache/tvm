@@ -95,7 +95,7 @@ def test_simple_binary(op_type, operands_type):
         B_sbuf = T.alloc_tensor(src2_shape, scope="trn.sbuf")
         C_sbuf = T.alloc_tensor(dst_shape, scope="trn.sbuf")
         for b_loop in T.serial(0, 1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     if T.constexpr(operands_type == "region_region"):
@@ -182,7 +182,7 @@ def test_binary_complex(op_type, operands_type):
         B_sbuf_view = T.decl_tensor(src2_layout_data_iter, data=B_sbuf.data, scope="trn.sbuf", layout=None)  # noqa: E501
         C_sbuf_view = T.decl_tensor((128, 2048), data=C_sbuf.data, scope="trn.sbuf", layout=None)
         for i, b_loop in T.grid(4, b_extent):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, f_extent, annotations={"nki_dim":"F"}):
                     if T.constexpr(operands_type == "region_region"):
@@ -228,7 +228,7 @@ def test_binary_broadcast1():
         B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         for b_loop in T.serial(0, 512):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 32, annotations={"nki_dim":"F"}):
                     T.nki.tensorscalar(C_sbuf[p_loop, b_loop % 4 * 4096 + b_loop // 4 * 32 + f_loop], A_sbuf[p_loop, b_loop % 4 * 4096 + b_loop // 4 * 32 + f_loop], B_sbuf[p_loop, b_loop], "add", T.bool(False))  # noqa: E501
@@ -264,7 +264,7 @@ def test_binary_broadcast2():
         B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         for b_loop in T.serial(0, 128):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 128, annotations={"nki_dim":"F"}):
                     T.nki.tensortensor(C_sbuf[p_loop, b_loop % 4 * 4096 + b_loop // 4 * 128 + f_loop], A_sbuf[p_loop, b_loop % 4 * 4096 + b_loop // 4 * 128 + f_loop], B_sbuf[p_loop, b_loop % 4 * 128 + f_loop], "add")  # noqa: E501
@@ -300,7 +300,7 @@ def test_binary_broadcast3():
         B_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 4):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 128, annotations={"nki_dim":"F"}):
                     T.nki.tensortensor(C_sbuf[p_loop, b_loop * 128 + f_loop], A_sbuf[p_loop, b_loop * 128 + f_loop], B_sbuf[p_loop, b_loop * 4096 + f_loop], "add")  # noqa: E501
@@ -337,7 +337,7 @@ def test_binary_with_guard():
         B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         for j, b_loop in T.grid(4, 96):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 128, annotations={"nki_dim":"F"}):
                     if b_loop % 3 - j < 0:

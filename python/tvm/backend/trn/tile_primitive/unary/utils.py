@@ -108,7 +108,7 @@ def get_const_bias_tensor(bias, shape, dtype, workspace, sctx):
         # This fragment captures buffers and indices from its insertion scope.
         @T.prim_func(check_well_formed=False)
         def const_bias_init():
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, shape[0], annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, shape[1], annotations={nki_dim: "F"}):
                         T.evaluate(T.nki.memset(bias_buffer[p_loop, f_loop], bias))
@@ -171,7 +171,7 @@ def generate_unary_func(
     @T.prim_func(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, b_var: b_loop})

@@ -882,7 +882,6 @@ constexpr const char* kVolatile = "tirx.volatile";
 constexpr const char* buffer_data_alignment = "buffer_data_alignment";
 /*! \brief Mark buffer allocated addr in bytes */
 constexpr const char* buffer_allocated_addr = "buffer_allocated_addr";
-constexpr const char* tensorized_nki_instruction = "tensorized_nki_instruction";
 
 /*!
  * \brief Mark the kernel as persistent.
