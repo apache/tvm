@@ -91,11 +91,6 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
       : Parent(analyzer), ignore_profiler_call_(ignore_profiler_call) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<AttrStmtNode>();
-    return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
-  }
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<IfThenElseNode>();

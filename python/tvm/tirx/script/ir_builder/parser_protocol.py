@@ -35,7 +35,6 @@ from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.ir import StringImm as _StringImm
 from tvm.ir import TensorRegion, Type, is_prim_expr
-from tvm.runtime import convert
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import AlreadyEmitted
 from tvm.script.ir_builder.base import IRBuilder as _IRBuilder
@@ -44,7 +43,7 @@ from tvm.tirx.expr import (
     IntImm,
 )
 
-from . import _ffi_api, frame, utils
+from . import _ffi_api, frame
 from . import ir as _native
 from . import op as _op
 from .op import and_ as and_
@@ -436,55 +435,6 @@ def bind(  # pylint: disable=invalid-name
         if isinstance(type_annotation, _ir.Var):
             type_annotation = type_annotation.ty
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def attr(
-    node_or_dict: Any, attr_key: str | None = None, value: Expr | str | None = None
-) -> frame.AttrFrame | utils._FrameScope:
-    """Create an attribute node, or multiple attribute nodes from a dict.
-
-    Usage 1 — single attr::
-
-        with T.attr(node, key, value):
-            ...
-
-    Usage 2 — dict sugar (node defaults to ``0``)::
-
-        with T.attr({"key1": value1, "key2": value2}):
-            ...
-
-    Parameters
-    ----------
-    node_or_dict : Any
-        If a dict, each key-value pair becomes an AttrStmt with
-        ``node=0``.  Otherwise the node to annotate.
-
-    attr_key : str, optional
-        Attribute type key (required when ``node_or_dict`` is not a dict).
-
-    value : Union[Expr, str], optional
-        The attribute value (required when ``node_or_dict`` is not a dict).
-
-    Returns
-    -------
-    res : Union[frame.AttrFrame, _FrameScope]
-        A single AttrFrame, or a _FrameScope wrapping multiple AttrFrames.
-    """
-    if isinstance(node_or_dict, dict):
-        frames = []
-        for k, v in node_or_dict.items():
-            if isinstance(v, bool):
-                v = IntImm("bool", v)
-            frames.append(_ffi_api.Attr(0, k, convert(v)))  # type: ignore[attr-defined]
-        if len(frames) == 1:
-            return frames[0]
-        return utils._FrameScope(frames)
-    else:
-        if attr_key is None or value is None:
-            raise ValueError("T.attr(node, attr_key, value) requires all three arguments")
-        node_or_dict = convert(node_or_dict)
-        value = convert(value)
-        return _ffi_api.Attr(node_or_dict, attr_key, value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def buffer_store(
@@ -1028,7 +978,6 @@ __all__ = [
     "and_",
     "arg_",
     "assert_",
-    "attr",
     "bind",
     "bind_",
     "break_",

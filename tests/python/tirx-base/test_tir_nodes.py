@@ -111,11 +111,6 @@ def test_cast():
 
 
 def test_attr():
-    x = tvm.tirx.Var("x", "int32")
-    y = tvm.tirx.Var("y", "int32")
-    stmt = tvm.tirx.AttrStmt(y, "stride", 10, tvm.tirx.Evaluate(x + 1))
-    assert stmt.node == y
-
     a = tvm.runtime.convert(1)
     assert a == 1
     try:

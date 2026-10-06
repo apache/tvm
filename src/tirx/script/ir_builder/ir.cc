@@ -188,7 +188,7 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
   }
   // Emit a standalone ScopeIdDefStmt to the current TIRFrame's stmts list.
   // The def is visible to all subsequent stmts within the same enclosing
-  // scope (PrimFunc body, AttrStmt body, ExecScope body, etc.).
+  // scope (PrimFunc body, RegionStmt body, ExecScope body, etc.).
   tvm::tirx::ScopeIdDef def(
       scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
       tvm::tirx::StringPairToScopeBinding(parent, cur));
@@ -430,13 +430,6 @@ RegionFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
       << "launch_thread extent must have a scalar integer type";
   PrimVar var("", dtype);
   return Region(tvm::tirx::builtin::launch_thread(), {StringImm(thread_tag), extent}, {var});
-}
-
-AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {
-  ffi::ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>(value);
-  n->node = std::move(node);
-  n->attr_key = attr_key;
-  return AttrFrame(n);
 }
 
 WhileFrame While(PrimExpr condition) {
@@ -705,7 +698,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Grid", Grid)
       .def("script.ir_builder.tirx.Assert", Assert)
       .def("script.ir_builder.tirx.Bind", Bind)
-      .def("script.ir_builder.tirx.Attr", Attr)
       .def("script.ir_builder.tirx.While", While)
       .def("script.ir_builder.tirx.Return", Return)
       .def("script.ir_builder.tirx.Break", Break)

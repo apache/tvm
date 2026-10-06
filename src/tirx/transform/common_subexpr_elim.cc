@@ -27,7 +27,7 @@
  *
  *   Phase 1 — **CSEPlanner** (analysis, no mutation)
  *     Walks the TIR tree bottom-up and builds:
- *       - A *scope tree* that mirrors the nesting structure of For/If/While/AttrStmt.
+ *       - A *scope tree* that mirrors the nesting structure of For/If/While/RegionStmt.
  *       - An *expression DAG* mapping each structurally-unique eligible expression
  *         to its occurrence count, LCA scope, first-use location, and direct
  *         children (which shallower expressions it contains).
@@ -56,7 +56,7 @@
  *
  * Scope tree
  * ----------
- * Each For, IfThenElse (each branch), While, and AttrStmt body creates a new
+ * Each For, IfThenElse (each branch), While, and RegionStmt body creates a new
  * scope. The scope tree enables computing the Lowest Common Ancestor (LCA) of
  * all scopes where an expression occurs, which determines the correct insertion
  * point — the narrowest scope that dominates all uses.
@@ -122,7 +122,7 @@ using InsertBeforeTable =
  * \brief Phase 1 of the two-phase CSE pass.
  *
  * CSEPlanner is a read-only visitor that scans the TIR tree bottom-up and builds:
- *   1. A **scope tree** (vector of ScopeEntry) reflecting For/If/While/AttrStmt nesting.
+ *   1. A **scope tree** (vector of ScopeEntry) reflecting For/If/While/RegionStmt nesting.
  *   2. An **expression DAG** (ExprTable) where each node is an eligible expression
  *      with occurrence count, expr_depth, LCA scope, first-use location, and
  *      direct children (other table entries reachable without passing through
@@ -166,7 +166,7 @@ class CSEPlanner : public StmtExprVisitor {
    * \brief One node in the scope tree.
    *
    * The scope tree mirrors the nesting structure of the TIR program.
-   * Each scope-creating statement (For, IfThenElse branch, While, AttrStmt)
+   * Each scope-creating statement (For, IfThenElse branch, While, RegionStmt)
    * gets its own ScopeEntry. The root scope (depth 0) represents the function
    * body itself.
    */
@@ -618,16 +618,6 @@ class CSEPlanner : public StmtExprVisitor {
     // Unknown operations can impose their own execution policy. Preserve them
     // as an optimization boundary until that operation has a lowering contract.
     if (!op->op.same_as(tirx::builtin::launch_thread())) return std::nullopt;
-    int saved = current_scope_;
-    current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
-    current_scope_ = saved;
-    return std::nullopt;
-  }
-
-  /*! \brief AttrStmt: value in parent scope, body in child scope. */
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) override {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->value));
     int saved = current_scope_;
     current_scope_ = AllocScope(saved, ffi::GetRef<Stmt>(op));
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->body));
