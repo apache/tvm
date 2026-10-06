@@ -1679,7 +1679,7 @@ def select(
     if is_tensor_var(false_value):
         false_value = _to_region(false_value)
     if not isinstance(pred, LambdaExpr):
-        pred = LambdaExpr([PrimType("int32")] * len(dst.region), pred, ret_type=PrimType("bool"))
+        pred = LambdaExpr([PrimType("int32")] * len(dst.region), pred)
     if len(pred.vars) != len(dst.region) or any(var.ty != PrimType("int32") for var in pred.vars):
         raise TypeError("Tile select requires one int32 lambda parameter per destination axis")
     if pred.ty.ret_type != PrimType("bool"):
