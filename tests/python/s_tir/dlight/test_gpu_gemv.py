@@ -114,7 +114,7 @@ def test_gemv_basic():
             for ax0_fused_ax1_fused_fused_1 in T.thread_binding(1, thread="threadIdx.y"):
                 for ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 in T.thread_binding(64, thread="threadIdx.x"):
                     for ax0, ax1, ax2 in T.grid(1, 1, 1):
-                        for ax3_0 in T.serial(1, annotations={"unroll_explicit": 256, "pragma_vectorize": 1}):
+                        for ax3_0 in T.serial(1, annotations={"unroll_explicit": 256}):
                             for ax3_1 in T.thread_binding(1, thread="threadIdx.y"):
                                 for ax3_2 in T.thread_binding(64, thread="threadIdx.x"):
                                     for ax3_3 in T.vectorized(2):
@@ -334,7 +334,7 @@ def test_decode_gemv1():
             for u_fused_ax0_fused_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(32, thread="threadIdx.x"):
                     for ax0, ax1 in T.grid(1, 1):
-                        for ax2_0 in T.serial(1, annotations={"unroll_explicit": 256, "pragma_vectorize": 1}):
+                        for ax2_0 in T.serial(1, annotations={"unroll_explicit": 256}):
                             for ax2_1 in T.thread_binding(16, thread="threadIdx.y"):
                                 for ax2_2 in T.thread_binding(32, thread="threadIdx.x"):
                                     for ax2_3 in T.vectorized(8):
@@ -450,7 +450,7 @@ def test_decode_gemv2():
             for u_fused_ax0_fused_fused_1 in T.thread_binding(16, thread="threadIdx.y"):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(32, thread="threadIdx.x"):
                     for ax0, ax1 in T.grid(1, 1):
-                        for ax2_0 in T.serial(1, annotations={"unroll_explicit": 256, "pragma_vectorize": 1}):
+                        for ax2_0 in T.serial(1, annotations={"unroll_explicit": 256}):
                             for ax2_1 in T.thread_binding(16, thread="threadIdx.y"):
                                 for ax2_2 in T.thread_binding(32, thread="threadIdx.x"):
                                     for ax2_3 in T.vectorized(8):
@@ -573,7 +573,7 @@ def test_decode_gemv3():
             for u_fused_ax0_fused_fused_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                 for ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
                     for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
-                        for ax2_0 in T.serial(T.int64(22), annotations={"unroll_explicit": 256, "pragma_vectorize": 1}):
+                        for ax2_0 in T.serial(T.int64(22), annotations={"unroll_explicit": 256}):
                             for ax2_1 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                                 for ax2_2 in T.thread_binding(T.int64(32), thread="threadIdx.x"):
                                     for ax2_3 in T.vectorized(T.int64(1)):

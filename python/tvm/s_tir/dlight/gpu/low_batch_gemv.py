@@ -488,9 +488,6 @@ class LowBatchGEMV(GPUScheduleRule):
                     ann_key="unroll_explicit",
                     ann_val=unroll_factor,
                 )
-                sch.annotate(
-                    block_or_loop=sch.get_loops(V_shared)[-4], ann_key="pragma_vectorize", ann_val=1
-                )
 
             epilogue = sch.get_consumers(gemv)
             # Schedule epilogue
