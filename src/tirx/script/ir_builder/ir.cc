@@ -439,8 +439,6 @@ AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {
   return AttrFrame(n);
 }
 
-RegionFrame DeviceEntry() { return Region(tvm::tirx::builtin::device_entry(), {}, {}); }
-
 WhileFrame While(PrimExpr condition) {
   ffi::ObjectPtr<WhileFrameNode> n = ffi::make_object<WhileFrameNode>(condition);
   return WhileFrame(n);
@@ -708,7 +706,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Assert", Assert)
       .def("script.ir_builder.tirx.Bind", Bind)
       .def("script.ir_builder.tirx.Attr", Attr)
-      .def("script.ir_builder.tirx.DeviceEntry", DeviceEntry)
       .def("script.ir_builder.tirx.While", While)
       .def("script.ir_builder.tirx.Return", Return)
       .def("script.ir_builder.tirx.Break", Break)

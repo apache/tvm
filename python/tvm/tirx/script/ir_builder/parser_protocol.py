@@ -156,7 +156,7 @@ def device_entry() -> frame.RegionFrame:
     enclosing body, or ``with T.device_entry():`` for an explicit boundary.
     Statements before the region remain host code.
     """
-    return _ffi_api.DeviceEntry()
+    return region("tirx.device_entry", [])
 
 
 def check_well_formed_(function: _tir.PrimFunc) -> None:

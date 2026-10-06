@@ -247,9 +247,6 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
  */
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value);
 
-/*! \brief Create a device-entry region frame. */
-RegionFrame DeviceEntry();
-
 /*!
  * \brief Create a while loop.
  * \param condition The termination condition of the loop.
