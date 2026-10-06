@@ -308,7 +308,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         updated.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
         return updated;
       };
-      if (!normalize_thread_bindings_ && is_zero(loop->extent)) {
+      if (!normalize_thread_bindings_ && IsZero(loop->extent)) {
         return Evaluate(0);
       }
       if (normalize_thread_bindings_ && loop->kind == ForKind::kThreadBinding) {
@@ -349,27 +349,13 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         thread_bindings_.pop_back();
         return result;
       }
-      if (!normalize_thread_bindings_ && is_zero(loop->min) && is_one(loop->extent) &&
+      if (!normalize_thread_bindings_ && IsZero(loop->min) && IsOne(loop->extent) &&
           loop->kind == ForKind::kSerial && loop->annotations.empty()) {
         VarRemapSet(loop->loop_var, MakeConst(loop->loop_var.ty(), 0.0));
         return Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);
       } else {
         return mutate_retained_loop();
       }
-    }
-
-    UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-      if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(op, inplace_mode);
-      auto node = Mutate(op->node, inplace_mode);
-      auto value = Mutate(op->value, inplace_mode);
-      auto body = Mutate(op->body, inplace_mode);
-      if (node.UnchangedOrSameAs(op->node) && value.UnchangedOrSameAs(op->value) &&
-          body.UnchangedOrSameAs(op->body)) {
-        return ffi::Unchanged();
-      }
-      return AttrStmt(std::move(node).ValueOrUnchanged(op->node), op->attr_key,
-                      std::move(value).ValueOrUnchanged(op->value),
-                      std::move(body).ValueOrUnchanged(op->body), op->span);
     }
 
     UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {

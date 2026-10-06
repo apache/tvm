@@ -175,7 +175,7 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
                               .as_or_throw<s_tir::SBlock>();
     auto it = op->annotations.find(s_tir::attr::meta_schedule_layout_rewrite_preproc);
     bool is_layout_rewrite_preproc =
-        it != op->annotations.end() && is_one((*it).second.cast<PrimExpr>());
+        it != op->annotations.end() && IsOne((*it).second.cast<PrimExpr>());
 
     if (current_subtree_ == 0) {
       current_subtree_ = is_layout_rewrite_preproc ? 1 : -1;

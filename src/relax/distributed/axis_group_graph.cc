@@ -42,7 +42,7 @@ ffi::Optional<Var> GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> 
     primitive_var_range.Set(var.as_or_throw<PrimVar>(), range);
   }
   sym::IterSumExpr iter_sum = sym::NormalizeToIterSum(index, primitive_var_range, analyzer);
-  if (!is_zero(iter_sum->base)) {
+  if (!IsZero(iter_sum->base)) {
     return std::nullopt;
   }
   if (iter_sum->args.empty()) {

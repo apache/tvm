@@ -111,9 +111,7 @@ Var Arg(ffi::String name, Var var) {
 }
 
 TensorVar Arg(ffi::String name, TensorVar buffer) {
-  PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
-  details::Namer::Name(buffer, name);
-  frame->args.push_back(buffer.var());
+  Arg(std::move(name), buffer.var());
   return buffer;
 }
 
@@ -187,7 +185,7 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
   }
   // Emit a standalone ScopeIdDefStmt to the current TIRFrame's stmts list.
   // The def is visible to all subsequent stmts within the same enclosing
-  // scope (PrimFunc body, AttrStmt body, ExecScope body, etc.).
+  // scope (PrimFunc body, RegionStmt body, ExecScope body, etc.).
   tvm::tirx::ScopeIdDef def(
       scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
       tvm::tirx::StringPairToScopeBinding(parent, cur));
@@ -335,7 +333,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
                                                     Stmt body, Span span) -> For {
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
-    TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || is_one(*steps[0])));
+    TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || IsOne(*steps[0])));
     return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,
                ForKind::kThreadBinding, body, thread,
                annotations.value_or(ffi::Map<ffi::String, ffi::Any>()), std::nullopt, span);
@@ -413,27 +411,17 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var
   return bind_var;
 }
 
-RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs) {
+RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Optional<ffi::Array<Var>> body_params,
+                   DictAttrs attrs) {
+  TVM_FFI_CHECK(tvm::tirx::IsRegionOp(op), ValueError)
+      << op->name << " does not support region construction: FRegionGetBodyParams is required";
+  auto params = body_params.has_value() ? body_params.value()
+                                        : tvm::tirx::GetRegionBodyParams(op, args, attrs);
   auto n = ffi::make_object<RegionFrameNode>(std::move(op));
   n->args = std::move(args);
-  n->body_params = std::move(body_params);
+  n->body_params = std::move(params);
   n->attrs = std::move(attrs);
   return RegionFrame(n);
-}
-
-RegionFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
-  PrimType dtype = extent.ty();
-  TVM_FFI_CHECK(dtype.IsScalar() && dtype.MatchesCode(kDLInt, kDLUInt), ValueError)
-      << "launch_thread extent must have a scalar integer type";
-  PrimVar var("", dtype);
-  return Region(tvm::tirx::builtin::launch_thread(), {StringImm(thread_tag), extent}, {var});
-}
-
-AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {
-  ffi::ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>(value);
-  n->node = std::move(node);
-  n->attr_key = attr_key;
-  return AttrFrame(n);
 }
 
 WhileFrame While(PrimExpr condition) {
@@ -645,9 +633,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Arg",
            [](ffi::String name, ffi::ObjectRef obj) -> ffi::ObjectRef {
              using namespace tvm::tirx;
-             if (auto buffer = obj.as<TensorVar>()) {
-               return Arg(name, buffer.value());
-             }
              if (auto var = obj.as<Var>()) {
                return Arg(name, var.value());
              }
@@ -693,7 +678,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Grid", Grid)
       .def("script.ir_builder.tirx.Assert", Assert)
       .def("script.ir_builder.tirx.Bind", Bind)
-      .def("script.ir_builder.tirx.Attr", Attr)
       .def("script.ir_builder.tirx.While", While)
       .def("script.ir_builder.tirx.Return", Return)
       .def("script.ir_builder.tirx.Break", Break)
@@ -703,7 +687,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Else", Else)
       .def("script.ir_builder.tirx.DeclTensor", DeclTensor)
       .def("script.ir_builder.tirx.Region", Region)
-      .def("script.ir_builder.tirx.LaunchThread", LaunchThread)
       .def("script.ir_builder.tirx.BufferStore", BufferStore)
       .def("script.ir_builder.tirx.Evaluate", Evaluate)
       .def("script.ir_builder.tirx.Ptr", Ptr);

@@ -230,7 +230,7 @@ struct BlockVarDomainInfo {
                analyzer->CanProveEqual(bound.max(), intersect.max())) {
       dom = bound;
       bound = sym::IntSet::Nothing();
-    } else if (is_const_int(intersect.min()) && is_const_int(intersect.max())) {
+    } else if (IsConstInt(intersect.min()) && IsConstInt(intersect.max())) {
       // if the bound induce constant iter range, merge bound to loop domain
       dom = intersect;
       bound = sym::IntSet::Nothing();
@@ -274,7 +274,7 @@ class ScopeReconstructor : public StmtExprMutator {
     PrimExpr predicate = IntImm::Bool(true);
     for (int i = 0; i < n_iters; ++i) {
       Range iter_dom = iter_doms[i].dom.CoverRange(block_->iter_vars[i]->dom);
-      if (preserve_unit_loops || !is_one(iter_dom->extent)) {
+      if (preserve_unit_loops || !IsOne(iter_dom->extent)) {
         int bits = std::max(iter_dom->min.ty().bits(), iter_dom->extent.ty().bits());
         Var var("ax" + std::to_string(loop_vars.size()), PrimType::Int(bits));
         loop_vars.push_back(var);
@@ -515,7 +515,7 @@ void UpdateBlockVarDomainDimwise(
     PrimExpr dim_max = max(GetTensorVar(buffer)->shape[i] - 1, 0);
     sym::Analyzer analyzer_ref = ffi::GetRef<sym::Analyzer>(analyzer);
 
-    if (provided.CanProveSinglePoint(analyzer_ref) && is_const_int(provided.min())) {
+    if (provided.CanProveSinglePoint(analyzer_ref) && IsConstInt(provided.min())) {
       TVM_FFI_ICHECK(required.CanProveSinglePoint(analyzer_ref) &&
                      analyzer->CanProveEqual(provided.min(), required.min()));
       continue;

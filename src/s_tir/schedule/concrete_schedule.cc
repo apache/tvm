@@ -507,7 +507,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
       infer_index = i;
     } else {
       PrimExpr factor = this->Get(factor_rvs[i].value());
-      if (is_const_int(factor) && !is_positive_const(factor)) {
+      if (IsConstInt(factor) && !IsPositiveConst(factor)) {
         throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
                                                         i);
       }
@@ -562,7 +562,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
   PrimExpr tot_length = 0;
   ffi::Array<StmtSRef> results;
   TVM_TIR_SCHEDULE_BEGIN();
-  if (!is_const_number(loop->min) || !is_const_number(loop->extent)) {
+  if (!IsConstNumber(loop->min) || !IsConstNumber(loop->extent)) {
     throw MakeScheduleError<SymbolicShapeError>(state_->mod, ffi::GetRef<For>(loop));
   }
   // infer factor if needed and check validity of factors
@@ -575,7 +575,7 @@ ffi::Array<LoopRV> ConcreteScheduleNode::LoopPartition(
       infer_index = i;
     } else {
       PrimExpr factor = this->Get(factor_rvs[i].value());
-      if (is_const_int(factor) && !is_positive_const(factor)) {
+      if (IsConstInt(factor) && !IsPositiveConst(factor)) {
         throw MakeScheduleError<NonPositiveFactorError>(state_->mod, factor.as<IntImmNode>()->value,
                                                         i);
       }

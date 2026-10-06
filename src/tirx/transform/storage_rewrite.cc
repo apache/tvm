@@ -346,9 +346,7 @@ class InplaceOpVerifier : public StmtExprVisitor {
     dst_ = dst;
     src_ = src;
     result_ = true;
-    if (stmt->IsInstance<AttrStmtNode>()) {
-      Visit_(static_cast<const AttrStmtNode*>(stmt));
-    } else if (stmt->IsInstance<ForNode>()) {
+    if (stmt->IsInstance<ForNode>()) {
       Visit_(static_cast<const ForNode*>(stmt));
     } else if (stmt->IsInstance<IfThenElseNode>()) {
       Visit_(static_cast<const IfThenElseNode*>(stmt));
@@ -679,23 +677,6 @@ class StoragePlanRewriter : public StmtExprMutator {
       region.CopyOnWrite()->body = MakeAttach(it->second, region->body);
     }
     return region;
-  }
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (attr::IsPragmaKey(op->attr_key)) {
-      // remake all the allocation at the attach scope.
-      if (attach_map_.count(op)) {
-        auto& svec = attach_map_[op];
-        Stmt stmt =
-            StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-        op = stmt.as<AttrStmtNode>();
-        return AttrStmt(op->node, op->attr_key, op->value, MakeAttach(svec, op->body));
-      } else {
-        return StmtExprMutator::Mutate_(op, inplace_mode);
-      }
-    } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
-    }
   }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
@@ -1176,12 +1157,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         }
       }
       // enter/exit new scope
-      if (s.stmt->IsInstance<AttrStmtNode>()) {
-        const auto* op = static_cast<const AttrStmtNode*>(s.stmt);
-        if (attr::IsPragmaKey(op->attr_key)) {
-          PlanNewScope(op);
-        }
-      } else if (s.stmt->IsInstance<RegionStmtNode>()) {
+      if (s.stmt->IsInstance<RegionStmtNode>()) {
         PlanNewScope(s.stmt);
       } else if (s.stmt->IsInstance<ForNode>()) {
         const auto* op = static_cast<const ForNode*>(s.stmt);
@@ -1679,7 +1655,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // vectorized.
     if (indices.size()) {
       const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
-      if (ramp_index && is_one(ramp_index->stride)) {
+      if (ramp_index && IsOne(ramp_index->stride)) {
         if (ramp_index->lanes->IsInstance<IntImmNode>()) {
           int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
           sym::ModularSet me = analyzer_->modular_set(ramp_index->base);
@@ -1861,7 +1837,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       return {node, shuffle_index};
     }
 
-    if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
+    if (ramp_index && IsOne(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
       int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
@@ -1906,7 +1882,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       return {node, shuffle_index};
     }
 
-    if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
+    if (ramp_index && IsOne(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
       int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
@@ -2148,20 +2124,6 @@ class VectorTypeRewriter : public StmtExprMutator {
      public:
       using StmtExprMutator::Mutate;
       using StmtExprMutator::Mutate_;
-
-      UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-        Stmt stmt =
-            StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-        op = stmt.as<AttrStmtNode>();
-        TVM_FFI_ICHECK(op != nullptr);
-        if (auto var = op->node.as<Var>()) {
-          auto mapped = VarRemapGet(var.value());
-          if (mapped != nullptr) {
-            return AttrStmt(mapped.as_or_throw<Var>(), op->attr_key, op->value, op->body, op->span);
-          }
-        }
-        return stmt;
-      }
 
       UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
         auto result = StmtExprMutator::Mutate_(op, inplace_mode);

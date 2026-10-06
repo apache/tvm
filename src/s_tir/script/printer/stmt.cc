@@ -53,14 +53,13 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
         default:
           TVM_FFI_THROW(TypeError) << "printer unsupported SBlock iter var kind";
       }
-      ExprDoc domain =
-          prim::is_zero(iter->dom->min) && iter->dom->min.ty() == iter->dom->extent.ty()
-              ? d->Translate(iter->dom->extent).value()
-              : NamespaceDoc("ir")
-                    ->Attr("Range")
-                    ->Attr("from_min_extent")
-                    ->Call({d->Translate(iter->dom->min).value(),
-                            d->Translate(iter->dom->extent).value()});
+      ExprDoc domain = prim::IsZero(iter->dom->min) && iter->dom->min.ty() == iter->dom->extent.ty()
+                           ? d->Translate(iter->dom->extent).value()
+                           : NamespaceDoc("ir")
+                                 ->Attr("Range")
+                                 ->Attr("from_min_extent")
+                                 ->Call({d->Translate(iter->dom->min).value(),
+                                         d->Translate(iter->dom->extent).value()});
       ffi::Array<ExprDoc> args = {domain};
       if (realize) args.push_back(d->Translate(realize->iter_values[i]).value());
       IdDoc lhs = VarDoc(d, iter->var);
@@ -76,7 +75,7 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
                     std::nullopt));
     }
     for (size_t i = 0; i < axes.size(); ++i) d->Emit(axes[i], block->iter_vars[i]);
-    if (realize && !tvm::prim::is_one(realize->predicate)) {
+    if (realize && !tvm::prim::IsOne(realize->predicate)) {
       d->Emit(ExprStmtDoc(NamespaceDoc("s_tir")->Attr("where")->Call(
                   {d->Translate(realize->predicate).value()})),
               realize->predicate);

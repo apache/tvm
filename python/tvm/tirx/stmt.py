@@ -277,7 +277,11 @@ class BufferStore(Stmt):
 class RegionStmt(Stmt):
     """An operation with enclosing-scope operands and one lexical body.
 
-    ``body_params`` define variables visible only within ``body``. ``result_vars``
+    ``body_params`` define variables visible only within ``body``. Their count
+    and types must match the operation's required ``FRegionGetBodyParams`` hook.
+    Zero-parameter regions register an empty-return hook; operations without a
+    hook do not support region construction. Explicit parameter
+    identities and their references in ``body`` are preserved. ``result_vars``
     define variables after the region in the enclosing sequence. Attributes are
     evaluated outside the body-parameter scope. Direct construction and JSON
     serialization support result variables; structured script syntax currently
@@ -315,47 +319,6 @@ class RegionStmt(Stmt):
             body,
             [] if result_vars is None else result_vars,
             span,
-        )
-
-
-@tvm_ffi.register_object("tirx.AttrStmt")
-class AttrStmt(Stmt):
-    """AttrStmt node.
-
-    Parameters
-    ----------
-    node : Any
-        The node to annotate the attribute
-
-    attr_key : str
-        Attribute type key.
-
-    value : Expr
-        The value of the attribute
-
-    body : Stmt
-        The body statement.
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    node: Any
-    attr_key: str
-    value: Expr
-    body: Stmt
-    span: Span | None
-
-    def __init__(
-        self, node: Any, attr_key: str, value: Expr, body: Stmt, span: Span | None = None
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.AttrStmt,
-            node,
-            attr_key,
-            value,
-            body,
-            span,  # type: ignore
         )
 
 

@@ -19,9 +19,9 @@
 
 /*!
  * \file tvm/tirx/builtin.h
- * \brief TIR builtin intrinsics.
+ * \brief TIRx builtin region and call operations.
  *
- * TIR builtin intrinsics are stored as tvm:Op.
+ * TIRx builtin operations are stored as tvm::Op.
  * They are processed in the same way as we process Ops.
  *
  * It is not necessary to create a function for every Op,
@@ -39,23 +39,54 @@
 namespace tvm {
 namespace tirx {
 
-/*! \brief Collection of builtin intrinsics as ops */
+/*! \brief Collection of builtin region and call operations as Ops. */
 namespace builtin {
 /*!
- * \brief Thread launch region: args are a StringImm tag and integer extent.
+ * \name Region operations
+ * \brief Operations used by RegionStmt to enclose a lexical body.
+ *
+ * Every region operation registers FRegionGetBodyParams, returning fresh typed
+ * body parameters or an empty array for no parameters. Attribute presence alone
+ * identifies region support; classification does not invoke the hook. Operands
+ * and attributes are evaluated outside the body-parameter scope.
+ * \{
+ */
+/*!
+ * \brief Thread launch region: operands are a nonempty StringImm tag and a
+ * scalar signed or unsigned integer extent wider than one bit.
  * The sole body parameter is a fresh thread-index PrimVar matching the extent type.
  * Tags starting with vthread denote virtual threads. There are no attrs or results.
  */
 TVM_DLL const Op& launch_thread();
 
-/*! \brief Mark a user-facing device entry region. */
+/*!
+ * \brief Mark a user-facing device entry containing device scope definitions.
+ * Takes no operands, body parameters, attributes or results.
+ */
 TVM_DLL const Op& device_entry();
-/*! \brief Supply the device type and ID for lowering the region body. */
+/*!
+ * \brief Supply lexical device context for allocation and packed-call lowering.
+ * Operands are integer device type and device ID; there are no body parameters,
+ * attributes or results. The region does not change the active runtime device.
+ */
 TVM_DLL const Op& device_context();
-/*! \brief Outline the region body as a named CPU compute helper. */
+/*!
+ * \brief Outline the body as a CPU compute helper named by a StringImm operand.
+ * There are no body parameters, attributes or results.
+ */
 TVM_DLL const Op& compute_scope();
-/*! \brief Launch a CPU worker team around the region body. */
+/*!
+ * \brief Launch a CPU worker team around parallel loops and team barriers.
+ * Takes no operands, body parameters, attributes or results.
+ */
 TVM_DLL const Op& parallel_launch();
+/*! \} */
+
+/*!
+ * \name Call operations
+ * \brief Operations invoked through Call with explicit operands and result types.
+ * \{
+ */
 /*!
  * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
  *
@@ -519,8 +550,10 @@ TVM_DLL const Op& tvm_warp_activemask();
  * and thread_axes may each be a scalar or an explicit Tuple of fields.
  * Each value, identity, pair of parameters and result have
  * the same primitive type. Inactive inputs are replaced by their identities.
- * Destinations are N tensor loads (optionally cast for boolean storage), and
- * thread_axes are reduction thread variables or zero for simplified unit axes.
+ * Destinations are N tensor loads at index zero of one-element result temporaries
+ * (optionally cast for boolean storage). Each result temporary must be accessed
+ * only at index zero. Thread axes are reduction thread variables or zero for
+ * simplified unit axes.
  * Other thread indices remain fixed. The operation writes the reduced values
  * to the destination tensors and returns void.
  */
@@ -717,6 +750,7 @@ enum TVMStructFieldKind : int {
  * \brief Print the content of a buffer during runtime.
  */
 TVM_DLL const Op& print_buffer();
+/*! \} */
 }  // namespace builtin
 }  // namespace tirx
 }  // namespace tvm

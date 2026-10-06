@@ -80,9 +80,6 @@ class StmtFunctor<R(const Stmt&, Args...)> {
   virtual R Dispatch_(const RegionStmtNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
-  virtual R Dispatch_(const AttrStmtNode* node, Args... args) {
-    return DispatchDefault_(node, std::forward<Args>(args)...);
-  }
   virtual R Dispatch_(const IfThenElseNode* node, Args... args) {
     return DispatchDefault_(node, std::forward<Args>(args)...);
   }
@@ -137,7 +134,6 @@ class StmtFunctor<R(const Stmt&, Args...)> {
           return self->DispatchDefault_(node.get(), std::forward<Args>(args)...);
         });
     SetDispatch<TSelf, BindNode>(vtable);
-    SetDispatch<TSelf, AttrStmtNode>(vtable);
     SetDispatch<TSelf, RegionStmtNode>(vtable);
     SetDispatch<TSelf, IfThenElseNode>(vtable);
     SetDispatch<TSelf, ForNode>(vtable);
@@ -195,7 +191,6 @@ class TVM_DLL StmtExprVisitor : public tvm::ExprVisitor {
   using tvm::ExprVisitor::Visit_;
 
   virtual ffi::Optional<VisitInterrupt> Visit_(const BindNode* op);
-  virtual ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op);
   virtual ffi::Optional<VisitInterrupt> Visit_(const ForNode* op);
@@ -264,7 +259,6 @@ class TVM_DLL StmtExprMutator : public tvm::ExprMutator {
   }
 
   virtual UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode);
-  virtual UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode);
   virtual UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode);

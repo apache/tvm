@@ -456,24 +456,6 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
                       op->span);
   }
 
-  // Attribute
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    auto value_result = this->Mutate(op->value, inplace_mode);
-    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
-    Expr value = std::move(value_result).ValueOrUnchanged(op->value);
-    if (visit_touched_var_ && !vt_loop_injected_) {
-      return InjectVTLoop(ffi::GetRef<Stmt>(op), true);
-    } else {
-      auto body_result = this->Mutate(op->body, inplace_mode);
-      bool body_unchanged = body_result.UnchangedOrSameAs(op->body);
-      Stmt body = std::move(body_result).ValueOrUnchanged(op->body);
-      if (value_unchanged && body_unchanged) {
-        return ffi::Unchanged();
-      } else {
-        return AttrStmt(op->node, op->attr_key, value, body);
-      }
-    }
-  }
   // Bind
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
@@ -498,7 +480,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   }
   // For
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    TVM_FFI_ICHECK(is_zero(op->min));
+    TVM_FFI_ICHECK(IsZero(op->min));
     auto extent_result = this->Mutate(op->extent, inplace_mode);
     bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
     PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);

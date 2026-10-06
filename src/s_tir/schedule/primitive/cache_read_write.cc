@@ -2015,7 +2015,7 @@ StmtSRef CacheRead(ScheduleState self, const StmtSRef& block_sref, int read_buff
       PrimExpr nested_pred = read_region_opt ? CollectNestedBlockPredicates(
                                                    block->body, read_buffer, BufferIndexType::kRead)
                                              : IntImm::Bool(true);
-      if (read_region_opt && !is_one(nested_pred) && block_sref->parent != nullptr) {
+      if (read_region_opt && !IsOne(nested_pred) && block_sref->parent != nullptr) {
         StmtSRef parent_sref = ffi::GetRef<StmtSRef>(block_sref->parent);
         return RelaxBufferRegion(self, read_region_opt.value(), block_sref, parent_sref, scope_sref,
                                  nested_pred);

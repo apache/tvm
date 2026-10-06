@@ -27,6 +27,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/tirx/op_attr_types.h>
 
 namespace tvm {
 namespace s_tir {
@@ -54,9 +55,14 @@ const Op& manual_sync() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("s_tir.async_copy_scope", "Mark eligible copies for asynchronous lowering.").signature();
+  OpDef("s_tir.async_copy_scope", "Mark eligible copies for asynchronous lowering.")
+      .signature()
+      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>());
   OpDef("s_tir.manual_sync", "Use explicitly authored synchronization within the body.")
-      .signature();
+      .signature()
+      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>());
   OpDef("s_tir.async_commit", "Commit asynchronous copies to a queue.")
       .signature(sig::arg<IntImm>("queue_id"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())

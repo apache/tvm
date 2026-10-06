@@ -890,7 +890,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data,
-                           const ffi::Variant<Expr, ffi::Array<PrimExpr>>& shape) {
+                           const ffi::Variant<ffi::Array<PrimExpr>, Expr>& shape) {
   const ffi::ArrayObj* array;
   // Treat shape expressions as constant arrays to handle special values.
   if (const auto* e = shape.as<ShapeExprNode>()) {
@@ -990,7 +990,8 @@ Expr ConvertNewShapeToExpr(const Expr& data,
   return ShapeExpr(array_ref);
 }
 
-Expr reshape(Expr x, ffi::Variant<Expr, ffi::Array<PrimExpr>> shape) {
+// Prefer shape arrays to the generic Expr conversion of sequences to tuples.
+Expr reshape(Expr x, ffi::Variant<ffi::Array<PrimExpr>, Expr> shape) {
   Expr shape_in_expr = ConvertNewShapeToExpr(x, shape);
   static const Op op = Op::Get("relax.reshape");
   return Call::Unchecked(Type::Missing(), op, {std::move(x), std::move(shape_in_expr)}, Attrs(),
@@ -1329,7 +1330,7 @@ InferLayoutOutput InferLayoutSqueeze(
   } else {
     axis.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {
-      if (tvm::prim::is_one(shape->values[i])) {
+      if (tvm::prim::IsOne(shape->values[i])) {
         axis.push_back(i);
       }
     }

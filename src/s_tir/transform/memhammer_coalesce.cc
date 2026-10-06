@@ -175,7 +175,7 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
   sym::Analyzer analyzer;
   for (int i = 0; i < static_cast<int>(write_region->region.size()); i++) {
     PrimExpr pattern = analyzer->Simplify(write_index[i] - write_region->region[i]->min);
-    if (!is_zero(pattern)) {
+    if (!IsZero(pattern)) {
       result.push_back(pattern);
     }
   }
@@ -209,7 +209,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   ffi::Map<Var, PrimExpr> substitute_map;
   // Step 3.1 construct target buffer indices
   for (int i = 0, j = 0; i < static_cast<int>(write_region->region.size()); i++) {
-    if (is_one(write_region->region[i]->extent)) {
+    if (IsOne(write_region->region[i]->extent)) {
       write_index.push_back(write_region->region[i]->min);
     } else {
       PrimVar var = loop_vars[j].as_or_throw<PrimVar>().CopyWithSuffix("_inverse");
@@ -225,7 +225,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   };
   // Step 3.2 construct source buffer indices
   for (int i = 0, j = 0; i < static_cast<int>(read_region->region.size()); i++) {
-    if (is_one(read_region->region[i]->extent)) {
+    if (IsOne(read_region->region[i]->extent)) {
       read_index.push_back(read_region->region[i]->min);
     } else {
       PrimExpr inverse = inverse_mapping[loop_vars[j++].as_or_throw<Var>()];

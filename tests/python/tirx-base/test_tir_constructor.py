@@ -292,10 +292,6 @@ def test_stmt_constructor():
     assert x.var == v
     assert x.value.value == 1
 
-    x = tvm.tirx.AttrStmt(v == 1, "xx", 1, tvm.tirx.Evaluate(1))
-    assert isinstance(x, tvm.tirx.AttrStmt)
-    assert x.value.value == 1
-
     x = tvm.tirx.AssertStmt(
         tvm.tirx.const(1, "bool"),
         tvm.ir.StringImm("RuntimeError"),
@@ -338,12 +334,6 @@ def test_stmt_constructor():
     )
     assert _is_buffer_binding(x, "tirx.alloc_tensor")
     assert x.var == buf
-
-    x = tvm.tirx.AttrStmt(buffer_var, "xyz", 1, nop)
-    assert isinstance(x, tvm.tirx.AttrStmt)
-    assert x.node == buffer_var
-    assert x.attr_key == "xyz"
-    assert x.body == nop
 
     x = tvm.tirx.IfThenElse(tvm.tirx.const(1, "bool"), tvm.tirx.Evaluate(11), nop)
     assert isinstance(x, tvm.tirx.IfThenElse)

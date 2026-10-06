@@ -104,7 +104,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
     buffer_aliases_.Set(op->var, op->var);
     // In flat IR, alloc_remap_ may not yet be populated when this AllocTensor is visited
-    // (the remap is set up by MakeAllreduce which runs during AttrStmt/Evaluate visit
+    // (the remap is set up by MakeAllreduce which runs during Evaluate visit
     // that appears later in the sequence). We record the original data pointer and
     // attempt the remap; if it's not ready, the post-processing pass will handle it.
     const VarNode* orig_data_ptr = op->var.get();
@@ -164,7 +164,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         GetAllocationKey(op->source.as_or_throw<tvm::tirx::TensorVar>().get());
     if (auto it = load_remap_.find(allocation); it != load_remap_.end()) {
       for (const auto& index : op->indices) {
-        TVM_FFI_ICHECK(is_zero(index));
+        TVM_FFI_ICHECK(IsZero(index));
       }
       return it->second;
     }
@@ -190,7 +190,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       const auto* replacement = it->second.template as<TensorLoadNode>();
       TVM_FFI_ICHECK(replacement);
       for (const auto& index : store->indices) {
-        TVM_FFI_ICHECK(is_zero(index));
+        TVM_FFI_ICHECK(IsZero(index));
       }
       auto* writer = store.CopyOnWrite();
       writer->buffer = replacement->source.template as_or_throw<tvm::tirx::TensorVar>();
@@ -239,7 +239,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     PrimExpr cond = call->args[3].as_or_throw<PrimExpr>();
     for (size_t idx = 0; idx < size; ++idx) {
       values.push_back(inputs[idx].as_or_throw<PrimExpr>());
-      if (!is_one(cond)) {
+      if (!IsOne(cond)) {
         values[idx] = Select(cond, values[idx], inits[idx].as_or_throw<PrimExpr>());
       }
       dtypes.push_back(values[idx].ty());
@@ -788,7 +788,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   }
   // The local buffer index.
   PrimExpr BufIndex(PrimExpr reduce_index, PrimExpr group_index, int reduce_extent) {
-    if (!is_zero(group_index)) {
+    if (!IsZero(group_index)) {
       return analyzer_->Simplify(group_index * reduce_extent + reduce_index);
     } else {
       return reduce_index;

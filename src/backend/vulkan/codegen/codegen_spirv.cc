@@ -764,7 +764,7 @@ void CodeGenSPIRV::Dispatch_(const BufferStoreNode* op) {
 void CodeGenSPIRV::Dispatch_(const ForNode* op) {
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
+  PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
   spirv::Value end_value = MakeValue(end);
 
   // loop step
@@ -1004,12 +1004,6 @@ void CodeGenSPIRV::Dispatch_(const RegionStmtNode* op) {
   } else {
     TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
   }
-}
-
-void CodeGenSPIRV::Dispatch_(const AttrStmtNode* op) {
-  TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
-      << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
-  this->Dispatch(op->body);
 }
 
 void CodeGenSPIRV::Dispatch_(const AssertStmtNode* op) {

@@ -53,11 +53,6 @@ Stmt MergeNest(const std::vector<Stmt>& nest, Stmt body) {
     } else if (const auto* bind = s.as<BindNode>()) {
       // Bind has no body -- prepend it before the accumulated body in a SeqStmt.
       body = SeqStmt::Flatten(ffi::GetRef<Stmt>(bind), body);
-    } else if (const auto* attr = s.as<AttrStmtNode>()) {
-      auto n = ffi::make_object<AttrStmtNode>(*attr);
-      TVM_FFI_ICHECK(is_no_op(n->body));
-      n->body = body;
-      body = Stmt(n);
     } else if (const auto* ite = s.as<IfThenElseNode>()) {
       auto n = ffi::make_object<IfThenElseNode>(*ite);
       TVM_FFI_ICHECK(is_no_op(n->then_case));
@@ -149,7 +144,6 @@ PrimFunc IRConvertSSA::VisitPrimFunc(PrimFunc func) {
 
   // Pop function-scope remaps in reverse order
   PopAllRemapsInCurrentScope();
-  function_scope_var_remap_.clear();
   return func;
 }
 
@@ -197,9 +191,6 @@ Var IRConvertSSA::GetRemappedVar(Var var) {
   if (auto it = scoped_var_remap_.find(var.get());
       it != scoped_var_remap_.end() && it->second.size()) {
     return it->second.back();
-  } else if (auto it = function_scope_var_remap_.find(var.get());
-             it != function_scope_var_remap_.end()) {
-    return it->second;
   } else {
     return var;
   }
@@ -279,24 +270,6 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const RegionStmtNode* op, InplaceMode in
   for (const Var& var : op->result_vars) results.push_back(DefineVar(var));
   return RegionStmt(op->op, std::move(args), std::move(params), std::move(attrs), std::move(body),
                     std::move(results), op->span);
-}
-
-UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  if (const VarNode* v = op->node.as<VarNode>()) {
-    Stmt stmt = scope_.WithNewScope([&]() -> Stmt {
-      return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    });
-    op = stmt.as<AttrStmtNode>();
-    if (scoped_var_remap_.count(v) && scoped_var_remap_[v].size() != 0) {
-      return AttrStmt(scoped_var_remap_[v].back(), op->attr_key, op->value, op->body);
-    } else {
-      return stmt;
-    }
-  } else {
-    return scope_.WithNewScope([&]() -> Stmt {
-      return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    });
-  }
 }
 
 Var IRConvertSSA::MakeNewVar(const Var& old_var) {

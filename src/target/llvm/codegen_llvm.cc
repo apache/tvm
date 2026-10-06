@@ -1387,7 +1387,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
                         PrimType(load->ty.as_or_throw<PrimType>()->dtype));
     return buffer_ptr.addr;
   } else if (op->op.same_as(tirx::builtin::reinterpret()) && args[0].as<PrimExpr>() &&
-             is_zero(args[0].as<PrimExpr>().value())) {
+             IsZero(args[0].as<PrimExpr>().value())) {
     llvm::Type* target = GetLLVMType(ret_type);
     TVM_FFI_ICHECK(target->isPointerTy())
         << "A zero reinterpret shortcut requires pointer result type, but got " << ret_type;
@@ -1761,7 +1761,7 @@ void CodeGenLLVM::BufferAccessHelper(
   // If the buffer index is a contiguous ramp node, we only need to
   // access the first element, then cast to the value type.
   if (const prim::RampNode* ramp_index = last_index.as<prim::RampNode>()) {
-    if (is_one(ramp_index->stride)) {
+    if (IsOne(ramp_index->stride)) {
       last_index = ramp_index->base;
       last_index_lanes = GetLanesOrVScaleFactor(PrimType(last_index.ty()->dtype));
     }
@@ -2104,7 +2104,7 @@ void CodeGenLLVM::Dispatch_(const ForNode* op) {
     TVM_FFI_ICHECK(op->kind == ForKind::kSerial);
   }
   PrimExpr step = op->step.value_or(IntImm(op->extent.ty(), 1));
-  PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
+  PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
   llvm::Value* begin_value = MakeValue(op->min);
   llvm::Value* end_value = MakeValue(end);
   CreateSerialFor(begin_value, end_value, MakeValue(step), op->loop_var, op->body);
@@ -2263,13 +2263,6 @@ void CodeGenLLVM::Dispatch_(const RegionStmtNode* op) {
   } else {
     TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
   }
-}
-
-void CodeGenLLVM::Dispatch_(const AttrStmtNode* op) {
-  TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
-      << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
-  EmitDebugLocation(op);
-  this->Dispatch(op->body);
 }
 
 void CodeGenLLVM::Dispatch_(const AssertStmtNode* op) {

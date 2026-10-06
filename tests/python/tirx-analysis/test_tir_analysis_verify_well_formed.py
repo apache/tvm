@@ -136,7 +136,7 @@ def test_error_for_cross_function_reuse():
         tvm.tirx.analysis.verify_well_formed(mod)
 
 
-def test_reuse_of_env_thread_in_function_is_well_formed():
+def test_sibling_launch_bindings_are_well_formed():
     """Sibling launch regions each introduce a fresh lexical binding."""
 
     @T.prim_func
@@ -150,24 +150,7 @@ def test_reuse_of_env_thread_in_function_is_well_formed():
     tvm.tirx.analysis.verify_well_formed(func)
 
 
-def test_reuse_of_env_thread_in_function_is_mandatory():
-    """Separate launch bindings for the same hardware axis are well formed.
-
-    The former shared-identity requirement is retired; tag equality does not
-    make sibling region parameters the same definition."""
-
-    @T.prim_func
-    def func(A: T.Tensor([256], "float32")):
-        with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
-            A[threadIdx_x] = A[threadIdx_x] + 1.0
-
-        with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
-            A[threadIdx_x] = A[threadIdx_x] + 2.0
-
-    tvm.tirx.analysis.verify_well_formed(func)
-
-
-def test_reuse_of_env_thread_across_functions_is_ill_formed():
+def test_reuse_of_region_parameter_across_functions_is_ill_formed():
     """An explicit region parameter may not be defined across multiple functions."""
 
     threadIdx_x = T.dynamic("threadIdx_x", "int32")

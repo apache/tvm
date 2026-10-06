@@ -515,6 +515,8 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
     explicit ComputeScopeStates(CodeGenCPU* parent) : parent_(parent) {}
 
     void EnterWithScope() {
+      // Inherit caller alignment facts without exporting helper-local assumptions.
+      alloc_storage_info_ = parent_->alloc_storage_info_;
       std::swap(function_, parent_->function_);
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
@@ -523,6 +525,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
     }
 
     void ExitWithScope() {
+      std::swap(alloc_storage_info_, parent_->alloc_storage_info_);
       std::swap(function_, parent_->function_);
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
@@ -533,6 +536,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
     llvm::Function* function_{nullptr};
     llvm::DISubprogram* di_subprogram_{nullptr};
     std::unordered_map<const VarNode*, llvm::Value*> var_map_;
+    std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
     std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
     sym::Analyzer analyzer_{sym::Analyzer()};
     CodeGenCPU* parent_;
@@ -580,8 +584,8 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
       // always not inline compute function to make the code structure clean
       fcompute->addFnAttr(llvm::Attribute::NoInline);
     }
-    // Add alignment attribute if needed.
-    auto f = alloc_storage_info_.find(var.get());
+    // Alignment facts are shared by aliases of the same physical pointer.
+    auto f = alloc_storage_info_.find(GetBufferPhysicalRoot(var.get()));
     if (f != alloc_storage_info_.end()) {
       unsigned align = f->second.alignment;
       if (align > 1) {
@@ -1141,33 +1145,12 @@ void CodeGenCPU::Dispatch_(const RegionStmtNode* op) {
   }
 }
 
-void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
-  EmitDebugLocation(op);
-  if (tirx::attr::IsPragmaKey(op->attr_key)) {
-    if (op->attr_key == "pragma_parallel_stride_pattern") {
-      TVM_FFI_THROW(ValueError)
-          << "pragma_parallel_stride_pattern is retired; annotate every affected parallel For "
-          << "with parallel_stride_pattern=True, including later loops in the same launch "
-          << "outside the former attribute body";
-    } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
-      TVM_FFI_THROW(ValueError)
-          << "pragma_parallel_barrier_when_finish is retired; place cpu_parallel_barrier() "
-          << "after the former attribute body inside the parallel launch";
-    } else {
-      LOG(WARNING) << "Unknown pragma " << op->attr_key;
-      this->Dispatch(op->body);
-    }
-  } else {
-    CodeGenLLVM::Dispatch_(op);
-  }
-}
-
 void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::Dispatch_(op);
   } else if (op->kind == ForKind::kParallel) {
-    TVM_FFI_ICHECK(is_zero(op->min))
+    TVM_FFI_ICHECK(IsZero(op->min))
         << "Parallel launch require canonical loop with zero start index";
     TVM_FFI_ICHECK(op->HasTrivialStep())
         << "Parallel launch require canonical loop with trivial loop step";
@@ -1186,7 +1169,7 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
       TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;
-      PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
+      PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
       bool stride_pattern = false;
       if (auto it = op->annotations.find("parallel_stride_pattern"); it != op->annotations.end()) {
         ffi::Any annotation = (*it).second;
@@ -1194,7 +1177,7 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
           stride_pattern = value.value();
         } else if (auto value = annotation.try_cast<IntImm>();
                    value && value.value().ty() == PrimType::Bool()) {
-          stride_pattern = is_one(value.value());
+          stride_pattern = IsOne(value.value());
         } else {
           TVM_FFI_THROW(ValueError) << "parallel_stride_pattern must be a constant boolean";
         }

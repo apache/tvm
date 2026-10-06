@@ -25,6 +25,7 @@
 #include <tvm/tirx/tile_primitive.h>
 
 #include <algorithm>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <utility>
@@ -78,7 +79,6 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
   }
   ffi::Array<Doc> args;
   size_t n = stmt->args.size();
-  while (n && stmt->args[n - 1].type_index() == ffi::TypeIndex::kTVMFFINone) --n;
   if (n == 2 &&
       (stmt->op->name == "tirx.tile.exp2" || stmt->op->name == "tirx.tile.sqrt" ||
        stmt->op->name == "tirx.tile.reciprocal") &&
@@ -115,7 +115,7 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
       args.push_back(AnyValue(d, stmt->args[i]));
     }
   }
-  auto dict = [&](const auto& source) -> ffi::Optional<DictDoc> {
+  auto dict = [&](const auto& source, bool config = false) -> ffi::Optional<DictDoc> {
     if (source.empty()) return std::nullopt;
     std::vector<std::pair<ffi::String, ffi::Any>> sorted;
     for (const auto& [key, value] : source) sorted.emplace_back(key, value);
@@ -125,6 +125,31 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
     ffi::Array<ExprDoc> values;
     for (const auto& [key, value] : sorted) {
       keys.push_back(LiteralDoc::Str(key, std::nullopt));
+      if (config) {
+        if (const auto* string = value.template as<StringImmNode>()) {
+          values.push_back(LiteralDoc::Str(string->value, std::nullopt));
+          continue;
+        }
+        if (const auto* integer = value.template as<IntImmNode>()) {
+          PrimType type = integer->ty.template as_or_throw<PrimType>();
+          if (type == PrimType::Bool()) {
+            values.push_back(LiteralDoc::Boolean(integer->value != 0, std::nullopt));
+            continue;
+          }
+          int bits = integer->value >= INT32_MIN && integer->value <= INT32_MAX ? 32 : 64;
+          if (type == PrimType::Int(bits)) {
+            values.push_back(LiteralDoc::Int(ffi::GetRef<IntImm>(integer), std::nullopt));
+            continue;
+          }
+        }
+        if (const auto* floating = value.template as<FloatImmNode>()) {
+          if (floating->ty.template as_or_throw<PrimType>() == PrimType::Float(32) &&
+              std::isfinite(floating->value)) {
+            values.push_back(LiteralDoc::Float(floating->value, std::nullopt));
+            continue;
+          }
+        }
+      }
       values.push_back(AnyValue(d, value));
     }
     return DictDoc(keys, values);
@@ -133,8 +158,21 @@ ffi::Optional<ExprDoc> TilePrimitiveCallDocTranslate(DocTranslatorObj* d, ffi::A
   if (stmt->dispatch.has_value()) {
     dispatch = LiteralDoc::Str(stmt->dispatch.value(), std::nullopt);
   }
+  auto keywords = dict(stmt->config, true);
+  if (name == "sqrt_with_scale_bias" || name == "exp_with_scale_bias" ||
+      name == "exp2_with_scale_bias" || name == "log2_with_scale_bias") {
+    ffi::Array<ExprDoc> keys{LiteralDoc::Str("scale", std::nullopt),
+                             LiteralDoc::Str("bias", std::nullopt)};
+    ffi::Array<ExprDoc> values{args[2].as_or_throw<ExprDoc>(), args[3].as_or_throw<ExprDoc>()};
+    if (keywords.has_value()) {
+      for (const auto& key : keywords.value()->keys) keys.push_back(key);
+      for (const auto& value : keywords.value()->values) values.push_back(value);
+    }
+    keywords = DictDoc(keys, values);
+    args = {args[0], args[1]};
+  }
   d->Emit(OpCallDoc(NamespaceDoc("tirx")->Attr(scope)->Attr(name), args, dict(stmt->workspace),
-                    dict(stmt->config), dispatch),
+                    keywords, dispatch),
           ffi::GetRef<ffi::ObjectRef>(stmt));
   return std::nullopt;
 }
@@ -317,7 +355,7 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
       continue;
     auto scalar = docs.back().as<AssignDoc>();
     if (!IsScalarBuffer(d, alloc->var) || !scalar.has_value() ||
-        !std::all_of(store->indices.begin(), store->indices.end(), tvm::prim::is_zero))
+        !std::all_of(store->indices.begin(), store->indices.end(), tvm::prim::IsZero))
       continue;
     bool reads_allocation = false;
     ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
@@ -424,65 +462,6 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
 TVM_FFI_STATIC_INIT_BLOCK() {
   ffi::reflection::TypeAttrDef<tirx::RegionStmtNode>().attr(
       kDocTranslate, FDocTranslate::FromNative<&RegionStmtDocTranslate>());
-}
-
-ffi::Optional<ExprDoc> AttrStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object* destination) {
-  const auto* stmt =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::AttrStmtNode>(input);
-  TVM_FFI_CHECK(destination == nullptr, TypeError)
-      << "printer statement-only node cannot fulfill a destination";
-  ffi::Optional<ExprDoc> lhs = std::nullopt;
-  ExprDoc rhs(ffi::UnsafeInit{});
-  tirx::Stmt body = stmt->body;
-  TVM_FFI_CHECK(stmt->attr_key != "thread_extent" && stmt->attr_key != "virtual_thread", ValueError)
-      << "Thread launch attributes are no longer supported; use RegionStmt launch_thread";
-  if (stmt->attr_key == "tirx_hint") {
-    if (auto attrs = stmt->node.as<ffi::Map<ffi::String, ffi::Any>>()) {
-      ffi::Array<ExprDoc> args;
-      ffi::Array<ffi::String> keys;
-      ffi::Array<ExprDoc> values;
-      for (const auto& [key, value] : attrs.value()) {
-        if (key == "message")
-          args.push_back(AnyValue(d, value));
-        else {
-          keys.push_back(key);
-          values.push_back(AnyValue(d, value));
-        }
-      }
-      rhs = NamespaceDoc("tirx")->Attr("hint")->Call(args, keys, values);
-    }
-  }
-  if (!rhs.defined()) {
-    if (auto zero = stmt->node.as<int64_t>(); zero.has_value() && zero.value() == 0) {
-      ffi::Array<ExprDoc> keys;
-      ffi::Array<ExprDoc> values;
-      auto current = ffi::GetRef<tirx::AttrStmt>(stmt);
-      while (true) {
-        keys.push_back(LiteralDoc::Str(current->attr_key, std::nullopt));
-        values.push_back(d->Translate(current->value).value());
-        auto next = current->body.as<tirx::AttrStmt>();
-        if (!next.has_value()) break;
-        auto next_zero = next.value()->node.as<int64_t>();
-        if (!next_zero.has_value() || next_zero.value() != 0) break;
-        current = next.value();
-      }
-      body = current->body;
-      rhs = NamespaceDoc("tirx")->Attr("attr")->Call({DictDoc(keys, values)});
-    } else {
-      ExprDoc node = AnyValue(d, stmt->node);
-      rhs = NamespaceDoc("tirx")->Attr("attr")->Call(
-          {node, LiteralDoc::Str(stmt->attr_key, std::nullopt), d->Translate(stmt->value).value()});
-    }
-  }
-  d->Emit(ScopeDoc(lhs, rhs, Body(body, d), /*allow_concise_scoping=*/true),
-          ffi::GetRef<ffi::ObjectRef>(stmt));
-  return std::nullopt;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::AttrStmtNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&AttrStmtDocTranslate>());
 }
 
 }  // namespace

@@ -139,7 +139,7 @@ IntGroupBounds IntGroupBounds::operator+(const Range& r) {
   ffi::Array<PrimExpr> lower;
   ffi::Array<PrimExpr> upper;
   const PrimExpr& coef = this->coef;
-  if (tvm::prim::is_one(r->extent)) {
+  if (tvm::prim::IsOne(r->extent)) {
     equal.push_back(analyzer->Simplify(r->min * coef));
   } else {
     lower.push_back(analyzer->Simplify(r->min * coef));
@@ -172,7 +172,7 @@ Range IntGroupBounds::FindBestRange(const ffi::Map<Var, Range>& vranges_addl) co
     uppers.push_back(expr);
   }
 
-  if (lowers.size() == 1 && uppers.size() == 1 && tvm::prim::is_one(coef)) {
+  if (lowers.size() == 1 && uppers.size() == 1 && tvm::prim::IsOne(coef)) {
     return Range(analyzer->Simplify(lowers[0]), analyzer->Simplify(uppers[0] + 1));
   }
 
@@ -519,11 +519,11 @@ PartialSolvedInequalities SolveLinearInequalities(const IntConstraints& system_t
   ffi::Array<PrimExpr> other_conditions;
   for (const PrimExpr& e : current_ineq_set_to_solve) {
     PrimExpr e_simp = analyzer->Simplify(e, kSimplifyRewriteCanonicalRewrite);
-    if (is_const_int(e_simp, 0)) {
+    if (IsConstInt(e_simp, 0)) {
       // contradiction detected
       other_conditions = {IntImm::Bool(false)};
       break;
-    } else if (is_const_int(e_simp, 1)) {
+    } else if (IsConstInt(e_simp, 1)) {
       continue;
     } else {
       other_conditions.push_back(e_simp);
@@ -567,7 +567,7 @@ IntConstraints SolveInequalitiesToRange(const IntConstraints& inequalities) {
     const PrimVar& var = *it;
     TVM_FFI_ICHECK(solved_bounds.count(var));
     auto bnd = solved_bounds.at(var);
-    if (is_one(bnd.coef) && !bnd.equal.empty()) {
+    if (IsOne(bnd.coef) && !bnd.equal.empty()) {
       // There is an equation of the form `v == expr`, so this variable can be completely removed.
       // Note that we use the 0-th expression because they are ordered by complexity,
       // so it must be the simplest one.
@@ -622,7 +622,7 @@ ffi::Optional<ffi::Map<Var, Range>> ConditionalBoundsContext::TrySolveCondition(
   // currently only extract simple integral equations which could be solvable.
   sym::Analyzer analyzer;
   PrimExpr condition = analyzer->Simplify(condition_);
-  if (is_const_int(condition)) {
+  if (IsConstInt(condition)) {
     return std::nullopt;
   }
   ffi::Array<PrimExpr> equations;

@@ -40,7 +40,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         } else if (auto flag = value.as<int64_t>()) {
           enabled = *flag != 0;
         } else if (auto flag = value.as<tvm::IntImm>()) {
-          enabled = !tvm::prim::is_zero(*flag);
+          enabled = !tvm::prim::IsZero(*flag);
         }
         TVM_FFI_CHECK(enabled, ValueError) << "Ts.prim_func cannot disable the s_tir attribute";
       });

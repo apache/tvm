@@ -30,7 +30,7 @@ from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import Range, TensorRegion
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import BufferRegion, Expr, Var, is_tensor_var
+from tvm.tirx import BufferRegion, Expr, IntImm, Var, is_tensor_var
 from tvm.tirx.layout import Iter
 
 from .dim_utils import DimensionMapper, RangeInfo, normalize_and_group
@@ -82,7 +82,9 @@ class InstructionRepr:
         self.selected_data_iter_ids = selected_data_iter_ids
 
     def bound_inst_size(self, max_inst_size: int | None, analyzer: Analyzer):
-        if max_inst_size is None:
+        if max_inst_size is None or (
+            isinstance(max_inst_size, int | IntImm) and int(max_inst_size) == -1
+        ):
             return
         if analyzer.can_prove(self.size <= max_inst_size):
             return

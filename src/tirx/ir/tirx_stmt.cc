@@ -35,15 +35,26 @@ namespace tvm {
 namespace tirx {
 
 // TilePrimitiveCall
-TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<ffi::Any> args,
+TilePrimitiveCall::TilePrimitiveCall(tvm::Op op, ffi::Array<Expr> args,
                                      ffi::Map<ffi::String, TensorVar> workspace,
-                                     ffi::Map<ffi::String, ffi::Any> config,
+                                     ffi::Map<ffi::String, Expr> config,
                                      ffi::Optional<ffi::String> dispatch, ExecScope scope)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined(), ValueError) << "TilePrimitiveCall expects a defined operator";
   static const auto& category_map = Op::GetAttrMap<TIRxOpCategory>("TIRxOpCategory");
   TVM_FFI_ICHECK(category_map.get(op, ffi::String("")) == "tile_primitive")
       << "Only tile primitive ops can be used in tirx::TilePrimitiveCall";
+  TVM_FFI_CHECK_GE(args.size(), op->args_info.size(), ValueError)
+      << op->name << " requires " << op->args_info.size() << " operands";
+  if (!op->var_args_info.has_value()) {
+    TVM_FFI_CHECK_EQ(args.size(), op->args_info.size(), ValueError)
+        << op->name << " expects " << op->args_info.size() << " operands";
+  }
+  if (auto gather = config.Get("gather4")) {
+    auto tuple = gather.value().as<tvm::Tuple>();
+    TVM_FFI_CHECK(tuple.has_value() && tuple.value()->fields.size() == 4, ValueError)
+        << "gather4 must contain exactly four row coordinates";
+  }
   ffi::StructuralVisit(args,
                        [](const TensorRegionNode* region,
                           ffi::StructuralVisitorObj*) -> ffi::Optional<ffi::VisitInterrupt> {
@@ -78,11 +89,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMutate
   const TilePrimitiveCallNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
           value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<ffi::Any>>, mapped_args,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_args,
                                     mutator->MutateExpected(self->args));
 
   using WorkspaceMap = ffi::Map<ffi::String, TensorVar>;
-  using ConfigMap = ffi::Map<ffi::String, ffi::Any>;
+  using ConfigMap = ffi::Map<ffi::String, Expr>;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
                                     mutator->MutateExpected(self->workspace));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ConfigMap>, mapped_config,
@@ -106,11 +117,11 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> TilePrimitiveCallMaybeI
   TilePrimitiveCallNode* self = const_cast<TilePrimitiveCallNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const TilePrimitiveCallNode>(
           value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<ffi::Any>>, mapped_args,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Expr>>, mapped_args,
                                     mutator->MutateExpected(self->args, ffi::InplaceMode::kAllow));
 
   using WorkspaceMap = ffi::Map<ffi::String, TensorVar>;
-  using ConfigMap = ffi::Map<ffi::String, ffi::Any>;
+  using ConfigMap = ffi::Map<ffi::String, Expr>;
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
       ffi::UnchangedOr<WorkspaceMap>, mapped_workspace,
       mutator->MutateExpected(self->workspace, ffi::InplaceMode::kAllow));
@@ -136,9 +147,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   TilePrimitiveCallNode::RegisterReflection();
   refl::GlobalDef().def(
       "tirx.TilePrimitiveCall",
-      [](tvm::Op op, ffi::Array<ffi::Any> args, ffi::Map<ffi::String, TensorVar> workspace,
-         ffi::Map<ffi::String, ffi::Any> config, ffi::Optional<ffi::String> dispatch,
-         ExecScope scope) {
+      [](tvm::Op op, ffi::Array<Expr> args, ffi::Map<ffi::String, TensorVar> workspace,
+         ffi::Map<ffi::String, Expr> config, ffi::Optional<ffi::String> dispatch, ExecScope scope) {
         return TilePrimitiveCall(op, args, workspace, config, dispatch, scope);
       });
   refl::TypeAttrDef<TilePrimitiveCallNode>()

@@ -94,10 +94,11 @@ def test_tir_op_call_likely():
 
 def test_tir_op_tvm_thread_allreduce():
     tensor = tirx.decl_tensor((128,), "float32")
+    result = tirx.decl_tensor((1,), "float32")
     axis = tirx.Var("thread", "int32")
     combine = tvm.ir.LambdaExpr(["float32", "float32"], lambda lhs, rhs: (lhs + rhs,))
     expr = tirx.tvm_thread_allreduce(
-        combine, (tirx.const(0, "float32"),), (tensor[0],), True, (tensor[1],), (axis,)
+        combine, (tirx.const(0, "float32"),), (tensor[0],), True, (result[0],), (axis,)
     )
     assert expr.op.name == "tirx.tvm_thread_allreduce"
 

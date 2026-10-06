@@ -367,20 +367,6 @@ class BuiltinLower : public StmtExprMutator {
     });
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    return scope_.WithNewScope([&]() -> Stmt {
-      Stmt visited =
-          StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-      if (!scope_.Current().pending_frees.empty()) {
-        const auto* attr = visited.as<AttrStmtNode>();
-        if (attr) {
-          return AttrStmt(attr->node, attr->attr_key, attr->value, AppendPendingFrees(attr->body),
-                          attr->span);
-        }
-      }
-      return visited;
-    });
-  }
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     auto min_result = this->Mutate(op->min, inplace_mode);
     bool min_unchanged = min_result.UnchangedOrSameAs(op->min);
@@ -531,7 +517,7 @@ class BuiltinLower : public StmtExprMutator {
     prep_seq.emplace_back(
         TVMStructSet(scope.stack_array, idx, builtin::kDLTensorShape, op->args[1]));
     Expr strides = op->args[2];
-    if (auto prim_strides = strides.as<PrimExpr>(); prim_strides && is_zero(prim_strides.value())) {
+    if (auto prim_strides = strides.as<PrimExpr>(); prim_strides && IsZero(prim_strides.value())) {
       strides = ConstHandle(0);
     }
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorStrides, strides));
@@ -548,7 +534,7 @@ class BuiltinLower : public StmtExprMutator {
     int data_bytes = GetVectorBytes(dtype);
     PrimExpr elem_offset = op->args[5].as_or_throw<PrimExpr>();
     PrimExpr byte_offset = elem_offset;
-    if (!is_zero(elem_offset)) {
+    if (!IsZero(elem_offset)) {
       byte_offset = elem_offset * IntImm(elem_offset.ty(), data_bytes);
     } else {
       byte_offset = elem_offset;
@@ -735,7 +721,7 @@ class BuiltinLower : public StmtExprMutator {
    *
    * When a Bind allocates via nd_mem_alloc_with_scope, the corresponding
    * free_nd stmt is pushed to the current scope's pending_frees. Body-carrying
-   * stmts (For, IfThenElse, AttrStmt) create new scopes via
+   * stmts (For, IfThenElse, RegionStmt) create new scopes via
    * WithNewScope. On scope exit, pending_frees are appended after the body.
    * AllocTensor (flat, no body) pushes its free to the enclosing scope.
    */

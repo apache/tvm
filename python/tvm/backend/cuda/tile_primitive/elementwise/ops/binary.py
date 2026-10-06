@@ -82,7 +82,7 @@ def _parse_binary_for(op_name: str):
         extras: dict[str, Any] = {}
         rm = op.config.get("rounding_mode", None)
         if rm is not None:
-            extras["rounding_mode"] = rm
+            extras["rounding_mode"] = rm.value
         return Plan(dst=_dst, srcs=srcs, extras=extras), None
 
     return parse

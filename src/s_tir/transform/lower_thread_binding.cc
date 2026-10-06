@@ -34,20 +34,6 @@ class ThreadBindingLowerer : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
 
  private:
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    // Attribute metadata can refer to an enclosing loop's lexical binding.
-    auto node = Mutate(op->node, inplace_mode);
-    auto value = Mutate(op->value, inplace_mode);
-    auto body = Mutate(op->body, inplace_mode);
-    if (node.UnchangedOrSameAs(op->node) && value.UnchangedOrSameAs(op->value) &&
-        body.UnchangedOrSameAs(op->body)) {
-      return ffi::Unchanged();
-    }
-    return AttrStmt(std::move(node).ValueOrUnchanged(op->node), op->attr_key,
-                    std::move(value).ValueOrUnchanged(op->value),
-                    std::move(body).ValueOrUnchanged(op->body), op->span);
-  }
-
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
     auto annotations = Mutate(op->annotations, inplace_mode)
                            .as_or_throw<UnchangedOr<ffi::Map<ffi::String, ffi::Any>>>();
@@ -70,7 +56,7 @@ class ThreadBindingLowerer : public StmtExprMutator {
     }
     PrimExpr min = Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
     PrimExpr extent = Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
-    TVM_FFI_ICHECK(is_zero(min)) << "Thread binding loops must start at zero";
+    TVM_FFI_ICHECK(IsZero(min)) << "Thread binding loops must start at zero";
     TVM_FFI_ICHECK(op->thread_binding.has_value());
     TVM_FFI_ICHECK(!op->annotations.count("loop_partition_hint") ||
                    op->annotations.at("loop_partition_hint") == nullptr)

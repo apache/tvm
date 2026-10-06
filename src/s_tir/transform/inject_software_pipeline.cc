@@ -74,7 +74,7 @@ ffi::Optional<Var> GetBufferDataVar(const ffi::Any& data) {
  */
 SBlock MakeSBlock(const Stmt& body, const ffi::Map<Var, TensorVar>& buffer_data_to_buffer) {
   if (const SBlockRealizeNode* block_realize = body.as<SBlockRealizeNode>()) {
-    if (is_one(block_realize->predicate)) {
+    if (IsOne(block_realize->predicate)) {
       // no need to create a new block
       return block_realize->block;
     }
@@ -411,7 +411,7 @@ class PipelineRewriter : public StmtExprMutator {
     PrimExpr epigogue_start = pipeline_loop_->min + pipeline_loop_->extent;
     ffi::Optional<PrimExpr> extra_epilogue_lower_bound = std::nullopt;
     if (max_stage_ > 1 && !analyzer_->CanProveGreaterEqual(pipeline_loop_->extent, max_stage_)) {
-      if (is_const_int(epigogue_start)) {
+      if (IsConstInt(epigogue_start)) {
         epigogue_start = max(epigogue_start, pipeline_loop_->min + max_stage_);
       } else {
         // for dynamic case, introduce extra lowerbound as loop predicate
@@ -1186,7 +1186,7 @@ class PipelineInjector : public StmtExprMutator {
     };
     for (size_t i = 0; i < pipeline_body_seq->seq.size(); i++) {
       const auto* nested_block_realize = pipeline_body_seq->seq[i].as<SBlockRealizeNode>();
-      if (nested_block_realize && is_one(nested_block_realize->predicate) &&
+      if (nested_block_realize && IsOne(nested_block_realize->predicate) &&
           nested_block_realize->block->body->IsInstance<SeqStmtNode>()) {
         const SBlock& nested_pipeline_block = nested_block_realize->block;
         TVM_FFI_ICHECK(

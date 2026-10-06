@@ -100,8 +100,8 @@ UnchangedOr<Expr> SimplifierBase::Mutate_(const CallNode* op, InplaceMode inplac
           .ValueOrUnchanged((*args)[2])
           .as_or_throw<Expr>();
     }();
-    if (prim::is_zero(cond)) return false_value;
-    if (prim::is_one(cond)) return true_value;
+    if (prim::IsZero(cond)) return false_value;
+    if (prim::IsOne(cond)) return true_value;
     if (cond.same_as(op->args[0]) && true_value.same_as(op->args[1]) &&
         false_value.same_as(op->args[2])) {
       // Reuse the original node identity; there is no replacement to process.
@@ -151,8 +151,8 @@ UnchangedOr<PrimExpr> SimplifierBase::Mutate_(const prim::SelectNode* op,
         })
         .ValueOrUnchanged(op->false_value);
   }();
-  if (prim::is_zero(cond)) return false_value;
-  if (prim::is_one(cond)) return true_value;
+  if (prim::IsZero(cond)) return false_value;
+  if (prim::IsOne(cond)) return true_value;
   if (cond.same_as(op->condition) && true_value.same_as(op->true_value) &&
       false_value.same_as(op->false_value)) {
     // Reuse the original node identity; there is no replacement to process.

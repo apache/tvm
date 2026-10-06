@@ -59,7 +59,7 @@ std::pair<TileLayout, std::vector<int64_t>> Group(TileLayout layout,
       seps.push_back(new_shard.size());
     }
     extent_i = analyzer->Simplify(extent_i);
-    if (!is_one(extent_i)) {
+    if (!IsOne(extent_i)) {
       TVM_FFI_ICHECK(shape_idx < shape.size())
           << "layout " << layout << " can not be grouped by shape " << shape;
       new_shard.push_back(Iter(extent_i, analyzer->Simplify(stride_i), layout->shard[i]->axis));
@@ -288,7 +288,7 @@ std::optional<std::pair<TileLayout, std::vector<int64_t>>> TryGroup(
       seps.push_back(new_shard.size());
     }
     extent_i = analyzer->Simplify(extent_i);
-    if (!is_one(extent_i)) {
+    if (!IsOne(extent_i)) {
       if (shape_idx >= shape.size()) return std::nullopt;
       new_shard.push_back(Iter(extent_i, analyzer->Simplify(stride_i), layout->shard[i]->axis));
     }
@@ -494,7 +494,7 @@ ffi::Optional<TileLayout> TileLayoutNode::IsTileInner(
   auto inner_span_map = BuildSpanMap(layout);
   auto rescale_by_inner_span = [&](const Iter& iter) -> ffi::Optional<Iter> {
     auto it = inner_span_map.find(iter->axis.name());
-    if (it != inner_span_map.end() && !is_one(iter->extent)) {
+    if (it != inner_span_map.end() && !IsOne(iter->extent)) {
       if (!analyzer->CanProveEqual(floormod(iter->stride, (*it).second), 0)) {
         return std::nullopt;
       }
@@ -529,7 +529,7 @@ ffi::Optional<TileLayout> TileLayoutNode::IsTileInner(
       Iter inner_iter = grouped_layout->shard[inner_seps[i] + j];
       Iter tiled_iter = grouped_tiled->shard[tiled_seps_even[i + 1] - inner_count + j];
       if (!analyzer->CanProveEqual(inner_iter->extent, tiled_iter->extent) ||
-          (!is_one(inner_iter->extent) &&
+          (!IsOne(inner_iter->extent) &&
            !(analyzer->CanProveEqual(inner_iter->stride, tiled_iter->stride) &&
              inner_iter->axis.same_as(tiled_iter->axis)))) {
         return std::nullopt;
@@ -620,7 +620,7 @@ ffi::Optional<Layout> TileLayoutNode::IsTileOuter(const Layout& tile_layout,
       Iter outer_iter = grouped_layout->shard[outer_seps[i] + j];
       Iter tiled_iter = grouped_tiled->shard[tiled_seps_even[i] + j];
       if (!analyzer->CanProveEqual(outer_iter->extent, tiled_iter->extent) ||
-          (!is_one(outer_iter->extent) && !outer_iter->axis.same_as(tiled_iter->axis))) {
+          (!IsOne(outer_iter->extent) && !outer_iter->axis.same_as(tiled_iter->axis))) {
         return std::nullopt;
       }
     }

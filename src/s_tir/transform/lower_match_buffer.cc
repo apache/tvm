@@ -197,8 +197,8 @@ class MatchBufferLower : public StmtExprMutator {
                    << " required alignment=" << buffer->data_alignment
                    << ", provided alignment=" << source_buffer->data_alignment;
     }
-    if (is_zero(buffer->elem_offset)) {
-      TVM_FFI_ICHECK(is_zero(source_buffer->elem_offset))
+    if (IsZero(buffer->elem_offset)) {
+      TVM_FFI_ICHECK(IsZero(source_buffer->elem_offset))
           << "Trying to bind a TensorVar with offset into one without offset "
           << " required elem_offset=" << buffer->elem_offset
           << ", provided elem_offset=" << source_buffer->elem_offset;

@@ -202,7 +202,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         const PrimExpr& buffer_dim = old_buffer_->shape[i];
         PrimExpr index = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(op->indices[i], f_substitute)
                              .as_or_throw<PrimExpr>();
-        bool is_loop_over_axis = index.same_as(loop->loop_var) && is_const_int(loop->min, 0) &&
+        bool is_loop_over_axis = index.same_as(loop->loop_var) && IsConstInt(loop->min, 0) &&
                                  prim::ExprDeepEqual()(loop->extent, buffer_dim) &&
                                  loop->kind == ForKind::kSerial;
         if (!is_loop_over_axis) {
@@ -496,7 +496,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
                                                    IndexMap inverse, PrimExpr padding_predicate,
                                                    ffi::Optional<IndexMap> pad_value,
                                                    sym::AnalyzerObj* analyzer) const {
-    if (write_info_.size() || is_zero(padding_predicate) || !pad_value.has_value()) {
+    if (write_info_.size() || IsZero(padding_predicate) || !pad_value.has_value()) {
       return std::nullopt;
     }
 
@@ -551,14 +551,14 @@ class TransformLayoutPlanner : public StmtExprVisitor {
                                                          PrimExpr padding_predicate,
                                                          ffi::Optional<IndexMap> pad_value,
                                                          sym::AnalyzerObj* analyzer) const {
-    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.has_value()) {
+    if (write_info_.empty() || IsZero(padding_predicate) || !pad_value.has_value()) {
       return std::nullopt;
     }
 
     ffi::Map<SBlock, SBlock> new_block_to_old;
     auto generate_if_then_else_block = [&](const WriteInfo& info) -> ffi::Optional<Stmt> {
       if (!info.contains_row_major_traversal || !pad_value.has_value() ||
-          is_zero(padding_predicate)) {
+          IsZero(padding_predicate)) {
         return std::nullopt;
       }
 
@@ -602,7 +602,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
                                                    IndexMap inverse, PrimExpr padding_predicate,
                                                    ffi::Optional<IndexMap> pad_value,
                                                    sym::AnalyzerObj* analyzer) const {
-    if (write_info_.empty() || is_zero(padding_predicate) || !pad_value.has_value()) {
+    if (write_info_.empty() || IsZero(padding_predicate) || !pad_value.has_value()) {
       return std::nullopt;
     }
 
@@ -1286,7 +1286,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
     }();
   }
 
-  bool has_padding = !is_zero(padding_predicate);
+  bool has_padding = !IsZero(padding_predicate);
   if (has_padding && !pad_value.has_value()) {
     throw MakeScheduleError<TransformationIntroducesPaddingError>(self->mod, old_buffer, index_map,
                                                                   padding_predicate);
@@ -1484,7 +1484,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     block_vars.push_back(iter_var->var);
     block_iter_dom.Set(iter_var->var, iter_var->dom);
     block_iter_type[iter_var->var.get()] = iter_var->iter_type;
-    TVM_FFI_ICHECK(is_zero(iter_var->dom->min));
+    TVM_FFI_ICHECK(IsZero(iter_var->dom->min));
     block_iter_range_array.push_back(iter_var->dom->extent);
   }
 
@@ -1503,7 +1503,7 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
     Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i].ty()};
     new_block_vars.push_back(new_block_var.as_or_throw<PrimExpr>());
     IterVarType iter_type;
-    if (is_one(new_block_iter_range[i])) {
+    if (IsOne(new_block_iter_range[i])) {
       iter_type = kDataPar;
     } else {
       iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);

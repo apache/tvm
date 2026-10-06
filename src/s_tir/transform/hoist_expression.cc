@@ -270,30 +270,6 @@ class HoistInfoCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    Var var{ffi::UnsafeInit{}};
-    if (const auto* node_iter_var = op->node.as<IterVarNode>()) {
-      var = node_iter_var->var;
-    } else if (auto opt = op->node.as<Var>()) {
-      var = opt.value();
-    } else {
-      return Parent::Visit_(op);
-    }
-
-    active_block_vars.insert(var.get());
-    active_loop_vars.insert(var.get());
-    active_loops.push_back({var, ffi::GetRef<Stmt>(op)});
-
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Parent::Visit_(op));
-
-    completed_loops.push_back(active_loops.back());
-    active_loops.pop_back();
-
-    active_loop_vars.erase(var.get());
-    active_block_vars.erase(var.get());
-    return std::nullopt;
-  }
-
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     if (op->op.same_as(tirx::builtin::launch_thread())) {
       Var var = op->body_params[0].as_or_throw<PrimVar>();
@@ -570,17 +546,6 @@ class ExpressionHoister : public s_tir::IRMutatorWithAnalyzer {
     TVM_FFI_ICHECK(it != loop_info_lookup.end())
         << "Could not find pre-pass information for loop over " << op->loop_var;
     return WrapHoistedStatements(stmt, it->second);
-  }
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-
-    auto it = loop_info_lookup.find(op);
-    if (it == loop_info_lookup.end()) {
-      return stmt;
-    } else {
-      return WrapHoistedStatements(stmt, it->second);
-    }
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {

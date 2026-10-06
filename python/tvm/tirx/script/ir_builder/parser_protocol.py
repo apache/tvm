@@ -35,7 +35,6 @@ from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.ir import StringImm as _StringImm
 from tvm.ir import TensorRegion, Type, is_prim_expr
-from tvm.runtime import convert
 from tvm.script.ir_builder import base as _base
 from tvm.script.ir_builder.base import AlreadyEmitted
 from tvm.script.ir_builder.base import IRBuilder as _IRBuilder
@@ -44,7 +43,7 @@ from tvm.tirx.expr import (
     IntImm,
 )
 
-from . import _ffi_api, frame, utils
+from . import _ffi_api, frame
 from . import ir as _native
 from . import op as _op
 from .op import and_ as and_
@@ -436,55 +435,6 @@ def bind(  # pylint: disable=invalid-name
         if isinstance(type_annotation, _ir.Var):
             type_annotation = type_annotation.ty
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def attr(
-    node_or_dict: Any, attr_key: str | None = None, value: Expr | str | None = None
-) -> frame.AttrFrame | utils._FrameScope:
-    """Create an attribute node, or multiple attribute nodes from a dict.
-
-    Usage 1 — single attr::
-
-        with T.attr(node, key, value):
-            ...
-
-    Usage 2 — dict sugar (node defaults to ``0``)::
-
-        with T.attr({"key1": value1, "key2": value2}):
-            ...
-
-    Parameters
-    ----------
-    node_or_dict : Any
-        If a dict, each key-value pair becomes an AttrStmt with
-        ``node=0``.  Otherwise the node to annotate.
-
-    attr_key : str, optional
-        Attribute type key (required when ``node_or_dict`` is not a dict).
-
-    value : Union[Expr, str], optional
-        The attribute value (required when ``node_or_dict`` is not a dict).
-
-    Returns
-    -------
-    res : Union[frame.AttrFrame, _FrameScope]
-        A single AttrFrame, or a _FrameScope wrapping multiple AttrFrames.
-    """
-    if isinstance(node_or_dict, dict):
-        frames = []
-        for k, v in node_or_dict.items():
-            if isinstance(v, bool):
-                v = IntImm("bool", v)
-            frames.append(_ffi_api.Attr(0, k, convert(v)))  # type: ignore[attr-defined]
-        if len(frames) == 1:
-            return frames[0]
-        return utils._FrameScope(frames)
-    else:
-        if attr_key is None or value is None:
-            raise ValueError("T.attr(node, attr_key, value) requires all three arguments")
-        node_or_dict = convert(node_or_dict)
-        value = convert(value)
-        return _ffi_api.Attr(node_or_dict, attr_key, value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def buffer_store(
@@ -966,7 +916,13 @@ def region(
     body_params: Sequence[Var] | None = None,
     attrs: _ir.DictAttrs | dict[str, Any] | None = None,
 ) -> frame.RegionFrame:
-    """Construct a result-free region with explicit fresh body parameters.
+    """Construct a result-free region with operation-defined body parameters.
+
+    When ``body_params`` is omitted, the operation's ``FRegionGetBodyParams``
+    hook creates fresh typed variables. Every region operation must register
+    the hook, returning an empty array for no body parameters. Missing hooks
+    reject construction even with explicit parameters. Explicit parameters must
+    match the hook's count and types and retain their identities.
 
     Operands and attributes belong to the enclosing scope. Entering the frame
     returns one parameter directly, or a sequence for zero or multiple parameters.
@@ -977,7 +933,7 @@ def region(
         op = _ir.Op.get(op)
     if attrs is None or isinstance(attrs, dict):
         attrs = _ir.make_node("ir.DictAttrs", **(attrs or {}))
-    return _ffi_api.Region(op, args, [] if body_params is None else body_params, attrs)
+    return _ffi_api.Region(op, args, body_params, attrs)
 
 
 def device_context(device_type: Expr, device_id: Expr) -> frame.RegionFrame:
@@ -1012,7 +968,7 @@ def launch_thread(thread_tag: str, extent: Expr) -> frame.RegionFrame:
         with T.launch_thread("threadIdx.x", 32) as tx:
             T.evaluate(tx)
     """
-    return _ffi_api.LaunchThread(thread_tag, extent)
+    return region("tirx.launch_thread", [_StringImm(thread_tag), extent])
 
 
 # --------------------------------------
@@ -1028,7 +984,6 @@ __all__ = [
     "and_",
     "arg_",
     "assert_",
-    "attr",
     "bind",
     "bind_",
     "break_",

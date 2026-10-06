@@ -36,8 +36,8 @@ namespace tvm::tirx {
 
 bool TensorTypeNode::IsScalar(bool alloc_or_decl) const {
   // TODO(@bohan): logical scope is not considered
-  return shape.size() == 1 && tvm::prim::is_one(shape[0]) && strides.empty() &&
-         (!alloc_or_decl || tvm::prim::is_zero(elem_offset)) && data_alignment == 64 &&
+  return shape.size() == 1 && tvm::prim::IsOne(shape[0]) && strides.empty() &&
+         (!alloc_or_decl || tvm::prim::IsZero(elem_offset)) && data_alignment == 64 &&
          offset_factor == 1 && allocated_addr.empty() && layout.has_value() &&
          ffi::StructuralEqual()(layout.value(), TileLayoutNode::DefaultLayout({1}));
 }

@@ -838,7 +838,8 @@ def tvm_thread_allreduce(combine, identity, values, predicate, destinations, thr
     predicate : PrimExpr
         Boolean participation predicate. Inactive threads contribute identities.
     destinations : Expr or Sequence[Expr]
-        Tensor loads identifying the destinations of the reduction results.
+        Tensor loads at index zero of one-element result temporaries, optionally
+        cast for boolean storage. Each temporary must be accessed only at index zero.
     thread_axes : Expr or Sequence[Expr]
         Thread variables participating in the reduction.
 

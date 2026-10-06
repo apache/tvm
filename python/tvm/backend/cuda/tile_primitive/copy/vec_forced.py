@@ -80,12 +80,12 @@ def _ld_cache_config(op_call: TilePrimitiveCall) -> tuple[str | None, dict[str, 
     """
     cache = op_call.config.get("cache", None)
     if cache is not None:
-        cache = str(cache)
+        cache = cache.value
     hints: dict[str, str] = {}
     for key in _LD_CACHE_HINT_KEYS:
         value = op_call.config.get(key, None)
-        if value is not None and str(value):
-            hints[key] = str(value)
+        if value is not None and value.value:
+            hints[key] = value.value
     return cache, hints
 
 

@@ -453,56 +453,6 @@ def test_thread_idx_reused_within_and_across_functions():
     tvm.ir.assert_structural_equal(after, expected)
 
 
-def test_track_forward_declarations_in_attr_stmt():
-    """T.attr statements may refer to a about-to-be-defined tirx.Var"""
-
-    # Generate the PrimFunc, which is already SSA
-    #
-    # This is constructed directly, rather than using TVMScript.
-    # This test case requires a `tirx.AttrStmt` that references a
-    # variable, followed by the `tirx.For` defining that variable.
-    # This is not expressible in TVMScript, as it only provides the
-    # loop iterator within the body of the loop.
-    i0_outer_outer = tirx.Var("i0_outer_outer", "int32")
-    i0_outer_inner = tirx.Var("i0_outer_inner", "int32")
-    i0_inner = tirx.Var("i0_inner", "int32")
-
-    A = tirx.decl_tensor(1024, "float32", "A")
-    B = tirx.decl_tensor(1024, "float32", "B")
-
-    index = i0_outer_outer * 52 + i0_outer_inner * 4 + i0_inner
-
-    stmt = tirx.BufferStore(B, tirx.TensorLoad(A, [index]), [index])
-    stmt = tirx.IfThenElse(i0_outer_outer * 13 + i0_outer_inner < 256, stmt, None)
-    stmt = tirx.For(i0_inner, 0, 4, tirx.ForKind.VECTORIZED, stmt)
-    stmt = tirx.For(i0_outer_inner, 0, 13, tirx.ForKind.PARALLEL, stmt)
-    stmt = tirx.AttrStmt(
-        T.iter_var(i0_outer_inner, None, "DataPar", ""),
-        "pragma_parallal_barrier_when_finish",
-        1,
-        stmt,
-    )
-    stmt = tirx.AttrStmt(
-        T.iter_var(i0_outer_inner, None, "DataPar", ""),
-        "pragma_parallal_stride_pattern",
-        1,
-        stmt,
-    )
-    stmt = tirx.For(i0_outer_outer, 0, 20, tirx.ForKind.SERIAL, stmt)
-    stmt = tirx.AttrStmt(
-        T.iter_var(i0_outer_outer, None, "DataPar", ""),
-        "pragma_parallal_launch_point",
-        1,
-        stmt,
-    )
-
-    before = tirx.PrimFunc([A, B], stmt)
-
-    mod = tvm.IRModule.from_expr(before)
-    after = tvm.tirx.transform.ConvertSSA()(mod)
-    tvm.ir.assert_structural_equal(after["main"], before)
-
-
 def test_shared_shape_var_in_buffer_params_and_alloc_buffer():
     """Shape var shared across buffer params and AllocTensor should not be renamed.
 

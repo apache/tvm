@@ -92,7 +92,7 @@ class MatchBufferRegion : public ffi::ObjectRef {
  *      T.where(predicate)
  *      buffer2 = T.alloc_tensor(shape, dtype)
  *      buffer3 = Ts.match_buffer(source_buffer[start:end, ...])
- *      T.attr({attr_key: attr_value, ...})
+ *      Ts.sblock_attr({attr_key: attr_value, ...})
  *      with T.init():
  *          // init body
  *      // body

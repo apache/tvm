@@ -166,11 +166,6 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
   }
 
   TResult Dispatch_(const TensorLoadNode* op) override { return TResult(); }
-  TResult Dispatch_(const AttrStmtNode* op) override {
-    TResult result = Dispatch(op->body);
-    result += Dispatch(op->value);
-    return result;
-  }
   TResult Dispatch_(const RegionStmtNode* op) override {
     TResult result = Dispatch(op->body);
     for (const Expr& arg : op->args) result += Dispatch(arg);

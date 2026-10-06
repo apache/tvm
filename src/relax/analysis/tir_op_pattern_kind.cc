@@ -204,8 +204,8 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
     size_t ndim_store_buf = store->buffer->shape.size();
 
     for (size_t i = 0, j = 0; i < ndim_load_buf; ++i) {
-      if (is_const_int(load->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i], 1) &&
-          is_const_int(load->indices[i], 0)) {
+      if (IsConstInt(load->source.as_or_throw<tvm::tirx::TensorVar>()->shape[i], 1) &&
+          IsConstInt(load->indices[i], 0)) {
         // Skip unit load dimensions
         // E.g. A[i, j] = B[1, j] is still broadcast
         continue;

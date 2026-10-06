@@ -116,7 +116,7 @@ static bool IsVirtualThread(const ForNode* op) {
 
 static bool HasPartitionHint(const ForNode* op) {
   auto it = op->annotations.find(attr::loop_partition_hint);
-  return it != op->annotations.end() && is_one((*it).second.as_or_throw<PrimExpr>());
+  return it != op->annotations.end() && IsOne((*it).second.as_or_throw<PrimExpr>());
 }
 
 // Resolve expression-valued hints before partitioning clones or renames loops.
@@ -170,7 +170,7 @@ class CandidateSelector final : public StmtExprVisitor {
       return StmtExprVisitor::Visit_(op);
     }
     // partition const loop when sets partition_const_loop_
-    if (!is_const_int(op->min) || !is_const_int(op->extent) || partition_const_loop_) {
+    if (!IsConstInt(op->min) || !IsConstInt(op->extent) || partition_const_loop_) {
       record_.insert({var, false});
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       if (record_.at(var) && !no_split_) {
@@ -190,7 +190,7 @@ class CandidateSelector final : public StmtExprVisitor {
       runtime::ThreadScope scope =
           runtime::ThreadScope::Create(op->args[0].as_or_throw<StringImm>()->value);
       PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
-      if ((scope.rank == 0) && (!is_const_int(extent) || partition_const_loop_)) {
+      if ((scope.rank == 0) && (!IsConstInt(extent) || partition_const_loop_)) {
         record_.insert({var.get(), false});
         TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
         if (record_.at(var.get()) && !no_split_) {
