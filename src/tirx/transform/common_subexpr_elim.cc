@@ -802,6 +802,7 @@ class CSERewriter : public StmtExprMutator {
    * values and their copy of the subtree.
    */
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
+    if (opaque_body_) return StmtExprMutator::Mutate(input, inplace_mode);
     if (auto prim_expr = input.as<PrimExpr>()) {
       auto it = expr_remap_.find(prim_expr.value());
       if (it != expr_remap_.end()) return it->second;
@@ -843,22 +844,29 @@ class CSERewriter : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override {
-    if (op->op.same_as(tirx::builtin::launch_thread()))
+    if (opaque_body_ || op->op.same_as(tirx::builtin::launch_thread()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
     // Match the planner's opaque boundary: only operands outside the body
     // participate in this plan and may reference its CSE bindings.
     auto args = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
     auto attrs = Mutate(op->attrs, inplace_mode).as_or_throw<UnchangedOr<DictAttrs>>();
-    if (args.UnchangedOrSameAs(op->args) && attrs.UnchangedOrSameAs(op->attrs)) {
-      return ffi::Unchanged();
+    RegionStmt region = ffi::GetRef<RegionStmt>(op);
+    if (!args.UnchangedOrSameAs(op->args) || !attrs.UnchangedOrSameAs(op->attrs)) {
+      auto* n = region.CopyOnWrite();
+      if (!args.IsUnchanged()) n->args = std::move(args).ValueUnchecked();
+      if (!attrs.IsUnchanged()) n->attrs = std::move(attrs).ValueUnchecked();
     }
-    auto copy = ffi::make_object<RegionStmtNode>(*op);
-    if (!args.IsUnchanged()) copy->args = std::move(args).ValueUnchecked();
-    if (!attrs.IsUnchanged()) copy->attrs = std::move(attrs).ValueUnchecked();
-    return Stmt(std::move(copy));
+    // Definitions outside the region may have been rebuilt, including tensor
+    // variables whose shapes changed. Remap their uses without applying CSE.
+    opaque_body_ = true;
+    auto result = StmtExprMutator::Mutate_(region.get(), inplace_mode).ValueOrUnchanged(region);
+    opaque_body_ = false;
+    return result;
   }
 
  private:
+  /*! \brief Traverse opaque bodies only to remap variables. */
+  bool opaque_body_ = false;
   /*! \brief Plan: stmts to insert each target (keyed by object identity). */
   InsertBeforeTable insert_before_;
   /*! \brief Plan: expressions to replace with CSE vars. */
