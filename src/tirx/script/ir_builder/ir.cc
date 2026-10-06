@@ -432,6 +432,16 @@ RegionFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
   return Region(tvm::tirx::builtin::launch_thread(), {StringImm(thread_tag), extent}, {var});
 }
 
+RegionFrame DeviceContext(PrimExpr device_type, PrimExpr device_id) {
+  return Region(tvm::tirx::builtin::device_context(), {device_type, device_id});
+}
+
+RegionFrame ComputeScope(ffi::String name) {
+  return Region(tvm::tirx::builtin::compute_scope(), {StringImm(name)});
+}
+
+RegionFrame ParallelLaunch() { return Region(tvm::tirx::builtin::parallel_launch(), {}); }
+
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {
   ffi::ObjectPtr<AttrFrameNode> n = ffi::make_object<AttrFrameNode>(value);
   n->node = std::move(node);
@@ -716,6 +726,9 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.DeclTensor", DeclTensor)
       .def("script.ir_builder.tirx.Region", Region)
       .def("script.ir_builder.tirx.LaunchThread", LaunchThread)
+      .def("script.ir_builder.tirx.DeviceContext", DeviceContext)
+      .def("script.ir_builder.tirx.ComputeScope", ComputeScope)
+      .def("script.ir_builder.tirx.ParallelLaunch", ParallelLaunch)
       .def("script.ir_builder.tirx.BufferStore", BufferStore)
       .def("script.ir_builder.tirx.Evaluate", Evaluate)
       .def("script.ir_builder.tirx.Ptr", Ptr);

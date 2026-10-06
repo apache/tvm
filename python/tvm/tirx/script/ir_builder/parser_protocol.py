@@ -980,6 +980,24 @@ def region(
     return _ffi_api.Region(op, args, [] if body_params is None else body_params, attrs)
 
 
+def device_context(device_type: Expr, device_id: Expr) -> frame.RegionFrame:
+    """Supply lexical device context for allocation and packed-call lowering.
+
+    This region does not change the active runtime device.
+    """
+    return _ffi_api.DeviceContext(device_type, device_id)
+
+
+def compute_scope(name: str) -> frame.RegionFrame:
+    """Outline the body as a named CPU compute helper."""
+    return _ffi_api.ComputeScope(name)
+
+
+def parallel_launch() -> frame.RegionFrame:
+    """Launch a CPU worker team around parallel loops and team barriers."""
+    return _ffi_api.ParallelLaunch()
+
+
 def launch_thread(thread_tag: str, extent: Expr) -> frame.RegionFrame:
     """Launch a hardware or virtual thread with a fresh lexical variable.
 
@@ -1017,8 +1035,10 @@ __all__ = [
     "buffer_store",
     "call_global_var_",
     "check_well_formed_",
+    "compute_scope",
     "continue_",
     "decl_mutable_cell_",
+    "device_context",
     "device_entry",
     "else_",
     "emit",
@@ -1043,6 +1063,7 @@ __all__ = [
     "not_",
     "or_",
     "parallel",
+    "parallel_launch",
     "prim_func",
     "range_",
     "region",

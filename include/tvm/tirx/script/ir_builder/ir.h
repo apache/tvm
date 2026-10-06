@@ -342,6 +342,12 @@ RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params = {
  * \return The result RegionFrame.
  */
 RegionFrame LaunchThread(ffi::String thread_tag, PrimExpr extent);
+/*! \brief Supply lexical device context for lowering. */
+RegionFrame DeviceContext(PrimExpr device_type, PrimExpr device_id);
+/*! \brief Outline a named CPU compute region. */
+RegionFrame ComputeScope(ffi::String name);
+/*! \brief Launch a CPU worker team. */
+RegionFrame ParallelLaunch();
 
 /*!
  * \brief Store data in a buffer.

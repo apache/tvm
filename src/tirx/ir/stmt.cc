@@ -813,6 +813,11 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
   signature.args = args;
   signature.attrs = attrs;
   op.Validate(&signature);
+  if (op.same_as(tirx::builtin::device_context()) || op.same_as(tirx::builtin::compute_scope()) ||
+      op.same_as(tirx::builtin::parallel_launch())) {
+    TVM_FFI_CHECK(body_params.empty() && result_vars.empty() && attrs->dict.empty(), ValueError)
+        << op->name << " expects no body parameters, results or attributes";
+  }
   std::unordered_set<const VarNode*> definitions;
   for (const auto& vars : {body_params, result_vars}) {
     for (const Var& var : vars) {

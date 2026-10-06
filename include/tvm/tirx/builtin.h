@@ -50,6 +50,12 @@ TVM_DLL const Op& launch_thread();
 
 /*! \brief Mark a user-facing device entry region. */
 TVM_DLL const Op& device_entry();
+/*! \brief Supply the device type and ID for lowering the region body. */
+TVM_DLL const Op& device_context();
+/*! \brief Outline the region body as a named CPU compute helper. */
+TVM_DLL const Op& compute_scope();
+/*! \brief Launch a CPU worker team around the region body. */
+TVM_DLL const Op& parallel_launch();
 /*!
  * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
  *

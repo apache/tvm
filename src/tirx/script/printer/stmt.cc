@@ -367,6 +367,17 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
               ->Attr("launch_thread")
               ->Call({LiteralDoc::Str(stmt->args[0].as_or_throw<StringImm>()->value, std::nullopt),
                       d->Translate(stmt->args[1].as_or_throw<PrimExpr>()).value()});
+  } else if (stmt->op.same_as(tirx::builtin::device_context())) {
+    rhs = NamespaceDoc("tirx")
+              ->Attr("device_context")
+              ->Call({d->Translate(stmt->args[0]).value(), d->Translate(stmt->args[1]).value()});
+  } else if (stmt->op.same_as(tirx::builtin::compute_scope())) {
+    rhs =
+        NamespaceDoc("tirx")
+            ->Attr("compute_scope")
+            ->Call({LiteralDoc::Str(stmt->args[0].as_or_throw<StringImm>()->value, std::nullopt)});
+  } else if (stmt->op.same_as(tirx::builtin::parallel_launch())) {
+    rhs = NamespaceDoc("tirx")->Attr("parallel_launch")->Call({});
   } else {
     ffi::Array<ExprDoc> args;
     for (const Expr& arg : stmt->args) args.push_back(d->Translate(arg).value());

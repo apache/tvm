@@ -197,7 +197,7 @@ def test_parallel_alloc():
     @T.prim_func
     def func2(n: T.int32):
         for t in T.serial(n):
-            with T.attr(T.int32(1), "pragma_scope", "parallel_launch_point"):
+            with T.parallel_launch():
                 for i in T.parallel(n):
                     for j in range(10):
                         A = T.alloc_tensor((n,))
@@ -206,7 +206,8 @@ def test_parallel_alloc():
     mod = tvm.IRModule.from_expr(func2)
     body = tvm.tirx.transform.StorageRewrite()(mod)["func2"]
 
-    assert _is_buffer_binding(body.body.body.body.body[0], "tirx.alloc_tensor")
+    # The launch body owns the allocation executed by each worker.
+    assert _is_buffer_binding(body.body.body.body[0], "tirx.alloc_tensor")
 
 
 def test_while_alloc():

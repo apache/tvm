@@ -1303,6 +1303,10 @@ void CodeGenC::Dispatch_(const RegionStmtNode* op) {
     BindThreadIndex(var, tag);
     this->PrintStmt(op->body);
     var_idmap_.erase(var.get());
+  } else if (op->op.same_as(tirx::builtin::device_context()) ||
+             op->op.same_as(tirx::builtin::compute_scope()) ||
+             op->op.same_as(tirx::builtin::parallel_launch())) {
+    this->PrintStmt(op->body);
   } else {
     TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
   }
