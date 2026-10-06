@@ -409,8 +409,6 @@ ffi::Array<PrimExpr> GetBufferAllocationShape(const TensorVar& buffer) {
   return alloc_shape;
 }
 
-// Attribute strings are the metadata protocol shared by lowered and schedulable statements.
-
 int Stoi(const std::string& str) {
   try {
     return std::stoi(str);
