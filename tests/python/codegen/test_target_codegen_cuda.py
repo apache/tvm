@@ -534,7 +534,7 @@ def test_crossthread_reduction1(target):
                             if m_0 * ((m + nthd - 1) // nthd) + m_1 < m:
                                 partial[0] = partial[0] + A[i, m_0 * ((m + nthd - 1) // nthd) + m_1]
                         T.tvm_thread_allreduce(
-                            T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                            T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                             (T.float32(0),),
                             (partial[0],),
                             True,
@@ -613,7 +613,7 @@ def test_crossthread_reduction2(target):
                                         ]
                                     )
                             T.tvm_thread_allreduce(
-                                T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                                T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                                 (T.float32(0),),
                                 (partial[0],),
                                 True,

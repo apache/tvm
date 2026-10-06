@@ -191,7 +191,7 @@ def _get_dialect_builder(name: str):
     raise AttributeError(f"module 'tvm.script.ir_builder' has no attribute {name!r}")
 
 
-def TypedLambda(parameter_types, function, *, ret_type=None):  # pylint: disable=invalid-name
+def Lambda(parameter_types, function, *, ret_type=None):  # pylint: disable=invalid-name
     """Build a shared staging lambda from explicit types and a Python callable.
 
     Scalar constructors such as ``T.float32`` may be used as parameter types.

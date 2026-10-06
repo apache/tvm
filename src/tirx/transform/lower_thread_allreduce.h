@@ -83,7 +83,6 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     return result;
   }
 
-
   UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = DialectMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<EvaluateNode>();
@@ -274,7 +273,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
 
     size_t nmatch = 0;
     std::vector<ThreadEntry> vred, vpar;
-    std::map<int, std::pair<ThreadEntry, bool>> thread_axes;
+    std::map<int, std::pair<ThreadEntry, bool>> thread_axes_by_dim;
     for (const RegionStmtNode* launch : thread_extents_) {
       ThreadEntry e;
       IterVar iv(Range(), launch->body_params[0].as_or_throw<PrimVar>(), IterVarType::kThreadIndex,
@@ -289,7 +288,8 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         e.extent = ptr->value.as<int>().value();
         bool is_reduce = reduce_set.count(iv->var.get());
         nmatch += is_reduce;
-        auto [it, inserted] = thread_axes.emplace(e.scope.dim_index, std::make_pair(e, is_reduce));
+        auto [it, inserted] =
+            thread_axes_by_dim.emplace(e.scope.dim_index, std::make_pair(e, is_reduce));
         if (!inserted) {
           TVM_FFI_ICHECK_EQ(it->second.first.extent, e.extent)
               << "Incompatible extents for nested bindings of " << iv->thread_tag;
@@ -301,7 +301,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
         }
       }
     }
-    for (const auto& [dim, entry] : thread_axes) {
+    for (const auto& [dim, entry] : thread_axes_by_dim) {
       if (entry.first.extent != 1) (entry.second ? vred : vpar).push_back(entry.first);
     }
     TVM_FFI_ICHECK_EQ(nmatch, reduce_set.size())

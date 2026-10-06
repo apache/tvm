@@ -1320,7 +1320,7 @@ def comm_reducer_single_reduce_group():
             reduce_temp0 = T.alloc_tensor((1,), scope="local")
             T.evaluate(
                 T.tvm_thread_allreduce(
-                    T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                    T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                     (T.float32(0),),
                     (A[i * 128 + threadIdx_x],),
                     True,
@@ -1345,7 +1345,7 @@ def comm_reducer_multiple_reduce_groups():
             reduce_temp1 = T.alloc_tensor((1,), "float32", scope="local")
             T.evaluate(
                 T.tvm_thread_allreduce(
-                    T.TypedLambda(
+                    T.Lambda(
                         [T.int32, T.float32, T.int32, T.float32],
                         lambda x0, x1, y0, y1: (
                             T.Select(x1 >= y1, x0, y0),
@@ -1383,7 +1383,7 @@ def multiple_commreducer():
             with Ts.sblock("T_softmax_maxelem_cross_thread_reduction"):
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.TypedLambda([T.float32, T.float32], lambda x, y: (T.max(x, y),)),
+                        T.Lambda([T.float32, T.float32], lambda x, y: (T.max(x, y),)),
                         (T.min_value("float32"),),
                         (normal_reduce_temp0[0],),
                         True,
@@ -1395,7 +1395,7 @@ def multiple_commreducer():
             with Ts.sblock("T_softmax_expsum_cross_thread_reduction"):
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                         (T.float32(0),),
                         (normal_reduce_temp1[0],),
                         True,
@@ -2308,7 +2308,7 @@ def lowered_loop_split(
                 Ts.writes([reduce_temp0[0]])
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                        T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                         (T.float32(0),),
                         (normal_reduce_temp0[0],),
                         True,

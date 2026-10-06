@@ -27,7 +27,7 @@ from tvm.testing import env
 
 
 def _reduce_module(d1, d2, d3, is_max=False):
-    combine = T.TypedLambda(
+    combine = T.Lambda(
         [T.float32, T.float32],
         (lambda x, y: (T.max(x, y),)) if is_max else (lambda x, y: (x + y,)),
     )

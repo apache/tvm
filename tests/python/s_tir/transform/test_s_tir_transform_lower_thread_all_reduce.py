@@ -64,7 +64,7 @@ def test_basic():
                 reduce_1 = T.decl_tensor(1, data=reduce.data, scope="local")
 
                 T.tvm_thread_allreduce(
-                    T.TypedLambda([T.float32, T.float32], lambda x, y: x + y),
+                    T.Lambda([T.float32, T.float32], lambda x, y: x + y),
                     T.float32(0),
                     A_flat[0],
                     T.bool(True),
@@ -99,7 +99,7 @@ def test_basic_with_decl_buffer():
                 reduce = T.decl_tensor(1, dtype="float32", scope="local")
 
                 T.tvm_thread_allreduce(
-                    T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                    T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                     (T.float32(0),),
                     (A_flat[0],),
                     T.bool(True),
@@ -143,7 +143,7 @@ def test_reduce_summation():
                     )
 
                 T.tvm_thread_allreduce(
-                    T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                    T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                     (T.float32(0),),
                     (normal_reduce_1[0],),
                     T.bool(True),
@@ -173,7 +173,7 @@ def test_multi_group_reduction():
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((1024,), data=A.data)
             T.tvm_thread_allreduce(
-                T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 32 + threadIdx_x],),
                 T.bool(True),
@@ -204,7 +204,7 @@ def test_multi_group_reduction_consumed_through_alias():
             cross_thread_B_alias = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_flat = T.decl_tensor((512,), data=A.data)
             T.tvm_thread_allreduce(
-                T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_flat[threadIdx_y * 128 + threadIdx_x],),
                 T.bool(True),
@@ -239,7 +239,7 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_flat = T.decl_tensor((512,), data=A.data)
             T.tvm_thread_allreduce(
-                T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_flat[threadIdx_y * 128 + threadIdx_x],),
                 T.bool(True),
@@ -276,7 +276,7 @@ def test_multi_group_mask1():
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((256,), data=A.data)
             T.tvm_thread_allreduce(
-                T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 8 + threadIdx_x],),
                 T.bool(True),
@@ -307,7 +307,7 @@ def test_multi_warp_reduce1():
                 cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
                 A_1 = T.decl_tensor((16384,), data=A.data)
                 T.tvm_thread_allreduce(
-                    T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                    T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                     (T.float32(0),),
                     (A_1[i * 128 + threadIdx_x],),
                     T.bool(True),
@@ -338,7 +338,7 @@ def test_multi_warp_reduce2():
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((1024,), data=A.data)
             T.tvm_thread_allreduce(
-                T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_x],),
                 T.bool(True),
@@ -370,7 +370,7 @@ def test_multi_group_multi_warp_reduction():
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((512,), data=A.data)
             T.tvm_thread_allreduce(
-                T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 128 + threadIdx_x],),
                 T.bool(True),
@@ -407,7 +407,7 @@ def test_multi_group_multi_warp_predicated_reduction():
                 in_thread_B_1[0] = in_thread_B_1[0] + A_1[threadIdx_y * 70 + threadIdx_x]
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             T.tvm_thread_allreduce(
-                T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (in_thread_B_1[0],),
                 T.bool(True),
@@ -452,7 +452,7 @@ def test_metal_no_mask():
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((256,), data=A.data)
             T.tvm_thread_allreduce(
-                T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 128 + threadIdx_x],),
                 T.bool(True),
@@ -499,7 +499,7 @@ def test_webgpu_warp_reduce():
                 reduce_alias = T.decl_tensor(1, data=reduce.data, scope="local")
 
                 T.tvm_thread_allreduce(
-                    T.TypedLambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                    T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
                     (T.float32(0),),
                     (A_flat[0],),
                     T.bool(True),
@@ -546,7 +546,7 @@ def test_webgpu_multi_warp_reduce():
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             A_1 = T.decl_tensor((256,), data=A.data)
             T.tvm_thread_allreduce(
-                T.TypedLambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
                 (T.float32(0),),
                 (A_1[threadIdx_y * 128 + threadIdx_x],),
                 T.bool(True),

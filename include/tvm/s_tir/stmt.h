@@ -254,7 +254,6 @@ constexpr const char* fragment_layout = "fragment_layout";
  */
 constexpr const char* loop_partition_hint = "loop_partition_hint";
 
-
 // -----------------------------------------------------------------------
 // meta_schedule annotations
 // -----------------------------------------------------------------------

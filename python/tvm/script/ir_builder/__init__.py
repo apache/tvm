@@ -40,7 +40,7 @@ from .base import (
 )
 from .frame import IRModuleFrame
 from .ir import (
-    TypedLambda,
+    Lambda,
     constexpr,
     dtype,
     dynamic,
@@ -69,13 +69,13 @@ __all__ = [
     "GenericConst",
     "IRBuilder",
     "IRModuleFrame",
+    "Lambda",
     "MissingType",
     "PrimType",
     "Range",
     "StringImm",
     "StringType",
     "Type",
-    "TypedLambda",
     "at_",
     "check_well_formed_",
     "constexpr",

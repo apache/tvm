@@ -41,7 +41,7 @@ ffi::Optional<ExprDoc> LambdaExprDocTranslate(DocTranslatorObj* d, ffi::AnyView 
     types.push_back(TypeValue(d, var->ty, false));
   }
   ExprDoc body = d->Translate(lambda->body).value();
-  return NamespaceDoc("ir")->Attr("TypedLambda")->Call({ListDoc(types), LambdaDoc(args, body)});
+  return NamespaceDoc("ir")->Attr("Lambda")->Call({ListDoc(types), LambdaDoc(args, body)});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
