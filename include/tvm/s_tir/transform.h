@@ -164,16 +164,12 @@ TVM_DLL Pass TransformMmaBufferLayout();
 TVM_DLL Pass LowerOpaqueBlock();
 
 /*!
- * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
- *        "vthread.x/y/z". Before the unification, two vars that are bound to a thread axis (e.g.,
- *        "threadIdx.x") use different IterVars and variables in their AttrStmts. After the
- *        unification, we use a consolidated IterVar and a variable for them.
+ * \brief Lower thread-binding loops to fresh lexical launch regions.
+ * Run after LoopPartition and LowerOpaqueBlock, while retaining loops for scheduling
+ * and feature extraction before this boundary.
  * \return The pass.
- * \note `vthread` is a legacy behavior that will be deprecated, though thread bindings of `vthread`
- *       are still also unified in this pass. Please use `vthread.x`, `vthread.y` and `vthread.z`
- *       instead.
  */
-TVM_DLL Pass UnifyThreadBinding();
+TVM_DLL Pass LowerThreadBinding();
 
 /*!
  * \brief This pass transforms annotated loops into pipelined ones where producers and consumers

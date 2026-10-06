@@ -84,8 +84,6 @@ class PrimFuncFrameNode : public TIRFrameNode {
   ffi::Optional<Type> ret_type;
   /*! \brief Additional attributes storing the meta-data */
   ffi::Map<ffi::String, Any> attrs;
-  /*! \brief The variable map bound to thread env. */
-  ffi::Map<tvm::tirx::Var, tvm::tirx::IterVar> env_threads;
   /*! \brief Whether it is a persistent kernel. */
   bool persistent;
   /*! \brief Whether this frame declares a bodyless signature. */
@@ -102,7 +100,6 @@ class PrimFuncFrameNode : public TIRFrameNode {
         .def_ro("is_private", &PrimFuncFrameNode::is_private)
         .def_ro("ret_type", &PrimFuncFrameNode::ret_type)
         .def_ro("attrs", &PrimFuncFrameNode::attrs)
-        .def_ro("env_threads", &PrimFuncFrameNode::env_threads)
         .def_ro("persistent", &PrimFuncFrameNode::persistent)
         .def_ro("is_declaration", &PrimFuncFrameNode::is_declaration)
         .def_ro("function", &PrimFuncFrameNode::function)
@@ -250,53 +247,46 @@ class AssertFrame : public TIRFrame {
 };
 
 /*!
- * \brief The LaunchThreadFrameNode.
- * \note It is used only inside a PrimFunc.
+ * \brief A result-free region with lexical body parameters.
+ * \sa RegionFrame
  */
-class LaunchThreadFrameNode : public TIRFrameNode {
+class RegionFrameNode : public TIRFrameNode {
  public:
-  explicit LaunchThreadFrameNode(ffi::UnsafeInit tag) : extent(tag) {}
+  explicit RegionFrameNode(ffi::UnsafeInit tag) : op(tag) {}
+  explicit RegionFrameNode(Op op) : op(std::move(op)) {}
 
-  explicit LaunchThreadFrameNode(PrimExpr extent) : extent(std::move(extent)) {}
-
-  /*! \brief The extent of environment thread. */
-  PrimExpr extent;
-  /*! \brief The attribute key, could be either virtual_thread or thread_extent. */
-  ffi::String attr_key;
-  /*! \brief The iteration variable. */
-  tvm::tirx::IterVar iter_var;
+  /*! \brief The operation represented by this region. */
+  Op op;
+  /*! \brief Operands evaluated in the enclosing scope. */
+  ffi::Array<Expr> args;
+  /*! \brief Variables defined at entry to the region body. */
+  ffi::Array<Var> body_params;
+  /*! \brief Additional operation attributes. */
+  DictAttrs attrs;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<LaunchThreadFrameNode>()
-        .def_ro("extent", &LaunchThreadFrameNode::extent)
-        .def_ro("attr_key", &LaunchThreadFrameNode::attr_key)
-        .def_ro("iter_var", &LaunchThreadFrameNode::iter_var);
+    refl::ObjectDef<RegionFrameNode>()
+        .def_ro("op", &RegionFrameNode::op)
+        .def_ro("args", &RegionFrameNode::args)
+        .def_ro("body_params", &RegionFrameNode::body_params)
+        .def_ro("attrs", &RegionFrameNode::attrs);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.LaunchThreadFrame",
-                                    LaunchThreadFrameNode, TIRFrameNode);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.RegionFrame", RegionFrameNode,
+                                    TIRFrameNode);
 
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
+  /*! \brief Construct the region and add it to the enclosing builder frame. */
   void ExitWithScope() final;
 };
 
-/*!
- * \brief Managed reference to LaunchThreadFrameNode.
- *
- * \sa LaunchThreadFrameNode
- */
-class LaunchThreadFrame : public TIRFrame {
+/*! \brief Managed reference to RegionFrameNode. */
+class RegionFrame : public TIRFrame {
  public:
-  explicit LaunchThreadFrame(ffi::ObjectPtr<LaunchThreadFrameNode> data)
-      : TIRFrame(ffi::UnsafeInit{}) {
+  explicit RegionFrame(ffi::ObjectPtr<RegionFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LaunchThreadFrame, TIRFrame, LaunchThreadFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(RegionFrame, TIRFrame, RegionFrameNode);
 };
 
 /*!

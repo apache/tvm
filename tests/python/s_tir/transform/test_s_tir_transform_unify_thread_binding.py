@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 
 def _check(original, transformed):
     mod = tvm.IRModule.from_expr(original.with_attr("global_symbol", "main"))
-    mod = tvm.s_tir.transform.UnifyThreadBinding()(mod)
+    mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
     mod = tvm.s_tir.transform.StmtSimplify()(mod)
     tvm.ir.assert_structural_equal(
         mod["main"], transformed.with_attr("global_symbol", "main"), True
@@ -36,9 +36,13 @@ def _check(original, transformed):
 
 
 def _check_fail(original):
-    mod = tvm.IRModule.from_expr(original)
-    with pytest.raises(ValueError):
-        tvm.s_tir.transform.UnifyThreadBinding()(mod)
+    mod = tvm.IRModule.from_expr(
+        original.with_attr("target", tvm.target.Target("cuda", host="llvm"))
+    )
+    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+    mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
+    with pytest.raises(ValueError, match="Incompatible launch extents for threadIdx.x"):
+        tvm.tirx.transform.SplitHostDevice()(mod)
 
 
 @Ts.prim_func
@@ -60,18 +64,15 @@ def element_wise_thread_x(
 def unified_element_wise_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
-    for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
-        for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
+    with T.launch_thread("blockIdx.x", 128) as i:
+        with T.launch_thread("threadIdx.x", 4) as j0_0:
             for j0_1 in T.serial(0, 32):
                 with Ts.sblock(""):
-                    B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
-                        A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
-                    )
+                    B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
+        with T.launch_thread("threadIdx.x", 4) as j1_0:
             for j1_1 in T.serial(0, 32):
                 with Ts.sblock(""):
-                    C[blockIdx_x, threadIdx_x * 32 + j1_1] = (
-                        B[blockIdx_x, threadIdx_x * 32 + j1_1] + 1.0
-                    )
+                    C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
 @Ts.prim_func
@@ -97,31 +98,24 @@ def unified_element_wise_thread_x_different_dtype(
     B: T.Tensor((128, 128), "float32"),
     C: T.Tensor((128, 128), "float32"),
 ) -> None:
-    for blockIdx_x in T.thread_binding(128, "blockIdx.x"):
-        for threadIdx_x in T.thread_binding(4, "threadIdx.x"):
+    with T.launch_thread("blockIdx.x", 128) as i:
+        with T.launch_thread("threadIdx.x", 4) as j0_0:
             for j0_1 in T.serial(0, 32):
                 with Ts.sblock(""):
-                    B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
-                        A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
-                    )
+                    B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
+        with T.launch_thread("threadIdx.x", T.int64(4)) as j1_0:
             for j1_1 in T.serial(T.int64(32)):
                 with Ts.sblock(""):
-                    C[blockIdx_x, T.cast(threadIdx_x, "int64") * T.int64(32) + j1_1] = (
-                        B[blockIdx_x, T.cast(threadIdx_x, "int64") * T.int64(32) + j1_1] + 1.0
-                    )
+                    C[i, j1_0 * T.int64(32) + j1_1] = B[i, j1_0 * T.int64(32) + j1_1] + 1.0
 
 
 @Ts.prim_func
 def element_wise_env_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
-    j1_0 = T.env_thread("threadIdx.x")
-    j0_0 = T.env_thread("threadIdx.x")
-    i = T.env_thread("blockIdx.x")
-
-    T.launch_thread(i, 128)
-    T.launch_thread(j0_0, 4)
-    T.launch_thread(j1_0, 4)
+    i = T.launch_thread("blockIdx.x", 128)
+    j0_0 = T.launch_thread("threadIdx.x", 4)
+    j1_0 = T.launch_thread("threadIdx.x", 4)
 
     for j0_1 in T.serial(0, 32):
         with Ts.sblock(""):
@@ -135,18 +129,16 @@ def element_wise_env_thread_x(
 def unified_element_wise_env_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
-    for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
-        for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
-            for j0_1 in T.serial(0, 32):
-                with Ts.sblock(""):
-                    B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
-                        A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
-                    )
-            for j1_1 in T.serial(0, 32):
-                with Ts.sblock(""):
-                    C[blockIdx_x, threadIdx_x * 32 + j1_1] = (
-                        B[blockIdx_x, threadIdx_x * 32 + j1_1] + 1.0
-                    )
+    i = T.launch_thread("blockIdx.x", 128)
+    j0_0 = T.launch_thread("threadIdx.x", 4)
+    j1_0 = T.launch_thread("threadIdx.x", 4)
+
+    for j0_1 in T.serial(0, 32):
+        with Ts.sblock(""):
+            B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
+    for j1_1 in T.serial(0, 32):
+        with Ts.sblock(""):
+            C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
 @Ts.prim_func
@@ -161,13 +153,12 @@ def element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> 
 
 @Ts.prim_func
 def unified_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
-    for vthread_x in T.thread_binding(0, 2, "vthread.x"):
-        for threadIdx_x in T.thread_binding(0, 64, "threadIdx.x"):
-            for j_1 in T.serial(0, 64):
-                with Ts.sblock(""):
-                    B[vthread_x * 64 + threadIdx_x, vthread_x * 64 + j_1] = (
-                        A[vthread_x * 64 + threadIdx_x, vthread_x * 64 + j_1] * 2.0
-                    )
+    with T.launch_thread("vthread.x", 2) as i_0:
+        with T.launch_thread("threadIdx.x", 64) as i_1:
+            with T.launch_thread("vthread.x", 2) as j_0:
+                for j_1 in T.serial(0, 64):
+                    with Ts.sblock(""):
+                        B[i_0 * 64 + i_1, j_0 * 64 + j_1] = A[i_0 * 64 + i_1, j_0 * 64 + j_1] * 2.0
 
 
 @Ts.prim_func
@@ -203,12 +194,12 @@ def unified_element_wise_kernels_with_different_size(
     C: T.Tensor([256, 256]),
     D: T.Tensor([256, 256]),
 ) -> None:
-    for blockIdx_x in T.thread_binding(0, 128, "blockIdx.x"):
-        for threadIdx_x in T.thread_binding(0, 128, "threadIdx.x"):
-            B[blockIdx_x, threadIdx_x] = A[blockIdx_x, threadIdx_x] * 2.0
-    for blockIdx_x in T.thread_binding(0, 256, "blockIdx.x"):
-        for threadIdx_x in T.thread_binding(0, 256, "threadIdx.x"):
-            D[blockIdx_x, threadIdx_x] = C[blockIdx_x, threadIdx_x] + 1.0
+    with T.launch_thread("blockIdx.x", 128) as i0:
+        with T.launch_thread("threadIdx.x", 128) as j0:
+            B[i0, j0] = A[i0, j0] * 2.0
+    with T.launch_thread("blockIdx.x", 256) as i1:
+        with T.launch_thread("threadIdx.x", 256) as j1:
+            D[i1, j1] = C[i1, j1] + 1.0
 
 
 @Ts.prim_func
@@ -230,18 +221,15 @@ def element_wise_implicit_block(
 def unified_element_wise_implicit_block(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
-    for blockIdx_x in T.thread_binding(0, 128, "threadIdx.y"):
-        for threadIdx_x in T.thread_binding(0, 4, "threadIdx.x"):
+    with T.launch_thread("threadIdx.y", 128) as i:
+        with T.launch_thread("threadIdx.x", 4) as j0_0:
             for j0_1 in T.serial(0, 32):
                 with Ts.sblock(""):
-                    B[blockIdx_x, threadIdx_x * 32 + j0_1] = (
-                        A[blockIdx_x, threadIdx_x * 32 + j0_1] * 2.0
-                    )
+                    B[i, j0_0 * 32 + j0_1] = A[i, j0_0 * 32 + j0_1] * 2.0
+        with T.launch_thread("threadIdx.x", 4) as j1_0:
             for j1_1 in T.serial(0, 32):
                 with Ts.sblock(""):
-                    C[blockIdx_x, threadIdx_x * 32 + j1_1] = (
-                        B[blockIdx_x, threadIdx_x * 32 + j1_1] + 1.0
-                    )
+                    C[i, j1_0 * 32 + j1_1] = B[i, j1_0 * 32 + j1_1] + 1.0
 
 
 def test_thread_x():
@@ -287,8 +275,8 @@ def test_inner_binding_with_annotation():
     def unified_inner_binding_with_annotation(
         A: T.Tensor((64,), "float32"), B: T.Tensor((64,), "float32")
     ):
-        for blockIdx_x in T.thread_binding(32, thread="blockIdx.x"):
-            for threadIdx_x in T.thread_binding(2, thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", 32) as blockIdx_x:
+            with T.launch_thread("threadIdx.x", 2) as threadIdx_x:
                 for var in T.serial(1, annotations={"my_annotation": 1}):
                     with Ts.sblock("block"):
                         v = Ts.axis.spatial(64, blockIdx_x * 2 + threadIdx_x)

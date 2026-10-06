@@ -38,7 +38,6 @@ def tirx_pipeline(*, prepare_only=False):
         config = pass_ctx.config
         passes = [
             tirx.transform.LowerTIRx(),
-            tirx.transform.UnifyThreadBinding(),
             tirx.transform.StmtSimplify(),
             tirx.transform.LowerTIRxOpaque(),
             tirx.transform.FlattenBuffer(),

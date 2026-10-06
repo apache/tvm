@@ -225,6 +225,7 @@ def partition_from_scheduled_tir(prim_func, pass_cfg, do_flatten=True):
         mod = IRModule.from_expr(prim_func.with_attr("global_symbol", "main"))
         mod = tvm.s_tir.transform.LoopPartition()(mod)
         mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
+        mod = tvm.s_tir.transform.LowerThreadBinding()(mod)
         if do_flatten:
             mod = tvm.tirx.transform.FlattenBuffer()(mod)
         mod = tvm.tirx.transform.StmtSimplify()(mod)

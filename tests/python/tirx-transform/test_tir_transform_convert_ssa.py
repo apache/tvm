@@ -262,34 +262,16 @@ def test_no_change_if_already_ssa():
 
 
 def test_keep_duplicate_thread_idx_in_same_function():
-    """Environment threads are treated as being at function scope
-
-    The `"thread_extent"` attribute has some unique semantics.  It
-    serves as the definition of the `tirx::Var` representing the
-    environment thread (e.g. `threadIdx.x` in CUDA).  However,
-    multiple `"thread_extent"` attributes may co-exist in the same
-    PrimFunc.  For the purpose of variable scope, use of the
-    `tirx::Var` is only allowed within the body of the `AttrStmt`.
-    However, for the purpose of well-formed-ness, all
-    `"thread_extent"` attributes must use the same IterVar instance
-    (e.g. `WarpIndexFinder` in `lower_warp_memory.cc` may throw an
-    error if multiple IterVar instances occur).
-
-    If there are multiple `AttrStmt` with key `"thread_extent"` in a
-    single function (represented in TVMScript as `T.launch_thread`),
-    these should be treated as a definition of a single variable at
-    function scope, and should not be de-duplicated.
-    """
+    """Sibling launches bind independent lexical variables and are already SSA."""
 
     @I.ir_module
     class before:
         @T.prim_func
         def main(A: T.Tensor([256], "float32")):
-            threadIdx_x = T.env_thread("threadIdx.x")
-            with T.launch_thread(threadIdx_x, 256):
+            with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
 
-            with T.launch_thread(threadIdx_x, 256):
+            with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
     after = tvm.tirx.transform.ConvertSSA()(before)
@@ -297,22 +279,10 @@ def test_keep_duplicate_thread_idx_in_same_function():
 
 
 def test_de_duplicate_thread_idx_across_multiple_functions():
-    """Environment threads are treated as being at function scope
+    """ConvertSSA separates an explicitly reused region parameter across functions.
 
-    See `test_keep_duplicate_thread_idx_in_same_function` for background
-    information.
-
-    If there are multiple functions in an IRModule, the `AttrStmt`
-    with key `"thread_extent"` in a single function (represented in
-    TVMScript as `T.launch_thread`), these should be treated as a
-    definition of a single variable at function scope, and should not
-    be de-duplicated.
-
-    For this test case, the `AttrStmt` for `"thread_extent"` are
-    written explicitly, without using the usual `T.env_thread` and
-    `T.launch_thread`, as they cannot represent the duplciate
-    Var/IterVar usage across the two PrimFuncs.
-    """
+    The generic region form deliberately bypasses the fresh-variable launch DSL
+    so this fixture still exercises duplicate definitions."""
 
     threadIdx_x = T.dynamic("threadIdx_x", "int32")
 
@@ -321,19 +291,19 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
     class before:
         @T.prim_func
         def kernel_1(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
         @T.prim_func
         def kernel_2(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
@@ -344,19 +314,19 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
     class expected:
         @T.prim_func
         def kernel_1(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(kernel_1_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[kernel_1_threadIdx_x],
             )
             A[kernel_1_threadIdx_x] = A[kernel_1_threadIdx_x] + T.float32(1)
 
         @T.prim_func
         def kernel_2(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(kernel_2_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[kernel_2_threadIdx_x],
             )
             A[kernel_2_threadIdx_x] = A[kernel_2_threadIdx_x] + T.float32(1)
 
@@ -365,29 +335,33 @@ def test_de_duplicate_thread_idx_across_multiple_functions():
 
 
 def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
-    """Environment threads are treated as being at function scope
+    """ConvertSSA separates a shared parameter list reused across functions.
 
-    Like `test_de_duplicate_thread_idx_across_multiple_functions`, except the
-    `IterVar` for the environment thread is duplicated across multiple
-    PrimFuncs, not just the `tirx.Var` inside the `IterVar`.
-    """
+    Launch regions no longer wrap their bindings in IterVars; this retains the
+    existing shared-wrapper fixture using the explicit body-parameter list."""
 
     threadIdx_x = T.dynamic("threadIdx_x", "int32")
-    iter_var = tvm.tirx.IterVar(
-        tvm.ir.Range(0, 256), threadIdx_x, tvm.tirx.IterVar.ThreadIndex, "threadIdx.x"
-    )
+    body_params = [threadIdx_x]
 
     # complaints of multiple definitions for threadIdx_x
     @I.ir_module(check_well_formed=False)
     class before:
         @T.prim_func
         def kernel_1(A: T.Tensor([256], "float32")):
-            T.attr(iter_var, "thread_extent", 256)
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=body_params,
+            )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
         @T.prim_func
         def kernel_2(A: T.Tensor([256], "float32")):
-            T.attr(iter_var, "thread_extent", 256)
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=body_params,
+            )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
     kernel_1_threadIdx_x = T.dynamic("threadIdx_x", "int32")
@@ -397,19 +371,19 @@ def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
     class expected:
         @T.prim_func
         def kernel_1(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(kernel_1_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[kernel_1_threadIdx_x],
             )
             A[kernel_1_threadIdx_x] = A[kernel_1_threadIdx_x] + T.float32(1)
 
         @T.prim_func
         def kernel_2(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(kernel_2_threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[kernel_2_threadIdx_x],
             )
             A[kernel_2_threadIdx_x] = A[kernel_2_threadIdx_x] + T.float32(1)
 
@@ -418,53 +392,61 @@ def test_de_duplicate_thread_idx_iter_var_across_multiple_functions():
 
 
 def test_thread_idx_reused_within_and_across_functions():
-    """Environment threads are treated as being at function scope
+    """ConvertSSA separates reused parameters in sibling regions and functions.
 
-    A combination of
-    test_de_duplicate_thread_idx_iter_var_across_multiple_functions and
-    test_keep_duplicate_thread_idx_in_same_function.  The re-use within a
-    function should be maintained, while re-use across functions is
-    de-duplicated.
-    """
+    The old function-wide thread identity is retired: each region now defines
+    its own lexical parameter, including sibling launches in one function."""
 
     threadIdx_x = T.dynamic("threadIdx_x", "int32")
-    iter_var = tvm.tirx.IterVar(
-        tvm.ir.Range(0, 256), threadIdx_x, tvm.tirx.IterVar.ThreadIndex, "threadIdx.x"
-    )
+    body_params = [threadIdx_x]
 
     # complaints of multiple definitions of threadIdx_x
     @I.ir_module(check_well_formed=False)
     class before:
         @T.prim_func
         def kernel_1(A: T.Tensor([256], "float32")):
-            with T.attr(iter_var, "thread_extent", 256):
+            with T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=body_params,
+            ):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
-            with T.attr(iter_var, "thread_extent", 256):
+            with T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=body_params,
+            ):
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
         @T.prim_func
         def kernel_2(A: T.Tensor([256], "float32")):
-            with T.attr(iter_var, "thread_extent", 256):
+            with T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=body_params,
+            ):
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
-            with T.attr(iter_var, "thread_extent", 256):
+            with T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=body_params,
+            ):
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
     @I.ir_module
     class expected:
         @T.prim_func
         def kernel_1(A: T.Tensor([256], "float32")):
-            threadIdx_x = T.env_thread("threadIdx.x")
-            with T.launch_thread(threadIdx_x, 256):
+            with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
-            with T.launch_thread(threadIdx_x, 256):
+            with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
         @T.prim_func
         def kernel_2(A: T.Tensor([256], "float32")):
-            threadIdx_x = T.env_thread("threadIdx.x")
-            with T.launch_thread(threadIdx_x, 256):
+            with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
                 A[threadIdx_x] = A[threadIdx_x] + 1.0
-            with T.launch_thread(threadIdx_x, 256):
+            with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
                 A[threadIdx_x] = A[threadIdx_x] + 2.0
 
     after = tvm.tirx.transform.ConvertSSA()(before)

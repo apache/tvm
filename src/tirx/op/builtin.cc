@@ -188,6 +188,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   }
 
 TVM_DEFINE_CACHED_OP_GETTER(reinterpret, "tirx.reinterpret")
+TVM_DEFINE_CACHED_OP_GETTER(launch_thread, "tirx.launch_thread")
 TVM_DEFINE_CACHED_OP_GETTER(thread_return, "tirx.thread_return")
 TVM_DEFINE_CACHED_OP_GETTER(filter, "tirx.filter")
 TVM_DEFINE_CACHED_OP_GETTER(selector, "tirx.selector")
@@ -266,6 +267,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                            static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
+  OpDef("tirx.launch_thread", "Bind a thread index within a body with a launch extent.")
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
   OpDef("tirx.thread_return")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.thread_return"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))

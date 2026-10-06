@@ -44,6 +44,7 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   tvm::ExprVisitor::InitVTable(vtable);
   SetDispatch<StmtExprVisitor, BindNode>(vtable);
   SetDispatch<StmtExprVisitor, AttrStmtNode>(vtable);
+  SetDispatch<StmtExprVisitor, RegionStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, IfThenElseNode>(vtable);
   SetDispatch<StmtExprVisitor, ForNode>(vtable);
   SetDispatch<StmtExprVisitor, WhileNode>(vtable);
@@ -136,6 +137,16 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BindNode* op) {
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AttrStmtNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   return this->Visit(op->body);
+}
+
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const RegionStmtNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->attrs));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+      kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->body_params); }));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->body));
+  return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
+                                 [&]() { return this->Visit(op->result_vars); });
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ForNode* op) {
@@ -237,6 +248,7 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   tvm::ExprMutator::InitVTable(vtable);
   SetDispatch<StmtExprMutator, BindNode>(vtable);
   SetDispatch<StmtExprMutator, AttrStmtNode>(vtable);
+  SetDispatch<StmtExprMutator, RegionStmtNode>(vtable);
   SetDispatch<StmtExprMutator, IfThenElseNode>(vtable);
   SetDispatch<StmtExprMutator, ForNode>(vtable);
   SetDispatch<StmtExprMutator, WhileNode>(vtable);
@@ -295,6 +307,39 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const AttrStmtNode* op, InplaceMode i
   auto copy = ffi::make_object<AttrStmtNode>(*op);
   if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
   if (!body.IsUnchanged()) copy->body = std::move(body).ValueUnchecked();
+  return Stmt(std::move(copy));
+}
+
+UnchangedOr<Stmt> StmtExprMutator::Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) {
+  auto attrs = Mutate(op->attrs, inplace_mode).as_or_throw<UnchangedOr<DictAttrs>>();
+  auto args = Mutate(op->args, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Expr>>>();
+  auto body_params = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+    return Mutate(op->body_params, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Var>>>();
+  });
+  auto body = Mutate(op->body, inplace_mode);
+  auto result_vars = WithDefRegionKind(kTVMFFIDefRegionKindSimple, [&]() {
+    return Mutate(op->result_vars, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<Var>>>();
+  });
+  if (attrs.UnchangedOrSameAs(op->attrs) && args.UnchangedOrSameAs(op->args) &&
+      body_params.UnchangedOrSameAs(op->body_params) && body.UnchangedOrSameAs(op->body) &&
+      result_vars.UnchangedOrSameAs(op->result_vars)) {
+    return ffi::Unchanged();
+  }
+  if (inplace_mode == InplaceMode::kAllow) {
+    auto* writable = const_cast<RegionStmtNode*>(op);
+    if (!attrs.IsUnchanged()) writable->attrs = std::move(attrs).ValueUnchecked();
+    if (!args.IsUnchanged()) writable->args = std::move(args).ValueUnchecked();
+    if (!body_params.IsUnchanged()) writable->body_params = std::move(body_params).ValueUnchecked();
+    if (!body.IsUnchanged()) writable->body = std::move(body).ValueUnchecked();
+    if (!result_vars.IsUnchanged()) writable->result_vars = std::move(result_vars).ValueUnchecked();
+    return ffi::Unchanged();
+  }
+  auto copy = ffi::make_object<RegionStmtNode>(*op);
+  if (!attrs.IsUnchanged()) copy->attrs = std::move(attrs).ValueUnchecked();
+  if (!args.IsUnchanged()) copy->args = std::move(args).ValueUnchecked();
+  if (!body_params.IsUnchanged()) copy->body_params = std::move(body_params).ValueUnchecked();
+  if (!body.IsUnchanged()) copy->body = std::move(body).ValueUnchecked();
+  if (!result_vars.IsUnchanged()) copy->result_vars = std::move(result_vars).ValueUnchecked();
   return Stmt(std::move(copy));
 }
 

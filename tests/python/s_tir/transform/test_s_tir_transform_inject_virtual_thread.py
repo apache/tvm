@@ -174,8 +174,7 @@ def test_vthread_simplified():
 
     @Ts.prim_func
     def before_func():
-        vthread = T.env_thread("vthread")
-        T.launch_thread(vthread, 4)
+        vthread = T.launch_thread("vthread", 4)
         B = T.alloc_tensor((4,), "int32", scope="shared")
         B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
@@ -201,8 +200,7 @@ def test_vthread_vectorized():
 
     @Ts.prim_func
     def before_func():
-        vthread = T.env_thread("vthread")
-        T.launch_thread(vthread, 4)
+        vthread = T.launch_thread("vthread", 4)
         B = T.alloc_tensor((4,), "int32", scope="shared")
         B[T.ramp(0, 1, 4)] = T.broadcast(vthread, 4)
 
@@ -228,8 +226,7 @@ def test_vthread_vectorized():
 def test_vthread_rewrites_masked_accesses():
     @Ts.prim_func
     def before_func():
-        vthread = T.env_thread("vthread")
-        T.launch_thread(vthread, 2)
+        vthread = T.launch_thread("vthread", 2)
         B = T.alloc_tensor((4,), "float32", scope="shared")
         mask = T.meta_var(T.Broadcast(T.bool(True), 4))
         loaded = T.meta_var(T.masked_load("float32x4", B, T.Ramp(0, 1, 4), mask))

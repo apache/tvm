@@ -31,6 +31,7 @@
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
+#include <map>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -71,13 +72,19 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     }
   }
 
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (!op->op.same_as(tirx::builtin::launch_thread()) ||
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
+      return DialectMutator::Mutate_(op, inplace_mode);
+    }
+    thread_extents_.push_back(op);
+    auto result = DialectMutator::Mutate_(op, inplace_mode);
+    thread_extents_.pop_back();
+    return result;
+  }
+
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tirx::attr::thread_extent) {
-      thread_extents_.push_back(op);
-      Stmt ret = DialectMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-      thread_extents_.pop_back();
-      return ret;
-    } else if (op->attr_key == "reduce_scope") {
+    if (op->attr_key == "reduce_scope") {
       const te::CommReducerNode* combiner = op->node.as<te::CommReducerNode>();
       TVM_FFI_ICHECK(combiner);
       reduce_combiner_.push_back(combiner);
@@ -269,29 +276,35 @@ class ThreadAllreduceBuilder final : public DialectMutator {
 
     size_t nmatch = 0;
     std::vector<ThreadEntry> vred, vpar;
-    for (const AttrStmtNode* attr : thread_extents_) {
+    std::map<int, std::pair<ThreadEntry, bool>> thread_axes;
+    for (const RegionStmtNode* launch : thread_extents_) {
       ThreadEntry e;
-      IterVar iv = attr->node.as_or_throw<IterVar>();
+      IterVar iv(Range(), launch->body_params[0].as_or_throw<PrimVar>(), IterVarType::kThreadIndex,
+                 launch->args[0].as_or_throw<StringImm>()->value);
       e.scope = runtime::ThreadScope::Create(iv->thread_tag);
       e.iv = iv;
       TVM_FFI_ICHECK_LE(e.scope.rank, 1);
       TVM_FFI_ICHECK_GE(e.scope.dim_index, 0) << "vthread do not work with cross thread reduction";
       if (e.scope.rank == 1) {
-        const auto* ptr = attr->value.as<IntImmNode>();
+        const auto* ptr = launch->args[1].as_or_throw<PrimExpr>().as<IntImmNode>();
         TVM_FFI_ICHECK(ptr) << "Need constant extent for reduce set " << iv;
         e.extent = ptr->value.as<int>().value();
-        // ignore variables equal to 0
-        if (e.extent == 1) {
-          continue;
-        }
-
-        if (reduce_set.count(iv->var.get())) {
-          vred.push_back(e);
-          ++nmatch;
-        } else {
-          vpar.push_back(e);
+        bool is_reduce = reduce_set.count(iv->var.get());
+        nmatch += is_reduce;
+        auto [it, inserted] = thread_axes.emplace(e.scope.dim_index, std::make_pair(e, is_reduce));
+        if (!inserted) {
+          TVM_FFI_ICHECK_EQ(it->second.first.extent, e.extent)
+              << "Incompatible extents for nested bindings of " << iv->thread_tag;
+          // Fresh lexical bindings of one hardware axis are aliases. Use the
+          // innermost binding for generated indexes and reduce the axis once
+          // when any of its live aliases appears in the reduction operands.
+          it->second.first = e;
+          it->second.second |= is_reduce;
         }
       }
+    }
+    for (const auto& [dim, entry] : thread_axes) {
+      if (entry.first.extent != 1) (entry.second ? vred : vpar).push_back(entry.first);
     }
     TVM_FFI_ICHECK_EQ(nmatch, reduce_set.size())
         << "Not all reduce index are presented in the context";
@@ -890,7 +903,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   bool need_warp_shuffle_mask_;
 
   // surrounding scope of thread extent.
-  std::vector<const AttrStmtNode*> thread_extents_;
+  std::vector<const RegionStmtNode*> thread_extents_;
   std::vector<const te::CommReducerNode*> reduce_combiner_;
   // The load remap
   std::unordered_map<const VarNode*, PrimExpr> load_remap_;

@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/tirx/builtin.h>
 namespace tvm {
 namespace tirx {
 
@@ -35,25 +36,20 @@ VarUseDefAnalyzer::VarUseDefAnalyzer(const ffi::Array<Var>& defined_vars, bool v
   }
 }
 
-ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const AttrStmtNode* op) {
-  if (op->attr_key == attr::thread_extent) {
-    IterVar iv = op->node.as_or_throw<IterVar>();
-    TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-    // thread_extent can appear multiple times
-    // use the first appearance as def.
-    if (!use_count_.count(iv->var.get())) {
-      this->HandleDef(iv->var);
-    }
-
-    if (visit_thread_extent_) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
-    }
-
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->body));
-  } else {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const RegionStmtNode* op) {
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->attrs));
+  if (!op->op.same_as(tirx::builtin::launch_thread()) || visit_thread_extent_) {
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->args));
   }
-  return std::nullopt;
+  auto outer_defs = def_count_;
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->WithDefRegionKind(
+      kTVMFFIDefRegionKindSimple, [&]() { return this->Visit(op->body_params); }));
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->body));
+  for (const auto& [var, count] : def_count_) {
+    if (!outer_defs.count(var)) inactive_region_defs_.insert(var);
+  }
+  return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
+                                 [&]() { return this->Visit(op->result_vars); });
 }
 
 ffi::Optional<VisitInterrupt> VarUseDefAnalyzer::Visit_(const ForNode* op) {
@@ -115,7 +111,9 @@ void VarUseDefAnalyzer::HandleDef(const Var& var) {
 void VarUseDefAnalyzer::HandleUse(const Var& var) {
   auto v = var.get();
   auto it = use_count_.find(v);
-  if (it != use_count_.end()) {
+  if (inactive_region_defs_.count(v)) {
+    undefined_.push_back(var);
+  } else if (it != use_count_.end()) {
     if (it->second >= 0) {
       ++it->second;
     }

@@ -348,6 +348,71 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&SeqStmtDocTranslate>());
 }
 
+ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                              const ffi::Object* destination) {
+  const auto* stmt =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::RegionStmtNode>(input);
+  TVM_FFI_CHECK(destination == nullptr, TypeError)
+      << "printer statement-only node cannot fulfill a destination";
+  TVM_FFI_CHECK(stmt->result_vars.empty(), ValueError)
+      << "RegionStmt with result_vars has no supported outward-result script syntax";
+
+  // Inputs, attributes, and parameter types are evaluated before the body
+  // parameters enter scope. Explicit Var constructors preserve their exact types.
+  ExprDoc rhs(ffi::UnsafeInit{});
+  if (stmt->op.same_as(tirx::builtin::launch_thread())) {
+    rhs = NamespaceDoc("tirx")
+              ->Attr("launch_thread")
+              ->Call({LiteralDoc::Str(stmt->args[0].as_or_throw<StringImm>()->value, std::nullopt),
+                      d->Translate(stmt->args[1].as_or_throw<PrimExpr>()).value()});
+  } else {
+    ffi::Array<ExprDoc> args;
+    for (const Expr& arg : stmt->args) args.push_back(d->Translate(arg).value());
+    for (size_t i = 0; i < args.size(); ++i) {
+      args.Set(i, MaterializeCallArgument(d, stmt->args[i], args[i]));
+    }
+    ffi::Array<ffi::String> keys;
+    ffi::Array<ExprDoc> values;
+    if (!stmt->body_params.empty()) {
+      ffi::Array<ExprDoc> params;
+      for (const Var& param : stmt->body_params) {
+        ExprDoc value = NamespaceDoc("tirx")->Attr("Var")->Call(
+            {LiteralDoc::Str(param->name, std::nullopt), TypeValue(d, param->ty)});
+        d->RecordOrigin(value, param);
+        params.push_back(value);
+      }
+      keys.push_back("body_params");
+      values.push_back(ListDoc(params));
+    }
+    if (!stmt->attrs->dict.empty()) {
+      keys.push_back("attrs");
+      values.push_back(AnyValue(d, stmt->attrs));
+    }
+    rhs = NamespaceDoc("tirx")->Attr("region")->Call(
+        {LiteralDoc::Str(stmt->op->name, std::nullopt), ListDoc(args)}, keys, values);
+  }
+
+  VarScope vars(d);
+  ffi::Optional<ExprDoc> lhs = std::nullopt;
+  ffi::Array<ExprDoc> params;
+  for (const Var& param : stmt->body_params) params.push_back(VarDoc(d, param));
+  if (params.size() == 1) {
+    lhs = params[0];
+  } else if (!params.empty()) {
+    lhs = TupleDoc(params);
+  }
+  auto body = Body(stmt->body, d);
+  vars.Close();
+  d->Emit(ScopeDoc(lhs, rhs, body, /*allow_concise_scoping=*/false),
+          ffi::GetRef<ffi::ObjectRef>(stmt));
+  return std::nullopt;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<tirx::RegionStmtNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&RegionStmtDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> AttrStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                             const ffi::Object* destination) {
   const auto* stmt =
@@ -357,23 +422,8 @@ ffi::Optional<ExprDoc> AttrStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView in
   ffi::Optional<ExprDoc> lhs = std::nullopt;
   ExprDoc rhs(ffi::UnsafeInit{});
   tirx::Stmt body = stmt->body;
-  if (stmt->attr_key == "thread_extent" || stmt->attr_key == tirx::attr::virtual_thread) {
-    if (auto iter = stmt->node.as<tirx::IterVar>()) {
-      d->VarGetOrAllocId(iter.value()->var, false);
-      if (!d->GetImplicitDefs().count(iter.value()->var)) {
-        rhs = NamespaceDoc("tirx")
-                  ->Attr("launch_thread")
-                  ->Call(
-                      {d->Translate(iter.value()->var).value(), d->Translate(stmt->value).value()});
-      } else {
-        lhs = VarDoc(d, iter.value()->var);
-        rhs = NamespaceDoc("tirx")
-                  ->Attr("launch_thread")
-                  ->Call({LiteralDoc::Str(iter.value()->thread_tag, std::nullopt),
-                          d->Translate(stmt->value).value()});
-      }
-    }
-  }
+  TVM_FFI_CHECK(stmt->attr_key != "thread_extent" && stmt->attr_key != "virtual_thread", ValueError)
+      << "Thread launch attributes are no longer supported; use RegionStmt launch_thread";
   if (stmt->attr_key == "tirx_hint") {
     if (auto attrs = stmt->node.as<ffi::Map<ffi::String, ffi::Any>>()) {
       ffi::Array<ExprDoc> args;

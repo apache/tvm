@@ -137,33 +137,24 @@ def test_error_for_cross_function_reuse():
 
 
 def test_reuse_of_env_thread_in_function_is_well_formed():
-    """An env thread may be reused within a PrimFunc
-
-    The `T.env_thread` has unique semantics, and may be defined at
-    multiple locations without the TIR being considered ill-formed.
-    """
+    """Sibling launch regions each introduce a fresh lexical binding."""
 
     @T.prim_func
     def func(A: T.Tensor([256], "float32")):
-        threadIdx_x = T.env_thread("threadIdx.x")
-        with T.launch_thread(threadIdx_x, 256):
+        with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 1.0
 
-        with T.launch_thread(threadIdx_x, 256):
+        with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 2.0
 
     tvm.tirx.analysis.verify_well_formed(func)
 
 
 def test_reuse_of_env_thread_in_function_is_mandatory():
-    """An env thread may be reused within a PrimFunc
+    """Separate launch bindings for the same hardware axis are well formed.
 
-    Not only are environment threads allowed to have multiple
-    definition sites, it is mandatory for them to have multiple
-    definition sites.  If a PrimFunc contains more than one
-    `"thread_extent"` with the same name, but with different `tirx.Var`
-    instances, it is ill-formed.
-    """
+    The former shared-identity requirement is retired; tag equality does not
+    make sibling region parameters the same definition."""
 
     @T.prim_func
     def func(A: T.Tensor([256], "float32")):
@@ -177,12 +168,7 @@ def test_reuse_of_env_thread_in_function_is_mandatory():
 
 
 def test_reuse_of_env_thread_across_functions_is_ill_formed():
-    """An env thread may not be reused across PrimFunc
-
-    However, each function must have its own `tirx.Var` representing
-    the environment thread, and may not share these variables across
-    PrimFuncs.
-    """
+    """An explicit region parameter may not be defined across multiple functions."""
 
     threadIdx_x = T.dynamic("threadIdx_x", "int32")
 
@@ -190,19 +176,19 @@ def test_reuse_of_env_thread_across_functions_is_ill_formed():
     class mod:
         @T.prim_func
         def kernel_1(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
         @T.prim_func
         def kernel_2(A: T.Tensor([256], "float32")):
-            T.attr(
-                T.iter_var(threadIdx_x, T.Range(0, 256), "ThreadIndex", "threadIdx.x"),
-                "thread_extent",
-                256,
+            T.region(
+                "tirx.launch_thread",
+                [tvm.ir.StringImm("threadIdx.x"), 256],
+                body_params=[threadIdx_x],
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 

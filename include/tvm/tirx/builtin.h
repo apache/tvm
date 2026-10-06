@@ -42,6 +42,12 @@ namespace tirx {
 /*! \brief Collection of builtin intrinsics as ops */
 namespace builtin {
 /*!
+ * \brief Thread launch region: args are a StringImm tag and integer extent.
+ * The sole body parameter is a fresh thread-index PrimVar matching the extent type.
+ * Tags starting with vthread denote virtual threads. There are no attrs or results.
+ */
+TVM_DLL const Op& launch_thread();
+/*!
  * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
  *
  * Arguments, in order:

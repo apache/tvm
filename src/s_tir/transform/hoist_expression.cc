@@ -176,7 +176,7 @@ class HoistInfoCollector : public StmtExprVisitor {
     // The loop variable
     Var loop_var;
 
-    // The For or AttrStmt that defines the loop var.
+    // The loop or scope that defines the loop var.
     Stmt loop_def;
 
     // Bindings defined in Bind nodes inside the for-loop whose value
@@ -291,6 +291,35 @@ class HoistInfoCollector : public StmtExprVisitor {
 
     active_loop_vars.erase(var.get());
     active_block_vars.erase(var.get());
+    return std::nullopt;
+  }
+
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
+      Var var = op->body_params[0].as_or_throw<PrimVar>();
+      active_block_vars.insert(var.get());
+      active_loop_vars.insert(var.get());
+      active_loops.push_back({var, ffi::GetRef<Stmt>(op)});
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Parent::Visit_(op));
+      completed_loops.push_back(active_loops.back());
+      active_loops.pop_back();
+      active_loop_vars.erase(var.get());
+      active_block_vars.erase(var.get());
+      return std::nullopt;
+    }
+    // Unknown operations have no code-motion semantics. Analyze their inner
+    // loops independently without hoisting across the region boundary.
+    auto outer_loops = std::move(active_loops);
+    auto outer_loop_vars = std::move(active_loop_vars);
+    auto outer_block_vars = std::move(active_block_vars);
+    active_loops.clear();
+    active_loop_vars.clear();
+    active_block_vars.clear();
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Parent::Visit_(op));
+    active_loops = std::move(outer_loops);
+    active_loop_vars = std::move(outer_loop_vars);
+    active_block_vars = std::move(outer_block_vars);
+    if (!active_loops.empty()) active_loops.back().reached_sequential_node = true;
     return std::nullopt;
   }
 
@@ -441,7 +470,7 @@ class HoistInfoCollector : public StmtExprVisitor {
   // hoisted.
   HoistExpressionConfig config;
 
-  // Current thread_extent bindings of block variables.
+  // Current hardware launch bindings of block variables.
   std::unordered_set<const VarNode*> active_block_vars;
 
   // An ordered list of loops that are currently being visited.
@@ -552,6 +581,12 @@ class ExpressionHoister : public s_tir::IRMutatorWithAnalyzer {
     } else {
       return WrapHoistedStatements(stmt, it->second);
     }
+  }
+
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    auto it = loop_info_lookup.find(op);
+    return it == loop_info_lookup.end() ? stmt : WrapHoistedStatements(stmt, it->second);
   }
 
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {

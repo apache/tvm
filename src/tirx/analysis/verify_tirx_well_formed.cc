@@ -39,6 +39,7 @@
 
 #include "../ir/tir_visitor_with_path.h"
 #include "tvm/ir/module.h"
+#include "verify_well_formed.h"
 
 namespace tvm {
 namespace tirx {
@@ -142,6 +143,9 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
 };
 
 bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode, bool device_func) {
+  if (!RetiredLaunchAttrVerifier<TIRVisitorWithPath>::Verify(func, assert_mode)) {
+    return false;
+  }
   if (!ExecScopeVerifier::Verify(func, assert_mode)) {
     return false;
   }

@@ -27,13 +27,13 @@ Each statement node have subfields that can be visited from python side.
     assert(st.buffer == buffer)
 """
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from enum import IntEnum
 from typing import Any
 
 import tvm_ffi
 
-from tvm.ir import Expr, Range, Span, StringImm, TensorRegion, Type, Var
+from tvm.ir import DictAttrs, Expr, Op, Range, Span, StringImm, TensorRegion, Type, Var, make_node
 from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
@@ -271,6 +271,51 @@ class BufferStore(Stmt):
             value,
             indices,
             span,  # type: ignore
+        )
+
+
+@tvm_ffi.register_object("tirx.RegionStmt")
+class RegionStmt(Stmt):
+    """An operation with enclosing-scope operands and one lexical body.
+
+    ``body_params`` define variables visible only within ``body``. ``result_vars``
+    define variables after the region in the enclosing sequence. Attributes are
+    evaluated outside the body-parameter scope. Direct construction and JSON
+    serialization support result variables; structured script syntax currently
+    supports only result-free regions.
+    """
+
+    op: Op
+    args: list[Expr]
+    body_params: list[Var]
+    attrs: DictAttrs
+    body: Stmt
+    result_vars: list[Var]
+    span: Span | None
+
+    def __init__(
+        self,
+        op: Op | str,
+        args: Sequence[Expr],
+        body_params: Sequence[Var],
+        attrs: DictAttrs | Mapping[str, Any] | None,
+        body: Stmt,
+        result_vars: Sequence[Var] | None = None,
+        span: Span | None = None,
+    ) -> None:
+        if isinstance(op, str):
+            op = Op.get(op)
+        if attrs is None or isinstance(attrs, Mapping):
+            attrs = make_node("ir.DictAttrs", **(attrs or {}))
+        self.__init_handle_by_constructor__(
+            _ffi_api.RegionStmt,
+            op,
+            args,
+            body_params,
+            attrs,
+            body,
+            [] if result_vars is None else result_vars,
+            span,
         )
 
 

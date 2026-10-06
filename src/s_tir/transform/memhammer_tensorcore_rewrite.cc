@@ -22,6 +22,7 @@
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ir/op.h>
 #include <tvm/s_tir/stmt.h>
+#include <tvm/tirx/builtin.h>
 
 #include "./memhammer_rewrite_rule.h"
 
@@ -501,21 +502,14 @@ Stmt RewriteMmaStore(Stmt stmt) {
              /*reads=*/{BufferRegion(src_buffer, read_region)},
              /*writes=*/{BufferRegion(tgt_buffer, write_region)},
              /*name_hint=*/"mma_store",
-             AttrStmt(
-                 /*node=*/IterVar(
-                     /*dom=*/Range::FromMinExtent(0, 32),
-                     /*var=*/tx.as_or_throw<PrimVar>(),
-                     /*iter_type=*/IterVarType::kThreadIndex,
-                     /*thread_tag=*/"threadIdx.x"),
-                 /*attr_key=*/"thread_extent",
-                 /*value=*/IntImm::Int32(32),
-                 /*body=*/
-                 For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
-                     /*body=*/
-                     BufferStore(new_tgt_buffer,
-                                 MakeTensorLoad(new_src_buffer,
-                                                {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
-                                 {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}))),
+             RegionStmt(tirx::builtin::launch_thread(),
+                        {StringImm("threadIdx.x"), IntImm::Int32(32)}, {tx}, DictAttrs(), /*body=*/
+                        For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
+                            /*body=*/
+                            BufferStore(new_tgt_buffer,
+                                        MakeTensorLoad(new_src_buffer, {floordiv(tx, 4),
+                                                                        floormod(tx, 4) * 2 + vec}),
+                                        {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}))),
              /*init=*/std::nullopt,
              /*alloc_buffers=*/{},
              /*match_buffers=*/

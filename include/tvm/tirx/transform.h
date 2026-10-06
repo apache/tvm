@@ -118,12 +118,6 @@ TVM_DLL Pass StmtSimplify();
  */
 TVM_DLL Pass ConvertSSA();
 
-/*!
- * \brief Unify loop and attribute bindings of each thread axis within a kernel.
- * \return The pass.
- */
-TVM_DLL Pass UnifyThreadBinding();
-
 /*! \brief Lower cross-thread reductions to target-specific communication. */
 TVM_DLL Pass LowerThreadAllreduce();
 
@@ -330,7 +324,7 @@ TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
  *
  * Also resolves ScopeIdDef declarations: gathers them at kernel scope, verifies
  * consistency, extracts launch parameters, and emits Bind statements +
- * thread_extent AttrStmts wrapping the dispatched body.
+ * launch_thread RegionStmts wrapping the dispatched body.
  * \return The pass.
  */
 TVM_DLL Pass TilePrimitiveDispatch();
@@ -344,7 +338,7 @@ TVM_DLL Pass LowerTIRxCleanup();
 /*!
  * \brief Lower opaque constructs in TIRX programs: allocation calls, For(thread_binding),
  *        unit loop elimination. This is the tirx-specific counterpart of
- *        s_tir::LowerOpaqueBlock, without any SBlock handling.
+ *        s_tir::LowerOpaqueBlock and LowerThreadBinding, without any SBlock handling.
  * Run LoopPartition first when thread-binding loops carry loop_partition_hint.
  * \return The pass.
  */

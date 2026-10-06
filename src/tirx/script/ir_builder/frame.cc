@@ -42,7 +42,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   PrimFuncFrameNode::RegisterReflection();
   ForFrameNode::RegisterReflection();
   AssertFrameNode::RegisterReflection();
-  LaunchThreadFrameNode::RegisterReflection();
+  RegionFrameNode::RegisterReflection();
   AttrFrameNode::RegisterReflection();
   WhileFrameNode::RegisterReflection();
   IfFrameNode::RegisterReflection();
@@ -214,9 +214,9 @@ void AssertFrameNode::ExitWithScope() {
   }
 }
 
-void LaunchThreadFrameNode::ExitWithScope() {
+void RegionFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
-  AddToParent(tvm::tirx::AttrStmt(iter_var, attr_key, extent, AsStmt(stmts), source_span),
+  AddToParent(tvm::tirx::RegionStmt(op, args, body_params, attrs, AsStmt(stmts), {}, source_span),
               source_span);
 }
 

@@ -29,10 +29,8 @@ def ptx_ldmatrix(
     A: T.Tensor((16, 16), "float16"), B: T.Tensor((16, 16), "float16"), num: T.int32, trans: T.uint8
 ) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
-    bx = T.env_thread("blockIdx.x")
-    tx = T.env_thread("threadIdx.x")
-    T.launch_thread(bx, 1)
-    T.launch_thread(tx, 32)
+    T.launch_thread("blockIdx.x", 1)
+    tx = T.launch_thread("threadIdx.x", 32)
     A_shared = T.alloc_tensor([16, 16], "float16", scope="shared")
     A_local = T.alloc_tensor([8], "float16", scope="local")
     for i in range(8):

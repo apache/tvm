@@ -236,18 +236,18 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    // Only record the outer most thread extent.
-    if (op->attr_key == attr::thread_extent && !in_thread_env_) {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    // Hardware axes share their outer device allocation scope.  Virtual and
+    // generic regions retain a lexical allocation boundary of their own.
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      if (in_thread_env_) return StmtExprVisitor::Visit_(op);
       in_thread_env_ = true;
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
+      auto result = VisitNewScope(op);
       in_thread_env_ = false;
-    } else if (op->attr_key == tvm::tirx::attr::virtual_thread) {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
-    } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+      return result;
     }
-    return std::nullopt;
+    return VisitNewScope(op);
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) final { return VisitNewScope(op); }
@@ -670,9 +670,19 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
 
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    auto it = attach_map_.find(op);
+    RegionStmt region = StmtExprMutator::Mutate_(op, inplace_mode)
+                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                            .as_or_throw<RegionStmt>();
+    if (it != attach_map_.end()) {
+      region.CopyOnWrite()->body = MakeAttach(it->second, region->body);
+    }
+    return region;
+  }
+
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread ||
-        attr::IsPragmaKey(op->attr_key)) {
+    if (attr::IsPragmaKey(op->attr_key)) {
       // remake all the allocation at the attach scope.
       if (attach_map_.count(op)) {
         auto& svec = attach_map_[op];
@@ -1071,8 +1081,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     }
   }
   void PlanNewScope(const ffi::Object* op) {
-    if (thread_scope_ != nullptr) {
-      TVM_FFI_ICHECK(thread_scope_ == op);
+    if (thread_scope_ == op) {
       // erase all memory atatched to this scope.
       for (auto it = const_free_map_.begin(); it != const_free_map_.end();) {
         if (it->second->attach_scope_ == op) {
@@ -1088,8 +1097,11 @@ class StoragePlanRewriter : public StmtExprMutator {
           ++it;
         }
       }
-      thread_scope_ = nullptr;
+      TVM_FFI_ICHECK(!thread_scope_stack_.empty());
+      thread_scope_ = thread_scope_stack_.back();
+      thread_scope_stack_.pop_back();
     } else {
+      thread_scope_stack_.push_back(thread_scope_);
       thread_scope_ = op;
     }
   }
@@ -1166,10 +1178,11 @@ class StoragePlanRewriter : public StmtExprMutator {
       // enter/exit new scope
       if (s.stmt->IsInstance<AttrStmtNode>()) {
         const auto* op = static_cast<const AttrStmtNode*>(s.stmt);
-        if (op->attr_key == attr::thread_extent ||
-            op->attr_key == tvm::tirx::attr::virtual_thread || attr::IsPragmaKey(op->attr_key)) {
+        if (attr::IsPragmaKey(op->attr_key)) {
           PlanNewScope(op);
         }
+      } else if (s.stmt->IsInstance<RegionStmtNode>()) {
+        PlanNewScope(s.stmt);
       } else if (s.stmt->IsInstance<ForNode>()) {
         const auto* op = static_cast<const ForNode*>(s.stmt);
         if (op->kind == ForKind::kParallel) {
@@ -1323,6 +1336,7 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
   // thread scope.
   const ffi::Object* thread_scope_{nullptr};
+  std::vector<const ffi::Object*> thread_scope_stack_;
   // whether enable inplace detection.
   bool detect_inplace_{false};
   // Locations of free ops.

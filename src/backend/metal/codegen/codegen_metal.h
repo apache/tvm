@@ -42,10 +42,10 @@ class CodeGenMetal final : public CodeGenC {
   void PrintArgUnionDecl();
   void AddFunction(const GlobalVar& gvar, const PrimFunc& func) final;
   void InitFuncState(const PrimFunc& f) final;
-  void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
-  void PrintStorageSync(const CallNode* op) final;                           // NOLINT(*)
-  void PrintType(const PrimType& t, std::ostream& os) final;                 // NOLINT(*)
-  void BindThreadIndex(const IterVar& iv) final;                             // NOLINT(*)
+  void PrintStorageScope(const std::string& scope, std::ostream& os) final;       // NOLINT(*)
+  void PrintStorageSync(const CallNode* op) final;                                // NOLINT(*)
+  void PrintType(const PrimType& t, std::ostream& os) final;                      // NOLINT(*)
+  void BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final;  // NOLINT(*)
   // print load of single element
   void PrintVecElemLoad(const std::string& vec, const PrimType& t, int i,
                         std::ostream& os) final;  // NOLINT(*)

@@ -139,28 +139,47 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
 }
 
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const AttrStmtNode* op) {
-  if (op->attr_key == tirx::attr::thread_extent) {
-    IterVar iv = op->node.as_or_throw<IterVar>();
-    env_threads_.push_back(iv);
-    if (!in_device_env_) {
-      in_device_env_ = true;
-      scope_.push_back(std::vector<StmtEntry>());
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-      // no need to take the result as the thread barrier automatically syncs.
-      Summarize(std::move(scope_.back()), nullptr);
-      in_device_env_ = false;
-      scope_.pop_back();
-    } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    }
-    env_threads_.pop_back();
-  } else if (op->attr_key == s_tir::attr::hand_threaded) {
+  if (op->attr_key == s_tir::attr::hand_threaded) {
     // skip this pass on blocks that were hand_threaded
     // this avoids control flow and read/write conflicts
     // between hand-threaded kernels and automatic threading
   } else {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
   }
+  return std::nullopt;
+}
+
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const RegionStmtNode* op) {
+  if (op->op.same_as(tirx::builtin::launch_thread()) &&
+      std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+    PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();
+    // IterVars are private access-analysis metadata, not launch definitions.
+    env_threads_.push_back(IterVar(Range::FromMinExtent(IntImm(extent.ty(), 0), extent),
+                                   op->body_params[0].as_or_throw<PrimVar>(),
+                                   IterVarType::kThreadIndex,
+                                   op->args[0].as_or_throw<StringImm>()->value));
+    if (!in_device_env_) {
+      in_device_env_ = true;
+      scope_.push_back(std::vector<StmtEntry>());
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+      // Separate kernels do not need an intervening thread barrier.
+      Summarize(std::move(scope_.back()), nullptr);
+      scope_.pop_back();
+      in_device_env_ = false;
+    } else {
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+    }
+    env_threads_.pop_back();
+    return std::nullopt;
+  }
+  // Preserve a distinct access scope for other region operations.
+  scope_.push_back(std::vector<StmtEntry>());
+  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+  StmtEntry entry;
+  entry.stmt = op;
+  entry.access = Summarize(std::move(scope_.back()), nullptr);
+  scope_.pop_back();
+  if (!entry.access.empty()) scope_.back().push_back(std::move(entry));
   return std::nullopt;
 }
 

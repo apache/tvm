@@ -29,17 +29,14 @@ from ..transform import strided_slice, transpose
 from ..utils import ceil_div, prod, swap
 
 
-def _get_threads(nthread_tx, nthread_bx, nthread_by):
+def _thread_launches(nthread_tx, nthread_bx, nthread_by):
     target = tvm.target.Target.current(allow_none=True)
     is_cuda = target is not None and target.kind.name == "cuda"
-    tx = te.thread_axis("threadIdx.x")
-    if is_cuda:
-        bx = te.thread_axis("blockIdx.y")
-        by = te.thread_axis("blockIdx.x")
-    else:
-        bx = te.thread_axis("blockIdx.x")
-        by = te.thread_axis("blockIdx.y")
-    return tx, bx, by, nthread_tx, nthread_bx, nthread_by
+    return [
+        T.launch_thread("threadIdx.x", nthread_tx),
+        T.launch_thread("blockIdx.y" if is_cuda else "blockIdx.x", nthread_bx),
+        T.launch_thread("blockIdx.x" if is_cuda else "blockIdx.y", nthread_by),
+    ]
 
 
 def _sort_init(shape, axis, keys_in, keys_out, values_out=None, value_init_func=None):
@@ -61,14 +58,7 @@ def _sort_init(shape, axis, keys_in, keys_out, values_out=None, value_init_func=
     nthread_by = axis_mul_before * axis_mul_after
 
     # Copy the keys_in to initial output
-    tx, bx, by, ntx, nbx, nby = _get_threads(nthread_tx, nthread_bx, nthread_by)
-    with T.frame_scope(
-        [
-            T.attr(tx, "thread_extent", ntx),
-            T.attr(bx, "thread_extent", nbx),
-            T.attr(by, "thread_extent", nby),
-        ]
-    ):
+    with T.frame_scope(_thread_launches(nthread_tx, nthread_bx, nthread_by)) as (tx, bx, by):
         tid = bx * nthread_tx + tx
         by_val = by % axis_mul_before
         bz = by // axis_mul_before
@@ -108,15 +98,12 @@ def _odd_even_sort(
     nthread_bx = ceil_div(size, block_size)
     nthread_by = axis_mul_before * axis_mul_after
 
-    tx, bx, by, ntx, nbx, nby = _get_threads(nthread_tx, nthread_bx, nthread_by)
     with T.frame_scope(
         [
             T.attr(tvm.tirx.const(0), "hand_threaded", 0),
-            T.attr(tx, "thread_extent", ntx),
-            T.attr(bx, "thread_extent", nbx),
-            T.attr(by, "thread_extent", nby),
+            *_thread_launches(nthread_tx, nthread_bx, nthread_by),
         ]
-    ):
+    ) as (_, tx, bx, by):
         by_val = by % axis_mul_before
         bz = by // axis_mul_before
         tid = 2 * tx
@@ -583,32 +570,28 @@ def _sort_common(
             nbx = cast(ceil_div(width, max_threads * thread_work), "int32")
             nbz = cast(ceil_div(size, width), "int32")
 
-        tx = te.thread_axis("threadIdx.x")
         if target.kind.name == "webgpu":
             # WebGPU reserves blockIdx.z to extend blockIdx.x beyond 65535, so fold the
             # merge-path (nbx) and section (nbz) axes into blockIdx.x.
-            bxz = te.thread_axis("blockIdx.x")
-            by = te.thread_axis("blockIdx.y")  # batch
-            grid_extents = [
-                T.attr(bxz, "thread_extent", nbx * nbz),
-                T.attr(by, "thread_extent", nthread_by),
+            grid_launches = [
+                T.launch_thread("blockIdx.x", nbx * nbz),
+                T.launch_thread("blockIdx.y", nthread_by),
             ]
-            bx = tvm.tirx.indexmod(bxz, nbx)
-            bz = tvm.tirx.indexdiv(bxz, nbx)
         else:
-            bx = te.thread_axis("blockIdx.z")  # nbx
-            if target.kind.name == "cuda":
-                by = te.thread_axis("blockIdx.x")  # batch
-                bz = te.thread_axis("blockIdx.y")  # nbz
-            else:
-                by = te.thread_axis("blockIdx.y")  # batch
-                bz = te.thread_axis("blockIdx.x")  # nbz
-            grid_extents = [
-                T.attr(bx, "thread_extent", nbx),
-                T.attr(by, "thread_extent", nthread_by),
-                T.attr(bz, "thread_extent", nbz),
+            is_cuda = target.kind.name == "cuda"
+            grid_launches = [
+                T.launch_thread("blockIdx.z", nbx),
+                T.launch_thread("blockIdx.x" if is_cuda else "blockIdx.y", nthread_by),
+                T.launch_thread("blockIdx.y" if is_cuda else "blockIdx.x", nbz),
             ]
-        with T.frame_scope([T.attr(tx, "thread_extent", ntx), *grid_extents]):
+        with T.frame_scope([T.launch_thread("threadIdx.x", ntx), *grid_launches]) as bindings:
+            tx = bindings[0]
+            if target.kind.name == "webgpu":
+                bxz, by = bindings[1:]
+                bx = tvm.tirx.indexmod(bxz, nbx)
+                bz = tvm.tirx.indexdiv(bxz, nbx)
+            else:
+                bx, by, bz = bindings[1:]
             base_idx = by * size
 
             # calculate the start, mid, and end points of this section
@@ -661,13 +644,10 @@ def _sort_common(
         tvm.tirx.all(upper_lim > lower_lim, tvm.tirx.indexmod(upper_lim - lower_lim, 2) == 1)
     ):
         with T.then_():
-            tx2, bx2, by2, _, _, _ = _get_threads(nthread_tx, nthread_bx, nthread_by)
-            with T.frame_scope(
-                [
-                    T.attr(tx2, "thread_extent", nthread_tx),
-                    T.attr(bx2, "thread_extent", nthread_bx),
-                    T.attr(by2, "thread_extent", nthread_by),
-                ]
+            with T.frame_scope(_thread_launches(nthread_tx, nthread_bx, nthread_by)) as (
+                tx2,
+                bx2,
+                by2,
             ):
                 tid = bx2 * nthread_tx + tx2
                 idx = by2 * size + tid
@@ -1234,14 +1214,12 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
             max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
             nthread_tx = max_threads
             nthread_bx = ceil_div(num_search, nthread_tx)
-            tx = te.thread_axis("threadIdx.x")
-            bx = te.thread_axis("blockIdx.x")
             with T.frame_scope(
                 [
-                    T.attr(tx, "thread_extent", nthread_tx),
-                    T.attr(bx, "thread_extent", nthread_bx),
+                    T.launch_thread("threadIdx.x", nthread_tx),
+                    T.launch_thread("blockIdx.x", nthread_bx),
                 ]
-            ):
+            ) as (tx, bx):
                 tid = bx * nthread_tx + tx
 
                 with T.if_(tid < num_search):

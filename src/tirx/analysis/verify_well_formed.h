@@ -28,6 +28,25 @@ namespace tvm {
 namespace tirx {
 using AccessPath = ffi::reflection::AccessPath;
 
+/*! \brief Reject retired launch attributes, including loaded IR. */
+template <typename PathVisitor>
+class RetiredLaunchAttrVerifier
+    : public Verifier<RetiredLaunchAttrVerifier<PathVisitor>, PathVisitor> {
+  using Verifier = tirx::Verifier<RetiredLaunchAttrVerifier<PathVisitor>, PathVisitor>;
+
+ public:
+  using Verifier::Verifier;
+  using Verifier::Verify;
+
+ private:
+  void Dispatch_(const AttrStmtNode* op, AccessPath path) override {
+    bool retired = op->attr_key == "thread_extent" || op->attr_key == "virtual_thread";
+    Verify(!retired) << "ValueError: Retired thread launch attribute at " << path
+                     << "; use RegionStmt launch_thread";
+    if (!retired) PathVisitor::Dispatch_(op, path);
+  }
+};
+
 template <typename PathVisitor>
 class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, PathVisitor> {
   using Verifier = tirx::Verifier<UndefinedVarVerifier<PathVisitor>, PathVisitor>;
@@ -41,23 +60,10 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
 
  private:
   using Verifier::Visit;
-  void Visit(const PrimFunc& prim_func, AccessPath path) override {
-    Verifier::Visit(prim_func, path);
-    redefine_allowed_within_function_.clear();
-  }
-
-  void EnterDef(const IterVar& iter_var, AccessPath path) override {
-    Verifier::EnterDef(iter_var, path);
-    if (iter_var->iter_type == IterVarType::kThreadIndex) {
-      redefine_allowed_within_function_.insert(iter_var->var);
-    }
-  }
-
   void EnterDef(const Var& var, AccessPath path) override {
-    bool redefine_is_allowed = redefine_allowed_within_function_.count(var);
     {
       auto it = currently_defined_.find(var);
-      auto verify = Verify(it == currently_defined_.end() || redefine_is_allowed);
+      auto verify = Verify(it == currently_defined_.end());
       verify << "ValueError: "
              << "TIR is ill-formed, "
              << "due to multiple nested definitions of variable " << var->name << ".";
@@ -68,7 +74,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
 
     {
       auto it = previously_defined_.find(var);
-      auto verify = Verify(it == previously_defined_.end() || redefine_is_allowed);
+      auto verify = Verify(it == previously_defined_.end());
       verify << "ValueError: "
              << "TIR is ill-formed, "
              << "due to multiple definitions of variable " << var->name << ".";
@@ -84,7 +90,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
   void ExitDef(const Var& var, AccessPath path) override {
     auto active_def = currently_defined_.find(var);
 
-    currently_defined_.erase(active_def);
+    if (active_def != currently_defined_.end()) currently_defined_.erase(active_def);
     previously_defined_.insert({var, path});
   }
 
@@ -112,10 +118,6 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
 
   // Variables that were previously defined, and are now out of scope.
   std::unordered_map<Var, AccessPath> previously_defined_;
-
-  // Special variables that are allowed to be re-defined, so long as
-  // that re-definition occurs within the same PrimFunc.  For example
-  std::unordered_set<Var> redefine_allowed_within_function_;
 };
 
 /*! \brief Verify that buffers with a declaration are not used outside their declared scope.
@@ -320,7 +322,8 @@ class LoopControlVerifier : public Verifier<LoopControlVerifier<PathVisitor>, Pa
 
 template <typename PathVisitor, typename NodeRef>
 bool VerifyWellFormedCommon(const NodeRef& node, bool assert_mode) {
-  return UndefinedVarVerifier<PathVisitor>::Verify(node, assert_mode) &&
+  return RetiredLaunchAttrVerifier<PathVisitor>::Verify(node, assert_mode) &&
+         UndefinedVarVerifier<PathVisitor>::Verify(node, assert_mode) &&
          UndefinedBufferVerifier<PathVisitor>::Verify(node, assert_mode) &&
          TensorLoadTypeVerifier<PathVisitor>::Verify(node, assert_mode) &&
          LoopControlVerifier<PathVisitor>::Verify(node, assert_mode);

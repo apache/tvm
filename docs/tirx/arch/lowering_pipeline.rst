@@ -57,62 +57,58 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - ``LowerTIRx``
      - the core lowering — see `Inside LowerTIRx`_ below
    * - 2
-     - ``UnifyThreadBinding``
-     - merges equivalent thread-axis bindings so each ``threadIdx`` / ``blockIdx``
-       axis is declared once
-   * - 3
      - ``StmtSimplify``
      - statement-level arithmetic simplification (the sym analyzer)
-   * - 4
+   * - 3
      - ``LowerTIRxOpaque``
      - lowers remaining opaque constructs to lower-level TIRx forms
-   * - 5
+   * - 4
      - ``FlattenBuffer``
      - flattens multi-dimensional ``TensorLoad`` / ``BufferStore`` to 1-D
-   * - 6
+   * - 5
      - ``BF16ComputeLegalize``
      - rewrites ``bfloat16`` compute to a legal (f32-up-cast) form
-   * - 7
+   * - 6
      - ``NarrowDataType(32)``
      - narrows index/loop ``PrimExpr`` dtypes to 32-bit where provably safe
-   * - 8
+   * - 7
      - ``VectorizeLoop``
      - turns ``Tx.vectorized`` loops into vector ops (skipped if
        ``tir.disable_vectorize``)
-   * - 9
+   * - 8
      - ``UnrollLoop``
      - unrolls loops marked ``Tx.unroll`` (and small constant loops)
-   * - 10
+   * - 9
      - ``StmtSimplify``
      - simplify again, now that vectorize/unroll exposed constants
-   * - 11
+   * - 10
      - ``CommonSubexprElim``
      - hoists repeated subexpressions into temporaries (skipped if
        ``tir.disable_cse_tir``)
-   * - 12
+   * - 11
      - ``FP8ComputeLegalize``
      - rewrites ``float8`` compute to a legal form
-   * - 13
+   * - 12
      - ``VerifyMemory``
      - checks no host-side code directly dereferences device memory (a safety gate)
-   * - 14
+   * - 13
      - ``AnnotateEntryFunc``
      - marks the single PrimFunc as the module entry point
-   * - 15
+   * - 14
      - ``SplitHostDevice``
      - extracts target-annotated device regions into **device** functions and
        leaves launch calls in the **host** function; the regions originate from
        the thread extents produced while lowering ``Tx.device_entry`` and scope ids
-   * - 16
+   * - 15
      - ``LowerIket``
      - lowers CUDA IKET instrumentation after host/device splitting
-   * - 17
+   * - 16
      - ``MakePackedAPI``
      - rewrites the host function to the packed-func ABI (the launcher TVM calls)
-   * - 18
+   * - 17
      - ``FP8StorageLegalize``
      - legalizes ``float8`` storage (packing into supported container types)
-   * - 19
+   * - 18
      - ``BF16StorageLegalize``
      - legalizes ``bfloat16`` storage
 

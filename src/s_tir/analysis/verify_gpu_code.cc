@@ -34,6 +34,8 @@
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt.h>
 
+#include <algorithm>
+
 #include "../../runtime/thread_storage_scope.h"
 #include "../../tirx/transform/ir_utils.h"
 
@@ -111,22 +113,33 @@ class GPUCodeVerifier : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == tirx::attr::thread_extent || op->attr_key == s_tir::attr::virtual_thread) {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (op->op.same_as(tirx::builtin::launch_thread())) {
       if (nest_level_ == 0) {
         // enter a new kernel, reset statistics
         Reset_();
         kernels_launched_++;
       }
 
-      Var var = op->node.as<IterVarNode>()->var;
-      const auto* extent = op->value.as<IntImmNode>();
+      const auto* extent = op->args[1].as_or_throw<PrimExpr>().as<IntImmNode>();
       TVM_FFI_ICHECK(extent);
 
-      std::string name = var.get()->name;
-      // record the number of threads in a block
-      if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z" ||
-          name == "vthread") {
+      std::string name = op->args[0].as_or_throw<StringImm>()->value;
+      size_t previous_virtual_extent = active_virtual_extent_;
+      if (name.rfind("vthread", 0) == 0) {
+        // Virtual launches are lexical loops; equal tags do not identify the
+        // same binding. Sibling loops contribute their maximum, nested loops
+        // their product.
+        size_t length = extent->value.as<size_t>().value();
+        if (length > max_vthread_) {
+          std::stringstream s;
+          s << "Extent of " << name << " (" << length << ") is greater than maximum allowed ("
+            << max_vthread_ << ");";
+          errors_.push_back(s.str());
+        }
+        active_virtual_extent_ *= length;
+        max_virtual_extent_ = std::max(max_virtual_extent_, active_virtual_extent_);
+      } else if (name == "threadIdx.x" || name == "threadIdx.y" || name == "threadIdx.z") {
         size_t length = extent->value.as<size_t>().value();
         if (!visited_threads_.count(name)) {
           visited_threads_.insert(name);
@@ -150,8 +163,6 @@ class GPUCodeVerifier : public StmtExprVisitor {
           } else if (name == "threadIdx.z") {
             err("threadIdx.z", length, max_thread_z_);
             thread_z_extent_ = length;
-          } else if (name == "vthread") {
-            err("vthread", length, max_vthread_);
           }
         } else {
           // the thread should be bound to axes with the same length
@@ -171,6 +182,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       nest_level_++;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
       nest_level_--;
+      active_virtual_extent_ = previous_virtual_extent;
 
       if (nest_level_ == 0) {
         // exit a kernel, check the validity
@@ -182,7 +194,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
             errors_.push_back(s.str());
           }
         };
-        err("threads per block", thread_per_block_, max_threads_per_block_);
+        err("threads per block", thread_per_block_ * max_virtual_extent_, max_threads_per_block_);
         err("local memory per block", local_memory_per_block_, max_local_memory_per_block_);
         err("shared memory per block", shared_memory_per_block_, max_shared_memory_per_block_);
 
@@ -286,6 +298,8 @@ class GPUCodeVerifier : public StmtExprVisitor {
   size_t local_memory_per_block_;
   size_t shared_memory_per_block_;
   size_t thread_per_block_;
+  size_t active_virtual_extent_;
+  size_t max_virtual_extent_;
   size_t kernels_launched_{0};
 
   size_t max_local_memory_per_block_;
@@ -305,6 +319,9 @@ class GPUCodeVerifier : public StmtExprVisitor {
 
     visited_threads_.clear();
     thread_per_block_ = 1;
+    thread_x_extent_ = thread_y_extent_ = thread_z_extent_ = 1;
+    active_virtual_extent_ = 1;
+    max_virtual_extent_ = 1;
   }
 };
 

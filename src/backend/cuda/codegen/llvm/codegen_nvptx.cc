@@ -145,8 +145,8 @@ class CodeGenNVPTX : public CodeGenLLVM {
   }
 
   // Return the thread index via intrinsics.
-  llvm::Value* GetThreadIndex(const IterVar& iv) final {
-    runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
+  llvm::Value* GetThreadIndex(const PrimVar& var, const ffi::String& thread_tag) final {
+    runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
     llvm::Intrinsic::ID intrin_id = llvm::Intrinsic::nvvm_read_ptx_sreg_tid_x;
     if (ts.rank == 1) {
       switch (ts.dim_index) {
@@ -185,7 +185,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
 #endif
     llvm::Value* result = builder_->CreateCall(f, {});
-    return this->CreateCast(PrimType::Int(32), iv->var.ty(), result);
+    return this->CreateCast(PrimType::Int(32), var.ty(), result);
   }
 
   llvm::Value* CreateStorageSync(const CallNode* op) final {

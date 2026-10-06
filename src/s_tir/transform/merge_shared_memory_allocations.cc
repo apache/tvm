@@ -136,6 +136,12 @@ class AllocateCollector : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (!op->op.same_as(tirx::builtin::launch_thread())) has_opaque_region_ = true;
+    return StmtExprVisitor::Visit_(op);
+  }
+
+  bool has_opaque_region_{false};
   // The mapping from the original buffer var to its TensorVar
   std::unordered_map<const VarNode*, TensorVar> shmem_allocs_;
 
@@ -316,13 +322,16 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
     // Only record the outer most thread extent.
-    if (op->attr_key == tirx::attr::thread_extent && !in_thread_env_) {
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
+        !in_thread_env_) {
       in_thread_env_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
       in_thread_env_ = false;
-    } else if (op->attr_key == s_tir::attr::virtual_thread) {
+    } else if (!op->op.same_as(tirx::builtin::launch_thread()) ||
+               std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) == 0) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(VisitNewScope(op));
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -370,9 +379,9 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
 /*!
  * \brief merge the buffers whose live range has no intersection and rewrite the body
  *
- * Uses a scope-stack design: each thread_extent block (kernel launch) gets its
+ * Uses a scope-stack design: each launch region (kernel launch) gets its
  * own KernelScope that owns the merged buffer var and all per-launch bookkeeping.
- * This correctly handles PrimFuncs with multiple sibling thread_extent blocks.
+ * This correctly handles PrimFuncs with multiple sibling launch regions.
  */
 class SharedMemoryRewriter : public StmtExprMutator {
  public:
@@ -405,7 +414,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   };
 
   /*!
-   * \brief Per-kernel-launch scope holding all state for one thread_extent block.
+   * \brief Per-kernel-launch scope holding all state for one launch region.
    */
   struct KernelScope {
     // The merged buffer var for THIS kernel launch.
@@ -441,8 +450,10 @@ class SharedMemoryRewriter : public StmtExprMutator {
                        is_dynamic_ ? "shared.dyn" : "shared");
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tirx::attr::thread_extent && !in_thread_env_) {
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0 &&
+        !in_thread_env_) {
       in_thread_env_ = true;
 
       // 1. Push a fresh scope.
@@ -453,18 +464,18 @@ class SharedMemoryRewriter : public StmtExprMutator {
       collector->Visit(op->body);
       scope.shmem_allocs = std::move(collector->shmem_allocs_);
 
-      // Per-scope early bail-out: if this thread_extent block has ≤1 shmem
-      // allocation, there is nothing to merge.  Skip liveness analysis,
-      // memory planning, and rewriting entirely.
-      if (scope.shmem_allocs.size() <= 1) {
+      // Per-scope early bail-out: if this launch region has ≤1 shmem
+      // allocation, there is nothing to merge. Unknown region operations also
+      // prevent moving allocations across their boundaries.
+      if (scope.shmem_allocs.size() <= 1 || collector->has_opaque_region_) {
         scope_stack_.pop_back();
         in_thread_env_ = false;
         return StmtExprMutator::Mutate_(op, inplace_mode);
       }
 
       // 3. Liveness + reuse plan over this subtree only.
-      // Run the finder on the full AttrStmt (not just op->body) so that
-      // VisitNewScope creates the proper scope pair entry for the thread_extent.
+      // Run the finder on the full RegionStmt (not just op->body) so that
+      // VisitNewScope creates the proper scope pair entry for the launch.
       auto finder = ffi::make_object<SharedMemLinearAccessPatternFinder>(is_dynamic_);
       finder->Visit(ffi::GetRef<Stmt>(op));
       this->LivenessAnalysis(finder->linear_seq_, scope);
@@ -493,7 +504,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
       // 6. If this scope has no shmem allocs, skip the wrapper.
       if (scope.shmem_allocs.empty()) {
         scope_stack_.pop_back();
-        return AttrStmt(op->node, op->attr_key, op->value, visited_body, op->span);
+        return RegionStmt(op->op, op->args, op->body_params, op->attrs, visited_body,
+                          op->result_vars, op->span);
       }
 
       // 7. Wrap with the merged-buffer AllocTensor.
@@ -512,7 +524,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
       // 8. Pop the scope.
       scope_stack_.pop_back();
 
-      return AttrStmt(op->node, op->attr_key, op->value, new_body, op->span);
+      return RegionStmt(op->op, op->args, op->body_params, op->attrs, new_body, op->result_vars,
+                        op->span);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
@@ -532,7 +545,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
           return Evaluate(0);
         }
       }
-      // Outside any thread_extent scope — leave as-is.
+      // Outside any launch scope — leave as-is.
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
@@ -1012,9 +1025,9 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   // Whether enable dynamic analysis.
   bool is_dynamic_{true};
-  // Whether already inside a thread_extent (outermost only).
+  // Whether already inside a hardware launch (outermost only).
   bool in_thread_env_{false};
-  // Stack of per-kernel-launch scopes. Pushed on thread_extent entry, popped on exit.
+  // Stack of per-kernel-launch scopes. Pushed on launch entry, popped on exit.
   std::vector<KernelScope> scope_stack_;
   /*! \brief allocator of all the StorageEntry (shared across all scopes) */
   support::Arena arena_;

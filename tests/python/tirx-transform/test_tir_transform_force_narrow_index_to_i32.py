@@ -24,20 +24,16 @@ from tvm.script import tirx as T
 def test_thread_axis1():
     @T.prim_func(private=True)
     def before(A: T.Tensor((T.int64(64),), "float32"), B: T.Tensor((T.int64(64),), "float32")):
-        blockIdx_x = T.env_thread("blockIdx.x")
-        T.launch_thread(blockIdx_x, T.int64(2))
-        threadIdx_x = T.env_thread("threadIdx.x")
-        T.launch_thread(threadIdx_x, T.int64(32))
+        blockIdx_x = T.launch_thread("blockIdx.x", T.int64(2))
+        threadIdx_x = T.launch_thread("threadIdx.x", T.int64(32))
         B[T.Cast("int64", blockIdx_x) * T.int64(32) + T.Cast("int64", threadIdx_x)] = A[
             T.Cast("int64", blockIdx_x) * T.int64(32) + T.Cast("int64", threadIdx_x)
         ] + T.float32(1)
 
     @T.prim_func(private=True)
     def expected(A: T.Tensor((64,), "float32"), B: T.Tensor((64,), "float32")):
-        blockIdx_x = T.env_thread("blockIdx.x")
-        T.launch_thread(blockIdx_x, 2)
-        threadIdx_x = T.env_thread("threadIdx.x")
-        T.launch_thread(threadIdx_x, 32)
+        blockIdx_x = T.launch_thread("blockIdx.x", 2)
+        threadIdx_x = T.launch_thread("threadIdx.x", 32)
         B[blockIdx_x * 32 + threadIdx_x] = A[blockIdx_x * 32 + threadIdx_x] + T.float32(1)
 
     mod = tvm.IRModule.from_expr(before)

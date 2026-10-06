@@ -103,8 +103,7 @@ def test_suppress_hoist_if_else_expr_only():
 def test_hoist_block_var():
     @Ts.prim_func(private=True)
     def before(A: T.Tensor((128, 16), "float32"), n: T.int32):
-        i = T.env_thread("threadIdx.x")
-        T.launch_thread(i, 128)
+        i = T.launch_thread("threadIdx.x", 128)
 
         for j in T.serial(16):
             if i < 32:
@@ -112,8 +111,7 @@ def test_hoist_block_var():
 
     @Ts.prim_func(private=True)
     def expected(A: T.Tensor((128, 16), "float32"), n: T.int32):
-        i = T.env_thread("threadIdx.x")
-        T.launch_thread(i, 128)
+        i = T.launch_thread("threadIdx.x", 128)
 
         if i < 32:
             for j in T.serial(16):
@@ -126,8 +124,7 @@ def test_hoist_block_var():
 def test_suppress_hoist_block_var():
     @Ts.prim_func(private=True)
     def before(A: T.Tensor((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-        T.launch_thread(thread_x, 128)
+        T.launch_thread("threadIdx.x", 128)
 
         for i in T.thread_binding(0, 128, thread="threadIdx.x"):
             if i < 32:
@@ -147,8 +144,7 @@ def test_suppress_hoist_block_var():
 def test_hoist_across_block_var():
     @Ts.prim_func(private=True)
     def before(A: T.Tensor((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-        T.launch_thread(thread_x, 128)
+        T.launch_thread("threadIdx.x", 128)
 
         for i in T.thread_binding(0, 128, thread="threadIdx.x"):
             if n == 0:
@@ -157,10 +153,8 @@ def test_hoist_across_block_var():
 
     @Ts.prim_func(private=True)
     def expected(A: T.Tensor((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-
         if n == 0:
-            T.launch_thread(thread_x, 128)
+            T.launch_thread("threadIdx.x", 128)
             for i in T.thread_binding(0, 128, thread="threadIdx.x"):
                 for j in T.serial(16):
                     A[i, j] = 0.0
@@ -172,8 +166,7 @@ def test_hoist_across_block_var():
 def test_suppress_hoist_across_block_var():
     @Ts.prim_func(private=True)
     def before(A: T.Tensor((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-        T.launch_thread(thread_x, 128)
+        T.launch_thread("threadIdx.x", 128)
 
         for i in T.thread_binding(0, 128, thread="threadIdx.x"):
             for j in T.serial(16):
@@ -182,9 +175,7 @@ def test_suppress_hoist_across_block_var():
 
     @Ts.prim_func(private=True)
     def expected(A: T.Tensor((128, 16), "float32"), n: T.int32):
-        thread_x = T.env_thread("threadIdx.x")
-
-        T.launch_thread(thread_x, 128)
+        T.launch_thread("threadIdx.x", 128)
         if n == 0:
             for i in T.thread_binding(0, 128, thread="threadIdx.x"):
                 for j in T.serial(16):

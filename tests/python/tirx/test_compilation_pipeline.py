@@ -55,12 +55,13 @@ def test_unify_thread_binding():
 
     @T.prim_func
     def expected(A: T.Tensor((32,), "int32")):
-        for bx in T.thread_binding(1, thread="blockIdx.x"):
-            for tx in T.thread_binding(32, thread="threadIdx.x"):
+        with T.launch_thread("blockIdx.x", 1) as bx:
+            with T.launch_thread("threadIdx.x", 32) as tx:
                 A[tx] = tx
+            with T.launch_thread("threadIdx.x", 32) as tx:
                 A[tx] = A[tx] + 1
 
-    actual = tvm.tirx.transform.UnifyThreadBinding()(tvm.IRModule({"main": before}))
+    actual = tvm.s_tir.transform.LowerThreadBinding()(tvm.IRModule({"main": before}))
     tvm.ir.assert_structural_equal(actual["main"], expected.with_attr("global_symbol", "before"))
 
 

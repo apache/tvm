@@ -109,13 +109,9 @@ def test_gpu():
     class Before:
         @T.prim_func
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
-            i0 = T.env_thread("blockIdx.x")
-            i1 = T.env_thread("threadIdx.x")
-            i2 = T.env_thread("vthread")
-
-            T.launch_thread(i0, 4)
-            T.launch_thread(i1, 2)
-            T.launch_thread(i2, 2)
+            i0 = T.launch_thread("blockIdx.x", 4)
+            i1 = T.launch_thread("threadIdx.x", 2)
+            i2 = T.launch_thread("vthread", 2)
             B = T.decl_tensor([1, 16], "float32", scope="local")
             for j in range(0, 16):
                 B[0, j] = A[i0 * 4 + i1 * 2 + i2, j] + 1.0
@@ -129,13 +125,9 @@ def test_gpu():
             A_1 = T.decl_tensor(256, dtype="float32", data=A.data, layout=None)
             C_1 = T.decl_tensor(256, dtype="float32", data=C.data, layout=None)
 
-            i0 = T.env_thread("blockIdx.x")
-            i1 = T.env_thread("threadIdx.x")
-            i2 = T.env_thread("vthread")
-
-            T.launch_thread(i0, 4)
-            T.launch_thread(i1, 2)
-            T.launch_thread(i2, 2)
+            i0 = T.launch_thread("blockIdx.x", 4)
+            i1 = T.launch_thread("threadIdx.x", 2)
+            i2 = T.launch_thread("vthread", 2)
             B = T.decl_tensor([16], "float32", scope="local", layout=None)
             for j in range(0, 16):
                 B[j] = A_1[i0 * 64 + i1 * 32 + i2 * 16 + j] + 1.0

@@ -181,22 +181,31 @@ void TIRVisitorWithPath::Dispatch_(const BindNode* op, AccessPath path) {
 
 void TIRVisitorWithPath::Dispatch_(const AttrStmtNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
-
-  std::vector<DefContext<IterVar>> context;
-  if (auto iter_var = op->node.as<IterVar>();
-      iter_var &&
-      (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread)) {
-    // Some attributes serve as a source of definition for the
-    // tirx::Var they annotate.
-    context.push_back(WithDef(iter_var.value(), path->Attr("node")));
-
-  } else if (auto expr = op->node.as<PrimExpr>()) {
+  if (auto expr = op->node.as<PrimExpr>()) {
     Visit(expr.value(), path->Attr("node"));
   }
   bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
+}
 
-  while (context.size()) {
-    context.pop_back();
+void TIRVisitorWithPath::Dispatch_(const RegionStmtNode* op, AccessPath path) {
+  Visit(op->args, path->Attr("args"));
+  Visit(ffi::AnyView(op->attrs), path->Attr("attrs"));
+  // All parameter types belong to the enclosing scope, including types with
+  // symbolic dimensions. No body parameter is visible to another parameter's type.
+  auto params_path = path->Attr("body_params");
+  for (size_t i = 0; i < op->body_params.size(); ++i) {
+    Visit(op->body_params[i]->ty, params_path->ArrayItem(i)->Attr("ty"));
+  }
+  bind_scope_.WithNewScope([&]() {
+    for (size_t i = 0; i < op->body_params.size(); ++i) {
+      bind_scope_.Current().push_back(
+          WithDef(op->body_params[i], params_path->ArrayItem(i), /*visit_type=*/false));
+    }
+    Visit(op->body, path->Attr("body"));
+  });
+  auto results_path = path->Attr("result_vars");
+  for (size_t i = 0; i < op->result_vars.size(); ++i) {
+    bind_scope_.Current().push_back(WithDef(op->result_vars[i], results_path->ArrayItem(i)));
   }
 }
 

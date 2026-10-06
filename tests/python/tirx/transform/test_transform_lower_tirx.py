@@ -57,8 +57,8 @@ def _launch_thread_extents(func):
     extents = {}
 
     def collect(node):
-        if isinstance(node, tvm.tirx.AttrStmt) and node.attr_key == "thread_extent":
-            extents[str(node.node.thread_tag)] = int(node.value)
+        if isinstance(node, tvm.tirx.RegionStmt) and node.op.name == "tirx.launch_thread":
+            extents[node.args[0].value] = int(node.args[1])
 
     tvm_ffi.structural_walk(func.body, collect)
     return extents

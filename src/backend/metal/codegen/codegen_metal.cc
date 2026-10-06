@@ -209,15 +209,19 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   this->stream << "}\n\n";
 }
 
-void CodeGenMetal::BindThreadIndex(const IterVar& iv) {
-  TVM_FFI_ICHECK(!var_idmap_.count(iv->var.get()));
+void CodeGenMetal::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
+  TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
+  runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+  TVM_FFI_ICHECK(ts.rank == 0 || ts.rank == 1) << "Unsupported Metal thread tag " << thread_tag;
+  TVM_FFI_ICHECK_GE(ts.dim_index, 0);
+  TVM_FFI_ICHECK_LT(ts.dim_index, 3);
   // if we only have threadIdx.x
   // metal will directly print as threadIdx
-  std::string vname = iv->thread_tag;
+  std::string vname = thread_tag;
   if (thread_work_dim_ <= 1) {
-    vname = vname.substr(0, iv->thread_tag.length() - 2);
+    vname = vname.substr(0, thread_tag.length() - 2);
   }
-  var_idmap_[iv->var.get()] = CastFromTo(vname, PrimType::UInt(thread_index_bits_), iv->var.ty());
+  var_idmap_[var.get()] = CastFromTo(vname, PrimType::UInt(thread_index_bits_), var.ty());
 }
 
 void CodeGenMetal::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)

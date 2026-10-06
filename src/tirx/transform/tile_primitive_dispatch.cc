@@ -339,10 +339,16 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     res = SeqStmt::Flatten(bind_stmts, res);
 
     // Launch extents come from ScopeIdDefs, independently of whether their
-    // returned Vars are named or used. Downstream codegen consumes these attrs.
+    // returned Vars are named or used. Downstream codegen consumes these launch regions.
     for (const auto& [tag, iv] : launch_params_) {
       if (tag == "warp_id_in_cta") continue;
-      res = AttrStmt(iv, tirx::attr::thread_extent, iv->dom->extent, res);
+      PrimVar launch_var(iv->var->name, iv->dom->extent.ty());
+      res = SubstituteWithDataTypeLegalization(res, [&](const Var& var) -> ffi::Optional<PrimExpr> {
+        if (var.same_as(iv->var)) return launch_var;
+        return std::nullopt;
+      });
+      res = RegionStmt(tirx::builtin::launch_thread(), {StringImm(tag), iv->dom->extent},
+                       {launch_var}, DictAttrs(), res);
     }
 
     // Insert host init stmts outside the outermost thread binding or block.

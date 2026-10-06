@@ -23,6 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -41,21 +42,22 @@ class ThreadAxisRewriter : public StmtExprMutator {
   Stmt Rewrite(Stmt stmt) { return Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt); }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == attr::thread_extent) {
-      IterVar iv = op->node.as_or_throw<IterVar>();
-      TVM_FFI_ICHECK_NE(iv->thread_tag.length(), 0U);
-      auto it = tmap_.find(iv->thread_tag);
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      auto it = tmap_.find(op->args[0].as_or_throw<StringImm>()->value);
       if (it != tmap_.end()) {
-        const IterVar& new_iv = it->second;
-        auto mapped = VarRemapGet(iv->var);
-        if (mapped == nullptr) {
-          VarRemapSet(iv->var, new_iv->var);
-        } else {
-          TVM_FFI_ICHECK(mapped.as_or_throw<Var>().same_as(new_iv->var));
-        }
-        Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-        return AttrStmt(new_iv, op->attr_key, op->value, body);
+        PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
+        PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
+        PrimVar old_var = op->body_params[0].as_or_throw<PrimVar>();
+        PrimVar new_var(it->second->var->name, extent.ty());
+        ffi::Any previous_remap = VarRemapGet(old_var);
+        VarRemapSet(old_var, new_var);
+        Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+        VarRemapSet(old_var, previous_remap);
+        return RegionStmt(tirx::builtin::launch_thread(),
+                          {StringImm(it->second->thread_tag), extent}, {new_var}, DictAttrs(), body,
+                          {}, op->span);
       }
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
