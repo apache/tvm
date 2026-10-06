@@ -853,15 +853,6 @@ class ScopeIdDefStmt : public Stmt {
 /*! \brief Statement attribute and loop annotation keys. */
 namespace attr {
 /*!
- * \brief Mark the scope as when computation start to happen.
- *  This can hint some code generator to create a new function for compute.
- */
-constexpr const char* compute_scope = "compute_scope";
-/*! \brief The allocation device for global malloc in host. */
-constexpr const char* device_id = "device_id";
-/*! \brief The device type. */
-constexpr const char* device_type = "device_type";
-/*!
  * \brief For annotation: maximum work for automatic unrolling.
  *
  * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.

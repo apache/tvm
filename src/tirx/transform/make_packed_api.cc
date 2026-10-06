@@ -231,7 +231,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   auto* func_ptr = func.CopyOnWrite();
-  const Stmt nop = Evaluate(0);
 
   // Data field definitions
   Var v_self_handle("self_handle", PointerType::VoidPointerTy());
@@ -251,8 +250,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   auto result = binder.Finalize();
   bool need_set_device = result.var_defs.count(device_id.get());
 
-  std::vector<Stmt> seq_check;
-
   // signature: (void* handle, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
   ffi::Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
@@ -265,13 +262,10 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   Stmt body = ffi::make_object<ReturnRewriter>(v_result)
                   ->Mutate(func_ptr->body.value(), InplaceMode::kAllow)
                   .ValueOrUnchanged(func_ptr->body.value());
-  body = AttrStmt(0, attr::compute_scope, StringImm(name_hint + "_compute_"), body);
+  body = RegionStmt(builtin::compute_scope(), {StringImm(name_hint + "_compute_")}, {}, DictAttrs(),
+                    body);
   // Set device context
   if (need_set_device) {
-    ffi::Any node = ffi::String("default");
-    seq_check.push_back(AttrStmt(node, attr::device_id, device_id.as_or_throw<PrimExpr>(), nop));
-    seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
-
     if (runtime::DeviceAPI::NeedSetDevice(target_device_type)) {
       Stmt set_device = Evaluate(Call(PrimType::Int(32), builtin::tvm_call_packed(),
                                       {StringImm(runtime::symbol::tvm_set_device), device_type,
@@ -287,7 +281,11 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // Tensor declarations and alignment assumptions are ordinary statements,
   // not scopes with a body hole for MergeNest to fill.
   body = SeqStmt::Flatten(result.decl_buffers, body);
-  body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts)}, body);
+  body = MergeNest(std::move(result.asserts), body);
+  if (need_set_device) {
+    body = RegionStmt(builtin::device_context(), {device_type, device_id}, {}, DictAttrs(), body);
+  }
+  body = MergeNest(std::move(result.init_nest), body);
   func_ptr->body = body;
   func_ptr->params = args;
 

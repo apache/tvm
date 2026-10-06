@@ -508,7 +508,7 @@ llvm::BasicBlock* CodeGenCPU::CheckCallSuccess(llvm::Value* retcode) {
   return end_block;
 }
 
-void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
+void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
   EmitDebugLocation(op);
   /*! \brief maintain states that should be guarded when step into compute scope */
   struct ComputeScopeStates {
@@ -555,8 +555,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   // $xxx_compute_ functions are not global. They should be marked as static (via InternalLinkage)
   // to call them correctly on MIPS platform (CALL16 issue)
   // Linkage ld Error: CALL16 reloc at 0x290 not against global symbol
-  const StringImmNode* value = op->value.as<StringImmNode>();
-  TVM_FFI_ICHECK(value != nullptr);
+  const auto* value = op->args[0].as<StringImmNode>();
   llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                                                     MakeStringRef(value->value), module_.get());
   SetComputeScopeAttributes(fcompute);
@@ -1131,18 +1130,25 @@ void CodeGenCPU::Dispatch_(const AssertStmtNode* op) {
   CodeGenLLVM::Dispatch_(op);
 }
 
+void CodeGenCPU::Dispatch_(const RegionStmtNode* op) {
+  EmitDebugLocation(op);
+  if (op->op.same_as(tirx::builtin::compute_scope())) {
+    CreateComputeScope(op);
+  } else if (op->op.same_as(tirx::builtin::parallel_launch())) {
+    CreateParallelLaunch(op->body, 0, "pragma_parallel");
+  } else {
+    CodeGenLLVM::Dispatch_(op);
+  }
+}
+
 void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
   EmitDebugLocation(op);
-  if (op->attr_key == tirx::attr::compute_scope) {
-    this->CreateComputeScope(op);
-  } else if (tirx::attr::IsPragmaKey(op->attr_key)) {
+  if (tirx::attr::IsPragmaKey(op->attr_key)) {
     if (op->attr_key == "pragma_parallel_stride_pattern") {
       TVM_FFI_THROW(ValueError)
           << "pragma_parallel_stride_pattern is retired; annotate every affected parallel For "
           << "with parallel_stride_pattern=True, including later loops in the same launch "
           << "outside the former attribute body";
-    } else if (op->attr_key == "pragma_parallel_launch_point") {
-      CreateParallelLaunch(op->body, 0, "pragma_parallel");
     } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
       TVM_FFI_THROW(ValueError)
           << "pragma_parallel_barrier_when_finish is retired; place cpu_parallel_barrier() "
