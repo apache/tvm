@@ -175,6 +175,11 @@ CodeGenCUDA::CodeGenCUDA(Target target) : target(target) { restrict_keyword_ = "
 
 void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
                                          std::ostream& os) {
+  PrintFunctionPrefix(func, os);
+  CodeGenC::PrintFunctionSignature(function_name, func, os);
+}
+
+void CodeGenCUDA::PrintFunctionPrefix(const PrimFunc& func, std::ostream& os) {
   CallingConv calling_conv =
       func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
   in_kernel_launch_ = (calling_conv == CallingConv::kDeviceKernelLaunch);
@@ -186,7 +191,6 @@ void CodeGenCUDA::PrintFunctionSignature(const ffi::String& function_name, const
     TVM_FFI_THROW(InternalError) << "Unsupported calling convention for cuda codegen: "
                                  << static_cast<int>(calling_conv);
   }
-  CodeGenC::PrintFunctionSignature(function_name, func, os);
 }
 
 class ThreadIdxExtractor : public tirx::StmtExprVisitor {
@@ -239,71 +243,98 @@ class ThreadIdxExtractor : public tirx::StmtExprVisitor {
   PrimExpr clusterCtaIdx_z_ext = IntImm::Int32(1);
 };
 
-void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
+void CodeGenCUDA::InitFuncState(const PrimFunc& func) {
+  CodeGenC::InitFuncState(func);
+  min_blocks_per_sm_.reset();
+  max_blocks_per_cluster_.reset();
+  max_registers_per_thread_.reset();
+  required_block_size_.reset();
+  in_kernel_launch_ =
+      func->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value() ==
+      CallingConv::kDeviceKernelLaunch;
+  // Thread metadata is also needed while emitting cluster index accesses.
   auto extractor = ffi::make_object<ThreadIdxExtractor>();
-  extractor->Visit(f->body);
+  extractor->Visit(func->body);
+  launch_dimensions_ = {extractor->threadIdx_x_ext,     extractor->threadIdx_y_ext,
+                        extractor->threadIdx_z_ext,     extractor->clusterCtaIdx_x_ext,
+                        extractor->clusterCtaIdx_y_ext, extractor->clusterCtaIdx_z_ext};
   sym::Analyzer analyzer;
-  PrimExpr threadIdx_ext = analyzer->Simplify(
-      extractor->threadIdx_x_ext * extractor->threadIdx_y_ext * extractor->threadIdx_z_ext);
-  PrimExpr cluster_cta_yz_ext =
-      analyzer->Simplify(extractor->clusterCtaIdx_y_ext * extractor->clusterCtaIdx_z_ext);
-  if (const IntImmNode* const cluster_cta_yz_ext_int = cluster_cta_yz_ext.as<IntImmNode>()) {
-    cluster_cta_x_is_linear_rank_ = cluster_cta_yz_ext_int->value == 1;
-  } else {
-    cluster_cta_x_is_linear_rank_ = false;
+  cluster_cta_x_is_linear_rank_ =
+      is_one(analyzer->Simplify(launch_dimensions_[4] * launch_dimensions_[5]));
+}
+
+void CodeGenCUDA::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  if (!RegisterFunctionName(gvar, func)) return;
+  // Definitions supply their body-derived qualifiers in AddFunction.
+  if (!func->body.has_value()) {
+    InitFuncState(func);
+    PrintFunctionSignature(GetFunctionName(gvar), func, fwd_decl_stream);
+    fwd_decl_stream << ";\n";
   }
-  auto max_registers = f->GetAttr<int64_t>(tirx::attr::kMaxRegisters);
-  auto required_block_size = f->GetAttr<int64_t>(tirx::attr::kRequiredBlockSize);
-  if (required_block_size.has_value()) {
-    TVM_FFI_ICHECK_EQ(required_block_size.value(), 1);
-    TVM_FFI_ICHECK(!max_registers.has_value())
-        << tirx::attr::kRequiredBlockSize << " cannot be combined with maximum registers";
-    const auto* tx = extractor->threadIdx_x_ext.as<IntImmNode>();
-    const auto* ty = extractor->threadIdx_y_ext.as<IntImmNode>();
-    const auto* tz = extractor->threadIdx_z_ext.as<IntImmNode>();
-    const auto* cx = extractor->clusterCtaIdx_x_ext.as<IntImmNode>();
-    const auto* cy = extractor->clusterCtaIdx_y_ext.as<IntImmNode>();
-    const auto* cz = extractor->clusterCtaIdx_z_ext.as<IntImmNode>();
-    TVM_FFI_ICHECK(tx && ty && tz && cx && cy && cz)
-        << tirx::attr::kRequiredBlockSize << " requires static thread and cluster dimensions";
-    os << " __block_size__((" << tx->value << ", " << ty->value << ", " << tz->value << "), ("
-       << cx->value << ", " << cy->value << ", " << cz->value << "))";
-    if (!f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM).has_value()) {
-      TVM_FFI_ICHECK(!f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster).has_value())
-          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
-          << tirx::attr::kLaunchBoundsMinBlocksPerSM;
-      return;
+}
+
+void CodeGenCUDA::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  DeclareFunction(gvar, func);
+  if (!func->body.has_value()) return;
+  InitFuncState(func);
+  std::ostringstream parameters;
+  PrintFunctionParameters(func, parameters);
+
+  // Generate the body once, retaining the settings declared by its leaf ops.
+  std::ostringstream previous_functions;
+  stream.swap(previous_functions);
+  stream << " {\n";
+  PreFunctionBody(func);
+  int func_scope = BeginScope();
+  PrintStmt(func->body.value());
+  EndScope(func_scope);
+  PrintIndent();
+  stream << "}\n\n";
+  std::string body = stream.str();
+  stream.swap(previous_functions);
+
+  std::ostringstream signature;
+  PrintFunctionPrefix(func, signature);
+  PrintType(func->ret_type, signature);
+  PrintExtraAttrs(func, signature);
+  signature << " " << GetFunctionName(gvar) << parameters.str();
+  fwd_decl_stream << signature.str() << ";\n";
+  stream << signature.str() << body;
+}
+
+void CodeGenCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
+  TVM_FFI_ICHECK(!max_blocks_per_cluster_ || min_blocks_per_sm_)
+      << "CUDA maximum blocks per cluster requires minimum blocks per SM";
+  TVM_FFI_ICHECK(!max_registers_per_thread_ || (!min_blocks_per_sm_ && !max_blocks_per_cluster_))
+      << "Maximum registers per thread cannot be combined with CUDA launch bounds";
+  TVM_FFI_ICHECK(!max_registers_per_thread_ || !required_block_size_)
+      << "Required block size cannot be combined with maximum registers";
+  if (required_block_size_) {
+    for (size_t i = 0; i < launch_dimensions_.size(); ++i) {
+      const auto* dim = launch_dimensions_[i].as<IntImmNode>();
+      TVM_FFI_ICHECK(dim) << "Required block size requires static thread and cluster dimensions";
+      TVM_FFI_ICHECK_EQ(dim->value, (*required_block_size_)[i])
+          << "Required block size must agree with declared launch extents";
     }
+    const auto& dims = *required_block_size_;
+    os << " __block_size__((" << dims[0] << ", " << dims[1] << ", " << dims[2] << "), (" << dims[3]
+       << ", " << dims[4] << ", " << dims[5] << "))";
+    if (!min_blocks_per_sm_) return;
   }
-  if (max_registers.has_value()) {
-    TVM_FFI_ICHECK_GT(max_registers.value(), 0);
-    TVM_FFI_ICHECK(!f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM).has_value() &&
-                   !f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster).has_value())
-        << tirx::attr::kMaxRegisters << " cannot be combined with CUDA launch bounds";
-    os << " __maxnreg__(" << max_registers.value() << ")";
+  if (max_registers_per_thread_) {
+    os << " __maxnreg__(" << *max_registers_per_thread_ << ")";
     return;
   }
-  if (const IntImmNode* const threadIdx_ext_int = threadIdx_ext.as<IntImmNode>()) {
-    if (threadIdx_ext_int->value == 1) {
-      // unable to extract the number of threads per block, hence directly return
-      return;
+  sym::Analyzer analyzer;
+  PrimExpr threads =
+      analyzer->Simplify(launch_dimensions_[0] * launch_dimensions_[1] * launch_dimensions_[2]);
+  if (const auto* count = threads.as<IntImmNode>(); count && count->value != 1) {
+    os << " __launch_bounds__(" << count->value;
+    if (min_blocks_per_sm_) {
+      os << ", " << *min_blocks_per_sm_;
+      if (max_blocks_per_cluster_) os << ", " << *max_blocks_per_cluster_;
     }
-    auto min_blocks_per_sm = f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMinBlocksPerSM);
-    auto max_blocks_per_cluster = f->GetAttr<int64_t>(tirx::attr::kLaunchBoundsMaxBlocksPerCluster);
-    if (min_blocks_per_sm.has_value()) {
-      TVM_FFI_ICHECK_GT(min_blocks_per_sm.value(), 0);
-      os << " __launch_bounds__(" << threadIdx_ext_int->value << ", " << min_blocks_per_sm.value();
-      if (max_blocks_per_cluster.has_value()) {
-        TVM_FFI_ICHECK_GT(max_blocks_per_cluster.value(), 0);
-        os << ", " << max_blocks_per_cluster.value();
-      }
-      os << ")";
-    } else {
-      TVM_FFI_ICHECK(!max_blocks_per_cluster.has_value())
-          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
-          << tirx::attr::kLaunchBoundsMinBlocksPerSM;
-      os << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
-    }
+    os << ")";
   }
 }
 
@@ -1684,6 +1715,39 @@ void CodeGenCUDA::DispatchAllocTensor(const BindNode* op, const CallNode* buffer
 }
 
 void CodeGenCUDA::Dispatch_(const EvaluateNode* op) {
+  if (const auto* call = op->value.as<CallNode>()) {
+    static const Op min_blocks = Op::Get("tirx.cuda.launch_bounds_min_blocks_per_sm");
+    static const Op max_blocks = Op::Get("tirx.cuda.launch_bounds_max_blocks_per_cluster");
+    static const Op max_registers = Op::Get("tirx.cuda.max_registers_per_thread");
+    static const Op required_block = Op::Get("tirx.cuda.required_block_size");
+    std::optional<int64_t>* setting = nullptr;
+    if (call->op.same_as(min_blocks)) {
+      setting = &min_blocks_per_sm_;
+    } else if (call->op.same_as(max_blocks)) {
+      setting = &max_blocks_per_cluster_;
+    } else if (call->op.same_as(max_registers)) {
+      setting = &max_registers_per_thread_;
+    }
+    if (setting) {
+      int64_t value = static_cast<int64_t>(call->args[0].as_or_throw<IntImm>()->value);
+      TVM_FFI_ICHECK_GT(value, 0) << call->op << " must be positive";
+      TVM_FFI_ICHECK(!setting->has_value() || setting->value() == value)
+          << "Conflicting " << call->op << " values";
+      *setting = value;
+      return;
+    }
+    if (call->op.same_as(required_block)) {
+      std::array<int64_t, 6> dimensions;
+      for (size_t i = 0; i < dimensions.size(); ++i) {
+        dimensions[i] = static_cast<int64_t>(call->args[i].as_or_throw<IntImm>()->value);
+        TVM_FFI_ICHECK_GT(dimensions[i], 0) << "Required block dimensions must be positive";
+      }
+      TVM_FFI_ICHECK(!required_block_size_ || *required_block_size_ == dimensions)
+          << "Conflicting required block size values";
+      required_block_size_ = dimensions;
+      return;
+    }
+  }
   if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   CodeGenC::Dispatch_(op);
 }

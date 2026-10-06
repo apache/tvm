@@ -89,7 +89,12 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
   PrintFuncPrefix(os);
   PrintType(func->ret_type, os);
   PrintExtraAttrs(func, os);
-  os << " " << function_name << "(";
+  os << " " << function_name;
+  PrintFunctionParameters(func, os);
+}
+
+void CodeGenC::PrintFunctionParameters(const PrimFunc& func, std::ostream& os) {
+  os << "(";
   for (size_t i = 0; i < func->params.size(); ++i) {
     tirx::Var v = func->params[i];
 
@@ -139,10 +144,8 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
   }
 }
 
-void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
-  if (internal_functions_.count(gvar)) {
-    return;
-  }
+bool CodeGenC::RegisterFunctionName(const GlobalVar& gvar, const PrimFunc& func) {
+  if (internal_functions_.count(gvar)) return false;
 
   auto function_name = [&]() -> ffi::String {
     if (auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
@@ -161,9 +164,13 @@ void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
     has_tvm_ffi_main_func_ = true;
   }
   internal_functions_.insert({gvar, function_name});
+  return true;
+}
 
+void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  if (!RegisterFunctionName(gvar, func)) return;
   InitFuncState(func);
-  PrintFunctionSignature(function_name, func, fwd_decl_stream);
+  PrintFunctionSignature(GetFunctionName(gvar), func, fwd_decl_stream);
   fwd_decl_stream << ";\n";
 }
 

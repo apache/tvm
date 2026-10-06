@@ -260,6 +260,21 @@ OpDef& RegisterDeviceIntrinsic(OpDef&& def, const char* op_namespace, CallEffect
 }
 
 void RegisterDeviceIntrinsics() {
+  // Kernel configuration declarations survive lowering until CUDA body generation.
+  RegisterDeviceIntrinsic(OpDef("tirx.cuda.launch_bounds_min_blocks_per_sm"), "cuda",
+                          CallEffectKind::kEmbedInfo, sig::arg<IntImm>("value"))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
+  RegisterDeviceIntrinsic(OpDef("tirx.cuda.launch_bounds_max_blocks_per_cluster"), "cuda",
+                          CallEffectKind::kEmbedInfo, sig::arg<IntImm>("value"))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
+  RegisterDeviceIntrinsic(OpDef("tirx.cuda.max_registers_per_thread"), "cuda",
+                          CallEffectKind::kEmbedInfo, sig::arg<IntImm>("value"))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
+  RegisterDeviceIntrinsic(
+      OpDef("tirx.cuda.required_block_size"), "cuda", CallEffectKind::kEmbedInfo,
+      sig::arg<IntImm>("thread_x"), sig::arg<IntImm>("thread_y"), sig::arg<IntImm>("thread_z"),
+      sig::arg<IntImm>("cluster_x"), sig::arg<IntImm>("cluster_y"), sig::arg<IntImm>("cluster_z"))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.any_sync"), "cuda", CallEffectKind::kPure,
                           sig::arg<IntExpr>("mask"), sig::arg("pred"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(32));
