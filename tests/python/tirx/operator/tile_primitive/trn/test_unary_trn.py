@@ -76,7 +76,7 @@ def test_simple_unary(op_type):
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     if T.constexpr(op_type == "reciprocal"):
@@ -123,7 +123,7 @@ def test_unary_in_a_loop(op_type):
         A_sbuf_view = T.decl_tensor((128, 4096), data=A_sbuf.data, scope="trn.sbuf", layout=None)
         B_sbuf_view = T.decl_tensor((128, 2048), data=B_sbuf.data, scope="trn.sbuf", layout=None)
         for i, b_loop in T.grid(4, 1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     if T.constexpr(op_type == "reciprocal"):
@@ -153,7 +153,7 @@ def test_unary_complex1():
         T.func_attr({"global_symbol": "unary"})
         A_sbuf = T.alloc_tensor((128, 8192), scope="trn.sbuf")
         for b_loop in T.serial(0, 16):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.memset(A_sbuf[p_loop, b_loop * 512 + f_loop], T.float32(0.0))
@@ -191,7 +191,7 @@ def test_unary_with_bias_scale(op_type):
         B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.activation(C_sbuf[p_loop, b_loop * 512  + f_loop], A_sbuf[p_loop, b_loop * 512 + f_loop], op_type, B_sbuf[p_loop, b_loop//2], T.float32(2.0))  # noqa: E501
@@ -224,14 +224,14 @@ def test_unary_with_bias_scale_2(op_type):
     def expected():
         T.func_attr({"global_symbol": "unary"})
         const_bias = T.alloc_tensor((128, 512), scope="trn.sbuf")
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(1.0))
         A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         for b_loop in T.serial(0, 8):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
                     T.nki.activation(C_sbuf[p_loop, b_loop * 512 + f_loop], A_sbuf[p_loop, b_loop * 512 + f_loop], op_type, const_bias[p_loop, f_loop], T.float32(2.0))  # noqa: E501
@@ -270,7 +270,7 @@ def test_unary_with_guard():
         B_sbuf = T.alloc_tensor((128, 4), scope="trn.sbuf")
         C_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
         for i, j, b_loop in T.grid(4, 4, 8):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     if b_loop // 2 - i < 1 and b_loop % 2 * 512 + f_loop < j * 256 + 256:

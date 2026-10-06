@@ -46,7 +46,7 @@ def test_copy_transpose():
         T.device_entry()
         identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
         acc_psum = T.alloc_tensor((8, 128, 512), scope="trn.psum", allocated_addr=[0, 0])
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for rhs_f_loop in T.serial(128, annotations={"nki_dim": "F"}):
                     T.nki.identity(identity[p_loop, rhs_f_loop], 128)
@@ -104,7 +104,7 @@ def test_unary_with_bias_scale():
         T.func_attr({"global_symbol": "unary"})
         T.device_entry()
         const_bias = T.alloc_tensor((128, 512), scope="trn.sbuf")
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(512, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(1.0))
@@ -253,7 +253,7 @@ def test_activation_reduce_two_stage():
         T.device_entry()
         partial_reduce = T.alloc_tensor((128, 8), scope="trn.sbuf")
         const_bias = T.alloc_tensor((128, 1024), scope="trn.sbuf")
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(1024, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))
@@ -296,7 +296,7 @@ def test_partial_workspace_specify():
         T.func_attr({"global_symbol": "activation_reduce"})
         T.device_entry()
         const_bias = T.alloc_tensor((128, 1024), scope="trn.sbuf")
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(1024, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))
@@ -337,7 +337,7 @@ def test_workspace_reuse():
         T.func_attr({"global_symbol": "unary"})
         T.device_entry()
         const_bias = T.alloc_tensor((128, 1024), scope="trn.sbuf")
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(128, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(1024, annotations={"nki_dim": "F"}):
                     T.nki.memset(const_bias[p_loop, f_loop], T.float32(0.0))

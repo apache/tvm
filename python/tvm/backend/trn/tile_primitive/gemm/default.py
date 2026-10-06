@@ -223,7 +223,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     # fmt: off
     @T.inline
     def matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, acc, C_as_output, max_psum_slots):  # noqa: E501
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(0, p_size, annotations={"nki_dim": "P"}):
                 for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "lhs_F"}):
                     for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "rhs_F"}):
@@ -273,7 +273,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         for lhs_b_loop, rhs_b_loop in T.grid(lhs_b_extent, rhs_b_extent):
             for reduction_b_loop in T.serial(0, reduction_b_extent):
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, acc_psum, False, max_psum_slots)  # noqa: E501
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for lhs_f_loop in T.serial(0, lhs_f_size, annotations={"nki_dim": "P"}):
                     for rhs_f_loop in T.serial(0, inst_repr.size, annotations={"nki_dim": "F"}):
                         inst_gen.set_bind_map(C_buffer_region, {lhs_f: lhs_f_loop, rhs_f: rhs_f_loop, lhs_b: lhs_b_loop, rhs_b: rhs_b_loop})  # noqa: E501
