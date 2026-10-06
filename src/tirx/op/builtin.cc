@@ -190,6 +190,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_DEFINE_CACHED_OP_GETTER(reinterpret, "tirx.reinterpret")
 TVM_DEFINE_CACHED_OP_GETTER(launch_thread, "tirx.launch_thread")
+TVM_DEFINE_CACHED_OP_GETTER(device_entry, "tirx.device_entry")
 TVM_DEFINE_CACHED_OP_GETTER(thread_return, "tirx.thread_return")
 TVM_DEFINE_CACHED_OP_GETTER(filter, "tirx.filter")
 TVM_DEFINE_CACHED_OP_GETTER(selector, "tirx.selector")
@@ -268,6 +269,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kPure))
       .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                            static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
+
+  OpDef("tirx.device_entry", "Mark a device entry containing scope definitions.")
+      .signature()
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 
   OpDef("tirx.launch_thread", "Bind a thread index within a body with a launch extent.")
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));

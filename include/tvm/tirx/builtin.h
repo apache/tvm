@@ -47,6 +47,9 @@ namespace builtin {
  * Tags starting with vthread denote virtual threads. There are no attrs or results.
  */
 TVM_DLL const Op& launch_thread();
+
+/*! \brief Mark a user-facing device entry region. */
+TVM_DLL const Op& device_entry();
 /*!
  * \brief Allocate a buffer: alloc_tensor(shape, dtype, scope) -> TensorType.
  *
