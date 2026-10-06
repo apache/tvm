@@ -123,7 +123,7 @@ class Space:
                     interval = self.power_of_two(5, 9)
                 elif ann_key == ["meta_schedule.vectorize"]:
                     interval = self.power_of_two(4, 8)
-                elif ann_key == ["pragma_auto_unroll_max_step"]:
+                elif ann_key == ["auto_unroll_max_step"]:
                     interval = self.power_of_two(7, 11)
                 elif ann_key == ["meta_schedule.thread_extent_low_inclusive"]:
                     interval = self.power_of_two(5, 6)

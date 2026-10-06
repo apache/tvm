@@ -192,8 +192,8 @@ class GeneralReduction(GPUScheduleRule):
         sch.reorder(tx, r_loop)
         sch.bind(bx, "blockIdx.x")
         sch.bind(tx, "threadIdx.x")
-        sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-        sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
+        sch.annotate(r_loop, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
+        sch.annotate(r_loop, ann_key="unroll_explicit", ann_val=1)
 
         for block in reversed(block_infos[:-1]):
             block = block.block_rv
@@ -204,11 +204,11 @@ class GeneralReduction(GPUScheduleRule):
             r_loop, tx = sch.split(r_loop, [None, len_tx])
             sch.reorder(tx, r_loop)
             sch.bind(tx, "threadIdx.x")
-            sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-            sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
+            sch.annotate(r_loop, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
+            sch.annotate(r_loop, ann_key="unroll_explicit", ann_val=1)
 
         # TODO: It's just a workaround to avoid unroll spatial loops, because of the bug of
         # the pass lower-thread-allreduce. We should fix it in the future.
-        # sch.annotate(bx, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
-        # sch.annotate(bx, ann_key="pragma_unroll_explicit", ann_val=1)
+        # sch.annotate(bx, ann_key="auto_unroll_max_step", ann_val=unroll_depth)
+        # sch.annotate(bx, ann_key="unroll_explicit", ann_val=1)
         return sch

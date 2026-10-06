@@ -51,13 +51,12 @@ def test_unroll_loop():
         assert ret.kind == tvm.tirx.ForKind.UNROLLED
 
     @I.ir_module
-    class ModuleWithPragma:
+    class ModuleWithPolicy:
         @T.prim_func
         def main(Ab: T.Tensor((n,), "int64"), n: T.int64):  # noqa: F821
-            with T.attr(T.int32(0), "pragma_auto_unroll_max_step", 16):
-                for i in T.serial(n, n + 2):
-                    for j in T.unroll(8):
-                        Ab[j + 1] = Ab[i] + T.int64(1)
+            for i in T.serial(n, n + 2, annotations={"auto_unroll_max_step": 16}):
+                for j in T.unroll(8):
+                    Ab[j + 1] = Ab[i] + T.int64(1)
             for i in T.serial(n, n + 2):
                 for j in T.unroll(8):
                     Ab[j + 1] = Ab[i] + T.int64(1)
@@ -65,7 +64,7 @@ def test_unroll_loop():
     with tvm.transform.PassContext(
         config={"tirx.UnrollLoop": {"auto_max_depth": 8, "explicit_unroll": False}}
     ):
-        ret = tvm.tirx.transform.UnrollLoop()(ModuleWithPragma)["main"].body
+        ret = tvm.tirx.transform.UnrollLoop()(ModuleWithPolicy)["main"].body
         assert isinstance(ret[0], tvm.tirx.For)
         assert ret[0].kind == tvm.tirx.ForKind.UNROLLED
         assert isinstance(ret[1], tvm.tirx.For)

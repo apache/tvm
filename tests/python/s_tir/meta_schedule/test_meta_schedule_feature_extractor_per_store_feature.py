@@ -64,7 +64,7 @@ class LayoutTransform:
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
         # body
         # with Ts.sblock("root")
-        for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"pragma_auto_unroll_max_step":64, "pragma_unroll_explicit":1}):
+        for i0_i1_i2_i3_i4_fused in T.parallel(25088, annotations={"auto_unroll_max_step":64, "unroll_explicit":1}):
             with Ts.sblock("T_layout_trans_1"):
                 ax0 = Ts.axis.spatial(1, 0)
                 ax1 = Ts.axis.spatial(1, 0)
@@ -784,8 +784,8 @@ def test_gpu():
         _, b_j = sch.split(b_ij, factors=[None, 16])  # outer: 8
         sch.bind(b_j, "threadIdx.x")
         # auto unroll
-        sch.annotate(i0_j0, "pragma_auto_unroll_max_step", tirx.IntImm("int32", 1024))
-        sch.annotate(i0_j0, "pragma_unroll_explicit", tirx.IntImm("int32", 1))
+        sch.annotate(i0_j0, "auto_unroll_max_step", tirx.IntImm("int32", 1024))
+        sch.annotate(i0_j0, "unroll_explicit", tirx.IntImm("int32", 1))
         return sch
 
     extractor = ms.feature_extractor.PerStoreFeature()

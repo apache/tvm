@@ -121,8 +121,8 @@ class GEMV(CPUScheduleRule):
             sch.parallel(s_outer)  # Parallelize along the s-axis (major computation loop)
 
             # Apply loop unrolling for better CPU performance
-            sch.annotate(r_outer, "pragma_auto_unroll_max_step", unroll_factor)
-            sch.annotate(r_outer, "pragma_unroll_explicit", 1)
+            sch.annotate(r_outer, "auto_unroll_max_step", unroll_factor)
+            sch.annotate(r_outer, "unroll_explicit", 1)
             return sch
 
         return apply(

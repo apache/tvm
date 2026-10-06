@@ -481,8 +481,6 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
   // do a scalarize call with f
   llvm::Value* CreateScalarizedCall(const CallNode* op, llvm::Function* f,
                                     const std::vector<llvm::Value*>& args);
-  // handle module import
-  void HandleImport(const std::string& code);
   // cast operatpr
   llvm::Value* CreateCast(PrimType from, PrimType to, llvm::Value* value);
   // comparison op

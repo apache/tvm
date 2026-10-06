@@ -1084,8 +1084,8 @@ class Matmul(GPUScheduleRule):
             sch.vectorize(v)
 
         if config.unroll > 0:
-            sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=config.unroll)
-            sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
+            sch.annotate(tx, ann_key="auto_unroll_max_step", ann_val=config.unroll)
+            sch.annotate(tx, ann_key="unroll_explicit", ann_val=1)
 
         l2g = sch.cache_write(main_block, 0, "local")
         sch.reverse_compute_at(l2g, tx, preserve_unit_loops=True)

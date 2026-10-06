@@ -1390,7 +1390,7 @@ def test_reverse_compute_inline_layer_norm():
         A_red_temp_v0_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
         A_red_temp_v1_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
         var_T_layer_norm_intermediate = Ts.sblock_alloc_buffer((T.int64(1), n, T.int64(2560)))
-        for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+        for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
             for ax0, ax1, ax2_0 in T.grid(T.int64(1), T.int64(1), T.int64(10)):
                 for ax2_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                     with Ts.sblock("A_red_temp"):
@@ -1431,7 +1431,7 @@ def test_reverse_compute_inline_layer_norm():
         # with Ts.sblock("root"):
         A_red_temp_v0_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
         A_red_temp_v1_shared = Ts.sblock_alloc_buffer((T.int64(1), n), scope="shared")
-        for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+        for ax0_ax1_fused in T.thread_binding(n, thread="blockIdx.x", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
             for ax0, ax1, ax2_0 in T.grid(T.int64(1), T.int64(1), T.int64(10)):
                 for ax2_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
                     with Ts.sblock("A_red_temp"):

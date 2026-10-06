@@ -410,7 +410,7 @@ def test_preserved_annotations():
 def test_none_pragma_annotation():
     @Ts.prim_func
     def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
-        for i in T.serial(8, annotations={"pragma_unroll_explicit": None}):
+        for i in T.serial(8, annotations={"unroll_explicit": None}):
             with Ts.sblock("block"):
                 B[i] = A[i] + 1.0
 

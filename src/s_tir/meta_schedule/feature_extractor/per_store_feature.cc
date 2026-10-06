@@ -87,13 +87,12 @@ std::vector<int64_t> GetBufferShape(const TensorVar& buffer, sym::AnalyzerObj* a
 }
 
 /*!
- * \brief Given a loop, return its `pragma_auto_unroll_max_step` annotation if it exists
+ * \brief Given a loop, return its `auto_unroll_max_step` annotation if it exists
  * \param loop The loop to be checked
- * \return The value of `pragma_auto_unroll_max_step` if it exists, or -1 if it does not exist
+ * \return The value of `auto_unroll_max_step` if it exists, or -1 if it does not exist
  */
-int64_t GetPragmaAutoUnroll(const ForNode* loop) {
-  if (ffi::Optional<IntImm> auto_unroll =
-          GetAnn<IntImm>(loop, tirx::attr::pragma_auto_unroll_max_step)) {
+int64_t GetAutoUnrollMaxStep(const ForNode* loop) {
+  if (ffi::Optional<IntImm> auto_unroll = GetAnn<IntImm>(loop, tirx::attr::auto_unroll_max_step)) {
     return static_cast<int64_t>(auto_unroll.value()->value);
   }
   return -1;
@@ -431,7 +430,7 @@ tvm::transform::Sequential PassListForPerStoreFeature() {
 struct LoopNest {
   int64_t prod = 1;    // The product of the extents of all the loops
   ForVec loops;        // All the loops
-  IntVec auto_unroll;  // The loops with auto unroll pragma
+  IntVec auto_unroll;  // The loops with auto unroll policy
   ForVec parallel;     // The loops whose ForKind are kParallel
   ForVec vectorize;    // The loops whose ForKind are kVectorized
   ForVec unroll;       // The loops whose ForKind are kUnrolled
@@ -456,7 +455,7 @@ struct LoopNest {
       this->prod *= *extent;
     }
     this->loops.push_back(loop);
-    if ((*auto_unroll_attr = utils::GetPragmaAutoUnroll(loop)) > 0) {
+    if ((*auto_unroll_attr = utils::GetAutoUnrollMaxStep(loop)) > 0) {
       this->auto_unroll.push_back(*auto_unroll_attr);
     }
     ForVec* ref_loops = nullptr;
@@ -1305,7 +1304,7 @@ namespace group5 {
 struct Feature {
   int64_t outer_prod;        // The product of lengths of outer loops
   int num_loops;             // The number of outer loops
-  int auto_unroll_max_step;  // The value of pragma "auto_unroll_max_step"
+  int auto_unroll_max_step;  // The value of annotation "auto_unroll_max_step"
 
   static constexpr int64_t kCount = 3;
 

@@ -53,7 +53,7 @@ def test_transpose():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
             rxplaceholder_shared = Ts.sblock_alloc_buffer((T.int64(512), T.int64(4096)), scope="shared")
-            for ax0_0_0 in T.thread_binding(T.int64(512), thread="blockIdx.y", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+            for ax0_0_0 in T.thread_binding(T.int64(512), thread="blockIdx.y", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                 for ax1_0 in T.thread_binding(T.int64(32), thread="blockIdx.x"):
                     for ax0_ax1_fused_0 in range(T.int64(1)):
                         for ax0_ax1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.y"):
@@ -107,7 +107,7 @@ def test_decode_transpose():
         def main(rxplaceholder: T.Tensor((T.int64(512), T.int64(4096)), "uint32"), rxplaceholder_1: T.Tensor((T.int64(128), T.int64(4096)), "uint32"), T_transpose: T.Tensor((T.int64(4096), T.int64(4096)), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             decode_shared = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), scope="shared")
-            for ax0_0_0 in T.thread_binding(T.int64(64), thread="blockIdx.y", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+            for ax0_0_0 in T.thread_binding(T.int64(64), thread="blockIdx.y", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                 for ax1_0 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                     for ax0_ax1_fused_0 in range(T.int64(1)):
                         for ax0_ax1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.y"):
@@ -162,7 +162,7 @@ def test_decode_int3_transpose():
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
             decode_1_shared = Ts.sblock_alloc_buffer((T.int64(4096), T.int64(4096)), "float16", scope="shared")
-            for ax0_0_0 in T.thread_binding(T.int64(52), thread="blockIdx.y", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+            for ax0_0_0 in T.thread_binding(T.int64(52), thread="blockIdx.y", annotations={"auto_unroll_max_step": 256, "unroll_explicit": 1}):
                 for ax1_0 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                     for ax0_ax1_fused_0 in range(T.int64(2)):
                         for ax0_ax1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.y"):

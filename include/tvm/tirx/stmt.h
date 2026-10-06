@@ -850,7 +850,7 @@ class ScopeIdDefStmt : public Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ScopeIdDefStmtNode);
 };
 
-/*! \brief namespace of possible attributes in AttrStmt.attr_key */
+/*! \brief Statement attribute and loop annotation keys. */
 namespace attr {
 /*!
  * \brief Mark the scope as when computation start to happen.
@@ -863,14 +863,18 @@ constexpr const char* device_id = "device_id";
 constexpr const char* device_scope = "device_scope";
 /*! \brief The device type. */
 constexpr const char* device_type = "device_type";
-/*! \brief Pragma: auto-unroll, max_step */
-constexpr const char* pragma_auto_unroll_max_step = "pragma_auto_unroll_max_step";
-/*! \brief Import C source or file into the final code gen module */
-constexpr const char* pragma_import_c = "pragma_import_c";
-/*! \brief Import llvm source or file into the final code gen module */
-constexpr const char* pragma_import_llvm = "pragma_import_llvm";
-/*! \brief Pragma: unroll explicit */
-constexpr const char* pragma_unroll_explicit = "pragma_unroll_explicit";
+/*!
+ * \brief For annotation: maximum work for automatic unrolling.
+ *
+ * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.
+ */
+constexpr const char* auto_unroll_max_step = "auto_unroll_max_step";
+/*!
+ * \brief For annotation: expand unrolled bodies instead of preserving unrolled loops.
+ *
+ * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.
+ */
+constexpr const char* unroll_explicit = "unroll_explicit";
 /*! \brief Mark storage alignment requirement of buffers */
 constexpr const char* storage_alignment = "storage_alignment";
 /*! \brief Shared execution attributes consumed before and after block lowering. */
