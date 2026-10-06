@@ -1147,11 +1147,6 @@ void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
       TVM_FFI_THROW(ValueError)
           << "pragma_parallel_barrier_when_finish is retired; place cpu_parallel_barrier() "
           << "after the former attribute body inside the parallel launch";
-    } else if (op->attr_key == tirx::attr::pragma_import_llvm) {
-      const StringImmNode* value = op->value.as<StringImmNode>();
-      TVM_FFI_ICHECK(value != nullptr);
-      this->HandleImport(value->value);
-      this->Dispatch(op->body);
     } else {
       LOG(WARNING) << "Unknown pragma " << op->attr_key;
       this->Dispatch(op->body);
