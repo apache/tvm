@@ -116,26 +116,15 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread())) return StmtExprVisitor::Visit_(op);
+    if (!op->op.same_as(tirx::builtin::launch_thread()) &&
+        !op->op.same_as(tirx::builtin::device_entry()))
+      return StmtExprVisitor::Visit_(op);
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
     bool previous_scope = is_under_gpu_scope_;
     is_under_gpu_scope_ = true;
     auto result = Visit(op->body);
     is_under_gpu_scope_ = previous_scope;
     return result;
-  }
-
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::kDeviceEntry) {
-      // Enter the explicit device scope
-      bool last_is_under_gpu_scope = is_under_gpu_scope_;
-      is_under_gpu_scope_ = true;
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-      is_under_gpu_scope_ = last_is_under_gpu_scope;
-    } else {
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    }
-    return std::nullopt;
   }
 
  private:
@@ -214,30 +203,18 @@ class CallSubstitutor : public StmtExprMutator {
   }
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
-    if (!op->op.same_as(tirx::builtin::launch_thread()))
+    if (!op->op.same_as(tirx::builtin::launch_thread()) &&
+        !op->op.same_as(tirx::builtin::device_entry()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
-    PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
-    PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
+    auto args =
+        Mutate(op->args, inplace_mode).ValueOrUnchanged(op->args).as_or_throw<ffi::Array<Expr>>();
     bool previous_scope = is_under_gpu_scope_;
     is_under_gpu_scope_ = true;
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
     is_under_gpu_scope_ = previous_scope;
-    return RegionStmt(op->op, {op->args[0], extent}, op->body_params, op->attrs, body,
-                      op->result_vars, op->span);
+    return RegionStmt(op->op, args, op->body_params, op->attrs, body, op->result_vars, op->span);
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == attr::kDeviceEntry) {
-      // Enter the explicit device scope
-      bool last_is_under_gpu_scope = is_under_gpu_scope_;
-      is_under_gpu_scope_ = true;
-      UnchangedOr<Stmt> stmt = StmtExprMutator::Mutate_(op, inplace_mode);
-      is_under_gpu_scope_ = last_is_under_gpu_scope;
-      return stmt;
-    } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
-    }
-  }
   /*! \brief Whether the current statement is under a GPU scope */
   bool is_under_gpu_scope_ = false;
   /*! \brief Mapping from original functions to host-specific duplicates */

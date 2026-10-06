@@ -28,14 +28,14 @@ target = tvm.target.Target("aws/trn1/trn1.2xlarge")
 
 
 def _strip_exec_scope_stmt(stmt):
-    def _strip_attr(node: tvm.tirx.AttrStmt):
-        if node.attr_key == "tirx.device_entry":
+    def _strip_region(node: tvm.tirx.RegionStmt):
+        if node.op.same_as(tvm.ir.Op.get("tirx.device_entry")):
             return node.body
         return node
 
     return tvm_ffi.structural_map(
         stmt,
-        (tvm.tirx.AttrStmt, _strip_attr),
+        (tvm.tirx.RegionStmt, _strip_region),
         order="post",
     )
 

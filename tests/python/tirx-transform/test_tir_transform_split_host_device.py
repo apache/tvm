@@ -54,7 +54,7 @@ def test_ssa_across_entire_module():
         def main():
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host="llvm")})
             for i in range(16):
-                T.attr(0, "device_scope", 0)
+                T.region("tirx.device_scope", [])
                 for j in range(16):
                     T.evaluate(i)
 
@@ -73,7 +73,7 @@ def test_split_host_device():
         @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             T.evaluate(n)
 
     @I.ir_module
@@ -109,7 +109,7 @@ def test_split_host_device_on_cpu():
         @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            T.attr(T.target("llvm"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("llvm")})
             T.evaluate(n)
 
     @I.ir_module
@@ -141,10 +141,11 @@ def test_device_kernel_nonzero_return_is_rejected():
 
     device_target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
     target = tvm.target.Target(device_target, host="llvm")
-    body = tvm.tirx.AttrStmt(
-        device_target,
-        "target",
-        0,
+    body = tvm.tirx.RegionStmt(
+        tvm.ir.Op.get("tirx.device_scope"),
+        [],
+        [],
+        tvm.ir.DictAttrs({"target": device_target}),
         tvm.tirx.Return(tvm.tirx.IntImm("int32", 1)),
     )
     func = tvm.tirx.PrimFunc([], body)
@@ -167,7 +168,7 @@ def test_split_host_device_without_func_host_attribute():
         @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("llvm")})
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             T.evaluate(n)
 
     @I.ir_module
@@ -227,7 +228,7 @@ def test_split_host_device_name_collision():
         @T.prim_func
         def main(n: T.int32):
             T.func_attr({"target": T.target("cuda", host={"kind": "llvm", "opt-level": 0})})
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             T.evaluate(n)
 
         @T.prim_func
@@ -295,7 +296,7 @@ def test_dynamic_launch_thread():
             T.func_attr({"target": T.target("cuda")})
 
             num_blocks: T.let[T.int32] = (seq_len + 127) // 128
-            with T.attr(T.target("cuda"), "target", 0):
+            with T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")}):
                 blockIdx_x = T.launch_thread("blockIdx.x", num_blocks)
                 threadIdx_x = T.launch_thread("threadIdx.x", 128)
                 if blockIdx_x * 128 + threadIdx_x < seq_len:
@@ -350,7 +351,7 @@ def test_symbolic_var_parameter():
         def main(A: T.Tensor((m,)), B: T.Tensor((m,))):
             T.func_attr({"target": T.target("cuda")})
 
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             blockIdx_x = T.launch_thread("blockIdx.x", m)
             B_1 = T.decl_tensor((m,), data=B.data)
             A_1 = T.decl_tensor((m,), data=A.data)
@@ -367,7 +368,7 @@ def test_buffer_used_only_through_data_projection():
         @T.prim_func
         def main(A: T.Tensor((16,), "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            with T.attr(T.target("cuda"), "target", 0):
+            with T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")}):
                 T.evaluate(T.call_extern("consume", A.data, dtype="int32"))
 
     after = tvm.tirx.transform.SplitHostDevice()(Before)
@@ -435,7 +436,7 @@ def test_cuda_launch_preserves_flag_metadata():
                     ],
                 }
             )
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             tx = T.launch_thread("threadIdx.x", 16)
             A[tx] = 0.0
 
@@ -469,7 +470,7 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
         @T.prim_func
         def main(A: T.Tensor(4, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            T.attr(T.target("cuda"), "target", 0)
+            T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
             T.attr(0, "tirx.required_block_size", 1)
             with T.attr(0, "tirx.launch_bounds_min_blocks_per_sm", 1):
                 bx = T.launch_thread("blockIdx.x", 4)
@@ -501,7 +502,7 @@ def test_cuda_launch_preserves_singleton_cluster_dimensions():
         @T.prim_func
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            with T.attr(T.target("cuda"), "target", 0):
+            with T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")}):
                 T.launch_thread("blockIdx.x", 4)
                 T.launch_thread("clusterCtaIdx.x", 1)
                 T.launch_thread("clusterCtaIdx.y", 1)
@@ -532,7 +533,7 @@ def test_device_scope_region_extracted_as_device_kernel():
         @T.prim_func
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
-            T.attr(0, "device_scope", 0)
+            T.region("tirx.device_scope", [])
             A[0] = 0.0
 
     @I.ir_module
@@ -555,7 +556,6 @@ def test_device_scope_region_extracted_as_device_kernel():
                 }
             )
             A = T.decl_tensor(1, dtype="float32", data=A_data)
-            T.attr(0, "device_scope", 0)
             A[0] = 0.0
 
     After = tvm.tirx.transform.SplitHostDevice()(Before)
