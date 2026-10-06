@@ -122,6 +122,7 @@ def _parse_args():
     parser.add_argument("--keep", action=argparse.BooleanOptionalAction, default=False)
     parser.add_argument("--timeout", type=float, default=600.0)
     parser.add_argument("--max-ts-cnt-per-warp", type=int, default=None)
+    parser.add_argument("--arch", default="sm_100a")
     parser.add_argument(
         "--fail-capture",
         action="store_true",
@@ -131,7 +132,9 @@ def _parse_args():
 
 
 def _injection_tool_name():
-    config_path = os.environ.get("SMODEL_INJECTION_CONFIG")
+    config_path = os.environ.get("IKET_INJECTION_CONFIG") or os.environ.get(
+        "SMODEL_INJECTION_CONFIG"
+    )
     if not config_path:
         return None
     return json.loads(Path(config_path).read_text(encoding="utf-8")).get("toolName")
@@ -140,7 +143,7 @@ def _injection_tool_name():
 def _profile_workload(args):
     if args.fail_capture and _injection_tool_name() == "iket":
         raise RuntimeError("intentional capture-only IKET workload failure")
-    target = tvm.target.Target({"kind": "cuda", "arch": "sm_100a"})
+    target = tvm.target.Target({"kind": "cuda", "arch": args.arch})
     workloads = (
         (canonical_iket_workload, 1),
         (native_payload_workload, 2),
