@@ -16,10 +16,9 @@
 # under the License.
 import tvm_ffi
 
-from tvm.ir import Call, DataTypeImm, DictAttrs, Range, StringImm, Tuple, Var
+from tvm.ir import Call, DataTypeImm, DictAttrs, Op, Range, StringImm, Tuple, Var
 from tvm.target import Target
 from tvm.tirx.stmt import (
-    AttrStmt,
     Bind,
     For,
     RegionStmt,
@@ -87,11 +86,11 @@ def _inject_private_allocations(
 ) -> Stmt:
     is_outer_block = True
 
-    def visit_attr(op: AttrStmt):
+    def visit_region(op: RegionStmt):
         nonlocal is_outer_block
-        # AttrStmt(kDeviceEntry) marks the device-region root: inject the
+        # The device-entry region marks the root: inject the
         # collected init stmts + alloc_buffers into its body.
-        if op.attr_key == "tirx.device_entry":
+        if op.op.same_as(Op.get("tirx.device_entry")):
             is_outer = is_outer_block
             is_outer_block = False
             if is_outer:
@@ -113,7 +112,9 @@ def _inject_private_allocations(
                         ),
                     )
                     body = SeqStmt([allocation, body])
-                return AttrStmt(op.node, op.attr_key, op.value, body)
+                return RegionStmt(
+                    op.op, op.args, op.body_params, op.attrs, body, op.result_vars, op.span
+                )
         return op
 
     def visit_op_call(op: TilePrimitiveCall):
@@ -125,7 +126,7 @@ def _inject_private_allocations(
 
     return tvm_ffi.structural_map(
         stmt,
-        [(AttrStmt, visit_attr), (TilePrimitiveCall, visit_op_call)],
+        [(RegionStmt, visit_region), (TilePrimitiveCall, visit_op_call)],
         order="pre",
     )
 

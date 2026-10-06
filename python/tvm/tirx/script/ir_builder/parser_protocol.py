@@ -149,27 +149,14 @@ def func_attr(attrs: dict[str, Any]) -> None:
     _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def device_entry() -> None:
-    """Mark the device-region entry within the enclosing PrimFunc body.
+def device_entry() -> frame.RegionFrame:
+    """Mark a device-entry region containing scope definitions.
 
-    Flat marker (no ``with``). Subsequent statements in the function body
-    accumulate into an ``AttrStmt("tirx.device_entry", True, body=...)``;
-    the wrapping is closed by the PrimFunc frame at function end.
-
-    Anything written before this marker is host code (e.g. buffer layout setup);
-    anything after is device code.
-
-    Example::
-
-        @T.prim_func
-        def kernel(...):
-            A = T.Tensor(...)
-            T.device_entry()           # device region starts here
-            bx = T.cta_id([SM_COUNT])  # standalone scope-id def
-            ...
+    Use a flat ``T.device_entry()`` to scope the remaining statements in the
+    enclosing body, or ``with T.device_entry():`` for an explicit boundary.
+    Statements before the region remain host code.
     """
-    attr_frame = _ffi_api.DeviceEntry()  # type: ignore[attr-defined] # pylint: disable=no-member
-    attr_frame.__enter__()
+    return region("tirx.device_entry", [])
 
 
 def check_well_formed_(function: _tir.PrimFunc) -> None:

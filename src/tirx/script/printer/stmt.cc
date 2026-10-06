@@ -360,7 +360,9 @@ ffi::Optional<ExprDoc> RegionStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView 
   // Inputs, attributes, and parameter types are evaluated before the body
   // parameters enter scope. Explicit Var constructors preserve their exact types.
   ExprDoc rhs(ffi::UnsafeInit{});
-  if (stmt->op.same_as(tirx::builtin::launch_thread())) {
+  if (stmt->op.same_as(tirx::builtin::device_entry())) {
+    rhs = NamespaceDoc("tirx")->Attr("device_entry")->Call({});
+  } else if (stmt->op.same_as(tirx::builtin::launch_thread())) {
     rhs = NamespaceDoc("tirx")
               ->Attr("launch_thread")
               ->Call({LiteralDoc::Str(stmt->args[0].as_or_throw<StringImm>()->value, std::nullopt),

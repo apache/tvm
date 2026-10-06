@@ -31,8 +31,8 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 Stmt DecorateDeviceScopeImpl(Stmt&& stmt) {
-  Stmt body = AttrStmt(0, tirx::attr::device_scope, IntImm::Int32(0), stmt);
-  return body;
+  static const Op device_scope = Op::Get("tirx.device_scope");
+  return RegionStmt(device_scope, {}, {}, DictAttrs(), std::move(stmt));
 }
 
 namespace transform {

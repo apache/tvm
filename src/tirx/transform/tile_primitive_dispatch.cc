@@ -67,8 +67,8 @@ class ScopeIdDefGather : public StmtExprVisitor {
     return std::move(gather->out_);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) override {
-    if (op->attr_key == tvm::tirx::attr::kDeviceEntry) {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) override {
+    if (op->op.same_as(tirx::builtin::device_entry())) {
       return EnterSourceAndPartition(op, [&]() { return StmtExprVisitor::Visit_(op); });
     }
     return StmtExprVisitor::Visit_(op);
@@ -164,8 +164,8 @@ class ScopeIdVarFinder : public StmtExprVisitor {
   bool found_{false};
 };
 
-// Remove any standalone ``ScopeIdDefStmt`` nodes; the resolved values are
-// bound at kernel scope via Bind statements emitted separately.
+// Remove resolved scope definitions and device-entry boundaries after gathering.
+// Their values are bound at kernel scope via Bind statements emitted separately.
 class ScopeIdDefRemover : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
@@ -174,6 +174,13 @@ class ScopeIdDefRemover : public StmtExprMutator {
     return ffi::make_object<ScopeIdDefRemover>()
         ->Mutate(stmt, InplaceMode::kAllow)
         .ValueOrUnchanged(stmt);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override {
+    if (op->op.same_as(tirx::builtin::device_entry())) {
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
   UnchangedOr<Stmt> Mutate_(const ScopeIdDefStmtNode* op, InplaceMode inplace_mode) override {
@@ -251,14 +258,14 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     Stmt body_;
   };
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tirx::attr::kDeviceEntry) {
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(tirx::builtin::device_entry())) {
       return ProcessDeviceEntry(op);
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  Stmt ProcessDeviceEntry(const AttrStmtNode* entry_node) {
+  Stmt ProcessDeviceEntry(const RegionStmtNode* entry_node) {
     Stmt body_to_visit = entry_node->body;
 
     bool is_first_block = false;
@@ -296,8 +303,8 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
       if (body_unchanged) {
         return ffi::GetRef<Stmt>(entry_node);
       }
-      return AttrStmt(entry_node->node, entry_node->attr_key, entry_node->value, body,
-                      entry_node->span);
+      return RegionStmt(entry_node->op, entry_node->args, entry_node->body_params,
+                        entry_node->attrs, body, entry_node->result_vars, entry_node->span);
     }
 
     // Insert device init stmts into kernel body.
@@ -617,9 +624,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   // resolution that used to live here is now in ``ResolveAllScopeBinds``,
   // which runs AFTER dispatch so it sees ScopeIdDefs introduced by
   // dispatched impls too.
-  void PrepareLaunchParams(const AttrStmtNode* entry_node, Stmt body,
+  void PrepareLaunchParams(const RegionStmtNode* entry_node, Stmt body,
                            std::vector<std::pair<Var, PrimExpr>>* scope_binds) {
-    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
+    Stmt gather_target = RegionStmt(tirx::builtin::device_entry(), {}, {}, DictAttrs(), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     Array<ScopeIdDef> defs;
     defs.reserve(gathered.size());
@@ -647,7 +654,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
   void ResolveAllScopeBinds(Stmt body, std::vector<std::pair<Var, PrimExpr>>* scope_binds) {
     // Gather from a temporary stmt synthesized as the device-entry marker
     // to retain nested-before-direct declaration order.
-    Stmt gather_target = AttrStmt(0, tvm::tirx::attr::kDeviceEntry, IntImm::Bool(true), body);
+    Stmt gather_target = RegionStmt(tirx::builtin::device_entry(), {}, {}, DictAttrs(), body);
     std::vector<ScopeIdDefWithSource> gathered = ScopeIdDefGather::Gather(gather_target);
     Array<ScopeIdDef> defs;
     defs.reserve(gathered.size());
