@@ -134,7 +134,7 @@ def test_tensor_reduce_multiout_with_cond():
     idx = te.placeholder((m, n), name="idx", dtype="int32")
     val = te.placeholder((m, n), name="val", dtype="int32")
     k = te.reduce_axis((0, n), "k")
-    cond = te.floormod(k.var, 2) == 0
+    cond = te.floormod(k, 2) == 0
     T0, T1 = te.compute((m,), lambda i: mysum((idx[i, k], val[i, k]), axis=k, where=cond), name="T")
 
 

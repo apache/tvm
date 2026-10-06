@@ -20,27 +20,20 @@
 import tvm_ffi
 
 from tvm import ir
-from tvm.ir import Var
-from tvm.ir._overload_prim_expr import ExprOp
+from tvm.ir import ExprWithOp, OpaqueExpr, Var
 from tvm.ir.base import Span
-from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
 
 
-def _axis_value(value):
-    return value.var if isinstance(value, IterVar) else value
-
-
 @tvm_ffi.register_object("s_tir.IterVar")
-class IterVar(Object, Scriptable):
+class IterVar(OpaqueExpr, ExprWithOp):
     """Represent iteration variable.
 
     IterVar represents axis iterations in the computation.
-    Arithmetic explicitly projects its variable. Use ``.var`` when passing an
-    axis to primitive-expression constructors and core operator functions (including
-    their TE re-exports). Equality compares metadata identity; use ``.equal`` for
-    symbolic value equality.
+    It may appear as a primitive-valued expression in TE construction. CreatePrimFunc
+    lowers value occurrences to the underlying variable, while retaining block axis
+    metadata. Use ``.var`` for primitive analyses outside TE lowering.
 
     Parameters
     ----------
@@ -110,108 +103,3 @@ class IterVar(Object, Scriptable):
             thread_tag,
             span,  # type: ignore
         )
-
-    def expr_ty(self) -> ir.PrimType:
-        """Compile-time type of the iteration variable."""
-        return self.var.ty
-
-    def __add__(self, other):
-        return ExprOp.__add__(self.var, _axis_value(other))
-
-    def __radd__(self, other):
-        return ExprOp.__radd__(self.var, _axis_value(other))
-
-    def __sub__(self, other):
-        return ExprOp.__sub__(self.var, _axis_value(other))
-
-    def __rsub__(self, other):
-        return ExprOp.__rsub__(self.var, _axis_value(other))
-
-    def __mul__(self, other):
-        return ExprOp.__mul__(self.var, _axis_value(other))
-
-    def __rmul__(self, other):
-        return ExprOp.__rmul__(self.var, _axis_value(other))
-
-    def __div__(self, other):
-        return ExprOp.__div__(self.var, _axis_value(other))
-
-    def __rdiv__(self, other):
-        return ExprOp.__rdiv__(self.var, _axis_value(other))
-
-    def __truediv__(self, other):
-        return ExprOp.__truediv__(self.var, _axis_value(other))
-
-    def __rtruediv__(self, other):
-        return ExprOp.__rtruediv__(self.var, _axis_value(other))
-
-    def __floordiv__(self, other):
-        return ExprOp.__floordiv__(self.var, _axis_value(other))
-
-    def __rfloordiv__(self, other):
-        return ExprOp.__rfloordiv__(self.var, _axis_value(other))
-
-    def __mod__(self, other):
-        return ExprOp.__mod__(self.var, _axis_value(other))
-
-    def __rmod__(self, other):
-        return ExprOp.__rmod__(self.var, _axis_value(other))
-
-    def __lshift__(self, other):
-        return ExprOp.__lshift__(self.var, _axis_value(other))
-
-    def __rlshift__(self, other):
-        return ExprOp.__rlshift__(self.var, _axis_value(other))
-
-    def __rshift__(self, other):
-        return ExprOp.__rshift__(self.var, _axis_value(other))
-
-    def __rrshift__(self, other):
-        return ExprOp.__rrshift__(self.var, _axis_value(other))
-
-    def __and__(self, other):
-        return ExprOp.__and__(self.var, _axis_value(other))
-
-    def __rand__(self, other):
-        return ExprOp.__rand__(self.var, _axis_value(other))
-
-    def __or__(self, other):
-        return ExprOp.__or__(self.var, _axis_value(other))
-
-    def __ror__(self, other):
-        return ExprOp.__ror__(self.var, _axis_value(other))
-
-    def __xor__(self, other):
-        return ExprOp.__xor__(self.var, _axis_value(other))
-
-    def __rxor__(self, other):
-        return ExprOp.__rxor__(self.var, _axis_value(other))
-
-    def __lt__(self, other):
-        return ExprOp.__lt__(self.var, _axis_value(other))
-
-    def __le__(self, other):
-        return ExprOp.__le__(self.var, _axis_value(other))
-
-    def __gt__(self, other):
-        return ExprOp.__gt__(self.var, _axis_value(other))
-
-    def __ge__(self, other):
-        return ExprOp.__ge__(self.var, _axis_value(other))
-
-    def __neg__(self):
-        return ExprOp.__neg__(self.var)
-
-    def __invert__(self):
-        return ExprOp.__invert__(self.var)
-
-    def __bool__(self):
-        return ExprOp.__bool__(self.var)
-
-    def equal(self, other, span=None):
-        """Compare the value of this axis with another primitive value."""
-        return self.var.equal(_axis_value(other), span)
-
-    def astype(self, dtype, span=None):
-        """Cast the value of this axis."""
-        return self.var.astype(dtype, span)

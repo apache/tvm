@@ -32,7 +32,7 @@ from tvm.runtime import convert
 from . import _ffi_api
 from . import tag as _tag
 from . import tensor as _tensor
-from .reduction import _iter_var_type, _project_values
+from .reduction import _iter_var_type
 
 
 def placeholder(shape, dtype=None, name="placeholder"):
@@ -133,7 +133,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
 
     if not isinstance(body, list | tuple):
         body = [body]
-    body = convert(_project_values(body))
+    body = convert(body)
     op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
 
     num = op_node.num_outputs

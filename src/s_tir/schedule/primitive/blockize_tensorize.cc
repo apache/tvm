@@ -242,7 +242,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
     // The iter in the original block will be substituted with base + iter_inner where
     // base == iter_outer * iter_inner_extent
     // create iter var for the outer block
-    IterVar outer_iter;
+    IterVar outer_iter(ffi::UnsafeInit{});
     if (reuse_outer) {
       outer_iter = outer_iter_vars->operator[](i);
       TVM_FFI_ICHECK(ana->CanProveEqual(outer_iter->dom->extent, outer_mark->extent));

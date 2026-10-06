@@ -479,7 +479,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
       const IterVar& iter_var = block->iter_vars[i];
       const PrimExpr& binding = realize->iter_values[i];
       if (iter_var->iter_type != kCommReduce) {
-        IterVar new_iter_var{nullptr};
+        IterVar new_iter_var{ffi::UnsafeInit{}};
         {
           ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(*iter_var.get());
           Var v(iter_var->var->name, iter_var->var->ty, iter_var->var->span);

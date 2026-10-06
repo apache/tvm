@@ -104,11 +104,11 @@ enum IterVarType : int {
  *
  *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
-class IterVarNode : public ffi::Object {
+class IterVarNode : public OpaqueExprNode {
  public:
   explicit IterVarNode(ffi::UnsafeInit tag) : var(tag) {}
 
-  explicit IterVarNode(PrimVar var) : var(std::move(var)) {}
+  explicit IterVarNode(PrimVar var) : var(std::move(var)) { ty = this->var.ty(); }
 
   /*!
    * \brief the domain of iteration, if known, can be None
@@ -124,25 +124,17 @@ class IterVarNode : public ffi::Object {
    *  set this if this is bound already to a known thread tag.
    */
   ffi::String thread_tag;
-  /*!
-   * \brief Span that points to the original source code.
-   *        Reserved debug information.
-   */
-  mutable Span span;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IterVarNode>()
         .def_ro("dom", &IterVarNode::dom)
         .def_ro("var", &IterVarNode::var, refl::AttachFieldFlag::SEqHashDefSimple())
         .def_ro("iter_type", &IterVarNode::iter_type)
-        .def_ro("thread_tag", &IterVarNode::thread_tag)
-        .def_ro("span", &IterVarNode::span, refl::DefaultValue(Span()),
-                refl::AttachFieldFlag::SEqHashIgnore());
+        .def_ro("thread_tag", &IterVarNode::thread_tag);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.IterVar", IterVarNode, ffi::Object);
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("s_tir.IterVar", IterVarNode, OpaqueExprNode);
 };
 
 /*!
@@ -151,12 +143,14 @@ class IterVarNode : public ffi::Object {
  *
  *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
-class IterVar : public ffi::ObjectRef {
+class IterVar : public OpaqueExpr {
  public:
   TVM_DLL IterVar(Range dom, PrimVar var, IterVarType iter_type, ffi::String thread_tag = "",
                   Span span = Span());
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(IterVar, ffi::ObjectRef, IterVarNode);
+  explicit IterVar(ffi::ObjectPtr<IterVarNode> node) : OpaqueExpr(std::move(node)) {}
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterVar, OpaqueExpr, IterVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterVarNode);
 };
 

@@ -63,20 +63,21 @@ FindLoopLCA(const Stmt& root) {
           tgt->Set(kv.first, kv.second);
         }
       }
-      IterVar& iter_var = iters[thread_tag];
-      if (!iter_var.defined()) {
-        iter_var = IterVar(Range::FromMinExtent(loop->min, loop->extent),  //
-                           loop->loop_var
-                               .as_or_throw<Var>()        //
-                               .CopyWithName(thread_tag)  //
-                               .as_or_throw<PrimVar>(),   //
-                           kThreadIndex,                  //
-                           thread_tag);
+      auto it = iters.find(thread_tag);
+      if (it == iters.end()) {
+        IterVar iter_var(Range::FromMinExtent(loop->min, loop->extent),  //
+                         loop->loop_var
+                             .as_or_throw<Var>()        //
+                             .CopyWithName(thread_tag)  //
+                             .as_or_throw<PrimVar>(),   //
+                         kThreadIndex,                  //
+                         thread_tag);
+        iters.emplace(thread_tag, iter_var);
         lca[thread_tag] = stack;
         var_subst.Set(loop->loop_var, iter_var->var);
         return;
       }
-      var_subst.Set(loop->loop_var, iter_var->var);
+      var_subst.Set(loop->loop_var, it->second->var);
       std::vector<Stmt>& path = lca[thread_tag];
       uint32_t i = 0;
       for (; i < stack.size() && i < path.size(); ++i) {
@@ -114,7 +115,7 @@ FindLoopLCA(const Stmt& root) {
             });
   for (const auto& thread_tag : sorted_thread_tags) {
     Stmt lca = finder->lca[thread_tag].back();
-    const IterVar& iter = finder->iters[thread_tag];
+    const IterVar& iter = finder->iters.at(thread_tag);
     const ffi::Map<ffi::String, ffi::Any>& annotations = finder->annotations[thread_tag];
     result[lca].emplace_back(iter, annotations);
   }

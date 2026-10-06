@@ -164,4 +164,11 @@ def upgrade_json(json_str):
             fields = node.get("data", {})
             if "name_hint" in fields and "name" not in fields:
                 fields["name"] = fields.pop("name_hint")
+    # IterVar became a primitive-typed OpaqueExpr.  Its value type is the
+    # contained variable type, including for older metadata-only graphs.
+    for node in nodes:
+        if node.get("type") == "s_tir.IterVar":
+            fields = node.get("data", {})
+            if "ty" not in fields:
+                fields["ty"] = nodes[fields["var"]]["data"]["ty"]
     return json.dumps(data, indent=2)

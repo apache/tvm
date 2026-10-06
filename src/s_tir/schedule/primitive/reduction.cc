@@ -1090,7 +1090,7 @@ class RFactorBlockCreator : public BaseBlockCreator {
 
  public:
   /*! \brief The generated additional block iter in rfactor block for the rfactor loop */
-  IterVar additional_iter_;
+  IterVar additional_iter_{ffi::UnsafeInit{}};
 
  private:
   /*!

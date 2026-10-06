@@ -27,10 +27,7 @@ from . import _ffi_api, _te_tensor_overload
 
 
 def _as_scalar_operand(value):
-    from .reduction import _project_values
-
-    value = value.asobject() if isinstance(value, TensorSlice) else value
-    return _project_values(value)
+    return value.asobject() if isinstance(value, TensorSlice) else value
 
 
 class TensorSlice(ObjectConvertible):
@@ -264,7 +261,7 @@ class Tensor(OpaqueExpr, TensorOpBase):
             raise ValueError(
                 f"Need to provide {ndim} index in tensor but {len(indices)} was provided"
             )
-        return _ffi_api.TensorLoad(self, [_as_scalar_operand(index) for index in indices])
+        return _ffi_api.TensorLoad(self, indices)
 
     def __getitem__(self, indices):
         return TensorSlice(self, indices)

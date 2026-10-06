@@ -44,14 +44,6 @@ def _iter_var_type():
     return IterVar
 
 
-def _project_values(value):
-    if isinstance(value, _iter_var_type()):
-        return value.var
-    if isinstance(value, list | tuple | Array):
-        return [_project_values(item) for item in value]
-    return value
-
-
 @tvm_ffi.register_object("te.CommReducer")
 class CommReducer(Object, Scriptable):
     """Commutative reduce operator
@@ -194,7 +186,6 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         # process `where` is None
         if num == 3 and args[2] is None:
             num = 2
-        args = _project_values(args)
         res = args[0]
         for i in range(num - 1):
             res = fcombine(res, args[i + 1])
@@ -203,9 +194,9 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     def _make_reduce(expr, axis, where=None, init=None):
         code = fcombine.__code__
         assert fcombine.__code__.co_argcount == 2
-        expr = tir.convert(_project_values(expr))
+        expr = tir.convert(expr)
         if init is not None:
-            init = tir.convert(_project_values(init))
+            init = tir.convert(init)
         if isinstance(expr, Array):
             size = len(expr)
             lhs = []

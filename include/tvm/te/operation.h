@@ -296,7 +296,7 @@ class ComputeOp : public Operation {
 class ScanOpNode : public OperationNode {
  public:
   /*! \brief IterVar to scan over */
-  IterVar scan_axis;
+  IterVar scan_axis{ffi::UnsafeInit{}};
   /*! \brief the initialization tensors */
   ffi::Array<Tensor> init;
   /*! \brief the update function represented by tensor */

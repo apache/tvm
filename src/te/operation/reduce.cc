@@ -68,8 +68,13 @@ CommReducer::CommReducer(ffi::Array<PrimVar> lhs, ffi::Array<PrimVar> rhs,
     p_rhs->SetItem(i, r);
   }
 
-  auto f_substitute = [&var_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto it = var_map.find(var.get()); it != var_map.end()) return ffi::Any(it->second);
+  auto f_substitute = [&var_map](const Expr& expr) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    // An axis can itself be a reducer parameter value. Substitute it before
+    // structural traversal reaches the metadata's Var-typed binder field.
+    const VarNode* var = expr.as<VarNode>();
+    if (const auto* axis = expr.as<IterVarNode>()) var = axis->var.get();
+    if (auto it = var_map.find(var); it != var_map.end()) return ffi::Any(it->second);
+    if (expr.as<IterVarNode>()) return ffi::Any(ffi::GetRef<Var>(var));
     return ffi::Unchanged();
   };
   // The replacement variables intentionally adopt each identity element's dtype.
@@ -98,8 +103,13 @@ ffi::Array<PrimExpr> CommReducerNode::operator()(ffi::Array<PrimExpr> a,
     value_map.Set(lhs[i], a[i]);
     value_map.Set(rhs[i], b[i]);
   }
-  auto f_substitute = [&value_map](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
-    if (auto repl = value_map.Get(var)) return ffi::Any(*std::move(repl));
+  auto f_substitute = [&value_map](const Expr& expr) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+    const VarNode* var = expr.as<VarNode>();
+    if (const auto* axis = expr.as<IterVarNode>()) var = axis->var.get();
+    if (var != nullptr) {
+      if (auto repl = value_map.Get(ffi::GetRef<Var>(var))) return ffi::Any(*std::move(repl));
+      if (expr.as<IterVarNode>()) return ffi::Any(ffi::GetRef<Var>(var));
+    }
     return ffi::Unchanged();
   };
   return this->result.Map([&f_substitute](const PrimExpr& expr) {
