@@ -439,32 +439,7 @@ AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {
   return AttrFrame(n);
 }
 
-AttrFrame DeviceEntry() {
-  // Flat marker: open an AttrFrame keyed ``tirx.device_entry`` with
-  // ``Bool(true)`` value. Subsequent stmts within the enclosing PrimFunc
-  // body accumulate into this frame's body. The Python wrapper auto-calls
-  // ``__enter__`` so users write a flat ``Tx.device_entry()`` (no ``with``).
-  // To close the AttrFrame at function end, register a callback on the
-  // enclosing PrimFuncFrame: ``IRBuilderFrameNode::ExitWithScope`` runs
-  // callbacks before popping itself, so the AttrFrame is closed and its
-  // emitted ``AttrStmt`` lands in the PrimFunc's body sequence.
-  AttrFrame frame = Attr(0, ffi::String(tvm::tirx::attr::kDeviceEntry), IntImm::Bool(true));
-  IRBuilder builder = IRBuilder::Current();
-  ffi::Optional<PrimFuncFrame> pf_frame = builder->FindFrame<PrimFuncFrame>();
-  TVM_FFI_ICHECK(pf_frame.has_value())
-      << "T.device_entry() must be called inside a @T.prim_func body";
-  // Capture the AttrFrame by ObjectRef value so the lambda holds a strong
-  // reference while the callback runs. Without this, the only reference is
-  // the IRBuilder frame stack; ``ExitWithScope`` pops itself first and the
-  // AttrFrameNode would be destroyed mid-method (before the body-wrapping
-  // AddToParent runs).
-  AttrFrame frame_ref = frame;
-  pf_frame.value()->callbacks.push_back([frame_ref]() {
-    const_cast<IRBuilderFrameNode*>(static_cast<const IRBuilderFrameNode*>(frame_ref.get()))
-        ->ExitWithScope();
-  });
-  return frame;
-}
+RegionFrame DeviceEntry() { return Region(tvm::tirx::builtin::device_entry(), {}, {}); }
 
 WhileFrame While(PrimExpr condition) {
   ffi::ObjectPtr<WhileFrameNode> n = ffi::make_object<WhileFrameNode>(condition);

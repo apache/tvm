@@ -47,6 +47,11 @@
 namespace tvm {
 namespace tirx {
 
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
+      .signature(sig::call_attrs<DictAttrsNode>());
+}
+
 // Device-region annotation
 
 class DeviceRegionAnnotater : public StmtExprMutator {
@@ -60,25 +65,18 @@ class DeviceRegionAnnotater : public StmtExprMutator {
   explicit DeviceRegionAnnotater(Target device_target) : device_target_(device_target) {}
 
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    static const Op device_scope = Op::Get("tirx.device_scope");
+    if (op->op.same_as(device_scope)) {
+      if (op->attrs->dict.count(tvm::attr::kTarget)) return ffi::Unchanged();
+      return RegionStmt(op->op, op->args, op->body_params,
+                        DictAttrs({{tvm::attr::kTarget, device_target_}}), op->body,
+                        op->result_vars, op->span);
+    }
     if (op->op.same_as(tirx::builtin::launch_thread())) {
-      return AttrStmt(device_target_, tvm::attr::kTarget, IntImm::Int32(0), ffi::GetRef<Stmt>(op));
+      return RegionStmt(device_scope, {}, {}, DictAttrs({{tvm::attr::kTarget, device_target_}}),
+                        ffi::GetRef<Stmt>(op));
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
-  }
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tvm::attr::kTarget) {
-      // If a target attribute already exists, use it as-is.
-      return ffi::Unchanged();
-    } else if (op->attr_key == attr::device_scope) {
-      // These attributes are only allowed in device-side code, so
-      // they should be annotated with the function's default target.
-      Stmt body = ffi::GetRef<Stmt>(op);
-      return AttrStmt(device_target_, tvm::attr::kTarget, IntImm::Int32(0), body);
-    } else {
-      // All other annotations are ignored.
-      return StmtExprMutator::Mutate_(op, inplace_mode);
-    }
   }
 
  private:
@@ -206,15 +204,30 @@ class HostDeviceSplitter : public StmtExprMutator {
                               PrimFunc cur_func)
       : device_mod_(device_mod), var_supply_(var_supply), cur_func_(cur_func) {}
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tvm::attr::kTarget) {
-      auto device_target = op->node.as<Target>().value().WithoutHost();
-      return SplitDeviceFunc(op->body, device_target);
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    static const Op device_scope = Op::Get("tirx.device_scope");
+    if (op->op.same_as(device_scope)) {
+      auto target = op->attrs->dict.Get(tvm::attr::kTarget);
+      if (!target) return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+      Target device_target = target.value().as_or_throw<Target>();
+      return SplitDeviceFunc(op->body, device_target.WithoutHost());
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
  private:
+  class KernelBodyRewriter : public StmtExprMutator {
+   public:
+    using StmtExprMutator::Mutate_;
+    UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+      static const Op device_scope = Op::Get("tirx.device_scope");
+      if (op->op.same_as(device_scope)) {
+        return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+      }
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+  };
+
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
     auto [params,
           buffers_to_declare] = [&]() -> std::tuple<ffi::Array<Var>, ffi::Array<TensorVar>> {
@@ -254,7 +267,7 @@ class HostDeviceSplitter : public StmtExprMutator {
     ffi::Array<Var> kernel_params;
     ffi::Array<Expr> call_args;
     ffi::Map<Var, Var> buffer_data_params;
-    auto kernel_rewriter = ffi::make_object<StmtExprMutator>();
+    auto kernel_rewriter = ffi::make_object<KernelBodyRewriter>();
     for (const Var& param : params) {
       if (param->ty.as<TensorTypeNode>()) {
         TensorVar buffer = param.as_or_throw<TensorVar>();

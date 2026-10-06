@@ -247,16 +247,8 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
  */
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value);
 
-/*!
- * \brief Mark the device-region entry within the enclosing PrimFunc body.
- * Returns an AttrFrame keyed ``tirx.device_entry`` (value ``Bool(true)``).
- * Subsequent stmts accumulate into the frame's body; the frame is closed
- * by ``PrimFuncFrameNode::ExitWithScope`` which drains leftover frames.
- *
- * Python sugar: ``Tx.device_entry()`` is a flat-call (no ``with``), which
- * auto-enters the frame.
- */
-AttrFrame DeviceEntry();
+/*! \brief Create a device-entry region frame. */
+RegionFrame DeviceEntry();
 
 /*!
  * \brief Create a while loop.

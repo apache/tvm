@@ -26,6 +26,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/analysis.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt.h>
@@ -65,10 +66,10 @@ class ScopeIdVerifier : public Verifier<ScopeIdVerifier> {
  private:
   using Verifier::Visit;
 
-  void Dispatch_(const AttrStmtNode* op, ffi::reflection::AccessPath path) override {
-    if (op->attr_key == tvm::tirx::attr::kDeviceEntry) {
+  void Dispatch_(const RegionStmtNode* op, ffi::reflection::AccessPath path) override {
+    if (op->op.same_as(tirx::builtin::device_entry())) {
       // Device-region marker: defs gathered from the body are verified when
-      // the AttrStmt exits, with launch-param sanity enforced as ``is_root``.
+      // the region exits, with launch-param sanity enforced as ``is_root``.
       size_t baseline = scope_id_def_.size();
       Verifier::Dispatch_(op, path);
       size_t total = scope_id_def_.size();

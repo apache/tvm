@@ -220,13 +220,14 @@ Launch parameters
 ``Tx.device_entry()``
 ~~~~~~~~~~~~~~~~~~~~~
 
-``Tx.device_entry()`` is a flat marker (no ``with``) that starts the authored
-device region: parameter binding and shape reads precede it, while the kernel
-body follows it. The parser represents the marker as
-``AttrStmt("tirx.device_entry", ...)``. ``LowerTIRx`` then removes the marker,
-resolves scope ids, and wraps the device body in thread-extent attributes;
-target binding and ``SplitHostDevice`` use those resulting device regions to
-extract the kernel shown above.
+``Tx.device_entry()`` starts the authored device region: parameter binding and
+shape reads precede it, while the kernel body follows it. A flat call scopes the
+remaining statements in the enclosing body; ``with Tx.device_entry():`` gives
+an explicit boundary. Both forms create a ``RegionStmt`` with the
+``tirx.device_entry`` op. ``LowerTIRx`` removes this region, resolves scope ids,
+and wraps the device body in single-axis ``launch_thread`` regions. Target
+binding and ``SplitHostDevice`` use those resulting device regions to extract
+the kernel shown above.
 
 Scope ids
 ~~~~~~~~~

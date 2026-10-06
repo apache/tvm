@@ -825,7 +825,7 @@ class Continue : public Stmt {
  *
  * Each declaration is a flat stmt within the device-region body. The declared
  * ``Var``\ s are visible in subsequent stmts in the same enclosing scope
- * (the AttrStmt ``kDeviceEntry`` body), analogous to ``BindNode``.
+ * (the ``tirx.device_entry`` region body), analogous to ``BindNode``.
  */
 class ScopeIdDefStmtNode : public StmtNode {
  public:
@@ -859,8 +859,6 @@ namespace attr {
 constexpr const char* compute_scope = "compute_scope";
 /*! \brief The allocation device for global malloc in host. */
 constexpr const char* device_id = "device_id";
-/*! \brief Mark that it is in the device scope. */
-constexpr const char* device_scope = "device_scope";
 /*! \brief The device type. */
 constexpr const char* device_type = "device_type";
 /*! \brief Pragma: auto-unroll, max_step */
@@ -888,14 +886,6 @@ constexpr const char* tensorized_nki_instruction = "tensorized_nki_instruction";
  * \brief Mark the kernel as persistent.
  */
 constexpr const char* kPersistentKernel = "tirx.persistent_kernel";
-
-/*!
- * \brief Mark the device-region entry within a PrimFunc body. The
- * ``AttrStmt`` so-keyed has a body that is the device-side region; anything
- * before the marker (within the PrimFunc body) is host code. Value is
- * ``IntImm("bool", 1)`` -- a boolean marker, similar to ``kPersistentKernel``.
- */
-constexpr const char* kDeviceEntry = "tirx.device_entry";
 
 /*!
  * \brief Check if attr_key is a pragma key extension

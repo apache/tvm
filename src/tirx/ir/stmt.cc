@@ -809,11 +809,23 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined() && body.defined(), ValueError)
       << "RegionStmt requires an operator and a body";
+  CallNode signature(op);
+  signature.args = args;
+  signature.attrs = attrs;
+  op.Validate(&signature);
   std::unordered_set<const VarNode*> definitions;
   for (const auto& vars : {body_params, result_vars}) {
     for (const Var& var : vars) {
       TVM_FFI_CHECK(definitions.insert(var.get()).second, ValueError)
           << "RegionStmt parameters and results must be distinct definitions";
+    }
+  }
+  static const Op device_scope = Op::Get("tirx.device_scope");
+  if (op.same_as(tirx::builtin::device_entry()) || op.same_as(device_scope)) {
+    TVM_FFI_CHECK(body_params.empty() && result_vars.empty(), ValueError)
+        << op->name << " expects no body parameters or results";
+    if (op.same_as(tirx::builtin::device_entry())) {
+      TVM_FFI_CHECK(attrs->dict.empty(), ValueError) << "device_entry expects no attrs";
     }
   }
   if (op.same_as(tirx::builtin::launch_thread())) {
