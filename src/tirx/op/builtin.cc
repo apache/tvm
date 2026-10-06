@@ -267,7 +267,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                            static_cast<int64_t>(ScriptDtypePrintLocation::kFirst));
 
-  OpDef("tirx.launch_thread", "Bind a thread index within a body with a launch extent.");
+  OpDef("tirx.launch_thread", "Bind a thread index within a body with a launch extent.")
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
   OpDef("tirx.thread_return")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.thread_return"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
