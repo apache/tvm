@@ -316,7 +316,6 @@ def test_take_backward():
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
-                T.attr(0, "pragma_scope", "seq")
                 for i_index in range(T.int64(60)):
                     out_buf[i_index // T.int64(5) // T.int64(4), i_index // T.int64(5) % T.int64(4), i_index % T.int64(5)] = T.float32(0)
                 for parallel, serial in T.grid(T.int64(15), T.int64(2)):
@@ -360,7 +359,6 @@ def test_take_backward_symbolic():
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("take_backward"):
-                T.attr(0, "pragma_scope", "seq")
                 for i_1 in range(m_take_backward * n_take_backward):
                     out_buf[i_1 // n_take_backward, i_1 % n_take_backward] = T.float32(0)
                 for parallel, serial in T.grid(m_take_backward, i_take_backward):

@@ -1472,7 +1472,6 @@ def test_scatter_elements():
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("scatter_elements_generic"):
-                T.attr(0, "pragma_scope", "seq")
                 for i in T.parallel(T.int64(16)):
                     out_buf[i // T.int64(4), i % T.int64(4)] = rxplaceholder[
                         i // T.int64(4), i % T.int64(4)
@@ -1575,7 +1574,6 @@ def test_scatter_elements_symbolic():
             T.func_attr({"tirx.noalias": True})
 
             with Ts.sblock("scatter_elements_generic"):
-                T.attr(0, "pragma_scope", "seq")
                 for i in T.parallel(a_scatter_elements * b_scatter_elements):
                     out_buf[i // b_scatter_elements, i % b_scatter_elements] = rxplaceholder[i // b_scatter_elements, i % b_scatter_elements]
                 for fused in T.parallel(m_scatter_elements):
@@ -1899,7 +1897,6 @@ def test_scatter_nd():
                 with Ts.sblock("scatter_nd_generic"):
                     Ts.reads()
                     Ts.writes()
-                    T.attr(0, "pragma_scope", "seq")
                     for i in range(T.int64(8)):
                         out_buf[i] = data[i]
                     for j in range(T.int64(4)):

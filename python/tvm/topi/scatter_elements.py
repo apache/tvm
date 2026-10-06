@@ -105,24 +105,23 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
 
         # Copy initial input data to output
         with IRBuilder() as ib:
-            with T.seq_scope():
-                with T.parallel(0, full_range) as i:
-                    T.buffer_store(out, data[T.tensor_indices(data, i)], T.tensor_indices(out, i))
+            with T.parallel(0, full_range) as i:
+                T.buffer_store(out, data[T.tensor_indices(data, i)], T.tensor_indices(out, i))
 
-                with T.parallel(0, ind_before_axis_range * ind_after_axis_range) as fused:
-                    i = fused // ind_after_axis_range
-                    j = fused % ind_after_axis_range
-                    pre_index1 = i * ind_before_axis_stride + j
-                    pre_index2 = i * before_axis_stride + j
-                    with T.serial(0, ind_axis_range) as k:
-                        # Offset along indices or updates
-                        index1 = pre_index1 + k * ind_after_axis_range
-                        # Get index and shift to positive side if need
-                        k_new = indices[T.tensor_indices(indices, index1)]
-                        shifted_index = k_new + (k_new < 0) * axis_range
-                        # Offset along data
-                        index2 = pre_index2 + shifted_index * after_axis_range
-                        reduce_func(out, index2, updates[T.tensor_indices(updates, index1)])
+            with T.parallel(0, ind_before_axis_range * ind_after_axis_range) as fused:
+                i = fused // ind_after_axis_range
+                j = fused % ind_after_axis_range
+                pre_index1 = i * ind_before_axis_stride + j
+                pre_index2 = i * before_axis_stride + j
+                with T.serial(0, ind_axis_range) as k:
+                    # Offset along indices or updates
+                    index1 = pre_index1 + k * ind_after_axis_range
+                    # Get index and shift to positive side if need
+                    k_new = indices[T.tensor_indices(indices, index1)]
+                    shifted_index = k_new + (k_new < 0) * axis_range
+                    # Offset along data
+                    index2 = pre_index2 + shifted_index * after_axis_range
+                    reduce_func(out, index2, updates[T.tensor_indices(updates, index1)])
 
             return ib.get()
 

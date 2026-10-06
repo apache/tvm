@@ -42,9 +42,32 @@ inline void AddToParent(tvm::tirx::Stmt stmt, Span span) {
   // Preserve an existing body location when flattening returns the body itself.
   if (stmt.defined() && !stmt->span.defined()) stmt->span = std::move(span);
   if (builder->frames.empty()) {
-    TVM_FFI_CHECK(!builder->result.has_value(), ValueError)
+    if (!builder->result.has_value()) {
+      if (stmt.as<tvm::tirx::SeqStmtNode>()) {
+        auto normalized = tvm::tirx::SeqStmt::Flatten(stmt);
+        if (!normalized->span.defined()) normalized->span = stmt->span;
+        builder->result = std::move(normalized);
+      } else {
+        builder->result = std::move(stmt);
+      }
+      return;
+    }
+    TVM_FFI_CHECK(builder->result.as<tvm::tirx::StmtNode>(), ValueError)
         << "Builder.result has already been set";
-    builder->result = stmt;
+    ffi::Array<tvm::tirx::Stmt> incoming;
+    tvm::tirx::SeqStmt::Flattener{&incoming}(0, stmt);
+    if (incoming.empty()) return;
+    if (builder->result.as<tvm::tirx::SeqStmtNode>()) {
+      // Move the builder's ownership so unobserved results can grow in place.
+      // Copy-on-write preserves sequences and arrays retained by callers.
+      auto sequence = std::move(builder->result).value().as_or_throw<tvm::tirx::SeqStmt>();
+      auto* node = sequence.CopyOnWrite();
+      for (const auto& child : incoming) node->seq.push_back(child);
+      builder->result = std::move(sequence);
+    } else {
+      builder->result = tvm::tirx::SeqStmt::Flatten(
+          builder->result.value().as_or_throw<tvm::tirx::Stmt>(), incoming);
+    }
   } else if (const auto* tir_frame = builder->frames.back().as<TIRFrameNode>()) {
     ffi::GetRef<TIRFrame>(tir_frame)->stmts.push_back(stmt);
   } else {

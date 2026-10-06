@@ -18,10 +18,9 @@
 
 import contextlib
 
-from tvm.ir import StringImm
 from tvm.tirx import Var
 
-from . import _ffi_api, frame
+from . import frame
 
 
 class _FrameScope:
@@ -69,45 +68,6 @@ def frame_scope(frames: list[frame.TIRFrame]) -> _FrameScope:
         A context manager that enters all frames and returns their values.
     """
     return _FrameScope(frames)
-
-
-def seq_scope():
-    """Create a scope that allows multiple consecutive statements.
-
-    The IRBuilder requires a parent frame when having multiple consecutive
-    top-level statements (e.g., multiple loops). This function creates a
-    dummy attr frame that serves as a parent scope.
-
-    Returns
-    -------
-    frame.AttrFrame
-        A dummy attribute frame that wraps multiple statements.
-
-    Examples
-    --------
-    Without seq_scope, multiple consecutive loops fail:
-
-    .. code-block:: python
-
-        with IRBuilder() as ib:
-            with T.serial(0, 10) as i:
-                T.evaluate(i)
-            with T.serial(0, 5) as j:  # This would fail!
-                T.evaluate(j)
-
-    With seq_scope, multiple consecutive statements work:
-
-    .. code-block:: python
-
-        with IRBuilder() as ib:
-            with seq_scope():
-                with T.serial(0, 10) as i:
-                    T.evaluate(i)
-                with T.serial(0, 5) as j:
-                    T.evaluate(j)
-            result = ib.get()
-    """
-    return _ffi_api.Attr(0, "pragma_scope", StringImm("seq"))
 
 
 def tensor_indices(buffer: Var, index):
