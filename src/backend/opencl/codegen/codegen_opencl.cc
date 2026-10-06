@@ -233,16 +233,19 @@ std::string CodeGenOpenCL::Finish() {
   return CodeGenC::Finish();
 }
 
-void CodeGenOpenCL::BindThreadIndex(const IterVar& iv) {
-  TVM_FFI_ICHECK(!var_idmap_.count(iv->var.get()));
-  runtime::ThreadScope ts = runtime::ThreadScope::Create(iv->thread_tag);
+void CodeGenOpenCL::BindThreadIndex(const PrimVar& var, const ffi::String& thread_tag) {
+  TVM_FFI_ICHECK(!var_idmap_.count(var.get()));
+  runtime::ThreadScope ts = runtime::ThreadScope::Create(thread_tag);
+  TVM_FFI_ICHECK_GE(ts.dim_index, 0);
+  TVM_FFI_ICHECK_LT(ts.dim_index, 3);
   std::ostringstream os;
   if (ts.rank == 1) {
     os << "get_local_id(" << ts.dim_index << ")";
   } else {
+    TVM_FFI_ICHECK_EQ(ts.rank, 0) << "Unsupported OpenCL thread tag " << thread_tag;
     os << "get_group_id(" << ts.dim_index << ")";
   }
-  var_idmap_[iv->var.get()] = CastFromTo(os.str(), PrimType::UInt(64), iv->var.ty());
+  var_idmap_[var.get()] = CastFromTo(os.str(), PrimType::UInt(64), var.ty());
 }
 
 void CodeGenOpenCL::PrintType(const PrimType& t, std::ostream& os) {  // NOLINT(*)

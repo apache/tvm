@@ -31,8 +31,6 @@ from typing import Any
 
 # isort: off
 # isort: on
-from tvm_ffi.core import String
-
 from tvm import ir as _ir
 from tvm import tirx as _tir
 from tvm.ir import StringImm as _StringImm
@@ -975,59 +973,41 @@ def grid(*extents: tuple[Expr | tuple[Expr, Expr]], dtype: str | None = None) ->
     return _ffi_api.Grid(extents, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def launch_thread(
-    thread: Var | str,  # pylint: disable=redefined-outer-name
-    extent: Expr,
-) -> frame.LaunchThreadFrame:
-    """Launch a thread.
+def region(
+    op: _ir.Op | str,
+    args: Sequence[Expr],
+    body_params: Sequence[Var] | None = None,
+    attrs: _ir.DictAttrs | dict[str, Any] | None = None,
+) -> frame.RegionFrame:
+    """Construct a result-free region with explicit fresh body parameters.
 
-    Parameters
-    ----------
-    thread : Union[Var, str]
-        The iteration variable.
+    Operands and attributes belong to the enclosing scope. Entering the frame
+    returns one parameter directly, or a sequence for zero or multiple parameters.
+    Result variables are supported by direct ``tirx.RegionStmt`` construction;
+    outward-result script syntax is not supported.
+    """
+    if isinstance(op, str):
+        op = _ir.Op.get(op)
+    if attrs is None or isinstance(attrs, dict):
+        attrs = _ir.make_node("ir.DictAttrs", **(attrs or {}))
+    return _ffi_api.Region(op, args, [] if body_params is None else body_params, attrs)
 
-    extent : Expr
-        The extent of environment thread.
 
-    Returns
-    -------
-    res : frame.LaunchThreadFrame
-        The result LaunchThreadFrame.
+def launch_thread(thread_tag: str, extent: Expr) -> frame.RegionFrame:
+    """Launch a hardware or virtual thread with a fresh lexical variable.
+
+    The extent determines the variable's scalar integer type. Tags starting with
+    ``vthread`` denote virtual threads. This frame works with any TIR builder
+    parent, including standalone statement construction.
 
     Examples
     --------
-
     .. code-block:: python
 
-    from tvm.tirx.script import ir_builder as T
-    brow = T.env_thread("blockIdx.y")
-    T.launch_thread(brow, 1)
-
+        with T.launch_thread("threadIdx.x", 32) as tx:
+            T.evaluate(tx)
     """
-
-    if isinstance(thread, str):
-        thread = String(thread)
-    return _ffi_api.LaunchThread(thread, extent)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
-def env_thread(thread_tag: str, dtype: str = "int32") -> Var:
-    """Bind a var to thread env
-
-    Parameters
-    ----------
-    thread_tag : str
-        The thread type tag.
-
-    dtype : str
-        The data type of the thread env.
-
-    Returns
-    -------
-    res : Var
-        The thread variable; native function state retains its iteration metadata.
-
-    """
-    return _ffi_api.EnvThread(thread_tag, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.LaunchThread(thread_tag, extent)
 
 
 # --------------------------------------
@@ -1056,7 +1036,6 @@ __all__ = [
     "else_",
     "emit",
     "emit_",
-    "env_thread",
     "eq_",
     "evaluate",
     "for_",
@@ -1079,6 +1058,7 @@ __all__ = [
     "parallel",
     "prim_func",
     "range_",
+    "region",
     "resolve_global_info_",
     "return_",
     "serial",

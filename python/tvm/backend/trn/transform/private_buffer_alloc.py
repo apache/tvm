@@ -22,6 +22,7 @@ from tvm.tirx.stmt import (
     AttrStmt,
     Bind,
     For,
+    RegionStmt,
     SeqStmt,
     Stmt,
 )
@@ -36,9 +37,18 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
     buffer_dict = {}
     private_buf_refs = {}
 
-    def visit_attr(op: AttrStmt):
-        if op.attr_key == "thread_extent":
-            launch_params[op.node.thread_tag] = op.value
+    def visit_region(op: RegionStmt):
+        if op.op.name != "tirx.launch_thread":
+            return None
+        tag = op.args[0].value
+        if tag.startswith("vthread"):
+            return None
+        previous_launch_params = dict(launch_params)
+        launch_params[tag] = op.args[1]
+        visit(op.body)
+        launch_params.clear()
+        launch_params.update(previous_launch_params)
+        return tvm_ffi.WalkResult.SKIP
 
     def visit_for(op: For):
         var_range_map[op.loop_var] = Range.from_min_extent(op.min, op.extent)
@@ -58,11 +68,14 @@ def _collect_private_allocations(stmt: Stmt, target: Target):
         op = TilePrimitiveCall.downcast(op)
         private_buf_refs[op] = op.get_private_buffers(buffer_dict, sctx)
 
-    tvm_ffi.structural_walk(
-        stmt,
-        [(AttrStmt, visit_attr), (For, visit_for), (TilePrimitiveCall, visit_op_call)],
-        order="pre",
-    )
+    def visit(node):
+        tvm_ffi.structural_walk(
+            node,
+            [(RegionStmt, visit_region), (For, visit_for), (TilePrimitiveCall, visit_op_call)],
+            order="pre",
+        )
+
+    visit(stmt)
     return buffer_dict, private_buf_refs
 
 

@@ -26,7 +26,6 @@
 
 #include <algorithm>
 #include <optional>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -76,30 +75,6 @@ void PrintPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func, ExprDoc 
 
     auto signature_candidates = CopyImplicitDefs(d);
     for (const Var& var : func->params) signature_candidates.erase(var);
-    std::unordered_map<const ffi::Object*, size_t> thread_counts;
-    std::vector<tirx::IterVar> thread_vars;
-    ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-        func->body, [&](const tirx::AttrStmt& attr) -> ffi::Expected<ffi::WalkResult> {
-          if (attr->attr_key == "thread_extent" || attr->attr_key == tirx::attr::virtual_thread) {
-            if (auto iter = attr->node.as<tirx::IterVar>()) {
-              if (thread_counts[iter.value()->var.get()]++ == 0)
-                thread_vars.push_back(iter.value());
-            }
-          }
-          return ffi::WalkResult::Advance();
-        });
-    ffi::Array<StmtDoc> thread_declarations;
-    for (const auto& iter : thread_vars) {
-      if (thread_counts[iter->var.get()] > 1) {
-        IdDoc lhs = VarDoc(d, iter->var);
-        thread_declarations.push_back(
-            AssignDoc(lhs,
-                      NamespaceDoc("tirx")
-                          ->Attr("env_thread")
-                          ->Call({LiteralDoc::Str(iter->thread_tag, std::nullopt)}),
-                      std::nullopt));
-      }
-    }
     ffi::Array<ffi::String> decorator_keys;
     ffi::Array<ExprDoc> decorator_values;
     if (!func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
@@ -113,7 +88,6 @@ void PrintPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func, ExprDoc 
     if (!decorator_keys.empty()) decorator = decorator->Call({}, decorator_keys, decorator_values);
     ffi::Array<StmtDoc> body;
     if (func->body.has_value()) body = Body(func->body.value(), d);
-    body.insert(body.begin(), thread_declarations.begin(), thread_declarations.end());
     std::vector<std::pair<ffi::String, ffi::Any>> attrs;
     for (const auto& [key, value] : func->attrs->dict) {
       if (key != tvm::attr::kGlobalSymbol && (dialect_attr.empty() || key != dialect_attr) &&

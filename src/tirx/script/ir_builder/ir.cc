@@ -94,7 +94,6 @@ PrimFuncFrame PrimFunc(bool is_private, bool persistent) {
   n->args.clear();
   n->ret_type = std::nullopt;
   n->attrs = {};
-  n->env_threads.clear();
   n->persistent = persistent;
   return PrimFuncFrame(n);
 }
@@ -417,35 +416,20 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var
   return bind_var;
 }
 
-LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
-  IterVar iter_var{nullptr};
-
-  if (ffi::Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
-    if (ffi::Optional<IterVar> opt_iter_var = opt_frame.value()->env_threads.Get(var)) {
-      iter_var = opt_iter_var.value();
-    } else {
-      TVM_FFI_THROW(InternalError)
-          << "ValueError: " << var->name << " is not an env_thread created using T.env_thread.";
-    }
-  } else {
-    TVM_FFI_THROW(InternalError) << "LaunchThread can only be used inside a PrimFunc";
-  }
-  ffi::ObjectPtr<LaunchThreadFrameNode> n = ffi::make_object<LaunchThreadFrameNode>(extent);
-  if (!iter_var->dom.defined()) {
-    const_cast<tvm::tirx::IterVarNode*>(iter_var.get())->dom =
-        Range(tvm::IntImm(extent.ty(), 0), extent);
-  } else if (!sym::Analyzer()->CanProveEqual(iter_var->dom->extent, extent)) {
-    TVM_FFI_THROW(InternalError) << "ValueError: Inconsistent extents of environment thread. "
-                                 << iter_var->dom->extent << " vs " << extent;
-  }
-  n->iter_var = iter_var;
-  n->attr_key =
-      iter_var->thread_tag == "vthread" ? tvm::tirx::attr::virtual_thread : "thread_extent";
-  return LaunchThreadFrame(n);
+RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs) {
+  auto n = ffi::make_object<RegionFrameNode>(std::move(op));
+  n->args = std::move(args);
+  n->body_params = std::move(body_params);
+  n->attrs = std::move(attrs);
+  return RegionFrame(n);
 }
 
-LaunchThreadFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
-  return LaunchThread(EnvThread(thread_tag, extent.ty()), extent);
+RegionFrame LaunchThread(ffi::String thread_tag, PrimExpr extent) {
+  PrimType dtype = extent.ty();
+  TVM_FFI_CHECK(dtype.IsScalar() && dtype.MatchesCode(kDLInt, kDLUInt), ValueError)
+      << "launch_thread extent must have a scalar integer type";
+  PrimVar var("", dtype);
+  return Region(tvm::tirx::builtin::launch_thread(), {StringImm(thread_tag), extent}, {var});
 }
 
 AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value) {
@@ -520,18 +504,6 @@ ThenFrame Then() {
 ElseFrame Else() {
   ffi::ObjectPtr<ElseFrameNode> n = ffi::make_object<ElseFrameNode>();
   return ElseFrame(n);
-}
-
-Var EnvThread(ffi::String thread_tag, PrimType dtype) {
-  IterVar iter_var(Range{nullptr}, tvm::PrimVar("", dtype), tvm::tirx::IterVarType::kThreadIndex,
-                   thread_tag);
-  Var var = iter_var->var;
-  if (ffi::Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
-    opt_frame.value()->env_threads.Set(var, iter_var);
-  } else {
-    TVM_FFI_THROW(InternalError) << "EnvThread can only be used inside a PrimFunc";
-  }
-  return var;
 }
 
 tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices) {
@@ -770,19 +742,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Then", Then)
       .def("script.ir_builder.tirx.Else", Else)
       .def("script.ir_builder.tirx.DeclTensor", DeclTensor)
-      .def("script.ir_builder.tirx.LaunchThread",
-           [](ffi::Variant<tvm::tirx::Var, ffi::String> thread_tag_or_var, PrimExpr extent) {
-             if (auto var = thread_tag_or_var.as<tvm::tirx::Var>()) {
-               return LaunchThread(var.value(), extent);
-             } else if (auto str = thread_tag_or_var.as<ffi::String>()) {
-               return LaunchThread(str.value(), extent);
-             } else {
-               TVM_FFI_THROW(InternalError) << "ValueError: Unexpected type for TIR LaunchThread: "
-                                            << thread_tag_or_var.GetTypeKey();
-               throw;
-             }
-           })
-      .def("script.ir_builder.tirx.EnvThread", EnvThread)
+      .def("script.ir_builder.tirx.Region", Region)
+      .def("script.ir_builder.tirx.LaunchThread", LaunchThread)
       .def("script.ir_builder.tirx.BufferStore", BufferStore)
       .def("script.ir_builder.tirx.Evaluate", Evaluate)
       .def("script.ir_builder.tirx.Ptr", Ptr);

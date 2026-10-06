@@ -39,6 +39,7 @@
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/transform.h>
+#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -54,7 +55,7 @@ namespace tirx {
  *
  * This visitor traverses the IRModule to identify which functions are called
  * from host code vs device code. It tracks GPU scopes (thread binding loops
- * and thread extent attributes) to determine the calling context.
+ * and launch regions) to determine the calling context.
  */
 class FunctionClassifierVisitor : public StmtExprVisitor {
  public:
@@ -114,10 +115,19 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
     return std::nullopt;
   }
 
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (!op->op.same_as(tirx::builtin::launch_thread())) return StmtExprVisitor::Visit_(op);
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
+    bool previous_scope = is_under_gpu_scope_;
+    is_under_gpu_scope_ = true;
+    auto result = Visit(op->body);
+    is_under_gpu_scope_ = previous_scope;
+    return result;
+  }
+
   ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread ||
-        op->attr_key == attr::kDeviceEntry) {
-      // Enter GPU scope for thread extent and virtual thread attributes
+    if (op->attr_key == attr::kDeviceEntry) {
+      // Enter the explicit device scope
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
@@ -203,10 +213,22 @@ class CallSubstitutor : public StmtExprMutator {
     }
   }
 
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (!op->op.same_as(tirx::builtin::launch_thread()))
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    PrimExpr old_extent = op->args[1].as_or_throw<PrimExpr>();
+    PrimExpr extent = Mutate(old_extent, inplace_mode).ValueOrUnchanged(old_extent);
+    bool previous_scope = is_under_gpu_scope_;
+    is_under_gpu_scope_ = true;
+    Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    is_under_gpu_scope_ = previous_scope;
+    return RegionStmt(op->op, {op->args[0], extent}, op->body_params, op->attrs, body,
+                      op->result_vars, op->span);
+  }
+
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == attr::thread_extent || op->attr_key == tvm::tirx::attr::virtual_thread ||
-        op->attr_key == attr::kDeviceEntry) {
-      // Enter GPU scope for thread extent and virtual thread attributes
+    if (op->attr_key == attr::kDeviceEntry) {
+      // Enter the explicit device scope
       bool last_is_under_gpu_scope = is_under_gpu_scope_;
       is_under_gpu_scope_ = true;
       UnchangedOr<Stmt> stmt = StmtExprMutator::Mutate_(op, inplace_mode);

@@ -77,11 +77,16 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) final {
-    if (!InThreadEnv() && op->attr_key == attr::thread_extent) {
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    if (!InThreadEnv() && op->op.same_as(tirx::builtin::launch_thread()) &&
+        std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
+      // Launch operands execute in the enclosing environment.
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->args));
+      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(op->attrs));
       EnterThreadEnv();
-      TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
+      auto result = Visit(op->body);
       ExitThreadEnv();
+      return result;
     } else {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
     }

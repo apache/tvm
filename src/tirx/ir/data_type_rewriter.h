@@ -54,7 +54,7 @@ class DataTypeLegalizer : public StmtExprMutator {
  protected:
   explicit DataTypeLegalizer(const VTable* vtable) : StmtExprMutator(vtable) {}
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const prim::SelectNode* op, InplaceMode inplace_mode) override;
@@ -86,10 +86,6 @@ class DataTypeLegalizer : public StmtExprMutator {
 
   /*! \brief Whether to clamp shift amounts after narrowing signed integers. */
   virtual bool ShouldClampShiftAmounts() const { return false; }
-
-  // a map from IterVar before rewrite to that after rewrite,
-  // ensures one old IterVar maps to exactly one new IterVar
-  std::unordered_map<const IterVarNode*, IterVar> ivmap_;
 };
 
 /*!
@@ -112,7 +108,7 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
   using Parent = DataTypeLegalizer;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) override;
   ffi::Array<PrimExpr> VisitIndices(const ffi::Array<PrimExpr>& indices, InplaceMode inplace_mode);
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;

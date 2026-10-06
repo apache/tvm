@@ -764,28 +764,22 @@ def opt_conv_tensorcore_lower():
         A_1 = T.decl_tensor([12845056], dtype="float16", data=A.data)
         W_1 = T.decl_tensor([1179648], dtype="float16", data=W.data)
         Conv_1 = T.decl_tensor([25690112], data=Conv.data)
-        bx = T.env_thread("blockIdx.x")
-        by = T.env_thread("blockIdx.y")
-        bz = T.env_thread("blockIdx.z")
-        tx = T.env_thread("threadIdx.x")
-        ty = T.env_thread("threadIdx.y")
-        tz = T.env_thread("threadIdx.z")
-        T.launch_thread(bz, 196)
+        bz = T.launch_thread("blockIdx.z", 196)
         Conv_wmma_accumulator = T.alloc_tensor((2048,), scope="wmma.accumulator")
         Apad_shared = T.alloc_tensor((12288,), "float16", scope="shared")
         W_shared = T.alloc_tensor((12288,), "float16", scope="shared")
         Apad_shared_wmma_matrix_a = T.alloc_tensor((512,), "float16", scope="wmma.matrix_a")
         W_shared_wmma_matrix_b = T.alloc_tensor((1024,), "float16", scope="wmma.matrix_b")
-        T.launch_thread(bx, 2)
-        T.launch_thread(by, 4)
-        T.launch_thread(ty, 4)
-        T.launch_thread(tz, 2)
+        bx = T.launch_thread("blockIdx.x", 2)
+        by = T.launch_thread("blockIdx.y", 4)
+        ty = T.launch_thread("threadIdx.y", 4)
+        tz = T.launch_thread("threadIdx.z", 2)
         T.evaluate(T.tvm_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 0, T.float32(0)))
         T.evaluate(T.tvm_fill_fragment(Conv_wmma_accumulator.data, 16, 16, 16, 7, T.float32(0)))
         for ic_outer in T.serial(0, 8):
             for kh in T.serial(0, 3):
                 for ax2 in T.serial(0, 3):
-                    with T.launch_thread(tx, 32):
+                    with T.launch_thread("threadIdx.x", 32) as tx:
                         Apad_shared[((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx)] = (
                             T.if_then_else(
                                 (
@@ -825,7 +819,7 @@ def opt_conv_tensorcore_lower():
                                 T.float16(0),
                             )
                         )
-                    T.launch_thread(tx, 32)
+                    tx = T.launch_thread("threadIdx.x", 32)
                     Apad_shared[(((((ty * 3072) + (tz * 1536)) + (ax2 * 512)) + tx) + 480)] = (
                         T.if_then_else(
                             (
@@ -865,7 +859,7 @@ def opt_conv_tensorcore_lower():
                             T.float16(0),
                         )
                     )
-                with T.launch_thread(tx, 32):
+                with T.launch_thread("threadIdx.x", 32) as tx:
                     W_shared[T.ramp((((ty * 512) + (tz * 256)) + (tx * 8)), 1, 8)] = W_1[
                         T.ramp(
                             (
@@ -882,7 +876,7 @@ def opt_conv_tensorcore_lower():
                             8,
                         )
                     ]
-                with T.launch_thread(tx, 32):
+                with T.launch_thread("threadIdx.x", 32) as tx:
                     W_shared[T.ramp(((((ty * 512) + (tz * 256)) + (tx * 8)) + 10240), 1, 8)] = W_1[
                         T.ramp(
                             (
@@ -1320,10 +1314,9 @@ def comm_reducer_single_reduce_group():
         A: T.Tensor([16384], dtype="float32"), b: T.handle
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        threadIdx_x = T.env_thread("threadIdx.x")
 
         for i in T.serial(0, 128):
-            T.launch_thread(threadIdx_x, 128)
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
             reduce_temp0 = T.alloc_tensor((1,), scope="local")
             with T.attr(
                 T.comm_reducer(lambda x, y: x + y, [T.float32(0)]), "reduce_scope", T.int32(0)
@@ -1347,10 +1340,9 @@ def comm_reducer_multiple_reduce_groups():
         A: T.Tensor([16384], dtype="float32"), b: T.handle
     ) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
-        threadIdx_x = T.env_thread("threadIdx.x")
 
         for i in T.serial(0, 128):
-            T.launch_thread(threadIdx_x, 128)
+            threadIdx_x = T.launch_thread("threadIdx.x", 128)
             reduce_temp0 = T.alloc_tensor((1,), scope="local")
             with T.attr(
                 T.comm_reducer(

@@ -247,6 +247,7 @@ class IRConvertSSA : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
   static Var MakeNewVar(const Var& old_var);
   void PushVarRemap(const Var& old_var, const Var& new_var);
