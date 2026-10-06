@@ -128,8 +128,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
         [&](const ffi::Array<PrimVar>& inds) {
           ffi::Array<PrimExpr> window_inds =
               inds.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
-          window_inds.Set(height_axis, inds[height_axis] * stride_height + dheight->var);
-          window_inds.Set(width_axis, inds[width_axis] * stride_width + dwidth->var);
+          window_inds.Set(height_axis, inds[height_axis] * stride_height + dheight);
+          window_inds.Set(width_axis, inds[width_axis] * stride_width + dwidth);
           auto idx = detail::RavelIndex(window_inds, ravel_shape);
           return argmax({idx, pad_x(window_inds)}, {dheight, dwidth}, nullptr);
         },
@@ -148,8 +148,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
 
           ffi::Array<PrimExpr> out_idx =
               inds.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
-          out_idx.Set(height_axis, (inds[height_axis] + pad_top) / stride_height - windowh->var);
-          out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww->var);
+          out_idx.Set(height_axis, (inds[height_axis] + pad_top) / stride_height - windowh);
+          out_idx.Set(width_axis, (inds[width_axis] + pad_left) / stride_width - windoww);
 
           PrimExpr out_idx_lower_h = prim::Select(
               pad_inds[height_axis] < kernel_height, IntImm(pad_inds[height_axis].ty(), 0),
@@ -180,8 +180,8 @@ inline Tensor pool_grad_impl(const Tensor& out_grad, const Tensor& x,
           // output indices whose pooling windows cover current input element (can be out-of-bound)
           ffi::Array<PrimExpr> out_idx =
               inds.Map([](const PrimVar& var) { return var.as_or_throw<PrimExpr>(); });
-          out_idx.Set(height_axis, (pad_h_idx / stride_height - windowh->var));
-          out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww->var));
+          out_idx.Set(height_axis, (pad_h_idx / stride_height - windowh));
+          out_idx.Set(width_axis, (pad_w_idx / stride_width - windoww));
 
           PrimExpr out_idx_lower_h =
               prim::Select(pad_h_idx < kernel_height, IntImm(pad_h_idx.ty(), 0),
@@ -353,7 +353,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
       auto rv_axis = tvm::te::reduce_axis(Range(0, i_end - i_start), rv_name);
       reduce_axes.push_back(rv_axis);
       if (reduce_indices) {
-        indices.Set(axes[i], i_start + rv_axis->var);
+        indices.Set(axes[i], i_start + rv_axis);
       }
     }
     return std::make_tuple(indices, reduce_axes);
@@ -596,7 +596,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
 
           for (int i = 0; i < k_size; i++) {
             int ii = axis[i];
-            indices.Set(ii, output[ii] * stride[i] + daxis[i]->var * dilation[i]);
+            indices.Set(ii, output[ii] * stride[i] + daxis[i] * dilation[i]);
           }
           return tvm::max(temp(indices), daxis);
         },
@@ -615,7 +615,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const ffi::Array<PrimExpr>& kernel_s
 
           for (int i = 0; i < k_size; i++) {
             int ii = axis[i];
-            indices.Set(ii, output[ii] * stride[i] + daxis[i]->var * dilation[i]);
+            indices.Set(ii, output[ii] * stride[i] + daxis[i] * dilation[i]);
           }
           return tvm::prim::sum(temp(indices), daxis);
         },

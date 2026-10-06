@@ -69,16 +69,14 @@ inline Tensor lrn(const Tensor& data, int size, int axis = 1, float alpha = 0.00
       return tvm::te::compute(
           input_shape,
           [&](PrimVar i, PrimVar l, PrimVar j, PrimVar k) {
-            return tvm::prim::sum(pad_data(i, l + rxs->var, j, k) * pad_data(i, l + rxs->var, j, k),
-                                  {rxs});
+            return tvm::prim::sum(pad_data(i, l + rxs, j, k) * pad_data(i, l + rxs, j, k), {rxs});
           },
           "tensor", "sqr_sum");
     } else {
       return tvm::te::compute(
           input_shape,
           [&](PrimVar i, PrimVar l, PrimVar j, PrimVar k) {
-            return tvm::prim::sum(pad_data(i, l, j, k + rxs->var) * pad_data(i, l, j, k + rxs->var),
-                                  {rxs});
+            return tvm::prim::sum(pad_data(i, l, j, k + rxs) * pad_data(i, l, j, k + rxs), {rxs});
           },
           "tensor", "sqr_sum");
     }

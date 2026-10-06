@@ -143,14 +143,15 @@ class IterVarNode : public OpaqueExprNode {
  *
  *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
-class IterVar : public OpaqueExpr {
+class IterVar : public PrimExpr {
  public:
   TVM_DLL IterVar(Range dom, PrimVar var, IterVarType iter_type, ffi::String thread_tag = "",
                   Span span = Span());
 
-  explicit IterVar(ffi::ObjectPtr<IterVarNode> node) : OpaqueExpr(std::move(node)) {}
+  explicit IterVar(ffi::ObjectPtr<IterVarNode> node) : PrimExpr(std::move(node)) {}
 
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterVar, OpaqueExpr, IterVarNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(IterVar, PrimExpr, IterVarNode);
+  static constexpr bool _type_container_is_exact = true;
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterVarNode);
 };
 

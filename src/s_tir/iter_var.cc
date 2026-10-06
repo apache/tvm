@@ -87,7 +87,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMaybeInplaceMuta
 
 // IterVar
 IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Span span)
-    : OpaqueExpr(ffi::UnsafeInit{}) {
+    : PrimExpr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(var);
   if (dom.defined() && dom->extent.defined()) {
     PrimType extent_ty = dom->extent.ty();

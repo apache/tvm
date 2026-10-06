@@ -288,8 +288,7 @@ inline tvm::te::Tensor conv2d_nchw(const tvm::te::Tensor& I, const tvm::te::Tens
   auto T =
       (pad_h == 0 && pad_w == 0) ? I : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
   auto l = [&](tvm::PrimVar b, tvm::PrimVar o, tvm::PrimVar h, tvm::PrimVar w) {
-    return tvm::prim::sum(T(b, i->var, stride_h * h + kh->var, stride_w * w + kw->var) *
-                              W(o, i->var, kh->var, kw->var),
+    return tvm::prim::sum(T(b, i, stride_h * h + kh, stride_w * w + kw) * W(o, i, kh, kw),
                           {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);
@@ -333,8 +332,7 @@ inline tvm::te::Tensor conv2d_hwcn(const tvm::te::Tensor& I, const tvm::te::Tens
   auto kw = tvm::te::reduce_axis(tvm::Range{0, W->shape[1]}, "kw");
   auto T = (pad_h == 0 && pad_w == 0) ? I : pad(I, {pad_h, pad_w});
   auto l = [&](tvm::PrimVar b, tvm::PrimVar o, tvm::PrimVar h, tvm::PrimVar w) {
-    return tvm::prim::sum(T(stride_h * h + kh->var, stride_w * w + kw->var, i->var, b) *
-                              W(kh->var, kw->var, i->var, o),
+    return tvm::prim::sum(T(stride_h * h + kh, stride_w * w + kw, i, b) * W(kh, kw, i, o),
                           {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);
@@ -382,10 +380,9 @@ inline tvm::te::Tensor depthwise_conv2d_nchw(const tvm::te::Tensor& I, const tvm
   auto T =
       (pad_h == 0 && pad_w == 0) ? I : pad(I, {tvm::PrimExpr(0), tvm::PrimExpr(0), pad_h, pad_w});
   auto l = [&](tvm::PrimVar b, tvm::PrimVar o, tvm::PrimVar h, tvm::PrimVar w) {
-    return tvm::prim::sum(
-        T(b, indexdiv(i->var, pCM), stride_h * h + kh->var, stride_w * w + kw->var) *
-            W(indexdiv(i->var, pCM), indexmod(o, pCM), kh->var, kw->var),
-        {i, kh, kw});
+    return tvm::prim::sum(T(b, indexdiv(i, pCM), stride_h * h + kh, stride_w * w + kw) *
+                              W(indexdiv(i, pCM), indexmod(o, pCM), kh, kw),
+                          {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);
 }
@@ -412,10 +409,9 @@ inline tvm::te::Tensor depthwise_conv2d_nhwc(const tvm::te::Tensor& I, const tvm
   auto T =
       (pad_h == 0 && pad_w == 0) ? I : pad(I, {tvm::PrimExpr(0), pad_h, pad_w, tvm::PrimExpr(0)});
   auto l = [&](tvm::PrimVar b, tvm::PrimVar h, tvm::PrimVar w, tvm::PrimVar o) {
-    return tvm::prim::sum(
-        T(b, stride_h * h + kh->var, stride_w * w + kw->var, indexdiv(i->var, pCM)) *
-            W(kh->var, kw->var, indexdiv(i->var, pCM), indexmod(o, pCM)),
-        {kh, kw, i});
+    return tvm::prim::sum(T(b, stride_h * h + kh, stride_w * w + kw, indexdiv(i, pCM)) *
+                              W(kh, kw, indexdiv(i, pCM), indexmod(o, pCM)),
+                          {kh, kw, i});
   };
   return tvm::te::compute(output_shape, l, name, tag);
 }
@@ -469,8 +465,7 @@ inline tvm::te::Tensor group_conv2d_ngchw(const tvm::te::Tensor& I, const tvm::t
     tvm::PrimVar o = args[2];
     tvm::PrimVar h = args[3];
     tvm::PrimVar w = args[4];
-    return tvm::prim::sum(I(b, g, i->var, stride_h * h + kh->var, stride_w * w + kw->var) *
-                              W(g, i->var, o, kh->var, kw->var),
+    return tvm::prim::sum(I(b, g, i, stride_h * h + kh, stride_w * w + kw) * W(g, i, o, kh, kw),
                           {i, kh, kw});
   };
   return tvm::te::compute(output_shape, l, name, tag);

@@ -108,7 +108,7 @@ inline Tensor group_norm(const Tensor& data, const ffi::Optional<Tensor>& gamma,
     for (int i = 0; i < ndim; ++i) {
       if (std::find(new_axes.begin(), new_axes.end(), i) != new_axes.end()) {
         // new_axes contains i
-        eval_range.push_back(reduce_axes[red_counter]->var);
+        eval_range.push_back(reduce_axes[red_counter]);
         red_counter++;
       } else {
         eval_range.push_back(indices[arg_counter]);

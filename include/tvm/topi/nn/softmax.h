@@ -70,7 +70,7 @@ inline Tensor softmax(const Tensor& x, int axis = -1, std::string name = "tensor
     int arg_counter = 0;
     for (size_t i = 0; i < ndim; ++i) {
       if (static_cast<int>(i) == axis) {
-        eval_range.push_back(reduce_index->var);
+        eval_range.push_back(reduce_index);
       } else {
         eval_range.push_back(indices[arg_counter++]);
       }
@@ -137,13 +137,12 @@ inline Tensor log_softmax(const Tensor& x, std::string name = "tensor",
   PrimExpr n = x->shape[1];
 
   auto k = tvm::te::reduce_axis(Range(0, n), "k");
-  auto max_elem = tvm::te::compute(
-      {m}, [&](PrimVar i) { return tvm::max(x(i, k->var), ffi::Array<IterVar>{k}); });
+  auto max_elem =
+      tvm::te::compute({m}, [&](PrimVar i) { return tvm::max(x(i, k), ffi::Array<IterVar>{k}); });
   k = tvm::te::reduce_axis(Range(0, n), "k");
 
-  auto expsum = tvm::te::compute({m}, [&](PrimVar i) {
-    return tvm::prim::sum(tvm::prim::exp(x(i, k->var) - max_elem(i)), {k});
-  });
+  auto expsum = tvm::te::compute(
+      {m}, [&](PrimVar i) { return tvm::prim::sum(tvm::prim::exp(x(i, k) - max_elem(i)), {k}); });
 
   return tvm::te::compute(
       x->shape,
