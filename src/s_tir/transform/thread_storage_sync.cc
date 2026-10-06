@@ -265,23 +265,23 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 };
 
 // There are cases where necessary syncthreads is not inserted by ThreadSyncInserter.
-// For example, syncthreads is needed after async_wait_queue in the second loop below,
+// For example, syncthreads is needed after async_wait in the second loop below,
 // but since ThreadSyncInserter is not aware of the asynchronous semantics, it cannot tell
 // that the syncthreads is needed there.
 //
 // // Pipeline prologue
 // for i in range(125):
-//    async_commit_queue(0):
-//       async_scope:
-//          shared[(i + 3) % 4] = ...
+//    with async_copy_scope():
+//       shared[(i + 3) % 4] = ...
+//    async_commit(0)
 // ...
 //
 // // Pipeline Epilogue
 // for i in range(3):
-//    async_wait_queue(0, 2 - i):
-//       local[...] = shared[(i + 125) % 4]
+//    async_wait(0, 2 - i)
+//    local[...] = shared[(i + 125) % 4]
 
-// This class adds syncthreads after all async_wait_queue. That includes syncthreads that
+// This class adds syncthreads after all async_wait operations. That includes syncthreads that
 // can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
 // duplicate syncthreads if it finds an existing one at the synchronization point.
 class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
@@ -291,16 +291,12 @@ class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
 
   explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(s_tir::async_wait())) {
       auto sync = Evaluate(Call(PrimType::Int(32), tirx::builtin::tvm_storage_sync(),
-                                {StringImm(sync_scope_.to_string())})
-                               .as_or_throw<PrimExpr>());
-      auto inner = op->body.as<AttrStmtNode>();
-      TVM_FFI_ICHECK(inner && inner->attr_key == s_tir::attr::async_wait_inflight_count);
-      auto new_body = SeqStmt({sync, inner->body});
-      return AttrStmt(0, s_tir::attr::async_wait_queue_scope, op->value,
-                      AttrStmt(0, s_tir::attr::async_wait_inflight_count, inner->value, new_body));
+                                {StringImm(sync_scope_.to_string())}));
+      return SeqStmt({ffi::GetRef<Stmt>(op), sync});
     }
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
@@ -351,6 +347,46 @@ Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
       .ValueOrUnchanged(std::move(stmt));
 }
 
+// The synchronization markers have served their purpose after all ThreadSync passes.
+// Only CUDA has backend queue operations; other targets retain synchronous copies.
+class SynchronizationLowerer : public StmtExprMutator {
+ public:
+  using StmtExprMutator::Mutate;
+  using StmtExprMutator::Mutate_;
+  explicit SynchronizationLowerer(bool is_cuda) : is_cuda_(is_cuda) {}
+
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(s_tir::manual_sync()) || op->op.same_as(s_tir::async_copy_scope())) {
+      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
+    }
+    return StmtExprMutator::Mutate_(op, inplace_mode);
+  }
+
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
+    const auto* call = op->value.as<CallNode>();
+    if (!call ||
+        (!call->op.same_as(s_tir::async_commit()) && !call->op.same_as(s_tir::async_wait()))) {
+      return StmtExprMutator::Mutate_(op, inplace_mode);
+    }
+    if (!is_cuda_) return Evaluate(0);
+    TVM_FFI_ICHECK_EQ(call->args[0].as_or_throw<IntImm>()->value, 0)
+        << "For CUDA, the index of an async queue must be 0.";
+    if (call->op.same_as(s_tir::async_commit())) {
+      static const Op commit = Op::Get("tirx.ptx.cp_async_commit_group");
+      return Evaluate(Call(PrimType::Void(), commit,
+                           {StringImm("async"), StringImm("commit_group"), StringImm("")}));
+    }
+    static const Op wait = Op::Get("tirx.ptx.cp_async_wait_group");
+    // PTX's immediate operand retains the compile-time wait-count requirement.
+    return Evaluate(
+        Call(PrimType::Void(), wait,
+             {call->args[1], StringImm("async"), StringImm("wait_group"), StringImm("")}));
+  }
+
+ private:
+  bool is_cuda_;
+};
+
 namespace transform {
 
 Pass ThreadSync(ffi::String storage_scope) {
@@ -363,10 +399,25 @@ Pass ThreadSync(ffi::String storage_scope) {
   return CreatePrimFuncPass(pass_func, 0, "s_tir.ThreadSync", {});
 }
 
+Pass LowerSynchronization() {
+  auto pass_func = [](PrimFunc f, IRModule, PassContext) {
+    if (!f->body.has_value()) return f;
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget);
+    bool is_cuda = target && target.value()->kind->name == "cuda";
+    auto* n = f.CopyOnWrite();
+    n->body = ffi::make_object<SynchronizationLowerer>(is_cuda)
+                  ->Mutate(n->body.value(), InplaceMode::kAllow)
+                  .ValueOrUnchanged(n->body.value());
+    return f;
+  };
+  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerSynchronization", {});
+}
+
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.transform.ThreadSync",
-                        static_cast<Pass (*)(ffi::String)>(ThreadSync));
+  refl::GlobalDef()
+      .def("s_tir.transform.ThreadSync", static_cast<Pass (*)(ffi::String)>(ThreadSync))
+      .def("s_tir.transform.LowerSynchronization", LowerSynchronization);
 }
 
 }  // namespace transform

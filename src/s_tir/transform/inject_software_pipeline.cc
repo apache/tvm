@@ -680,19 +680,19 @@ class PipelineRewriter : public StmtExprMutator {
       //
       // for i in range(13):
       //     # Stage 0
-      //     async_commit_queue(0):
-      //        async_scope:
-      //           A_shared[(i + 3) % 4] = A[...]
+      //     with async_copy_scope():
+      //        A_shared[(i + 3) % 4] = A[...]
+      //     async_commit(0)
       //
       //
       //     # Stage 1
-      //     async_wait_queue(0, 5):
-      //        compute(A_shared[i], B_shared[i])
+      //     async_wait(0, 5)
+      //     compute(A_shared[i], B_shared[i])
       //
       //     # Stage 0
-      //     async_commit_queue(0)
-      //        async_scope:
-      //           B_shared[(i + 3) % 4] = B[...]
+      //     with async_copy_scope():
+      //        B_shared[(i + 3) % 4] = B[...]
+      //     async_commit(0)
       //
       //
       // Here, multiple async producers in the same stage are interleaved with their consumer in
@@ -701,14 +701,14 @@ class PipelineRewriter : public StmtExprMutator {
       //
       // for i in range(13):
       //     # Stage 0
-      //     async_commit_queue(0):
-      //        async_scope:
-      //           A_shared[(i + 3) % 4] = A[...]
-      //           B_shared[(i + 3) % 4] = B[...]
+      //     with async_copy_scope():
+      //        A_shared[(i + 3) % 4] = A[...]
+      //        B_shared[(i + 3) % 4] = B[...]
+      //     async_commit(0)
       //
       //     # Stage 1
-      //     async_wait_queue(0, 3):
-      //        compute(A_shared[i], B_shared[i])
+      //     async_wait(0, 3)
+      //     compute(A_shared[i], B_shared[i])
       //
       // The correct wait_count can be determined by considering each commit group separately, and
       // summing "per-commit" wait_counts.
@@ -799,12 +799,12 @@ class PipelineRewriter : public StmtExprMutator {
       }
 
       if (state.pending_wait.valid()) {
-        auto attach_wait_scope = [&new_blocks](int i, int stage_id, PrimExpr wait_count) {
+        auto attach_wait = [&new_blocks](int i, int stage_id, PrimExpr wait_count) {
           auto& block = new_blocks[i].block;
           SBlockNode* n = block.CopyOnWrite();
-          n->body =
-              AttrStmt(0, s_tir::attr::async_wait_queue_scope, IntImm::Int32(stage_id),
-                       AttrStmt(0, s_tir::attr::async_wait_inflight_count, wait_count, n->body));
+          n->body = SeqStmt({Evaluate(Call(PrimType::Void(), s_tir::async_wait(),
+                                           {IntImm::Int32(stage_id), wait_count})),
+                             n->body});
         };
 
         if (state.predicate && !ana_normalized->CanProve(state.predicate.value())) {
@@ -815,10 +815,10 @@ class PipelineRewriter : public StmtExprMutator {
                                  ffi::Array<PrimExpr>{state.predicate.value(),
                                                       state.pending_wait.wait_count.value(), 0})
                                 .as_or_throw<PrimExpr>();
-          attach_wait_scope(state.pending_wait.insert_before, stage_id, wait_count);
+          attach_wait(state.pending_wait.insert_before, stage_id, wait_count);
         } else {
-          attach_wait_scope(state.pending_wait.insert_before, stage_id,
-                            state.pending_wait.wait_count.value());
+          attach_wait(state.pending_wait.insert_before, stage_id,
+                      state.pending_wait.wait_count.value());
         }
       }
     }
@@ -840,18 +840,10 @@ class PipelineRewriter : public StmtExprMutator {
           group_bodies.push_back(new_blocks[i].block->body);
         }
 
-        if (group_bodies.size() > 1) {
-          auto merged_bodies = SeqStmt(group_bodies);
-          group_bodies.clear();
-          group_bodies.push_back(merged_bodies);
-        }
-
-        for (auto body : group_bodies) {
-          auto commit_queue_scope =
-              AttrStmt(0, s_tir::attr::async_commit_queue_scope, IntImm::Int32(stage_id), body);
-          auto new_block = MakeSBlock(commit_queue_scope, buffer_data_to_buffer_);
-          stmts.push_back(SBlockRealize({}, predicate, new_block));
-        }
+        group_bodies.push_back(
+            Evaluate(Call(PrimType::Void(), s_tir::async_commit(), {IntImm::Int32(stage_id)})));
+        auto new_block = MakeSBlock(SeqStmt(group_bodies), buffer_data_to_buffer_);
+        stmts.push_back(SBlockRealize({}, predicate, new_block));
       }
     }
 
@@ -960,12 +952,12 @@ class PipelineRewriter : public StmtExprMutator {
           commit_group_id = local_state.commit_groups.size();
           local_state.commit_groups.push_back({new_blocks.size()});
         } else {
-          // This is the case when one commit_queue groups multiple async blocks.
-          // with commit_queue(stage):
-          //   async_scope:
-          //     A_shared[...] = ...
-          //   async_scope:
-          //     B_shared[...] = ...
+          // One commit can group multiple async-copy regions.
+          // with async_copy_scope():
+          //   A_shared[...] = ...
+          // with async_copy_scope():
+          //   B_shared[...] = ...
+          // async_commit(stage)
 
           commit_group_id = local_state.commit_groups.size() - 1;
           local_state.commit_groups.back().push_back(new_blocks.size());
@@ -987,7 +979,7 @@ class PipelineRewriter : public StmtExprMutator {
         }
 
         SBlockNode* n = new_block.CopyOnWrite();
-        n->body = AttrStmt(0, s_tir::attr::async_scope, IntImm::Int32(1), n->body);
+        n->body = RegionStmt(s_tir::async_copy_scope(), {}, {}, DictAttrs(), n->body);
       }
 
       new_blocks.push_back(

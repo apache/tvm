@@ -357,6 +357,11 @@ def ThreadSync(storage_scope):
     return _ffi_api.ThreadSync(storage_scope)  # type: ignore
 
 
+def LowerSynchronization():
+    """Lower async queue operations and erase regions after synchronization planning."""
+    return _ffi_api.LowerSynchronization()  # type: ignore
+
+
 def InferFragment():
     """Infer the TensorCore fragment information using tensor intrinsics.
 

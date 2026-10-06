@@ -138,18 +138,11 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BindNode* op) {
   return std::nullopt;
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const AttrStmtNode* op) {
-  if (op->attr_key == s_tir::attr::hand_threaded) {
-    // skip this pass on blocks that were hand_threaded
-    // this avoids control flow and read/write conflicts
-    // between hand-threaded kernels and automatic threading
-  } else {
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-  }
-  return std::nullopt;
-}
-
 ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const RegionStmtNode* op) {
+  if (op->op.same_as(s_tir::manual_sync())) {
+    // Trust the region's explicit barriers instead of planning access-based synchronization.
+    return std::nullopt;
+  }
   if (op->op.same_as(tirx::builtin::launch_thread()) &&
       std::string(op->args[0].as_or_throw<StringImm>()->value).rfind("vthread", 0) != 0) {
     PrimExpr extent = op->args[1].as_or_throw<PrimExpr>();

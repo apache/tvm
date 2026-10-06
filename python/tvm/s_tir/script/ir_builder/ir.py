@@ -29,8 +29,29 @@ from tvm.script.parser.protocol_registry import register_mutable_decl as _regist
 from tvm.tirx import Expr, IntImm, Var
 from tvm.tirx.layout import Layout
 from tvm.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
+from tvm.tirx.script.ir_builder.parser_protocol import region
 
 from . import _ffi_api
+
+
+def async_copy_scope():
+    """Mark eligible memory copies for asynchronous-copy lowering."""
+    return region("s_tir.async_copy_scope", [])
+
+
+def async_commit(queue_id):
+    """Commit the preceding asynchronous copies to a queue."""
+    return tir.call_intrin("void", "s_tir.async_commit", queue_id)
+
+
+def async_wait(queue_id, inflight_count):
+    """Wait until at most inflight_count committed groups remain in flight."""
+    return tir.call_intrin("void", "s_tir.async_wait", queue_id, inflight_count)
+
+
+def manual_sync():
+    """Use explicitly authored synchronization within this region."""
+    return region("s_tir.manual_sync", [])
 
 
 @_register_mutable_decl("s_tir.match_buffer")
@@ -428,8 +449,12 @@ class axis:  # pylint: disable=invalid-name
 
 
 __all__ = [
+    "async_commit",
+    "async_copy_scope",
+    "async_wait",
     "axis",
     "block_name_suffix_context",
+    "manual_sync",
     "match_buffer",
     "reads",
     "sblock_alloc_buffer",

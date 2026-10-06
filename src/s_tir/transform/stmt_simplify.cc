@@ -54,6 +54,19 @@ class StmtSimplifier final : public tirx::StmtSimplifier {
     return s_tir::StmtExprMutator::MutateBlockRealize(this, op, inplace_mode);
   }
 
+  UnchangedOr<Stmt> Mutate_(const EvaluateNode* op, InplaceMode inplace_mode) final {
+    Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+    if (const auto* evaluate = stmt.as<EvaluateNode>()) {
+      if (const auto* call = evaluate->value.as<CallNode>();
+          call && call->op.same_as(s_tir::async_wait()) &&
+          analyzer_->CanProve(call->args[1].as_or_throw<PrimExpr>() < 0)) {
+        // Unrolling may make a wait count negative; such a wait is a no-op.
+        return Evaluate(0);
+      }
+    }
+    return stmt;
+  }
+
  protected:
   static void InitVTable(VTable* vtable) {
     Parent::InitVTable(vtable);

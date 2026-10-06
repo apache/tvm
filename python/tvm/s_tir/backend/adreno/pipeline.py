@@ -65,7 +65,7 @@ def default_tir_pipeline(*, prepare_only=False):
                 s_tir.transform.HoistIfThenElse(),
                 tirx.transform.UnrollLoop(),
                 s_tir.transform.RenormalizeSplitPattern(),
-                tirx.transform.StmtSimplify(),
+                s_tir.transform.StmtSimplify(),
                 tirx.transform.RemoveNoOp(),
                 s_tir.transform.RewriteUnsafeSelect(),
             ]
@@ -94,6 +94,7 @@ def default_tir_pipeline(*, prepare_only=False):
         )
         if bool(config.get("tirx.use_async_copy", False)):
             passes.append(s_tir.transform.InjectPTXAsyncCopy())
+        passes.append(s_tir.transform.LowerSynchronization())
         passes.append(s_tir.transform.MergeSharedMemoryAllocations())
         if not prepare_only:
             passes.extend(

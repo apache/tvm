@@ -358,10 +358,6 @@ struct FragmentInfo {
  */
 std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const Stmt& stmt);
 
-// Return the queue id and the in-flight count associated with the given
-// tvm::tirx::attr::async_wait_queue_scope annotation.
-std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
-
 /*!
  * \brief Split string separated by "," to get wmma fragment dimension size.
  * \param  shape_str The string to split.

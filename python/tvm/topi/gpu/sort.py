@@ -20,6 +20,7 @@
 
 import tvm
 from tvm import te
+from tvm.s_tir.script import ir_builder as Ts
 from tvm.script.ir_builder import IRBuilder
 from tvm.tirx.script import ir_builder as T
 
@@ -100,7 +101,7 @@ def _odd_even_sort(
 
     with T.frame_scope(
         [
-            T.attr(tvm.tirx.const(0), "hand_threaded", 0),
+            Ts.manual_sync(),
             *_thread_launches(nthread_tx, nthread_bx, nthread_by),
         ]
     ) as (_, tx, bx, by):
