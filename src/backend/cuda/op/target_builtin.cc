@@ -219,6 +219,15 @@ void RegisterCudaTargetBuiltins() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
+  OpDef("tirx.cuda.dyn_smem_bytes",
+        "Declare the dynamic shared memory size in bytes for the kernel launch.")
+      .signature(sig::arg<IntImm>("bytes", "The constant byte count."))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.cuda.dyn_smem_bytes"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kEmbedInfo));
+
   RegisterDeviceIntrinsics();
 }
 
