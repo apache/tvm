@@ -287,13 +287,12 @@ By default, the block size also drives the kernel's ``__launch_bounds__``. The
 first argument (max threads per block) is set automatically from the thread
 extent. To also set the second argument — the minimum blocks per SM, an
 occupancy hint — add
-``Tx.attr({"tirx.launch_bounds_min_blocks_per_sm": N})`` in the device region (note:
-``Tx.attr``, not ``func_attr``):
+``Tx.cuda.launch_bounds_min_blocks_per_sm(N)`` in the device region:
 
 .. code-block:: python
 
     Tx.device_entry()
-    Tx.attr({"tirx.launch_bounds_min_blocks_per_sm": 2})   # second launch-bounds arg
+    Tx.cuda.launch_bounds_min_blocks_per_sm(2)   # second launch-bounds arg
     bx = Tx.cta_id([1]); tx = Tx.thread_id([256])
     ...
 
@@ -301,16 +300,23 @@ occupancy hint — add
 
     extern "C" __global__ void __launch_bounds__(256, 2) scale_kernel(...) { ... }
 
-Without the attr the second argument is omitted (just ``__launch_bounds__(256)``).
+Without this declaration the second argument is omitted (just ``__launch_bounds__(256)``).
+
+``Tx.cuda.launch_bounds_max_blocks_per_cluster(N)`` supplies the third operand
+and requires a minimum-blocks declaration. ``Tx.cuda.max_registers_per_thread(N)``
+emits ``__maxnreg__(N)`` and cannot accompany launch bounds. These declarations
+accept positive integer constants. Matching repetitions are allowed; conflicting
+values are rejected. They configure the containing kernel and produce no runtime
+instructions at their textual position.
 
 Some kernels require an exact block and cluster shape instead of an advisory
-maximum. Set ``tirx.required_block_size`` to ``1`` to make the thread and
-cluster extents a compile-time launch contract:
+maximum. Use ``Tx.cuda.required_block_size`` with the three thread dimensions followed
+by the three cluster dimensions to declare a compile-time launch contract:
 
 .. code-block:: python
 
     Tx.device_entry()
-    Tx.attr({"tirx.required_block_size": 1})
+    Tx.cuda.required_block_size(128, 1, 1, 1, 2, 1)
     bx, by = Tx.cta_id([4, 2])
     _, cy = Tx.cta_id_in_cluster([1, 2])
     tx = Tx.thread_id([128])
@@ -321,15 +327,15 @@ cluster extents a compile-time launch contract:
     extern "C" __global__ void __block_size__((128, 1, 1), (1, 2, 1)) kernel(...) { ... }
 
 This requires CUDA Toolkit 13 or newer. All thread and cluster dimensions must
-be static; CUDA lowers ``__block_size__`` to PTX ``.reqntid`` and checks the
+be positive constants matching the declared launch extents; CUDA lowers ``__block_size__`` to PTX ``.reqntid`` and checks the
 same dimensions at launch. A preferred cluster dimension must be absent or
 equal to the required cluster dimension, and each logical block-grid dimension
 must be divisible by its cluster dimension.
 
-``tirx.required_block_size`` can be combined with the launch-bounds attributes
+``Tx.cuda.required_block_size`` can be combined with the launch-bounds declarations
 when an occupancy hint is also needed; code generation then emits both
 ``__block_size__`` and ``__launch_bounds__``. It cannot be combined with
-``tirx.max_registers``.
+``Tx.cuda.max_registers_per_thread``.
 
 At run time the kernel is launched through the **CUDA Driver API**. TVM's CUDA
 runtime loads the module (``cuModuleLoadData``), fetches the function
@@ -338,7 +344,7 @@ runtime loads the module (``cuModuleLoadData``), fetches the function
 the config carries a list of launch *attributes* — the thread-block **cluster
 dimension** and **preferred cluster dimension** (Hopper/Blackwell), plus optional
 programmatic-dependent-launch and cooperative-launch flags. Kernels with
-``tirx.required_block_size`` instead use CUDA's required-block sentinel; their
+``Tx.cuda.required_block_size`` instead use CUDA's required-block sentinel; their
 compile-time cluster shape replaces the ordinary runtime cluster attribute. In
 outline, ``src/backend/cuda/runtime/cuda_module.cc`` follows this path:
 
