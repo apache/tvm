@@ -1058,44 +1058,43 @@ def _collect_selected_indices_ir(
     batch_classes, _ = selected_indices.shape
 
     with IRBuilder() as ib:
-        with T.seq_scope():
-            # Initialize output buffer to zero
-            # Calculate the actual output shape based on max_output_boxes_per_class
+        # Initialize output buffer to zero
+        # Calculate the actual output shape based on max_output_boxes_per_class
+        if isinstance(max_output_boxes_per_class, int):
+            max_output_rows = batch_classes * max_output_boxes_per_class
+        else:
+            # Fallback to a reasonable default if max_output_boxes_per_class is not an integer
+            max_output_rows = batch_classes * 10
+        with T.serial(0, max_output_rows) as init_i:
+            with T.serial(0, 3) as init_j:  # 3 columns
+                T.buffer_store(out, cast(0, "int64"), (init_i, init_j))
+
+        with T.parallel(0, batch_classes) as i:
+            i_64 = cast(i, "int64")
+            batch_id = i_64 // num_class
+            class_id = i_64 % num_class
+
             if isinstance(max_output_boxes_per_class, int):
-                max_output_rows = batch_classes * max_output_boxes_per_class
-            else:
-                # Fallback to a reasonable default if max_output_boxes_per_class is not an integer
-                max_output_rows = batch_classes * 10
-            with T.serial(0, max_output_rows) as init_i:
-                with T.serial(0, 3) as init_j:  # 3 columns
-                    T.buffer_store(out, cast(0, "int64"), (init_i, init_j))
-
-            with T.parallel(0, batch_classes) as i:
-                i_64 = cast(i, "int64")
-                batch_id = i_64 // num_class
-                class_id = i_64 % num_class
-
-                if isinstance(max_output_boxes_per_class, int):
-                    limit = tvm.tirx.min(
-                        num_detections[i], tvm.tirx.IntImm("int32", max_output_boxes_per_class)
-                    )
-                elif isinstance(max_output_boxes_per_class, te.Tensor):
-                    if len(max_output_boxes_per_class.shape) == 0:
-                        max_boxes_val = max_output_boxes_per_class[()]
-                    else:
-                        max_boxes_val = max_output_boxes_per_class[0]
-                    limit = tvm.tirx.min(num_detections[i], max_boxes_val)
+                limit = tvm.tirx.min(
+                    num_detections[i], tvm.tirx.IntImm("int32", max_output_boxes_per_class)
+                )
+            elif isinstance(max_output_boxes_per_class, te.Tensor):
+                if len(max_output_boxes_per_class.shape) == 0:
+                    max_boxes_val = max_output_boxes_per_class[()]
                 else:
-                    limit = num_detections[i]
+                    max_boxes_val = max_output_boxes_per_class[0]
+                limit = tvm.tirx.min(num_detections[i], max_boxes_val)
+            else:
+                limit = num_detections[i]
 
-                with T.serial(0, limit) as j:
-                    T.buffer_store(out, batch_id, (row_offsets[i] + j, 0))
-                    T.buffer_store(out, class_id, (row_offsets[i] + j, 1))
-                    T.buffer_store(
-                        out,
-                        cast(selected_indices[i, j], "int64"),
-                        (row_offsets[i] + j, 2),
-                    )
+            with T.serial(0, limit) as j:
+                T.buffer_store(out, batch_id, (row_offsets[i] + j, 0))
+                T.buffer_store(out, class_id, (row_offsets[i] + j, 1))
+                T.buffer_store(
+                    out,
+                    cast(selected_indices[i, j], "int64"),
+                    (row_offsets[i] + j, 2),
+                )
 
         return ib.get()
 

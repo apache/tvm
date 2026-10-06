@@ -57,118 +57,113 @@ def scatter_nd(data, indices, updates, mode):
         max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
 
         with IRBuilder() as ib:
-            with T.seq_scope():
-                # Init
-                nthread_bx_init = cast(ceil_div(fused_shape, max_threads), "int32")
-                with T.frame_scope(
-                    [
-                        T.launch_thread("blockIdx.x", nthread_bx_init),
-                        T.launch_thread("threadIdx.x", max_threads),
-                    ]
-                ) as (bx_init, tx_init):
-                    tid = bx_init * max_threads + tx_init
-                    with T.if_(tid < fused_shape):
-                        with T.then_():
-                            T.buffer_store(
-                                out,
-                                data[T.tensor_indices(data, tid)],
-                                T.tensor_indices(out, tid),
-                            )
+            # Init
+            nthread_bx_init = cast(ceil_div(fused_shape, max_threads), "int32")
+            with T.frame_scope(
+                [
+                    T.launch_thread("blockIdx.x", nthread_bx_init),
+                    T.launch_thread("threadIdx.x", max_threads),
+                ]
+            ) as (bx_init, tx_init):
+                tid = bx_init * max_threads + tx_init
+                with T.if_(tid < fused_shape):
+                    with T.then_():
+                        T.buffer_store(
+                            out,
+                            data[T.tensor_indices(data, tid)],
+                            T.tensor_indices(out, tid),
+                        )
 
-                # Scatter
-                nthread_bx_scat = cast(ceil_div(fused_updates_dimension, max_threads), "int32")
-                with T.frame_scope(
-                    [
-                        T.launch_thread("blockIdx.x", nthread_bx_scat),
-                        T.launch_thread("threadIdx.x", max_threads),
-                    ]
-                ) as (bx_scat, tx_scat):
-                    j = bx_scat * max_threads + tx_scat
-                    with T.if_(j < fused_updates_dimension):
-                        with T.then_():
-                            with T.serial(0, fused_indices_dimension) as i:
-                                offset = fused_updates_dimension
-                                index = j  # x_M, .. x_{N-1} part of the index into out.
-                                # Build up the indices[0, y_0, ..], ..,
-                                # indices[M-1, y_0, ..] part of the index into out.
-                                for l in reversed(range(indices_ptr.shape[0].value)):
-                                    # indices[l, y_0, ... y_{k-1}]
-                                    index += (
-                                        offset
-                                        * indices[
+            # Scatter
+            nthread_bx_scat = cast(ceil_div(fused_updates_dimension, max_threads), "int32")
+            with T.frame_scope(
+                [
+                    T.launch_thread("blockIdx.x", nthread_bx_scat),
+                    T.launch_thread("threadIdx.x", max_threads),
+                ]
+            ) as (bx_scat, tx_scat):
+                j = bx_scat * max_threads + tx_scat
+                with T.if_(j < fused_updates_dimension):
+                    with T.then_():
+                        with T.serial(0, fused_indices_dimension) as i:
+                            offset = fused_updates_dimension
+                            index = j  # x_M, .. x_{N-1} part of the index into out.
+                            # Build up the indices[0, y_0, ..], ..,
+                            # indices[M-1, y_0, ..] part of the index into out.
+                            for l in reversed(range(indices_ptr.shape[0].value)):
+                                # indices[l, y_0, ... y_{k-1}]
+                                index += (
+                                    offset
+                                    * indices[
+                                        T.tensor_indices(indices, (i + l * fused_indices_dimension))
+                                    ]
+                                )
+                                offset *= data_ptr.shape[l]
+                            if mode == "update":
+                                T.buffer_store(
+                                    out,
+                                    updates[
+                                        T.tensor_indices(updates, (i * fused_updates_dimension + j))
+                                    ],
+                                    T.tensor_indices(out, index),
+                                )
+                            elif mode == "add":
+                                T.buffer_store(
+                                    out,
+                                    out[T.tensor_indices(out, index)]
+                                    + (
+                                        updates[
                                             T.tensor_indices(
-                                                indices, (i + l * fused_indices_dimension)
+                                                updates, (i * fused_updates_dimension + j)
                                             )
                                         ]
-                                    )
-                                    offset *= data_ptr.shape[l]
-                                if mode == "update":
-                                    T.buffer_store(
-                                        out,
+                                    ),
+                                    T.tensor_indices(out, index),
+                                )
+                            elif mode == "mul":
+                                T.buffer_store(
+                                    out,
+                                    out[T.tensor_indices(out, index)]
+                                    * (
+                                        updates[
+                                            T.tensor_indices(
+                                                updates, (i * fused_updates_dimension + j)
+                                            )
+                                        ]
+                                    ),
+                                    T.tensor_indices(out, index),
+                                )
+                            elif mode == "min":
+                                T.buffer_store(
+                                    out,
+                                    tirx.min(
+                                        out[T.tensor_indices(out, index)],
                                         updates[
                                             T.tensor_indices(
                                                 updates, (i * fused_updates_dimension + j)
                                             )
                                         ],
-                                        T.tensor_indices(out, index),
-                                    )
-                                elif mode == "add":
-                                    T.buffer_store(
-                                        out,
-                                        out[T.tensor_indices(out, index)]
-                                        + (
-                                            updates[
-                                                T.tensor_indices(
-                                                    updates, (i * fused_updates_dimension + j)
-                                                )
-                                            ]
-                                        ),
-                                        T.tensor_indices(out, index),
-                                    )
-                                elif mode == "mul":
-                                    T.buffer_store(
-                                        out,
-                                        out[T.tensor_indices(out, index)]
-                                        * (
-                                            updates[
-                                                T.tensor_indices(
-                                                    updates, (i * fused_updates_dimension + j)
-                                                )
-                                            ]
-                                        ),
-                                        T.tensor_indices(out, index),
-                                    )
-                                elif mode == "min":
-                                    T.buffer_store(
-                                        out,
-                                        tirx.min(
-                                            out[T.tensor_indices(out, index)],
-                                            updates[
-                                                T.tensor_indices(
-                                                    updates, (i * fused_updates_dimension + j)
-                                                )
-                                            ],
-                                        ),
-                                        T.tensor_indices(out, index),
-                                    )
-                                elif mode == "max":
-                                    T.buffer_store(
-                                        out,
-                                        tirx.max(
-                                            out[T.tensor_indices(out, index)],
-                                            updates[
-                                                T.tensor_indices(
-                                                    updates, (i * fused_updates_dimension + j)
-                                                )
-                                            ],
-                                        ),
-                                        T.tensor_indices(out, index),
-                                    )
-                                else:
-                                    raise NotImplementedError(
-                                        "scatter_nd mode not in [update, add, mul, min, max]:",
-                                        mode,
-                                    )
+                                    ),
+                                    T.tensor_indices(out, index),
+                                )
+                            elif mode == "max":
+                                T.buffer_store(
+                                    out,
+                                    tirx.max(
+                                        out[T.tensor_indices(out, index)],
+                                        updates[
+                                            T.tensor_indices(
+                                                updates, (i * fused_updates_dimension + j)
+                                            )
+                                        ],
+                                    ),
+                                    T.tensor_indices(out, index),
+                                )
+                            else:
+                                raise NotImplementedError(
+                                    "scatter_nd mode not in [update, add, mul, min, max]:",
+                                    mode,
+                                )
 
             return ib.get()
 

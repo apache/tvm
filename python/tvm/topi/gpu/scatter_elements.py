@@ -69,48 +69,47 @@ def scatter_elements(data, indices, updates, axis=0, reduction="update"):
         max_threads = int(tvm.target.Target.current(allow_none=False).attrs["max_num_threads"])
 
         with IRBuilder() as ib:
-            with T.seq_scope():
-                # Init
-                nthread_bx_init = cast(ceil_div(full_range, max_threads), "int32")
-                with T.frame_scope(
-                    [
-                        T.launch_thread("blockIdx.x", nthread_bx_init),
-                        T.launch_thread("threadIdx.x", max_threads),
-                    ]
-                ) as (bx_init, tx_init):
-                    tid = bx_init * max_threads + tx_init
-                    with T.if_(tid < full_range):
-                        with T.then_():
-                            T.buffer_store(
-                                out,
-                                data[T.tensor_indices(data, tid)],
-                                T.tensor_indices(out, tid),
-                            )
+            # Init
+            nthread_bx_init = cast(ceil_div(full_range, max_threads), "int32")
+            with T.frame_scope(
+                [
+                    T.launch_thread("blockIdx.x", nthread_bx_init),
+                    T.launch_thread("threadIdx.x", max_threads),
+                ]
+            ) as (bx_init, tx_init):
+                tid = bx_init * max_threads + tx_init
+                with T.if_(tid < full_range):
+                    with T.then_():
+                        T.buffer_store(
+                            out,
+                            data[T.tensor_indices(data, tid)],
+                            T.tensor_indices(out, tid),
+                        )
 
-                # Scatter
-                nthread_bx_scat = cast(ceil_div(ind_full_range_excl_axis, max_threads), "int32")
-                with T.frame_scope(
-                    [
-                        T.launch_thread("blockIdx.x", nthread_bx_scat),
-                        T.launch_thread("threadIdx.x", max_threads),
-                    ]
-                ) as (bx_scat, tx_scat):
-                    fused = bx_scat * max_threads + tx_scat
-                    with T.if_(fused < ind_full_range_excl_axis):
-                        with T.then_():
-                            i = fused // ind_after_axis_range
-                            j = fused % ind_after_axis_range
-                            pre_index1 = i * ind_before_axis_stride + j
-                            pre_index2 = i * before_axis_stride + j
-                            with T.serial(0, ind_axis_range) as k:
-                                # Offset along indices or updates
-                                index1 = pre_index1 + k * ind_after_axis_range
-                                # Get index and shift to positive side if need
-                                k_new = indices[T.tensor_indices(indices, index1)]
-                                shifted_index = k_new + (k_new < 0) * axis_range
-                                # Offset along data
-                                index2 = pre_index2 + shifted_index * after_axis_range
-                                reduce_func(out, index2, updates[T.tensor_indices(updates, index1)])
+            # Scatter
+            nthread_bx_scat = cast(ceil_div(ind_full_range_excl_axis, max_threads), "int32")
+            with T.frame_scope(
+                [
+                    T.launch_thread("blockIdx.x", nthread_bx_scat),
+                    T.launch_thread("threadIdx.x", max_threads),
+                ]
+            ) as (bx_scat, tx_scat):
+                fused = bx_scat * max_threads + tx_scat
+                with T.if_(fused < ind_full_range_excl_axis):
+                    with T.then_():
+                        i = fused // ind_after_axis_range
+                        j = fused % ind_after_axis_range
+                        pre_index1 = i * ind_before_axis_stride + j
+                        pre_index2 = i * before_axis_stride + j
+                        with T.serial(0, ind_axis_range) as k:
+                            # Offset along indices or updates
+                            index1 = pre_index1 + k * ind_after_axis_range
+                            # Get index and shift to positive side if need
+                            k_new = indices[T.tensor_indices(indices, index1)]
+                            shifted_index = k_new + (k_new < 0) * axis_range
+                            # Offset along data
+                            index2 = pre_index2 + shifted_index * after_axis_range
+                            reduce_func(out, index2, updates[T.tensor_indices(updates, index1)])
 
             return ib.get()
 
