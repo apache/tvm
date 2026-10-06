@@ -380,6 +380,42 @@ def test_llvm_cast_float_to_bool():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
+def test_llvm_bool_arith():
+    # As in the C target, bool +, - and * compute in int and convert back: non-zero is true.
+    def dotest(do_vectorize):
+        loop_kind = T.vectorized if do_vectorize else T.serial
+
+        @I.ir_module
+        class Module:
+            @T.prim_func
+            def main(
+                A: T.Tensor((4,), "bool"),
+                B: T.Tensor((4,), "bool"),
+                C_add: T.Tensor((4,), "bool"),
+                C_sub: T.Tensor((4,), "bool"),
+                C_mul: T.Tensor((4,), "bool"),
+            ):
+                T.func_attr({"tirx.noalias": True})
+                for i in loop_kind(4):
+                    C_add[i] = A[i] + B[i]
+                    C_sub[i] = A[i] - B[i]
+                    C_mul[i] = A[i] * B[i]
+
+        f = tvm.compile(Module, target="llvm")
+        dev = tvm.cpu(0)
+        a_np = np.array([False, False, True, True])
+        b_np = np.array([False, True, False, True])
+        outs = [tvm.runtime.empty((4,), dtype="bool", device=dev) for _ in range(3)]
+        f(tvm.runtime.tensor(a_np, dev), tvm.runtime.tensor(b_np, dev), *outs)
+        tvm.testing.assert_allclose(outs[0].numpy(), a_np | b_np)
+        tvm.testing.assert_allclose(outs[1].numpy(), a_np ^ b_np)
+        tvm.testing.assert_allclose(outs[2].numpy(), a_np & b_np)
+
+    dotest(False)
+    dotest(True)
+
+
+@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_rank_zero():
     @I.ir_module
     class Module:
