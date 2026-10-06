@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import platform
+
 import numpy as np
 import pytest
 import tvm_ffi
@@ -647,6 +649,50 @@ def test_pointer_byte_offsets_execute_in_threadgroup_memory():
         output_tensor = tvm.runtime.tensor(np.zeros(16, dtype="float32"), dev)
         executable(input_tensor, output_tensor)
         tvm.testing.assert_allclose(output_tensor.numpy()[:3], host_input[:3])
+
+    tvm.testing.run_with_gpu_lock(run_and_check)
+
+
+def _macos_major_version():
+    version = platform.mac_ver()[0]
+    return int(version.split(".")[0]) if version else 0
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not env.has_metal(), reason="need metal")
+@pytest.mark.skipif(_macos_major_version() < 14, reason="MSL 3.1 requires macOS 14")
+def test_metal_source_compiled_with_msl_3_1():
+    """Textual MSL is compiled with MSL 3.1 or newer, so `bfloat` is available."""
+    n = 32
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
+            T.func_attr({"tirx.noalias": True})
+            for i in T.thread_binding(n, thread="threadIdx.x"):
+                B[i] = A[i] + T.float32(1.0)
+
+    def msl_version_callback(src, target):
+        # Report the MSL version the runtime compiled with, and use `bfloat`,
+        # which MSL 2.3 does not define.
+        new_src = src.replace("1.000000e+00f", "((float)__METAL_VERSION__ + (float)bfloat(1.0f))")
+        assert new_src != src
+        return (new_src, "metal")
+
+    tvm.register_global_func("tvm_callback_metal_compile", msl_version_callback, override=True)
+    try:
+        f = tvm.compile(Module, target="metal")
+    finally:
+        tvm_ffi.registry.remove_global_func("tvm_callback_metal_compile")
+
+    def run_and_check():
+        dev = tvm.metal(0)
+        a = tvm.runtime.tensor(np.zeros(n, dtype="float32"), dev)
+        b = tvm.runtime.empty((n,), "float32", dev)
+        f(a, b)
+        # __METAL_VERSION__ is 310 for MSL 3.1.
+        assert int(b.numpy()[0]) >= 311
 
     tvm.testing.run_with_gpu_lock(run_and_check)
 
