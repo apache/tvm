@@ -487,8 +487,8 @@ def test_buffer_alignment_attached_to_buffer_var():
     declared_buffers = []
 
     def collect(node):
-        if isinstance(node, tirx.AttrStmt) and node.attr_key == "storage_alignment":
-            alignment_nodes.append(node.node)
+        if isinstance(node, tvm.ir.Call) and node.op == tvm.ir.Op.get("tirx.assume_aligned"):
+            alignment_nodes.append(node.args[0])
         if _is_buffer_binding(node, "tirx.decl_tensor"):
             declared_buffers.append(node.var)
 

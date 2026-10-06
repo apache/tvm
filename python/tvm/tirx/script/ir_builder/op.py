@@ -658,6 +658,7 @@ cooperative_tensor_multiply_accumulate = _tir_op.cooperative_tensor_multiply_acc
 
 
 assume = _tir_op.assume
+assume_aligned = _tir_op.assume_aligned
 
 
 undef = _tir_op.undef
@@ -910,6 +911,7 @@ __all__ = [
     "asin",
     "asinh",
     "assume",
+    "assume_aligned",
     "atan",
     "atan2",
     "atanh",

@@ -273,12 +273,6 @@ TVM_DLL Pass RenormalizeSplitPattern();
 TVM_DLL Pass RewriteUnsafeSelect();
 
 /*!
- * \brief Instruments bound checkers.
- * \return The pass.
- */
-TVM_DLL Pass InstrumentBoundCheckers();
-
-/*!
  * \brief Lower VTCM allocations.
  * \return The pass.
  */

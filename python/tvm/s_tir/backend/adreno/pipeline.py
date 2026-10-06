@@ -71,8 +71,6 @@ def default_tir_pipeline(*, prepare_only=False):
             ]
         )
         # Additional passes based on configuration.
-        if bool(config.get("tirx.instrument_bound_checkers", False)):
-            passes.append(s_tir.transform.InstrumentBoundCheckers())
         if not bool(config.get("tirx.disable_cse_tir", False)):
             passes.append(tirx.transform.CommonSubexprElim())
         passes.extend(

@@ -1075,7 +1075,8 @@ def opt_conv_tensorcore_mod_host():
         arg2: T.let[T.handle] = T.tvm_struct_get(args, 2, 12, dtype="handle")
 
         A: T.let[T.handle] = T.tvm_struct_get(arg0, 0, 1, dtype="handle")
-        T.attr(A, "storage_alignment", 128)
+        A_tensor = T.decl_tensor([1], "float16", data=A)
+        T.assume_aligned(A_tensor, 128)
         arg0_shape_data: T.let[T.handle("int64")] = T.tvm_struct_get(
             arg0, 0, 2, dtype=T.handle("int64").ty
         )
@@ -1088,10 +1089,12 @@ def opt_conv_tensorcore_mod_host():
         dev_id: T.let[T.int32] = T.tvm_struct_get(arg0, 0, 9, dtype="int32")
 
         W: T.let[T.handle] = T.tvm_struct_get(arg1, 0, 1, dtype="handle")
-        T.attr(W, "storage_alignment", 128)
+        W_tensor = T.decl_tensor([1], "float16", data=W)
+        T.assume_aligned(W_tensor, 128)
 
         Conv: T.let[T.handle] = T.tvm_struct_get(arg2, 0, 1, dtype="handle")
-        T.attr(Conv, "storage_alignment", 128)
+        Conv_tensor = T.decl_tensor([1], "float32", data=Conv)
+        T.assume_aligned(Conv_tensor, 128)
 
         assert (((arg0_code == 3) or (arg0_code == 13)) or (arg0_code == 7)) or (arg0_code == 4), (
             "default_function: Expect arg[0] to be pointer"

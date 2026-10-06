@@ -246,6 +246,7 @@ TVM_DEFINE_CACHED_OP_GETTER(nd_mem_alloc_with_scope, "tirx.nd_mem_alloc_with_sco
 TVM_DEFINE_CACHED_OP_GETTER(texture2d_store, "tirx.texture2d_store")
 TVM_DEFINE_CACHED_OP_GETTER(texture2d_load, "tirx.texture2d_load")
 TVM_DEFINE_CACHED_OP_GETTER(assume, "tirx.assume")
+TVM_DEFINE_CACHED_OP_GETTER(assume_aligned, "tirx.assume_aligned")
 TVM_DEFINE_CACHED_OP_GETTER(undef, "tirx.undef")
 TVM_DEFINE_CACHED_OP_GETTER(get_active_lane_mask, "tirx.get_active_lane_mask")
 TVM_DEFINE_CACHED_OP_GETTER(masked_load, "tirx.masked_load")
@@ -730,6 +731,15 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.assume")
       .signature(sig::arg("cond", "The condition."))
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.assume"))
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kEmbedInfo));
+
+  OpDef("tirx.assume_aligned")
+      .signature(sig::arg<TensorVar>("tensor", "The tensor whose base address is aligned."),
+                 sig::arg<IntImm>("alignment_bytes", "The constant byte alignment."))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
+      .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.assume_aligned"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind",
                                  static_cast<int64_t>(CallEffectKind::kEmbedInfo));
