@@ -49,7 +49,8 @@ namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
-      .signature(sig::call_attrs<DictAttrsNode>());
+      .signature(sig::call_attrs<DictAttrsNode>())
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 }
 
 // Device-region annotation
