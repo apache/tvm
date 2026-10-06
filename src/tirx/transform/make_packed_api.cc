@@ -284,9 +284,10 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // Return error code of zero on success
   body = SeqStmt({body, Return(IntImm::Int32(0))});
 
-  body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts),
-                    std::move(result.decl_buffers)},
-                   body);
+  // Tensor declarations and alignment assumptions are ordinary statements,
+  // not scopes with a body hole for MergeNest to fill.
+  body = SeqStmt::Flatten(result.decl_buffers, body);
+  body = MergeNest({std::move(result.init_nest), seq_check, std::move(result.asserts)}, body);
   func_ptr->body = body;
   func_ptr->params = args;
 

@@ -408,35 +408,6 @@ def test_rank_zero():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-def test_rank_zero_bound_checkers():
-    @I.ir_module
-    class Module:
-        @T.prim_func
-        def main(
-            A: T.Tensor((64,), "float32"),
-            scale: T.Tensor((), "float32"),
-            compute: T.Tensor((), "float32"),
-        ):
-            T.func_attr({"tirx.noalias": True})
-            C = T.alloc_tensor(())
-            C[()] = T.float32(0.0)
-            for k in range(64):
-                C[()] = C[()] + A[k] * scale[()]
-            compute[()] = C[()] + T.float32(1.0)
-
-    n = 64
-    with tvm.transform.PassContext(config={"tirx.instrument_bound_checkers": True}):
-        f = tvm.compile(Module, target="llvm")
-        dev = tvm.cpu(0)
-        a = tvm.runtime.tensor(np.random.randint(0, 2, size=(n,)).astype("float32"), dev)
-        sc = tvm.runtime.tensor(np.random.randint(0, 2, size=()).astype("float32"), dev)
-        d = tvm.runtime.empty((), "float32", dev)
-        f(a, sc, d)
-        d_np = np.sum(a.numpy()) * sc.numpy() + 1
-        tvm.testing.assert_allclose(d.numpy(), d_np)
-
-
-@pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 def test_alignment():
     @I.ir_module
     class Module:

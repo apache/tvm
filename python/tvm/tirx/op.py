@@ -673,6 +673,16 @@ def assume(cond=None):
     return call_intrin("bool", "tirx.assume", cond)
 
 
+def assume_aligned(tensor, alignment_bytes):
+    """Assume the tensor's base address is aligned to ``alignment_bytes``.
+
+    This compiler fact does not check or modify the address. The tensor must
+    be a tensor variable and alignment a scalar integer constant, a power of
+    two between 1 and 2**27 bytes (inclusive).
+    """
+    return call_intrin("void", "tirx.assume_aligned", tensor, alignment_bytes)
+
+
 def undef():
     """Returns an initialized but arbitrary value
 

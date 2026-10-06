@@ -1478,6 +1478,10 @@ void CodeGenC::Dispatch_(const EvaluateNode* op) {
   if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {
+    if (call->op.same_as(tirx::builtin::assume_aligned())) {
+      // Alignment facts do not require a runtime statement on C-family targets.
+      return;
+    }
     if (call->op.same_as(tirx::builtin::tvm_storage_sync())) {
       this->PrintStorageSync(call);
       return;
