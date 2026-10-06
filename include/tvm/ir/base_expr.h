@@ -371,6 +371,20 @@ class Expr : public ffi::ObjectRef {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(Expr, ffi::ObjectRef, ExprNode);
 };
 
+/*! \brief Base node for traversable expressions eliminated during compilation. */
+class StagingExprNode : public ExprNode {
+ public:
+  static void RegisterReflection() { ffi::reflection::ObjectDef<StagingExprNode>(); }
+  static constexpr const uint32_t _type_child_slots = 4;
+  TVM_FFI_DECLARE_OBJECT_INFO("ir.StagingExpr", StagingExprNode, ExprNode);
+};
+
+/*! \brief Managed reference to a staging expression. */
+class StagingExpr : public Expr {
+ public:
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(StagingExpr, Expr, StagingExprNode);
+};
+
 /*!
  * \brief Base node for opaque construction-time expressions.
  *

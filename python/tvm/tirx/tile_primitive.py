@@ -14,14 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TIRx tile primitive IR nodes: LambdaExpr, DispatchContext, TilePrimitiveCall.
+"""TIRx tile primitive IR nodes: DispatchContext, TilePrimitiveCall.
 
 Mirrors the C++ header ``include/tvm/tirx/tile_primitive.h``.
 """
 # pylint: disable=no-member
 
-import inspect
-from collections.abc import Callable
 from typing import Any, ClassVar
 
 import tvm_ffi
@@ -35,27 +33,6 @@ from . import _ffi_api
 from .exec_scope import ExecScope
 from .expr import FloatImm, IterVar
 from .stmt import Stmt
-
-
-@register_object("tirx.LambdaExpr")
-class LambdaExpr(Expr):
-    """A reified Python lambda: bound variables and a body over them.
-
-    Used by tile primitive ops that take a per-element expression over the
-    destination axes (e.g. ``tirx.tile.select``).
-    """
-
-    vars: list[Var]
-    pred: Expr
-
-    def __init__(self, f_pred: Callable[..., Expr]):
-        vars = [Var(name, "int32") for name in inspect.signature(f_pred).parameters]
-        pred = f_pred(*vars)
-        self.__init_handle_by_constructor__(_ffi_api.LambdaExpr, vars, pred)
-
-    def apply(self, indices: list[Expr]) -> Expr:
-        """Substitute the bound variables with the given indices, returning the body."""
-        return _ffi_api.LambdaExprApply(self, indices)
 
 
 @register_object("tirx.DispatchContext")
