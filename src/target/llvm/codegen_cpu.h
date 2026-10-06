@@ -73,7 +73,6 @@ class CodeGenCPU : public CodeGenLLVM {
   std::unique_ptr<llvm::Module> Finish() override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const RegionStmtNode* op) override;
-  void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const ForNode* op) override;
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(Type ret_type, ffi::String global_symbol,

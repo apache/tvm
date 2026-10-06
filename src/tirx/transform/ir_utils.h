@@ -246,7 +246,6 @@ class IRConvertSSA : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const WhileNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<PrimExpr> Mutate_(const prim::LetNode* op, InplaceMode inplace_mode) final;
   static Var MakeNewVar(const Var& old_var);
@@ -307,7 +306,6 @@ class IRConvertSSA : public StmtExprMutator {
 
   std::unordered_map<const VarNode*, std::vector<Var>> scoped_var_remap_;
   std::unordered_set<const VarNode*> defined_;
-  std::unordered_map<const VarNode*, Var> function_scope_var_remap_;
   ScopeStack<ScopeLevel> scope_;
 };
 

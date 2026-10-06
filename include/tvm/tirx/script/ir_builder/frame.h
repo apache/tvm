@@ -290,56 +290,6 @@ class RegionFrame : public TIRFrame {
 };
 
 /*!
- * \brief A frame that represents attribute node.
- *
- * \sa AttrFrame
- */
-class AttrFrameNode : public TIRFrameNode {
- public:
-  explicit AttrFrameNode(ffi::UnsafeInit tag) : value(tag) {}
-
-  explicit AttrFrameNode(Expr value) : value(std::move(value)) {}
-
-  /*! \brief The node to annotate the attribute. */
-  Any node;
-  /*! \brief Attribute type key. */
-  ffi::String attr_key;
-  /*! \brief The value of the attribute. */
-  Expr value;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AttrFrameNode>()
-        .def_ro("node", &AttrFrameNode::node)
-        .def_ro("attr_key", &AttrFrameNode::attr_key)
-        .def_ro("value", &AttrFrameNode::value);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.AttrFrame", AttrFrameNode,
-                                    TIRFrameNode);
-
- public:
-  /*!
-   * \brief The method called when exiting RAII scope.
-   * \sa tvm::support::With
-   */
-  void ExitWithScope() final;
-};
-
-/*!
- * \brief Managed reference to AttrFrameNode.
- *
- * \sa AttrFrameNode
- */
-class AttrFrame : public TIRFrame {
- public:
-  explicit AttrFrame(ffi::ObjectPtr<AttrFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
-    TVM_FFI_ICHECK(data != nullptr);
-    data_ = std::move(data);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrFrame, TIRFrame, AttrFrameNode);
-};
-
-/*!
  * \brief A frame that represents while loop.
  *
  * \sa WhileFrame

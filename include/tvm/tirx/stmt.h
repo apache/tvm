@@ -116,56 +116,6 @@ class Bind : public Stmt {
 };
 
 /*!
- * \brief Define certain auxiliary attribute for the body to be a symbolic value.
- *  This provide auxiliary information for IR passes that transforms body.
- *
- *  In terms of effect, this is equivalent to Block(Evaluate(value), body).
- *
- *  Examples of possible usage:
- *    - Bound of function, variables.
- *    - Hint which block corresponds to a parallel region.
- */
-class AttrStmtNode : public StmtNode {
- public:
-  explicit AttrStmtNode(ffi::UnsafeInit tag) : value(tag), body(tag) {}
-
-  AttrStmtNode(Expr value, Stmt body) : value(std::move(value)), body(std::move(body)) {}
-
-  /*! \brief this is attribute about certain node */
-  ffi::Any node;
-  /*! \brief the type key of the attribute */
-  ffi::String attr_key;
-  /*! \brief The attribute value, value is well defined at current scope. */
-  Expr value;
-  /*! \brief The body statement to be executed */
-  Stmt body;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AttrStmtNode>()
-        .def_ro("node", &AttrStmtNode::node)
-        .def_ro("attr_key", &AttrStmtNode::attr_key)
-        .def_ro("value", &AttrStmtNode::value)
-        .def_ro("body", &AttrStmtNode::body);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.AttrStmt", AttrStmtNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to AttrStmtNode.
- * \sa AttrStmtNode
- */
-class AttrStmt : public Stmt {
- public:
-  TVM_DLL AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span = Span());
-
-  explicit AttrStmt(ffi::ObjectPtr<AttrStmtNode> node) : Stmt(std::move(node)) {}
-
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(AttrStmt, Stmt, AttrStmtNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
-};
-
-/*!
  * \brief A single-body statement whose semantics are defined by an operator.
  * Operands are evaluated in the enclosing scope. Body parameters are definitions
  * at body entry; result variables are definitions following the region.
@@ -875,15 +825,6 @@ constexpr const char* buffer_allocated_addr = "buffer_allocated_addr";
  * \brief Mark the kernel as persistent.
  */
 constexpr const char* kPersistentKernel = "tirx.persistent_kernel";
-
-/*!
- * \brief Check if attr_key is a pragma key extension
- * \param attr_key The attr key to be compared
- * \return true if it is a pragma key
- */
-inline bool IsPragmaKey(const std::string& attr_key) {
-  return attr_key.compare(0, 7, "pragma_") == 0;
-}
 
 }  // namespace attr
 /*!

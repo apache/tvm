@@ -159,7 +159,7 @@ def test_device_kernel_nonzero_return_is_rejected():
 def test_split_host_device_without_func_host_attribute():
     """Like test_split_host_device, but no host specified in the host's target
 
-    The `T.attr` specifying the device still requires splitting out
+    The device scope region still requires splitting out
     the kernel.
     """
 

@@ -426,65 +426,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&RegionStmtDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> AttrStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object* destination) {
-  const auto* stmt =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::AttrStmtNode>(input);
-  TVM_FFI_CHECK(destination == nullptr, TypeError)
-      << "printer statement-only node cannot fulfill a destination";
-  ffi::Optional<ExprDoc> lhs = std::nullopt;
-  ExprDoc rhs(ffi::UnsafeInit{});
-  tirx::Stmt body = stmt->body;
-  TVM_FFI_CHECK(stmt->attr_key != "thread_extent" && stmt->attr_key != "virtual_thread", ValueError)
-      << "Thread launch attributes are no longer supported; use RegionStmt launch_thread";
-  if (stmt->attr_key == "tirx_hint") {
-    if (auto attrs = stmt->node.as<ffi::Map<ffi::String, ffi::Any>>()) {
-      ffi::Array<ExprDoc> args;
-      ffi::Array<ffi::String> keys;
-      ffi::Array<ExprDoc> values;
-      for (const auto& [key, value] : attrs.value()) {
-        if (key == "message")
-          args.push_back(AnyValue(d, value));
-        else {
-          keys.push_back(key);
-          values.push_back(AnyValue(d, value));
-        }
-      }
-      rhs = NamespaceDoc("tirx")->Attr("hint")->Call(args, keys, values);
-    }
-  }
-  if (!rhs.defined()) {
-    if (auto zero = stmt->node.as<int64_t>(); zero.has_value() && zero.value() == 0) {
-      ffi::Array<ExprDoc> keys;
-      ffi::Array<ExprDoc> values;
-      auto current = ffi::GetRef<tirx::AttrStmt>(stmt);
-      while (true) {
-        keys.push_back(LiteralDoc::Str(current->attr_key, std::nullopt));
-        values.push_back(d->Translate(current->value).value());
-        auto next = current->body.as<tirx::AttrStmt>();
-        if (!next.has_value()) break;
-        auto next_zero = next.value()->node.as<int64_t>();
-        if (!next_zero.has_value() || next_zero.value() != 0) break;
-        current = next.value();
-      }
-      body = current->body;
-      rhs = NamespaceDoc("tirx")->Attr("attr")->Call({DictDoc(keys, values)});
-    } else {
-      ExprDoc node = AnyValue(d, stmt->node);
-      rhs = NamespaceDoc("tirx")->Attr("attr")->Call(
-          {node, LiteralDoc::Str(stmt->attr_key, std::nullopt), d->Translate(stmt->value).value()});
-    }
-  }
-  d->Emit(ScopeDoc(lhs, rhs, Body(body, d), /*allow_concise_scoping=*/true),
-          ffi::GetRef<ffi::ObjectRef>(stmt));
-  return std::nullopt;
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::AttrStmtNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&AttrStmtDocTranslate>());
-}
-
 }  // namespace
 
 }  // namespace details

@@ -1141,27 +1141,6 @@ void CodeGenCPU::Dispatch_(const RegionStmtNode* op) {
   }
 }
 
-void CodeGenCPU::Dispatch_(const AttrStmtNode* op) {
-  EmitDebugLocation(op);
-  if (tirx::attr::IsPragmaKey(op->attr_key)) {
-    if (op->attr_key == "pragma_parallel_stride_pattern") {
-      TVM_FFI_THROW(ValueError)
-          << "pragma_parallel_stride_pattern is retired; annotate every affected parallel For "
-          << "with parallel_stride_pattern=True, including later loops in the same launch "
-          << "outside the former attribute body";
-    } else if (op->attr_key == "pragma_parallel_barrier_when_finish") {
-      TVM_FFI_THROW(ValueError)
-          << "pragma_parallel_barrier_when_finish is retired; place cpu_parallel_barrier() "
-          << "after the former attribute body inside the parallel launch";
-    } else {
-      LOG(WARNING) << "Unknown pragma " << op->attr_key;
-      this->Dispatch(op->body);
-    }
-  } else {
-    CodeGenLLVM::Dispatch_(op);
-  }
-}
-
 void CodeGenCPU::Dispatch_(const ForNode* op) {
   EmitDebugLocation(op);
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {

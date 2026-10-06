@@ -219,7 +219,6 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
   void Dispatch_(const IfThenElseNode* op) override;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const RegionStmtNode* op) override;
-  void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const EvaluateNode* op) override;
   void Dispatch_(const SeqStmtNode* op) override;

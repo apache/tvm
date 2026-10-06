@@ -204,20 +204,6 @@ for i in range(128):
     )
 
 
-def test_attr_stmt():
-    with IRBuilder() as ib:
-        with TB.attr("pragma", "unroll", 1):
-            TB.evaluate(0)
-    obj = ib.get()
-    _assert_print(
-        obj,
-        """
-with T.attr("pragma", "unroll", 1):
-    T.evaluate(0)
-""",
-    )
-
-
 def test_assert_stmt():
     with IRBuilder() as ib:
         with TB.prim_func():

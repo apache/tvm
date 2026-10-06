@@ -638,13 +638,6 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
     return SideEffect(condition) > CallEffectKind::kReadState ? Evaluate(condition) : Evaluate(0);
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* attr_stmt, InplaceMode inplace_mode) final {
-    auto result = StmtExprMutator::Mutate_(attr_stmt, inplace_mode);
-    if (!result.IsUnchanged()) attr_stmt = ffi::AnyView(result).as<AttrStmtNode>();
-    if (IsEvaluateZero(attr_stmt->body)) return attr_stmt->body;
-    return result;
-  }
-
   UnchangedOr<Stmt> Mutate_(const ForNode* loop, InplaceMode inplace_mode) final {
     auto result = StmtExprMutator::Mutate_(loop, inplace_mode);
     if (!result.IsUnchanged()) loop = ffi::AnyView(result).as<ForNode>();

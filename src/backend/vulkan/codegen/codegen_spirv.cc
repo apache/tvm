@@ -1006,12 +1006,6 @@ void CodeGenSPIRV::Dispatch_(const RegionStmtNode* op) {
   }
 }
 
-void CodeGenSPIRV::Dispatch_(const AttrStmtNode* op) {
-  TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
-      << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
-  this->Dispatch(op->body);
-}
-
 void CodeGenSPIRV::Dispatch_(const AssertStmtNode* op) {
   // AssertStmt is a leaf — no body to visit.
 }

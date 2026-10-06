@@ -398,18 +398,6 @@ class ComputeLegalizer : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    Stmt ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = ret.as<AttrStmtNode>();
-    if (auto var = op->node.as<Var>()) {
-      auto mapped = VarRemapGet(var.value());
-      if (mapped != nullptr) {
-        return AttrStmt(mapped.as_or_throw<Var>(), op->attr_key, op->value, op->body);
-      }
-    }
-    return ret;
-  }
-
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {
     TensorVar buffer = GetRemappedBuffer(op->source.as_or_throw<TensorVar>());
     auto indices = Mutate(op->indices, inplace_mode)
@@ -592,19 +580,6 @@ class StorageLegalizer : public StmtExprMutator {
       }
       return BufferStore(new_buf, value, indices);
     }
-  }
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    Stmt ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = ret.as<AttrStmtNode>();
-
-    if (auto var = op->node.as<Var>()) {
-      auto mapped = VarRemapGet(var.value());
-      if (mapped != nullptr) {
-        return AttrStmt(mapped.as_or_throw<Var>(), op->attr_key, op->value, op->body);
-      }
-    }
-    return ret;
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {

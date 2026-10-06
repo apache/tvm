@@ -123,7 +123,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterScriptRepr<te::CommReducerNode>();
   RegisterScriptRepr<te::ReduceNode>();
   RegisterScriptRepr<tirx::AssertStmtNode>();
-  RegisterScriptRepr<tirx::AttrStmtNode>();
   RegisterScriptRepr<tirx::RegionStmtNode>();
   RegisterScriptRepr<tirx::BindNode>();
   RegisterScriptRepr<tirx::BreakNode>();
