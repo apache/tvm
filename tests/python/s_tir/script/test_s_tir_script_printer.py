@@ -1149,26 +1149,26 @@ def opt_conv_tensorcore_mod_host():
         T.evaluate(T.tvm_struct_set(stack_value, 1, 12, T.cast(dev_id, "int64")))
         stack_tcode[1] = 0
         T.evaluate(T.tvm_call_packed_lowered("__tvm_set_device", stack_value, 0, 2))
-        T.attr(0, "compute_scope", "default_function_compute_")
-        T.evaluate(T.tvm_struct_set(stack_value, 0, 12, A))
-        stack_tcode[0] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 1, 12, W))
-        stack_tcode[1] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 2, 12, Conv))
-        stack_tcode[2] = 3
-        T.evaluate(T.tvm_struct_set(stack_value, 3, 12, T.cast(196, "int64")))
-        stack_tcode[3] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 4, 12, T.cast(2, "int64")))
-        stack_tcode[4] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 5, 12, T.cast(4, "int64")))
-        stack_tcode[5] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 6, 12, T.cast(4, "int64")))
-        stack_tcode[6] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 7, 12, T.cast(2, "int64")))
-        stack_tcode[7] = 0
-        T.evaluate(T.tvm_struct_set(stack_value, 8, 12, T.cast(32, "int64")))
-        stack_tcode[8] = 0
-        T.evaluate(T.tvm_call_packed_lowered("default_function_kernel0", stack_value, 0, 9))
+        with T.compute_scope("default_function_compute_"):
+            T.evaluate(T.tvm_struct_set(stack_value, 0, 12, A))
+            stack_tcode[0] = 3
+            T.evaluate(T.tvm_struct_set(stack_value, 1, 12, W))
+            stack_tcode[1] = 3
+            T.evaluate(T.tvm_struct_set(stack_value, 2, 12, Conv))
+            stack_tcode[2] = 3
+            T.evaluate(T.tvm_struct_set(stack_value, 3, 12, T.cast(196, "int64")))
+            stack_tcode[3] = 0
+            T.evaluate(T.tvm_struct_set(stack_value, 4, 12, T.cast(2, "int64")))
+            stack_tcode[4] = 0
+            T.evaluate(T.tvm_struct_set(stack_value, 5, 12, T.cast(4, "int64")))
+            stack_tcode[5] = 0
+            T.evaluate(T.tvm_struct_set(stack_value, 6, 12, T.cast(4, "int64")))
+            stack_tcode[6] = 0
+            T.evaluate(T.tvm_struct_set(stack_value, 7, 12, T.cast(2, "int64")))
+            stack_tcode[7] = 0
+            T.evaluate(T.tvm_struct_set(stack_value, 8, 12, T.cast(32, "int64")))
+            stack_tcode[8] = 0
+            T.evaluate(T.tvm_call_packed_lowered("default_function_kernel0", stack_value, 0, 9))
 
     return opt_conv_tensorcore_mod_host
 
@@ -1927,21 +1927,20 @@ def tvm_struct_set_generated_in_cpp():
     class Module:
         @Ts.prim_func
         def tir_packed_call(A: T.Tensor(16)):
-            T.attr(0, "device_id", 0)
-            T.attr(0, "device_type", 0)
-            T.evaluate(
-                T.tvm_call_cpacked(
-                    "tvm_test_cpacked",
-                    T.tvm_stack_make_array(
-                        A.data,
-                        T.tvm_stack_make_shape(16),
-                        T.reinterpret(T.uint64(0), dtype="handle"),
-                        T.uint32(1),
-                        T.Cast("float32", 0),
-                        0,
-                    ),
+            with T.device_context(0, 0):
+                T.evaluate(
+                    T.tvm_call_cpacked(
+                        "tvm_test_cpacked",
+                        T.tvm_stack_make_array(
+                            A.data,
+                            T.tvm_stack_make_shape(16),
+                            T.reinterpret(T.uint64(0), dtype="handle"),
+                            T.uint32(1),
+                            T.Cast("float32", 0),
+                            0,
+                        ),
+                    )
                 )
-            )
 
     return tvm.tirx.transform.LowerTVMBuiltin()(Module)
 

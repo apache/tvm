@@ -43,7 +43,9 @@ def _find_compute_scope(func):
     result = None
 
     def _visitor(stmt):
-        if isinstance(stmt, tirx.AttrStmt) and stmt.attr_key == "compute_scope":
+        if isinstance(stmt, tirx.RegionStmt) and stmt.op.same_as(
+            tvm.ir.Op.get("tirx.compute_scope")
+        ):
             nonlocal result
             result = stmt
 
@@ -194,7 +196,7 @@ def test_zero_arg_function():
                 "TypeError",
                 ["Expected ", "0", " arguments", " when calling:\n  `", "func_without_arg()", "`"],
             )
-            with T.attr(0, "compute_scope", "func_without_arg_compute_"):
+            with T.compute_scope("func_without_arg_compute_"):
                 T.tvm_struct_set(result, 0, 13, 1)
                 T.tvm_struct_set(result, 0, 14, 0)
                 T.tvm_struct_set(result, 0, 15, T.Cast("int64", T.int64(42)))
@@ -292,7 +294,7 @@ def test_int_parameter():
                 ],
             )
             arg: T.let[T.int32] = T.Cast("int32", T.tvm_struct_get(args, 0, 15, "int64"))
-            with T.attr(0, "compute_scope", "main_compute_"):
+            with T.compute_scope("main_compute_"):
                 if arg > 0:
                     T.tvm_struct_set(result, 0, 13, 1)
                     T.tvm_struct_set(result, 0, 14, 0)
@@ -359,7 +361,7 @@ def test_bool_parameter():
                 ],
             )
             arg: T.let[T.bool] = T.Cast("bool", T.tvm_struct_get(args, 0, 15, "int64"))
-            with T.attr(0, "compute_scope", "main_compute_"):
+            with T.compute_scope("main_compute_"):
                 if arg:
                     T.tvm_struct_set(result, 0, 13, 1)
                     T.tvm_struct_set(result, 0, 14, 0)
@@ -430,7 +432,7 @@ def test_float_parameter():
                 T.Cast("float32", T.tvm_struct_get(args, 0, 15, "float64")),
                 T.Cast("float32", T.tvm_struct_get(args, 0, 15, "int64")),
             )
-            with T.attr(0, "compute_scope", "main_compute_"):
+            with T.compute_scope("main_compute_"):
                 if arg > T.float32(0.0):
                     T.tvm_struct_set(result, 0, 13, 1)
                     T.tvm_struct_set(result, 0, 14, 0)

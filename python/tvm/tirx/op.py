@@ -918,7 +918,7 @@ def cpu_parallel_barrier():
     """Synchronize all workers in the current CPU parallel launch.
 
     Every worker must reach this operation at the same program point. Place it
-    inside a ``pragma_parallel_launch_point`` scope, outside parallel loops,
+    inside a ``parallel_launch`` region, outside parallel loops,
     whose iteration counts can differ between workers. Writes before the barrier
     are visible to all workers after it.
 
