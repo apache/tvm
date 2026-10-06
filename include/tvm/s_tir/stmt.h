@@ -216,19 +216,16 @@ class SBlockRealize : public tirx::Stmt {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SBlockRealizeNode);
 };
 
+/*! \brief Region marking copies eligible for asynchronous lowering. */
+TVM_DLL const Op& async_copy_scope();
+/*! \brief Commit the preceding asynchronous copies to a queue. */
+TVM_DLL const Op& async_commit();
+/*! \brief Wait until at most the given number of committed groups remain in flight. */
+TVM_DLL const Op& async_wait();
+/*! \brief Region whose author manages cross-thread synchronization explicitly. */
+TVM_DLL const Op& manual_sync();
+
 namespace attr {
-
-/*!
- * \brief Annotations for invoking and synchronizing asynchronous operations.
- */
-constexpr const char* async_commit_queue_scope = "async_commit_queue_scope";
-constexpr const char* async_wait_queue_scope = tirx::attr::async_wait_queue_scope;
-constexpr const char* async_wait_inflight_count = tirx::attr::async_wait_inflight_count;
-
-/*!
- * \brief Mark that the attached statement runs asynchronously.
- */
-constexpr const char* async_scope = "async_scope";
 
 /*!
  * \brief SBlock annotation selecting a write-buffer index for double buffering in
@@ -382,11 +379,6 @@ constexpr const char* warp_execution = "warp_execution";
  * PrimFunc attributes for TIR.
  */
 constexpr const char* layout_transforms = "layout_transforms";
-
-/*!
- * \brief Mark that the kernel is hand threaded and doesn't need syncs inserted
- */
-constexpr const char* hand_threaded = "hand_threaded";
 
 }  // namespace attr
 }  // namespace s_tir

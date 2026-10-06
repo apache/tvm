@@ -286,6 +286,13 @@ TVM_DLL Pass LowerVtcmAlloc();
 TVM_DLL Pass ThreadSync(tvm::ffi::String storage_scope);
 
 /*!
+ * \brief Lower asynchronous queue operations and remove synchronization regions.
+ * Run after ThreadSync and optional InjectPTXAsyncCopy.
+ * \return The pass.
+ */
+TVM_DLL Pass LowerSynchronization();
+
+/*!
  * \brief Infer the TensorCore fragment information using tensor intrinsics.
  * \return The pass.
  */

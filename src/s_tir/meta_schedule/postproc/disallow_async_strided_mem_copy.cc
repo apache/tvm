@@ -53,70 +53,30 @@ struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* attrStmt) final {
-    if (!found_) {
-      if (attrStmt->attr_key == s_tir::attr::async_commit_queue_scope) {
-        auto async_scope = attrStmt->body.as<AttrStmtNode>();
-        if (!async_scope) {
-          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
-        }
+  ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) final {
+    bool previous = in_async_copy_;
+    in_async_copy_ |= op->op.same_as(s_tir::async_copy_scope());
+    auto result = StmtExprVisitor::Visit_(op);
+    in_async_copy_ = previous;
+    return result;
+  }
 
-        auto for_loop = async_scope->body.as<ForNode>();
-        if (!for_loop) {
-          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
-        }
-
-        input_iters.Set(for_loop->loop_var, Range(for_loop->min, for_loop->extent));
-
-        auto bufferstorenode = for_loop->body.as<BufferStoreNode>();
-        if (!bufferstorenode) {
-          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
-        }
-
-        auto bufferloadnode = bufferstorenode->value.as<TensorLoadNode>();
-        if (!bufferloadnode) {
-          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
-        }
-
-        // get store buffer; assert it exists and is contiguous given it uses a single index
-        auto bufferstore = bufferstorenode->buffer.as<TensorTypeNode>();
-
-        // get load buffer; assert it exists and is contiguous given it uses a single index
-        TensorVar load_buffer = bufferloadnode->source.as_or_throw<TensorVar>();
-        auto bufferload = load_buffer.as<TensorTypeNode>();
-
-        if (!bufferstore || !bufferload) {
-          TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
-        }
-
-        // map loop variable to zero for the store index & simplify
-        ffi::Array<PrimExpr> store_index = bufferstorenode->indices;
-
-        // Use DetectIterMap to detect whether store index is non-contiguous.
+  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+    if (!found_ && in_async_copy_) {
+      if (const auto* load = op->value.as<TensorLoadNode>()) {
+        // Inspect each copy, including copies grouped under one commit or predicate.
         sym::Analyzer analyzer;
-        auto store_iter_map = DetectIterMap(store_index, input_iters, 1,
-                                            sym::IterMapLevel::Surjective, analyzer, false);
-        if (!store_iter_map->errors.empty()) {
-          found_ = true;
-        }
-
-        // map loop variable to zero for the load index & simplify
-        ffi::Array<PrimExpr> load_index = bufferloadnode->indices;
-
-        // Use DetectIterMap to detect whether load index is non-contiguous.
-        auto load_iter_map = DetectIterMap(load_index, input_iters, 1,
-                                           sym::IterMapLevel::Surjective, analyzer, false);
-        if (!load_iter_map->errors.empty()) {
-          found_ = true;
-        }
-      }
-      if (!found_) {
-        TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(attrStmt));
+        auto store_map = DetectIterMap(op->indices, input_iters, 1, sym::IterMapLevel::Surjective,
+                                       analyzer, false);
+        auto load_map = DetectIterMap(load->indices, input_iters, 1, sym::IterMapLevel::Surjective,
+                                      analyzer, false);
+        found_ = !store_map->errors.empty() || !load_map->errors.empty();
       }
     }
     return std::nullopt;
   }
 
+  bool in_async_copy_ = false;
   bool found_ = false;
   ffi::Map<PrimVar, Range> input_iters = ffi::Map<PrimVar, Range>();
 };

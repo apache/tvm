@@ -873,9 +873,6 @@ constexpr const char* auto_unroll_max_step = "auto_unroll_max_step";
  * Integer policy inherited by nested loops unless they override it. Consumed by UnrollLoop.
  */
 constexpr const char* unroll_explicit = "unroll_explicit";
-/*! \brief Shared execution attributes consumed before and after block lowering. */
-constexpr const char* async_wait_queue_scope = "async_wait_queue_scope";
-constexpr const char* async_wait_inflight_count = "async_wait_inflight_count";
 /*! \brief Annotation key on AllocTensor marking the allocation as volatile. */
 constexpr const char* kVolatile = "tirx.volatile";
 /*! \brief Mark buffer initial addr alignment in bytes */

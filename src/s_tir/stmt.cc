@@ -33,6 +33,42 @@ namespace s_tir {
 using namespace tvm::tirx;
 using namespace tvm::prim;
 
+const Op& async_copy_scope() {
+  static const Op op = Op::Get("s_tir.async_copy_scope");
+  return op;
+}
+
+const Op& async_commit() {
+  static const Op op = Op::Get("s_tir.async_commit");
+  return op;
+}
+
+const Op& async_wait() {
+  static const Op op = Op::Get("s_tir.async_wait");
+  return op;
+}
+
+const Op& manual_sync() {
+  static const Op op = Op::Get("s_tir.manual_sync");
+  return op;
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  OpDef("s_tir.async_copy_scope", "Mark eligible copies for asynchronous lowering.").signature();
+  OpDef("s_tir.manual_sync", "Use explicitly authored synchronization within the body.")
+      .signature();
+  OpDef("s_tir.async_commit", "Commit asynchronous copies to a queue.")
+      .signature(sig::arg<IntImm>("queue_id"))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kUpdateState));
+  OpDef("s_tir.async_wait", "Wait for committed asynchronous copies.")
+      .signature(sig::arg<IntImm>("queue_id"), sig::arg<PrimExpr>("inflight_count"))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
+      .set_attr<TCallEffectKind>("TCallEffectKind",
+                                 static_cast<int64_t>(CallEffectKind::kUpdateState));
+}
+
 namespace {
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> MatchBufferRegionVisit(

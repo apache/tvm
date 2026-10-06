@@ -50,15 +50,15 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* attr, InplaceMode inplace_mode) {
-    if (attr->attr_key == s_tir::attr::async_scope) {
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* region, InplaceMode inplace_mode) {
+    if (region->op.same_as(s_tir::async_copy_scope())) {
       TVM_FFI_ICHECK(in_async == false) << "Nested async scopes not supported";
       in_async = true;
-      auto body = this->Mutate(attr->body, inplace_mode).ValueOrUnchanged(attr->body);
+      auto body = this->Mutate(region->body, inplace_mode).ValueOrUnchanged(region->body);
       in_async = false;
       return body;
     }
-    return StmtExprMutator::Mutate_(attr, inplace_mode);
+    return StmtExprMutator::Mutate_(region, inplace_mode);
   }
 
   Stmt InjectPTX(const TensorLoadNode* load, const BufferStoreNode* store, bool predicated = false,

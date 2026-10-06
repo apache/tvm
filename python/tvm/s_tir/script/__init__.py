@@ -41,6 +41,10 @@ def _initialize():
             if name not in ("builder", "ir_builder", "jit")
         )
         for name in (
+            "async_copy_scope",
+            "async_commit",
+            "async_wait",
+            "manual_sync",
             "function_",
             "arg_",
             "bind_",
