@@ -471,17 +471,17 @@ def test_cuda_required_block_size_coexists_with_launch_bounds():
         def main(A: T.Tensor(4, "float32")):
             T.func_attr({"target": T.target("cuda", host="llvm")})
             T.region("tirx.device_scope", [], attrs={"target": T.target("cuda")})
-            T.attr(0, "tirx.required_block_size", 1)
-            with T.attr(0, "tirx.launch_bounds_min_blocks_per_sm", 1):
-                bx = T.launch_thread("blockIdx.x", 4)
-                tx = T.launch_thread("threadIdx.x", 128)
-                if tx == 0:
-                    A[bx] = 0.0
+            T.cuda.required_block_size(128, 1, 1, 1, 1, 1)
+            T.cuda.launch_bounds_min_blocks_per_sm(1)
+            bx = T.launch_thread("blockIdx.x", 4)
+            tx = T.launch_thread("threadIdx.x", 128)
+            if tx == 0:
+                A[bx] = 0.0
 
     after = tvm.tirx.transform.SplitHostDevice()(Before)
     kernel = after["main_kernel"]
-    assert int(kernel.attrs["tirx.required_block_size"]) == 1
-    assert int(kernel.attrs["tirx.launch_bounds_min_blocks_per_sm"]) == 1
+    assert "T.cuda.required_block_size(128, 1, 1, 1, 1, 1)" in kernel.script()
+    assert "T.cuda.launch_bounds_min_blocks_per_sm(1)" in kernel.script()
     assert list(kernel.attrs["tirx.kernel_launch_params"]) == [
         "blockIdx.x",
         "threadIdx.x",

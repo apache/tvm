@@ -253,11 +253,11 @@ def test_tirx_launch_bounds_omits_min_blocks_without_persistent_schedule():
     assert "__launch_bounds__(128, 1)" not in src
 
 
-def test_tirx_launch_bounds_min_blocks_attr_sets_one_block_per_sm():
+def test_tirx_launch_bounds_min_blocks_sets_one_block_per_sm():
     @T.prim_func
     def main(A: T.Tensor((4,), "int32")):
         T.device_entry()
-        T.attr({"tirx.launch_bounds_min_blocks_per_sm": 1})
+        T.cuda.launch_bounds_min_blocks_per_sm(1)
         bx = T.cta_id([4])
         tx = T.thread_id([128])
         if tx == 0:
@@ -265,19 +265,15 @@ def test_tirx_launch_bounds_min_blocks_attr_sets_one_block_per_sm():
 
     src, _ = _get_source(main)
     assert 'extern "C" __global__ void __launch_bounds__(128, 1) main_kernel' in src
-    assert "tirx.launch_bounds_min_blocks_per_sm" not in src
+    assert "tirx.cuda.launch_bounds_min_blocks_per_sm" not in src
 
 
 def test_tirx_launch_bounds_max_blocks_per_cluster_emits_third_operand():
     @T.prim_func
     def main(A: T.Tensor((4,), "int32")):
         T.device_entry()
-        T.attr(
-            {
-                "tirx.launch_bounds_min_blocks_per_sm": 1,
-                "tirx.launch_bounds_max_blocks_per_cluster": 1,
-            }
-        )
+        T.cuda.launch_bounds_min_blocks_per_sm(1)
+        T.cuda.launch_bounds_max_blocks_per_cluster(1)
         bx = T.cta_id([4])
         tx = T.thread_id([384])
         if tx == 0:
@@ -285,14 +281,14 @@ def test_tirx_launch_bounds_max_blocks_per_cluster_emits_third_operand():
 
     src, _ = _get_source(main)
     assert 'extern "C" __global__ void __launch_bounds__(384, 1, 1) main_kernel' in src
-    assert "tirx.launch_bounds_max_blocks_per_cluster" not in src
+    assert "tirx.cuda.launch_bounds_max_blocks_per_cluster" not in src
 
 
-def test_tirx_max_registers_attr_emits_cuda_maxnreg():
+def test_tirx_max_registers_emits_cuda_maxnreg():
     @T.prim_func
     def main(A: T.Tensor((4,), "int32")):
         T.device_entry()
-        T.attr({"tirx.max_registers": 92})
+        T.cuda.max_registers_per_thread(92)
         bx = T.cta_id([4])
         tx = T.thread_id([128])
         if tx == 0:
@@ -301,19 +297,15 @@ def test_tirx_max_registers_attr_emits_cuda_maxnreg():
     src, _ = _get_source(main)
     assert 'extern "C" __global__ void __maxnreg__(92) main_kernel' in src
     assert "__launch_bounds__" not in src
-    assert "tirx.max_registers" not in src
+    assert "tirx.cuda.max_registers_per_thread" not in src
 
 
 def test_tirx_max_registers_rejects_launch_bounds():
     @T.prim_func
     def main(A: T.Tensor((4,), "int32")):
         T.device_entry()
-        T.attr(
-            {
-                "tirx.max_registers": 92,
-                "tirx.launch_bounds_min_blocks_per_sm": 1,
-            }
-        )
+        T.cuda.max_registers_per_thread(92)
+        T.cuda.launch_bounds_min_blocks_per_sm(1)
         bx = T.cta_id([4])
         tx = T.thread_id([128])
         if tx == 0:
@@ -327,7 +319,7 @@ def test_tirx_required_block_size_emits_cuda_block_size():
     @T.prim_func
     def main(A: T.Tensor((8,), "int32")):
         T.device_entry()
-        T.attr({"tirx.required_block_size": 1})
+        T.cuda.required_block_size(128, 1, 1, 1, 2, 1)
         bx, by = T.cta_id([4, 2])
         _, cy = T.cta_id_in_cluster([1, 2])
         tx = T.thread_id([128])
@@ -337,19 +329,15 @@ def test_tirx_required_block_size_emits_cuda_block_size():
     src, _ = _get_source(main)
     assert 'extern "C" __global__ void __block_size__((128, 1, 1), (1, 2, 1)) main_kernel' in src
     assert "__launch_bounds__" not in src
-    assert "tirx.required_block_size" not in src
+    assert "tirx.cuda.required_block_size" not in src
 
 
 def test_tirx_required_block_size_emits_launch_bounds_when_requested():
     @T.prim_func
     def main(A: T.Tensor((4,), "int32")):
         T.device_entry()
-        T.attr(
-            {
-                "tirx.required_block_size": 1,
-                "tirx.launch_bounds_min_blocks_per_sm": 1,
-            }
-        )
+        T.cuda.required_block_size(128, 1, 1, 1, 1, 1)
+        T.cuda.launch_bounds_min_blocks_per_sm(1)
         bx = T.cta_id([4])
         tx = T.thread_id([128])
         if tx == 0:
@@ -360,8 +348,8 @@ def test_tirx_required_block_size_emits_launch_bounds_when_requested():
         'extern "C" __global__ void __block_size__((128, 1, 1), (1, 1, 1)) '
         "__launch_bounds__(128, 1) main_kernel" in src
     )
-    assert "tirx.required_block_size" not in src
-    assert "tirx.launch_bounds_min_blocks_per_sm" not in src
+    assert "tirx.cuda.required_block_size" not in src
+    assert "tirx.cuda.launch_bounds_min_blocks_per_sm" not in src
 
 
 def test_tirx_cuda_kernel_return_zero_codegen_is_void_early_return():

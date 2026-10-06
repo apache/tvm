@@ -226,43 +226,6 @@ namespace attr {
 constexpr const char* kKernelLaunchParams = "tirx.kernel_launch_params";
 
 /*!
- * \brief CUDA launch bound minimum CTAs per SM.
- *
- * Type: IntImm
- */
-constexpr const char* kLaunchBoundsMinBlocksPerSM = "tirx.launch_bounds_min_blocks_per_sm";
-
-/*!
- * \brief CUDA launch bound maximum CTAs per cluster.
- *
- * Type: IntImm
- */
-constexpr const char* kLaunchBoundsMaxBlocksPerCluster =
-    "tirx.launch_bounds_max_blocks_per_cluster";
-
-/*!
- * \brief CUDA maximum registers per thread.
- *
- * Emits the CUDA 13 ``__maxnreg__`` kernel qualifier.  This attribute is
- * mutually exclusive with the launch-bounds attributes.
- *
- * Type: IntImm
- */
-constexpr const char* kMaxRegisters = "tirx.max_registers";
-
-/*!
- * \brief Require CUDA to use the statically-declared block and cluster dimensions.
- *
- * Emits the CUDA 13 ``__block_size__`` kernel qualifier.  Unlike
- * ``__launch_bounds__``, this is an exact launch contract: CUDA derives the
- * PTX ``.reqntid`` directive from the thread extents, and interprets the
- * launch grid in clusters using the cluster-CTA extents.
- *
- * Type: IntImm (must be 1)
- */
-constexpr const char* kRequiredBlockSize = "tirx.required_block_size";
-
-/*!
  * \brief Whether to set noalias rule on the function arguments.
  *
  * Type: IntImm
