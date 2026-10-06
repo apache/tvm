@@ -38,8 +38,10 @@ def _reshape(
         tgt_shape = call.args[1].ty.shape if is_collapse_sum_like else call.args[1]
         # If target shape is Var, pass its bound expr only when it is ShapeExpr
         if isinstance(tgt_shape, Var):
-            tgt_shape = bb.lookup_binding(tgt_shape)
-            assert isinstance(tgt_shape, ShapeExpr)
+            bound_shape = bb.lookup_binding(tgt_shape)
+            if not isinstance(bound_shape, ShapeExpr):
+                return call
+            tgt_shape = bound_shape
         return bb.call_te(te_func, call.args[0], tgt_shape, primfunc_name_hint=primfunc_name)
 
     return reshape_call_te
