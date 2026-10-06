@@ -206,7 +206,8 @@ class CallSubstitutor : public StmtExprMutator {
     if (!op->op.same_as(tirx::builtin::launch_thread()) &&
         !op->op.same_as(tirx::builtin::device_entry()))
       return StmtExprMutator::Mutate_(op, inplace_mode);
-    auto args = Mutate(op->args, inplace_mode).ValueOrUnchanged(op->args);
+    auto args =
+        Mutate(op->args, inplace_mode).ValueOrUnchanged(op->args).as_or_throw<ffi::Array<Expr>>();
     bool previous_scope = is_under_gpu_scope_;
     is_under_gpu_scope_ = true;
     Stmt body = Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
