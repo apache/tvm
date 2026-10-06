@@ -319,47 +319,6 @@ class RegionStmt(Stmt):
         )
 
 
-@tvm_ffi.register_object("tirx.AttrStmt")
-class AttrStmt(Stmt):
-    """AttrStmt node.
-
-    Parameters
-    ----------
-    node : Any
-        The node to annotate the attribute
-
-    attr_key : str
-        Attribute type key.
-
-    value : Expr
-        The value of the attribute
-
-    body : Stmt
-        The body statement.
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    node: Any
-    attr_key: str
-    value: Expr
-    body: Stmt
-    span: Span | None
-
-    def __init__(
-        self, node: Any, attr_key: str, value: Expr, body: Stmt, span: Span | None = None
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.AttrStmt,
-            node,
-            attr_key,
-            value,
-            body,
-            span,  # type: ignore
-        )
-
-
 @tvm_ffi.register_object("tirx.SeqStmt")
 class SeqStmt(Stmt):
     """Sequence of statements.

@@ -358,20 +358,6 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
       }
     }
 
-    UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-      if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(op, inplace_mode);
-      auto node = Mutate(op->node, inplace_mode);
-      auto value = Mutate(op->value, inplace_mode);
-      auto body = Mutate(op->body, inplace_mode);
-      if (node.UnchangedOrSameAs(op->node) && value.UnchangedOrSameAs(op->value) &&
-          body.UnchangedOrSameAs(op->body)) {
-        return ffi::Unchanged();
-      }
-      return AttrStmt(std::move(node).ValueOrUnchanged(op->node), op->attr_key,
-                      std::move(value).ValueOrUnchanged(op->value),
-                      std::move(body).ValueOrUnchanged(op->body), op->span);
-    }
-
     UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
       if (!normalize_thread_bindings_) return StmtExprMutator::Mutate_(op, inplace_mode);
       auto annotations = Mutate(op->annotations, inplace_mode)

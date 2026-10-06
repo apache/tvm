@@ -60,7 +60,6 @@ class CodeGenTrainium final : public CodeGenC {
   void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
   void Dispatch_(const BindNode* op) final;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
-  void Dispatch_(const AttrStmtNode* op) final;                          // NOLINT(*)
   void Dispatch_(const RegionStmtNode* op) final;                        // NOLINT(*)
   void Dispatch_(const ForNode* op) final;                               // NOLINT(*)
   void Dispatch_(const BufferStoreNode* op) final;                       // NOLINT(*)=

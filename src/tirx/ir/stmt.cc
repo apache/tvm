@@ -149,60 +149,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> BindMaybeInplaceMutate(
   return ffi::Unchanged();
 }
 
-TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> AttrStmtVisit(
-    ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: attr_key
-  const AttrStmtNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const AttrStmtNode>(value);
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->node));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->value));
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->VisitExpected(self->body));
-  return std::nullopt;
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> AttrStmtMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: attr_key
-  const AttrStmtNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const AttrStmtNode>(value);
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Any>, mapped_node,
-                                    mutator->MutateExpected(self->node));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_value,
-                                    mutator->MutateExpected(self->value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
-                                    mutator->MutateExpected(self->body));
-  if (mapped_node.UnchangedOrSameAs(self->node) && mapped_value.UnchangedOrSameAs(self->value) &&
-      mapped_body.UnchangedOrSameAs(self->body)) {
-    return ffi::Unchanged();
-  }
-  ffi::ObjectPtr<AttrStmtNode> copy = ffi::make_object<AttrStmtNode>(*self);
-  copy->node = std::move(mapped_node).ValueOrUnchanged(std::move(copy->node));
-  copy->value = std::move(mapped_value).ValueOrUnchanged(std::move(copy->value));
-  copy->body = std::move(mapped_body).ValueOrUnchanged(std::move(copy->body));
-  return ffi::Any(std::move(copy));
-}
-
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> AttrStmtMaybeInplaceMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: attr_key
-  AttrStmtNode* self = const_cast<AttrStmtNode*>(
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const AttrStmtNode>(value));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Any>, mapped_node,
-                                    mutator->MutateExpected(self->node, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Expr>, mapped_value,
-                                    mutator->MutateExpected(self->value, ffi::InplaceMode::kAllow));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
-                                    mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
-  if (mapped_node.UnchangedOrSameAs(self->node) && mapped_value.UnchangedOrSameAs(self->value) &&
-      mapped_body.UnchangedOrSameAs(self->body)) {
-    return ffi::Unchanged();
-  }
-  if (!mapped_node.IsUnchanged()) self->node = std::move(mapped_node).ValueUnchecked();
-  if (!mapped_value.IsUnchanged()) self->value = std::move(mapped_value).ValueUnchecked();
-  if (!mapped_body.IsUnchanged()) self->body = std::move(mapped_body).ValueUnchecked();
-  return ffi::Unchanged();
-}
-
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> RegionStmtVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
   const RegionStmtNode* self =
@@ -773,34 +719,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   refl::GlobalDef().def("tirx.Bind",
                         [](Var var, Expr value, Span span) { return Bind(var, value, span); });
-}
-
-// AttrStmt
-AttrStmt::AttrStmt(ffi::Any node, ffi::String attr_key, Expr value, Stmt body, Span span)
-    : Stmt(ffi::UnsafeInit{}) {
-  TVM_FFI_CHECK(attr_key != "thread_extent" && attr_key != "virtual_thread", ValueError)
-      << "Thread launch attributes are retired; use launch_thread(tag, extent)";
-  auto n = ffi::make_object<AttrStmtNode>(std::move(value), std::move(body));
-  n->node = node;
-  n->attr_key = std::move(attr_key);
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  namespace refl = tvm::ffi::reflection;
-  AttrStmtNode::RegisterReflection();
-  refl::TypeAttrDef<AttrStmtNode>()
-      .attr(refl::type_attr::kStructuralVisit, ffi::FStructuralVisit::FromNative<&AttrStmtVisit>())
-      .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&AttrStmtMutate>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&AttrStmtMaybeInplaceMutate>());
-
-  refl::GlobalDef().def("tirx.AttrStmt",
-                        [](Any node, ffi::String attr_key, Expr value, Stmt body, Span span) {
-                          return AttrStmt(node, attr_key, value, body, span);
-                        });
 }
 
 // RegionStmt

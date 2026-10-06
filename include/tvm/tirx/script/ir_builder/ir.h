@@ -239,15 +239,6 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation = std::nullopt,
          ffi::Optional<Var> var = std::nullopt);
 
 /*!
- * \brief Create an attribute.
- * \param node The node to annotate the attribute.
- * \param attr_key Attribute type key.
- * \param value The value of the attribute.
- * \return The result AttrFrame.
- */
-AttrFrame Attr(ffi::Any node, ffi::String attr_key, Expr value);
-
-/*!
  * \brief Create a while loop.
  * \param condition The termination condition of the loop.
  * \return The result WhileFrame.

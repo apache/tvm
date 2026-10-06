@@ -304,12 +304,6 @@ def transformed_symbolic_strided_buffer_func(A: T.Tensor((1, n, 10240))):
 
 
 @Ts.prim_func
-def annotated_loops(A: T.Tensor((16,), "float32")) -> None:
-    for i in range(0, 16, annotations={"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0}):
-        A[i] = 0.0
-
-
-@Ts.prim_func
 def boolean_handling_before(a: T.Tensor(10, "bool"), b: T.Tensor(10, "bool")) -> None:
     for i0 in T.serial(10):
         with Ts.sblock("b"):
@@ -355,38 +349,6 @@ def test_strided_buffer():
 
 def test_symbolic_strided_buffer():
     _check(compacted_symbolic_strided_buffer_func, transformed_symbolic_strided_buffer_func)
-
-
-def test_annotated_loops():
-    mod = tvm.IRModule.from_expr(annotated_loops.with_attr("global_symbol", "main"))
-    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    attr1 = mod["main"].body
-    attr2 = attr1.body
-    attr3 = attr2.body
-    assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
-    assert attr2.attr_key == "pragma_2"
-    tvm.ir.assert_structural_equal(attr2.value, tvm.tirx.IntImm("int32", 1))
-    assert attr3.attr_key == "pragma_3"
-    tvm.ir.assert_structural_equal(attr3.value, tvm.tirx.FloatImm("float32", 0.0))
-
-
-def test_annotated_block():
-    @Ts.prim_func
-    def annotated_block() -> None:
-        with Ts.sblock():
-            Ts.sblock_attr({"pragma_1": "str_value", "pragma_2": 1, "pragma_3": 0.0})
-            T.evaluate(0)
-
-    mod = tvm.IRModule.from_expr(annotated_block.with_attr("global_symbol", "main"))
-    mod = tvm.s_tir.transform.LowerOpaqueBlock()(mod)
-    attr1 = mod["main"].body
-    attr2 = attr1.body
-    attr3 = attr2.body
-    assert attr1.attr_key == "pragma_1" and attr1.value == "str_value"
-    assert attr2.attr_key == "pragma_2"
-    tvm.ir.assert_structural_equal(attr2.value, tvm.tirx.IntImm("int32", 1))
-    assert attr3.attr_key == "pragma_3"
-    tvm.ir.assert_structural_equal(attr3.value, tvm.tirx.FloatImm("float32", 0.0))
 
 
 def test_preserved_annotations():

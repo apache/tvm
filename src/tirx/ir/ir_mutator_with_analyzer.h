@@ -60,7 +60,6 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Stmt> Mutate_(const AssertStmtNode* op, InplaceMode inplace_mode) override;
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) override;

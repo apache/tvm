@@ -50,8 +50,6 @@ def verify_structure(stmt, expected_struct):
         elif isinstance(op, tvm.tirx.RegionStmt):
             assert op.op.name == "tirx.launch_thread"
             val = [(op.body,), ("tirx.RegionStmt", op.op.name, int(op.args[1]))]
-        elif isinstance(op, tvm.tirx.AttrStmt):
-            val = [(op.body,), ("tirx.AttrStmt", op.attr_key, int(op.value))]
         else:
             return
         node_dict[key] = val
@@ -161,7 +159,7 @@ def test_no_else():
     verify_structure(new_stmt, expected_struct)
 
 
-def test_attr_stmt():
+def test_thread_launch():
     dshape = (32, 64)
 
     @Ts.prim_func(private=True)
