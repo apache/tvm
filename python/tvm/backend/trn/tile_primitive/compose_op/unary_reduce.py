@@ -104,7 +104,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         @T.prim_func(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop})  # noqa: E501
@@ -131,7 +131,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
-                    with T.attr(0, "tensorized_nki_instruction", 1):
+                    with T.nki.tensorized_instruction():
                         for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                             for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                                 inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, spatial_b_var: b_loop, reduction_b_var: reduction_b_loop})  # noqa: E501
@@ -143,7 +143,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
                                         T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[tuple(src_bias_indices)], scale))  # noqa: E501
                                     else:
                                         T.evaluate(T.nki.activation_reduce(intermediate_buffer[p_loop, reduction_b_loop], dst1[tuple(dst_1_indices)], src[tuple(src_1_indices)], unary_opcode, reduce_opcode, bias_buffer[p_loop, f_loop], scale))  # noqa: E501
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for f_loop in T.serial(0, reduction_b_extent, annotations={nki_dim: "F"}):
                             inst_gen.set_bind_map_all({p_var: p_loop, spatial_b_var: b_loop})

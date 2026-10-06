@@ -70,7 +70,7 @@ def alloc_const_bias_trn(
     # This fragment captures buffers and indices from its insertion scope.
     @T.prim_func(check_well_formed=False)
     def const_bias_init():
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(0, par_size, annotations={"nki_dim": "P"}):
                 for f_loop in T.serial(0, max_inst_size, annotations={nki_dim: "F"}):
                     T.evaluate(T.nki.memset(new_buffer[p_loop, f_loop], bias))
@@ -121,7 +121,7 @@ def alloc_identity_trn(
     # This fragment captures buffers and indices from its insertion scope.
     @T.prim_func(check_well_formed=False)
     def identity_init():
-        with T.attr(0, "tensorized_nki_instruction", 1):
+        with T.nki.tensorized_instruction():
             for p_loop in T.serial(0, par_size, annotations={nki_dim: "P"}):
                 for rhs_f_loop in T.serial(0, par_size, annotations={nki_dim: "F"}):
                     T.evaluate(T.nki.identity(new_buffer[p_loop, rhs_f_loop], par_size))
