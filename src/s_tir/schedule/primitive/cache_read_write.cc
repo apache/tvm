@@ -2225,7 +2225,7 @@ void CollectReindexCacheStageInfoAndCreateBuffer(
   sym::Analyzer analyzer;
   ffi::Array<PrimExpr> block_iter_vars, block_shape;
   for (const IterVar& iter_var : block->iter_vars) {
-    block_iter_vars.push_back(iter_var);
+    block_iter_vars.push_back(iter_var->var);
     block_shape.push_back(iter_var->dom->extent);
   }
   ffi::Array<PrimExpr> new_indices = index_map->MapIndices(block_iter_vars, analyzer);

@@ -89,8 +89,8 @@ class ThreadBindingLowerer : public StmtExprMutator {
                  std::move(body), std::nullopt, std::move(annotations), std::nullopt);
     }
     return RegionStmt(tirx::builtin::launch_thread(),
-                      {StringImm(op->thread_binding.value()->thread_tag), extent}, {launch_var},
-                      DictAttrs(), std::move(body), {}, op->span);
+                      {StringImm(op->thread_binding.value()), extent}, {launch_var}, DictAttrs(),
+                      std::move(body), {}, op->span);
   }
 };
 

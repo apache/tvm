@@ -113,7 +113,7 @@ inline tvm::te::Tensor binary_dense(const tvm::te::Tensor& data, const tvm::te::
   auto matmul = tvm::te::compute(
       {batch, out_dim},
       [&](PrimVar i, PrimVar j) {
-        return tvm::prim::sum(popcount(data(i, k) ^ weight(j, k)), {k});
+        return tvm::prim::sum(popcount(data(i, k->var) ^ weight(j, k->var)), {k});
       },
       "tensor", "binary_dense");
 

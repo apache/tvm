@@ -74,9 +74,9 @@ def _all_threads_active(sctx: DispatchContext) -> tuple[bool, str | None]:
         if tx_iv is None:
             return False, "cta scope missing threadIdx.x launch_params"
         try:
-            required["warpid"] = int(tx_iv.dom.extent) // 32
+            required["warpid"] = int(tx_iv[1]) // 32
         except (TypeError, ValueError):
-            return False, f"non-static threadIdx.x extent: {tx_iv.dom.extent}"
+            return False, f"non-static threadIdx.x extent: {tx_iv[1]}"
     for axis_name, expected in required.items():
         if axis_name not in sctx.intra:
             return False, f"sctx.intra missing {axis_name!r}"
@@ -377,7 +377,7 @@ def _axis_decl(axis_name: str, sctx: DispatchContext):
     fills our deferred defs from those siblings.
     """
     if axis_name == "tx":
-        return sctx.launch_params["threadIdx.x"].var
+        return sctx.launch_params["threadIdx.x"][0]
     if axis_name == "laneid":
         return T.lane_id()
     if axis_name == "wid_in_wg":
@@ -411,7 +411,7 @@ def _thread_axis_extent(axis_name: str, sctx: DispatchContext) -> int | None:
     if tx is None:
         return None
     try:
-        tx_extent = int(tx.dom.extent)
+        tx_extent = int(tx[1])
     except (TypeError, ValueError):
         return None
     divisor = {"tx": 1, "warpid": 32, "wgid": 128}.get(axis_name)

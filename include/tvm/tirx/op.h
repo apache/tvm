@@ -149,49 +149,6 @@ TVM_DLL PrimExpr isfinite(PrimExpr x, Span span = Span());
 TVM_DLL PrimExpr isinf(PrimExpr x, Span span = Span());
 
 /*!
- * \brief sum of source expression over axis
- * \param source The source expression.
- * \param axis List of iteration variables that will be used for reduction.
- * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
- * \return The result.
- */
-TVM_DLL PrimExpr sum(PrimExpr source, ffi::Array<tirx::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
-
-/*!
- * \brief logical And of source expression over axis
- * \param source The source expression.
- * \param axis List of iteration variables that will be used for reduction.
- * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
- */
-TVM_DLL PrimExpr all(PrimExpr source, ffi::Array<tirx::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
-
-/*!
- * \brief logical Or of source expression over axis
- * \param source The source expression.
- * \param axis List of iteration variables that will be used for reduction.
- * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
- * \return The result.
- */
-TVM_DLL PrimExpr any(PrimExpr source, ffi::Array<tirx::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
-
-/*!
- * \brief product of source expression over axis
- * \param source The source expression.
- * \param axis List of iteration variables that will be used for reduction.
- * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
- * \return The result.
- */
-TVM_DLL PrimExpr prod(PrimExpr source, ffi::Array<tirx::IterVar> axis,
-                      ffi::Array<PrimExpr> init = {}, Span span = Span());
-
-/*!
  * \brief Calculate floor(x)
  * \param x The input expression.
  * \param span The location of this operation in the source.
@@ -399,28 +356,4 @@ inline Expr ConstHandle(int64_t value, Span span) {
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);
 }  // namespace tvm::prim
 
-namespace tvm {
-/*!
- * \brief max of source expression over axis
- * \param source The source expression.
- * \param axis List of iteration variables that will be used for reduction.
- * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
- * \return The result.
- */
-TVM_DLL PrimExpr max(PrimExpr source, ffi::Array<tirx::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
-
-/*!
- * \brief max of source expression over axis
- * \param source The source expression.
- * \param axis List of iteration variables that will be used for reduction.
- * \param init The value with which to initialize the output.
- * \param span The location of this operation in the source.
- * \return The result.
- */
-TVM_DLL PrimExpr min(PrimExpr source, ffi::Array<tirx::IterVar> axis,
-                     ffi::Array<PrimExpr> init = {}, Span span = Span());
-
-}  // namespace tvm
 #endif  // TVM_TIR_OP_H_

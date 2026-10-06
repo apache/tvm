@@ -34,6 +34,7 @@ _PRIM_TYPE_KEY_RENAMES = {
     "arith.SplitExpr": "sym.SplitExpr",
     "arith.SumExpr": "sym.SumExpr",
     "tirx.BufferRegion": "ir.TensorRegion",
+    "tirx.IterVar": "s_tir.IterVar",
     "tirx.SBlock": "s_tir.SBlock",
     "tirx.SBlockRealize": "s_tir.SBlockRealize",
     "tirx.MatchBufferRegion": "s_tir.MatchBufferRegion",

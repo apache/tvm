@@ -357,17 +357,17 @@ def resolve_thread_var(axis, sctx):
         except Exception:
             axis_name = ""
 
-    for key, itervar in sctx.launch_params.items():
-        if getattr(itervar.var, "name", "") == axis_name:
-            return itervar.var
+    for key, (var, _) in sctx.launch_params.items():
+        if getattr(var, "name", "") == axis_name:
+            return var
 
     if axis_name:
         axis_name_lower = axis_name.lower()
         for key in sctx.launch_params:
             if axis_name_lower in key.lower() or (axis_name == "tx" and "threadIdx.x" in key):
-                return sctx.launch_params[key].var
+                return sctx.launch_params[key][0]
 
     if "threadIdx.x" in sctx.launch_params:
-        return sctx.launch_params["threadIdx.x"].var
+        return sctx.launch_params["threadIdx.x"][0]
 
     return None

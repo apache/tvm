@@ -65,7 +65,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
 
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
     // Attribute subjects may contain references to the loop binding being
-    // replaced, including expressions and IterVar fields. Rewrite metadata
+    // replaced, including expressions and loop fields. Rewrite metadata
     // before the body introduces any additional local remaps.
     auto node = Mutate(op->node, inplace_mode);
     auto value = Mutate(op->value, inplace_mode);
@@ -161,8 +161,8 @@ class TIRxOpaqueLower : public StmtExprMutator {
     }
     if (op->kind == ForKind::kThreadBinding) {
       return RegionStmt(tirx::builtin::launch_thread(),
-                        {StringImm(op->thread_binding.value()->thread_tag), extent}, {launch_var},
-                        DictAttrs(), body, {}, op->span);
+                        {StringImm(op->thread_binding.value()), extent}, {launch_var}, DictAttrs(),
+                        body, {}, op->span);
     }
     return body;
   }

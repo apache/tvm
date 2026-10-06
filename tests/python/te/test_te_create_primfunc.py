@@ -904,7 +904,7 @@ def test_loop_aware_reducer_combiner():
         sum_red = te.compute(
             (5,),
             lambda i: te.comm_reducer(
-                lambda x, y: te.if_then_else(data[i, x] < y, x, ax),
+                lambda x, y: te.if_then_else(data[i, x] < y, x, ax.var),
                 lambda _: te.const(0, "float32"),
             )(data[i, ax], axis=[ax]),
             name="sum_red",
@@ -1031,7 +1031,7 @@ def test_nested_reduce_domain_dependency():
 
         def fcompute(*axes):
             r1 = te.reduce_axis(tvm.ir.Range.from_min_extent(0, axes[1]))
-            r2 = te.reduce_axis(tvm.ir.Range.from_min_extent(0, r1))
+            r2 = te.reduce_axis(tvm.ir.Range.from_min_extent(0, r1.var))
             all_axes = [*axes, r1, r2]
             return te.sum(x(*all_axes), [r1, r2])
 

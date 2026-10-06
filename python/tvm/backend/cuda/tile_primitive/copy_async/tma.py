@@ -2077,7 +2077,7 @@ def _prefetch_main_descriptor(tensor_map, key: str, sctx: DispatchContext) -> No
         return
     if "warp_id_in_cta" not in sctx.launch_params:
         fail("prefetch_tensormap requires warp_id_in_cta launch param")
-    warp_id = sctx.launch_params["warp_id_in_cta"].var
+    warp_id = sctx.launch_params["warp_id_in_cta"][0]
 
     # fmt: off
     @T.prim_func(check_well_formed=False)

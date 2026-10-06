@@ -22,7 +22,7 @@ import tvm_ffi
 
 from tvm.ir import Expr, Span, TensorRegion, Var
 from tvm.runtime import Object, Scriptable, const
-from tvm.tirx.expr import IterVar
+from tvm.s_tir import IterVar
 from tvm.tirx.stmt import Stmt
 
 from . import _ffi_api

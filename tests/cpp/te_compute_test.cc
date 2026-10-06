@@ -46,7 +46,8 @@ TEST(Tensor, Reduce) {
   IterVar rv = reduce_axis(Range{0, l}, "k");
 
   auto C = te::compute(
-      {m, n}, [&](PrimVar i, PrimVar j) { return sum(max(1 + A[i][rv] + 1, B[j][rv]), {rv}); },
+      {m, n},
+      [&](PrimVar i, PrimVar j) { return sum(max(1 + A[i][rv->var] + 1, B[j][rv->var]), {rv}); },
       "C");
 }
 

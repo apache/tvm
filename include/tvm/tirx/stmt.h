@@ -633,9 +633,9 @@ class ForNode : public StmtNode {
   Stmt body;
   /*!
    * \brief Only valid when kind == ForKind::kThreadBinding
-   * The context thread that this loop variable bounds to.
+   * The hardware thread tag to which this loop variable is bound.
    */
-  ffi::Optional<IterVar> thread_binding;
+  ffi::Optional<ffi::String> thread_binding;
   /*!
    * \brief Additional annotations about the loop.
    *
@@ -676,7 +676,7 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-              ffi::Optional<IterVar> thread_binding = std::nullopt,
+              ffi::Optional<ffi::String> thread_binding = std::nullopt,
               ffi::Map<ffi::String, ffi::Any> annotations = {},
               ffi::Optional<PrimExpr> step = std::nullopt, Span span = Span());
 

@@ -179,7 +179,7 @@ inline IterVar IterVarFromLoop(const For& loop, ffi::String name, IterVarType it
  */
 inline runtime::ThreadScope GetThreadScope(const ForNode* loop) {
   if (loop->kind == ForKind::kThreadBinding) {
-    return runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+    return runtime::ThreadScope::Create(loop->thread_binding.value());
   }
   return runtime::ThreadScope{-1, -1};
 }
@@ -319,7 +319,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
   // Step 1. Add spatial loops.
   *num_spatial_loops = 0;
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (GetLoopIterType(loop_srefs[i]) == tirx::kDataPar) {
+    if (GetLoopIterType(loop_srefs[i]) == s_tir::kDataPar) {
       new_order.push_back(loops[i]);
       (*num_spatial_loops)++;
     }
@@ -327,7 +327,7 @@ inline void ReorderAndFuseReductionLoops(const s_tir::Schedule& sch,
   // Step 2. Add reduction loops.
   ffi::Array<s_tir::LoopRV> reduction_loops;
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (GetLoopIterType(loop_srefs[i]) == tirx::kCommReduce) {
+    if (GetLoopIterType(loop_srefs[i]) == s_tir::kCommReduce) {
       new_order.push_back(loops[i]);
       reduction_loops.push_back(loops[i]);
     }

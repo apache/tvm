@@ -62,8 +62,9 @@ inline tvm::te::Tensor dense(const tvm::te::Tensor& data, const tvm::te::Tensor&
   auto matmul = tvm::te::compute(
       {batch, out_dim},
       [&](PrimVar i, PrimVar j) {
-        return tvm::prim::sum(
-            tvm::prim::cast(out_dtype, data(i, k)) * tvm::prim::cast(out_dtype, weight(j, k)), {k});
+        return tvm::prim::sum(tvm::prim::cast(out_dtype, data(i, k->var)) *
+                                  tvm::prim::cast(out_dtype, weight(j, k->var)),
+                              {k});
       },
       "tensor", "dense");
 

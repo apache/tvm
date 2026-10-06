@@ -24,6 +24,7 @@ from typing import Any
 from tvm import ir
 from tvm import tirx as tir
 from tvm.ir import TensorLoad, TensorRegion, is_prim_expr
+from tvm.s_tir.iter_var import IterVar
 from tvm.script.ir_builder.base import MISSING
 from tvm.script.parser.protocol_registry import register_mutable_decl as _register_mutable_decl
 from tvm.tirx import Expr, IntImm, Var
@@ -32,6 +33,32 @@ from tvm.tirx.script.ir_builder.ir import _get_layout, _record_meta_resource
 from tvm.tirx.script.ir_builder.parser_protocol import region
 
 from . import _ffi_api
+
+
+def iter_var(v: Var | str, dom: ir.Range, iter_type: str, thread_tag: str) -> IterVar:
+    """The iteration variable.
+
+    Parameters
+    ----------
+    v : Union[Var, str]
+        The internal variable that is used for iteration.
+
+    dom : Range
+        The domain of the iteration.
+
+    iter_type : str
+        The iteration type.
+
+    thread_tag : str
+        The thread type tag.
+
+    Returns
+    -------
+    res : IterVar
+        The iteration variable.
+    """
+    iter_type = getattr(IterVar, iter_type)
+    return IterVar(dom, v, iter_type, thread_tag)
 
 
 def async_copy_scope():
@@ -449,11 +476,13 @@ class axis:  # pylint: disable=invalid-name
 
 
 __all__ = [
+    "IterVar",
     "async_commit",
     "async_copy_scope",
     "async_wait",
     "axis",
     "block_name_suffix_context",
+    "iter_var",
     "manual_sync",
     "match_buffer",
     "reads",

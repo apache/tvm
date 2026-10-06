@@ -83,7 +83,7 @@ class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
       return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
-    auto axis = reduce->axis.Map([this](const IterVar& iter_var) {
+    auto axis = reduce->axis.Map([this](const s_tir::IterVar& iter_var) {
       const Range& dom = iter_var->dom;
       auto min_update = Mutate(dom->min);
       auto extent_update = Mutate(dom->extent);
@@ -92,8 +92,8 @@ class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
       }
       PrimExpr min = std::move(min_update).ValueOrUnchanged(dom->min);
       PrimExpr extent = std::move(extent_update).ValueOrUnchanged(dom->extent);
-      return IterVar(Range::FromMinExtent(min, extent), iter_var->var, iter_var->iter_type,
-                     iter_var->thread_tag);
+      return s_tir::IterVar(Range::FromMinExtent(min, extent), iter_var->var, iter_var->iter_type,
+                            iter_var->thread_tag);
     });
     bool axis_unchanged = axis.same_as(reduce->axis);
 
@@ -243,18 +243,18 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
  * (1) Each iter should reside in exactly one level.
  * (2) The domain of low level iter should be either free or ony depend on iters in high level.
  **/
-using NestedIterLevels = std::vector<std::vector<IterVar>>;
+using NestedIterLevels = std::vector<std::vector<s_tir::IterVar>>;
 
-NestedIterLevels GenerateNestedIterLevels(const ffi::Array<IterVar>& axes,
+NestedIterLevels GenerateNestedIterLevels(const ffi::Array<s_tir::IterVar>& axes,
                                           sym::AnalyzerObj* analyzer) {
   int global_max_depth = 0;
   std::unordered_map<Var, int> depth;
-  std::unordered_map<Var, IterVar> var2iter;
+  std::unordered_map<Var, s_tir::IterVar> var2iter;
   for (const auto& axis : axes) {
     var2iter[axis->var] = axis;
   }
 
-  std::function<int(const IterVar&)> traverse = [&](const IterVar& axis) -> int {
+  std::function<int(const s_tir::IterVar&)> traverse = [&](const s_tir::IterVar& axis) -> int {
     auto depth_it = depth.find(axis->var);
     if (depth_it != depth.end()) {  // cache
       return depth_it->second;
@@ -500,7 +500,7 @@ struct NestedScopeInfo {
   // loop var and range in the scope.
   std::vector<std::pair<Var, Range>> loop_vars;
   // block iters for current level's block.
-  ffi::Array<IterVar> block_iters;
+  ffi::Array<s_tir::IterVar> block_iters;
   // block bindings for current level's block.
   ffi::Array<PrimExpr> bindings;
   // store indices for current level's block.
@@ -509,12 +509,12 @@ struct NestedScopeInfo {
   ffi::Map<Var, PrimExpr> axes_remap;
 
   // helper to add new block var
-  void AddBlockIter(const ffi::Optional<IterVar>& origin_axis, const IterVar& iter,
+  void AddBlockIter(const ffi::Optional<s_tir::IterVar>& origin_axis, const s_tir::IterVar& iter,
                     const PrimExpr& value) {
     block_iters.push_back(iter);
     bindings.push_back(value);
     if (origin_axis.has_value()) {
-      if (iter->iter_type != IterVarType::kCommReduce) {
+      if (iter->iter_type != s_tir::IterVarType::kCommReduce) {
         store_indices.push_back(iter->var);
       }
       axes_remap.Set(origin_axis.value()->var, iter->var);
@@ -522,15 +522,15 @@ struct NestedScopeInfo {
   }
 
   // helper to renew leaf block var defs to ensure SSA.
-  void Renew(const ffi::Array<IterVar>& origin_axes) {
-    block_iters.MutateByApply([](const IterVar& itervar) {
-      auto n = ffi::make_object<IterVarNode>(*itervar.get());
+  void Renew(const ffi::Array<s_tir::IterVar>& origin_axes) {
+    block_iters.MutateByApply([](const s_tir::IterVar& itervar) {
+      auto n = ffi::make_object<s_tir::IterVarNode>(*itervar.get());
       n->var = n->var.CopyWithSuffix("");
-      return IterVar(n);
+      return s_tir::IterVar(n);
     });
     for (size_t i = 0; i < origin_axes.size(); ++i) {
       Var block_var = block_iters[i]->var;
-      if (origin_axes[i]->iter_type != IterVarType::kCommReduce) {
+      if (origin_axes[i]->iter_type != s_tir::IterVarType::kCommReduce) {
         store_indices.Set(i, block_var.as_or_throw<PrimExpr>());
       }
       axes_remap.Set(origin_axes[i]->var, block_var.as_or_throw<PrimExpr>());
@@ -541,7 +541,7 @@ struct NestedScopeInfo {
 Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* info,
                              sym::AnalyzerObj* analyzer) {
   // Step 1. Collect all iter axes in original TE compute op
-  ffi::Array<IterVar> axes = compute_op->axis;
+  ffi::Array<s_tir::IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
 
   // Step 2. Prepare nested iteration scopes.
@@ -557,13 +557,13 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   for (size_t i = 0; i < axes_levels.size(); ++i) {
     NestedScopeInfo cur_scope;
     for (size_t j = 0; j < axes.size(); ++j) {
-      const IterVar& axis = axes[j];
+      const s_tir::IterVar& axis = axes[j];
       PrimType index_type =
           PrimType::Int(std::max(axis->dom->min.ty().bits(), axis->dom->extent.ty().bits()));
       bool first_times_define =
           std::find(axes_levels[i].begin(), axes_levels[i].end(), axis) != axes_levels[i].end();
       if (first_times_define) {
-        if (axis->iter_type == IterVarType::kCommReduce) {
+        if (axis->iter_type == s_tir::IterVarType::kCommReduce) {
           reduction_init_scope = std::min(reduction_init_scope, i);
         }
         Var loop_var = Var(axis->var->name, index_type);
@@ -583,8 +583,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
                        .as_or_throw<PrimExpr>();
         }
         Range dom = Range::FromMinExtent(analyzer->Simplify(min), analyzer->Simplify(extent));
-        IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
-                               axis->thread_tag, axis->span);
+        s_tir::IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
+                                      axis->thread_tag, axis->span);
         cur_scope.loop_vars.emplace_back(loop_var, dom);
         cur_scope.AddBlockIter(axis, new_block_iter, loop_var.as_or_throw<PrimExpr>());
         defined_axes.insert(axis->var);
@@ -594,15 +594,15 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         PrimExpr prev_binding = scopes[i - 1].axes_remap.at(axis->var);
         Var block_var("v_" + axis->var->name, index_type);
         Range dom = Range::FromMinExtent(prev_binding, MakeConst(index_type, 1));
-        IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
-                               axis->thread_tag, axis->span);
+        s_tir::IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
+                                      axis->thread_tag, axis->span);
         cur_scope.AddBlockIter(axis, new_block_iter, prev_binding);
       }
     }
     if (i == axes_levels.size() - 1 && cur_scope.block_iters.empty()) {
       // for the leaf scope, we ensure at least one block var exists
-      IterVar dummy(Range::FromMinExtent(0, 1), PrimVar("vi", PrimType::Int(32)),
-                    IterVarType::kDataPar);
+      s_tir::IterVar dummy(Range::FromMinExtent(0, 1), PrimVar("vi", PrimType::Int(32)),
+                           s_tir::IterVarType::kDataPar);
       cur_scope.AddBlockIter(std::nullopt, dummy, 0);
     }
     scopes.push_back(cur_scope);

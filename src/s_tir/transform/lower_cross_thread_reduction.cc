@@ -69,8 +69,7 @@ bool IsBoundToThreadIdx(const ForNode* loop) {
   if (!loop->thread_binding.has_value()) {
     return false;
   }
-  runtime::ThreadScope scope =
-      runtime::ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+  runtime::ThreadScope scope = runtime::ThreadScope::Create(loop->thread_binding.value());
   return scope.rank == 1 && scope.dim_index >= 0;
 }
 
@@ -671,7 +670,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     // Erase those threads which are not free to this block.
     for (const ForNode* loop : loop_stack_) {
       if (loop->thread_binding.has_value()) {
-        ThreadScope scope = ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+        ThreadScope scope = ThreadScope::Create(loop->thread_binding.value());
         thread2range.erase(scope);
       }
     }
@@ -809,7 +808,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     bool is_block_idx = false;
     bool is_thread_idx = false;
     if (loop->kind == ForKind::kThreadBinding) {
-      ThreadScope scope = ThreadScope::Create(loop->thread_binding.value()->thread_tag);
+      ThreadScope scope = ThreadScope::Create(loop->thread_binding.value());
       if (scope.rank == 1 && scope.dim_index >= 0) {
         is_thread_idx = true;
         ++thread_idx_depth;
@@ -907,9 +906,8 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     reduction_threads.reserve(reduction_loops.size());
     for (const ForNode* loop : reduction_loops) {
       if (loop->thread_binding.has_value()) {
-        reduction_threads.emplace_back(
-            ThreadScope::Create(loop->thread_binding.value()->thread_tag),
-            Range::FromMinExtent(loop->min, loop->extent));
+        reduction_threads.emplace_back(ThreadScope::Create(loop->thread_binding.value()),
+                                       Range::FromMinExtent(loop->min, loop->extent));
       }
     }
     for (const TensorVar& reduction_buf : reduction_buffers) {
@@ -947,8 +945,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
           /*kind=*/ForKind::kThreadBinding,                   //
           /*body=*/body,                                      //
           /*thread_binding=*/
-          IterVar(Range(), PrimVar("", loop_vars[i]->ty.as_or_throw<PrimType>()),
-                  IterVarType::kThreadIndex, "threadIdx." + dim_index),
+          ffi::String("threadIdx." + dim_index),
           /*annotations=*/{},
           /*step=*/std::nullopt);
     }

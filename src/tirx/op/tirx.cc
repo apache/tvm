@@ -87,7 +87,7 @@ ffi::Optional<ffi::ObjectRef> DispatchContextNode::SharedStateGet(ffi::String ke
 }
 
 DispatchContext::DispatchContext(Target target, ExecScope exec_scope,
-                                 ffi::Map<ffi::String, IterVar> launch_params,
+                                 ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params,
                                  ffi::Map<Var, Range> var_range_map, bool alloc_only,
                                  ffi::Map<ffi::String, ffi::ObjectRef> callbacks,
                                  ffi::Map<ffi::String, ffi::ObjectRef> shared_state,
@@ -97,6 +97,12 @@ DispatchContext::DispatchContext(Target target, ExecScope exec_scope,
   auto n = ffi::make_object<DispatchContextNode>();
   n->target = std::move(target);
   n->exec_scope = std::move(exec_scope);
+  for (const auto& [tag, binding] : launch_params) {
+    PrimType var_ty = binding.get<0>().ty();
+    PrimType extent_ty = binding.get<1>().ty();
+    TVM_FFI_CHECK(extent_ty.code() == DLDataTypeCode::kDLInt && extent_ty == var_ty, TypeError)
+        << "Launch parameter " << tag << " requires a signed integer extent matching its variable";
+  }
   n->launch_params = std::move(launch_params);
   n->var_range_map = std::move(var_range_map);
   n->alloc_only = alloc_only;
@@ -112,7 +118,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tirx.DispatchContext",
-           [](Target target, ExecScope exec_scope, ffi::Map<ffi::String, IterVar> launch_params,
+           [](Target target, ExecScope exec_scope,
+              ffi::Map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>> launch_params,
               ffi::Map<Var, Range> var_range_map, bool alloc_only,
               ffi::Map<ffi::String, ffi::ObjectRef> callbacks,
               ffi::Map<ffi::String, ffi::ObjectRef> shared_state,

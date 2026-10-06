@@ -47,7 +47,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       [](const ffi::ObjectRef& obj) -> Span* { return &obj.as<tvm::tirx::StmtNode>()->span; });
 }
 
-using tvm::tirx::IterVar;
 using tvm::tirx::Layout;
 
 namespace {
@@ -337,10 +336,8 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
     TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || is_one(*steps[0])));
-    IterVar iter_var(Range(nullptr), tvm::PrimVar("iter", dtype), IterVarType::kThreadIndex,
-                     thread);
     return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,
-               ForKind::kThreadBinding, body, iter_var,
+               ForKind::kThreadBinding, body, thread,
                annotations.value_or(ffi::Map<ffi::String, ffi::Any>()), std::nullopt, span);
   };
   return ForFrame(n);
@@ -636,15 +633,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   Namer::vtable().SetDispatch<tvm::tirx::TileLayoutNode>(
       [](const ffi::ObjectRef& node, ffi::String name) -> void {
 
-      });
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  Namer::vtable().SetDispatch<tvm::tirx::IterVarNode>(
-      [](const ffi::ObjectRef& node, ffi::String name) -> void {
-        using namespace tvm::tirx;
-        IterVarNode* var = const_cast<IterVarNode*>(node.as<IterVarNode>());
-        Namer::Name(var->var, name);
       });
 }
 

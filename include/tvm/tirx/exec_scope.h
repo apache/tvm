@@ -24,6 +24,7 @@
 #ifndef TVM_TIRX_EXEC_SCOPE_H_
 #define TVM_TIRX_EXEC_SCOPE_H_
 
+#include <tvm/ffi/container/tuple.h>
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ir/module.h>
 #include <tvm/tirx/var.h>
@@ -182,7 +183,7 @@ class ScopeIdDefVerifier {
  */
 class ScopeIdResolve {
  public:
-  using LaunchParams = std::unordered_map<ffi::String, IterVar>;
+  using LaunchParams = std::unordered_map<ffi::String, ffi::Tuple<PrimVar, PrimExpr>>;
 
   /*! \brief Resolve a ScopeIdDef for a given canonical binding + target. */
   TVM_DLL static ffi::Array<PrimExpr> Resolve(ScopeBinding binding,

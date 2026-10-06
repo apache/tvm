@@ -312,7 +312,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         return Evaluate(0);
       }
       if (normalize_thread_bindings_ && loop->kind == ForKind::kThreadBinding) {
-        const auto& tag = loop->thread_binding.value()->thread_tag;
+        const auto& tag = loop->thread_binding.value();
         if (support::StartsWith(tag, "vthread")) {
           // Virtual axes are independent iterations and isolate hardware aliases.
           thread_bindings_.push_back(nullptr);
@@ -322,7 +322,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         }
         for (auto it = thread_bindings_.rbegin(); it != thread_bindings_.rend() && *it; ++it) {
           const ForNode* outer = *it;
-          if (outer->thread_binding.value()->thread_tag != tag) continue;
+          if (outer->thread_binding.value() != tag) continue;
           // Feature counts describe hardware work, not repeated lexical names
           // for one axis. Normalize only nested aliases in this analysis input.
           sym::Analyzer analyzer;
@@ -466,7 +466,7 @@ struct LoopNest {
     } else if (loop->kind == ForKind::kUnrolled) {
       ref_loops = &unroll;
     } else if (loop->kind == ForKind::kThreadBinding) {
-      std::string thread_tag = loop->thread_binding.value()->thread_tag;
+      std::string thread_tag = loop->thread_binding.value();
       if (thread_tag == "blockIdx.x") {
         ref_loops = &blockIdx_x;
       } else if (thread_tag == "blockIdx.y") {

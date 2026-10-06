@@ -138,8 +138,8 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
     // Step 4. Checking if the block contains reduce axis by looking into block iterators.
     bool has_reduction = false;
     ffi::Array<tirx::Var> reduce_vars;
-    for (const IterVar& it : op->iter_vars) {
-      if (it->iter_type == tirx::IterVarType::kCommReduce) {
+    for (const s_tir::IterVar& it : op->iter_vars) {
+      if (it->iter_type == s_tir::IterVarType::kCommReduce) {
         has_reduction = true;
         reduce_vars.push_back(it->var);
       }
@@ -405,13 +405,13 @@ bool HasReshapePattern(const PrimFunc& func) {
       // binding values. The mapping will be used in the substitution of
       // the flattened buffer access index.
       const s_tir::SBlock& block = block_realize->block;
-      const ffi::Array<IterVar>& block_iter = block->iter_vars;
+      const ffi::Array<s_tir::IterVar>& block_iter = block->iter_vars;
       const ffi::Array<PrimExpr>& iter_values = block_realize->iter_values;
       TVM_FFI_ICHECK_EQ(block_iter.size(), iter_values.size());
       int n_iter = block_iter.size();
       for (int i = 0; i < n_iter; ++i) {
         // To detect the reshape pattern, we require each block iter to be data-parallel.
-        if (block_iter[i]->iter_type != tirx::IterVarType::kDataPar) {
+        if (block_iter[i]->iter_type != s_tir::IterVarType::kDataPar) {
           return std::nullopt;
         }
       }
@@ -427,7 +427,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       }
 
       ffi::Map<PrimVar, Range> var_range;
-      for (const IterVar& v : block->iter_vars) {
+      for (const s_tir::IterVar& v : block->iter_vars) {
         ana_->Bind(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
         var_range.Set(v->var, Range::FromMinExtent(v->dom->min, v->dom->extent));
       }
@@ -501,7 +501,7 @@ bool HasReshapePattern(const PrimFunc& func) {
       // Skip check 1 on zero-extent iters: the inverse index map would divide by zero.
       bool has_zero_extent = std::any_of(
           block->iter_vars.begin(), block->iter_vars.end(),
-          [this](const IterVar& v) { return this->ana_->CanProveEqual(v->dom->extent, 0); });
+          [this](const s_tir::IterVar& v) { return this->ana_->CanProveEqual(v->dom->extent, 0); });
 
       if (nontrivial_indices.defined() && !has_zero_extent) {
         PrimType dtype =

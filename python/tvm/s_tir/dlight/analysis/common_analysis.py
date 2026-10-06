@@ -297,10 +297,10 @@ def normalize_prim_func(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
     except Exception:  # pylint: disable=broad-except
         return None
 
-    def _iter_kind(i: tirx.IterVar) -> str:
+    def _iter_kind(i: s_tir.IterVar) -> str:
         return {
-            tirx.IterVar.DataPar: "S",
-            tirx.IterVar.CommReduce: "R",
+            s_tir.IterVar.DataPar: "S",
+            s_tir.IterVar.CommReduce: "R",
         }.get(i.iter_type, "O")
 
     blocks: list[SBlockInfo] = []
@@ -325,8 +325,8 @@ def normalize_prim_func(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
 
 
 def get_sblock_info(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV) -> SBlockInfo:
-    def _iter_kind(loop: tirx.IterVar) -> str:
-        return {tirx.IterVar.DataPar: "S", tirx.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
+    def _iter_kind(loop: s_tir.IterVar) -> str:
+        return {s_tir.IterVar.DataPar: "S", s_tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
     def _is_reduction_block(block: s_tir.schedule.SBlockRV):
         for iter_var in sch.get(block).iter_vars:

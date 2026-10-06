@@ -81,7 +81,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const ffi::Opt
     for (size_t i = 0; i < ndim; ++i) {
       if (std::find(real_axis.begin(), real_axis.end(), i) != real_axis.end()) {
         // real_axis contains i
-        eval_range.push_back(reduce_axes[red_counter]);
+        eval_range.push_back(reduce_axes[red_counter]->var);
         red_counter++;
       } else {
         eval_range.push_back(non_reduce_indices[arg_counter]);

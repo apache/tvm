@@ -64,7 +64,7 @@ class SBlockFrameNode : public TIRFrameNode {
   /*! \brief The name of the block. */
   ffi::String name;
   /*! \brief The variables of the block. */
-  ffi::Array<tvm::tirx::IterVar> iter_vars;
+  ffi::Array<tvm::s_tir::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
   ffi::Optional<ffi::Array<tvm::TensorRegion>> reads;
   /*! \brief The write buffer regions of the block. */

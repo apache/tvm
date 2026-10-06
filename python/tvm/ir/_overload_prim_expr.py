@@ -130,15 +130,23 @@ class ExprOp:
         return _prim_ffi_api._OpDiv(other, self, None)  # type: ignore
 
     def __floordiv__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api._OpFloorDiv(self, other, None)  # type: ignore
 
     def __rfloordiv__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api._OpFloorDiv(other, self, None)  # type: ignore
 
     def __mod__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api._OpFloorMod(self, other, None)  # type: ignore
 
     def __rmod__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api._OpFloorMod(other, self, None)  # type: ignore
 
     def __neg__(self) -> Expr:
@@ -146,33 +154,53 @@ class ExprOp:
         return self.__mul__(neg_one)
 
     def __lshift__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.left_shift(self, other, None)  # type: ignore
 
     def __rlshift__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.left_shift(other, self, None)  # type: ignore
 
     def __rshift__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.right_shift(self, other, None)  # type: ignore
 
     def __rrshift__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.right_shift(other, self, None)  # type: ignore
 
     def __and__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.bitwise_and(self, other, None)  # type: ignore
 
     def __rand__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.bitwise_and(other, self, None)  # type: ignore
 
     def __or__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.bitwise_or(self, other, None)  # type: ignore
 
     def __ror__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.bitwise_or(other, self, None)  # type: ignore
 
     def __xor__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.bitwise_xor(self, other, None)  # type: ignore
 
     def __rxor__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api.bitwise_xor(other, self, None)  # type: ignore
 
     def __invert__(self) -> Expr:
@@ -181,9 +209,13 @@ class ExprOp:
         return _prim_ffi_api.bitwise_not(self, None)  # type: ignore
 
     def __lt__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api._OpLT(self, other, None)  # type: ignore
 
     def __le__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api._OpLE(self, other, None)  # type: ignore
 
     def __eq__(self, other: Expr) -> Expr:
@@ -193,9 +225,13 @@ class ExprOp:
         return NotEqualOp(self, other)
 
     def __gt__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api._OpGT(self, other, None)  # type: ignore
 
     def __ge__(self, other: Expr) -> Expr:
+        if not _is_scalar_operand(other):
+            return NotImplemented
         return _prim_ffi_api._OpGE(self, other, None)  # type: ignore
 
     def __nonzero__(self):

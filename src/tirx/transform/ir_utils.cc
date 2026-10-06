@@ -282,66 +282,7 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const RegionStmtNode* op, InplaceMode in
 }
 
 UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  if (const IterVarNode* iter_var = op->node.as<IterVarNode>()) {
-    Range dom = iter_var->dom;
-    if (dom.defined()) {
-      // Retain the original domain while comparing and rebuilding its replacement.
-      auto min = Mutate(dom->min, InplaceMode::kDisallow).ValueOrUnchanged(dom->min);
-      auto extent = Mutate(dom->extent, InplaceMode::kDisallow).ValueOrUnchanged(dom->extent);
-      if (!min.same_as(iter_var->dom->min) || !extent.same_as(iter_var->dom->extent)) {
-        dom = Range::FromMinExtent(min, extent);
-      }
-    }
-
-    Var var = iter_var->var;
-    bool delayed_define = false;
-    if (auto it = function_scope_var_remap_.find(var.get());
-        it != function_scope_var_remap_.end()) {
-      var = it->second;
-    } else if (defined_.count(var.get())) {
-      Var new_var(var->name, var->ty);
-
-      function_scope_var_remap_.insert({var.get(), new_var});
-      var = new_var;
-    } else {
-      // An attribute can refer to a variable defined by a later ForNode.
-      // Preserve the same variable definition in the attribute and the loop.
-      //
-      // Preserve the annotated variable's identity for later definitions
-      // and independent functions, without introducing a lexical body binding.
-      delayed_define = true;
-    }
-
-    IterVar new_iter_var;
-    if (dom.same_as(iter_var->dom) && var.same_as(iter_var->var)) {
-      new_iter_var = ffi::GetRef<IterVar>(iter_var);
-    } else {
-      new_iter_var = IterVar(dom, var.as_or_throw<PrimVar>(), iter_var->iter_type,
-                             iter_var->thread_tag, iter_var->span);
-    }
-    auto value_result = Mutate(op->value, inplace_mode);
-    bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
-    auto value = std::move(value_result).ValueOrUnchanged(op->value);
-    auto body = scope_.WithNewScope(
-        [&]() -> Stmt { return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body); });
-
-    Stmt output = ffi::GetRef<Stmt>(op);
-    if (new_iter_var.get() == iter_var && body.same_as(op->body) && value_unchanged) {
-      output = ffi::GetRef<Stmt>(op);
-    } else {
-      output = AttrStmt(new_iter_var, op->attr_key, value, body, iter_var->span);
-    }
-
-    if (delayed_define) {
-      if (!defined_.count(var.get())) {
-        function_scope_var_remap_.insert({var.get(), var});
-        defined_.insert(var.get());
-      }
-    }
-
-    return output;
-
-  } else if (const VarNode* v = op->node.as<VarNode>()) {
+  if (const VarNode* v = op->node.as<VarNode>()) {
     Stmt stmt = scope_.WithNewScope([&]() -> Stmt {
       return StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     });

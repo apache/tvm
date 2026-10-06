@@ -83,7 +83,7 @@ struct ReductionBlockFinder : public StmtExprVisitor {
     for (int i = 0; i < n; ++i) {
       IterVar iter_var = block->iter_vars[i];
       PrimExpr binding = realize->iter_values[i];
-      if (iter_var->iter_type == tirx::kCommReduce) {
+      if (iter_var->iter_type == s_tir::kCommReduce) {
         if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(binding, walkfn).has_value()) {
           return false;
         }

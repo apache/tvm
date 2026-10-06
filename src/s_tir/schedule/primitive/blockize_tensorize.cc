@@ -263,7 +263,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
           // Simplify outer if not preserve_unit_iters
           return IntImm(outer_mark->extent.ty(), 0);
         } else {
-          return outer_iter;
+          return outer_iter->var;
         }
       } else {
         // create iter var for the inner block
@@ -276,7 +276,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
         if (is_one(outer_mark->extent)) {
           return inner_iter->var;
         } else {
-          return outer_iter * inner_mark->extent + inner_iter->var;
+          return outer_iter->var * inner_mark->extent + inner_iter->var;
         }
       }
     }();

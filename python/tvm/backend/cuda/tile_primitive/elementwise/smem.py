@@ -137,7 +137,7 @@ def emit_smem(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFu
     # Use cuda/common.py:get_thread_cnt rather than copy/_common.py:_thread_cnt
     # — the latter computes ``∏ sctx.intra`` which silently returns 0 for
     # sub-warp counts at cta scope (warpid extent rounds down to 0). The
-    # former reads launch_params["threadIdx.x"].dom.extent and is correct
+    # former reads launch_params["threadIdx.x"][1] and is correct
     # for all scopes.
     thread_cnt = get_thread_cnt(sctx)
     if thread_cnt is None:

@@ -311,13 +311,7 @@ StmtSRef DecomposeReduction(ScheduleState self, const StmtSRef& block_sref,
     Var old_loop_var = old_loop->loop_var;
     PrimVar new_loop_var = old_loop->loop_var.CopyWithSuffix("_init");
     loop_var_map.insert_or_assign(old_loop_var, new_loop_var);
-    ffi::Optional<IterVar> opt_thread_binding = old_loop->thread_binding;
-    if (opt_thread_binding) {
-      auto thread_binding = opt_thread_binding.value();
-      auto new_var = thread_binding->var.CopyWithSuffix("");
-      thread_binding.CopyOnWrite()->var = new_var;
-      opt_thread_binding = thread_binding;
-    }
+    ffi::Optional<ffi::String> opt_thread_binding = old_loop->thread_binding;
     auto new_loop = old_loop.CopyOnWrite();
     new_loop->loop_var = new_loop_var;
     new_loop->thread_binding = opt_thread_binding;
@@ -1153,7 +1147,7 @@ class WriteBackBlockCreator : public BaseBlockCreator {
       iter_vars_.emplace_back(old_block_iter->dom, old_block_iter->var.CopyWithSuffix(""),
                               kDataPar);
       iter_values_.push_back(old_block_realize_->iter_values[idx]);
-      var_map_.Set(old_block_iter->var, iter_vars_.back());
+      var_map_.Set(old_block_iter->var, iter_vars_.back()->var);
     }
   }
 

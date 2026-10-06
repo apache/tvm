@@ -1641,7 +1641,8 @@ inline tvm::te::Tensor matmul(const tvm::te::Tensor& A, const tvm::te::Tensor& B
   tvm::ffi::Array<tvm::PrimExpr> output_shape{A->shape[trans_a ? 1 : 0], B->shape[trans_b ? 0 : 1]};
   auto k = tvm::te::reduce_axis(tvm::Range{0, A->shape[trans_a ? 0 : 1]}, "k");
   auto l = [&](tvm::PrimVar i, tvm::PrimVar j) {
-    return tvm::prim::sum((trans_a ? A[k][i] : A[i][k]) * (trans_b ? B[j][k] : B[k][j]), {k});
+    return tvm::prim::sum(
+        (trans_a ? A[k->var][i] : A[i][k->var]) * (trans_b ? B[j][k->var] : B[k->var][j]), {k});
   };
   return tvm::te::compute(output_shape, l, name, tag);
 }
@@ -1676,10 +1677,10 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, int axes = 2,
          ++it) {
       A_indices.push_back((*it).as_or_throw<PrimExpr>());
     }
-    for (auto& v : iter_vars) A_indices.push_back(v);
+    for (auto& v : iter_vars) A_indices.push_back(v->var);
 
     ffi::Array<PrimExpr> B_indices;
-    for (auto& v : iter_vars) B_indices.push_back(v);
+    for (auto& v : iter_vars) B_indices.push_back(v->var);
 
     auto it = input_indices.begin() + (A->shape.size() - axes);
     for (; it != input_indices.end(); ++it) {
@@ -1739,7 +1740,7 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, ffi::Array<Pr
       if (axes_pos == A_axes_val.end()) {
         A_indices.push_back(input_indices[idx_input++]);
       } else {
-        A_indices.push_back(iter_vars[axes_pos - A_axes_val.begin()]);
+        A_indices.push_back(iter_vars[axes_pos - A_axes_val.begin()]->var);
       }
     }
 
@@ -1749,7 +1750,7 @@ inline Tensor tensordot(const Tensor& A, const tvm::te::Tensor& B, ffi::Array<Pr
       if (axes_pos == B_axes_val.end()) {
         B_indices.push_back(input_indices[idx_input++]);
       } else {
-        B_indices.push_back(iter_vars[axes_pos - B_axes_val.begin()]);
+        B_indices.push_back(iter_vars[axes_pos - B_axes_val.begin()]->var);
       }
     }
     return sum(A(A_indices) * B(B_indices), iter_vars);

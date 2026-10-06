@@ -30,8 +30,8 @@ namespace s_tir {
 
 using tirx::ForFrameNode;
 using tirx::TensorDecl;
-using tvm::tirx::IterVar;
-using tvm::tirx::IterVarType;
+using tvm::s_tir::IterVar;
+using tvm::s_tir::IterVarType;
 
 PrimFuncFrame PrimFunc(bool is_private, bool persistent) {
   auto n = ffi::make_object<PrimFuncFrameNode>();
@@ -247,10 +247,10 @@ IterVar PushBlockVar(IterVar iter_var, ffi::Optional<PrimExpr> binding) {
                         binding)                                                                   \
         ->var;                                                                                     \
   }
-TVM_S_TIR_IR_BUILDER_AXIS(Spatial, tvm::tirx::IterVarType::kDataPar, "Spatial");
-TVM_S_TIR_IR_BUILDER_AXIS(Reduce, tvm::tirx::IterVarType::kCommReduce, "Reduction");
-TVM_S_TIR_IR_BUILDER_AXIS(Scan, tvm::tirx::IterVarType::kOrdered, "Scan");
-TVM_S_TIR_IR_BUILDER_AXIS(Opaque, tvm::tirx::IterVarType::kOpaque, "Opaque");
+TVM_S_TIR_IR_BUILDER_AXIS(Spatial, tvm::s_tir::IterVarType::kDataPar, "Spatial");
+TVM_S_TIR_IR_BUILDER_AXIS(Reduce, tvm::s_tir::IterVarType::kCommReduce, "Reduction");
+TVM_S_TIR_IR_BUILDER_AXIS(Scan, tvm::s_tir::IterVarType::kOrdered, "Scan");
+TVM_S_TIR_IR_BUILDER_AXIS(Opaque, tvm::s_tir::IterVarType::kOpaque, "Opaque");
 #undef TVM_S_TIR_IR_BUILDER_AXIS
 
 ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType dtype) {
@@ -304,6 +304,15 @@ ffi::Array<Var> Remap(ffi::String kinds, ffi::Array<PrimExpr> bindings, PrimType
 }
 
 }  // namespace axis
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  tvm::script::ir_builder::details::Namer::vtable().SetDispatch<tvm::s_tir::IterVarNode>(
+      [](const ffi::ObjectRef& node, ffi::String name) -> void {
+        using namespace tvm::s_tir;
+        IterVarNode* var = const_cast<IterVarNode*>(node.as<IterVarNode>());
+        tvm::script::ir_builder::details::Namer::Name(var->var, name);
+      });
+}
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

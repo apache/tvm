@@ -38,12 +38,13 @@ from tvm.ir import (
 )
 from tvm.ir.base import Span
 from tvm.ir.prim import clz as clz
-from tvm.ir.prim import max_value, min_value
+from tvm.ir.prim import max_value as max_value
+from tvm.ir.prim import min_value as min_value
 from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import buffer_data, is_tensor_var
-from .expr import CommReducer, ExprOp, IntImm
+from .expr import ExprOp, IntImm
 from .expr import TensorLoad as _make_tensor_load
 from .type import TensorMapType
 
@@ -2737,152 +2738,6 @@ def ceildiv(lhs, rhs, span=None):
     return _prim_ffi_api._OpCeilDiv(lhs, rhs, span)  # type: ignore
 
 
-def comm_reducer(fcombine, fidentity, name="reduce"):
-    """Create a commutative reducer for reduction.
-
-    Parameters
-    ----------
-    fcombine : function(Expr -> Expr -> Expr)
-        A binary function which takes two Expr as input to return a Expr.
-
-    fidentity : function(str -> Expr)
-        A function which takes a type string as input to return a const Expr.
-
-    Returns
-    -------
-    reducer : function
-        A function which creates a reduce expression over axis.
-        There are two ways to use it:
-
-        1. accept (expr, axis, where) to produce an Reduce Expr on
-           specified axis;
-        2. simply use it with multiple Exprs.
-
-    Example
-    -------
-    .. code-block:: python
-
-        n = te.var("n")
-        m = te.var("m")
-        mysum = te.comm_reducer(lambda x, y: x+y,
-            lambda t: tvm.tirx.const(0, dtype=t), name="mysum")
-        A = te.placeholder((n, m), name="A")
-        k = te.reduce_axis((0, m), name="k")
-        B = te.compute((n,), lambda i: mysum(A[i, k], axis=k), name="B")
-    """
-
-    def _reduce_directly(*args):
-        num = len(args)
-        # process `where` is None
-        if num == 3 and args[2] is None:
-            num = 2
-        res = args[0]
-        for i in range(num - 1):
-            res = fcombine(res, args[i + 1])
-        return res
-
-    def _make_reduce(expr, axis, where=None, init=None):
-        code = fcombine.__code__
-        assert fcombine.__code__.co_argcount == 2
-        expr = tir.convert(expr)
-        if init is not None:
-            init = tir.convert(init)
-        if isinstance(expr, Array):
-            size = len(expr)
-            lhs = []
-            rhs = []
-            dtypes = []
-            for i in range(size):
-                dtype = _primexpr_dtype(expr[i])
-                dtypes.append(dtype)
-                lname = code.co_varnames[0] + "_" + str(i)
-                lhs.append(Var(lname, dtype))
-                rname = code.co_varnames[1] + "_" + str(i)
-                rhs.append(Var(rname, dtype))
-            if init is None:
-                init = []
-            result = fcombine(lhs, rhs)
-            id_elem = fidentity(*dtypes)
-        else:
-            assert tvm.ir.is_prim_expr(expr)
-            size = 1
-            dtype = _primexpr_dtype(expr)
-            lvar = Var(code.co_varnames[0], dtype)
-            rvar = Var(code.co_varnames[1], dtype)
-            result = [fcombine(lvar, rvar)]
-            id_elem = [fidentity(dtype)]
-            lhs = [lvar]
-            rhs = [rvar]
-            expr = [expr]
-            if init is not None:
-                init = [init]
-        combiner = CommReducer(lhs, rhs, result, id_elem)
-        if not isinstance(axis, list | tuple | tvm.ir.Array):
-            axis = [axis]
-        if where is None:
-            where = tir.convert(True)
-        if init is None:
-            outputs = tuple(
-                tvm.tirx.Reduce(combiner, expr, axis, where, i, []) for i in range(size)
-            )
-        else:
-            outputs = tuple(
-                tvm.tirx.Reduce(combiner, expr, axis, where, i, init) for i in range(size)
-            )
-        return outputs[0] if size == 1 else outputs
-
-    # pylint: disable=keyword-arg-before-vararg
-    def reducer(expr, axis, where=None, init=None, *args):
-        if isinstance(axis, tvm.tirx.IterVar | list | tuple):
-            assert not args
-            return _make_reduce(expr, axis, where, init)
-
-        if where is None:
-            assert not args
-            assert init is None
-            return _reduce_directly(expr, axis)
-        elif init is None:
-            assert not args
-            return _reduce_directly(expr, axis, where)
-        else:
-            return _reduce_directly(expr, axis, where, init, *args)
-
-    doc_str = """Create a {0} expression over axis.
-
-              Parameters
-              ----------
-              expr : Expr
-                  The source expression.
-              axis : IterVar
-                  The reduction IterVar axis
-              where : optional, Expr
-                  Filtering predicate of the reduction.
-              Returns
-              -------
-              value : Expr
-                  The result value.
-
-              Example
-              -------
-              .. code-block:: python
-
-                m = te.var("m")
-                n = te.var("n")
-                A = te.placeholder((m, n), name="A")
-                k = te.reduce_axis((0, n), name="k")
-
-                # there are two way to use this {0} reducer:
-                # mode 1, accept (expr, axis, where) to produce an Reduce Expr
-                # tvm.{0} represents tvm.te.{0} or tvm.tirx.{0}.
-                B = te.compute((m,), lambda i: tvm.{0}(A[i, k], axis=k), name="B")
-
-                # mode 2, simply use it with multiple Exprs:
-                {0}_res = tvm.{0}(m, n)
-              """
-    reducer.__doc__ = doc_str.format(name)
-    return reducer
-
-
 def TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint, dtype_bits_hint):
     """Backend function to allocate temporal workspace
 
@@ -3048,9 +2903,14 @@ def ignore_loop_partition(predicate) -> Expr:
 
 
 # pylint: disable=unnecessary-lambda
-sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
-min = comm_reducer(lambda x, y: _prim_ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore
-max = comm_reducer(lambda x, y: _prim_ffi_api._OpMax(x, y, None), min_value, name="max")  # type: ignore
+def min(a, b, span=None):
+    """Elementwise minimum of two primitive expressions."""
+    return _prim_ffi_api._OpMin(a, b, span)
+
+
+def max(a, b, span=None):
+    """Elementwise maximum of two primitive expressions."""
+    return _prim_ffi_api._OpMax(a, b, span)
 
 
 def tvm_load_matrix_sync(fragment, m, n, k, index, buffer_ptr, stride, layout):

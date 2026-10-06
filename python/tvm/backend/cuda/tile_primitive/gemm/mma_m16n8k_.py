@@ -235,9 +235,9 @@ def _full_active_lanes(op: TilePrimitiveCall, sctx: DispatchContext):
         if tx is None:
             return False, "cta scope needs threadIdx.x in launch_params"
         try:
-            full["warpid"] = int(tx.dom.extent) // 32
+            full["warpid"] = int(tx[1]) // 32
         except (TypeError, ValueError):
-            return False, f"non-static threadIdx.x extent {tx.dom.extent}"
+            return False, f"non-static threadIdx.x extent {tx[1]}"
     for axis, rng in sctx.intra.items():
         if axis not in full:
             return False, f"unsupported active-set axis {axis!r}"

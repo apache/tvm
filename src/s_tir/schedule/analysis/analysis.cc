@@ -704,7 +704,7 @@ ffi::Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
     for (; p; p = p->parent) {
       if (const ForNode* loop = p->StmtAs<ForNode>()) {
         if (loop->kind == ForKind::kThreadBinding) {
-          const ffi::String& thread_tag = loop->thread_binding.value()->thread_tag;
+          const ffi::String& thread_tag = loop->thread_binding.value();
           if (CanRelaxStorageUnderThread(extra_relax_scope,
                                          runtime::ThreadScope::Create(thread_tag))) {
             result.Set(loop->loop_var, Range::FromMinExtent(loop->min, loop->extent));
@@ -1637,8 +1637,8 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
    *   2. there is some loop which is dynamic.
    */
   for (const tirx::StmtSRef& loop_sref : loops) {
-    tirx::IterVarType type = GetLoopIterType(loop_sref);
-    if (type == tirx::kDataPar) {
+    s_tir::IterVarType type = GetLoopIterType(loop_sref);
+    if (type == s_tir::kDataPar) {
       const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (extent.has_value() && *extent != -1) {
@@ -1646,7 +1646,7 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const s_tir::Sc
       } else {
         return std::make_pair(-1, -1);
       }
-    } else if (type == tirx::kCommReduce) {
+    } else if (type == s_tir::kCommReduce) {
       const auto* extent_imm = TVM_SREF_TO_FOR(loop_sref)->extent.as<IntImmNode>();
       auto extent = extent_imm ? extent_imm->value.as<int64_t>() : std::nullopt;
       if (extent.has_value() && *extent != -1) {
@@ -1684,8 +1684,8 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
 
   // Cond 3. Every the loop axis must be either spatial axis or reduction axis.
   for (const tirx::StmtSRef& loop_sref : loops) {
-    const tirx::IterVarType& type = GetLoopIterType(loop_sref);
-    if (type != tirx::kDataPar && type != tirx::kCommReduce) {
+    const s_tir::IterVarType& type = GetLoopIterType(loop_sref);
+    if (type != s_tir::kDataPar && type != s_tir::kCommReduce) {
       return false;
     }
   }
@@ -1695,7 +1695,7 @@ bool NeedsRFactorOrCrossThreadReduction(const s_tir::ScheduleState& self,  //
   bool has_reduction_loop = false;
   for (size_t i = 0; i < loops.size(); ++i) {
     // Cond 4.
-    if (GetLoopIterType(loops[i]) == tirx::kCommReduce) {
+    if (GetLoopIterType(loops[i]) == s_tir::kCommReduce) {
       has_reduction_loop = true;
     }
 

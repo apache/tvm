@@ -41,6 +41,7 @@ from tvm.script.ir_builder.frame import IRModuleFrame
 
 # pylint: disable=unused-import
 from tvm.target.codegen import llvm_lookup_intrinsic_id
+from tvm.te import CommReducer, Reduce
 from tvm.tirx import Expr, is_tensor_var
 from tvm.tirx import op as _tir_op
 from tvm.tirx.exec_scope import Var
@@ -62,7 +63,6 @@ from tvm.tirx.expr import (
     Broadcast,
     CallEffectKind,
     Cast,
-    CommReducer,
     Div,
     FloorDiv,
     FloorMod,
@@ -74,7 +74,6 @@ from tvm.tirx.expr import (
     Not,
     Or,
     Ramp,
-    Reduce,
     RShift,
     Select,
     Shuffle,

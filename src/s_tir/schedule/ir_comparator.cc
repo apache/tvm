@@ -217,8 +217,7 @@ bool TensorizeComparator::Dispatch_(const ForNode* op, const Stmt& other) {
     }
     return false;
   }
-  if (op->thread_binding.has_value() &&
-      !Dispatch(op->thread_binding.value(), rhs->thread_binding.value())) {
+  if (op->thread_binding.has_value() && op->thread_binding.value() != rhs->thread_binding.value()) {
     return false;
   }
   if (op->kind != rhs->kind) {

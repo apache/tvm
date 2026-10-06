@@ -24,12 +24,12 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/var.h>
+#include <tvm/s_tir/iter_var.h>
 
 #include <utility>
 
 namespace tvm {
-namespace tirx {
+namespace s_tir {
 
 namespace {
 
@@ -120,11 +120,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tirx.IterVar", [](Range dom, PrimVar var, int iter_type, ffi::String thread_tag, Span span) {
-        return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
-      });
+  refl::GlobalDef().def("s_tir.IterVar", [](Range dom, PrimVar var, int iter_type,
+                                            ffi::String thread_tag, Span span) {
+    return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
+  });
 }
 
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm

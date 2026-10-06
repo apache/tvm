@@ -56,7 +56,7 @@ FindLoopLCA(const Stmt& root) {
     }
 
     void UpdateLCA(const ForNode* loop) {
-      std::string thread_tag = loop->thread_binding.value()->thread_tag;
+      std::string thread_tag = loop->thread_binding.value();
       {
         ffi::Map<ffi::String, ffi::Any>* tgt = &annotations[thread_tag];
         for (const auto& kv : loop->annotations) {
@@ -67,10 +67,10 @@ FindLoopLCA(const Stmt& root) {
       if (!iter_var.defined()) {
         iter_var = IterVar(Range::FromMinExtent(loop->min, loop->extent),  //
                            loop->loop_var
-                               .as_or_throw<Var>()                   //
-                               .CopyWithName(thread_tag)             //
-                               .as_or_throw<PrimVar>(),              //
-                           loop->thread_binding.value()->iter_type,  //
+                               .as_or_throw<Var>()        //
+                               .CopyWithName(thread_tag)  //
+                               .as_or_throw<PrimVar>(),   //
+                           kThreadIndex,                  //
                            thread_tag);
         lca[thread_tag] = stack;
         var_subst.Set(loop->loop_var, iter_var->var);
@@ -145,11 +145,9 @@ class ThreadBindingLifter : public StmtExprMutator {
     Stmt body = std::move(new_op.CopyOnWrite()->body);
     if (auto it = iter_lca.find(op); it != iter_lca.end()) {
       for (const auto& [iter_var, annotation] : it->second) {
-        body = For(iter_var->var, iter_var->dom->min, iter_var->dom->extent,
-                   ForKind::kThreadBinding, std::move(body),
-                   IterVar(Range(nullptr), PrimVar(iter_var->thread_tag, iter_var->var.ty()),
-                           kThreadIndex, iter_var->thread_tag),
-                   annotation, std::nullopt);
+        body =
+            For(iter_var->var, iter_var->dom->min, iter_var->dom->extent, ForKind::kThreadBinding,
+                std::move(body), iter_var->thread_tag, annotation, std::nullopt);
       }
     }
     if (is_kernel_root) {
