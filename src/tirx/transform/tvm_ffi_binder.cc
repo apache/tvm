@@ -626,6 +626,18 @@ void TVMFFIABIBuilder::DecodeAllParams() {
                     {data, tvm::Tuple(buffer.value()->shape),
                      DataTypeImm(buffer.value()->dtype->dtype), StringImm(buffer.value().scope())},
                     {})));
+      PrimExpr size = IntImm(PrimType(buffer.value()->DefaultIndexType()), 1);
+      for (const auto& extent : buffer.value()->shape) size *= extent;
+      Stmt alignment =
+          Evaluate(Call(PrimType::Void(), builtin::assume_aligned(),
+                        {buffer.value(), IntImm::Int32(buffer.value()->data_alignment)}));
+      // Empty tensors may have arbitrary data pointers. Their checks must not
+      // be strengthened into an unconditional alignment promise.
+      if (is_const_int(size)) {
+        if (!is_zero(size)) decl_buffers_.push_back(alignment);
+      } else {
+        decl_buffers_.push_back(IfThenElse(size != 0, alignment));
+      }
     }
   }
 }
@@ -869,14 +881,6 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
                                      StringImm(std::to_string(buffer->data_alignment)),
                                      StringImm(" bytes")})));
         }
-        // mark alignment of external bufs — must be after the alignment assertion
-        // so the compiler does not emit aligned loads before the check fires.
-        asserts_.emplace_back(AttrStmt(buffer.var(), tirx::attr::storage_alignment,
-                                       IntImm::Int32(buffer->data_alignment), Evaluate(0)));
-      } else {
-        // Even without alignment check, mark alignment for the compiler.
-        init_nest_.emplace_back(AttrStmt(buffer.var(), tirx::attr::storage_alignment,
-                                         IntImm::Int32(buffer->data_alignment), Evaluate(0)));
       }
     }
     return typed_data;

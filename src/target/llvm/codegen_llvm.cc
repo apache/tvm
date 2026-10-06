@@ -345,18 +345,9 @@ void CodeGenLLVM::AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f) 
   builder_->SetInsertPoint(entry);
   this->Dispatch(f->body.value());
 
-  // Add alignment attribute if needed.
-  for (size_t i = 0; i < f->params.size(); ++i) {
-    const Var& var = f->params[i];
-    auto f = alloc_storage_info_.find(var.get());
-    if (f != alloc_storage_info_.end()) {
-      unsigned align = f->second.alignment;
-      if (align > 1) {
-        auto attr = llvm::Attribute::get(*ctx, llvm::Attribute::Alignment, align);
-        function_->addParamAttr(i, attr);
-      }
-    }
-  }
+  // Body-local alignment assumptions need not hold on paths that returned
+  // before reaching them. Keep them as llvm.assume instead of strengthening
+  // the function's parameter contract retroactively.
 
   EmitDebugLocation(f->span);
 
@@ -879,9 +870,12 @@ void CodeGenLLVM::CreateSerialFor(llvm::Value* begin, llvm::Value* end, llvm::Va
   builder_->SetInsertPoint(for_body);
   EmitDebugLocation(body->span);
 
+  // Facts established inside a loop do not dominate its exit.
+  auto outer_storage_info = alloc_storage_info_;
   PushLoopFrame(for_next, for_end);
   this->Dispatch(body);
   PopLoopFrame();
+  alloc_storage_info_ = std::move(outer_storage_info);
   var_map_.erase(loop_var.get());
 
   builder_->CreateBr(for_next);
@@ -1463,6 +1457,13 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   } else if (op->op.same_as(tirx::builtin::atomic_add())) {
     // TODO(masahi): Support atomic for CPU backend
     TVM_FFI_THROW(InternalError) << "CPU backend does not support atomic add yet.";
+  } else if (op->op.same_as(tirx::builtin::assume_aligned())) {
+    const VarNode* tensor = args[0].as_or_throw<TensorVar>().get();
+    const VarNode* root = GetBufferPhysicalRoot(tensor);
+    int alignment = args[1].as_or_throw<IntImm>()->value.as<int>().value();
+    StorageInfo& info = alloc_storage_info_[root];
+    info.alignment = std::max(info.alignment, alignment);
+    return builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(tensor), alignment);
   } else if (op->op.same_as(tirx::builtin::assume())) {
     llvm::Value* cond = MakeValue(args[0]);
     return builder_->CreateAssumption(cond);
@@ -2119,9 +2120,11 @@ void CodeGenLLVM::Dispatch_(const WhileNode* op) {
   builder_->SetInsertPoint(while_cond);
   builder_->CreateCondBr(MakeValue(op->condition), while_body, while_merge);
   builder_->SetInsertPoint(while_body);
+  auto outer_storage_info = alloc_storage_info_;
   PushLoopFrame(while_cond, while_merge);
   this->Dispatch(op->body);
   PopLoopFrame();
+  alloc_storage_info_ = std::move(outer_storage_info);
   builder_->CreateBr(while_cond);
   builder_->SetInsertPoint(while_merge);
 }
@@ -2159,6 +2162,8 @@ void CodeGenLLVM::Dispatch_(const ContinueNode* op) {
 
 void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {
   EmitDebugLocation(op);
+  // A branch-local assumption cannot strengthen its sibling or the join.
+  auto outer_storage_info = alloc_storage_info_;
   llvm::Value* cond = MakeValue(op->condition);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   auto* then_block = llvm::BasicBlock::Create(*ctx, "if_then", function_);
@@ -2169,6 +2174,7 @@ void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {
     builder_->SetInsertPoint(then_block);
     this->Dispatch(op->then_case);
     builder_->CreateBr(end_block);
+    alloc_storage_info_ = outer_storage_info;
     builder_->SetInsertPoint(else_block);
     this->Dispatch(op->else_case.value());
     builder_->CreateBr(end_block);
@@ -2178,6 +2184,7 @@ void CodeGenLLVM::Dispatch_(const IfThenElseNode* op) {
     this->Dispatch(op->then_case);
     builder_->CreateBr(end_block);
   }
+  alloc_storage_info_ = std::move(outer_storage_info);
   builder_->SetInsertPoint(end_block);
 }
 
@@ -2258,15 +2265,6 @@ void CodeGenLLVM::Dispatch_(const AttrStmtNode* op) {
   TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
       << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
   EmitDebugLocation(op);
-  if (op->attr_key == tirx::attr::storage_alignment) {
-    const VarNode* v = op->node.as<VarNode>();
-    TVM_FFI_ICHECK(v);
-    alloc_storage_info_[v].alignment = op->value.as<IntImmNode>()->value.as<int>().value();
-    if (var_map_.count(v) && alloc_storage_info_[v].alignment > 1) {
-      builder_->CreateAlignmentAssumption(*data_layout_, GetVarValue(v),
-                                          alloc_storage_info_[v].alignment);
-    }
-  }
   this->Dispatch(op->body);
 }
 
