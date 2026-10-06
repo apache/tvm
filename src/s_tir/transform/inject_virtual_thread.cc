@@ -456,7 +456,6 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
                       op->span);
   }
 
-  // Attribute
   // Bind
   UnchangedOr<Stmt> Mutate_(const BindNode* op, InplaceMode inplace_mode) final {
     if (const auto* call = op->value.as<CallNode>();
