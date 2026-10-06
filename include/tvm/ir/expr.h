@@ -438,6 +438,48 @@ class PrimVar : public PrimExpr {
   static constexpr bool _type_container_is_exact = false;
 };
 
+/*!
+ * \brief A typed staging expression representing a lambda computation.
+ *
+ * LambdaExpr records computations such as reduction combiners and predication
+ * rules. Its body may describe computations on runtime values.
+ *
+ * Parameters are bound within the expression body, which may produce a scalar
+ * or tuple result. The lambda has a FuncType describing its parameter and
+ * return types.
+ *
+ * As a StagingExpr, LambdaExpr is eliminated during compilation and does not
+ * remain in executable IR.
+ */
+class LambdaExprNode : public StagingExprNode {
+ public:
+  /*! \brief Lambda-local parameter definitions. */
+  ffi::Array<Var> vars;
+  /*! \brief Computation over the parameters and captured expressions. */
+  Expr body;
+
+  explicit LambdaExprNode(ffi::UnsafeInit tag) : body(tag) {}
+  explicit LambdaExprNode(Expr body) : body(std::move(body)) {}
+  /*! \brief Simultaneously substitute arguments for the bound parameters. */
+  TVM_DLL Expr Apply(const ffi::Array<Expr>& arguments) const;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LambdaExprNode>()
+        .def_ro("vars", &LambdaExprNode::vars, refl::AttachFieldFlag::SEqHashDefSimple())
+        .def_ro("body", &LambdaExprNode::body);
+  }
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("ir.LambdaExpr", LambdaExprNode, StagingExprNode);
+};
+
+/*! \brief Managed reference to a typed staging lambda. */
+class LambdaExpr : public StagingExpr {
+ public:
+  TVM_DLL explicit LambdaExpr(ffi::Array<Var> vars, Expr body);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(LambdaExpr, StagingExpr, LambdaExprNode);
+};
+
 class GlobalVar;
 /*!
  * \brief Global variable that lives in the top-level module.

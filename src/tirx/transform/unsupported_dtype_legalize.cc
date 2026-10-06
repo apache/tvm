@@ -24,8 +24,8 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/builtin.h>
-#include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
@@ -144,7 +144,7 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
     PrimExpr origin_b =                                                             \
         PromoteToTarget(this->Mutate(op->b, inplace_mode).ValueOrUnchanged(op->b)); \
                                                                                     \
-    if (origin_a.same_as(op->a) && origin_b.same_as(op->b)) {                       \
+    if (origin_a.same_as(op->a) && origin_b.same_as(op->b) && !MatchType(op->ty)) { \
       return ffi::Unchanged();                                                      \
     } else {                                                                        \
       return FUNC(origin_a, origin_b);                                              \
@@ -201,7 +201,7 @@ class ComputeLegalizer : public StmtExprMutator {
     PrimExpr false_value = PromoteToTarget(
         this->Mutate(op->false_value, inplace_mode).ValueOrUnchanged(op->false_value));
     if (condition_unchanged && true_value.same_as(op->true_value) &&
-        false_value.same_as(op->false_value)) {
+        false_value.same_as(op->false_value) && !MatchType(op->ty)) {
       return ffi::Unchanged();
     } else {
       return prim::Select(condition, true_value, false_value);
@@ -211,7 +211,7 @@ class ComputeLegalizer : public StmtExprMutator {
   UnchangedOr<PrimExpr> Mutate_(const prim::BroadcastNode* op, InplaceMode inplace_mode) final {
     PrimExpr value =
         PromoteToTarget(this->Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
-    if (value.same_as(op->value)) {
+    if (value.same_as(op->value) && !MatchType(op->ty)) {
       return ffi::Unchanged();
     } else {
       return prim::Broadcast(value, op->lanes);
@@ -222,7 +222,7 @@ class ComputeLegalizer : public StmtExprMutator {
     auto vectors = op->vectors.Map([this](const PrimExpr& value) {
       return PromoteToTarget(Mutate(value).ValueOrUnchanged(value));
     });
-    if (vectors.same_as(op->vectors)) {
+    if (vectors.same_as(op->vectors) && !MatchType(op->ty)) {
       return ffi::Unchanged();
     } else {
       return prim::Shuffle(vectors, op->indices);
@@ -230,6 +230,9 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(builtin::tvm_thread_allreduce())) {
+      return LegalizeThreadAllreduce(op);
+    }
     if (op->op.same_as(builtin::alloc_tensor()) || op->op.same_as(builtin::decl_tensor())) {
       Call call = StmtExprMutator::Mutate_(op, inplace_mode)
                       .ValueOrUnchanged(ffi::GetRef<Expr>(op))
@@ -403,40 +406,6 @@ class ComputeLegalizer : public StmtExprMutator {
       if (mapped != nullptr) {
         return AttrStmt(mapped.as_or_throw<Var>(), op->attr_key, op->value, op->body);
       }
-    } else if (auto reducer = op->node.as<te::CommReducerNode>()) {
-      auto reducer_mode = op->unique() && reducer->unique() ? inplace_mode : InplaceMode::kDisallow;
-      auto legalized_identity_elements = Mutate(reducer->identity_element, reducer_mode)
-                                             .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
-                                             .ValueOrUnchanged(reducer->identity_element);
-
-      // Remap input variables
-      for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
-        Var lhs_var = reducer->lhs[i];
-        if (lhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          VarRemapSet(lhs_var, lhs_var.CopyWithDType(legalized_identity_elements[i].ty()));
-        }
-        Var rhs_var = reducer->rhs[i];
-        if (rhs_var->ty.as_or_throw<PrimType>() != legalized_identity_elements[i].ty()) {
-          VarRemapSet(rhs_var, rhs_var.CopyWithDType(legalized_identity_elements[i].ty()));
-        }
-      }
-
-      auto legalized_results = Mutate(reducer->result, reducer_mode)
-                                   .as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>()
-                                   .ValueOrUnchanged(reducer->result);
-
-      auto legalized_lhs = reducer->lhs.Map([this](PrimVar var) {
-        auto mapped = VarRemapGet(var);
-        return mapped == nullptr ? var : mapped.as_or_throw<PrimVar>();
-      });
-
-      auto legalized_rhs = reducer->rhs.Map([this](PrimVar var) {
-        auto mapped = VarRemapGet(var);
-        return mapped == nullptr ? var : mapped.as_or_throw<PrimVar>();
-      });
-      return AttrStmt(te::CommReducer(legalized_lhs, legalized_rhs, legalized_results,
-                                      legalized_identity_elements, reducer->span),
-                      op->attr_key, op->value, op->body);
     }
     return ret;
   }
@@ -453,6 +422,40 @@ class ComputeLegalizer : public StmtExprMutator {
   }
 
  private:
+  // Preserve scalar operands and explicit Tuple grouping while promoting computation.
+  Expr LegalizeThreadAllreduce(const CallNode* op) {
+    LambdaExpr combine = op->args[0].as_or_throw<LambdaExpr>();
+    auto map_operand = [](const Expr& operand, const auto& transform) -> Expr {
+      if (const auto* tuple = operand.as<tvm::TupleNode>()) {
+        return tvm::Tuple(tuple->fields.Map(transform), operand->span);
+      }
+      return transform(operand);
+    };
+    auto promote = [this](const Expr& value) -> Expr {
+      return PromoteToTarget(Mutate(value).ValueOrUnchanged(value).as_or_throw<PrimExpr>());
+    };
+    Expr identity = map_operand(op->args[1], promote);
+    Expr values = map_operand(op->args[2], promote);
+    ffi::Array<Expr> value_fields = builtin::GetAllreduceFields(values);
+    ffi::Array<Var> vars;
+    ffi::Array<Expr> arguments;
+    for (size_t i = 0; i < combine->vars.size(); ++i) {
+      Var promoted = combine->vars[i].CopyWithDType(
+          value_fields[i % value_fields.size()]->ty.as_or_throw<PrimType>());
+      vars.push_back(promoted);
+      arguments.push_back(promoted);
+    }
+    LambdaExpr legalized_combine(vars, map_operand(combine->Apply(arguments), promote));
+    auto mutate = [this](const Expr& value) { return Mutate(value).ValueOrUnchanged(value); };
+    Expr predicate = mutate(op->args[3]);
+    // Destinations are lvalues: remap promoted allocations without adding compute casts.
+    Expr destinations = map_operand(op->args[4], mutate);
+    Expr axes = map_operand(op->args[5], mutate);
+    return Call(PrimType::Void(), op->op,
+                {legalized_combine, identity, values, predicate, destinations, axes}, op->attrs,
+                op->ty_args, op->span);
+  }
+
   /*!
    * \brief promote value to target datatype F16/F32 and keep other values unchanged.
    * \param value The input value.

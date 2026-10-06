@@ -254,9 +254,6 @@ constexpr const char* fragment_layout = "fragment_layout";
  */
 constexpr const char* loop_partition_hint = "loop_partition_hint";
 
-/*! \brief Mark of reduce scope */
-constexpr const char* reduce_scope = "reduce_scope";
-
 // -----------------------------------------------------------------------
 // meta_schedule annotations
 // -----------------------------------------------------------------------

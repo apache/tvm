@@ -720,6 +720,44 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                         });
 }
 
+// LambdaExpr
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  StagingExprNode::RegisterReflection();
+  LambdaExprNode::RegisterReflection();
+}
+
+Expr LambdaExprNode::Apply(const ffi::Array<Expr>& arguments) const {
+  TVM_FFI_CHECK_EQ(arguments.size(), vars.size(), ValueError) << "LambdaExpr Apply arity mismatch";
+  ffi::Map<Var, Expr> vmap;
+  for (size_t i = 0; i < vars.size(); ++i) vmap.Set(vars[i], arguments[i]);
+  return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(
+             body, [&](const Var& var) -> Expr { return vmap.Get(var).value_or(var); })
+      .cast<Expr>();
+}
+
+LambdaExpr::LambdaExpr(ffi::Array<Var> vars, Expr body) : StagingExpr(ffi::UnsafeInit{}) {
+  auto n = ffi::make_object<LambdaExprNode>(std::move(body));
+  ffi::Array<Type> types;
+  for (const Var& var : vars) types.push_back(var->ty);
+  n->ty = FuncType(types, n->body->ty);
+  n->vars = std::move(vars);
+  data_ = std::move(n);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.LambdaExpr",
+                        [](ffi::Array<Var> vars, Expr body) { return LambdaExpr(vars, body); });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.LambdaExprApply", [](LambdaExpr body, ffi::Array<Expr> indices) {
+    return body->Apply(indices);
+  });
+}
+
 // Tuple
 Tuple::Tuple(ffi::Array<Expr> fields, Span span) : Expr(ffi::UnsafeInit{}) {
   ffi::Optional<Type> tuple_ty = [&]() -> ffi::Optional<Type> {

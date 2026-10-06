@@ -24,6 +24,7 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
 #include <tvm/s_tir/analysis.h>
 #include <tvm/s_tir/stmt.h>
 #include <tvm/s_tir/stmt_functor.h>
@@ -410,31 +411,35 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
   }
   // Stmt 3: do cross-thread reduction
   {
-    // Step 3.1. Create the parameters to the intrinsic
-    ffi::Array<PrimExpr> parameters;
-    parameters.reserve(reduction_loops.size() + 4);
-    // 1-st argument: number of buffers
-    parameters.push_back(IntImm(PrimType::UInt(32), n_buffers));
-    // Next `n_buffers` arguments: sources
+    // Step 3.1. Carry the reducer directly as typed staging operands.
+    ffi::Array<Var> combine_vars;
+    for (const Var& var : reducer->lhs) combine_vars.push_back(var);
+    for (const Var& var : reducer->rhs) combine_vars.push_back(var);
+    LambdaExpr combine(combine_vars, tvm::Tuple(reducer->result));
+    ffi::Array<PrimExpr> values;
     if (it_buffers.has_value()) {
       for (int i = 0; i < n_buffers; ++i) {
-        parameters.push_back(MakeTensorLoad(it_buffers.value()[i], {IntImm::Int32(0)}));
+        values.push_back(MakeTensorLoad(it_buffers.value()[i], {IntImm::Int32(0)}));
       }
     } else {
-      parameters.insert(parameters.end(), combiner_rhs.begin(), combiner_rhs.end());
+      values = combiner_rhs;
     }
-    // Next argument: predicate
-    parameters.push_back(IntImm::Bool(true));
-    // Next `n_buffers` arguments: destinations
+    ffi::Array<PrimExpr> destinations;
     for (int i = 0; i < n_buffers; ++i) {
-      parameters.push_back(MakeTensorLoad(ct_buffers[i], {0}));
+      destinations.push_back(MakeTensorLoad(ct_buffers[i], {0}));
     }
-    // Next arguments: all the reduction threads
+    ffi::Array<PrimExpr> thread_axes;
     for (const ForNode* reduction_loop : reduction_loops) {
       if (reduction_loop->thread_binding.has_value()) {
-        parameters.push_back(reduction_loop->loop_var);
+        thread_axes.push_back(reduction_loop->loop_var);
       }
     }
+    ffi::Array<Expr> parameters{combine,
+                                tvm::Tuple(reducer->identity_element),
+                                tvm::Tuple(values),
+                                IntImm::Bool(true),
+                                tvm::Tuple(destinations),
+                                tvm::Tuple(thread_axes)};
     // Step 3.2. Create the block and the block-realize.
     ffi::Array<IterVar> iter_vars{nullptr};
     ffi::Array<PrimExpr> bindings{nullptr};
@@ -457,14 +462,10 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                /*writes=*/ct_buffer_regions,
                /*name_hint=*/block->name_hint + "_cross_thread",
                /*body=*/
-               AttrStmt(/*node=*/reducer,
-                        /*attr_key=*/s_tir::attr::reduce_scope,
-                        /*value=*/IntImm::Int32(0),
-                        /*body=*/
-                        Evaluate(Call(/*dtype=*/PrimType::Void(),
-                                      /*op=*/tirx::builtin::tvm_thread_allreduce(),
-                                      /*args=*/std::move(parameters))
-                                     .as_or_throw<PrimExpr>())))));
+               Evaluate(Call(/*dtype=*/PrimType::Void(),
+                             /*op=*/tirx::builtin::tvm_thread_allreduce(),
+                             /*args=*/std::move(parameters))
+                            .as_or_throw<PrimExpr>()))));
   }
   // Stmt 4: write cross-thread reduction result to the original buffer
   {

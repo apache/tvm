@@ -23,6 +23,7 @@
  *  builtin intrinsic operators.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/attrs.h>
 #include <tvm/tirx/builtin.h>
@@ -594,7 +595,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));
 
   OpDef("tirx.tvm_thread_allreduce")
-      .signature(sig::arg<IntExpr>("size", "The size."), sig::var_args("args"))
+      .signature(sig::arg<LambdaExpr>("combine", "The typed combining lambda."),
+                 sig::arg<Expr>("identity", "The identity values."),
+                 sig::arg<Expr>("values", "The reduction values."),
+                 sig::arg<PrimExpr>("predicate", "Whether this thread contributes."),
+                 sig::arg<Expr>("destinations", "The destination tensor loads."),
+                 sig::arg<Expr>("thread_axes", "The reduction thread axes."))
+      .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void())
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.tvm_thread_allreduce"))
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"))
       .set_attr<TCallEffectKind>("TCallEffectKind", static_cast<int64_t>(CallEffectKind::kOpaque));

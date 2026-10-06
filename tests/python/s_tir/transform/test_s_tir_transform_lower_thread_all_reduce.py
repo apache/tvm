@@ -63,18 +63,14 @@ def test_basic():
                 reduce = T.alloc_tensor((1,), scope="local")
                 reduce_1 = T.decl_tensor(1, data=reduce.data, scope="local")
 
-                with T.attr(
-                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                    "reduce_scope",
-                    T.int32(0),
-                ):
-                    T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        A_flat[0],
-                        T.bool(True),
-                        reduce_1[0],
-                        threadIdx_x,
-                    )
+                T.tvm_thread_allreduce(
+                    T.Lambda([T.float32, T.float32], lambda x, y: x + y),
+                    T.float32(0),
+                    A_flat[0],
+                    T.bool(True),
+                    reduce_1[0],
+                    threadIdx_x,
+                )
                 if threadIdx_x == 0:
                     B[i] = reduce_1[0]
 
@@ -102,18 +98,14 @@ def test_basic_with_decl_buffer():
 
                 reduce = T.decl_tensor(1, dtype="float32", scope="local")
 
-                with T.attr(
-                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                    "reduce_scope",
-                    T.int32(0),
-                ):
-                    T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        A_flat[0],
-                        T.bool(True),
-                        reduce[0],
-                        threadIdx_x,
-                    )
+                T.tvm_thread_allreduce(
+                    T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                    (T.float32(0),),
+                    (A_flat[0],),
+                    T.bool(True),
+                    (reduce[0],),
+                    (threadIdx_x,),
+                )
                 if threadIdx_x == 0:
                     B[i] = reduce[0]
 
@@ -150,18 +142,14 @@ def test_reduce_summation():
                         normal_reduce_1[0] + A_flat[i * 128 + ko * 32 + threadIdx_x]
                     )
 
-                with T.attr(
-                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                    "reduce_scope",
-                    T.int32(0),
-                ):
-                    T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        normal_reduce_1[0],
-                        T.bool(True),
-                        reduce_1[0],
-                        threadIdx_x,
-                    )
+                T.tvm_thread_allreduce(
+                    T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                    (T.float32(0),),
+                    (normal_reduce_1[0],),
+                    T.bool(True),
+                    (reduce_1[0],),
+                    (threadIdx_x,),
+                )
                 if threadIdx_x == 0:
                     B[i] = reduce_1[0]
 
@@ -183,19 +171,15 @@ def test_multi_group_reduction():
             cross_thread_B = T.alloc_tensor((1,), scope="local")
             threadIdx_x = T.launch_thread("threadIdx.x", 32)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            with T.attr(
-                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                A_1 = T.decl_tensor((1024,), data=A.data)
-                T.tvm_thread_allreduce(
-                    T.uint32(1),
-                    A_1[threadIdx_y * 32 + threadIdx_x],
-                    T.bool(True),
-                    cross_thread_B_1[0],
-                    threadIdx_x,
-                )
+            A_1 = T.decl_tensor((1024,), data=A.data)
+            T.tvm_thread_allreduce(
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                (T.float32(0),),
+                (A_1[threadIdx_y * 32 + threadIdx_x],),
+                T.bool(True),
+                (cross_thread_B_1[0],),
+                (threadIdx_x,),
+            )
             if threadIdx_x == 0:
                 B_1 = T.decl_tensor((32,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
@@ -218,19 +202,15 @@ def test_multi_group_reduction_consumed_through_alias():
             cross_thread_B = T.alloc_tensor((1,), scope="local")
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             cross_thread_B_alias = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            with T.attr(
-                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                A_flat = T.decl_tensor((512,), data=A.data)
-                T.tvm_thread_allreduce(
-                    T.uint32(1),
-                    A_flat[threadIdx_y * 128 + threadIdx_x],
-                    T.bool(True),
-                    cross_thread_B[0],
-                    threadIdx_x,
-                )
+            A_flat = T.decl_tensor((512,), data=A.data)
+            T.tvm_thread_allreduce(
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                (T.float32(0),),
+                (A_flat[threadIdx_y * 128 + threadIdx_x],),
+                T.bool(True),
+                (cross_thread_B[0],),
+                (threadIdx_x,),
+            )
             cross_thread_B_alias[0] = cross_thread_B[0]
             if threadIdx_x == 0:
                 B_flat = T.decl_tensor((4,), data=B.data)
@@ -257,19 +237,15 @@ def test_multi_group_reduction_with_alias_declared_after_allreduce():
             threadIdx_y = T.launch_thread("threadIdx.y", 4)
             cross_thread_B = T.alloc_tensor((1,), scope="local")
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
-            with T.attr(
-                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                A_flat = T.decl_tensor((512,), data=A.data)
-                T.tvm_thread_allreduce(
-                    T.uint32(1),
-                    A_flat[threadIdx_y * 128 + threadIdx_x],
-                    T.bool(True),
-                    cross_thread_B[0],
-                    threadIdx_x,
-                )
+            A_flat = T.decl_tensor((512,), data=A.data)
+            T.tvm_thread_allreduce(
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                (T.float32(0),),
+                (A_flat[threadIdx_y * 128 + threadIdx_x],),
+                T.bool(True),
+                (cross_thread_B[0],),
+                (threadIdx_x,),
+            )
             cross_thread_B_alias = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
             cross_thread_B[0] = cross_thread_B_alias[0]
             if threadIdx_x == 0:
@@ -298,19 +274,15 @@ def test_multi_group_mask1():
             cross_thread_B = T.alloc_tensor((1,), scope="local")
             threadIdx_x = T.launch_thread("threadIdx.x", 8)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            with T.attr(
-                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                A_1 = T.decl_tensor((256,), data=A.data)
-                T.tvm_thread_allreduce(
-                    T.uint32(1),
-                    A_1[threadIdx_y * 8 + threadIdx_x],
-                    T.bool(True),
-                    cross_thread_B_1[0],
-                    threadIdx_x,
-                )
+            A_1 = T.decl_tensor((256,), data=A.data)
+            T.tvm_thread_allreduce(
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                (T.float32(0),),
+                (A_1[threadIdx_y * 8 + threadIdx_x],),
+                T.bool(True),
+                (cross_thread_B_1[0],),
+                (threadIdx_x,),
+            )
             if threadIdx_x == 0:
                 B_1 = T.decl_tensor((32,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
@@ -333,19 +305,15 @@ def test_multi_warp_reduce1():
                 threadIdx_x = T.launch_thread("threadIdx.x", 128)
                 cross_thread_B = T.alloc_tensor((1,), scope="local")
                 cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-                with T.attr(
-                    T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                    "reduce_scope",
-                    T.int32(0),
-                ):
-                    A_1 = T.decl_tensor((16384,), data=A.data)
-                    T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        A_1[i * 128 + threadIdx_x],
-                        T.bool(True),
-                        cross_thread_B_1[0],
-                        threadIdx_x,
-                    )
+                A_1 = T.decl_tensor((16384,), data=A.data)
+                T.tvm_thread_allreduce(
+                    T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                    (T.float32(0),),
+                    (A_1[i * 128 + threadIdx_x],),
+                    T.bool(True),
+                    (cross_thread_B_1[0],),
+                    (threadIdx_x,),
+                )
                 if threadIdx_x == 0:
                     B_1 = T.decl_tensor((128,), data=B.data)
                     B_1[i] = cross_thread_B_1[0]
@@ -368,15 +336,15 @@ def test_multi_warp_reduce2():
             threadIdx_x = T.launch_thread("threadIdx.x", 1024)
             cross_thread_B = T.alloc_tensor((1,), scope="local")
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            with T.attr(
-                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                A_1 = T.decl_tensor((1024,), data=A.data)
-                T.tvm_thread_allreduce(
-                    T.uint32(1), A_1[threadIdx_x], T.bool(True), cross_thread_B_1[0], threadIdx_x
-                )
+            A_1 = T.decl_tensor((1024,), data=A.data)
+            T.tvm_thread_allreduce(
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                (T.float32(0),),
+                (A_1[threadIdx_x],),
+                T.bool(True),
+                (cross_thread_B_1[0],),
+                (threadIdx_x,),
+            )
             if threadIdx_x == 0:
                 B_1 = T.decl_tensor((1,), data=B.data)
                 B_1[0] = cross_thread_B_1[0]
@@ -400,19 +368,15 @@ def test_multi_group_multi_warp_reduction():
             cross_thread_B = T.alloc_tensor((1,), scope="local")
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            with T.attr(
-                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                A_1 = T.decl_tensor((512,), data=A.data)
-                T.tvm_thread_allreduce(
-                    T.uint32(1),
-                    A_1[threadIdx_y * 128 + threadIdx_x],
-                    T.bool(True),
-                    cross_thread_B_1[0],
-                    threadIdx_x,
-                )
+            A_1 = T.decl_tensor((512,), data=A.data)
+            T.tvm_thread_allreduce(
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                (T.float32(0),),
+                (A_1[threadIdx_y * 128 + threadIdx_x],),
+                T.bool(True),
+                (cross_thread_B_1[0],),
+                (threadIdx_x,),
+            )
             if threadIdx_x == 0:
                 B_1 = T.decl_tensor((4,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
@@ -442,14 +406,14 @@ def test_multi_group_multi_warp_predicated_reduction():
                 A_1 = T.decl_tensor((140,), data=A.data)
                 in_thread_B_1[0] = in_thread_B_1[0] + A_1[threadIdx_y * 70 + threadIdx_x]
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            with T.attr(
-                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                T.tvm_thread_allreduce(
-                    T.uint32(1), in_thread_B_1[0], T.bool(True), cross_thread_B_1[0], threadIdx_x
-                )
+            T.tvm_thread_allreduce(
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                (T.float32(0),),
+                (in_thread_B_1[0],),
+                T.bool(True),
+                (cross_thread_B_1[0],),
+                (threadIdx_x,),
+            )
             if threadIdx_x == 0:
                 B_1 = T.decl_tensor((2,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
@@ -486,19 +450,15 @@ def test_metal_no_mask():
             threadIdx_y = T.launch_thread("threadIdx.y", 2)
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            with T.attr(
-                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                A_1 = T.decl_tensor((256,), data=A.data)
-                T.tvm_thread_allreduce(
-                    T.uint32(1),
-                    A_1[threadIdx_y * 128 + threadIdx_x],
-                    T.bool(True),
-                    cross_thread_B_1[0],
-                    threadIdx_x,
-                )
+            A_1 = T.decl_tensor((256,), data=A.data)
+            T.tvm_thread_allreduce(
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                (T.float32(0),),
+                (A_1[threadIdx_y * 128 + threadIdx_x],),
+                T.bool(True),
+                (cross_thread_B_1[0],),
+                (threadIdx_x,),
+            )
             if threadIdx_x == 0:
                 B_1 = T.decl_tensor((2,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
@@ -538,18 +498,14 @@ def test_webgpu_warp_reduce():
                 reduce = T.decl_tensor(1, data=reduce_data.data, scope="local")
                 reduce_alias = T.decl_tensor(1, data=reduce.data, scope="local")
 
-                with T.attr(
-                    T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
-                    "reduce_scope",
-                    T.int32(0),
-                ):
-                    T.tvm_thread_allreduce(
-                        T.uint32(1),
-                        A_flat[0],
-                        T.bool(True),
-                        reduce_alias[0],
-                        threadIdx_x,
-                    )
+                T.tvm_thread_allreduce(
+                    T.Lambda([T.float32, T.float32], lambda x, y: (x + y,)),
+                    (T.float32(0),),
+                    (A_flat[0],),
+                    T.bool(True),
+                    (reduce_alias[0],),
+                    (threadIdx_x,),
+                )
                 if threadIdx_x == 0:
                     B[i] = reduce_alias[0]
 
@@ -588,19 +544,15 @@ def test_webgpu_multi_warp_reduce():
             threadIdx_y = T.launch_thread("threadIdx.y", 2)
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             cross_thread_B_1 = T.decl_tensor((1,), data=cross_thread_B.data, scope="local")
-            with T.attr(
-                T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
-                "reduce_scope",
-                T.int32(0),
-            ):
-                A_1 = T.decl_tensor((256,), data=A.data)
-                T.tvm_thread_allreduce(
-                    T.uint32(1),
-                    A_1[threadIdx_y * 128 + threadIdx_x],
-                    T.bool(True),
-                    cross_thread_B_1[0],
-                    threadIdx_x,
-                )
+            A_1 = T.decl_tensor((256,), data=A.data)
+            T.tvm_thread_allreduce(
+                T.Lambda([T.float32, T.float32], lambda x0, y0: (x0 + y0,)),
+                (T.float32(0),),
+                (A_1[threadIdx_y * 128 + threadIdx_x],),
+                T.bool(True),
+                (cross_thread_B_1[0],),
+                (threadIdx_x,),
+            )
             if threadIdx_x == 0:
                 B_1 = T.decl_tensor((2,), data=B.data)
                 B_1[threadIdx_y] = cross_thread_B_1[0]
