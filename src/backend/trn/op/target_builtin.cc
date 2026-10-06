@@ -47,6 +47,13 @@ void RegisterTRNTargetBuiltins() {
   registered = true;
 
   RegisterNKIIntrinsicAliases();
+
+  OpDef("tirx.nki.tensorized_instruction", "Tensorize the NKI instructions in the region body.")
+      .signature()
+      .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
+      .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("nki"))
+      .set_attr<TScriptPrinterName>("TScriptPrinterName",
+                                    ffi::String("tirx.nki.tensorized_instruction"));
 }
 
 namespace {

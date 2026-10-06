@@ -95,7 +95,7 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     @T.prim_func(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, inst_repr.size, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map_all({p_var: p_loop, f_var: f_loop, b_var: b_loop})

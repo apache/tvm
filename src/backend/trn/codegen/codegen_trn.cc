@@ -280,15 +280,20 @@ void CodeGenTrainium::DispatchAllocTensor(const BindNode* op, const CallNode* bu
 void CodeGenTrainium::Dispatch_(const AttrStmtNode* op) {
   TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
       << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
-  if (op->attr_key == tirx::attr::tensorized_nki_instruction) {
+  this->PrintStmt(op->body);
+}
+
+void CodeGenTrainium::Dispatch_(const RegionStmtNode* op) {
+  static const Op tensorized_instruction = Op::Get("tirx.nki.tensorized_instruction");
+  if (op->op.same_as(tensorized_instruction)) {
     ctx_.tensorizing = true;
     ctx_.mask = std::nullopt;
     ctx_.loopvar2dim.clear();
     ctx_.is_matmul_input = false;
-  }
-  this->PrintStmt(op->body);
-  if (op->attr_key == tirx::attr::tensorized_nki_instruction) {
+    this->PrintStmt(op->body);
     ctx_.tensorizing = false;
+  } else {
+    CodeGenC::Dispatch_(op);
   }
 }
 

@@ -97,7 +97,7 @@ def transpose_schedule(
         # This fragment captures buffers and indices from its insertion scope.
         @T.prim_func(check_well_formed=False)
         def identity_init():
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for rhs_f_loop in T.serial(0, rhs_f_size, annotations={nki_dim: "F"}):
                         T.evaluate(T.nki.identity(identity_tensor[p_loop, rhs_f_loop], p_size))
@@ -115,7 +115,7 @@ def transpose_schedule(
         @T.prim_func(check_well_formed=False)
         def transpose_psum_output():
             for b_loop in T.serial(0, b_extent):
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for lhs_f_loop in T.serial(0, lhs_f_size, annotations={nki_dim: "lhs_F"}):
                             for rhs_f_loop in T.serial(
@@ -169,7 +169,7 @@ def transpose_schedule(
     def transpose_sbuf_output():
         for b_loop in T.serial(0, b_extent):
             for extend_b_loop in T.serial(0, extend_len):
-                with T.attr(0, "tensorized_nki_instruction", 1):
+                with T.nki.tensorized_instruction():
                     for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                         for lhs_f_loop in T.serial(0, lhs_f_size, annotations={nki_dim: "lhs_F"}):
                             for rhs_f_loop in T.serial(0, rhs_f_size, annotations={nki_dim: "rhs_F"}):  # noqa: E501
@@ -177,7 +177,7 @@ def transpose_schedule(
                                 src_indices = T.meta_var(inst_gen.generate_indices(src_region))
                                 if inst_gen.make_guard(src_region):
                                     T.evaluate(T.nki.matmul(acc_psum[b_loop % max_psum_slots, lhs_f_loop,extend_b_loop * rhs_f_size + rhs_f_loop], src_buffer[tuple(src_indices)], identity_tensor[p_loop, rhs_f_loop]))  # noqa: E501
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, rhs_f_size * extend_len, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map(dst_region, {b_var: b_loop, lhs_f: p_loop, dst_f: f_loop % rhs_f_size, extend_b: f_loop // rhs_f_size})  # noqa: E501
@@ -275,7 +275,7 @@ def copy_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
     def impl():
         # the additional b loop is to satisfy hardware instuction size limit
         for b_loop in T.serial(0, b_extent):
-            with T.attr(0, "tensorized_nki_instruction", 1):
+            with T.nki.tensorized_instruction():
                 for p_loop in T.serial(0, p_size, annotations={nki_dim: "P"}):
                     for f_loop in T.serial(0, inst.size, annotations={nki_dim: "F"}):
                         inst_gen.set_bind_map_all({b_var: b_loop, p_var: p_loop, f_var: f_loop})

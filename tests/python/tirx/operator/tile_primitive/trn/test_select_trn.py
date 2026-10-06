@@ -68,7 +68,7 @@ def test_select():
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for b_loop in T.serial(0, 1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.affine_select(B_sbuf[p_loop, f_loop], p_loop < f_loop, A_sbuf[p_loop, f_loop], T.float32(0.0))  # noqa: E501
@@ -102,7 +102,7 @@ def test_select_in_loop():
         A_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
         for i, b_loop in T.grid(2, 1):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.affine_select(B_sbuf[p_loop, f_loop], (i + 1) * p_loop < f_loop, A_sbuf[p_loop, i * 8192 + f_loop], T.float32(0.0))  # noqa: E501
@@ -135,7 +135,7 @@ def test_select_expr_affine():
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for b_loop in T.serial(0, 4):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     T.nki.affine_select(B_sbuf[p_loop, b_loop * 512 + f_loop], b_loop * 128 + p_loop < f_loop, A_sbuf[p_loop, b_loop * 512 + f_loop], T.float32(0.0))  # noqa: E501
@@ -169,7 +169,7 @@ def test_select_with_guard():
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         B_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
         for i, j, b_loop in T.grid(4, 4, 4):
-            T.attr(0, "tensorized_nki_instruction", 1)
+            T.nki.tensorized_instruction()
             for p_loop in T.serial(0, 128, annotations={"nki_dim":"P"}):
                 for f_loop in T.serial(0, 512, annotations={"nki_dim":"F"}):
                     if b_loop - i < 1 and f_loop < j * 128 + 128:
