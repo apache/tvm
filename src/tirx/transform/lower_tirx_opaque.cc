@@ -22,10 +22,9 @@
  * \brief Lower opaque constructs in TIRX programs. This is the tirx-specific
  *        counterpart of s_tirx::LowerOpaqueBlock, handling only the non-SBlock
  *        parts: AllocTensor lowering, For(thread_binding) → RegionStmt(launch_thread),
- *        unit loop elimination, and pragma annotation handling.
+ *        unit loop elimination, and loop policy inheritance.
  */
 
-#include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/scope_stack.h>
 #include <tvm/runtime/logging.h>
@@ -62,22 +61,6 @@ class TIRxOpaqueLower : public StmtExprMutator {
     std::optional<ffi::Any> auto_unroll_max_step;
     std::optional<ffi::Any> unroll_explicit;
   };
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    // Attribute subjects may contain references to the loop binding being
-    // replaced, including expressions and IterVar fields. Rewrite metadata
-    // before the body introduces any additional local remaps.
-    auto node = Mutate(op->node, inplace_mode);
-    auto value = Mutate(op->value, inplace_mode);
-    auto body = Mutate(op->body, inplace_mode);
-    if (node.UnchangedOrSameAs(op->node) && value.UnchangedOrSameAs(op->value) &&
-        body.UnchangedOrSameAs(op->body)) {
-      return ffi::Unchanged();
-    }
-    return AttrStmt(std::move(node).ValueOrUnchanged(op->node), op->attr_key,
-                    std::move(value).ValueOrUnchanged(op->value),
-                    std::move(body).ValueOrUnchanged(op->body), op->span);
-  }
 
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     // Step 1. Update unit loop info.
@@ -117,28 +100,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
     });
     VarRemapSet(op->loop_var, previous_remap);
 
-    // Step 3. Handle annotations
-    std::vector<std::pair<std::string, Expr>> pragma_attrs;
-    ffi::Map<ffi::String, ffi::Any> new_annotations = HandleAnnotations(annotations, &pragma_attrs);
-    if (op->kind != ForKind::kThreadBinding) {
-      // A pragma that uses this loop's own Var must remain inside its scope.
-      // Pragmas using only enclosing bindings retain their wrapper position.
-      std::vector<std::pair<std::string, Expr>> outer_pragmas;
-      for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-        auto uses_loop_var = [&](const Var& var) -> ffi::Expected<ffi::WalkResult> {
-          return var.same_as(op->loop_var) ? ffi::WalkResult::Interrupt(ffi::VisitInterrupt(var))
-                                           : ffi::WalkResult::Advance();
-        };
-        if (ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(it->second, uses_loop_var).has_value()) {
-          body = AttrStmt(op->loop_var, it->first, it->second, std::move(body));
-        } else {
-          outer_pragmas.push_back(*it);
-        }
-      }
-      std::reverse(outer_pragmas.begin(), outer_pragmas.end());
-      pragma_attrs = std::move(outer_pragmas);
-    }
-    // Step 4. Create new For loop accordingly
+    // Step 2. Create the lowered loop or launch region.
     if (op->kind == ForKind::kThreadBinding) {
       // Case 1. Thread binding → RegionStmt(launch_thread)
       TVM_FFI_ICHECK(!op->annotations.count("loop_partition_hint") ||
@@ -152,12 +114,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
     } else {
       // Case 3. An ordinary loop
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 std::nullopt, new_annotations, step);
-    }
-    // Step 5. Insert nested attrs for pragma annotations
-    for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
-      Var var = op->kind == ForKind::kThreadBinding ? Var(launch_var) : Var(op->loop_var);
-      body = AttrStmt(var, it->first, it->second, std::move(body));
+                 std::nullopt, FilterAnnotations(annotations), step);
     }
     if (op->kind == ForKind::kThreadBinding) {
       return RegionStmt(tirx::builtin::launch_thread(),
@@ -182,58 +139,20 @@ class TIRxOpaqueLower : public StmtExprMutator {
   // Effective policy is materialized on each surviving loop, preserving nested overrides.
   ScopeStack<UnrollPolicy> unroll_policy_;
 
-  /*! \brief Convert attr value from annotation map into Expr. */
-  Expr ConvertAttrValue(const ffi::String& key, const Any& obj) {
-    if (auto expr = obj.try_cast<Expr>()) {
-      return expr.value();
-    } else if (auto str = obj.try_cast<ffi::String>()) {
-      return std::move(StringImm(str.value()));
-    } else {
-      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
-                 << " not supported";
-    }
-  }
-
-  /*!
-   * \brief Handle loop annotation dict.
-   * (1) if the attr key is prefixed by `pragma_`, move to ordered kv list
-   *     (lowered to `AttrStmt` by legacy TE schedule convention), except for
-   *     `pragma_unroll`, whose bool-or-integer value must remain on the loop.
-   * (2) non-pragma loop annotations are preserved.
-   * \return New annotation dict with preserved keys. Also update pragma attr pairs ordered by key.
-   */
-  ffi::Map<ffi::String, ffi::Any> HandleAnnotations(
-      const ffi::Map<ffi::String, ffi::Any>& annotations,
-      std::vector<std::pair<std::string, Expr>>* pragma_attrs) {
-    ffi::Map<ffi::String, ffi::Any> preserved_annotations;
-    pragma_attrs->clear();
-    for (const auto& kv : annotations) {
-      const ffi::String& key = kv.first;
-      if ((key == tirx::attr::auto_unroll_max_step || key == tirx::attr::unroll_explicit) &&
-          kv.second == nullptr) {
+  // Null optional policies do not override inherited values or reach code generation.
+  ffi::Map<ffi::String, ffi::Any> FilterAnnotations(
+      const ffi::Map<ffi::String, ffi::Any>& annotations) {
+    ffi::Map<ffi::String, ffi::Any> preserved;
+    for (const auto& [key, value] : annotations) {
+      if ((key == tirx::attr::auto_unroll_max_step || key == tirx::attr::unroll_explicit ||
+           key == "pragma_unroll") &&
+          value == nullptr) {
         continue;
       }
-      if (key == "pragma_unroll") {
-        if (kv.second != nullptr) {
-          preserved_annotations.Set(key, kv.second);
-        }
-      } else if (tirx::attr::IsPragmaKey(key)) {
-        if (kv.second == nullptr) {
-          continue;
-        }
-
-        pragma_attrs->emplace_back(key, ConvertAttrValue(key, kv.second));
-      } else {
-        // Loop annotations are always preserved
-        preserved_annotations.Set(key, kv.second);
-      }
+      preserved.Set(key, value);
     }
-    std::sort(pragma_attrs->begin(), pragma_attrs->end(),
-              [](const auto& p1, const auto& p2) { return p1.first < p2.first; });
-    return preserved_annotations;
+    return preserved;
   }
-
-  /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
 };
 
 namespace transform {

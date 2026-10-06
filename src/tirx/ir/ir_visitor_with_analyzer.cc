@@ -79,10 +79,6 @@ ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const IfThenElseNode
   });
 }
 
-ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const AttrStmtNode* op) {
-  return constraint_scope_.WithNewScope([&]() { return StmtExprVisitor::Visit_(op); });
-}
-
 ffi::Optional<VisitInterrupt> IRVisitorWithAnalyzer::Visit_(const RegionStmtNode* op) {
   return constraint_scope_.WithNewScope([&]() -> ffi::Optional<VisitInterrupt> {
     if (op->op.same_as(tirx::builtin::launch_thread())) {

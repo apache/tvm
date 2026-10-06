@@ -179,14 +179,6 @@ void TIRVisitorWithPath::Dispatch_(const BindNode* op, AccessPath path) {
   bind_scope_.Current().push_back(WithDef(op->var, path->Attr("var")));
 }
 
-void TIRVisitorWithPath::Dispatch_(const AttrStmtNode* op, AccessPath path) {
-  Visit(op->value, path->Attr("value"));
-  if (auto expr = op->node.as<PrimExpr>()) {
-    Visit(expr.value(), path->Attr("node"));
-  }
-  bind_scope_.WithNewScope([&]() { Visit(op->body, path->Attr("body")); });
-}
-
 void TIRVisitorWithPath::Dispatch_(const RegionStmtNode* op, AccessPath path) {
   Visit(op->args, path->Attr("args"));
   Visit(ffi::AnyView(op->attrs), path->Attr("attrs"));

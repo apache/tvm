@@ -121,7 +121,6 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
   void DispatchDeclTensor(const BindNode* op, const CallNode* buffer_call);
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const RegionStmtNode* op) override;
-  void Dispatch_(const AttrStmtNode* op) override;
   void Dispatch_(const AssertStmtNode* op) override;
   void Dispatch_(const BindNode* op) override;
   void Dispatch_(const SeqStmtNode* op) override;

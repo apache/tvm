@@ -1319,12 +1319,6 @@ void CodeGenC::Dispatch_(const RegionStmtNode* op) {
   }
 }
 
-void CodeGenC::Dispatch_(const AttrStmtNode* op) {
-  TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
-      << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
-  this->PrintStmt(op->body);
-}
-
 void CodeGenC::PrintEscapedCString(const std::string& str, std::ostream& os) {
   os << "\"";
   for (unsigned char c : str) {

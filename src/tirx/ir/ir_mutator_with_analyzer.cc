@@ -211,11 +211,6 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
   });
 }
 
-UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  return constraint_scope_.WithNewScope(
-      [&]() { return StmtExprMutator::Mutate_(op, inplace_mode); });
-}
-
 UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const RegionStmtNode* op,
                                                  InplaceMode inplace_mode) {
   return constraint_scope_.WithNewScope([&]() -> UnchangedOr<Stmt> {

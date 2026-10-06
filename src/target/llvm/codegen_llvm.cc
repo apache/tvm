@@ -2265,13 +2265,6 @@ void CodeGenLLVM::Dispatch_(const RegionStmtNode* op) {
   }
 }
 
-void CodeGenLLVM::Dispatch_(const AttrStmtNode* op) {
-  TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
-      << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
-  EmitDebugLocation(op);
-  this->Dispatch(op->body);
-}
-
 void CodeGenLLVM::Dispatch_(const AssertStmtNode* op) {
   EmitDebugLocation(op);
   // AssertStmt is a leaf — no body to visit.

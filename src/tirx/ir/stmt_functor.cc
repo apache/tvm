@@ -43,7 +43,6 @@ namespace tirx {
 void StmtExprVisitor::InitVTable(VTable* vtable) {
   tvm::ExprVisitor::InitVTable(vtable);
   SetDispatch<StmtExprVisitor, BindNode>(vtable);
-  SetDispatch<StmtExprVisitor, AttrStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, RegionStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, IfThenElseNode>(vtable);
   SetDispatch<StmtExprVisitor, ForNode>(vtable);
@@ -132,11 +131,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BindNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   return this->WithDefRegionKind(kTVMFFIDefRegionKindSimple,
                                  [&]() { return this->Visit(op->var); });
-}
-
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const AttrStmtNode* op) {
-  TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
-  return this->Visit(op->body);
 }
 
 ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const RegionStmtNode* op) {
@@ -247,7 +241,6 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TilePrimitiveCallNod
 void StmtExprMutator::InitVTable(VTable* vtable) {
   tvm::ExprMutator::InitVTable(vtable);
   SetDispatch<StmtExprMutator, BindNode>(vtable);
-  SetDispatch<StmtExprMutator, AttrStmtNode>(vtable);
   SetDispatch<StmtExprMutator, RegionStmtNode>(vtable);
   SetDispatch<StmtExprMutator, IfThenElseNode>(vtable);
   SetDispatch<StmtExprMutator, ForNode>(vtable);
@@ -290,23 +283,6 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BindNode* op, InplaceMode inpla
   auto copy = ffi::make_object<BindNode>(*op);
   copy->value = std::move(value);
   copy->var = std::move(var);
-  return Stmt(std::move(copy));
-}
-
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) {
-  auto value = Mutate(op->value, inplace_mode);
-  auto body = Mutate(op->body, inplace_mode);
-  if (value.UnchangedOrSameAs(op->value) && body.UnchangedOrSameAs(op->body))
-    return ffi::Unchanged();
-  if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<AttrStmtNode*>(op);
-    if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
-    if (!body.IsUnchanged()) writable->body = std::move(body).ValueUnchecked();
-    return ffi::Unchanged();
-  }
-  auto copy = ffi::make_object<AttrStmtNode>(*op);
-  if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
-  if (!body.IsUnchanged()) copy->body = std::move(body).ValueUnchecked();
   return Stmt(std::move(copy));
 }
 
@@ -607,23 +583,6 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
       return MakeTensorLoad(buffer.value(), load->indices, load->span);
     }
     return load;
-  }
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    Stmt ret = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = ret.as<AttrStmtNode>();
-    // remap var node in attr
-    if (auto var_node = op->node.as<Var>()) {
-      ffi::Any mapped = VarRemapGet(var_node.value());
-      if (mapped.type_index() != ffi::TypeIndex::kTVMFFINone) {
-        Expr node =
-            std::move(mapped).as_or_throw<UnchangedOr<Expr>>().ValueOrUnchanged(var_node.value());
-        if (!node.same_as(var_node.value())) {
-          return AttrStmt(node, op->attr_key, op->value, op->body);
-        }
-      }
-    }
-    return ret;
   }
 };
 

@@ -104,7 +104,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   UnchangedOr<Stmt> MutateAllocTensor(const BindNode* op, InplaceMode inplace_mode) {
     buffer_aliases_.Set(op->var, op->var);
     // In flat IR, alloc_remap_ may not yet be populated when this AllocTensor is visited
-    // (the remap is set up by MakeAllreduce which runs during AttrStmt/Evaluate visit
+    // (the remap is set up by MakeAllreduce which runs during Evaluate visit
     // that appears later in the sequence). We record the original data pointer and
     // attempt the remap; if it's not ready, the post-processing pass will handle it.
     const VarNode* orig_data_ptr = op->var.get();

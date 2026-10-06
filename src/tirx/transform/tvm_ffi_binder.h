@@ -59,7 +59,7 @@ namespace tirx {
  * by a later buffer's shape (batch_size).  Separating definitions from
  * checks guarantees all variables are in scope when assertions reference them.
  *
- * - init_nest: Binds, DeclTensors for shape/strides arrays, AttrStmts —
+ * - init_nest: Binds, DeclTensors for shape/strides arrays —
  *   all value-loading code that defines variables.
  * - asserts: AssertStmts — all validation checks.
  * - decl_buffers: DeclTensor for buffer-typed parameters — buffer declarations.
@@ -96,7 +96,7 @@ class TVMFFIABIBuilder {
   struct Result {
     /*! \brief Var -> VarDefInfo map for defined variables. */
     std::unordered_map<const VarNode*, VarDefInfo> var_defs;
-    /*! \brief Variable definitions (Binds, shape/strides DeclTensors, AttrStmts). */
+    /*! \brief Variable definitions (Binds, shape/strides DeclTensors). */
     std::vector<Stmt> init_nest;
     /*! \brief Validation checks (all AssertStmts). */
     std::vector<Stmt> asserts;
@@ -385,7 +385,7 @@ class TVMFFIABIBuilder {
 
   /*! \brief The definition map: VarNode* -> VarDefInfo (value + first_def_path). */
   std::unordered_map<const VarNode*, VarDefInfo> var_defs_;
-  /*! \brief Variable definitions: Binds, shape/strides DeclTensors, AttrStmts. */
+  /*! \brief Variable definitions: Binds, shape/strides DeclTensors. */
   std::vector<Stmt> init_nest_;
   /*! \brief Validation checks: all AssertStmts. */
   std::vector<Stmt> asserts_;

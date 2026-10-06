@@ -68,10 +68,6 @@ class ForFrame(TIRFrame):
 class AssertFrame(TIRFrame): ...
 
 
-@_register_object("script.ir_builder.tirx.AttrFrame")
-class AttrFrame(TIRFrame): ...
-
-
 @_register_object("script.ir_builder.tirx.WhileFrame")
 class WhileFrame(TIRFrame): ...
 

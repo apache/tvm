@@ -107,12 +107,6 @@ class AllocTensorCalculator : public StmtExprVisitor {
     _current_size = snapshot;
     return std::nullopt;
   }
-  ffi::Optional<VisitInterrupt> Visit_(const AttrStmtNode* op) override {
-    auto snapshot = _current_size;
-    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
-    _current_size = snapshot;
-    return std::nullopt;
-  }
   ffi::Optional<VisitInterrupt> Visit_(const RegionStmtNode* op) override {
     auto snapshot = _current_size;
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(StmtExprVisitor::Visit_(op));
