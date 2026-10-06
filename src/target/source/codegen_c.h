@@ -167,6 +167,12 @@ class CodeGenC : public tirx::ExprFunctor<void(const Expr&, std::ostream&)>,
    * \param f The function to be compiled.
    */
   virtual void InitFuncState(const PrimFunc& f);
+
+  // Register names independently of emitting declarations for body-derived qualifiers.
+  bool RegisterFunctionName(const GlobalVar& gvar, const PrimFunc& func);
+  // Prints parameters and initializes their variable IDs and handle types once.
+  void PrintFunctionParameters(const PrimFunc& func, std::ostream& os);
+
   // expression
   void Dispatch_(const VarNode* op, std::ostream& os) override;               // NOLINT(*)
   void Dispatch_(const TensorLoadNode* op, std::ostream& os) override;        // NOLINT(*)

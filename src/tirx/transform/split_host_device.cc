@@ -104,95 +104,6 @@ PrimFunc AnnotateDeviceRegionsForSplit(PrimFunc func) {
 
 // Host/device function extraction
 
-class LaunchBoundsAttrExtractor : public StmtExprMutator {
- public:
-  using StmtExprMutator::Mutate;
-  using StmtExprMutator::Mutate_;
-  UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) override {
-    if (input.as<ExprNode>()) return ffi::Unchanged();
-    return StmtExprMutator::Mutate(input, inplace_mode);
-  }
-  Stmt Extract(Stmt stmt) {
-    min_blocks_per_sm_.reset();
-    max_blocks_per_cluster_.reset();
-    max_registers_.reset();
-    required_block_size_.reset();
-    Stmt result = Mutate(stmt, InplaceMode::kAllow).ValueOrUnchanged(stmt);
-    TVM_FFI_ICHECK(!max_blocks_per_cluster_.has_value() || min_blocks_per_sm_.has_value())
-        << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " requires "
-        << tirx::attr::kLaunchBoundsMinBlocksPerSM;
-    TVM_FFI_ICHECK(!max_registers_.has_value() ||
-                   (!min_blocks_per_sm_.has_value() && !max_blocks_per_cluster_.has_value()))
-        << tirx::attr::kMaxRegisters << " cannot be combined with CUDA launch bounds";
-    TVM_FFI_ICHECK(!required_block_size_.has_value() || !max_registers_.has_value())
-        << tirx::attr::kRequiredBlockSize << " cannot be combined with maximum registers";
-    return result;
-  }
-
-  std::optional<int64_t> min_blocks_per_sm() const { return min_blocks_per_sm_; }
-  std::optional<int64_t> max_blocks_per_cluster() const { return max_blocks_per_cluster_; }
-  std::optional<int64_t> max_registers() const { return max_registers_; }
-  std::optional<int64_t> required_block_size() const { return required_block_size_; }
-
- private:
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tirx::attr::kLaunchBoundsMinBlocksPerSM) {
-      const auto* min_blocks_per_sm = op->value.as<IntImmNode>();
-      TVM_FFI_ICHECK(min_blocks_per_sm)
-          << tirx::attr::kLaunchBoundsMinBlocksPerSM << " expects an integer value";
-      TVM_FFI_ICHECK_GT(min_blocks_per_sm->value, 0)
-          << tirx::attr::kLaunchBoundsMinBlocksPerSM << " must be positive";
-      if (min_blocks_per_sm_.has_value()) {
-        TVM_FFI_ICHECK_EQ(min_blocks_per_sm_.value(), min_blocks_per_sm->value)
-            << "Conflicting " << tirx::attr::kLaunchBoundsMinBlocksPerSM << " values";
-      }
-      min_blocks_per_sm_ = static_cast<int64_t>(min_blocks_per_sm->value);
-      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    } else if (op->attr_key == tirx::attr::kLaunchBoundsMaxBlocksPerCluster) {
-      const auto* max_blocks_per_cluster = op->value.as<IntImmNode>();
-      TVM_FFI_ICHECK(max_blocks_per_cluster)
-          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " expects an integer value";
-      TVM_FFI_ICHECK_GT(max_blocks_per_cluster->value, 0)
-          << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " must be positive";
-      if (max_blocks_per_cluster_.has_value()) {
-        TVM_FFI_ICHECK_EQ(max_blocks_per_cluster_.value(), max_blocks_per_cluster->value)
-            << "Conflicting " << tirx::attr::kLaunchBoundsMaxBlocksPerCluster << " values";
-      }
-      max_blocks_per_cluster_ = static_cast<int64_t>(max_blocks_per_cluster->value);
-      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    } else if (op->attr_key == tirx::attr::kMaxRegisters) {
-      const auto* max_registers = op->value.as<IntImmNode>();
-      TVM_FFI_ICHECK(max_registers) << tirx::attr::kMaxRegisters << " expects an integer value";
-      TVM_FFI_ICHECK_GT(max_registers->value, 0)
-          << tirx::attr::kMaxRegisters << " must be positive";
-      if (max_registers_.has_value()) {
-        TVM_FFI_ICHECK_EQ(max_registers_.value(), max_registers->value)
-            << "Conflicting " << tirx::attr::kMaxRegisters << " values";
-      }
-      max_registers_ = static_cast<int64_t>(max_registers->value);
-      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    } else if (op->attr_key == tirx::attr::kRequiredBlockSize) {
-      const auto* required_block_size = op->value.as<IntImmNode>();
-      TVM_FFI_ICHECK(required_block_size)
-          << tirx::attr::kRequiredBlockSize << " expects an integer value";
-      TVM_FFI_ICHECK_EQ(required_block_size->value, 1)
-          << tirx::attr::kRequiredBlockSize << " must be 1";
-      if (required_block_size_.has_value()) {
-        TVM_FFI_ICHECK_EQ(required_block_size_.value(), required_block_size->value)
-            << "Conflicting " << tirx::attr::kRequiredBlockSize << " values";
-      }
-      required_block_size_ = static_cast<int64_t>(required_block_size->value);
-      return Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-    }
-    return StmtExprMutator::Mutate_(op, inplace_mode);
-  }
-
-  std::optional<int64_t> min_blocks_per_sm_;
-  std::optional<int64_t> max_blocks_per_cluster_;
-  std::optional<int64_t> max_registers_;
-  std::optional<int64_t> required_block_size_;
-};
-
 class HostDeviceSplitter : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
@@ -317,8 +228,6 @@ class HostDeviceSplitter : public StmtExprMutator {
                     {})),
           std::move(body));
     }
-    auto launch_bounds_attr = ffi::make_object<LaunchBoundsAttrExtractor>();
-    body = launch_bounds_attr->Extract(std::move(body));
     PrimFunc device_func(kernel_params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
                                                      {tirx::attr::kNoAlias, true},
@@ -331,24 +240,6 @@ class HostDeviceSplitter : public StmtExprMutator {
             cur_func_->GetAttr<ffi::Array<ffi::String>>(tirx::attr::kKernelLaunchParams)) {
       device_func =
           WithAttr(std::move(device_func), tirx::attr::kKernelLaunchParams, launch_params.value());
-    }
-    if (device_target->kind->name == "cuda") {
-      if (launch_bounds_attr->min_blocks_per_sm().has_value()) {
-        device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMinBlocksPerSM,
-                               launch_bounds_attr->min_blocks_per_sm().value());
-      }
-      if (launch_bounds_attr->max_blocks_per_cluster().has_value()) {
-        device_func = WithAttr(std::move(device_func), tirx::attr::kLaunchBoundsMaxBlocksPerCluster,
-                               launch_bounds_attr->max_blocks_per_cluster().value());
-      }
-      if (launch_bounds_attr->max_registers().has_value()) {
-        device_func = WithAttr(std::move(device_func), tirx::attr::kMaxRegisters,
-                               launch_bounds_attr->max_registers().value());
-      }
-      if (launch_bounds_attr->required_block_size().has_value()) {
-        device_func = WithAttr(std::move(device_func), tirx::attr::kRequiredBlockSize,
-                               launch_bounds_attr->required_block_size().value());
-      }
     }
     auto num_inputs = cur_func_->GetAttr<int64_t>(tvm::attr::kNumInputs);
     if (num_inputs.has_value()) {
@@ -441,8 +332,6 @@ class DeviceInfoCollector : public StmtExprVisitor {
         }
       }
     }
-    collector->use_required_block_dimension_ =
-        func->GetAttr<int64_t>(tirx::attr::kRequiredBlockSize).value_or(0) == 1;
 
     collector->Visit(func->body);
 
@@ -533,7 +422,12 @@ class DeviceInfoCollector : public StmtExprVisitor {
   }
 
   ffi::Optional<VisitInterrupt> Visit_(const EvaluateNode* op) final {
+    static const Op required_block_size = Op::Get("tirx.cuda.required_block_size");
     static const Op dyn_smem_bytes = Op::Get("tirx.cuda.dyn_smem_bytes");
+    if (const auto* call = op->value.as<CallNode>();
+        call && call->op.same_as(required_block_size)) {
+      use_required_block_dimension_ = true;
+    }
     if (const auto* call = op->value.as<CallNode>(); call && call->op.same_as(dyn_smem_bytes)) {
       // The declaration supplies the launch size even when the backing
       // shared.dyn allocation is an extern placeholder.
