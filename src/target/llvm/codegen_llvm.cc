@@ -390,36 +390,6 @@ std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
   return std::move(module_);
 }
 
-void CodeGenLLVM::HandleImport(const std::string& code) {
-  llvm::StringRef code_str(code);
-  std::unique_ptr<llvm::Module> mlib;
-#if TVM_LLVM_VERSION >= 180
-  if (code_str.ends_with(".ll") || code_str.ends_with(".bc")) {
-#else
-  if (code_str.endswith(".ll") || code_str.endswith(".bc")) {
-#endif
-    mlib = llvm_target_->GetInstance().LoadIR(code);
-  } else {
-    mlib = llvm_target_->GetInstance().ParseIR(code);
-  }
-
-#if TVM_LLVM_VERSION >= 210
-  mlib->setTargetTriple(llvm::Triple(llvm_target_->GetTargetTriple()));
-#else
-  mlib->setTargetTriple(llvm_target_->GetTargetTriple());
-#endif
-  mlib->setDataLayout(llvm_target_->GetOrCreateTargetMachine()->createDataLayout());
-  // mark all the functions as force inline
-  for (llvm::Function& f : mlib->functions()) {
-    f.removeFnAttr(llvm::Attribute::OptimizeNone);
-    f.removeFnAttr(llvm::Attribute::NoInline);
-    f.addFnAttr(llvm::Attribute::AlwaysInline);
-    f.setLinkage(llvm::GlobalValue::AvailableExternallyLinkage);
-  }
-  // add to linker libraries.
-  this->AddLinkModule(std::move(mlib));
-}
-
 void CodeGenLLVM::AddLinkModule(std::unique_ptr<llvm::Module>&& mod) {
   link_modules_.emplace_back(std::move(mod));
 }

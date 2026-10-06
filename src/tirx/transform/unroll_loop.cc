@@ -27,11 +27,13 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/ir/scope_stack.h>
 #include <tvm/sym/analyzer.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
+#include <optional>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -101,31 +103,30 @@ class LoopUnroller : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
   explicit LoopUnroller(int auto_max_step, int auto_max_depth, int auto_max_extent,
                         bool explicit_unroll, bool unroll_local_access)
-      : auto_max_step_(auto_max_step),
-        auto_max_depth_(auto_max_depth),
+      : auto_max_depth_(auto_max_depth),
         auto_max_extent_(auto_max_extent),
-        explicit_unroll_(explicit_unroll),
-        unroll_local_access_(unroll_local_access) {}
-
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == "pragma_auto_unroll_max_step") {
-      int value = op->value.as_or_throw<IntImm>()->value.as<int>().value();
-      std::swap(value, auto_max_step_);
-      Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-      std::swap(value, auto_max_step_);
-      return ret;
-    } else if (op->attr_key == "pragma_unroll_explicit") {
-      bool explicit_unroll = static_cast<bool>(op->value.as_or_throw<IntImm>()->value);
-      std::swap(explicit_unroll, explicit_unroll_);
-      Stmt ret = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-      std::swap(explicit_unroll, explicit_unroll_);
-      return ret;
-    } else {
-      return StmtExprMutator::Mutate_(op, inplace_mode);
-    }
+        unroll_local_access_(unroll_local_access) {
+    unroll_policy_.Current() = {auto_max_step, explicit_unroll};
   }
 
-  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
+    auto parent_policy = unroll_policy_.Current();
+    return unroll_policy_.WithNewScope([&]() {
+      auto& policy = unroll_policy_.Current();
+      policy = parent_policy;
+      if (auto value = op->annotations.Get(attr::auto_unroll_max_step);
+          value.has_value() && value.value() != nullptr) {
+        policy.auto_unroll_max_step = value.value().cast<IntImm>()->value.as<int>().value();
+      }
+      if (auto value = op->annotations.Get(attr::unroll_explicit);
+          value.has_value() && value.value() != nullptr) {
+        policy.unroll_explicit = static_cast<bool>(value.value().cast<IntImm>()->value);
+      }
+      return RewriteLoop(op, inplace_mode);
+    });
+  }
+
+  UnchangedOr<Stmt> RewriteLoop(const ForNode* op, InplaceMode inplace_mode) {
     // Post order so we can collect more information
     auto result = StmtExprMutator::Mutate_(op, inplace_mode);
     if (!result.IsUnchanged()) {
@@ -134,13 +135,28 @@ class LoopUnroller : public StmtExprMutator {
         inplace_mode = InplaceMode::kDisallow;
       }
     }
+    if (op->annotations.count(attr::auto_unroll_max_step) ||
+        op->annotations.count(attr::unroll_explicit)) {
+      ForNode* node;
+      if (inplace_mode == InplaceMode::kAllow) {
+        node = const_cast<ForNode*>(op);
+      } else {
+        auto copy = ffi::make_object<ForNode>(*op);
+        node = copy.get();
+        result = For(std::move(copy));
+      }
+      node->annotations.erase(attr::auto_unroll_max_step);
+      node->annotations.erase(attr::unroll_explicit);
+      op = node;
+    }
     int value = GetExtent(op);
     // condition for auto unroll
     bool auto_unroll = (op->kind == ForKind::kSerial && value >= 0 && normal_loop_depth_ == 0 &&
                         unroll_depth_ <= auto_max_depth_);
 
-    auto_unroll =
-        auto_unroll && (value * step_count_ <= auto_max_step_ || value <= auto_max_extent_);
+    const auto& policy = unroll_policy_.Current();
+    auto_unroll = auto_unroll && (value * step_count_ <= policy.auto_unroll_max_step.value() ||
+                                  value <= auto_max_extent_);
 
     if (op->kind == ForKind::kUnrolled) {
       TVM_FFI_ICHECK_GE(value, 0) << "Cannot unroll non-constant loop";
@@ -160,7 +176,7 @@ class LoopUnroller : public StmtExprMutator {
       normal_loop_depth_ += 1;
     }
 
-    if ((auto_unroll && explicit_unroll_) ||
+    if ((auto_unroll && policy.unroll_explicit.value()) ||
         // unroll loops with extent = 1, no matter how many steps in body
         (0 <= value && value <= auto_max_extent_ && auto_max_extent_ == 1)) {
       return Unroll(op);
@@ -275,13 +291,15 @@ class LoopUnroller : public StmtExprMutator {
     return value;
   }
 
-  // maximum number of step to perform auto unroll.
-  int auto_max_step_;
+  struct UnrollPolicy {
+    std::optional<int> auto_unroll_max_step;
+    std::optional<bool> unroll_explicit;
+  };
+  ScopeStack<UnrollPolicy> unroll_policy_;
   int auto_max_depth_;
   // max extent of loop to auto unroll
   // this does not count the total steps, only count the number of loops
   int auto_max_extent_;
-  bool explicit_unroll_;
   // Wether to unroll loops to local access.
   bool unroll_local_access_{false};
   // Number of normal loops in scope

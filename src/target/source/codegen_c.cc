@@ -1311,11 +1311,6 @@ void CodeGenC::Dispatch_(const RegionStmtNode* op) {
 void CodeGenC::Dispatch_(const AttrStmtNode* op) {
   TVM_FFI_CHECK(op->attr_key != "thread_extent" && op->attr_key != "virtual_thread", ValueError)
       << "Launch attributes are retired; use tirx.launch_thread RegionStmt";
-  if (op->attr_key == tirx::attr::pragma_import_c) {
-    const StringImmNode* value = op->value.as<StringImmNode>();
-    TVM_FFI_ICHECK(value != nullptr);
-    decl_stream << value->value;
-  }
   this->PrintStmt(op->body);
 }
 
