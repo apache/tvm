@@ -1552,45 +1552,6 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
   }
 }
 
-void CodeGenCUDA::Dispatch_(const AttrStmtNode* op) {
-  if (op->attr_key == s_tir::attr::async_commit_queue_scope) {
-    const IntImmNode* queue_id = op->value.as<IntImmNode>();
-    TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
-        << "For CUDA, the index of an async queue must be 0.";
-    this->Dispatch(op->body);
-    static const Op ptx_cp_async_commit_group_op = Op::Get("tirx.ptx.cp_async_commit_group");
-    // ptx Call layout: [operands...] [slot tokens] [pred marker ""].
-    auto commit_group = Call(PrimType::Void(), ptx_cp_async_commit_group_op,
-                             {StringImm("async"), StringImm("commit_group"), StringImm("")})
-                            .as_or_throw<PrimExpr>();
-    this->PrintIndent();
-    this->Dispatch(commit_group, this->stream);
-    this->stream << ";\n";
-    return;
-  } else if (op->attr_key == s_tir::attr::async_wait_queue_scope) {
-    auto wait_attrs = GetAsyncWaitAttributes(op);
-    auto queue_id = wait_attrs.first.as<IntImmNode>();
-    TVM_FFI_ICHECK(queue_id && queue_id->value == 0)
-        << "For CUDA, the index of an async queue must be 0.";
-    auto wait_cnt = wait_attrs.second;
-    static const Op ptx_cp_async_wait_group_op = Op::Get("tirx.ptx.cp_async_wait_group");
-    // ptx Call layout: [operands...] [slot tokens] [pred marker ""]. The group
-    // count is a role="imm" operand baked into the instruction text, so it must
-    // already be a compile-time constant here (the pipeline pass guarantees it).
-    auto wait_group = Call(PrimType::Void(), ptx_cp_async_wait_group_op,
-                           {wait_cnt, StringImm("async"), StringImm("wait_group"), StringImm("")})
-                          .as_or_throw<PrimExpr>();
-    this->PrintIndent();
-    this->Dispatch(wait_group, this->stream);
-    this->stream << ";\n";
-    auto inner = op->body.as<AttrStmtNode>();
-    TVM_FFI_ICHECK(inner);
-    this->Dispatch(inner->body);
-    return;
-  }
-  CodeGenC::Dispatch_(op);
-}
-
 void CodeGenCUDA::Dispatch_(const BindNode* op) {
   if (const auto* call = op->value.as<CallNode>(); call) {
     if (call->op.same_as(tirx::builtin::alloc_tensor())) return DispatchAllocTensor(op, call);

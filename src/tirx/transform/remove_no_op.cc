@@ -92,23 +92,6 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
 
  private:
   UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == tvm::tirx::attr::async_wait_queue_scope) {
-      auto wait_attrs = GetAsyncWaitAttributes(op);
-      auto wait_cnt = wait_attrs.second;
-      sym::Analyzer ana;
-      if (ana->CanProve(wait_cnt < 0)) {
-        // A negative wait count can arise if it depends on a loop variable.
-        // For example, a wait count 1 - i can be negative after loop unrolling.
-        // We assume that such wait is a nop.
-        auto inner = op->body.as<AttrStmtNode>();
-        TVM_FFI_ICHECK(inner);
-        return Parent::Mutate(ffi::AnyView(inner->body),
-                              inner->unique() ? inplace_mode : InplaceMode::kDisallow)
-            .ValueOrUnchanged(inner->body)
-            .as_or_throw<Stmt>();
-      }
-    }
-
     Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     op = stmt.as<AttrStmtNode>();
     return is_no_op(op->body) ? MakeEvaluate(op->value) : stmt;
