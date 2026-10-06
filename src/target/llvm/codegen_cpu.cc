@@ -559,7 +559,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
   TVM_FFI_ICHECK(value != nullptr);
   llvm::Function* fcompute = llvm::Function::Create(ftype, llvm::Function::InternalLinkage,
                                                     MakeStringRef(value->value), module_.get());
-  SetTargetAttributes(fcompute);
+  SetComputeScopeAttributes(fcompute);
   for (auto it = fcompute->arg_begin(); it != fcompute->arg_end(); it++) {
     const Var& var = vargs[std::distance(fcompute->arg_begin(), it)];
     it->setName(std::string(var->name));
