@@ -40,8 +40,8 @@ def test_lower_call_packed():
             C: T.Tensor((64, 64), "float32"),
         ):
             T.func_attr({"target": tvm.target.Target("llvm")})
-            T.attr("", "device_id", T.int32(0))
-            T.call_packed("tvm.test_matmul", A, B, C)
+            with T.device_context(1, 0):
+                T.call_packed("tvm.test_matmul", A, B, C)
 
     @I.ir_module(check_well_formed=False)
     class Expected:
@@ -218,11 +218,10 @@ def test_lower_device_allocate():
         @T.prim_func
         def main():
             T.func_attr({"target": T.target("llvm")})
-            T.attr("dummy", "device_type", 2)  # kDLCuda
-            T.attr("dummy", "device_id", 0)
-            ptr = T.alloc_tensor((16,), "float32")
-            buf = T.decl_tensor(16, "float32", data=ptr.data)
-            buf[0] = 0.0
+            with T.device_context(2, 0):  # kDLCuda
+                ptr = T.alloc_tensor((16,), "float32")
+                buf = T.decl_tensor(16, "float32", data=ptr.data)
+                buf[0] = 0.0
 
     After = tvm.tirx.transform.LowerTVMBuiltin()(Before)
     # Verify the lowered module can be printed (no crash)
@@ -242,11 +241,10 @@ def test_lower_cpu_allocation():
         @T.prim_func
         def main():
             T.func_attr({"target": T.target("llvm")})
-            T.attr("dummy", "device_type", 1)  # kDLCPU
-            T.attr("dummy", "device_id", 0)
-            ptr = T.alloc_tensor((16,), "float32")
-            buf = T.decl_tensor(16, "float32", data=ptr.data)
-            buf[0] = 0.0
+            with T.device_context(1, 0):  # kDLCPU
+                ptr = T.alloc_tensor((16,), "float32")
+                buf = T.decl_tensor(16, "float32", data=ptr.data)
+                buf[0] = 0.0
 
     @I.ir_module
     class Expected:
@@ -268,8 +266,7 @@ def test_lower_allocate_requires_device_id():
     class Before:
         @T.prim_func
         def main():
-            T.func_attr({"target": T.target("llvm")})
-            T.attr("dummy", "device_type", 2)  # kDLCuda
+            T.func_attr({"target": T.target("cuda"), "tirx.is_host_func": True})
             ptr = T.alloc_tensor((16,), "float32")
             buf = T.decl_tensor(16, "float32", data=ptr.data)
             buf[0] = 0.0
@@ -281,8 +278,8 @@ def test_lower_allocate_requires_device_id():
 def test_lower_allocate_requires_device_type():
     """If device type is missing, error.
 
-    The device type can be inferred either from the `"device_type"`
-    statement attribute, or from the `"target"` function attribute.
+    The device type can be inferred either from a device_context
+    region or from the `"target"` function attribute.
     Here, we provide neither.  The `"tirx.is_host_func"` attribute is
     provided as otherwise the function would be skipped altogether by
     LowerTVMBuiltin.
@@ -293,7 +290,6 @@ def test_lower_allocate_requires_device_type():
         @T.prim_func
         def main():
             T.func_attr({"tirx.is_host_func": True})
-            T.attr("dummy", "device_id", 0)
             ptr = T.alloc_tensor((1024 * 1024,), "float32")
             buf = T.decl_tensor(1024 * 1024, "float32", data=ptr.data)
             buf[0] = 0.0
@@ -306,7 +302,7 @@ def test_lower_cpu_alloc_with_function_attr():
     """CPU allocations can be handled at codegen time
 
     Like `test_lower_cpu_allocation`, but the device type is taken from
-    the function attribute.  The `AttrStmt` can override the device
+    the function attribute.  A device_context region can override the device
     type for allocations within its scope, but it defaults to the
     function's target.
     """

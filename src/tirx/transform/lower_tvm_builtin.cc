@@ -337,39 +337,49 @@ class BuiltinLower : public StmtExprMutator {
     return SeqStmt({alloc_bind, alloc_nullptr_check});
   }
 
-  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
-    if (op->attr_key == attr::device_id) {
-      auto cache = device_id_;
-      device_id_ = op->value.as_or_throw<PrimExpr>();
-      Stmt out = scope_.WithNewScope([&]() -> Stmt {
-        Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-        return AppendPendingFrees(body);
+  UnchangedOr<Stmt> Mutate_(const RegionStmtNode* op, InplaceMode inplace_mode) final {
+    if (op->op.same_as(builtin::device_context())) {
+      PrimExpr device_type = this->Mutate(op->args[0], inplace_mode)
+                                 .ValueOrUnchanged(op->args[0])
+                                 .as_or_throw<PrimExpr>();
+      PrimExpr device_id = this->Mutate(op->args[1], inplace_mode)
+                               .ValueOrUnchanged(op->args[1])
+                               .as_or_throw<PrimExpr>();
+      auto saved_type = device_type_;
+      auto saved_id = device_id_;
+      device_type_ = device_type;
+      device_id_ = device_id;
+      Stmt body = scope_.WithNewScope([&]() -> Stmt {
+        return AppendPendingFrees(this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body));
       });
-      device_id_ = cache;
-      return out;
-    } else if (op->attr_key == attr::device_type) {
-      auto cache = device_type_;
-      device_type_ = op->value.as_or_throw<PrimExpr>();
-      Stmt out = scope_.WithNewScope([&]() -> Stmt {
-        Stmt body = this->Mutate(op->body, inplace_mode).ValueOrUnchanged(op->body);
-        return AppendPendingFrees(body);
-      });
-      device_type_ = cache;
-      return out;
-    } else {
-      return scope_.WithNewScope([&]() -> Stmt {
-        Stmt visited =
-            StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-        if (!scope_.Current().pending_frees.empty()) {
-          const auto* attr = visited.as<AttrStmtNode>();
-          if (attr) {
-            return AttrStmt(attr->node, attr->attr_key, attr->value, AppendPendingFrees(attr->body),
-                            attr->span);
-          }
-        }
-        return visited;
-      });
+      device_type_ = saved_type;
+      device_id_ = saved_id;
+      return body;
     }
+    return scope_.WithNewScope([&]() -> Stmt {
+      RegionStmt region = StmtExprMutator::Mutate_(op, inplace_mode)
+                              .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
+                              .as_or_throw<RegionStmt>();
+      if (!scope_.Current().pending_frees.empty()) {
+        region.CopyOnWrite()->body = AppendPendingFrees(region->body);
+      }
+      return region;
+    });
+  }
+
+  UnchangedOr<Stmt> Mutate_(const AttrStmtNode* op, InplaceMode inplace_mode) final {
+    return scope_.WithNewScope([&]() -> Stmt {
+      Stmt visited =
+          StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
+      if (!scope_.Current().pending_frees.empty()) {
+        const auto* attr = visited.as<AttrStmtNode>();
+        if (attr) {
+          return AttrStmt(attr->node, attr->attr_key, attr->value, AppendPendingFrees(attr->body),
+                          attr->span);
+        }
+      }
+      return visited;
+    });
   }
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
     auto min_result = this->Mutate(op->min, inplace_mode);
@@ -467,7 +477,7 @@ class BuiltinLower : public StmtExprMutator {
 
   StringImm GetDeviceMethodName(const char* method_name) const {
     TVM_FFI_ICHECK(device_type_) << "Method " << method_name << " requires the device type, "
-                                 << "but occurred outside of a \"device_type\" annotation";
+                                 << "but occurred outside of a \"device_context\" region";
 
     auto as_int = device_type_.as<IntImmNode>();
     TVM_FFI_ICHECK(as_int) << "Method " << method_name

@@ -304,12 +304,8 @@ UnchangedOr<Stmt> IRConvertSSA::Mutate_(const AttrStmtNode* op, InplaceMode inpl
       function_scope_var_remap_.insert({var.get(), new_var});
       var = new_var;
     } else {
-      // The AttrStmt refers to an undefined variable.  This is
-      // allowed for some attributes, such as
-      // "pragma_parallel_launch_point", which annotates a variable
-      // that is about to occur in a ForNode.  In these cases, the
-      // ForNode and the AttrStmt must continue using the same
-      // variable defintion.
+      // An attribute can refer to a variable defined by a later ForNode.
+      // Preserve the same variable definition in the attribute and the loop.
       //
       // Preserve the annotated variable's identity for later definitions
       // and independent functions, without introducing a lexical body binding.

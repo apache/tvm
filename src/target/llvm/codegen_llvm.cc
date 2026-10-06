@@ -2256,6 +2256,10 @@ void CodeGenLLVM::Dispatch_(const RegionStmtNode* op) {
     With<sym::ConstraintContext> thread_scope(analyzer_, var >= 0 && var < extent);
     this->Dispatch(op->body);
     var_map_.erase(var.get());
+  } else if (op->op.same_as(tirx::builtin::device_context()) ||
+             op->op.same_as(tirx::builtin::compute_scope()) ||
+             op->op.same_as(tirx::builtin::parallel_launch())) {
+    this->Dispatch(op->body);
   } else {
     TVM_FFI_THROW(ValueError) << "Unsupported region op " << op->op;
   }
