@@ -477,7 +477,7 @@ class SMEMPool:
             self.max_offset = max(self.max_offset, self.offset)
 
     def commit(self, size=None):
-        """Emit pool size annotation into the IR.
+        """Emit the dynamic shared memory byte-count declaration into the IR.
 
         Must be called after all ``alloc()`` / ``move_base_to()`` calls.
 
@@ -495,10 +495,7 @@ class SMEMPool:
             f"the pool high-water mark ({self.max_offset})"
         )
         import tvm.tirx
+        from tvm.backend.cuda.op import dyn_smem_bytes
         from tvm.tirx.script.ir_builder.parser_protocol import add_to_parent
 
-        add_to_parent(
-            tvm.tirx.AttrStmt(
-                0, "tirx.dyn_smem_bytes", tvm.tirx.IntImm("int64", resolved), tvm.tirx.Evaluate(0)
-            )
-        )
+        add_to_parent(tvm.tirx.Evaluate(dyn_smem_bytes(tvm.tirx.IntImm("int64", resolved))))
