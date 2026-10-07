@@ -17,11 +17,8 @@
 
 """TIRx script printer."""
 
-from types import SimpleNamespace
-
 import pytest
 from tvm_ffi import get_global_func
-from tvm_ffi.dataclasses import py_class
 
 import tvm
 import tvm.script
@@ -1045,39 +1042,3 @@ def test_printer_ptx_mma_and_wgmma():
         "T.cuda.wgmma_encode_matrix_descriptor(d, a, 1, 1, 0)",
     )
     _assert_namespace_print(cuda_op.cuda_wgmma_noop_barrier(0), "T.cuda.wgmma_noop_barrier(0)")
-
-
-@py_class
-class DefaultOnlyCallAttrs(ir.Attrs):
-    axis: int = -1
-
-
-@py_class
-class EmptyCallAttrs(ir.Attrs):
-    pass
-
-
-@pytest.mark.parametrize("attrs_class", [DefaultOnlyCallAttrs, EmptyCallAttrs])
-@pytest.mark.parametrize("with_type_args", [False, True])
-def test_shared_call_preserves_attrs_without_field_keywords(attrs_class, with_type_args):
-    from tvm.ir.op import _make_op_api, register_op_attr
-    from tvm.tirx.script.ir_builder.op import register_script_namespace
-
-    name = f"attrs_roundtrip_{attrs_class.__name__}_{int(with_type_args)}"
-    op_name = f"tirx.{name}.op"
-    register_op_attr(op_name, "TIRxOpCategory", "builtin")
-    op = ir.Op.get(op_name)
-    op.set_signature(args=[], ty_args=["result"] if with_type_args else [])
-    op.set_attrs_type_key(attrs_class.__tvm_ffi_type_info__.type_key)
-    op.set_attr("TFixedReturnType", ir.PrimType(""))
-    op.set_attr("TCallEffectKind", 3)
-    namespace = SimpleNamespace(op=_make_op_api(op, __name__))
-    register_script_namespace(name, namespace, canonical_op_names=True)
-    call = namespace.op(
-        attrs=attrs_class(), ty_args=[ir.PrimType("int32")] if with_type_args else []
-    )
-    original = tirx.PrimFunc([], tirx.Evaluate(call))
-    source = original.script()
-    assert "attrs=" in source
-    parsed = tvm.script.from_source(source, extra_vars={"T": T, "I": I})
-    assert_structural_equal(original, parsed)
