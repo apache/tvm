@@ -52,7 +52,7 @@ def test_relax_dynamo():
     ### construct the database
     @tvm.script.ir_module
     class Input1_ir:
-        @Ts.prim_func
+        @Ts.function
         def main(
             inp_0: T.Tensor((T.int64(10), T.int64(100)), "float32"),
             param_0: T.Tensor((T.int64(100), T.int64(10)), "float32"),

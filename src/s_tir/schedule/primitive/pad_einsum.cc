@@ -251,13 +251,13 @@ class BufferNotAllocatedInScopeError : public ScheduleErrorContextObj {
 
   ffi::String FastErrorString() const final {
     return "ScheduleError: The buffer is not allocated as an intermediate buffer in current "
-           "PrimFunc.";
+           "Function.";
   }
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The buffer " << buffer_.name()
-       << " is not allocated as an intermediate buffer in current PrimFunc.";
+       << " is not allocated as an intermediate buffer in current Function.";
     return os.str();
   }
 

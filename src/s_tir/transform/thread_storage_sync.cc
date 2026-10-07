@@ -390,17 +390,17 @@ class SynchronizationLowerer : public StmtExprMutator {
 namespace transform {
 
 Pass ThreadSync(ffi::String storage_scope) {
-  auto pass_func = [storage_scope](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [storage_scope](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     n->body = s_tir::ThreadSync(std::move(n->body).value(), storage_scope);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.ThreadSync", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ThreadSync", {});
 }
 
 Pass LowerSynchronization() {
-  auto pass_func = [](PrimFunc f, IRModule, PassContext) {
+  auto pass_func = [](Function f, IRModule, PassContext) {
     if (!f->body.has_value()) return f;
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     bool is_cuda = target && target.value()->kind->name == "cuda";
@@ -410,7 +410,7 @@ Pass LowerSynchronization() {
                   .ValueOrUnchanged(n->body.value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerSynchronization", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerSynchronization", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

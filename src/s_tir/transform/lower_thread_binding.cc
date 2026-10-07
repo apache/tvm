@@ -83,7 +83,7 @@ class ThreadBindingLowerer : public StmtExprMutator {
 namespace transform {
 
 Pass LowerThreadBinding() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto lower = ffi::make_object<ThreadBindingLowerer>();
     auto fptr = f.CopyOnWrite();
@@ -91,7 +91,7 @@ Pass LowerThreadBinding() {
                      .ValueOrUnchanged(std::move(fptr->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerThreadBinding", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerThreadBinding", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

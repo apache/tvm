@@ -28,11 +28,11 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 # TODO(csullivan): Additional tests cases needed:
-# - PrimFunc with 1 arg, inplace update
-# - PrimFunc with buffer that uses custom storage_scope
+# - Function with 1 arg, inplace update
+# - Function with buffer that uses custom storage_scope
 
 
-@Ts.prim_func
+@Ts.function
 def func_1(A: T.Tensor((16,), "float32"), C: T.Tensor((1,), "float32")):
     for i in T.serial(
         0,
@@ -59,7 +59,7 @@ def verify_func_1(module):
     tvm.testing.assert_allclose(a_np * 2 + 1, a.numpy(), rtol=1e-4)
 
 
-@Ts.prim_func
+@Ts.function
 def func_2(
     C: T.Tensor((1,), "float32"), A: T.Tensor((16,), "float32"), D: T.Tensor((2,), "float32")
 ):
@@ -89,7 +89,7 @@ def verify_func_2(module):
     tvm.testing.assert_allclose(a_np * 2 + 1 + d_np[1], a.numpy(), rtol=1e-4)
 
 
-@Ts.prim_func
+@Ts.function
 def func_3(
     C: T.Tensor((1,), "float32"),
     A: T.Tensor((16,), "float32"),
@@ -131,7 +131,7 @@ def verify_func_3(module):
     tvm.testing.assert_allclose(a_np + 1, f.numpy(), rtol=1e-4)
 
 
-@Ts.prim_func
+@Ts.function
 def func_4(
     C: T.Tensor((1,), "float32"),
     A: T.Tensor((16,), "float32"),
@@ -173,7 +173,7 @@ def verify_func_4(module):
     tvm.testing.assert_allclose(a_np + 1, f.numpy(), rtol=1e-4)
 
 
-_primfunc_cases = [
+_function_cases = [
     [func_1, ("A"), verify_func_1],
     [func_2, ("C", "D"), verify_func_2],
     [func_3, ("C", "A", "D", "E"), verify_func_3],
@@ -181,25 +181,25 @@ _primfunc_cases = [
 ]
 
 
-class TestPrimFuncs:
-    @pytest.mark.parametrize("func,verify", [(case[0], case[2]) for case in _primfunc_cases])
-    def test_primfunc_call(self, func, verify):
+class TestFunctions:
+    @pytest.mark.parametrize("func,verify", [(case[0], case[2]) for case in _function_cases])
+    def test_function_call(self, func, verify):
         target = tvm.target.Target("llvm")
         func = tvm.compile(func, target=target)
         verify(func)
 
-    @pytest.mark.parametrize("func,params,verify", _primfunc_cases)
+    @pytest.mark.parametrize("func,params,verify", _function_cases)
     def test_te_extern_call(self, func, params, verify):
         ir_mod = tvm.IRModule.from_expr(func.with_attr("global_symbol", "main"))
-        prim_func = ir_mod["main"]
+        function = ir_mod["main"]
 
         buf_name_map = {param.name: param for param in func.params if tvm.tirx.is_tensor_var(param)}
         input_tensors = [te.placeholder(buf_name_map[name].shape) for name in params]
-        output = te.extern_primfunc(input_tensors, prim_func)
-        rt_prim_func = te.create_prim_func(tensors_from_extern_op(output, prim_func))
+        output = te.extern_function(input_tensors, function)
+        rt_function = te.create_function(tensors_from_extern_op(output, function))
 
         target = tvm.target.Target("llvm")
-        func = tvm.compile(rt_prim_func, target=target)
+        func = tvm.compile(rt_function, target=target)
         verify(func)
 
 

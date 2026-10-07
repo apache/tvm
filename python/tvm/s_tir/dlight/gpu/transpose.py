@@ -22,7 +22,7 @@ from tvm.s_tir import Schedule
 from tvm.s_tir.schedule import SBlockRV
 from tvm.target import Target
 
-from ..analysis import detect_dominant_read, normalize_prim_func
+from ..analysis import detect_dominant_read, normalize_function
 from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
@@ -43,12 +43,12 @@ class Transpose(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
         # pylint: disable=invalid-name
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         if target.kind.name == "cuda":
             len_tx = 16
@@ -65,7 +65,7 @@ class Transpose(GPUScheduleRule):
         len_vec = 4
 
         sch = s_tir.Schedule(func)
-        blocks = normalize_prim_func(sch)
+        blocks = normalize_function(sch)
         transpose_block_idx = -1
         for idx, block in reversed(list(enumerate(blocks))):
             if self.is_transpose(sch, block.block_rv):

@@ -26,16 +26,16 @@ from tvm.script import tirx as T
 from tvm.script.parser import register_namespace
 from tvm.script.parser.protocol_registry import register_mutable_decl
 from tvm.script.tirx import tile as Tx
-from tvm.tirx.function import PrimFunc
+from tvm.tirx.function import Function
 from tvm.tirx.layout import laneid, warpid, wg_local_layout
 from tvm.tirx.transform import LowerTIRx, StmtSimplify
 
 
 def compare(before, after, transform):
     """Compare lowered output against expected ``after`` IR."""
-    if isinstance(before, PrimFunc):
+    if isinstance(before, Function):
         before = tvm.IRModule({"main": before})
-    if isinstance(after, PrimFunc):
+    if isinstance(after, Function):
         after = tvm.IRModule({"main": after})
     assert isinstance(before, tvm.IRModule)
     assert isinstance(after, tvm.IRModule)
@@ -68,7 +68,7 @@ L_LANE = T.TileLayout(T.S[32 : 1 @ laneid])
 
 
 def test_lower_tirx_opaque_optional_pragma_annotations():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8, annotations={"pragma_unroll": None}):
             B[i] = A[i] + 1.0
@@ -79,7 +79,7 @@ def test_lower_tirx_opaque_optional_pragma_annotations():
         for i in T.serial(8, annotations={"unroll_explicit": 0}):
             B[i] = A[i] + 4.0
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after(A: T.Tensor(8, "float32"), B: T.Tensor(8, "float32")):
         for i in T.serial(8):
             B[i] = A[i] + 1.0
@@ -95,7 +95,7 @@ def test_lower_tirx_opaque_optional_pragma_annotations():
 
 
 def test_lower_view_get():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before1(in_buf: T.Tensor(64, "float32"), out: T.Tensor(64, "float32")) -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -112,7 +112,7 @@ def test_lower_view_get():
         for i in T.vectorized(2):
             out[lane_id * 2 + i] = T.float32(A_local_1[i])
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after1(in_buf: T.Tensor((64,), layout=None), out: T.Tensor((64,), layout=None)):
         out_1 = T.decl_tensor((64,), data=out.data, layout=None)
         in_buf_1 = T.decl_tensor((64,), data=in_buf.data, layout=None)
@@ -140,7 +140,7 @@ def test_lower_view_get():
 
     compare(before1, after1, LowerTIRx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before2(in_buf: T.Tensor((16, 16), "float32"), out: T.Tensor((16, 16), "float32")) -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -165,7 +165,7 @@ def test_lower_view_get():
         for i in T.vectorized(2):
             out[lane_id // 4 * 8 + i // 2 * 8 + lane_id % 4, lane_id % 4 * 2 + i % 2] = A_local_1[i]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after2(in_buf: T.Tensor((16, 16), layout=None), out: T.Tensor((16, 16), layout=None)):
         out_1 = T.decl_tensor((256,), data=out.data, layout=None)
         in_buf_1 = T.decl_tensor((256,), data=in_buf.data, layout=None)
@@ -196,7 +196,7 @@ def test_lower_view_get():
 
     compare(before2, after2, LowerTIRx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before3_wgmma_layout(
         in_buf: T.Tensor((128, 128), "float32"), out: T.Tensor((128, 128), "float32")
     ) -> None:
@@ -236,7 +236,7 @@ def test_lower_view_get():
                         i * 8 + lane_id % 4 * 2 + vec,
                     ] = acc_local_1[i * 4 + j * 2 + vec]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after3_wgmma_layout(
         in_buf: T.Tensor((128, 128), layout=None), out: T.Tensor((128, 128), layout=None)
     ):
@@ -285,7 +285,7 @@ def test_lower_view_get():
 
     compare(before3_wgmma_layout, after3_wgmma_layout, LowerTIRx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before4_multi_view_get(
         in_buf: T.Tensor(64, "float32"), out: T.Tensor(64, "float32")
     ) -> None:
@@ -309,7 +309,7 @@ def test_lower_view_get():
         A_local_3 = B_3.local(2)
         out[lane_id * 2 + 1] = T.float32(A_local_3[1])
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after4_multi_view_get(
         in_buf: T.Tensor((64,), layout=None), out: T.Tensor((64,), layout=None)
     ):
@@ -345,14 +345,14 @@ def test_lower_view_get():
 
 
 def test_lower_scope_id():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before1() -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([3, 4, 5])
         tx = T.thread_id([32])
         T.evaluate(bx + by + bz + tx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after1() -> None:
         blockIdx_x = T.launch_thread("blockIdx.x", 3)
         threadIdx_x = T.launch_thread("threadIdx.x", 32)
@@ -369,7 +369,7 @@ def test_lower_scope_id():
 
     compare(before1, after1, LowerTIRx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before2() -> None:
         T.device_entry()
         cbx, cby, cbz = T.cta_id_in_cluster([2, 2, 2])
@@ -378,7 +378,7 @@ def test_lower_scope_id():
         lane_id = T.lane_id([32])
         T.evaluate(bx + by + bz + warp_id + lane_id + cbx + cby + cbz)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after2() -> None:
         clusterCtaIdx_x = T.launch_thread("clusterCtaIdx.x", 2)
         blockIdx_z = T.launch_thread("blockIdx.z", 8)
@@ -402,7 +402,7 @@ def test_lower_scope_id():
 
     compare(before2, after2, LowerTIRx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before3() -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([8, 10, 12])
@@ -417,7 +417,7 @@ def test_lower_scope_id():
         T.evaluate(clx + cly + clz)
         T.evaluate(wg_id + warp_id_in_wg + lane_id + tid_in_wg)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after3() -> None:
         clusterCtaIdx_x = T.launch_thread("clusterCtaIdx.x", 2)
         blockIdx_z = T.launch_thread("blockIdx.z", 12)
@@ -451,7 +451,7 @@ def test_lower_scope_id():
 
 
 def test_lower_ordinary_cta_has_no_cluster_launch_tags():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before() -> None:
         T.device_entry()
         T.cta_id([1])
@@ -465,14 +465,14 @@ def test_lower_ordinary_cta_has_no_cluster_launch_tags():
 
 
 def test_lower_explicit_singleton_cluster_launch_tags_survive_when_unused():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def cluster_2d() -> None:
         T.device_entry()
         unused_cbx, unused_cby = T.cta_id_in_cluster([1, 1])
         unused_bx, unused_by = T.cta_id([1, 1])
         T.thread_id([32])
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def cluster_3d() -> None:
         T.device_entry()
         unused_cbx, unused_cby, unused_cbz = T.cta_id_in_cluster([1, 1, 1])
@@ -501,7 +501,7 @@ def test_lower_explicit_singleton_cluster_launch_tags_survive_when_unused():
 
 
 def test_lower_multi_cta_cluster_launch_tags_remain_unchanged():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before() -> None:
         T.device_entry()
         unused_cbx, unused_cby = T.cta_id_in_cluster([2, 1])
@@ -521,7 +521,7 @@ def test_lower_multi_cta_cluster_launch_tags_remain_unchanged():
 
 
 def test_lower_singleton_cluster_preserves_preferred_cluster_tags():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before() -> None:
         T.device_entry()
         unused_cbx, unused_cby = T.cta_id_in_cluster([1, 1], preferred=[2, 2])
@@ -548,7 +548,7 @@ def test_lower_scope_id2():
         wg_id = T.warpgroup_id([2])
         T.evaluate(wg_id + warp_id + tx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         T.device_entry()
         bx, by, bz = T.cta_id([3, 4, 5])
@@ -556,7 +556,7 @@ def test_lower_scope_id2():
         tx = T.thread_id([256])
         func(warp_id, tx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after():
         blockIdx_x = T.launch_thread("blockIdx.x", 3)
         threadIdx_x = T.launch_thread("threadIdx.x", 256)
@@ -578,14 +578,14 @@ def test_lower_scope_id2():
 
 @pytest.mark.skip(
     reason=(
-        "Tested multi-kernel-per-PrimFunc behavior where a second sibling "
+        "Tested multi-kernel-per-Function behavior where a second sibling "
         "`with T.thread():` would redefine scope-ids and produce a second "
         "launch. The T.device_entry() refactor allows only one device-region "
-        "marker per PrimFunc; this case is out of scope."
+        "marker per Function; this case is out of scope."
     )
 )
 def test_lower_scope_id3():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         T.device_entry()
         bx, by, bz = T.cta_id([3, 4, 5])
@@ -597,7 +597,7 @@ def test_lower_scope_id3():
         tx = T.thread_id([256])
         T.evaluate(bx + by + bz + warp_id + tx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after():
         with T.launch_thread("blockIdx.x", 3) as blockIdx_x:
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
@@ -630,7 +630,7 @@ def test_lower_scope_id3():
 
 
 def test_lower_layout():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(A: T.Tensor((128, 32), "float16")) -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -654,7 +654,7 @@ def test_lower_layout():
     compose_m = T.dynamic("compose_m", "int32")
     compose_q = T.dynamic("compose_q", "int32")
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after(A: T.Tensor((128, 32), "float16", layout=None)) -> None:
         A_1 = T.decl_tensor((4096,), "float16", data=A.data, layout=None)
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
@@ -701,7 +701,7 @@ def test_lower_layout():
 
 
 def test_lower_opcall_fail():
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((64,), "float32", scope="global")) -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -719,7 +719,7 @@ def test_lower_opcall_fail():
 
 
 def test_lower_decl_buffer_access_ptr():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         T.device_entry()
         T.cta_id([1])
@@ -728,7 +728,7 @@ def test_lower_decl_buffer_access_ptr():
         A = T.decl_tensor([128], "float16", buf.data, elem_offset=32)
         T.evaluate(A.access_ptr("rw", ptr_type="float16", offset=A.elem_offset_of([64])))
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after():
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
@@ -747,7 +747,7 @@ def test_lower_decl_buffer_access_ptr():
 
 
 def test_lower_separate_scope_id_def():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         T.device_entry()
         T.cta_id([1])
@@ -755,7 +755,7 @@ def test_lower_separate_scope_id_def():
         if tx == 0:
             T.evaluate(tx)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after():
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
@@ -773,7 +773,7 @@ def test_lower_separate_scope_id_def():
 def test_lower_uint32_scope_id_casts_at_bind():
     """uint32 scope ids get a Cast at the bind; launch params stay int32."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         T.device_entry()
         T.cta_id([1])
@@ -781,7 +781,7 @@ def test_lower_uint32_scope_id_casts_at_bind():
         for k in T.serial(4, dtype="uint32"):
             T.evaluate(tx + k)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after():
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
@@ -807,13 +807,13 @@ def test_lower_exec_context_infers_plain_predicate_for_dispatch():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -846,13 +846,13 @@ def test_lower_exec_context_infers_warpgroup_range_predicate_for_dispatch():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -891,13 +891,13 @@ def test_lower_exec_context_tracks_cta_thread_range_predicate_for_dispatch():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -929,13 +929,13 @@ def test_lower_exec_context_tracks_cta_thread_single_warp_range_predicate():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -967,13 +967,13 @@ def test_lower_exec_context_tracks_warpgroup_thread_range_predicate():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1007,13 +1007,13 @@ def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
     def _probe(op_call, sctx):
         seen.append({"scope_kind": sctx.scope_kind, "inter": sctx.inter, "intra": sctx.intra})
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1036,7 +1036,7 @@ def test_lower_exec_context_tracks_dependent_conjunctive_predicate():
 
 
 def test_lower_exec_context_keeps_plain_predicate_condition():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(A: T.Tensor((1,), "float32", scope="global")):
         T.device_entry()
         T.cta_id([1])
@@ -1056,7 +1056,7 @@ def test_lower_exec_context_keeps_plain_predicate_condition():
 
 
 def test_lower_exec_context_keeps_plain_scope_predicate_condition():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(A: T.Tensor((1,), "float32", scope="global")):
         T.device_entry()
         T.cta_id([1])
@@ -1076,7 +1076,7 @@ def test_lower_exec_context_keeps_plain_scope_predicate_condition():
 
 
 def test_simplify_uses_floor_div_scope_predicate_as_context_fact():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(A: T.Tensor((16,), "float32", scope="global")):
         T.device_entry()
         T.cta_id([1])
@@ -1108,13 +1108,13 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
     def _probe(op_call, sctx):
         seen.append(sctx.inter["laneid"][1].script(extra_config={"tirx.prefix": "T"}))
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1138,7 +1138,7 @@ def test_lower_exec_context_selector_filter_for_elect_sync():
 
 
 def test_lower_cleanup_accepts_bool_elect_sync_else_path():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(A: T.Tensor((32,), "int32", scope="global")):
         T.device_entry()
         T.cta_id([1])
@@ -1168,13 +1168,13 @@ def test_lower_exec_context_scope_guard_mixes_structural_and_selector():
     def _probe(op_call, sctx):
         seen.append({"inter": sctx.inter, "intra": sctx.intra})
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1209,13 +1209,13 @@ def test_lower_exec_context_tracks_factorized_cta_predicate():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1245,7 +1245,7 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
     def _probe_kernel(op_call, sctx):
         seen["kernel"] = sctx.inter
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
@@ -1255,13 +1255,13 @@ def test_lower_exec_context_keeps_kernel_cta_predicate_out_of_cluster_active_set
     def _probe_cluster(op_call, sctx):
         seen["cluster"] = sctx.inter
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1293,13 +1293,13 @@ def test_lower_exec_context_tracks_cta_axis_modulo_predicate():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1328,13 +1328,13 @@ def test_lower_exec_context_tracks_cta_id_in_pair_predicate():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1365,7 +1365,7 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
     def _probe_zero(op_call, sctx):
         seen["zero"] = sctx.inter
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
@@ -1375,13 +1375,13 @@ def test_lower_exec_context_tracks_two_cta_pair_predicates():
     def _probe_one(op_call, sctx):
         seen["one"] = sctx.inter
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1413,13 +1413,13 @@ def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
     def _probe(op_call, sctx):
         seen.append(sctx.inter)
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def impl():
             T.evaluate(0)
 
         return impl
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(
         A: T.Tensor((1,), "float32", scope="global"), B: T.Tensor((1,), "float32", scope="global")
     ):
@@ -1440,7 +1440,7 @@ def test_lower_exec_context_tracks_cta_id_in_pair_after_axis_predicate():
 
 
 def test_lower_buffer_offset():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         T.device_entry()
         T.cta_id([1])
@@ -1449,7 +1449,7 @@ def test_lower_buffer_offset():
         A0 = T.decl_tensor([64], "float16", A.data, elem_offset=A.elem_offset_of([32, 32]))
         T.evaluate(T.address_of(A0[32]))
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after():
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
@@ -1491,7 +1491,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
             T.tensor_store(buf, val, 0)
         return buf
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         T.device_entry()
         smem = T.alloc_tensor([100], "uint8", scope="shared.dyn")
@@ -1508,7 +1508,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
         G = int_var2(4)
         G[0] = G[0] + 4
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after():
         smem = T.alloc_tensor([100], "uint8", scope="shared.dyn", layout=None)
         A = T.alloc_local((1,), "float16", layout=None)
@@ -1538,7 +1538,7 @@ def test_lower_alloc_decl_buffer_outside_of_parser():
 def test_alloc_buffer_with_thread_axis_layout():
     """alloc_tensor with thread-axis layout should lower to 1D physical buffer with memory-axis span."""  # noqa: E501
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before(out: T.Tensor((128, 4), "float32")) -> None:
         T.device_entry()
         bx, by, bz = T.cta_id([1, 1, 1])
@@ -1550,7 +1550,7 @@ def test_alloc_buffer_with_thread_axis_layout():
         for i in T.serial(4):
             reg[i] = out[lane_id + warp_id * 32, i]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def after(out: T.Tensor((128, 4), layout=None)):
         out_1 = T.decl_tensor((512,), data=out.data, layout=None)
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
@@ -1583,7 +1583,7 @@ def test_scope_id_compliment_no_div_by_zero():
     """
     with pytest.raises(Exception):
 
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor((1,))):
             T.device_entry()
             cb_m, cb_n = T.cta_id_in_cluster([2, 2])
@@ -1600,7 +1600,7 @@ def test_scope_id_compliment_non_divisible():
     """
     with pytest.raises(Exception):
 
-        @T.prim_func
+        @T.function
         def func():
             T.device_entry()
             bx = T.cta_id([1])
@@ -1615,7 +1615,7 @@ def test_empty_kernel_no_thread_id():
     Before the fix, this would crash late in codegen with poor diagnostics.
     """
 
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         bx = T.cta_id([32])
@@ -1627,7 +1627,7 @@ def test_empty_kernel_no_thread_id():
 
 
 def test_lower_preferred_cluster():
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before() -> None:
         T.device_entry()
         bx = T.cta_id([8])

@@ -214,7 +214,7 @@ def rnn_state_get(
     # fmt: off
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _rnn_state_get(
         storage: T.Tensor((reserved_nseq, max_history, *shape), dtype),
         seq_slot_ids: T.Tensor((batch_size,), 'int32'),
@@ -245,7 +245,7 @@ def rnn_state_set(
     # fmt: off
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _rnn_state_set(
         storage: T.Tensor((reserved_nseq, max_history, *shape), dtype),
         seq_slot_ids: T.Tensor((batch_size,), 'int32'),

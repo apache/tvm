@@ -18,12 +18,12 @@
 
 from tvm_ffi import register_object
 
-from tvm.tirx.script.ir_builder.frame import PrimFuncFrame as TIRxPrimFuncFrame
+from tvm.tirx.script.ir_builder.frame import FunctionFrame as TIRxFunctionFrame
 from tvm.tirx.script.ir_builder.frame import TIRFrame
 
 
-@register_object("script.ir_builder.s_tir.PrimFuncFrame")
-class PrimFuncFrame(TIRxPrimFuncFrame):
+@register_object("script.ir_builder.s_tir.FunctionFrame")
+class FunctionFrame(TIRxFunctionFrame):
     def default_buffer_layout(self, shape, scope):
         """S-TIR buffers carry no implicit layout."""
         return None

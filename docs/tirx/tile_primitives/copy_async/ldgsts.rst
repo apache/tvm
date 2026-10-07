@@ -96,7 +96,7 @@ shared, then commits and waits before reading it back (from ``test_ldgsts.py``):
     full = (slice(0, 128), slice(0, 32))
 
 
-    @Tx.prim_func
+    @Tx.function
     def copy_async(A: Tx.Tensor(shape, dtype), B: Tx.Tensor(shape, dtype)):
 
         Tx.device_entry()

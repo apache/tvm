@@ -325,7 +325,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 };
 
-std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
+std::vector<ffi::String> VerifyGPUCode_(const Function& func,
                                         ffi::Map<ffi::String, PrimExpr> constraints) {
   auto verifier = ffi::make_object<GPUCodeVerifier>();
 
@@ -370,7 +370,7 @@ std::vector<ffi::String> VerifyGPUCode_(const PrimFunc& func,
                           max_thread_y, max_thread_z, max_vthread, max_vector_bytes, max_kernels);
 }
 
-bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constraints) {
+bool VerifyGPUCode(const Function& func, ffi::Map<ffi::String, PrimExpr> constraints) {
   auto errs = VerifyGPUCode_(func, constraints);
   return errs.size() == 0;
 }
@@ -385,7 +385,7 @@ namespace transform {
 Pass VerifyGPUCode(ffi::Map<ffi::String, PrimExpr> constraints) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto func = kv.second.as<PrimFunc>()) {
+      if (auto func = kv.second.as<Function>()) {
         auto errs = VerifyGPUCode_(func.value(), constraints);
         if (errs.size() != 0) {
           std::stringstream s;

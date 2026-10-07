@@ -31,7 +31,7 @@ from tvm.script.ir_builder import IRBuilder
 def test_param():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
@@ -54,7 +54,7 @@ def test_param():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
@@ -85,7 +85,7 @@ def test_const():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
@@ -112,7 +112,7 @@ def test_const():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
@@ -145,7 +145,7 @@ def test_const():
 def test_multiple_same_func():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
@@ -181,7 +181,7 @@ def test_multiple_same_func():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
@@ -223,7 +223,7 @@ def test_multiple_same_func():
 def test_multiple_same_func_with_different_free_buffers():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
@@ -259,7 +259,7 @@ def test_multiple_same_func_with_different_free_buffers():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul1(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
@@ -272,7 +272,7 @@ def test_multiple_same_func_with_different_free_buffers():
                         C[i, j] = T.float32(0)
                     C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul2(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),

@@ -255,7 +255,7 @@ Stmt RemoveNoOp(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_c
 namespace transform {
 
 Pass RemoveNoOp() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     RemoveNoOpConfig config =
         ctx->GetConfig<RemoveNoOpConfig>("tirx.RemoveNoOp")
@@ -273,7 +273,7 @@ Pass RemoveNoOp() {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.RemoveNoOp", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemoveNoOp", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

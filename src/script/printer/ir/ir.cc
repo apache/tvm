@@ -51,7 +51,7 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
                                                         mod->functions.end());
   auto rank = [](const BaseFunc& func) {
     if (func.as<relax::ExternFuncNode>()) return 0;
-    if (func.as<tirx::PrimFuncNode>()) return 1;
+    if (func.as<tirx::FunctionNode>()) return 1;
     return 2;
   };
   std::sort(functions.begin(), functions.end(), [&](const auto& a, const auto& b) {
@@ -99,14 +99,14 @@ ffi::Optional<ExprDoc> IRModuleDocTranslate(DocTranslatorObj* d, ffi::AnyView in
                 ffi::GetRef<ffi::ObjectRef>(func.get()));
         continue;
       }
-      TVM_FFI_CHECK(func.as<tirx::PrimFuncNode>() || func.as<relax::FunctionNode>(), TypeError)
+      TVM_FFI_CHECK(func.as<tirx::FunctionNode>() || func.as<relax::FunctionNode>(), TypeError)
           << "printer IRModule needs a registered TIRx, Relax, or extern function hook";
       d->Translate(func);
       FunctionDoc doc = d->CurrentScopeDocs().back().as_or_throw<FunctionDoc>();
       doc->name = IdDoc(gv->name_hint);
       if (auto symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
           symbol && symbol.value() != gv->name_hint) {
-        ExprDoc attr = func.as<tirx::PrimFuncNode>() ? NamespaceDoc("tirx")->Attr("func_attr")
+        ExprDoc attr = func.as<tirx::FunctionNode>() ? NamespaceDoc("tirx")->Attr("func_attr")
                                                      : NamespaceDoc("relax")->Attr("func_attr");
         doc->body.insert(doc->body.begin(),
                          ExprStmtDoc(attr->Call(

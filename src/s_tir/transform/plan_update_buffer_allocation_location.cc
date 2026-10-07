@@ -58,7 +58,7 @@ class CollectManagedAllocations : public StmtExprVisitor {
 class BufferAllocateOrderCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
-  static ffi::Array<TensorVar> Collect(const PrimFunc& func) {
+  static ffi::Array<TensorVar> Collect(const Function& func) {
     auto collector = ffi::make_object<BufferAllocateOrderCollector>();
     for (const Var& param : func->params) {
       if (auto buffer = param.as<TensorVar>()) {
@@ -114,7 +114,7 @@ class BufferAllocationLocator : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  explicit BufferAllocationLocator(const PrimFunc& func) {
+  explicit BufferAllocationLocator(const Function& func) {
     ffi::Map<TensorVar, ffi::Optional<Stmt>> buffer_lca = DetectBufferAccessLCA(func);
     // The buffer_alloc_recorder Array is used to keep the buffer allocation order
     // since the buffer_lca Map is unordered.
@@ -285,13 +285,13 @@ class BufferAllocationLocator : public StmtExprMutator {
 namespace transform {
 
 Pass PlanAndUpdateBufferAllocationLocation() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
     auto locator = ffi::make_object<BufferAllocationLocator>(f);
     fptr->body = locator->Mutate(fptr->body).ValueOrUnchanged(fptr->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.PlanAndUpdateBufferAllocationLocation", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.PlanAndUpdateBufferAllocationLocation", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

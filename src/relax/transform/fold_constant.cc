@@ -92,12 +92,12 @@ class ConstantFolder : public ExprMutator {
    * \brief Pattern match op to a TIR function and look it up.
    * \return The TIR function, or nullopt if pattern match fails.
    */
-  ffi::Optional<tirx::PrimFunc> MatchPrimFunc(const Expr& op) {
+  ffi::Optional<tirx::Function> MatchFunction(const Expr& op) {
     const GlobalVar& global_var = op.as_or_throw<GlobalVar>();
     // NOTE: as check works for nullptr(returns null)
     ffi::Optional<BaseFunc> base_func = builder_->GetContextIRModule()->functions.Get(global_var);
-    if (auto* pfunc = base_func.as<tirx::PrimFuncNode>()) {
-      return ffi::GetRef<tirx::PrimFunc>(pfunc);
+    if (auto* pfunc = base_func.as<tirx::FunctionNode>()) {
+      return ffi::GetRef<tirx::Function>(pfunc);
     }
     return std::nullopt;
   }
@@ -106,9 +106,9 @@ class ConstantFolder : public ExprMutator {
    * \brief Get a cached build version of func
    * \return The cached func, nullopt if func cannot be built.
    */
-  ffi::Optional<ffi::Function> GetCachedBuild(tirx::PrimFunc func) {
-    // TODO(tvm-team): consider another way of bulk extract and build PrimFunc once
-    // would be helpful for future cases where PrimFunc recursively call into each other
+  ffi::Optional<ffi::Function> GetCachedBuild(tirx::Function func) {
+    // TODO(tvm-team): consider another way of bulk extract and build tirx::Function once
+    // would be helpful for future cases where tirx::Function recursively call into each other
     Target eval_cpu_target{"llvm"};
 
     auto it = func_build_cache_.find(func);
@@ -118,7 +118,7 @@ class ConstantFolder : public ExprMutator {
     ffi::Optional<ffi::Function> build_func = std::nullopt;
 
     try {
-      // Not all the primfunc can be directly built via llvm, for example, if a function is
+      // Not all the function can be directly built via llvm, for example, if a function is
       // already scheduled to only work on GPU, we will need to skip this in the const folder for
       // now
       // TODO(Hongyi): further check and narrow the scope of foldable function
@@ -198,7 +198,7 @@ class ConstantFolder : public ExprMutator {
 
   // Try constant evaluate a call_tir with a single tensor output.
   // Returns std::nullopt on failure.
-  ffi::Optional<Expr> ConstEvaluateCallTIR(tirx::PrimFunc tir_func,
+  ffi::Optional<Expr> ConstEvaluateCallTIR(tirx::Function tir_func,
                                            ffi::Array<runtime::Tensor> arr_args, ffi::Shape shape,
                                            DLDataType ret_type) {
     // obtain function from the cache.
@@ -230,7 +230,7 @@ class ConstantFolder : public ExprMutator {
 
   // Try constant evaluate a call_tir with tuple outputs (multiple output tensors).
   // Returns std::nullopt on failure.
-  ffi::Optional<Expr> ConstEvaluateCallTIRTuple(tirx::PrimFunc tir_func,
+  ffi::Optional<Expr> ConstEvaluateCallTIRTuple(tirx::Function tir_func,
                                                 ffi::Array<runtime::Tensor> arr_args,
                                                 const TupleTypeNode* tuple_ty) {
     ffi::Optional<ffi::Function> func = GetCachedBuild(tir_func);
@@ -275,7 +275,7 @@ class ConstantFolder : public ExprMutator {
   ffi::Optional<Expr> VisitCallTIR(Call call) {
     // call_tir needs to have at least two arguments
     TVM_FFI_ICHECK_GE(call->args.size(), 2);
-    ffi::Optional<tirx::PrimFunc> func = MatchPrimFunc(call->args[0]);
+    ffi::Optional<tirx::Function> func = MatchFunction(call->args[0]);
     TVM_FFI_ICHECK(call->args[1].as<TupleNode>()) << "call_tir.args[1] must be Tuple";
     ffi::Optional<ffi::Array<runtime::Tensor>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
@@ -429,7 +429,7 @@ class ConstantFolder : public ExprMutator {
   }
 
   // cache for function build, via structural equality
-  std::unordered_map<tirx::PrimFunc, ffi::Optional<ffi::Function>, ffi::StructuralHash,
+  std::unordered_map<tirx::Function, ffi::Optional<ffi::Function>, ffi::StructuralHash,
                      ffi::StructuralEqual>
       func_build_cache_;
 };

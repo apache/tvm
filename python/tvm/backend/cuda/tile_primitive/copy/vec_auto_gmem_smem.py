@@ -27,7 +27,7 @@ consecutive fused-index slots. Layout / partition algorithm lives in
 
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, Var
+from tvm.tirx import Function, Var
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.operator.tile_primitive.registry import DispatchContext
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -93,7 +93,7 @@ def _is_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bo
     return True, None
 
 
-def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     op_call = TilePrimitiveCall.downcast(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
@@ -163,7 +163,7 @@ def _emit_gmem_smem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     v0 = _IntImm("int32", 0)
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         tid = _decl_tid()
         # The scratch only shuttles bits, so it is allocated in the PTX

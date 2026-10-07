@@ -31,7 +31,7 @@ from .tensor import TensorSlice, Tensor
 from .tag import tag_scope
 from .operation import placeholder, compute, scan, extern, var, const
 from .operation import thread_axis, reduce_axis
-from .operation import create_prim_func
-from .operation import extern_primfunc
+from .operation import create_function
+from .operation import extern_function
 
 from .tensor import PlaceholderOp, ComputeOp, ScanOp, ExternOp

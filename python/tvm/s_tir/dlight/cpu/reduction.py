@@ -20,7 +20,7 @@ from tvm import s_tir, tirx
 from tvm.target import Target
 from tvm.target.codegen import llvm_get_vector_width
 
-from ..analysis import normalize_prim_func
+from ..analysis import normalize_function
 from ..base import get_extent
 from .base import CPUScheduleRule
 
@@ -53,15 +53,15 @@ class Reduction(CPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-return-statements,too-many-branches
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
 
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         if block_infos is None or len(block_infos) < 2:
             return None
 

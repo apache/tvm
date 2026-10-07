@@ -32,7 +32,7 @@ use_np_array = tvm.testing.parameter(False, True)
 def test_bind_params(use_np_array):
     @tvm.script.ir_module
     class InputModule:
-        @Ts.prim_func
+        @Ts.function
         def tir_matmul(A: T.Tensor((16, 16)), B: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
             T.func_attr({"global_symbol": "tir_matmul"})
 

@@ -36,7 +36,7 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
+class SplitFunctionLayoutRewrite : public s_tir::StmtExprMutator {
  public:
   using s_tir::StmtExprMutator::Mutate;
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView value, InplaceMode inplace_mode) final {
@@ -44,10 +44,10 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
     return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  explicit SplitPrimFuncLayoutRewrite(const PrimFunc& func) : original_func_(func) {}
-  std::tuple<ffi::Optional<PrimFunc>, PrimFunc> Transform(const PrimFunc& func) {
+  explicit SplitFunctionLayoutRewrite(const tirx::Function& func) : original_func_(func) {}
+  std::tuple<ffi::Optional<tirx::Function>, tirx::Function> Transform(const tirx::Function& func) {
     TVM_FFI_ICHECK(func->body.as<s_tir::SBlockRealizeNode>())
-        << "The body of the primfunc should be a root block.";
+        << "The body of the function should be a root block.";
     const auto& block = func->body.as<s_tir::SBlockRealizeNode>()->block;
     visit_root_block(block.get());
     if (layout_rewrite_preproc_stmts_.size() > 0) {
@@ -64,11 +64,11 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
         [](const RewriteInfo& a, const RewriteInfo& b) { return a.buffer_index < b.buffer_index; });
   }
 
-  PrimFunc create_layout_rewrite_preproc_func() const {
+  tirx::Function create_layout_rewrite_preproc_func() const {
     // Step 1: Check the number of pre_rewrite_buffers and post_rewrite_buffers
     TVM_FFI_ICHECK(rewrite_infos_.size() > 0) << "There should be at least one buffer rewrite.";
 
-    // Step 2: Create the params for the new PrimFunc
+    // Step 2: Create the params for the new tirx::Function
     ffi::Array<Var> params;
 
     for (const auto& info : rewrite_infos_) {
@@ -78,7 +78,7 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
       params.push_back(info.post_rewrite_buffer.var());
     }
 
-    // Step 3: Create the body for the new PrimFunc
+    // Step 3: Create the body for the new tirx::Function
     TVM_FFI_ICHECK(layout_rewrite_preproc_stmts_.size() > 0)
         << "There should be at least one layout rewrite preproc stmt.";
     Stmt body = layout_rewrite_preproc_stmts_.size() == 1 ? layout_rewrite_preproc_stmts_[0]
@@ -99,13 +99,13 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
       }
     }
     DictAttrs attrs(dict);
-    PrimFunc func = PrimFunc(params, body, VoidType(), attrs);
+    tirx::Function func = tirx::Function(params, body, VoidType(), attrs);
 
     return s_tir::RenewDefs(func);
   }
 
-  PrimFunc create_compute_func() const {
-    // Step 1: Create the params for the new PrimFunc
+  tirx::Function create_compute_func() const {
+    // Step 1: Create the params for the new tirx::Function
     ffi::Array<Var> params = original_func_->params;
     for (const auto& info : rewrite_infos_) {
       const Var& param = params[info.buffer_index];
@@ -113,7 +113,7 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
       params.Set(info.buffer_index, info.post_rewrite_buffer.var());
     }
 
-    // Step 2: Create the body for the new PrimFunc
+    // Step 2: Create the body for the new tirx::Function
     Stmt body = compute_stmts_.size() == 1 ? compute_stmts_[0] : SeqStmt(compute_stmts_);
     s_tir::SBlock original_block = original_func_->body.as<s_tir::SBlockRealizeNode>()->block;
     ffi::Array<TensorVar> alloc_buffers;
@@ -144,7 +144,7 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
       }
     }
     DictAttrs attrs(dict);
-    PrimFunc func = PrimFunc(params, body, VoidType(), attrs);
+    tirx::Function func = tirx::Function(params, body, VoidType(), attrs);
 
     return s_tir::RenewDefs(func);
   }
@@ -206,7 +206,7 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
         }
       }
       TVM_FFI_ICHECK(buffer_index != -1)
-          << "The preproc buffer is not found in the original primfunc.";
+          << "The preproc buffer is not found in the original function.";
       rewrite_infos_.push_back(
           RewriteInfo{buffer_index, op->reads[0]->source.as_or_throw<tvm::tirx::TensorVar>(),
                       op->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>()});
@@ -240,8 +240,8 @@ class SplitPrimFuncLayoutRewrite : public s_tir::StmtExprMutator {
            1: visited a layout rewrite preproc block
   */
   int current_subtree_;
-  /*! \brief The original primfunc*/
-  PrimFunc original_func_;
+  /*! \brief The original function*/
+  tirx::Function original_func_;
 };
 }  // namespace tirx
 
@@ -251,13 +251,13 @@ class SplitLayoutRewritePreproc : public ExprMutator {
   static IRModule Transform(const IRModule& mod) {
     SplitLayoutRewritePreproc mutator(mod);
 
-    // Step 1: Split the primfunc into preproc and compute
+    // Step 1: Split the function into preproc and compute
     for (auto [gv, func] : mod->functions) {
-      if (func->IsInstance<tirx::PrimFuncNode>()) {
+      if (func->IsInstance<tirx::FunctionNode>()) {
         auto tir_rewriter =
-            ffi::make_object<tirx::SplitPrimFuncLayoutRewrite>(func.as_or_throw<tirx::PrimFunc>());
+            ffi::make_object<tirx::SplitFunctionLayoutRewrite>(func.as_or_throw<tirx::Function>());
         auto [preproc_func, compute_func] =
-            tir_rewriter->Transform(func.as_or_throw<tirx::PrimFunc>());
+            tir_rewriter->Transform(func.as_or_throw<tirx::Function>());
         if (preproc_func.has_value()) {
           mutator.split_funcs_.emplace(gv.get(),
                                        std::make_tuple(preproc_func.value(), compute_func));
@@ -341,9 +341,9 @@ class SplitLayoutRewritePreproc : public ExprMutator {
   }
 
  private:
-  std::unordered_map<const GlobalVarNode*, std::tuple<tirx::PrimFunc, tirx::PrimFunc>> split_funcs_;
+  std::unordered_map<const GlobalVarNode*, std::tuple<tirx::Function, tirx::Function>> split_funcs_;
   std::unordered_map<const GlobalVarNode*,
-                     std::vector<tirx::SplitPrimFuncLayoutRewrite::RewriteInfo>>
+                     std::vector<tirx::SplitFunctionLayoutRewrite::RewriteInfo>>
       rewrite_infos_;
 };
 

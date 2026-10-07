@@ -22,7 +22,7 @@ from tvm_ffi import Shape, register_object
 
 from tvm.ir import IRModule
 from tvm.runtime import DataType, Object
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 
 from . import _ffi_api
 from .utils import _json_de_tvm
@@ -53,20 +53,20 @@ class ArgInfo(Object):
         return _ffi_api.ArgInfoFromJSON(json_obj)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
-    def from_prim_func(func: PrimFunc) -> list["ArgInfo"]:
-        """Extract a list of the argument information from PrimFunc.
+    def from_function(func: Function) -> list["ArgInfo"]:
+        """Extract a list of the argument information from Function.
 
         Parameters
         ----------
-        func : PrimFunc
-            The PrimFunc to get argument information from.
+        func : Function
+            The Function to get argument information from.
 
         Returns
         -------
         extracted : List[ArgInfo]
             An array of the argument information derived.
         """
-        return _ffi_api.ArgInfoFromPrimFunc(func)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.ArgInfoFromFunction(func)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
     def from_entry_func(mod: IRModule, remove_preproc: bool = True) -> list["ArgInfo"]:

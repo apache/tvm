@@ -285,13 +285,13 @@ class SBlockInfo:
         return str(self)
 
 
-_normalize_prim_func = get_global_func("s_tir.schedule.NormalizePrimFunc")
+_normalize_function = get_global_func("s_tir.schedule.NormalizeFunction")
 
 
-def normalize_prim_func(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
-    """Normalize the primfunc to normal form"""
+def normalize_function(sch: s_tir.Schedule) -> list[SBlockInfo] | None:
+    """Normalize the function to normal form"""
     try:
-        result = _normalize_prim_func(sch)
+        result = _normalize_function(sch)
         if result is None:
             return None
     except Exception:  # pylint: disable=broad-except

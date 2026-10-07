@@ -348,10 +348,10 @@ class BlockBuilder(Object):
             The keyword arguments passed to the function.
             Note that the following keyword args are reserved:
 
-                - 'primfunc_name_hint' for passing name hint to the PrimFunc
+                - 'function_name_hint' for passing name hint to the Function
                   that gets generated.
-                - 'primfunc_attrs' is reserved for passing func attributes to
-                  be added to the PrimFunc that gets created.
+                - 'function_attrs' is reserved for passing func attributes to
+                  be added to the Function that gets created.
 
 
         Returns
@@ -360,12 +360,12 @@ class BlockBuilder(Object):
             A newly created call node
         """
 
-        primfunc_name = kwargs.pop("primfunc_name_hint", None)
+        function_name = kwargs.pop("function_name_hint", None)
         tir_func, call_args, output_ty = gen_call_tir_inputs(func, *args, **kwargs)
 
-        if not primfunc_name:
-            primfunc_name = func.__name__
-        gvar = self.add_func(tir_func, primfunc_name)
+        if not function_name:
+            function_name = func.__name__
+        gvar = self.add_func(tir_func, function_name)
 
         return call_tir(gvar, call_args, output_ty)
 
@@ -401,10 +401,10 @@ class BlockBuilder(Object):
             The keyword arguments passed to the function.
             Note that the following keyword args are reserved:
 
-                - 'primfunc_name_hint' for passing name hint to the PrimFunc
+                - 'function_name_hint' for passing name hint to the Function
                   that gets generated.
-                - 'primfunc_attrs' is reserved for passing func attributes to
-                  be added to the PrimFunc that gets created.
+                - 'function_attrs' is reserved for passing func attributes to
+                  be added to the Function that gets created.
 
         Returns
         -------
@@ -412,15 +412,15 @@ class BlockBuilder(Object):
             A newly created call node
         """
 
-        primfunc_name = kwargs.pop("primfunc_name_hint", None)
+        function_name = kwargs.pop("function_name_hint", None)
         tir_func, call_args, output_ty = gen_call_tir_inputs(func, *args, **kwargs)
 
         if te_grad_kwargs is None:
             te_grad_kwargs = {}
 
-        if not primfunc_name:
-            primfunc_name = func.__name__
-        gvar = self.add_func(tir_func, primfunc_name)
+        if not function_name:
+            function_name = func.__name__
+        gvar = self.add_func(tir_func, function_name)
 
         return call_tir_with_grad(gvar, call_args, output_ty, te_grad_name, te_grad_kwargs)
 
@@ -439,8 +439,8 @@ class BlockBuilder(Object):
 
         kwargs : Any, optional
             The keyword arguments passed to the function.
-            Note that the key "primfunc_name_hint" is reserved for passing name hint
-            to the PrimFunc that gets generated.
+            Note that the key "function_name_hint" is reserved for passing name hint
+            to the Function that gets generated.
 
         Returns
         -------
@@ -475,7 +475,7 @@ class BlockBuilder(Object):
 
             @tvm.script.ir_module
             class Module:
-                @Ts.prim_func
+                @Ts.function
                 def te_func(
                     rxplaceholder: T.Tensor([n, m], dtype="float32"),
                     rxplaceholder_1: T.Tensor([n, m], dtype="float32"),
@@ -526,7 +526,7 @@ class BlockBuilder(Object):
 
             @tvm.script.ir_module
             class Module:
-                @Ts.prim_func
+                @Ts.function
                 def te_func(
                     rxplaceholder: T.Tensor([n + T.int64(1)], dtype="float32"),
                     compute: T.Tensor([n + T.int64(1)], dtype="float32"),
@@ -723,7 +723,7 @@ class BlockBuilder(Object):
         return _ffi_api.BlockBuilderGetUniqueName(self, name_prefix)  # type: ignore
 
     def add_func(self, func: BaseFunc, func_name: str) -> GlobalVar:
-        """Add a Relax function or a TIR PrimFunc to the IRModule being built.
+        """Add a Relax function or a TIR Function to the IRModule being built.
 
         Parameters
         ----------
@@ -741,7 +741,7 @@ class BlockBuilder(Object):
         return _ffi_api.BlockBuilderAddFunction(self, func, func_name)  # type: ignore
 
     def update_func(self, gv: GlobalVar, updated_func: BaseFunc) -> None:
-        """Add a Relax function or a TIR PrimFunc to the IRModule being built.
+        """Add a Relax function or a TIR Function to the IRModule being built.
 
         Parameters
         ----------

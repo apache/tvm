@@ -40,7 +40,7 @@ def test_rms_norm_with_casting():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(data: T.Tensor((1, n, 4096), 'float16'), weight: T.Tensor((4096,), "float16"), T_cast: T.Tensor((1, n, 4096), 'float16')):
             T.func_attr({"tirx.noalias": True})
 
@@ -100,7 +100,7 @@ def test_rms_norm_with_casting():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def main(data: T.Tensor((1, n, 4096), 'float16'), weight: T.Tensor((4096,), "float16"), T_cast: T.Tensor((1, n, 4096), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -172,7 +172,7 @@ def test_rms_norm_without_casting():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(data: T.Tensor((1, n, 4096)), weight: T.Tensor((4096,), "float32"), T_cast: T.Tensor((1, n, 4096))):
             T.func_attr({"tirx.noalias": True})
 
@@ -218,7 +218,7 @@ def test_rms_norm_without_casting():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def main(data: T.Tensor((1, n, 4096)), weight: T.Tensor((4096,), "float32"), T_cast: T.Tensor((1, n, 4096))):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 

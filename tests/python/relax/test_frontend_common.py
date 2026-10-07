@@ -69,7 +69,7 @@ class TestAutopad:
     def test_constant(self):
         @I.ir_module
         class expected:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def pad(
                 x: T.Tensor((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 PadInput: T.Tensor((T.int64(1), T.int64(1), T.int64(5), T.int64(5)), "float32"),
@@ -105,7 +105,7 @@ class TestAutopad:
     def test_edge(self):
         @I.ir_module
         class expected:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def replicate_pad(
                 x: T.Tensor((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 ReplicatePadInput: T.Tensor(
@@ -150,7 +150,7 @@ class TestAutopad:
     def test_reflect(self):
         @I.ir_module
         class expected:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def mirror_pad(
                 x: T.Tensor((T.int64(1), T.int64(1), T.int64(4), T.int64(4)), "float32"),
                 MirrorPadInput: T.Tensor(

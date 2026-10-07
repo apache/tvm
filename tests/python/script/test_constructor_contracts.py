@@ -93,7 +93,7 @@ def test_operation_dtype_keywords_match_normal_constructors():
 
 
 def test_normal_constructors_in_parsed_function():
-    @T.prim_func
+    @T.function
     def function(x: ir.PrimType("float32")):
         T.evaluate(ir.Call("tirx.exp", [x], ty="float32"))
 

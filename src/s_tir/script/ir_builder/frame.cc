@@ -27,13 +27,13 @@ namespace script {
 namespace ir_builder {
 namespace s_tir {
 TVM_FFI_STATIC_INIT_BLOCK() {
-  PrimFuncFrameNode::RegisterReflection();
+  FunctionFrameNode::RegisterReflection();
   SBlockFrameNode::RegisterReflection();
   BlockInitFrameNode::RegisterReflection();
-  tirx::PrimFuncFrameNode::RegisterAttrValidator(
-      tvm::attr::kSTir, [](const tirx::PrimFuncFrameNode* frame, const ffi::Any& value) {
-        TVM_FFI_CHECK(frame->IsInstance<PrimFuncFrameNode>(), ValueError)
-            << "The s_tir attribute requires Ts.prim_func";
+  tirx::FunctionFrameNode::RegisterAttrValidator(
+      tvm::attr::kSTir, [](const tirx::FunctionFrameNode* frame, const ffi::Any& value) {
+        TVM_FFI_CHECK(frame->IsInstance<FunctionFrameNode>(), ValueError)
+            << "The s_tir attribute requires Ts.function";
         bool enabled = false;
         if (auto flag = value.as<bool>()) {
           enabled = *flag;
@@ -42,11 +42,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         } else if (auto flag = value.as<tvm::IntImm>()) {
           enabled = !tvm::prim::IsZero(*flag);
         }
-        TVM_FFI_CHECK(enabled, ValueError) << "Ts.prim_func cannot disable the s_tir attribute";
+        TVM_FFI_CHECK(enabled, ValueError) << "Ts.function cannot disable the s_tir attribute";
       });
 }
 
-tvm::tirx::PrimFunc PrimFuncFrameNode::FinalizeFunction(tvm::tirx::PrimFunc func) {
+tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func) {
   TVM_FFI_CHECK(!is_declaration || root_alloc_buffers.empty(), ValueError)
       << "A function declaration cannot allocate buffers";
   if (!is_declaration) {
@@ -65,9 +65,9 @@ void SBlockFrameNode::ExitWithScope() {
 
   // Shared operations remain usable in S-TIR and raw builder contexts, but
   // a TIRx function cannot contain an S-TIR block, even with validation disabled.
-  if (auto function = IRBuilder::Current()->FindFrame<tirx::PrimFuncFrame>()) {
-    TVM_FFI_CHECK(function.value().as<PrimFuncFrameNode>() != nullptr, ValueError)
-        << "S-TIR blocks require Ts.prim_func; T.prim_func only accepts TIRx";
+  if (auto function = IRBuilder::Current()->FindFrame<tirx::FunctionFrame>()) {
+    TVM_FFI_CHECK(function.value().as<FunctionFrameNode>() != nullptr, ValueError)
+        << "S-TIR blocks require Ts.function; T.function only accepts TIRx";
   }
 
   ffi::Array<tvm::tirx::TensorVar> tir_alloc_buffers;

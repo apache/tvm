@@ -98,7 +98,7 @@ def tree_attn_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any]):
     mask_elem_offset = T.dynamic("mask_elem_offset", "int32")
     tree_size = T.dynamic("tree_size", "int32")
     batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_tree_attn(  # pylint: disable=too-many-branches,line-too-long
         q: T.Tensor((qo_len, h_q, d), dtype),  # [total_len, h_q, d]
         q_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]
@@ -280,7 +280,7 @@ def tree_attn(h_kv, h_q, d, dtype, rope_scaling: dict[str, Any], target: Target)
     mask_elem_offset = T.dynamic("mask_elem_offset", "int32")
     tree_size = T.dynamic("tree_size", "int32")
     batch_size_plus_1 = T.dynamic("batch_size_plus_1", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_tree_attn(  # pylint: disable=too-many-branches
         q: T.Tensor((qo_len, h_q, d), dtype), # [total_len, h_q, d]
         q_indptr: T.Tensor((batch_size_plus_1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
@@ -595,7 +595,7 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: dict[st
     tree_order_elem_offset = T.dynamic("tree_order_elem_offset", "int32")
     tree_order_indptr_elem_offset = T.dynamic("tree_order_indptr_elem_offset", "int32")
     total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
-    @Ts.prim_func
+    @Ts.function
     def tree_attn_paged_kv_cpu(
         q: T.Tensor((total_len, h_q, d), dtype), # [total_len, h_q, d]
         q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset), # [batch_size + 1]
@@ -770,7 +770,7 @@ def tree_attn_with_paged_kv_cache(
     tree_order_elem_offset = T.dynamic("tree_order_elem_offset", "int32")
     tree_order_indptr_elem_offset = T.dynamic("tree_order_indptr_elem_offset", "int32")
     total_tree_order_len = T.dynamic("total_tree_order_len", "int32")
-    @Ts.prim_func
+    @Ts.function
     def tree_attn_paged_kv(
         q: T.Tensor((total_len, h_q, d), dtype),  # [total_len, h_q, d]
         q_indptr: T.Tensor((batch_size + 1,), 'int32', elem_offset=q_indptr_elem_offset),  # [batch_size + 1]

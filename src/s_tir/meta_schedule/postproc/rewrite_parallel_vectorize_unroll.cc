@@ -383,8 +383,8 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, SBloc
   for (const auto& kv : mod->functions) {
     const GlobalVar& g_var = kv.first;
     const BaseFunc& base_func = kv.second;
-    if (const auto* prim_func = base_func.as<PrimFuncNode>()) {
-      const SBlockRealizeNode* block_realize = prim_func->body.as<SBlockRealizeNode>();
+    if (const auto* function = base_func.as<FunctionNode>()) {
+      const SBlockRealizeNode* block_realize = function->body.as<SBlockRealizeNode>();
       if (block_realize != nullptr) {
         SBlock block = block_realize->block;
         if (ParseAnnotation(block, parsed)) {

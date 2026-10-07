@@ -63,7 +63,7 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class MyModule:
-    @Ts.prim_func
+    @Ts.function
     def mm_relu(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((128, 128), "float32"),
@@ -106,7 +106,7 @@ class MyModule:
 
 @I.ir_module
 class ConciseModule:
-    @Ts.prim_func
+    @Ts.function
     def mm_relu(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((128, 128), "float32"),
@@ -145,7 +145,7 @@ dtype = "float32"
 # IRModule in TVMScript
 @I.ir_module
 class ConciseModuleFromPython:
-    @Ts.prim_func
+    @Ts.function
     def mm_relu(
         A: T.Tensor((M, K), dtype),
         B: T.Tensor((K, N), dtype),
@@ -184,7 +184,7 @@ K = T.dynamic("K", "int32")
 
 @I.ir_module
 class DynamicShapeModule:
-    @Ts.prim_func
+    @Ts.function
     def mm_relu(A: T.Tensor([M, K], dtype), B: T.Tensor([K, N], dtype), C: T.Tensor([M, N], dtype)):
         # Bind the input buffers with the dynamic shapes
 
@@ -264,7 +264,7 @@ C = te.compute((128, 128), lambda i, j: te.max(Y[i, j], 0), name="C")
 # In this specific instance, we aim to construct a function with two input parameters **A, B**
 # and one output parameter **C**.
 
-te_func = te.create_prim_func([A, B, C]).with_attr({"global_symbol": "mm_relu"})
+te_func = te.create_function([A, B, C]).with_attr({"global_symbol": "mm_relu"})
 TEModule = tvm.IRModule({"mm_relu": te_func})
 TEModule.show()
 
@@ -282,6 +282,6 @@ k = te.reduce_axis((0, K), "k")
 Y = te.compute((M, N), lambda i, j: te.sum(A[i, k] * B[k, j], axis=k), name="Y")
 C = te.compute((M, N), lambda i, j: te.max(Y[i, j], 0), name="C")
 
-dyn_te_func = te.create_prim_func([A, B, C]).with_attr({"global_symbol": "mm_relu"})
+dyn_te_func = te.create_function([A, B, C]).with_attr({"global_symbol": "mm_relu"})
 DynamicTEModule = tvm.IRModule({"mm_relu": dyn_te_func})
 DynamicTEModule.show()

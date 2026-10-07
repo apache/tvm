@@ -359,21 +359,21 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
         The keyword arguments passed to the function.
         Note that the following keyword args are reserved:
 
-            - 'primfunc_name_hint' for passing name hint to the PrimFunc
+            - 'function_name_hint' for passing name hint to the Function
                 that gets generated.
-            - 'primfunc_attrs' is reserved for passing func attributes to
-                be added to the PrimFunc that gets created.
+            - 'function_attrs' is reserved for passing func attributes to
+                be added to the Function that gets created.
 
     Returns
     -------
     call : Call
         A newly created call that calls into a tirx function.
     """
-    primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
+    function_name_hint = kwargs.pop("function_name_hint", None)
     tir_func, call_args, out_ty = gen_call_tir_inputs(func, *args, **kwargs)
-    if not primfunc_name_hint:
-        primfunc_name_hint = func.__name__
-    gvar = decl_function(primfunc_name_hint, tir_func)  # type: ignore
+    if not function_name_hint:
+        function_name_hint = func.__name__
+    gvar = decl_function(function_name_hint, tir_func)  # type: ignore
     return _op.call_tir(gvar, call_args, out_ty)
 
 

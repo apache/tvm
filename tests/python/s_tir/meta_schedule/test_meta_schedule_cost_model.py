@@ -47,7 +47,7 @@ requires_xgboost = pytest.mark.skipif(
 # pylint: disable=invalid-name,no-member,line-too-long,too-many-nested-blocks,missing-docstring
 @tvm.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -65,7 +65,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class FullModule:
-    @Ts.prim_func
+    @Ts.function
     def main(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):

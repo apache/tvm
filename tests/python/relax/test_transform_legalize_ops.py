@@ -49,7 +49,7 @@ def test_customize_legalize():
             gv = R.call_tir(cls.add, (y, x), R.Tensor((4, 3, 2, 3), dtype="float32"))
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(rxplaceholder_1: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(1)), "float32"), rxplaceholder: T.Tensor((T.int64(1), T.int64(2), T.int64(3)), "float32"), T_add: T.Tensor((T.int64(4), T.int64(3), T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i0, i1, i2, i3 in T.grid(T.int64(4), T.int64(3), T.int64(2), T.int64(3)):
@@ -78,7 +78,7 @@ def test_legalize_multiple_types_of_call():
             gv = R.multiply(x, R.const(2.0, "float32"))
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def identity(rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float32"), T_id: T.Tensor((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with Ts.sblock("T_add"):
@@ -103,7 +103,7 @@ def test_legalize_multiple_types_of_call():
             gv = R.call_tir(cls.multiply, (x,), R.Tensor((3, 3), dtype="float32"))
             return gv
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def identity(rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float32"), T_id: T.Tensor((T.int64(3), T.int64(3)), "float32")):
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
                 with Ts.sblock("T_add"):
@@ -112,7 +112,7 @@ def test_legalize_multiple_types_of_call():
                     Ts.writes(T_id[v_ax0, v_ax1])
                     T_id[v_ax0, v_ax1] = rxplaceholder[v_ax0, v_ax1]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def multiply(rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float32"), T_multiply: T.Tensor((T.int64(3), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             for ax0, ax1 in T.grid(T.int64(3), T.int64(3)):
@@ -193,7 +193,7 @@ def test_legalize_scalar_data_type_preserve():
 
     @tvm.script.ir_module
     class Expected0:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def multiply(
             rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "float16"),
             T_multiply: T.Tensor((T.int64(3), T.int64(3)), "float16"),
@@ -217,7 +217,7 @@ def test_legalize_scalar_data_type_preserve():
 
     @tvm.script.ir_module
     class Expected1:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def multiply(
             rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "uint8"),
             T_multiply: T.Tensor((T.int64(3), T.int64(3)), "uint8"),
@@ -239,7 +239,7 @@ def test_legalize_scalar_data_type_preserve():
 
     @tvm.script.ir_module
     class Expected2:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def equal(
             rxplaceholder: T.Tensor((T.int64(3), T.int64(3)), "bool"),
             T_equal: T.Tensor((T.int64(3), T.int64(3)), "bool"),
@@ -367,7 +367,7 @@ def test_legalize_with_vdevice():
 
     This is a regression test.  In previous implementations, Relax
     expressions whose argument types differed only by their `vdevice`
-    would be legalized to use the same `PrimFunc`.
+    would be legalized to use the same `Function`.
 
     """
 
@@ -400,7 +400,7 @@ def test_legalize_with_vdevice():
             C = R.call_tir(cls.add, (A, B), out_ty=R.Tensor((32, 32), dtype="float32"))
             return C
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),
@@ -425,7 +425,7 @@ def test_legalize_with_vdevice():
             )
             return C
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add_llvm(
             A: T.Tensor((T.int64(32), T.int64(32)), "float32"),
             B: T.Tensor((T.int64(32), T.int64(32)), "float32"),

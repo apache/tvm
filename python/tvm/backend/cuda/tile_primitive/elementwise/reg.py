@@ -36,7 +36,7 @@ import operator
 
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx import Function, TilePrimitiveCall
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.dispatcher import fail
@@ -230,7 +230,7 @@ def _prod(it) -> int:
 # -----------------------------------------------------------------------------
 # Main entry
 # -----------------------------------------------------------------------------
-def emit_reg(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> PrimFunc:
+def emit_reg(op_call: TilePrimitiveCall, spec, sctx: DispatchContext) -> Function:
     plan, msg = spec.parse(op_call)
     if msg is not None or plan is None:
         fail(msg or "parse failed")
@@ -284,7 +284,7 @@ def _pick_vec_and_carve(spec, op_call, sctx, plan, per_op_mem_layouts):
     return 1, None, dict(per_op_mem_layouts)
 
 
-def _emit_induced(plan, spec, sctx, op_call, anchor_br) -> PrimFunc:
+def _emit_induced(plan, spec, sctx, op_call, anchor_br) -> Function:
     # Every buffer-region operand has a layout (enforced by predicate);
     # trivial / identity layouts are fine — the algorithm is robust to
     # layouts with no thread axes (strip is no-op, placeholders empty).
@@ -370,12 +370,12 @@ def _make_views_meta(per_op_carved, per_thread_total):
 # -----------------------------------------------------------------------------
 def _emit_induced_packed(
     plan, vec_impl, vec_len, outer_total, per_thread_total, per_op_carved, anchor_br
-) -> PrimFunc:
+) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_br = plan.dst
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         views = T.meta_var(_make_views_meta(per_op_carved, per_thread_total))
         # Serial loop (not T.unroll): T.unroll materializes each per-iter
@@ -408,14 +408,14 @@ def _emit_induced_packed(
 # -----------------------------------------------------------------------------
 def _emit_induced_scalar(
     plan, spec, outer_total, per_thread_total, per_op_carved, anchor_br
-) -> PrimFunc:
+) -> Function:
     extras = plan.extras
     srcs = plan.srcs
     dst_br = plan.dst
     dst_dtype = dst_br.source.dtype
     compute = spec.compute_scalar
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         views = T.meta_var(_make_views_meta(per_op_carved, per_thread_total))
         # Serial loop (not T.unroll) — see _emit_induced_packed for why.

@@ -381,7 +381,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
  *
  * Uses a scope-stack design: each launch region (kernel launch) gets its
  * own KernelScope that owns the merged buffer var and all per-launch bookkeeping.
- * This correctly handles PrimFuncs with multiple sibling launch regions.
+ * This correctly handles Functions with multiple sibling launch regions.
  */
 class SharedMemoryRewriter : public StmtExprMutator {
  public:
@@ -1034,7 +1034,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
 };
 
 Stmt MergeSharedMemoryAllocations(Stmt stmt, bool merge_static_smem) {
-  // Function-level early-out: skip the rewriter entirely if the PrimFunc
+  // Function-level early-out: skip the rewriter entirely if the Function
   // has ≤1 dynamic shared-memory allocation (nothing to merge).
   {
     auto dyn_probe = ffi::make_object<AllocateCollector>(/*is_dynamic=*/true);
@@ -1059,14 +1059,14 @@ Stmt MergeSharedMemoryAllocations(Stmt stmt, bool merge_static_smem) {
 namespace transform {
 
 Pass MergeSharedMemoryAllocations() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     bool merge_static_smem = ctx->GetConfig<bool>("tirx.merge_static_smem", false).value();
     auto* n = f.CopyOnWrite();
     n->body = s_tir::MergeSharedMemoryAllocations(std::move(n->body).value(), merge_static_smem);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.MergeSharedMemoryAllocations", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.MergeSharedMemoryAllocations", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 
 
 def test_tir_print_all_passes(capsys):
-    @Ts.prim_func
+    @Ts.function
     def func(A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))) -> None:
         for i, j, k, l in T.grid(128, 128, 128, 128):
             with Ts.sblock("B"):

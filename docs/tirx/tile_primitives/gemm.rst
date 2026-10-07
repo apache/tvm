@@ -89,7 +89,7 @@ accumulate) — one ``m16n8k16`` atom (from ``test_gemm_mma_m16n8k_.py``):
     B_FRAG = B_FRAG_K8.tile_to([16, 8], [8, 8])
 
 
-    @Tx.prim_func
+    @Tx.function
     def gemm(
         A_g: Tx.Tensor((16, 16), "float16"),
         B_g: Tx.Tensor((16, 8), "float16"),

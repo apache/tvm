@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks
 
-@Ts.prim_func
+@Ts.function
 def single_elementwise(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -40,7 +40,7 @@ def single_elementwise(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128
 
 
 def test_blockize_outer():
-    @Ts.prim_func
+    @Ts.function
     def after_blockize_outer(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((128, 128), "float32"),
@@ -64,7 +64,7 @@ def test_blockize_outer():
 
 
 def test_blockize_inner():
-    @Ts.prim_func
+    @Ts.function
     def after_blockize_inner(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((128, 128), "float32"),
@@ -89,7 +89,7 @@ def test_blockize_inner():
 
 
 def test_two_elementwise_blockize_reverse_compute_at():
-    @Ts.prim_func
+    @Ts.function
     def before_blockize_rca(
         A: T.Tensor((128, 128), "float32"),
         C: T.Tensor((128, 128), "float32"),
@@ -114,7 +114,7 @@ def test_two_elementwise_blockize_reverse_compute_at():
                     Ts.writes(C[vi, vj])
                     C[vi, vj] = B[vi, vj] + 1.0
 
-    @Ts.prim_func
+    @Ts.function
     def after_blockize_rca(
         A: T.Tensor((128, 128), "float32"),
         C: T.Tensor((128, 128), "float32"),
@@ -153,7 +153,7 @@ def test_two_elementwise_blockize_reverse_compute_at():
 
 
 def test_two_elementwise_blockize_compute_at():
-    @Ts.prim_func
+    @Ts.function
     def before_blockize_compute_at(
         A: T.Tensor((128, 128), "float32"),
         C: T.Tensor((128, 128), "float32"),
@@ -182,7 +182,7 @@ def test_two_elementwise_blockize_compute_at():
                             B[vi_o * 16 + vi_i, vj_o * 16 + vj_i] + 1.0
                         )
 
-    @Ts.prim_func
+    @Ts.function
     def after_blockize_compute_at(
         A: T.Tensor((128, 128), "float32"),
         C: T.Tensor((128, 128), "float32"),
@@ -226,7 +226,7 @@ def test_two_elementwise_blockize_compute_at():
 
 
 def test_blockize_init_loops():
-    @Ts.prim_func
+    @Ts.function
     def rowsum(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128,), "float32")) -> None:
         for k, i in T.grid(128, 128):
             with Ts.sblock("B"):
@@ -235,7 +235,7 @@ def test_blockize_init_loops():
                     B[vi] = 0.0
                 B[vi] = B[vi] + A[vi, vk]
 
-    @Ts.prim_func
+    @Ts.function
     def after_rowsum_blockize(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((128,), "float32"),
@@ -264,7 +264,7 @@ def test_blockize_init_loops():
 
 @pytest.mark.parametrize("preserve_unit_iters", [True, False])
 def test_blockize_outer_int64_shape(preserve_unit_iters):
-    @Ts.prim_func
+    @Ts.function
     def single_elementwise_int64(
         A: T.Tensor((T.int64(16), T.int64(128)), "float32"),
         B: T.Tensor((T.int64(16), T.int64(128)), "float32"),
@@ -275,7 +275,7 @@ def test_blockize_outer_int64_shape(preserve_unit_iters):
                 vj = Ts.axis.S(T.int64(128), j0 * T.int64(16) + j1)
                 B[vi, vj] = A[vi, vj] + 1.0
 
-    @Ts.prim_func
+    @Ts.function
     def after_single_elementwise_int64_blockize(
         A: T.Tensor((T.int64(16), T.int64(128)), "float32"),
         B: T.Tensor((T.int64(16), T.int64(128)), "float32"),
@@ -291,7 +291,7 @@ def test_blockize_outer_int64_shape(preserve_unit_iters):
                             vi_i, vj_o * T.int64(16) + vj_i
                         ] + T.float32(1)
 
-    @Ts.prim_func
+    @Ts.function
     def after_single_elementwise_int64_blockize_preserve_unit_iters(
         A: T.Tensor((T.int64(16), T.int64(128)), "float32"),
         B: T.Tensor((T.int64(16), T.int64(128)), "float32"),
@@ -322,7 +322,7 @@ def test_blockize_outer_int64_shape(preserve_unit_iters):
 
 
 def test_blockize_blocks():
-    @Ts.prim_func
+    @Ts.function
     def blocks_func(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")) -> None:
         for m in T.serial(6):
             for i, j in T.grid(3, 1):
@@ -339,7 +339,7 @@ def test_blockize_blocks():
                     Ts.writes(B[vi, vj + 64])
                     B[vi, vj + 64] = A[vi, vj + 64] * 3.0
 
-    @Ts.prim_func
+    @Ts.function
     def after_blocks_blockize(
         A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
     ) -> None:

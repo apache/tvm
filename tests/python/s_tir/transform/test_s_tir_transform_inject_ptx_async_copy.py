@@ -34,7 +34,7 @@ def test_cp_async_raw_dtype_round_trips():
     # dtype in Call.dtype and must survive a TVMScript print -> parse round-trip
     # (it prints dtype-first via tirx.ptx.cp_async_raw). Guards the regression
     # where the element dtype was dropped after the flat op was phased out.
-    @T.prim_func
+    @T.function
     def f(A: T.Tensor((128,), "float16"), B: T.Tensor((128,), "float16")):
         T.func_attr({"global_symbol": "f"})
         for i in T.serial(8):
@@ -61,7 +61,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     num_iters = 128 // vector_size
     vector_size_expr = tvm.runtime.convert(vector_size)
 
-    @Ts.prim_func
+    @Ts.function
     def ptx_global_to_shared_copy(
         A: T.Tensor((32, 128), dtype), B: T.Tensor((32, 128), dtype)
     ) -> None:
@@ -87,7 +87,7 @@ def generate_global_to_shared_vectorized_copy(dtype, vector_size):
     return ptx_global_to_shared_copy
 
 
-@Ts.prim_func
+@Ts.function
 def ptx_global_to_shared_copy_fp32x1(
     A: T.Tensor((32, 128), "float32"), B: T.Tensor((32, 128), "float32")
 ) -> None:
@@ -110,7 +110,7 @@ def ptx_global_to_shared_copy_fp32x1(
                 B[tx, i] = A_shared[tx, i]
 
 
-@Ts.prim_func
+@Ts.function
 def ptx_global_to_shared_dyn_copy_fp16x8(
     A: T.Tensor((32, 128), "float16"),
     B: T.Tensor((32, 128), "float16"),
@@ -212,7 +212,7 @@ def test_inject_async_copy_shared_dyn():
     tvm.testing.run_with_gpu_lock(run_and_check)
 
 
-# Note: the test_inject_async_copy_barrier case (and its prim_func helper)
+# Note: the test_inject_async_copy_barrier case (and its function helper)
 # was removed — it relied on the indexed barrier API
 # (`create_barriers`, `init_barrier_thread_count`, `arrive_barrier`,
 # `wait_barrier`) which fork does not provide; fork uses the
@@ -368,7 +368,7 @@ def postproc_if_missing_async_support():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
-    @Ts.prim_func
+    @Ts.function
     def simple_compute(
         A: T.Tensor((16, 14), "float32"),
         B: T.Tensor((16, 14), "float32"),
@@ -451,7 +451,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
     C_s0_3 = T.dynamic("C_s0_3", "int32")
     C_s1_3 = T.dynamic("C_s1_3", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def complex_compute(
         A: T.Tensor((2, 16, 16, 1280), "float16"),
         W: T.Tensor((1280, 3, 3, 1280), "float16"),
@@ -894,7 +894,7 @@ def test_vectorize_cp_async_in_if_then_else(postproc_if_missing_async_support):
 def test_multiplication_nodes_are_inlined():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
             A_flattened = T.decl_tensor((4096,), "float16", data=A.data)
@@ -911,7 +911,7 @@ def test_multiplication_nodes_are_inlined():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((32, 128), "float16")):
             tx = T.launch_thread("threadIdx.x", T.int64(32))
             A_flattened = T.decl_tensor((4096,), "float16", data=A.data)

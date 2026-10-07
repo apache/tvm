@@ -23,10 +23,10 @@ from tvm.ir import Var
 from tvm.s_tir import SBlock
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx.function import PrimFunc
+from tvm.tirx.function import Function
 
 
-def _check_func_signature_remap(lhs: PrimFunc, rhs: PrimFunc):
+def _check_func_signature_remap(lhs: Function, rhs: Function):
     assert lhs != rhs
     for x, y in zip(lhs.params, rhs.params):
         assert x != y
@@ -51,7 +51,7 @@ def _check_block_signature_remap(lhs: SBlock, rhs: SBlock):
 
 
 def test_simple():
-    @Ts.prim_func
+    @Ts.function
     # Var A should be remapped
     def elementwise(A: T.Tensor((128, 128), "float32")):
         # Var B should be remapped
@@ -90,7 +90,7 @@ def test_match_buffer():
     s = T.dynamic("s", "int32")
     e = T.dynamic("e", "int32")
 
-    @Ts.prim_func(check_well_formed=False)
+    @Ts.function(check_well_formed=False)
     # A and B should be remapped
     def func_match_buffer(A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")):
         with Ts.sblock("root"):
@@ -136,7 +136,7 @@ def test_match_buffer():
 
 
 def test_undefined_buffer():
-    @Ts.prim_func
+    @Ts.function
     def access_alloc():
         # Var A should be remapped
         A = T.alloc_tensor((128,), "float16")
@@ -161,7 +161,7 @@ def test_undefined_buffer():
 def test_symbolic_func():
     m = T.dynamic("m", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def symbolic_func(A: T.Tensor((n, m)), B: T.Tensor((n, m * 2)), n: T.int32):  # noqa: F821
         for i, j in T.grid(n, m):
             B[i, j * 2] = A[i, j]
@@ -175,7 +175,7 @@ def test_symbolic_func():
 def test_buffer_params():
     m = T.dynamic("m")
 
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((m * 2,)), B: T.Tensor((m, 2))):
         for i, j in T.grid(m, 2):
             with Ts.sblock("B"):
@@ -191,7 +191,7 @@ def test_buffer_params():
 def test_compound_buffer_param_shape_var():
     n = tvm.tirx.Var("n", "int32")
     A = tvm.tirx.decl_tensor((tvm.tirx.max(n, 1),), layout=None)
-    f1 = tvm.tirx.PrimFunc([A], tvm.tirx.Evaluate(n))
+    f1 = tvm.tirx.Function([A], tvm.tirx.Evaluate(n))
     f2 = tvm.s_tir.renew_defs(f1)
 
     tvm.ir.assert_structural_equal(f1, f2)
@@ -200,7 +200,7 @@ def test_compound_buffer_param_shape_var():
 
 
 def test_gather():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def take(
         A: T.Tensor((4096, 4096), "float16"),
         B: T.Tensor((1,), "int32"),

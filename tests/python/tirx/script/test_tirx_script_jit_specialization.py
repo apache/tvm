@@ -27,7 +27,7 @@ def test_jit_buffer_annotation():
     def kernel(output: T.Tensor((5,), "int32")):
         output[0] = 7
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(output: T.Tensor((5,), "int32")):
         output[0] = 7
 
@@ -42,11 +42,11 @@ def test_jit_optional_buffer():
         else:
             T.evaluate(0)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def absent():
         T.evaluate(0)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def present(value: T.Tensor((5,), "int32")):
         value[0] = 3
 

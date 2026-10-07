@@ -548,7 +548,7 @@ IndexDataTypeNormalizer::IndexDataTypeNormalizer(PrimType target_data_type)
 IndexDataTypeNormalizer::IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable)
     : IndexDataTypeRewriter(vtable), target_data_type_(std::move(target_data_type)) {}
 
-PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
+Function IndexDataTypeNormalizer::Rewrite(Function func) {
   // Collect scalar dtype requirements without changing types.  Buffer definitions
   // are rewritten only after every scalar replacement has been seeded.
   class IndexVarCollector : public IndexDataTypeRewriter {
@@ -587,7 +587,7 @@ PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
       return Mutate(param).ValueOrUnchanged(param).as_or_throw<Var>();
     });
   });
-  PrimFuncNode* new_func = func.CopyOnWrite();
+  FunctionNode* new_func = func.CopyOnWrite();
   new_func->params = std::move(params);
   new_func->body = Mutate(new_func->body).ValueOrUnchanged(new_func->body);
   return func;

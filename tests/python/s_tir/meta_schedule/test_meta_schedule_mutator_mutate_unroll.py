@@ -25,7 +25,7 @@ from tvm.target import Target
 # pylint: disable=invalid-name, no-member
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(A: T.Tensor([512, 512]), B: T.Tensor([512, 512]), C: T.Tensor([512, 512])) -> None:
     for i, j, k in T.grid(512, 512, 512):  # type: ignore
         with Ts.sblock("C"):

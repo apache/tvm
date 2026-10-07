@@ -53,11 +53,11 @@ def get_matmul_packed(m, n, k, lhs_type="int8", rhs_dtype="int8", acc_dtype="int
         ),
         name="compute",
     )
-    return te.create_prim_func([X, W, matmul])
+    return te.create_function([X, W, matmul])
 
 @tvm.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -74,7 +74,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class DuplicateMatmul:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -95,7 +95,7 @@ class DuplicateMatmul:
 
 @tvm.script.ir_module
 class TrinityMatmul:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024, 1024), 'float32'), D: T.Tensor((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
 
@@ -117,7 +117,7 @@ class TrinityMatmul:
 
 @tvm.script.ir_module
 class TrinityMatmulProcessedForReference:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor([1024, 1024], dtype="float32"), D: T.Tensor([1024, 1024], dtype="float32")
     ) -> None:

@@ -32,7 +32,7 @@ def test_unique_name_complete_block():
     A = te.placeholder((16, 16), name="A")
     B = te.compute((16, 16), lambda x, y: A[x, y] * 2, name="main")
     C = te.compute((16, 16), lambda x, y: B[x, y] + 1, name="main")
-    func = te.create_prim_func([A, C])
+    func = te.create_function([A, C])
     s = tvm.s_tir.Schedule(func, debug_mask="all")
     assert isinstance(s.get_sref(s.get_sblock("main")), s_tir.schedule.StmtSRef)
     assert isinstance(s.get_sref(s.get_sblock("main_1")), s_tir.schedule.StmtSRef)
@@ -44,14 +44,14 @@ def test_unique_name_reduction_block():
     A = te.placeholder((16, 16), name="A")
     B = te.compute((16,), lambda i: te.sum(A[i, k1], axis=k1), name="sum")
     C = te.compute((), lambda: te.sum(B[k2], axis=k2), name="sum")
-    func = te.create_prim_func([A, C])
+    func = te.create_function([A, C])
     s = tvm.s_tir.Schedule(func, debug_mask="all")
     assert isinstance(s.get_sref(s.get_sblock("sum")), s_tir.schedule.StmtSRef)
     assert isinstance(s.get_sref(s.get_sblock("sum_1")), s_tir.schedule.StmtSRef)
 
 
 def _check_workload(te_workload, tir_workload, index_dtype_override=None, do_simplify=False):
-    func = te.create_prim_func(te_workload(), index_dtype_override)
+    func = te.create_function(te_workload(), index_dtype_override)
     if do_simplify:
         simplify = tirx.transform.StmtSimplify()
         func = simplify(tvm.IRModule.from_expr(func))["main"]
@@ -70,7 +70,7 @@ def te_matmul():
     return [A, B, C]
 
 
-@Ts.prim_func
+@Ts.function
 def tir_matmul(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -82,7 +82,7 @@ def tir_matmul(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((12
             C[i, j] += A[i, k] * B[j, k]
 
 
-@Ts.prim_func
+@Ts.function
 def tir_matmul_int64(
     A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
     B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -112,7 +112,7 @@ def te_element_wise():
     return [A, C]
 
 
-@Ts.prim_func
+@Ts.function
 def tir_element_wise(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     T.func_attr({"global_symbol": "main", "tirx.noalias": True})
 
@@ -163,7 +163,7 @@ def te_conv2d():
     return [A, W, B]
 
 
-@Ts.prim_func
+@Ts.function
 def tir_conv2d(
     A: T.Tensor([16, 16, 14, 14]), W: T.Tensor([16, 3, 3, 32]), B: T.Tensor([16, 32, 14, 14])
 ) -> None:
@@ -204,7 +204,7 @@ m = T.dynamic("m", "int32")
 n = T.dynamic("n", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def tir_multi_output(
     A0: T.Tensor((m, n)), A1: T.Tensor((m, n)), B0: T.Tensor((m, n)), B1: T.Tensor((m, n))
 ) -> None:
@@ -242,7 +242,7 @@ off2 = T.dynamic("off2", "int32")
 off3 = T.dynamic("off3", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def tir_extern(
     A: T.Tensor((128, 128), elem_offset=off1),
     B: T.Tensor((128, 128), elem_offset=off2),
@@ -304,7 +304,7 @@ def te_extern_epilogue():
     return [A, B, D]
 
 
-@Ts.prim_func
+@Ts.function
 def tir_extern_epilogue(
     A: T.Tensor((4, 3), offset_factor=1),
     B: T.Tensor((3, 2), offset_factor=1),
@@ -327,7 +327,7 @@ def tir_extern_epilogue(
 
 def test_extern_epilogue():
     _check_workload(te_extern_epilogue, tir_extern_epilogue)
-    func = te.create_prim_func(te_extern_epilogue()).with_attr("global_symbol", "extern_epilogue")
+    func = te.create_function(te_extern_epilogue()).with_attr("global_symbol", "extern_epilogue")
     tvm.compile(func, target="llvm")
 
 
@@ -339,7 +339,7 @@ def te_reordered_matmul():
     return [C, A, B]
 
 
-@Ts.prim_func
+@Ts.function
 def tir_reordered_matmul(
     C: T.Tensor((128, 128)), A: T.Tensor((128, 128)), B: T.Tensor((128, 128))
 ) -> None:
@@ -370,7 +370,7 @@ def te_scan():
 
 def test_error_reporting():
     try:
-        te.create_prim_func(te_scan())
+        te.create_function(te_scan())
         assert False
     except (TypeError, tvm.error.InternalError) as e:
         error_message = str(e)
@@ -385,7 +385,7 @@ def test_constant():
     B = te.compute(tuple(), lambda: 2, name="B")
     C = te.compute((M,), lambda x: A[x] + B(), name="C", tag="broadcast")
 
-    func = te.create_prim_func([C, A])
+    func = te.create_function([C, A])
     func = tvm.compile(func)
     a_np = np.random.uniform(size=(M,)).astype(A.dtype.dtype)
     c = tvm.runtime.tensor(np.zeros(M, dtype=C.dtype.dtype))
@@ -412,7 +412,7 @@ def test_topi_float_unary_accepts_float_input(op_name, dtype):
     op = getattr(topi, op_name)
     out = op(x)
 
-    func = te.create_prim_func([x, out]).with_attr("target", tvm.target.Target("llvm"))
+    func = te.create_function([x, out]).with_attr("target", tvm.target.Target("llvm"))
     mod = tvm.IRModule({"main": func})
     compiled = tvm.tirx.build(mod, target="llvm")
 
@@ -424,7 +424,7 @@ def test_data_dependent_access():
     B = te.placeholder((10,), name="B", dtype="int32")
     C = te.compute((10,), lambda i: A[B[i]])
 
-    func = te.create_prim_func([C, A, B])
+    func = te.create_function([C, A, B])
     func = tvm.compile(func)
 
     a_np = np.random.uniform(size=(10,)).astype(A.dtype.dtype)
@@ -437,7 +437,7 @@ def test_data_dependent_access():
 def test_select_simplify():
     placeholder = te.placeholder([1, 128, 10, 10, 4], dtype="float32")
     tensor = topi.nn.adaptive_pool(placeholder, [1, 1], "avg", "NCHW4c")
-    result = te.create_prim_func([placeholder, tensor])
+    result = te.create_function([placeholder, tensor])
     script_func = result.script()
     # There should be no Select
     assert script_func.find("Select") == -1
@@ -455,14 +455,14 @@ def test_tensor_attr():
         name="C",
         attrs={"layout_free_placeholders": [B]},
     )
-    func = te.create_prim_func([A, B, C])
+    func = te.create_function([A, B, C])
     rt_func = tvm.script.from_source(
         func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx, "Ts": tvm.script.s_tir}
     )
     tvm.ir.assert_structural_equal(func, rt_func)
 
 
-@Ts.prim_func
+@Ts.function
 def expected_layout_attr(
     A: T.Tensor((128, 128), "float32"),
     B: T.Tensor((128, 128), "float32"),
@@ -483,7 +483,7 @@ def expected_layout_attr(
             D[x, y] = C[x, y] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def expected_layout_attr_int64(
     A: T.Tensor((T.int64(128), T.int64(128)), "float32"),
     B: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -528,7 +528,7 @@ def test_tensor_layout_attr(index_dtype_override, expected):
         name="D",
         attrs={"layout_free_placeholders": [C]},
     )
-    func = te.create_prim_func([A, B, D], index_dtype_override=index_dtype_override)
+    func = te.create_function([A, B, D], index_dtype_override=index_dtype_override)
     tvm.ir.assert_structural_equal(func, expected)
 
 
@@ -558,7 +558,7 @@ m = T.dynamic("m", "int32")
 n = T.dynamic("n", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def tir_argmax_idx_val(
     idx: T.Tensor([m, n], dtype="int32"),
     val: T.Tensor([m, n], dtype="float32"),
@@ -611,7 +611,7 @@ m = T.dynamic("m", "int32")
 n = T.dynamic("n", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def tir_argmax_val_idx(
     val: T.Tensor([m, n], dtype="float32"),
     idx: T.Tensor([m, n], dtype="int32"),
@@ -650,8 +650,8 @@ def test_int64_indices():
     n = te.var("n", "int64")
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1, name="B")
-    prim_func = te.create_prim_func([A, B])
-    loop = prim_func.body.block.body
+    function = te.create_function([A, B])
+    loop = function.body.block.body
     assert loop.loop_var.ty.dtype == "int64"
     assert loop.min.ty.dtype == "int64"
     assert loop.extent.ty.dtype == "int64"
@@ -664,7 +664,7 @@ def test_zero_dim_add():
         c = te.compute(a.shape, lambda *i: a(*i) + b(*i), name="c")
         return [a, b, c]
 
-    @Ts.prim_func
+    @Ts.function
     def expected(
         a: T.Tensor((), "int32"),
         b: T.Tensor((), "int32"),
@@ -690,7 +690,7 @@ def te_reshape():
     return [A, B]
 
 
-@Ts.prim_func
+@Ts.function
 def tir_reshape(
     A: T.Tensor((T.int64(2), T.int64(4)), "float32"),
     T_reshape: T.Tensor((T.int64(4), T.int64(2)), "float32"),
@@ -736,7 +736,7 @@ oh = T.dynamic("oh")
 ow = T.dynamic("ow")
 
 
-@Ts.prim_func
+@Ts.function
 def tir_resize2d_symbolic(
     A: T.Tensor((T.int64(2), T.int64(3), T.int64(128), T.int64(128)), "float32"),
     resize: T.Tensor([T.int64(2), T.int64(3), oh, ow], dtype="float32"),
@@ -797,7 +797,7 @@ def test_extern_with_explicit_buffer_access():
         )
         return [A, B, P, C]
 
-    @Ts.prim_func
+    @Ts.function
     def tir_extern(
         A: T.Tensor([128, 128], dtype="float32", offset_factor=1),
         B: T.Tensor([128, 128], dtype="float32", offset_factor=1),
@@ -827,7 +827,7 @@ m = T.dynamic("m")
 n = T.dynamic("n")
 
 
-@Ts.prim_func
+@Ts.function
 def tir_slice_with_var_input(tensor: T.Tensor((m, n)), idx: T.int64, slice: T.Tensor((idx, n))):  # noqa: F821
     T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
 
@@ -848,7 +848,7 @@ def test_with_var_input():
 def test_loop_aware_initial_value():
     """Test initial value aware of spatial iter position"""
 
-    @Ts.prim_func
+    @Ts.function
     def tir_workload(a: T.Tensor((5, 5)), b: T.Tensor((5,)), sum_red: T.Tensor((5,))):
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
 
@@ -881,7 +881,7 @@ def test_loop_aware_initial_value():
 def test_loop_aware_reducer_combiner():
     """Test combiner aware of spatial iter position"""
 
-    @Ts.prim_func
+    @Ts.function
     def tir_workload(a: T.Tensor((5, 5)), b: T.Tensor((5,)), sum_red: T.Tensor((5,))):
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
 
@@ -915,7 +915,7 @@ def test_loop_aware_reducer_combiner():
 
 
 def test_adaptive_pooling_window():
-    @Ts.prim_func
+    @Ts.function
     def tir_workload(
         x: T.Tensor((1, 1024, 16, 40), "float32"),
         adaptive_pool_avg: T.Tensor((1, 1024, 12, 30), "float32"),
@@ -952,7 +952,7 @@ def test_adaptive_pooling_window():
     def te_workload():
         x = te.placeholder([1, 1024, 16, 40], "float32", "x")
         y = topi.nn.adaptive_pool(x, [12, 30], pool_type="avg")
-        f = te.create_prim_func([x, y])
+        f = te.create_function([x, y])
         return [x, y]
 
     _check_workload(te_workload, tir_workload)
@@ -968,8 +968,8 @@ def test_adaptive_pooling_window():
 def test_adaptive_pooling_mixed_reduction_levels(input_shape, expected):
     data = te.placeholder((1, 1, *input_shape), "float32", "data")
     output = topi.nn.adaptive_pool(data, [2, 2], pool_type="avg")
-    prim_func = te.create_prim_func([data, output])
-    compiled = tvm.compile(prim_func)
+    function = te.create_function([data, output])
+    compiled = tvm.compile(function)
 
     input_data = np.arange(10, 10 + np.prod(input_shape), dtype="float32").reshape(
         1, 1, *input_shape
@@ -984,12 +984,12 @@ def test_global_pool():
     # fix the issue-17938
     data = te.placeholder((1, 1, 32, 32), dtype="int8", name="data")
     op_output = topi.nn.global_pool(data=data, pool_type="avg", layout="NCHW")
-    f = te.create_prim_func([data, op_output])
+    f = te.create_function([data, op_output])
     assert f
 
 
 def test_nested_reduce_domain_dependency():
-    @Ts.prim_func
+    @Ts.function
     def tir_workload(
         x: T.Tensor((8, 8, 8, 8, 8), "float32"), compute: T.Tensor((8, 8, 8), "float32")
     ):
@@ -1036,7 +1036,7 @@ def test_nested_reduce_domain_dependency():
             return te.sum(x(*all_axes), [r1, r2])
 
         y = te.compute([8, 8, 8], fcompute)
-        f = te.create_prim_func([x, y])
+        f = te.create_function([x, y])
         return [x, y]
 
     _check_workload(te_workload, tir_workload)

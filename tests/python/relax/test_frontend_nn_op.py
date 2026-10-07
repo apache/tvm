@@ -594,7 +594,7 @@ def test_tensor_expr_op():
     # fmt: off
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add_one(A: T.Tensor((T.int64(10), T.int64(10)), "float32"), T_add: T.Tensor((T.int64(10), T.int64(10)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -639,7 +639,7 @@ def test_tensor_ir_op():
     batch_size = T.dynamic("batch_size")
     seq_len = T.dynamic("seq_len")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         qkv: T.Tensor((batch_size, seq_len, fused_heads, head_dim), dtype),
         offset: T.int64,
@@ -670,7 +670,7 @@ def test_tensor_ir_op():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def llama_fused_rope(qkv: T.Tensor((batch_size, seq_len, 24, 16), 'float16'), offset: T.int64, q: T.Tensor((batch_size, seq_len, 8, 16), 'float16'), k: T.Tensor((batch_size, seq_len, 8, 16), 'float16'), v: T.Tensor((batch_size, seq_len, 8, 16), 'float16')):
 
             T.evaluate(offset)
@@ -716,7 +716,7 @@ def test_tensor_ir_inplace_op():
     seq_len = T.dynamic("seq_len")
     total_seq_len = T.dynamic("total_seq_len")
 
-    @Ts.prim_func
+    @Ts.function
     def inplace_take(
         weight: T.Tensor((vocab_size, hidden_size), dtype),
         pos: T.Tensor((seq_len,), "int32"),
@@ -755,7 +755,7 @@ def test_tensor_ir_inplace_op():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def inplace_take(
             weight: T.Tensor((vocab_size_inplace_take, hidden_size), dtype),
             pos: T.Tensor((seq_len_inplace_take,), "int32"),
@@ -821,7 +821,7 @@ def test_tensor_ir_inplace_op():
 
 
 def test_tensor_ir_op_no_tir_var():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def tir_func(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")):
         T.evaluate(0)
 
@@ -837,7 +837,7 @@ def test_tensor_ir_op_no_tir_var():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")):
             T.evaluate(0)
 
@@ -1026,7 +1026,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def get_index_from_sorted(cumsum_sorted: T.Tensor((batch_get_index_from_sorted, vocab_size_get_index_from_sorted)), indices: T.Tensor((batch_get_index_from_sorted, vocab_size_get_index_from_sorted), 'int64'), renorm_prob: T.Tensor((batch_get_index_from_sorted, 1)), usample: T.Tensor((out_batch, 1)), sample_indices: T.Tensor((out_batch, 1), 'int64'), output_index: T.Tensor((out_batch, 1), 'int64')):
 
             # with Ts.sblock("root"):
@@ -1042,7 +1042,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
                             if usample[v_ax0, T.int64(0)] >= cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1)] / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0]:
                                 output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], v_ax1]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def get_renorm_prob(cumsum_sorted: T.Tensor((batch_get_renorm_prob, vocab_size_get_renorm_prob)), top_p: T.Tensor((batch_get_renorm_prob, 1)), top_k: T.Tensor((batch_get_renorm_prob, 1), 'int64'), renorm_prob: T.Tensor((batch_get_renorm_prob, 1))):
 
             # with Ts.sblock("root"):
@@ -1148,7 +1148,7 @@ def test_renormalize_top_p_top_k_prob():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def filter_with_top_p_top_k(A: T.Tensor((T.int64(2), T.int64(3)), "float32"), B: T.Tensor((T.int64(2), T.int64(1)), "float32"), filter_with_top_p_top_k: T.Tensor((T.int64(2), T.int64(3)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -1159,7 +1159,7 @@ def test_renormalize_top_p_top_k_prob():
                     Ts.writes(filter_with_top_p_top_k[v_i, v_j])
                     filter_with_top_p_top_k[v_i, v_j] = T.Select(B[v_i, T.int64(0)] <= A[v_i, v_j], A[v_i, v_j], T.float32(0))
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def get_renorm_cutoff(sorted_prob: T.Tensor((batch, vocab_size)), cumsum_sorted: T.Tensor((batch, vocab_size)), top_p: T.Tensor((batch, 1)), top_k: T.Tensor((batch, 1), 'int64'), cutoff: T.Tensor((batch, 1))):
 
             # with Ts.sblock("root"):

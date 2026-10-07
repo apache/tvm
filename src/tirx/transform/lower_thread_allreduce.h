@@ -1030,7 +1030,7 @@ class DeferredRemapper : public DialectMutator {
 };
 
 template <typename DialectMutator>
-PrimFunc LowerThreadAllreduce(PrimFunc f) {
+Function LowerThreadAllreduce(Function f) {
   auto* n = f.CopyOnWrite();
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
   TVM_FFI_ICHECK(target.has_value()) << "LowerThreadAllreduce: Require the target attribute";

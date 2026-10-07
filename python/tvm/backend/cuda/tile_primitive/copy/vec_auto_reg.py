@@ -33,7 +33,7 @@ import tvm
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer, ConstIntBound
-from tvm.tirx import PrimFunc, Var
+from tvm.tirx import Function, Var
 from tvm.tirx import Var as _TirVar
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.layout import ComposeLayout, Iter, TileLayout
@@ -523,7 +523,7 @@ def _outer_const_offsets(outer_atoms, flat_idx: int) -> tuple[int, int]:
     return ds, dr
 
 
-def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     op_call = TilePrimitiveCall.downcast(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
@@ -597,7 +597,7 @@ def _emit_reg(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     # fmt: off
     s_zero_indices = [0] * len(s_buf.shape)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         if not has_swizzle:
             s_base = _apply_s_layout(

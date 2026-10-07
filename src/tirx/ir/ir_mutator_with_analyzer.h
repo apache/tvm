@@ -77,7 +77,7 @@ class IRMutatorWithAnalyzer : public StmtExprMutator {
    * \note call this function before Visit function's body to maximize
    *       simplification efficiency
    */
-  void MarkBufferParamShapes(const PrimFunc& func);
+  void MarkBufferParamShapes(const Function& func);
 
   /*!
    * \brief Use internal bound information to perform inter map simplification of indices.

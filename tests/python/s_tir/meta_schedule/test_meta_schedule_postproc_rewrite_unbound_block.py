@@ -48,7 +48,7 @@ def _create_context(mod, target) -> ms.TuneContext:
 
 @tvm.script.ir_module
 class Before_cooperative_fetch:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor([512, 512], dtype="float32"), B: T.Tensor([512, 512], dtype="float32")
     ) -> None:
@@ -60,7 +60,7 @@ class Before_cooperative_fetch:
 
 @tvm.script.ir_module
 class After_cooperative_fetch:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor([512, 512], dtype="float32"), B: T.Tensor([512, 512], dtype="float32")
     ) -> None:
@@ -74,7 +74,7 @@ class After_cooperative_fetch:
 
 @tvm.script.ir_module
 class Before_norm_bmn:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor((1,), "float32")) -> None:
         C = Ts.sblock_alloc_buffer([1], dtype="float32")
         for i0, i1, i2 in T.grid(1, 256, 256):
@@ -91,7 +91,7 @@ class Before_norm_bmn:
 
 @tvm.script.ir_module
 class After_norm_bmn:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor((1,), "float32")) -> None:
         C = Ts.sblock_alloc_buffer([1], dtype="float32")
         for i0_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -112,7 +112,7 @@ class After_norm_bmn:
 
 @tvm.script.ir_module
 class Bert_fused_reshape_transpose_reshape:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((12, 64, 64), "float32"), T_reshape: T.Tensor((64, 768), "float32")
     ) -> None:
@@ -131,7 +131,7 @@ class Bert_fused_reshape_transpose_reshape:
 
 @tvm.script.ir_module
 class Bert_fused_reshape_transpose_reshape_large:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((12, 64, 64), "float32"), T_reshape: T.Tensor((64, 768), "float32")
     ) -> None:
@@ -150,7 +150,7 @@ class Bert_fused_reshape_transpose_reshape_large:
 
 @tvm.script.ir_module
 class Bert_fused_reshape_transpose_reshape_after_rub:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((12, 64, 64), "float32"), T_reshape: T.Tensor((64, 768), "float32")
     ) -> None:
@@ -184,7 +184,7 @@ class Bert_fused_reshape_transpose_reshape_after_rub:
 
 @tvm.script.ir_module
 class Bert_fused_reshape_transpose_reshape_after_rub_large:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((12, 64, 64), "float32"), T_reshape: T.Tensor((64, 768), "float32")
     ) -> None:
@@ -231,7 +231,7 @@ class Bert_fused_reshape_transpose_reshape_after_rub_large:
                         ]
 
 
-@Ts.prim_func
+@Ts.function
 def before_unrolled_loop(
     placeholder: T.Tensor((1, 56, 56, 64), "float32"),
 ) -> None:
@@ -256,7 +256,7 @@ def before_unrolled_loop(
                             inverse[vh, vw, p, co] = inverse[vh, vw, p, co] + bgemm[r_a, r_b, p, co]
 
 
-@Ts.prim_func
+@Ts.function
 def after_unrolled_loop(
     placeholder: T.Tensor((1, 56, 56, 64), "float32"),
 ) -> None:

@@ -92,7 +92,7 @@ The ``scope`` argument selects the memory space:
 
 .. code-block:: python
 
-    @Tx.prim_func
+    @Tx.function
     def kernel(A: Tx.Tensor((M, K), "float16", align=16)):
         As = Tx.alloc_shared((BM, BK), "float16")  # new shared tile
         acc = Tx.alloc_local((4,), "float32")  # per-thread accumulator
@@ -143,7 +143,7 @@ whole block sees the writes, then read it back:
 
 .. code-block:: python
 
-    @Tx.prim_func
+    @Tx.function
     def smem_demo(A: Tx.Tensor((128,), "float32"), B: Tx.Tensor((128,), "float32")):
 
         Tx.device_entry()

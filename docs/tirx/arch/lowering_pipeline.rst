@@ -93,7 +93,7 @@ The ``tirx_pipeline`` module pass applies this exact sequence (a few are gated b
      - checks no host-side code directly dereferences device memory (a safety gate)
    * - 13
      - ``AnnotateEntryFunc``
-     - marks the single PrimFunc as the module entry point
+     - marks the single Function as the module entry point
    * - 14
      - ``SplitHostDevice``
      - extracts target-annotated device regions into **device** functions and
@@ -139,10 +139,10 @@ Inside LowerTIRx
   (``addr = data + elem_offset + layout.apply(coord)``), flattens the buffers,
   and removes buffer offsets that have been folded into the resulting views.
 
-After ``LowerTIRx`` the module remains a ``tvm.tirx.PrimFunc``, but contains no
+After ``LowerTIRx`` the module remains a ``tvm.tirx.Function``, but contains no
 tile primitives or ``TileLayout`` indirection, and scope ids have been resolved
 to thread axes.  Later TIRx passes lower the remaining opaque constructs and
-the target code generators consume ``tirx::PrimFunc`` directly; there is no
+the target code generators consume ``tirx::Function`` directly; there is no
 conversion to the separate ``tvm.tir`` object model.
 
 A worked example
@@ -152,7 +152,7 @@ Take a one-line scale kernel:
 
 .. code-block:: python
 
-    @Tx.prim_func
+    @Tx.function
     def scale(A: Tx.Tensor((256,), "float32"), B: Tx.Tensor((256,), "float32")):
 
         Tx.device_entry()

@@ -36,7 +36,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class MatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(  # type: ignore
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -54,7 +54,7 @@ class MatmulModule:
 
 @tvm.script.ir_module
 class MatmulReluModule:
-    @Ts.prim_func
+    @Ts.function
     def main(  # type: ignore
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),
@@ -77,7 +77,7 @@ class MatmulReluModule:
 
 @tvm.script.ir_module
 class BatchMatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(  # type: ignore
         A: T.Tensor([16, 128, 128]),
         B: T.Tensor([16, 128, 128]),

@@ -165,7 +165,7 @@ class TextureFlattener : public TextureLoweringBase {
   std::unordered_map<Var, PrimExpr> let_binding_;
 };
 
-PrimFunc TextureFlattenHandler(PrimFunc func) {
+Function TextureFlattenHandler(Function func) {
   auto fptr = func.CopyOnWrite();
   auto bound_analyzer = ffi::make_object<IRVisitorWithAnalyzer>();
   bound_analyzer->Visit(fptr->body);
@@ -178,10 +178,10 @@ PrimFunc TextureFlattenHandler(PrimFunc func) {
 namespace transform {
 
 Pass TextureFlatten() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return TextureFlattenHandler(std::move(f));
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten",
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten",
                                              {});
 }
 

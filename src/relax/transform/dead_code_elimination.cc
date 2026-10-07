@@ -81,7 +81,7 @@ ffi::Array<GlobalVar> CollectCallees(const BaseFunc& func) {
     visitor(opt.value());
   } else if (func.as<relax::ExternFunc>()) {
     // no callees
-  } else if (auto opt = func.as<tirx::PrimFunc>()) {
+  } else if (auto opt = func.as<tirx::Function>()) {
     ffi::make_object<TIRxCalleeCollector>(&raw)->Visit(opt.value()->body);
   }
   // dedup preserving order

@@ -80,16 +80,16 @@ class AttrAttacher : public ExprMutator {
         layout_free_buffers.push_back(i);
       }
     }
-    // Attach the layout free buffers to the tirx::PrimFunc
-    tirx::PrimFunc func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::PrimFunc>(),
+    // Attach the layout free buffers to the tirx::Function
+    tirx::Function func = WithAttr(mod_->Lookup(gv).as_or_throw<tirx::Function>(),
                                    "layout_free_buffers", layout_free_buffers);
     // Renew defs
     func = s_tir::RenewDefs(func);
-    // Add the updated tirx::PrimFunc in the IRModule
+    // Add the updated tirx::Function in the IRModule
     // Note the blockbuilder would automatically combine the same tirx function
     // So we don't need to worry about the duplicate insertion
     GlobalVar new_gv = builder_->AddFunction(func, gv->name_hint);
-    // Create a new call node with the updated tirx::PrimFunc
+    // Create a new call node with the updated tirx::Function
     auto n = ffi::make_object<CallNode>(*op);
     n->args = {new_gv, Tuple(call_tir_args)};
     return Call(n);
@@ -104,7 +104,7 @@ namespace transform {
 Pass AttachAttrLayoutFreeBuffers() {
   auto pass_func = [=](IRModule mod, PassContext pc) { return AttrAttacher::Transform(mod); };
   auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeBuffers", {});
-  // Apply DeadCodeElimination to remove unused tirx::PrimFunc
+  // Apply DeadCodeElimination to remove unused tirx::Function
   return tvm::transform::Sequential({pass, DeadCodeElimination()}, "AttachAttrLayoutFreeBuffers");
 }
 

@@ -27,7 +27,7 @@ from tvm.testing import env
 from tvm.tirx import BufferAccessKind
 
 
-def _get_source(func: tvm.tirx.PrimFunc) -> tuple[str, tvm.IRModule]:
+def _get_source(func: tvm.tirx.Function) -> tuple[str, tvm.IRModule]:
     target = tvm.target.Target("cuda")
     mod = tvm.IRModule({"main": func})
     mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
@@ -37,7 +37,7 @@ def _get_source(func: tvm.tirx.PrimFunc) -> tuple[str, tvm.IRModule]:
 
 def _run_tensormap_encode(shape, dtype, encode_args):
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor(shape, dtype=dtype, align=32)):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
@@ -64,7 +64,7 @@ def _run_tensormap_encode(shape, dtype, encode_args):
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_setmaxnreg(inc):
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor(1)):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -85,7 +85,7 @@ def test_ptx_setmaxnreg(inc):
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_stmatrix_sync_aligned(trans):
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((16, 16), "float16")):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -152,7 +152,7 @@ def test_stmatrix_sync_aligned(trans):
 @pytest.mark.gpu
 def test_ptx_stmatrix(trans, num):
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor((16, 16), "float16")):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -224,7 +224,7 @@ def test_ptx_stmatrix_noncontiguous(trans, num):
     LOCAL_SIZE = STRIDE * num
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor((16, 16), "float16")):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -288,7 +288,7 @@ def test_ptx_stmatrix_noncontiguous(trans, num):
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_bar_arrive():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor(1)):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -305,7 +305,7 @@ def test_bar_arrive():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_bar_sync():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor(1)):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -322,7 +322,7 @@ def test_bar_sync():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_barrier_sync_unaligned():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor(1)):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -339,7 +339,7 @@ def test_barrier_sync_unaligned():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fence_mbarrier_init_release_clsuter():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor(1)):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -355,7 +355,7 @@ def test_fence_mbarrier_init_release_clsuter():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_ptx_elect_sync():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor(1)):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -376,7 +376,7 @@ def test_ptx_elect_sync():
 @pytest.mark.parametrize("sem,scope", [("sc", "cta"), ("acq_rel", "gpu"), ("sc", "sys")])
 def test_ptx_fence(sem, scope):
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor(1)):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -392,7 +392,7 @@ def test_ptx_fence(sem, scope):
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_fence_proxy_async():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor(1)):
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -430,7 +430,7 @@ def test_cp_async_bulk_tensor_global_to_shared_unicast(dtype, inputs):
             tma_args_copy[len(shape) + i] *= t_dtype.bits // 8
 
         # fmt: off
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor(shape, dtype=dtype, align=16), B: T.Tensor(shape, dtype=dtype, align=16)
         ):
@@ -631,7 +631,7 @@ def test_cp_async_bulk_tensor_global_to_shared_swizzle(swizzle, dtype):
         coord = [0 for _ in shape]
 
         # fmt: off
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor(total_elems, dtype=dtype, align=16),
             B: T.Tensor(total_elems, dtype=dtype, align=16),
@@ -733,7 +733,7 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast1(inputs):
         coord = [0 for _ in shape]
 
         # fmt: off
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor(shape, dtype="float32", align=16),
             B: T.Tensor(shape, dtype="float32", align=16),
@@ -836,7 +836,7 @@ def test_cp_async_bulk_tensor_global_to_shared_multicast2(inputs):
         tma_store_args[3 * len(shape) - 2] = shape[-1]
 
         # fmt: off
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor(shape, dtype="float32", align=16),
             B: T.Tensor(shape, dtype="float32", align=16),
@@ -978,7 +978,7 @@ def test_cp_async_bulk_tensor_shared_to_global(inputs):
         coord = [0 for _ in shape]
 
         # fmt: off
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(shape, dtype='float32', align=16)):
 
             A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
@@ -1060,7 +1060,7 @@ def test_wgmma_ss_nt():
         mma_chain = f"wgmma.mma_async.sync.aligned.m{M}n{N}k{K}.{ptx_d}.{ptx_ab}.{ptx_ab}"
 
         # fmt: off
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor(shapeA, dtype=in_dtype, align=16),
             B: T.Tensor(shapeB, dtype=in_dtype, align=16),
@@ -1235,7 +1235,7 @@ def test_wgmma_rs_nt():
         mma_chain = f"wgmma.mma_async.sync.aligned.m{M}n{N}k{K}.{ptx_d}.{ptx_ab}.{ptx_ab}"
 
         # fmt: off
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor(shapeA, dtype=in_dtype, align=16),
             B: T.Tensor(shapeB, dtype=in_dtype, align=16),
@@ -1383,7 +1383,7 @@ def test_wgmma_rs_nt():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_mapa():
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor(1)):
         T.device_entry()
         cbx = T.cta_id_in_cluster([2])

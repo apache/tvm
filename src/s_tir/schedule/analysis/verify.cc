@@ -43,7 +43,7 @@ class SRefTreeVerifier : public StmtExprVisitor {
 
  private:
   void Verify() {
-    VisitPrimFuncs(self_->mod, [this](const PrimFuncNode* func) { this->Visit(func->body); });
+    VisitFunctions(self_->mod, [this](const FunctionNode* func) { this->Visit(func->body); });
     TVM_FFI_ICHECK_EQ(n_sref_visited_, static_cast<int>(self_->stmt2ref.size()));
     for (const auto& kv : self_->block_info) {
       const StmtSRef& sref = kv.first;

@@ -85,7 +85,7 @@ A warp takes the elementwise ``sqrt`` of a ``32×8`` ``float32`` local tile
     fs = (slice(0, 32), slice(0, 8))
 
 
-    @Tx.prim_func
+    @Tx.function
     def k(A: Tx.Tensor((32, 8), "float32"), B: Tx.Tensor((32, 8), "float32")):
 
         Tx.device_entry()

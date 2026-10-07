@@ -346,7 +346,7 @@ class TrainiumBufferOffsetRemover : public StmtExprMutator {
 namespace transform {
 
 Pass LowerTrainiumLayout() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto [body, params] = TrainiumLayoutApplier::Lower(n->body.value(), n->params);
@@ -355,7 +355,7 @@ Pass LowerTrainiumLayout() {
     n->body = TrainiumBufferOffsetRemover::Remove(n->body.value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.backend.trn.LowerTrainiumLayout", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.backend.trn.LowerTrainiumLayout", {});
 }
 
 void RegisterTRNTransforms() {

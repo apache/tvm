@@ -30,43 +30,43 @@ namespace meta_schedule {
 
 /*!
  * \brief Find the entry function of the given IRModule, i.e, functions marked by
- * `tirx::attr::kIsEntryFunc`, whose name is `main` or being the only PrimeFunc.
+ * `tirx::attr::kIsEntryFunc`, whose name is `main` or being the only Function.
  * \param mod The IRModule to find the entry function.
  * \return The entry function.
  */
-inline tirx::PrimFunc FindEntryFunc(const IRModule& mod) {
-  // Priority 1: PrimFunc marked as `tirx::attr::kIsEntryFunc`
-  int num_prim_func = 0;
-  const tirx::PrimFuncNode* main_func = nullptr;
-  const tirx::PrimFuncNode* last_func = nullptr;
+inline tirx::Function FindEntryFunc(const IRModule& mod) {
+  // Priority 1: Function marked as `tirx::attr::kIsEntryFunc`
+  int num_function = 0;
+  const tirx::FunctionNode* main_func = nullptr;
+  const tirx::FunctionNode* last_func = nullptr;
   for (const auto& kv : mod->functions) {
     GlobalVar gv = kv.first;
     BaseFunc base_func = kv.second;
-    if (const auto* func = base_func.as<tirx::PrimFuncNode>()) {
+    if (const auto* func = base_func.as<tirx::FunctionNode>()) {
       last_func = func;
       if (func->HasNonzeroAttr(tirx::attr::kIsEntryFunc)) {
-        return ffi::GetRef<tirx::PrimFunc>(func);
+        return ffi::GetRef<tirx::Function>(func);
       }
       if (gv->name_hint == "main") {
         main_func = func;
       }
-      ++num_prim_func;
+      ++num_function;
     }
   }
-  // Priority 2: PrimFunc whose name is `main`
+  // Priority 2: Function whose name is `main`
   if (main_func != nullptr) {
-    return ffi::GetRef<tirx::PrimFunc>(main_func);
+    return ffi::GetRef<tirx::Function>(main_func);
   }
-  // Priority 3: The only PrimFunc in the IRModule
-  if (num_prim_func == 0) {
-    TVM_FFI_THROW(ValueError) << "Cannot find any PrimFunc in the given IRModule: " << mod;
+  // Priority 3: The only Function in the IRModule
+  if (num_function == 0) {
+    TVM_FFI_THROW(ValueError) << "Cannot find any Function in the given IRModule: " << mod;
   }
-  if (num_prim_func > 1) {
-    TVM_FFI_THROW(ValueError) << "Multiple PrimFuncs exist in the IRModule, but none of them are "
+  if (num_function > 1) {
+    TVM_FFI_THROW(ValueError) << "Multiple Functions exist in the IRModule, but none of them are "
                                  "annotated with `kIsEntryFunc`, i.e. `tirx.is_entry_func`"
                               << mod;
   }
-  return ffi::GetRef<tirx::PrimFunc>(last_func);
+  return ffi::GetRef<tirx::Function>(last_func);
 }
 /******** ArgInfo ********/
 
@@ -91,7 +91,7 @@ ArgInfo ArgInfo::FromJSON(const ffi::ObjectRef& json_obj) {
   throw;
 }
 
-ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tirx::PrimFunc& func) {
+ffi::Array<ArgInfo> ArgInfo::FromFunction(const tirx::Function& func) {
   using support::AsVector;
   ffi::Array<ArgInfo> result;
   result.reserve(func->params.size());
@@ -109,9 +109,9 @@ ffi::Array<ArgInfo> ArgInfo::FromPrimFunc(const tirx::PrimFunc& func) {
 ffi::Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_preproc) {
   if (remove_preproc) {
     IRModule new_mod = transform::RemoveWeightLayoutRewriteBlock(/*skip_tensor_rewrite*/ true)(mod);
-    return ArgInfo::FromPrimFunc(FindEntryFunc(new_mod));
+    return ArgInfo::FromFunction(FindEntryFunc(new_mod));
   }
-  return ArgInfo::FromPrimFunc(FindEntryFunc(mod));
+  return ArgInfo::FromFunction(FindEntryFunc(mod));
 }
 
 /******** TensorInfo ********/
@@ -182,7 +182,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def_method("s_tir.meta_schedule.ArgInfoAsJSON", &ArgInfoNode::AsJSON)
-      .def("s_tir.meta_schedule.ArgInfoFromPrimFunc", ArgInfo::FromPrimFunc)
+      .def("s_tir.meta_schedule.ArgInfoFromFunction", ArgInfo::FromFunction)
       .def("s_tir.meta_schedule.ArgInfoFromEntryFunc", ArgInfo::FromEntryFunc)
       .def("s_tir.meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON);
 }

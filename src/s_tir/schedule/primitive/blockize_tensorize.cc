@@ -821,8 +821,8 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }();
 
   sym::Analyzer analyzer;
-  PrimFunc intrin_desc = s_tir::StmtSimplify(intrin->desc, analyzer);
-  PrimFunc intrin_impl = DeepCopy(intrin->impl);
+  Function intrin_desc = s_tir::StmtSimplify(intrin->desc, analyzer);
+  Function intrin_impl = DeepCopy(intrin->impl);
 
   int index_dtype_bits = -1;
   auto f_update_max_dtype_bits_from_region = [&](const ffi::Array<TensorRegion>& buffer_regions) {

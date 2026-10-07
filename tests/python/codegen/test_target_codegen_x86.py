@@ -40,7 +40,7 @@ def test_fp16_to_fp32():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((elements, width), "float16"),
                 B: T.Tensor((elements, width), "float32"),

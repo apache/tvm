@@ -68,7 +68,7 @@ def test_reduction_shared(
     g_layout_dst = s_layout_dst = TileLayout(S[dst_shape])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_reduction(
         A: T.Tensor(src_shape, dtype, layout=g_layout_src),
         B: T.Tensor(dst_shape, dtype, layout=g_layout_dst),
@@ -168,7 +168,7 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
 
     # fmt: off
     if exec_scope == "warp":
-        @T.prim_func
+        @T.function
         def test_func(
             A: T.Tensor(src_shape, dtype, layout=g_layout_src),
             B: T.Tensor(dst_shape, dtype, layout=g_layout_dst),
@@ -195,7 +195,7 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
             Tx.cta.copy(B, B_smem)
 
     elif exec_scope == "warpgroup":
-        @T.prim_func
+        @T.function
         def test_func(
             A: T.Tensor(src_shape, dtype, layout=g_layout_src),
             B: T.Tensor(dst_shape, dtype, layout=g_layout_dst),
@@ -222,7 +222,7 @@ def test_reduction_shared_subscope(exec_scope, op_type, accum):
             Tx.cta.copy(B, B_smem)
 
     elif exec_scope == "thread":
-        @T.prim_func
+        @T.function
         def test_func(
             A: T.Tensor(src_shape, dtype, layout=g_layout_src),
             B: T.Tensor(dst_shape, dtype, layout=g_layout_dst),
@@ -323,7 +323,7 @@ def test_reduction_local_thread_wise(src_shape, dst_shape, axes, op_type, accum)
         return indices
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor(list(src_shape), dtype, layout=TileLayout(S[src_shape])),
         B: T.Tensor(list(dst_shape), dtype, layout=TileLayout(S[dst_shape])),
@@ -452,7 +452,7 @@ def test_reduction_local_view_basic(inner_dims, dst_dims, axes, accum, slice_end
         return indices
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor(list(src_shape), dtype, layout=g_layout_a),
         B: T.Tensor(list(dst_shape), dtype, layout=g_layout_b),
@@ -555,7 +555,7 @@ def test_reduction_local_view_complex(n_groups, n_warps, op_type, dtype, shuffle
     acc_shape, red_shape = (16, NUM_COL), (16, 4)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor(g_shape_a, dtype, layout=g_layout_a),
         B: T.Tensor(g_shape_b, dtype, layout=g_layout_b),
@@ -681,7 +681,7 @@ def test_reduction_local_optimized_3input_maxmin(reduction_len, op_type, accum):
     dtype = "float32"
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor([reduction_len], dtype, layout=TileLayout(S[reduction_len])),
         B: T.Tensor([1], dtype, layout=TileLayout(S[1])),
@@ -754,7 +754,7 @@ def test_reduction_local_optimized_packed_add_sum(reduction_len, accum):
     dtype = "float32"
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor([reduction_len], dtype, layout=TileLayout(S[reduction_len])),
         B: T.Tensor([1], dtype, layout=TileLayout(S[1])),
@@ -831,7 +831,7 @@ def test_reduction_op_warp_shuffle(op_type, dtype):
     dst_layout = TileLayout(S[1:1] + R[N : 1 @ laneid])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor(g_shape, dtype, layout=g_layout), B: T.Tensor(g_shape, dtype, layout=g_layout)
     ) -> None:
@@ -901,7 +901,7 @@ def test_reduction_op_warp_shuffle_multi_elem(op_type, dtype):
 
     # fmt: off
     dst_lay = TileLayout(S[ELEMS_PER_THREAD])
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor(g_shape, dtype, layout=g_layout),
         B: T.Tensor([ELEMS_PER_THREAD], dtype, layout=dst_lay),
@@ -970,7 +970,7 @@ def test_reduction_op_warp_shuffle_gapped_permuted_storage():
     assert [int(storage.apply(i, shape=[4])["m"]) for i in range(4)] == [0, 4, 2, 6]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor(src_shape, "float32", layout=TileLayout(S[src_shape])),
         B: T.Tensor(local_shape, "float32", layout=TileLayout(S[local_shape])),
@@ -1027,7 +1027,7 @@ def test_reduction_warp_shuffle_multi_warp_loop():
     dst_layout = TileLayout(S[1:1] + R[BDX : 1 @ laneid])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor([N_ITER, N], "float32", scope="global"),
         B: T.Tensor([N_ITER], "float32", scope="global"),
@@ -1100,7 +1100,7 @@ def test_reduction_warpgroup_wg_local_layout(op_name):
     dtype = "float32"
     target = tvm.target.Target("cuda")
 
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
         B: T.Tensor((rows, 1), dtype, layout=TileLayout(S[rows, 1])),

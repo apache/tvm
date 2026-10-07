@@ -49,14 +49,14 @@ Stmt SkipAssert(Stmt stmt) {
 namespace transform {
 
 Pass SkipAssert() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = ffi::make_object<AssertSkipper>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.SkipAssert", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.SkipAssert", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

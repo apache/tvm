@@ -92,11 +92,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
       Type finfo = Type::Missing();
       if (!func->ty.as<MissingType>().has_value()) {
         finfo = GetType(func);
-      } else if (auto* prim_func = func.as<tirx::PrimFuncNode>()) {
+      } else if (auto* function = func.as<tirx::FunctionNode>()) {
         // NOTE: use a slightly different type than checked type
-        // in PrimFunc so handle can turn into Tensor.
-        // TODO(relax-team): add fine-grained PrimFunc type signature generation.
-        finfo = FuncType::OpaqueFunc(TypeFromStaticType(prim_func->ret_type));
+        // in tirx::Function so handle can turn into Tensor.
+        // TODO(relax-team): add fine-grained tirx::Function type signature generation.
+        finfo = FuncType::OpaqueFunc(TypeFromStaticType(function->ret_type));
       } else {
         TVM_FFI_THROW(RuntimeError) << "Expect ty field to be populated";
       }
@@ -444,7 +444,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   };
 
   /*!
-   * \brief A hashmap to store the mapping of Relax functions and TIR PrimFuncs
+   * \brief A hashmap to store the mapping of Relax functions and TIR Functions
    * in context_mod to their GlobalVar to avoid generating duplicated functions.
    * We use a custom hash to avoid hashing constants that may be bound to each BaseFunc.
    */

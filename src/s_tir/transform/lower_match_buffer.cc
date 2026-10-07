@@ -45,7 +45,7 @@ class MatchBufferLower : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  explicit MatchBufferLower(const PrimFunc& func) {
+  explicit MatchBufferLower(const Function& func) {
     for (const Var& param : func->params) {
       // Mark input var as const variable.
       auto prim_type = param->ty.as<PrimType>();
@@ -319,14 +319,14 @@ class MatchBufferLower : public StmtExprMutator {
 namespace transform {
 
 Pass LowerMatchBuffer() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
     fptr->body = ffi::make_object<MatchBufferLower>(f)
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerMatchBuffer", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerMatchBuffer", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

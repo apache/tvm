@@ -31,7 +31,7 @@ shared buffers across several dtypes, plus a vectorized ``float32x4`` load/store
 
 .. code-block:: python
 
-    @Tx.prim_func
+    @Tx.function
     def dtypes(A: Tx.Tensor((256,), "float32"), O: Tx.Tensor((256,), "float32")):
 
         Tx.device_entry()

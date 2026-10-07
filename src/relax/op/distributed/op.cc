@@ -30,7 +30,7 @@ Type InferDistTypeCallTIR(const Call& call, const BlockBuilder& ctx) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exact 1 output type.";
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
-      << "call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
+      << "call_tir expects the first argument to be a GlobalVar referring to a TIR tirx::Function. "
       << "However, gets " << call->args[0];
   return call->ty_args[0];
 }

@@ -18,8 +18,8 @@ import tvm
 import tvm.testing
 
 
-def test_prim_func_pass():
-    @tvm.tirx.transform.prim_func_pass(opt_level=1)
+def test_function_pass():
+    @tvm.tirx.transform.function_pass(opt_level=1)
     class TestReplaceFunc:
         """Simple test function to replace one argument to another."""
 
@@ -34,9 +34,9 @@ def test_prim_func_pass():
     b = tvm.tirx.decl_tensor((x,), "float32")
     stmt = tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 10), tvm.tirx.Evaluate(x + 1)])
 
-    func = tvm.tirx.PrimFunc([x, y, b], stmt)
+    func = tvm.tirx.Function([x, y, b], stmt)
 
-    new_func = tvm.tirx.PrimFunc([x, y, b], tvm.tirx.Evaluate(0))
+    new_func = tvm.tirx.Function([x, y, b], tvm.tirx.Evaluate(0))
 
     mod = tvm.IRModule({"main": func})
     mod = TestReplaceFunc(new_func)(mod)
@@ -51,7 +51,7 @@ def test_cow_pass():
 
     pidentity = tvm.tirx.transform.Apply(fapply)
     x = tvm.tirx.Var("x", "int32")
-    func = tvm.tirx.PrimFunc([x], tvm.tirx.Evaluate(x)).with_attr("target_bits", 32)
+    func = tvm.tirx.Function([x], tvm.tirx.Evaluate(x)).with_attr("target_bits", 32)
     func_hash = func.__hash__()
     mod = tvm.IRModule({"main": func})
     del func
@@ -64,4 +64,4 @@ def test_cow_pass():
 
 if __name__ == "__main__":
     test_cow_pass()
-    test_prim_func_pass()
+    test_function_pass()

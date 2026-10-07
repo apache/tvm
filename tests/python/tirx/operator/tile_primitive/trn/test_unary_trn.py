@@ -41,9 +41,9 @@ def _strip_exec_scope_stmt(stmt):
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.PrimFunc):
+    if isinstance(lhs, tvm.tirx.Function):
         lhs = lhs.with_body(_strip_exec_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.PrimFunc):
+    if isinstance(rhs, tvm.tirx.Function):
         rhs = rhs.with_body(_strip_exec_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -60,7 +60,7 @@ def test_simple_unary(op_type):
     tx_func = Tx_func_map[op_type]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def unary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -70,7 +70,7 @@ def test_simple_unary(op_type):
         else:
             tx_func(B_sbuf, A_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "unary"})
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf")
@@ -102,7 +102,7 @@ def test_unary_in_a_loop(op_type):
     Tx_func = Tx_func_map[op_type]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def unary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -115,7 +115,7 @@ def test_unary_in_a_loop(op_type):
             else:
                 Tx_func(B_sbuf_view[:, i, :], A_sbuf_view[:, i * 2, :])
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "unary"})
         A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
@@ -142,13 +142,13 @@ def test_unary_complex1():
     dst_shape = [4096, 256]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def unary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.memset(A_sbuf, T.float32(0.0))
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "unary"})
         A_sbuf = T.alloc_tensor((128, 8192), scope="trn.sbuf")
@@ -176,7 +176,7 @@ def test_unary_with_bias_scale(op_type):
     tx_func = getattr(Tx, op_type + "_with_scale_bias")
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def unary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -184,7 +184,7 @@ def test_unary_with_bias_scale(op_type):
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         tx_func(C_sbuf, A_sbuf, bias=B_sbuf, scale=scale)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "unary"})
         A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")
@@ -213,14 +213,14 @@ def test_unary_with_bias_scale_2(op_type):
     tx_func = getattr(Tx, op_type + "_with_scale_bias")
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def unary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         tx_func(C_sbuf, A_sbuf, bias=bias, scale=scale)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "unary"})
         const_bias = T.alloc_tensor((128, 512), scope="trn.sbuf")
@@ -253,7 +253,7 @@ def test_unary_with_guard():
     scale = T.float32(2.0)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def unary() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -263,7 +263,7 @@ def test_unary_with_guard():
             for j in range(4):
                 Tx.sqrt_with_scale_bias(C_sbuf[0: (i+1) * 128, 0: (j+1)*256], A_sbuf[0: (i+1) * 128, 0: (j+1)*256], bias=B_sbuf[0: (i+1) * 128, 0], scale=scale)  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "unary"})
         A_sbuf = T.alloc_tensor((128, 4096), scope="trn.sbuf")

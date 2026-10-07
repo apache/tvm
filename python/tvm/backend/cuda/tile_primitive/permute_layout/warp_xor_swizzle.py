@@ -76,7 +76,7 @@ import math
 from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import IntImm, PrimFunc, is_tensor_var
+from tvm.tirx import Function, IntImm, is_tensor_var
 from tvm.tirx.layout import TileLayout, _flatten_coord
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail, register_dispatch
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -328,7 +328,7 @@ def _impl(op_call, sctx):
 
     # fmt: off
     if direct:
-        @T.prim_func
+        @T.function
         def impl():
             warp_size = T.meta_var(32)
             lane_id = T.meta_var(tid_x % warp_size)
@@ -354,7 +354,7 @@ def _impl(op_call, sctx):
                 T.ptx[st_chain](ptr, regs[r])
             T.cuda.warp_sync()
     else:
-        @T.prim_func
+        @T.function
         def impl():
             warp_size = T.meta_var(32)
             lane_id = T.meta_var(tid_x % warp_size)
@@ -419,7 +419,7 @@ def _impl(op_call, sctx):
     variant="warp_xor_swizzle",
     priority=20,
 )
-def permute_layout_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def permute_layout_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     reason = _why_reject(op, sctx)
     if reason is not None:
         fail(reason)

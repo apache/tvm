@@ -19,9 +19,9 @@
 
 PTX op family: ``{add,sub,mul}.<rm>.ftz.f32x2``. Each call processes 2 f32s
 per operand. The old ``_make_binary_packed_f32x2_factory`` (240+ lines, 8
-``@T.prim_func`` shape combos per op) collapses to one ``emit`` per op
+``@T.function`` shape combos per op) collapses to one ``emit`` per op
 because operand-shape branching is now Python-level (outside any
-``@T.prim_func``).
+``@T.function``).
 """
 
 from __future__ import annotations

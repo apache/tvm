@@ -33,7 +33,7 @@ def _check(original, transformed):
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
     for i in range(0, 16):
         with Ts.sblock():
@@ -52,7 +52,7 @@ def elementwise_func(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "fl
                     C[vi, vj] = B[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def substituted_elementwise_func(
     A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")
 ) -> None:
@@ -80,7 +80,7 @@ def test_elementwise():
 def test_error_if_predicate_uses_block_variables():
     @I.ir_module(check_well_formed=False)
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor(8, "int32")):
             for i in T.serial(8):
                 with Ts.sblock():

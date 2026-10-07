@@ -23,7 +23,7 @@ from tvm import s_tir, tirx
 from tvm.target import Target
 
 from .. import base
-from ..analysis import normalize_prim_func
+from ..analysis import normalize_function
 from ..base import try_inline
 from .base import GPUScheduleRule
 
@@ -74,18 +74,18 @@ class Fallback(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         if _has_zero_extent_loop(func.body):
             return None
         max_threads_per_block = base.max_threads_per_block(target)
 
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
 
         if block_infos is None:
             return None

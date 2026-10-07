@@ -31,7 +31,7 @@ from tvm.target import Target
 def test_fallback():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((1, 32, 1, 128), "float16"),
             C: T.Tensor((1, 1, 4096), "float16"),
@@ -48,7 +48,7 @@ def test_fallback():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((1, 32, 1, 128), "float16"),
             C: T.Tensor((1, 1, 4096), "float16"),
@@ -73,7 +73,7 @@ def test_fallback():
 def test_fallback_skips_zero_extent_spatial():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((4, 0), "float32"), B: T.Tensor((4, 0), "float32")):
             for i, j in T.grid(4, 0):
                 with Ts.sblock("copy"):
@@ -90,7 +90,7 @@ def test_fallback_skips_zero_extent_spatial():
 def test_fallback_reduction():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((1, 6144), "float32"), B: T.Tensor((1,), "float32")):
             for ax0, ax1 in T.grid(1, 6144):
                 with Ts.sblock("block"):
@@ -104,7 +104,7 @@ def test_fallback_reduction():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((1, 6144), "float32"), B: T.Tensor((1,), "float32")):
             T.func_attr({"tirx.is_scheduled": True})
             for ax0_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
@@ -140,7 +140,7 @@ def test_fallback_irregular_spatial():
     num_total_pages = T.dynamic("num_total_pages", "int32")
     num_total_seqs_plus_1 = T.dynamic("num_total_seqs_plus_1", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def func(
         pages: T.Tensor((num_total_pages, nlayer, nhead, page_size), "float16"),
         page_table_indptr: T.Tensor((num_total_seqs_plus_1,), "int32"),
@@ -167,7 +167,7 @@ def test_fallback_irregular_spatial():
     num_total_pages = T.dynamic("num_total_pages", "int32")
     num_total_seqs_plus_1 = T.dynamic("num_total_seqs_plus_1", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(pages: T.Tensor((num_total_pages, nlayer, nhead, page_size), 'float16'), page_table_indptr: T.Tensor((num_total_seqs_plus_1,), 'int32'), page_table_values: T.Tensor((npage,), 'int32'), values: T.Tensor((nlayer, nhead, seqlen), 'float16'), seq_id: T.int32):
         T.func_attr({"tirx.is_scheduled": True})
 
@@ -197,7 +197,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
     class Before:
         # This function has no "target" attribute, and is scheduled
         # using the `Target.current`.
-        @Ts.prim_func
+        @Ts.function
         def gpu_func(
             A: T.Tensor((1, 32, 1, 128), "float16"),
             C: T.Tensor((1, 1, 4096), "float16"),
@@ -215,7 +215,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
         # This function is identical, except that it is explicitly
         # annotated with the "target" attribute, and is scheduled
         # based on the annotation's target.
-        @Ts.prim_func
+        @Ts.function
         def cpu_func(
             A: T.Tensor((1, 32, 1, 128), "float16"),
             C: T.Tensor((1, 1, 4096), "float16"),
@@ -233,7 +233,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def gpu_func(
             A: T.Tensor((1, 32, 1, 128), "float16"),
             C: T.Tensor((1, 1, 4096), "float16"),
@@ -247,7 +247,7 @@ def test_gpu_fallback_ignores_non_gpu_functions():
                         Ts.writes(C[0, 0, v0])
                         C[0, 0, v0] = A[0, v0 // 128, 0, v0 % 128]
 
-        @Ts.prim_func
+        @Ts.function
         def cpu_func(
             A: T.Tensor((1, 32, 1, 128), "float16"),
             C: T.Tensor((1, 1, 4096), "float16"),
@@ -274,7 +274,7 @@ def test_schedule_error_propagates_from_rule():
     # ScheduleError indicates a broken rule and must propagate.
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((128,), "float32"), C: T.Tensor((128,), "float32")):
             for i in range(128):
                 with Ts.sblock("copy"):

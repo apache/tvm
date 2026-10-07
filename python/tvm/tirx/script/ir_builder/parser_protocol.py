@@ -64,18 +64,18 @@ _Span = _base.SpanEntry | _ir.Span | None
 # --------------------------------------
 
 
-def prim_func(
+def function(
     is_private: bool = False,
     persistent: bool = False,
     *,
     private: bool | None = None,
-) -> frame.PrimFuncFrame:
+) -> frame.FunctionFrame:
     """The primitive function statement.
 
     Parameters
     ----------
     is_private : bool
-        Whether the PrimFunc is annotated as private.
+        Whether the Function is annotated as private.
     persistent : bool
         Whether this is a persistent kernel.
     private : bool
@@ -83,12 +83,12 @@ def prim_func(
 
     Returns
     -------
-    res : frame.PrimFuncFrame
-        The PrimFuncFrame.
+    res : frame.FunctionFrame
+        The FunctionFrame.
     """
     if private is not None:
         is_private = private
-    return _ffi_api.PrimFunc(is_private, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Function(is_private, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def function_(
@@ -97,7 +97,7 @@ def function_(
     persistent: bool = False,
     decl: bool = False,
     span: _Span = None,
-) -> frame.PrimFuncFrame:
+) -> frame.FunctionFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
 
     Private/persistent options pass to the native TIRx function frame.
@@ -106,7 +106,7 @@ def function_(
     native = (
         _ffi_api.DeclFunction(private, persistent)
         if decl
-        else _ffi_api.PrimFunc(private, persistent)
+        else _ffi_api.Function(private, persistent)
     )
     return _base.at_(span, native)
 
@@ -138,12 +138,12 @@ def func_ret_type_(annotation: Any, *, span: _Span = None) -> None:
 
 
 def func_attr(attrs: dict[str, Any]) -> None:
-    """The PrimFunc annotation statement.
+    """The Function annotation statement.
 
     Parameters
     ----------
     attrs : Dict[str, Any]
-        The annotations of the PrimFunc.
+        The annotations of the Function.
     """
     _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
@@ -158,7 +158,7 @@ def device_entry() -> frame.RegionFrame:
     return region("tirx.device_entry", [])
 
 
-def check_well_formed_(function: _tir.PrimFunc) -> None:
+def check_well_formed_(function: _tir.Function) -> None:
     """Validate a completed TIRx function."""
     try:
         _tir.analysis.verify_well_formed(function)
@@ -173,7 +173,7 @@ def check_well_formed_(function: _tir.PrimFunc) -> None:
 def _check_module_well_formed(module: _ir.IRModule) -> None:
     """Validate completed functions belonging to the TIRx dialect."""
     for function in module.functions.values():
-        if isinstance(function, _tir.PrimFunc) and function.is_tirx:
+        if isinstance(function, _tir.Function) and function.is_tirx:
             check_well_formed_(function)
 
 
@@ -1004,6 +1004,7 @@ __all__ = [
     "func_name_",
     "func_ret",
     "func_ret_type_",
+    "function",
     "function_",
     "ge_",
     "grid",
@@ -1018,7 +1019,6 @@ __all__ = [
     "or_",
     "parallel",
     "parallel_launch",
-    "prim_func",
     "range_",
     "region",
     "resolve_global_info_",

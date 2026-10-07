@@ -29,7 +29,7 @@ def generate_dma_load_intrin(
 ):
     """Generator of dma_load intrins"""
 
-    @Ts.prim_func
+    @Ts.function
     def sync_dma_load_desc(
         A: T.Tensor(size, dtype, offset_factor=1, scope="global"),
         C: T.Tensor(size, dtype, offset_factor=1, scope="global.vtcm"),
@@ -42,7 +42,7 @@ def generate_dma_load_intrin(
                     vii = Ts.axis.remap("S", [i])
                     C[vii] = A[vii]
 
-    @Ts.prim_func
+    @Ts.function
     def sync_dma_load_impl(
         A: T.Tensor(size, dtype, offset_factor=1, scope="global"),
         C: T.Tensor(size, dtype, offset_factor=1, scope="global.vtcm"),
@@ -78,7 +78,7 @@ def generate_dma_load_intrin(
 
 
 def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
-    @Ts.prim_func
+    @Ts.function
     def dot_product_32x4_u8u8i32_desc(
         A: T.Tensor((4,), "uint8", offset_factor=1, scope=mem_scope),
         B: T.Tensor((32, 4), "uint8", offset_factor=1, scope=mem_scope),
@@ -93,7 +93,7 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def dot_product_32x4_u8u8i32_vrmpy(
         A: T.Tensor((4,), "uint8", offset_factor=1, scope=mem_scope),
         B: T.Tensor((32, 4), "uint8", offset_factor=1, scope=mem_scope),
@@ -121,7 +121,7 @@ def generate_dot_product_32x4_u8u8i32(mem_scope="global"):
 
 
 def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
-    @Ts.prim_func
+    @Ts.function
     def dot_product_32x4_u8i8i32_desc(
         A: T.Tensor((4,), "uint8", offset_factor=1, scope=mem_scope),
         B: T.Tensor((32, 4), "int8", offset_factor=1, scope=mem_scope),
@@ -136,7 +136,7 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def dot_product_32x4_u8i8i32_vrmpy(
         A: T.Tensor((4,), "uint8", offset_factor=1, scope=mem_scope),
         B: T.Tensor((32, 4), "int8", offset_factor=1, scope=mem_scope),
@@ -164,7 +164,7 @@ def generate_dot_product_32x4_u8i8i32(mem_scope="global"):
 
 
 def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
-    @Ts.prim_func
+    @Ts.function
     def dot_product_32x2_i16i16i32_desc(
         A: T.Tensor((2,), "int16", offset_factor=1, scope=mem_scope),
         B: T.Tensor((32, 2), "int16", offset_factor=1, scope=mem_scope),
@@ -179,7 +179,7 @@ def generate_dot_product_32x2_i16i16i32(mem_scope="global"):
                         vi, vk = Ts.axis.remap("SR", [i, k])
                         C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def dot_product_32x2_i16i16i32_vdmpy(
         A: T.Tensor((2,), "int16", offset_factor=1, scope=mem_scope),
         B: T.Tensor((32, 2), "int16", offset_factor=1, scope=mem_scope),

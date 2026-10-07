@@ -113,7 +113,7 @@ from tvm.ir import Call, DataTypeImm, DictAttrs, StringImm, Tuple
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
-from tvm.tirx import PrimFunc, Var
+from tvm.tirx import Function, Var
 from tvm.tirx.layout import ComposeLayout, TCol, TileLayout, TLane
 from tvm.tirx.layout import m as m_axis
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
@@ -743,7 +743,7 @@ def _validate_smem_tmem_copy(op_call: TilePrimitiveCall, sctx: DispatchContext):
 # is responsible for issuing ``tcgen05.commit`` against a barrier if they
 # need synchronization.
 # -----------------------------------------------------------------------------
-def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     decompress = op_call.config.get("decompress")
     if isinstance(decompress, StringImm):
         decompress = decompress.value
@@ -791,7 +791,7 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
 
     # fmt: off
     if total == 1:
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             T.ptx[cp_chain](T.cast(t_addr[0] + t_addr_off, "uint32"), _cp_desc(init_off_16B))
     else:
@@ -806,7 +806,7 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
                 s_off = s_off + idx * s_step
             return t_off, s_off
 
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for flat in T.unroll(total):
                 t_off, s_off = T.meta_var(compute_offsets(flat))
@@ -830,5 +830,5 @@ def copy_smem_tmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pr
         predicate("exec_scope", _single_thread_exec),
     ],
 )
-def copy_async_schedule_smem_tmem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_async_schedule_smem_tmem(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return copy_smem_tmem_impl(op_call, sctx)

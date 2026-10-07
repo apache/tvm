@@ -47,7 +47,7 @@ import operator
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import DispatchContext
 from tvm.tirx.operator.tile_primitive.common import ReduceOpType
 from tvm.tirx.operator.tile_primitive.dispatcher import predicate, register_dispatch
@@ -71,7 +71,7 @@ def _emit_reduction_local_thread_packed_add_sum(
     accum: bool,
     reduce_op: ReduceOpType,
     sctx: DispatchContext,
-) -> PrimFunc:
+) -> Function:
     dst, src = dst_buffer_region.source, src_buffer_region.source
     src_region, dst_region = src_buffer_region.region, dst_buffer_region.region
     dtype = src.dtype
@@ -89,7 +89,7 @@ def _emit_reduction_local_thread_packed_add_sum(
     remainder_base = num_full_chunks * 8
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         local_sum = T.alloc_tensor([8], dtype, scope="local")
         # add.f32x2's operands are .b64 register pairs, so each packed add is
@@ -149,7 +149,7 @@ def _emit_reduction_local_thread_3input_maxmin(
     accum: bool,
     reduce_op: ReduceOpType,
     sctx: DispatchContext,
-) -> PrimFunc:
+) -> Function:
     dst, src = dst_buffer_region.source, src_buffer_region.source
     src_region, dst_region = src_buffer_region.region, dst_buffer_region.region
     dtype = src.dtype
@@ -171,7 +171,7 @@ def _emit_reduction_local_thread_3input_maxmin(
     remainder_base = num_full_chunks * 8
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         temp = T.alloc_tensor([4], dtype, scope="local")
         # First pass: process first 8 elements into 4 temps
@@ -250,6 +250,6 @@ for op_name, op_type in [
     )
     def _optimized_dispatch(
         op: TilePrimitiveCall, sctx: DispatchContext, _impl=optimized_impl, _op_type=op_type
-    ) -> PrimFunc:
+    ) -> Function:
         op = TilePrimitiveCall.downcast(op)
         return _impl(op, _op_type, sctx)

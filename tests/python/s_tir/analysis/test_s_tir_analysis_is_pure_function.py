@@ -41,38 +41,38 @@ class CheckImpureFunction:
 
 
 class TestNoOp(CheckPureFunction):
-    @Ts.prim_func
+    @Ts.function
     def func():
         pass
 
 
 class TestReturnValue(CheckPureFunction):
-    @Ts.prim_func
+    @Ts.function
     def func() -> T.int32:
         return 42
 
 
 class TestComputeValueAndReturn(CheckPureFunction):
-    @Ts.prim_func
+    @Ts.function
     def func(N: T.int32, M: T.int32) -> T.int32:
         return N * M
 
 
 class TestReadBufferArgument(CheckPureFunction):
-    @Ts.prim_func
+    @Ts.function
     def func(A: T.Tensor(16, "float32")) -> T.float32:
         return A[0]
 
 
 class TestWriteToBufferArgument(CheckImpureFunction):
-    @Ts.prim_func
+    @Ts.function
     def func(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
         for i in range(16):
             B[i] = A[i]
 
 
 class TestWriteToInternalAllocation(CheckPureFunction):
-    @Ts.prim_func
+    @Ts.function
     def func(A: T.Tensor([16, 16], "float32")) -> T.float32:
         Sum = T.decl_tensor([], "float32")
         Sum[()] = 0.0
@@ -83,19 +83,19 @@ class TestWriteToInternalAllocation(CheckPureFunction):
 
 
 class TestCallPureBuiltin(CheckPureFunction):
-    @Ts.prim_func
+    @Ts.function
     def func(x: T.float32) -> T.float32:
         return T.cos(x)
 
 
 class TestCallPureExtern(CheckPureFunction):
-    @Ts.prim_func
+    @Ts.function
     def func():
         T.call_pure_extern("some_pure_extern_func_name", dtype="void")
 
 
 class TestCallImpureExtern(CheckImpureFunction):
-    @Ts.prim_func
+    @Ts.function
     def func():
         T.call_extern("some_impure_extern_func_name", dtype="void")
 

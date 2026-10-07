@@ -18,10 +18,10 @@
 Defining a function
 ===================
 
-A kernel is a ``@Tx.prim_func`` (like ``scale`` in :doc:`first_kernel`), or a
+A kernel is a ``@Tx.function`` (like ``scale`` in :doc:`first_kernel`), or a
 ``@Tx.jit`` when it has compile-time parameters (see the last section). This
 chapter covers the parameter list — how to declare buffers, what types you can
-pass, symbolic shapes, and the ``prim_func`` / ``jit`` distinction.
+pass, symbolic shapes, and the ``function`` / ``jit`` distinction.
 
 Declaring buffer parameters
 ---------------------------
@@ -31,7 +31,7 @@ shape, dtype, layout, offset, scope, and alignment metadata:
 
 .. code-block:: python
 
-    @Tx.prim_func
+    @Tx.function
     def f(A: Tx.Tensor((256,), "float32", align=16), B: Tx.Tensor((256,), "float32")): ...
 
 The parameters are buffers that you index with ``A[i]`` or ``A[i, j]``.
@@ -40,7 +40,7 @@ Annotations also support :ref:`symbolic shapes <symbolic-shapes>`.
 What the parameter list accepts
 -------------------------------
 
-A ``PrimFunc`` parameter is one of the following. The third column is what you
+A ``Function`` parameter is one of the following. The third column is what you
 pass on the Python side when you call the compiled ``Executable``:
 
 .. list-table::
@@ -68,7 +68,7 @@ interop) or
 ``tvm.runtime.tensor(...)``. Arguments are positional and match the parameter
 order. For example, a kernel with a scalar parameter::
 
-    @Tx.prim_func
+    @Tx.function
     def scal(A: Tx.Tensor((256,), 'float32'), B: Tx.Tensor((256,), 'float32'), s: Tx.float32):
 
 
@@ -91,7 +91,7 @@ passed tensor** at run time, so a *single compiled kernel* handles any size:
     n = Tx.int32()  # free symbolic extent
 
 
-    @Tx.prim_func
+    @Tx.function
     def scale_dyn(A: Tx.Tensor((n,), "float32"), B: Tx.Tensor((n,), "float32")):
         Tx.device_entry()
         bx = Tx.cta_id([1])
@@ -143,7 +143,7 @@ merged function (trimmed):
     n = Tx.int32()  # free symbolic extent
 
 
-    @Tx.prim_func
+    @Tx.function
     def main(A: Tx.Tensor((n,)), B: Tx.Tensor((n,))):
 
         with Tx.launch_thread("blockIdx.x", 1), Tx.launch_thread("threadIdx.x", 1):
@@ -156,7 +156,7 @@ trailing ``1, 1`` are the grid/block launch dims):
 
 .. code-block:: python
 
-    @Tx.prim_func  # device
+    @Tx.function  # device
     def scale_dyn_kernel(A_ptr: Tx.handle("float32"), B_ptr: Tx.handle("float32"), n: Tx.int32):
         ...
         for i in range(n):
@@ -166,7 +166,7 @@ trailing ``1, 1`` are the grid/block launch dims):
     n = Tx.int32()  # free symbolic extent
 
 
-    @Tx.prim_func  # host
+    @Tx.function  # host
     def main(A: Tx.Tensor((n,)), B: Tx.Tensor((n,))):
 
         Tx.call_packed("scale_dyn_kernel", A.data, B.data, n, 1, 1)  # n forwarded
@@ -177,14 +177,14 @@ device checks (e.g. asserting ``B.shape[0] == n``)::
 
     n = Tx.Cast("int32", Tx.tvm_struct_get(a_shape, 0, 17, "int64"))   # = a.shape[0]
 
-``@Tx.prim_func`` vs ``@Tx.jit``
+``@Tx.function`` vs ``@Tx.jit``
 --------------------------------
 
-- ``@Tx.prim_func`` parses the function immediately into a ``PrimFunc``. Sizes are
+- ``@Tx.function`` parses the function immediately into a ``Function``. Sizes are
   whatever you wrote — concrete ints, or runtime-symbolic vars (above).
 - ``@Tx.jit`` **defers** parsing until you call ``.specialize(**constexpr)``:
   parameters annotated ``Tx.constexpr`` are baked in as compile-time constants and
-  the result is an ordinary ``PrimFunc``. Use it when you want sizes/flags fixed at
+  the result is an ordinary ``Function``. Use it when you want sizes/flags fixed at
   compile time (so the compiler can unroll, statically size shared memory, etc.).
   Referencing a constexpr inside an annotation (e.g. ``Tx.Tensor((N,), ...)``)
   requires ``from __future__ import annotations`` at the top of the file.
@@ -208,7 +208,7 @@ device checks (e.g. asserting ``B.shape[0] == n``)::
         C[tx] = A[tx] + B[tx]
 
 
-    kernel = add.specialize(N=256)  # -> a PrimFunc with N = 256 baked in
+    kernel = add.specialize(N=256)  # -> a Function with N = 256 baked in
 
 So: a **symbolic shape** is one kernel whose size is resolved at run time; a
 **constexpr + jit** produces a specialized kernel per value, resolved at compile

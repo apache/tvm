@@ -29,7 +29,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
@@ -39,7 +39,7 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_original(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -59,7 +59,7 @@ def matmul_original(
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_with_root(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -74,7 +74,7 @@ def elementwise_with_root(
                 C[vi, vj] = B[vi, vj] + T.float32(1)
 
 
-@Ts.prim_func
+@Ts.function
 def func_with_part_access_region(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -182,7 +182,7 @@ def test_complete_part_region():
     _check_elementwise(func_with_part_access_region)
 
 
-@Ts.prim_func
+@Ts.function
 def func_with_bufferslice_indices(
     data_buf: T.Tensor((16, 16), "float32"), index_buf: T.Tensor((1,), "int32")
 ) -> None:
@@ -194,7 +194,7 @@ def func_with_bufferslice_indices(
             out_buf[vi, vj] = data_buf[vi, index_buf[0]]
 
 
-@Ts.prim_func
+@Ts.function
 def expected_bufferslice_indices(
     data_buf: T.Tensor([16, 16], elem_offset=0, align=64, offset_factor=1),
     index_buf: T.Tensor([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
@@ -211,7 +211,7 @@ def expected_bufferslice_indices(
                 out_buf[vi, vj] = data_buf[vi, index_buf[0]]
 
 
-@Ts.prim_func
+@Ts.function
 def func_with_recursive_bufferslice_indices(
     data_buf: T.Tensor((16, 16), "float32"), index_buf: T.Tensor((1,), "int32")
 ) -> None:
@@ -223,7 +223,7 @@ def func_with_recursive_bufferslice_indices(
             out_buf[vi, vj] = data_buf[index_buf[index_buf[0]], index_buf[0]]
 
 
-@Ts.prim_func
+@Ts.function
 def expected_recursive_bufferslice_indices(
     data_buf: T.Tensor([16, 16], elem_offset=0, align=64, offset_factor=1),
     index_buf: T.Tensor([1], dtype="int32", elem_offset=0, align=64, offset_factor=1),
@@ -262,7 +262,7 @@ def test_complete_buffer_indices():
     )
 
 
-@Ts.prim_func
+@Ts.function
 def match_buffer_func(A: T.Tensor((16, 16))) -> None:
     for i in range(0, 16):
         with Ts.sblock():
@@ -274,7 +274,7 @@ def match_buffer_func(A: T.Tensor((16, 16))) -> None:
                         A1[()] = 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def expected_match_buffer_func(A: T.Tensor((16, 16))) -> None:
     for i in range(0, 16):
         with Ts.sblock():
@@ -299,7 +299,7 @@ def test_complete_match_buffer():
     )
 
 
-@Ts.prim_func
+@Ts.function
 def alloc_buffer_func(
     A: T.Tensor([2, 2], dtype="float32"), B: T.Tensor([2, 2], dtype="float32")
 ) -> None:
@@ -309,7 +309,7 @@ def alloc_buffer_func(
     B[(0, 0)] = C[(0, 0)]
 
 
-@Ts.prim_func
+@Ts.function
 def expect_alloc_buffer_func(
     A: T.Tensor([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
     B: T.Tensor([2, 2], dtype="float32", elem_offset=0, align=64, offset_factor=1),
@@ -335,7 +335,7 @@ def test_complete_alloc_buffer():
     )
 
 
-@Ts.prim_func
+@Ts.function
 def alloc_zero_dim_buffer(
     A: T.Tensor([], dtype="float32"), B: T.Tensor([], dtype="float32")
 ) -> None:
@@ -347,7 +347,7 @@ def alloc_zero_dim_buffer(
     B[()] = C[()]
 
 
-@Ts.prim_func
+@Ts.function
 def alloc_zero_dim_buffer_block(A: T.Tensor((), "float32"), B: T.Tensor((), "float32")) -> None:
     with Ts.sblock("root"):
         Ts.reads([])
@@ -403,7 +403,7 @@ def test_alloc_zero_dim_buffer_round_trip():
 
 try:
 
-    @Ts.prim_func
+    @Ts.function
     def slice_op_test(
         A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32"), C: T.Tensor((10,), "uint32")
     ):
@@ -434,7 +434,7 @@ try:
         T.evaluate((A[0:5] < 0) and (1 > 0))
         T.evaluate((A[0:5] > 0) or (1 > 0))
 
-    @Ts.prim_func
+    @Ts.function
     def slice_op_test_ref(
         A: T.Tensor((10,), "float32"), B: T.Tensor((10,), "float32"), C: T.Tensor((10,), "uint32")
     ):
@@ -479,11 +479,11 @@ def test_slice_op():
 
 
 def test_different_dtype_assignment_to_var():
-    @Ts.prim_func
+    @Ts.function
     def test_case():
         a = Ts.sblock_alloc_buffer((10, 10), dtype="int8")
 
-    @Ts.prim_func
+    @Ts.function
     def func_ref():
         a = Ts.sblock_alloc_buffer([10, 10], dtype="int8")
         T.evaluate(0)
@@ -494,7 +494,7 @@ def test_different_dtype_assignment_to_var():
 
 
 def roundtrip_matmul():
-    @Ts.prim_func
+    @Ts.function
     def roundtrip_matmul(
         A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
     ) -> None:
@@ -509,7 +509,7 @@ def roundtrip_matmul():
 
 
 def roundtrip_matmul_original():
-    @Ts.prim_func
+    @Ts.function
     def roundtrip_matmul_original(
         A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
     ) -> None:
@@ -527,7 +527,7 @@ def roundtrip_matmul_original():
 
 
 def element_wise():
-    @Ts.prim_func
+    @Ts.function
     def element_wise(
         A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")
     ) -> None:
@@ -546,7 +546,7 @@ def element_wise():
 
 
 def predicate():
-    @Ts.prim_func
+    @Ts.function
     def predicate(B: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")) -> None:
         for i, jo, ji in T.grid(16, 4, 5):
             with Ts.sblock("update"):
@@ -636,7 +636,7 @@ def test_predicate():
 
 
 def match_buffer_region():
-    @Ts.prim_func
+    @Ts.function
     def match_buffer_region(
         A: T.Tensor((16, 16, 16), "float32"), B: T.Tensor(1, "float32")
     ) -> None:
@@ -687,7 +687,7 @@ def test_match_buffer_region():
 
 
 def block_elements():
-    @Ts.prim_func
+    @Ts.function
     def block_elements(A: T.Tensor((16, 16), "float32"), B: T.Tensor((1, 1), "float32")) -> None:
         with Ts.sblock("update"):
             vi = Ts.axis.S(1, 0)
@@ -728,7 +728,7 @@ def test_block_elements():
 
 
 def opaque_block():
-    @Ts.prim_func
+    @Ts.function
     def opaque_block(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")) -> None:
         for i in range(16):
             for j in range(16):
@@ -771,7 +771,7 @@ def test_opaque_block():
 
 
 def rank0():
-    @Ts.prim_func
+    @Ts.function
     def rank0(A: T.Tensor((), "float32")) -> None:
         B = Ts.sblock_alloc_buffer((), "float32")
         A[()] = 2
@@ -781,7 +781,7 @@ def rank0():
 
 
 def rank0_block():
-    @Ts.prim_func
+    @Ts.function
     def rank0_block(A: T.Tensor((), "float32")) -> None:
         B = Ts.sblock_alloc_buffer((), "float32")
         B[()] = A[()]
@@ -796,7 +796,7 @@ def rank0_block():
 
 
 def nontrivial_range_axis():
-    @Ts.prim_func
+    @Ts.function
     def nontrivial_range_axis(A: T.Tensor(10, "float32")) -> None:
         for i in range(10):
             with Ts.sblock("block"):
@@ -807,7 +807,7 @@ def nontrivial_range_axis():
 
 
 def func_root_attr():
-    @Ts.prim_func
+    @Ts.function
     def func_root_attr():
         with Ts.sblock("root"):
             Ts.sblock_attr({"a": "0"})
@@ -817,7 +817,7 @@ def func_root_attr():
 
 
 def func_trivial_root_block():
-    @Ts.prim_func
+    @Ts.function
     def func(A: T.Tensor(1, "int32")):
         with Ts.sblock("root"):
             A[0] = 0
@@ -826,7 +826,7 @@ def func_trivial_root_block():
 
 
 def func_nested_root_block():
-    @Ts.prim_func
+    @Ts.function
     def func(A: T.Tensor(1, "int32")):
         with Ts.sblock("root"):
             with Ts.sblock("block"):
@@ -836,7 +836,7 @@ def func_nested_root_block():
 
 
 def int64_support():
-    @Ts.prim_func
+    @Ts.function
     def elementwise_shape_int64(
         A: T.Tensor((T.int64(128), T.int64(128)), dtype="float32"),
         C: T.Tensor((T.int64(128), T.int64(128)), dtype="float32"),
@@ -856,7 +856,7 @@ def int64_support():
 
 
 def func_attr_with_list():
-    @Ts.prim_func
+    @Ts.function
     def func(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((128, 128), "float32"),
@@ -879,7 +879,7 @@ def func_attr_with_list():
     return func
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_matmul_no_syntax_sugar(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -895,7 +895,7 @@ def transformed_matmul_no_syntax_sugar(
             C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_matmul_syntax_sugar(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -918,13 +918,13 @@ def test_reads_writes_syntax_sugar():
 
 
 def test_match_buffer_region_has_implicit_shape_dtype():
-    @Ts.prim_func
+    @Ts.function
     def explicit_shape_dtype(A: T.Tensor((16, 64), "int32")):
         with Ts.sblock():
             B = Ts.match_buffer(A[8:16, 32:64], shape=(8, 32), dtype="int32")
             T.evaluate(0)
 
-    @Ts.prim_func
+    @Ts.function
     def implicit_shape_dtype(A: T.Tensor((16, 64), "int32")):
         with Ts.sblock():
             B = Ts.match_buffer(A[8:16, 32:64])
@@ -964,7 +964,7 @@ def test_roundtrip_blocks(ir_generator):
 
 
 # Import-time construction also checks the annotated S-TIR API.
-@Ts.prim_func
+@Ts.function
 def element_wise_storage_align(
     A: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
     C: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
@@ -992,7 +992,7 @@ def element_wise_storage_align(
 
 
 # Import-time construction also checks the annotated S-TIR API.
-@Ts.prim_func
+@Ts.function
 def loop_split(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -1009,7 +1009,7 @@ def loop_split(
 
 
 # Import-time construction also checks the annotated S-TIR API.
-@Ts.prim_func
+@Ts.function
 def different_access_indices(
     A: T.Tensor([128, 128, 128], dtype="float32"), B: T.Tensor([128, 128], dtype="float32")
 ) -> None:

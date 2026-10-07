@@ -1340,8 +1340,8 @@ class StoragePlanRewriter : public StmtExprMutator {
  */
 struct BufferVarInfo {
   enum DeclarationLocation {
-    kPrimFuncBufferParam = (1 << 0),
-    kPrimFuncPointerParam = (1 << 1),
+    kFunctionBufferParam = (1 << 0),
+    kFunctionPointerParam = (1 << 1),
     kAllocTensorCall = (1 << 2),
     kLetNode = (1 << 3),
     kDeclTensorCall = (1 << 4),
@@ -1356,7 +1356,7 @@ struct BufferVarInfo {
   /* The extent of the buffer.
    *
    * If multidimensional, the extent of the last dimension of the buffer.  If the
-   * size is unknown (e.g. pointer arguments to PrimFunc without a TensorType
+   * size is unknown (e.g. pointer arguments to Function without a TensorType
    * annotation), then extent is zero.
    */
   PrimExpr extent;
@@ -1427,7 +1427,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
  public:
   /* Constructor
    *
-   * @param params The parameters passed to a PrimFunc
+   * @param params The parameters passed to a Function
    *
    * @param allow_untyped_handles If a buffer or pointer variable is
    * missing a type annotation, assume that it has the same underlying
@@ -1444,16 +1444,16 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
                               ? buffer.value()->shape[buffer.value()->shape.size() - 1]
                               : PrimExpr(0);
         OnArrayDeclaration(buffer_var, buffer.value()->dtype, extent,
-                           BufferVarInfo::kPrimFuncBufferParam);
+                           BufferVarInfo::kFunctionBufferParam);
         continue;
       }
       auto pointer_type = GetPointerType(buffer_var->ty);
       if (pointer_type.has_value() && !pointer_type.value().IsVoid()) {
         PrimType dtype = pointer_type.value();
         PrimExpr extent = 0;
-        OnArrayDeclaration(buffer_var, dtype, extent, BufferVarInfo::kPrimFuncPointerParam);
+        OnArrayDeclaration(buffer_var, dtype, extent, BufferVarInfo::kFunctionPointerParam);
       } else if (pointer_type.has_value() && allow_untyped_pointers_) {
-        OnArrayDeclaration(buffer_var, PrimType::Void(), 0, BufferVarInfo::kPrimFuncPointerParam);
+        OnArrayDeclaration(buffer_var, PrimType::Void(), 0, BufferVarInfo::kFunctionPointerParam);
       }
     }
   }
@@ -1721,7 +1721,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
  * valid.
  *
  * By default, VectorTypeRewriter will attempt to rewrite all buffer variables to
- * vectorized access, if the load/store occurring in the PrimFunc are all
+ * vectorized access, if the load/store occurring in the Function are all
  * vectorized.  This includes adjusting the indices being used to access the
  * array.  (e.g. If `float16* scalar_arr` is being converted to `float16x4*
  * vec_arr`, then `scalar_arr[Ramp(offset, 1, 4)]` will be converted to
@@ -1741,7 +1741,7 @@ class VectorTypeRewriter : public StmtExprMutator {
   /* Constructor
    *
    * @param checker The VectorTypeAccessChecker that has previously read out
-   * information from the PrimFunc
+   * information from the Function
    *
    * @param rewrite_buffer_params Whether TensorType-annotated parameters should
    * be rewritten from scalar element types to vectorized element types.
@@ -1766,10 +1766,10 @@ class VectorTypeRewriter : public StmtExprMutator {
       : rewrite_indices_(rewrite_indices), buffer_aliases_(buffer_aliases) {
     int rewrite_mask = 0;
     if (rewrite_buffer_params) {
-      rewrite_mask |= BufferVarInfo::kPrimFuncBufferParam;
+      rewrite_mask |= BufferVarInfo::kFunctionBufferParam;
     }
     if (rewrite_pointer_params) {
-      rewrite_mask |= BufferVarInfo::kPrimFuncPointerParam;
+      rewrite_mask |= BufferVarInfo::kFunctionPointerParam;
     }
     if (rewrite_alloc_buffer_node) {
       rewrite_mask |= BufferVarInfo::kAllocTensorCall;
@@ -2113,9 +2113,9 @@ class VectorTypeRewriter : public StmtExprMutator {
    * Should be called after rewriting the body of the
    * function.
    *
-   * @param func A pointer to the PrimFunc being modified.
+   * @param func A pointer to the Function being modified.
    */
-  void Finalize(PrimFunc* func_ptr) {
+  void Finalize(Function* func_ptr) {
     TVM_FFI_ICHECK(func_ptr) << "Finalize expects a non-null pointer";
     auto& func = *func_ptr;
     auto* n = func.CopyOnWrite();
@@ -2186,7 +2186,7 @@ class VectorTypeRewriter : public StmtExprMutator {
 
 // Rewrite allocates, pointer parameters, and buffer parameters into vectorized versions
 // if each access into a buffer is the same vector type.
-PrimFunc PointerValueTypeRewrite(PrimFunc f, bool allow_untyped_pointers = false,
+Function PointerValueTypeRewrite(Function f, bool allow_untyped_pointers = false,
                                  bool rewrite_buffer_params = true,
                                  bool rewrite_pointer_params = true,
                                  bool rewrite_alloc_buffer_node = true, bool rewrite_indices = true,
@@ -2200,7 +2200,7 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f, bool allow_untyped_pointers = false
       checker->info_map_, checker->buffer_aliases_, rewrite_buffer_params, rewrite_pointer_params,
       rewrite_alloc_buffer_node, rewrite_indices, rewrite_let_node,
       rewrite_scalar_read_to_vector_shuffle);
-  PrimFuncNode* n = f.CopyOnWrite();
+  FunctionNode* n = f.CopyOnWrite();
   n->body = rewriter->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(n->body);
   rewriter->Finalize(&f);
 
@@ -2210,7 +2210,7 @@ PrimFunc PointerValueTypeRewrite(PrimFunc f, bool allow_untyped_pointers = false
 namespace transform {
 
 Pass StorageRewrite() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     bool enable_reuse = true;
     bool reuse_require_exact_matched_dtype = false;
@@ -2235,7 +2235,7 @@ Pass StorageRewrite() {
     // Parameters may not be rewritten, but internal allocations may.
     return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true, false);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.StorageRewrite", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.StorageRewrite", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -2244,11 +2244,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Pass PointerValueTypeRewrite() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     return PointerValueTypeRewrite(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.PointerValueTypeRewrite", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.PointerValueTypeRewrite", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

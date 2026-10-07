@@ -183,13 +183,13 @@ class OpaqueBlockLower : public StmtExprMutator {
 namespace transform {
 
 Pass LowerOpaqueBlock() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto fptr = f.CopyOnWrite();
     fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerOpaqueBlock", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerOpaqueBlock", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

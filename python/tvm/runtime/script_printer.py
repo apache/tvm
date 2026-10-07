@@ -187,7 +187,7 @@ class Scriptable:
 
         """
         # Auto-switch to tirx (`T`/`tirx`) flavor only when explicitly
-        # printing a PrimFunc / IRModule that has no s_tir-tagged content.
+        # printing a Function / IRModule that has no s_tir-tagged content.
         # Free objects (Buffer, buffer-backed TensorRegion, ...) keep the default `T`/`tir`
         # flavor -- they have no enclosing function to indicate tirx vs s_tir.
         merged_extra: dict = {}
@@ -200,10 +200,10 @@ class Scriptable:
         # Only auto-switch if the caller has not already set a tirx.prefix override.
         if "tirx.prefix" not in merged_extra:
             from tvm.ir import IRModule  # pylint: disable=import-outside-toplevel
-            from tvm.tirx import PrimFunc  # pylint: disable=import-outside-toplevel
+            from tvm.tirx import Function  # pylint: disable=import-outside-toplevel
 
             switch_to_tirx = False
-            if isinstance(self, PrimFunc):
+            if isinstance(self, Function):
                 attrs = getattr(self, "attrs", None)
                 if attrs is None or not attrs.get("s_tir", False):
                     switch_to_tirx = True
@@ -211,7 +211,7 @@ class Scriptable:
                 any_prim = False
                 any_s_tir = False
                 for _, base_func in self.functions.items():
-                    if isinstance(base_func, PrimFunc):
+                    if isinstance(base_func, Function):
                         any_prim = True
                         if getattr(base_func, "attrs", None) and base_func.attrs.get(
                             "s_tir", False

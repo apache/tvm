@@ -83,7 +83,7 @@ mbarrier and writes the result out (from ``test_dsmem.py``):
     r = (slice(0, 128), slice(0, 64))
 
 
-    @Tx.prim_func
+    @Tx.function
     def dsmem_copy(A: Tx.Tensor(shape, dtype), B: Tx.Tensor(shape, dtype)):
 
         Tx.device_entry()

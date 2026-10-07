@@ -214,7 +214,7 @@ def test_call_tir_with_tir_var():
 
         copy_n = T.int64()
 
-        @Ts.prim_func
+        @Ts.function
         def copy(
             X: T.Tensor((copy_n * 2,), dtype="float32"),
             n: copy_n,

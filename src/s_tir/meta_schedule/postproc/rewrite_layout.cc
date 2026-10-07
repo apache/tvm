@@ -139,8 +139,8 @@ class LayoutFreeBufferCollector : public StmtExprVisitor {
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers;
 };
 
-ffi::Array<TensorVar> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
-  // Only rewrite PrimFuncs with attr "layout_free_buffers"
+ffi::Array<TensorVar> CollectLayoutFreeBuffers(const FunctionNode* func) {
+  // Only rewrite Functions with attr "layout_free_buffers"
   ffi::Array<int64_t> layout_free_buffer_index =
       func->GetAttr(s_tir::attr::layout_free_buffers, ffi::Array<int64_t>()).value();
 
@@ -161,9 +161,9 @@ ffi::Array<TensorVar> CollectLayoutFreeBuffers(const PrimFuncNode* func) {
 }
 
 std::optional<std::tuple<SBlock, int, IndexMap>> GetSuggestedIndexMap(
-    TensorVar buffer, const PrimFuncNode* prim_func) {
+    TensorVar buffer, const FunctionNode* function) {
   auto collector = ffi::make_object<BufferReadPosCollector>(buffer);
-  collector->Visit(prim_func->body);
+  collector->Visit(function->body);
 
   const auto& index_map = collector->GetBufferIndexMap();
 
@@ -177,7 +177,7 @@ std::optional<std::tuple<SBlock, int, IndexMap>> GetSuggestedIndexMap(
 }
 
 /*! \brief Get a chain of cache-read blocks, starting from the one consuming buf. */
-std::vector<std::string> GetCacheReadChain(const TensorVar& buf, const PrimFuncNode* prim_func) {
+std::vector<std::string> GetCacheReadChain(const TensorVar& buf, const FunctionNode* function) {
   class BufferReadChainCollector : public StmtExprVisitor {
    public:
     using StmtExprVisitor::Visit_;
@@ -206,7 +206,7 @@ std::vector<std::string> GetCacheReadChain(const TensorVar& buf, const PrimFuncN
   };
 
   auto collector = ffi::make_object<BufferReadChainCollector>(buf);
-  collector->Visit(prim_func->body);
+  collector->Visit(function->body);
   return collector->cache_read_chain;
 }
 
@@ -219,18 +219,18 @@ bool RewriteLayout(const Schedule& sch) {
 
   for (const auto& [g_var, base_func] : sch->mod()->functions) {
     const ffi::String& func_name = g_var->name_hint;
-    const auto* prim_func = base_func.as<PrimFuncNode>();
-    // Only consider PrimFunc
-    if (prim_func == nullptr) {
+    const auto* function = base_func.as<FunctionNode>();
+    // Only consider Function
+    if (function == nullptr) {
       continue;
     }
 
-    for (auto buffer : CollectLayoutFreeBuffers(prim_func)) {
-      const auto cache_read_chain = GetCacheReadChain(buffer, prim_func);
+    for (auto buffer : CollectLayoutFreeBuffers(function)) {
+      const auto cache_read_chain = GetCacheReadChain(buffer, function);
       if (cache_read_chain.empty()) {
         // The common case, where the layout-free buffer is directly consumed by an anchor op such
         // as conv2d or dense.
-        auto tup_opt = GetSuggestedIndexMap(buffer, prim_func);
+        auto tup_opt = GetSuggestedIndexMap(buffer, function);
         if (tup_opt == std::nullopt) continue;
 
         auto [anchor_block, buffer_index, index_map] = *tup_opt;
@@ -245,7 +245,7 @@ bool RewriteLayout(const Schedule& sch) {
         SBlock cache_read_block = sch->Get(sch->GetSBlock(cache_read_chain.back(), func_name));
         TVM_FFI_ICHECK_EQ(cache_read_block->writes.size(), 1);
         auto tup_opt = GetSuggestedIndexMap(
-            cache_read_block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(), prim_func);
+            cache_read_block->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>(), function);
         if (tup_opt == std::nullopt) continue;
 
         auto [anchor_block, buffer_index, index_map] = *tup_opt;

@@ -71,18 +71,18 @@ def call_tir_local_view(
     out_ty: DTensorType | list[DTensorType],
 ) -> Call:
     """
-    Call a tirx.prim_func and return the output. The prim_func should be a worker-local function
+    Call a tirx.function and return the output. The function should be a worker-local function
     that is actually executed on each worker, instead of the unpartitioned function.
     The output of this operator is DTensor or a tuple of DTensors.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tirx PrimFunc.
+        The GlobalVar referring to a tirx Function.
 
     args : Expr
         The ordered distributed-tensor and primitive input arguments.  These
-        correspond positionally to the leading parameters of the PrimFunc.
+        correspond positionally to the leading parameters of the Function.
 
     out_ty : Union[DTensorType, List[DTensorType]]
         The type information of the call_tir output.

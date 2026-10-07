@@ -429,7 +429,7 @@ ScheduleState::ScheduleState(IRModule mod, int debug_mask, bool enable_check) {
   // Set `n->block_info`
   for (const auto& kv : n->mod->functions) {
     const BaseFunc& base_func = kv.second;
-    if (auto opt = base_func.as<PrimFunc>()) {
+    if (auto opt = base_func.as<Function>()) {
       auto func = opt.value();
       s_tir::VerifyWellFormed(func);
       if (func->body.has_value()) {
@@ -967,11 +967,11 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
   // Variables:
   // 1) `num_copy_steps`. The maximum number of hops until we need to copy. To reach a node that
   //   can be mutated inplace, it needs `num_copy_steps + 1` hops.
-  // 2) `need_module_copy`. If true, need to mutate the PrimFunc and IRModule the sref belongs to.
-  // 3) `g_var` and `g_func`. Indicate which GlobalVar and PrimFunc the sref corresponds to
+  // 2) `need_module_copy`. If true, need to mutate the Function and IRModule the sref belongs to.
+  // 3) `g_var` and `g_func`. Indicate which GlobalVar and Function the sref corresponds to
   int num_copy_steps = -1;
   bool need_module_copy = false;
-  const PrimFuncNode* g_func = nullptr;
+  const FunctionNode* g_func = nullptr;
   GlobalVar g_var{ffi::UnsafeInit{}};
   {
     int i = 0;
@@ -987,7 +987,7 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
       p = p->parent;
     }
     // Find `g_func` and `g_var` where the `src_sref` is in
-    g_func = GetRootPrimFunc(this->mod, p->stmt, &g_var);
+    g_func = GetRootFunction(this->mod, p->stmt, &g_var);
     need_module_copy = num_copy_steps == i ||             //
                        !this->mod.unique() ||             //
                        !this->mod->functions.unique() ||  //
@@ -1048,13 +1048,13 @@ void ScheduleStateNode::Replace(const tirx::StmtSRef& _src_sref, const Stmt& tgt
     // Ensure the uniqueness of `this->mod` and `this->mod->functions`
     IRModuleNode* new_mod = this->mod.CopyOnWrite();
     ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
-    // Move out the PrimFunc where the sref belong while ensuring uniqueness
-    PrimFunc ref_new_func = std::move(new_map->at(g_var)).as_or_throw<PrimFunc>();
+    // Move out the Function where the sref belong while ensuring uniqueness
+    Function ref_new_func = std::move(new_map->at(g_var)).as_or_throw<Function>();
     TVM_FFI_ICHECK(ref_new_func.get() == g_func);
-    PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
+    FunctionNode* new_func = ref_new_func.CopyOnWrite();
     // If `g_func` was not unique, after the 3 lines above:
-    //   `ref_new_func` points to a unique PrimFunc
-    //   `g_func` points to the previous PrimFunc if it is not unique
+    //   `ref_new_func` points to a unique Function
+    //   `g_func` points to the previous Function if it is not unique
     // If `g_func` was unique, after the 3 lines above:
     //   `ref_new_func` points to the same unique function that `g_func` points to
     // Update the body of the function the sref belongs to Assign

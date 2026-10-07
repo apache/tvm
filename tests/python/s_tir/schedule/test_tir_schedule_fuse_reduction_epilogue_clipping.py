@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_clipping_before(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -55,7 +55,7 @@ def matmul_clipping_before(
             D[vi, vj] = T.min(T.max(temp[vi, vj], lower), upper)
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_clipping_expected(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -83,7 +83,7 @@ def test_matmul_clipping():
     verify_trace_roundtrip(sch=sch, mod=matmul_clipping_before)
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_clipping_before_per_iteration(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -154,7 +154,7 @@ def test_matmul_clipping_correctness_unified():
     np.testing.assert_allclose(D_original, D_fused, rtol=1e-5, atol=1e-6)
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_clipping_multiple_epilogue_before(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -183,7 +183,7 @@ def matmul_clipping_multiple_epilogue_before(
             E[vi, vj] = temp[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_clipping_multiple_epilogue_expected(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -245,7 +245,7 @@ def test_matmul_clipping_commutative_variants(pattern_func):
     lower = -5.0
     upper = 5.0
 
-    @Ts.prim_func
+    @Ts.function
     def test_func(
         A: T.Tensor((8, 8), "float32"),
         B: T.Tensor((8, 8), "float32"),

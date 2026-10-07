@@ -32,11 +32,11 @@ using s_tir::CanReverseComputeInline;
 using s_tir::GetAnn;
 using s_tir::GetConsumers;
 using s_tir::GetProducers;
-using s_tir::GetRootPrimFunc;
+using s_tir::GetRootFunction;
 using s_tir::GetSBlockRealize;
 using s_tir::HasIfThenElse;
 using s_tir::HasOp;
-using s_tir::IsSpatialPrimFunc;
+using s_tir::IsSpatialFunction;
 using s_tir::ScheduleState;
 
 /*! \brief The type of inline to be performed on a specific block */
@@ -49,13 +49,13 @@ enum class InlineType : int32_t {
   kInlineIntoProducer = 2,
 };
 
-bool IsInSpatialPrimFunc(const s_tir::Schedule& sch, const tirx::StmtSRef& block_sref) {
+bool IsInSpatialFunction(const s_tir::Schedule& sch, const tirx::StmtSRef& block_sref) {
   using namespace tvm::tirx;
   const StmtSRefNode* sref = block_sref.get();
   for (; sref->parent != nullptr; sref = sref->parent) {
   }
   TVM_FFI_ICHECK(sref->stmt != nullptr && sref->stmt->IsInstance<SBlockNode>());
-  return IsSpatialPrimFunc(ffi::GetRef<PrimFunc>(GetRootPrimFunc(sch->mod(), sref->stmt, nullptr)));
+  return IsSpatialFunction(ffi::GetRef<Function>(GetRootFunction(sch->mod(), sref->stmt, nullptr)));
 }
 
 /*! \brief The rule that inlines spatial blocks if it satisfies some conditions. */
@@ -120,7 +120,7 @@ inline InlineType AutoInlineNode::CheckInline(const s_tir::Schedule& sch,
                                               const s_tir::SBlockRV& block_rv) {
   using namespace tvm::tirx;
   StmtSRef block_sref = sch->GetSRef(block_rv);
-  bool is_pure_sptial = IsInSpatialPrimFunc(sch, block_sref);
+  bool is_pure_sptial = IsInSpatialFunction(sch, block_sref);
   ScheduleState state = sch->state();
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   SBlockRealize realize = GetSBlockRealize(state, block_sref);

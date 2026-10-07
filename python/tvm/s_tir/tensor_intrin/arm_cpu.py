@@ -19,7 +19,7 @@
 """Intrinsics for ARM tensorization."""
 
 from tvm import tirx
-from tvm.s_tir.script.ir_builder import prim_func as build_prim_func
+from tvm.s_tir.script.ir_builder import function as build_function
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.script.ir_builder import IRBuilder
@@ -37,7 +37,7 @@ from .dot_product_common import (
 # shape and dtype, and share the common description with x86.
 
 
-@Ts.prim_func
+@Ts.function
 def neon_4x4_i8i8i32_desc(
     A: T.Tensor((4,), "int8", offset_factor=1),
     B: T.Tensor((4, 4), "int8", offset_factor=1),
@@ -53,7 +53,7 @@ def neon_4x4_i8i8i32_desc(
                     C[vi] = C[vi] + T.cast(A[vk], "int32") * T.cast(B[vi, vk], "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def neon_4x4_i8i8i32_impl(
     A: T.Tensor((4,), "int8", offset_factor=1),
     B: T.Tensor((4, 4), "int8", offset_factor=1),
@@ -119,7 +119,7 @@ def get_dotprod_intrin(in_dtype, out_dtype):
     out_dtype_x4 = f"{out_dtype}x4"
     in_dtype_x16 = f"{in_dtype}x16"
 
-    @Ts.prim_func
+    @Ts.function
     def dot_prod_desc(
         A: T.Tensor((4,), dtype=in_dtype, offset_factor=1),
         B: T.Tensor((4, 4), dtype=in_dtype, offset_factor=1),
@@ -136,7 +136,7 @@ def get_dotprod_intrin(in_dtype, out_dtype):
                             B[vi, vk], dtype=out_dtype
                         )
 
-    @Ts.prim_func
+    @Ts.function
     def dot_prod_impl(
         A: T.Tensor((4,), dtype=in_dtype, offset_factor=1),
         B: T.Tensor((4, 4), dtype=in_dtype, offset_factor=1),
@@ -259,7 +259,7 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
     SVF = tirx.get_vscale_expr("float32")
     SVF2 = 2 * SVF
 
-    @Ts.prim_func
+    @Ts.function
     def desc(
         A: T.Tensor((SVF2, SVF2), dtype="float32", offset_factor=1),
         A_t: T.Tensor((SVF2, SVF2), dtype="float32", offset_factor=1),
@@ -276,7 +276,7 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
         sub_tile_count = 4
 
         with IRBuilder() as ib:
-            with build_prim_func():
+            with build_function():
                 A = T.arg_(
                     "a", T.Tensor((SVF2, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1])
                 )
@@ -389,7 +389,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
     SVF = tirx.get_vscale_expr("float16")
     SVF2 = 2 * SVF
 
-    @Ts.prim_func
+    @Ts.function
     def desc(
         A: T.Tensor((SVF2, SVF), dtype="float16", offset_factor=1),
         A_t: T.Tensor((SVF, SVF2), dtype="float16", offset_factor=1),
@@ -404,7 +404,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
 
     def impl():
         with IRBuilder() as ib:
-            with build_prim_func():
+            with build_function():
                 A = T.arg_(
                     "a", T.Tensor((SVF2, SVF), "float16", offset_factor=1, strides=[T.int32(), 1])
                 )
@@ -591,7 +591,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
         "llvm.aarch64.sme.mopa" if in_dtype == "float32" else "llvm.aarch64.sme.mopa.wide"
     )
 
-    @Ts.prim_func
+    @Ts.function
     def desc(
         A: T.Tensor((K, SVF2), dtype=in_dtype, offset_factor=1),
         B: T.Tensor((K, SVF2), dtype=in_dtype, offset_factor=1),
@@ -609,7 +609,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
         sub_tile_count = 4
 
         with IRBuilder() as ib:
-            with build_prim_func():
+            with build_function():
                 A = T.arg_(
                     "a", T.Tensor((K, SVF2), in_dtype, offset_factor=1, strides=[T.int32(), 1])
                 )
@@ -721,7 +721,7 @@ def get_sme_init_intrin():
     """
     SVF2 = 2 * 4 * T.vscale()
 
-    @Ts.prim_func
+    @Ts.function
     def desc(C: T.Tensor((SVF2, SVF2), "float32", offset_factor=1)) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -731,7 +731,7 @@ def get_sme_init_intrin():
                     v_m, v_n = Ts.axis.remap("SS", [m, n])
                     C[v_m, v_n] = T.float32(0)
 
-    @Ts.prim_func
+    @Ts.function
     def impl(C: T.Tensor((SVF2, SVF2), "float32", offset_factor=1)) -> None:
         with Ts.sblock("root"):
             Ts.reads()

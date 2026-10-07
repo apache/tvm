@@ -47,7 +47,7 @@ def test_optional_statement_fields_and_roundtrip():
     assert conditional.else_case is None
     loop = tvm.tirx.For(tvm.tirx.Var("i", "int32"), 0, 4, tvm.tirx.ForKind.SERIAL, body, step=None)
     assert loop.step is None
-    declaration = tvm.tirx.PrimFunc([], None)
+    declaration = tvm.tirx.Function([], None)
     assert declaration.body is None
     assert declaration.with_body(body).body.same_as(body)
     for value in [conditional, loop, declaration]:

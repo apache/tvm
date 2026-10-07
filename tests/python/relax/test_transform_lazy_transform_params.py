@@ -30,7 +30,7 @@ from tvm.script import tirx as T
 def test_lazy_transform_params():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -67,7 +67,7 @@ def test_lazy_transform_params():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -111,7 +111,7 @@ def test_lazy_transform_params():
 def test_get_item_only():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -149,7 +149,7 @@ def test_get_item_only():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -194,7 +194,7 @@ def test_get_item_only():
 def test_extra_get_item_params():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -232,7 +232,7 @@ def test_extra_get_item_params():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -279,7 +279,7 @@ def test_extra_get_item_params():
 def test_extra_set_item_params():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -317,7 +317,7 @@ def test_extra_set_item_params():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -429,7 +429,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             output = (transformed,)
             return output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_buffer(
             Input: T.Tensor((16, 16), "float32"),
             slice_index: T.int64,
@@ -464,7 +464,7 @@ def test_lazy_transform_params_with_symbolic_vars():
             output = R.tuple()
             return output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_buffer(
             Input: T.Tensor((16, 16), "float32"),
             slice_index: T.int64,
@@ -485,7 +485,7 @@ def test_param_shape_symbolic():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
             out: T.Tensor((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
@@ -528,7 +528,7 @@ def test_param_shape_symbolic():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((ic_transform_layout_IOHW_to_OIHW, 16, 3, 3), "float32"),
             out: T.Tensor((16, ic_transform_layout_IOHW_to_OIHW, 3, 3), "float32"),
@@ -572,7 +572,7 @@ def test_param_shape_symbolic():
 def test_output_with_use_site():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def copy(x: T.Tensor((), "float32"), y: T.Tensor((), "float32")):
             with Ts.sblock("block"):
                 Ts.reads(x[()])
@@ -594,7 +594,7 @@ def test_output_with_use_site():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def copy(x: T.Tensor((), "float32"), y: T.Tensor((), "float32")):
             with Ts.sblock("block"):
                 Ts.reads(x[()])

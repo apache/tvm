@@ -221,12 +221,12 @@ class PTXAsyncCopyInjector : public StmtExprMutator {
 namespace transform {
 
 Pass InjectPTXAsyncCopy() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = ffi::make_object<PTXAsyncCopyInjector>()->Mutate(n->body).ValueOrUnchanged(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectPTXAsyncCopy", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectPTXAsyncCopy", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

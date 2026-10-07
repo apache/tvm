@@ -38,7 +38,7 @@ def test_basic():
 
     @tvm.script.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def tir_matmul(
             A: T.Tensor((m_tir_matmul, n_tir_matmul)),
             B: T.Tensor((n_tir_matmul, k_tir_matmul)),
@@ -67,7 +67,7 @@ def test_basic():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def tir_matmul(
             A: T.Tensor((m_tir_matmul, n_tir_matmul)),
             B: T.Tensor((n_tir_matmul, k_tir_matmul)),
@@ -102,7 +102,7 @@ def test_system_lib_prefix():
     class Before:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_zeros(x: T.Tensor((2), "float32")) -> None:
             x[0] = T.float32(0)
 
@@ -115,7 +115,7 @@ def test_system_lib_prefix():
     class Expected:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
-        @Ts.prim_func
+        @Ts.function
         def hello_tir_zeros(x: T.Tensor((2), "float32")) -> None:
             T.func_attr({"global_symbol": "hello_tir_zeros"})
             x[0] = T.float32(0)

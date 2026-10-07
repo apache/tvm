@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
-@Ts.prim_func
+@Ts.function
 def element_wise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
@@ -44,7 +44,7 @@ def element_wise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "fl
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 1.0
 
-@Ts.prim_func
+@Ts.function
 def element_wise_set_scope(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
 
@@ -57,7 +57,7 @@ def element_wise_set_scope(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128,
             vi, vj = Ts.axis.remap("SS", [i, j])
             C[vi, vj] = B_shared[vi, vj] + T.float32(1)
 
-@Ts.prim_func
+@Ts.function
 def element_wise_subregion_match(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((128, 128), dtype="float32")
 
@@ -72,7 +72,7 @@ def element_wise_subregion_match(A: T.Tensor((128, 128), "float32"), C: T.Tensor
             B_subregion1 = Ts.match_buffer(B[vi, vj], [], offset_factor=1)
             C[vi, vj] = B_subregion1[()] + 1.0
 
-@Ts.prim_func
+@Ts.function
 def element_wise_subregion_match_set_scope(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B_shared = Ts.sblock_alloc_buffer([128, 128], dtype="float32", scope="shared")
 

@@ -233,7 +233,7 @@ class IRConvertSSA : public StmtExprMutator {
   TVM_DEFINE_OBJECT_FUNCTOR_DEFAULT_CONSTRUCTOR(IRConvertSSA, StmtExprMutator)
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  PrimFunc VisitPrimFunc(PrimFunc func);
+  Function VisitFunction(Function func);
   IRModule VisitIRModule(IRModule mod);
 
  protected:
@@ -365,7 +365,7 @@ std::unordered_map<const VarNode*, FragmentInfo> GetTensorCoreFragmentInfo(const
 std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
                                                    const std::string& scope);
 
-/*! \brief Check if a PrimFunc is a host function
+/*! \brief Check if a Function is a host function
  *
  * \param func The function to be inspected
  *
@@ -374,7 +374,7 @@ std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
  * determined (e.g. a function without a tvm::attr::kTarget
  * attribute), returns std::nullopt.
  */
-std::optional<bool> IsHostFunc(const PrimFunc& func);
+std::optional<bool> IsHostFunc(const Function& func);
 
 }  // namespace tirx
 }  // namespace tvm

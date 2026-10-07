@@ -30,12 +30,8 @@ def test_import_static_library():
     # Generate two LLVM modules.
     A = te.placeholder((1024,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    irmod0 = tvm.IRModule.from_expr(
-        te.create_prim_func([A, B]).with_attr("global_symbol", "myadd0")
-    )
-    irmod1 = tvm.IRModule.from_expr(
-        te.create_prim_func([A, B]).with_attr("global_symbol", "myadd1")
-    )
+    irmod0 = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd0"))
+    irmod1 = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd1"))
 
     mod0 = tvm.tirx.build(irmod0, target="llvm")
     mod1 = tvm.tirx.build(irmod1, target="llvm")

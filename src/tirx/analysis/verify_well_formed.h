@@ -104,7 +104,7 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier<PathVisitor>, 
 /*! \brief Verify that buffers with a declaration are not used outside their declared scope.
  *
  * When a buffer is declared via one of the following sites:
- *   - TensorType-annotated PrimFunc parameters
+ *   - TensorType-annotated Function parameters
  *   - DeclTensor statement
  *   - Dialect-specific definitions exposed by PathVisitor
  *
@@ -124,8 +124,8 @@ class UndefinedBufferVerifier : public Verifier<UndefinedBufferVerifier<PathVisi
  private:
   using Verifier::Visit;
 
-  void Visit(const PrimFunc& prim_func, AccessPath path) override {
-    Verifier::Visit(prim_func, path);
+  void Visit(const Function& function, AccessPath path) override {
+    Verifier::Visit(function, path);
     // Clear per-function state (buffers should not cross function boundaries).
     currently_defined_.clear();
     previously_defined_.clear();
@@ -265,10 +265,10 @@ class LoopControlVerifier : public Verifier<LoopControlVerifier<PathVisitor>, Pa
  private:
   using Verifier::Visit;
 
-  void Visit(const PrimFunc& prim_func, AccessPath path) override {
+  void Visit(const Function& function, AccessPath path) override {
     int enclosing_depth = loop_depth_;
     loop_depth_ = 0;
-    Verifier::Visit(prim_func, path);
+    Verifier::Visit(function, path);
     loop_depth_ = enclosing_depth;
   }
 

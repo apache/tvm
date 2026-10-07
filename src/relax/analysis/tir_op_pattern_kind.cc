@@ -41,7 +41,7 @@ using namespace tirx;
 
 class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
  public:
-  explicit PatternKindAnalyzer(const tirx::PrimFunc& func) {
+  explicit PatternKindAnalyzer(const tirx::Function& func) {
     for (const tirx::Var& param : func->params) {
       ffi::Optional<TensorVar> param_buf = param.as<TensorVar>();
       if (param_buf.has_value()) {
@@ -364,13 +364,13 @@ class PatternKindAnalyzer : public s_tir::StmtExprVisitor {
   OpPatternKind GetResult() { return kind_; }
 };
 
-OpPatternKind AnalyzeOpPatternKind(const PrimFunc& func) {
+OpPatternKind AnalyzeOpPatternKind(const tirx::Function& func) {
   auto analyzer = ffi::make_object<PatternKindAnalyzer>(func);
   analyzer->Visit(func->body);
   return analyzer->GetResult();
 }
 
-bool HasReshapePattern(const PrimFunc& func) {
+bool HasReshapePattern(const tirx::Function& func) {
   if (!func->body.has_value()) return false;
   class ReshapeDetector : public s_tir::StmtExprVisitor {
    public:
@@ -444,7 +444,7 @@ bool HasReshapePattern(const PrimFunc& func) {
         return std::nullopt;
       }
       // Further, we require the buffer being stored and being loaded to
-      // match the parameter of the PrimFunc, namely `dst_buffer_` and `src_buffer_`.
+      // match the parameter of the tirx::Function, namely `dst_buffer_` and `src_buffer_`.
       if (!(tensor_store->buffer.same_as(dst_buffer_) &&
             buffer_load->source.as_or_throw<tvm::tirx::TensorVar>().same_as(src_buffer_))) {
         return std::nullopt;

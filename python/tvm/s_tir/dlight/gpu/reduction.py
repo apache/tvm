@@ -28,7 +28,7 @@ from ..analysis import (
     SBlockInfo,
     detect_dominant_read,
     is_broadcast_epilogue,
-    normalize_prim_func,
+    normalize_function,
 )
 from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
@@ -118,14 +118,14 @@ class Reduction(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         if block_infos is None:
             return None
         block_infos = try_inline_contiguous_spatial(sch, block_infos)

@@ -52,7 +52,7 @@ def test_te_workload(workload, flops):
     assert float(flops) == estimate_tir_flops(mod)
 
 
-@Ts.prim_func
+@Ts.function
 def flops_with_let(a: T.Tensor(16, "float32")):
     for i in range(8):
         j = i + 8
@@ -64,7 +64,7 @@ def test_flops_with_let():
     assert flops == 8
 
 
-@Ts.prim_func
+@Ts.function
 def flops_with_if(a: T.Tensor(16, "float32"), b: T.Tensor(16, "float32")):
     for i in range(16):
         if i % 2 == 0:
@@ -79,14 +79,14 @@ def test_flops_with_if():
     assert flops == 16
 
 
-@Ts.prim_func
+@Ts.function
 def flops_with_forloop_as_expression(A: T.Tensor(1)):
     for i in T.serial(0, 16):
         for k in T.serial(0, i):
             A[0] = A[0] + 1
 
 
-@Ts.prim_func
+@Ts.function
 def flops_override(A: T.Tensor(16, "float32")):
     T.func_attr({"estimated_flops": 32})
     for i in range(16):
@@ -108,7 +108,7 @@ def test_estimate_flops_with_decl_buffer():
     def make_func(use_decl_buffer):
         buffer_func = T.decl_tensor if use_decl_buffer else T.Tensor
 
-        @Ts.prim_func
+        @Ts.function
         def func(A_data: T.handle("float32")):
             A = buffer_func(16, "float32", data=A_data)
             for i in range(16):
@@ -121,7 +121,7 @@ def test_estimate_flops_with_decl_buffer():
     assert flops_with_decl_buffer == flops_without_decl_buffer
 
 
-@Ts.prim_func
+@Ts.function
 def flops_with_nonint_extent(a: T.Tensor(16, "float32")):
     for i in range(4 + 4):
         a[i] = 2 * a[i]
@@ -131,7 +131,7 @@ def test_flops_with_nonint_extent():
     assert estimate_tir_flops(IRModule({"main": flops_with_nonint_extent})) == 8
 
 
-@Ts.prim_func
+@Ts.function
 def flops_with_variable_extent(a: T.Tensor(16, "float32")):
     for i in range(4 + 4):
         for j in range(i + 8):

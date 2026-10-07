@@ -34,8 +34,8 @@ struct AsyncStridedMemCopyFinder : public StmtExprVisitor {
   static bool Find(const IRModule& mod) {
     auto finder = ffi::make_object<AsyncStridedMemCopyFinder>();
     for (const auto& kv : mod->functions) {
-      if (const auto* prim_func = kv.second.as<PrimFuncNode>()) {
-        finder->Visit(prim_func->body);
+      if (const auto* function = kv.second.as<FunctionNode>()) {
+        finder->Visit(function->body);
         if (finder->found_) {
           return true;
         }
@@ -101,7 +101,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
-      if (const auto* prim_func = base_func.as<tirx::PrimFuncNode>()) {
+      if (const auto* function = base_func.as<tirx::FunctionNode>()) {
         IRModule lowered{ffi::UnsafeInit()};
         try {
           auto pass_list = ffi::Array<tvm::transform::Pass>();
@@ -121,7 +121,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(s_tir::transform::InjectVirtualThread());
           pass_list.push_back(tirx::transform::VectorizeLoop(true));
           pass_list.push_back(tirx::transform::StorageRewrite());
-          tirx::PrimFunc f = WithAttr(ffi::GetRef<tirx::PrimFunc>(prim_func), "global_symbol",
+          tirx::Function f = WithAttr(ffi::GetRef<tirx::Function>(function), "global_symbol",
                                       ffi::String(g_var->name_hint));
           IRModule mod =
               IRModule(ffi::Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));

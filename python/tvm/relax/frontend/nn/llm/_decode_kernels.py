@@ -65,7 +65,7 @@ def _attention_decode_cpu(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, slidi
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_decode_paged_kv(
         Q: T.Tensor((B, H_qo, D), qkv_dtype),
         pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype),
@@ -212,7 +212,7 @@ def _attention_decode(num_kv_heads, num_qo_heads, head_dim, qkv_dtype, sliding_w
     k_rope_pos_offset_elem_offset = T.dynamic("k_rope_pos_offset_elem_offset", "int32")
     q_rope_position_elem_offset = T.dynamic("q_rope_position_elem_offset", "int32")
     length_info_elem_offset = T.dynamic("length_info_elem_offset", "int32")
-    @Ts.prim_func
+    @Ts.function
     def batch_decode_paged_kv(
         Q: T.Tensor((B, H_qo, D), qkv_dtype),
         pages: T.Tensor((max_num_pages, 2, H_kv, page_size, D), qkv_dtype, elem_offset=pages_elem_offset),
@@ -393,7 +393,7 @@ def _merge_state_inplace_cpu(v_dtype):
     N = T.dynamic("N", "int32")
     H = T.dynamic("H", "int32")
     D = T.dynamic("D", "int32")
-    @Ts.prim_func
+    @Ts.function
     def merge_state_inplace_cpu(
         V: T.Tensor((N, H, D), v_dtype),
         S: T.Tensor((N, H), 'float32'),
@@ -438,7 +438,7 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target, global_sy
     N = T.dynamic("N", "int32")
     H = T.dynamic("H", "int32")
     D = T.dynamic("D", "int32")
-    @Ts.prim_func
+    @Ts.function
     def merge_state_inplace(
         V: T.Tensor((N, H, D), v_dtype),
         S: T.Tensor((N, H), 'float32'),

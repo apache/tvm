@@ -39,7 +39,7 @@ namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   TIRFrameNode::RegisterReflection();
-  PrimFuncFrameNode::RegisterReflection();
+  FunctionFrameNode::RegisterReflection();
   ForFrameNode::RegisterReflection();
   AssertFrameNode::RegisterReflection();
   RegionFrameNode::RegisterReflection();
@@ -50,18 +50,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 namespace {
-std::map<ffi::String, PrimFuncFrameNode::AttrValidator>& AttrValidators() {
-  static std::map<ffi::String, PrimFuncFrameNode::AttrValidator> validators;
+std::map<ffi::String, FunctionFrameNode::AttrValidator>& AttrValidators() {
+  static std::map<ffi::String, FunctionFrameNode::AttrValidator> validators;
   return validators;
 }
 }  // namespace
 
-void PrimFuncFrameNode::RegisterAttrValidator(ffi::String key, AttrValidator validator) {
+void FunctionFrameNode::RegisterAttrValidator(ffi::String key, AttrValidator validator) {
   TVM_FFI_ICHECK(AttrValidators().emplace(std::move(key), std::move(validator)).second)
       << "Duplicate function attribute validator";
 }
 
-void PrimFuncFrameNode::ValidateAttrs() const {
+void FunctionFrameNode::ValidateAttrs() const {
   for (const auto& [key, value] : attrs) {
     auto it = AttrValidators().find(key);
     if (it != AttrValidators().end()) it->second(this, value);
@@ -72,12 +72,12 @@ void TIRFrameNode::BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegi
   TVM_FFI_THROW(ValueError) << "match_buffer requires a frame that supports region aliases";
 }
 
-tvm::tirx::PrimFunc PrimFuncFrameNode::FinalizeFunction(tvm::tirx::PrimFunc func) { return func; }
+tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func) { return func; }
 
-void PrimFuncFrameNode::ExitWithScope() {
+void FunctionFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   ValidateAttrs();
-  // if the prim func is not private and there isn't already a global symbol,
+  // if the function is not private and there isn't already a global symbol,
   // add a global symbol
   auto insert_attr = [&](ffi::String key, ffi::Any value) {
     if (!attrs.defined()) {
@@ -105,7 +105,7 @@ void PrimFuncFrameNode::ExitWithScope() {
       << "A function declaration cannot contain body statements";
   ffi::Optional<tvm::tirx::Stmt> body = std::nullopt;
   if (!is_declaration) body = AsStmt(stmts);
-  tvm::tirx::PrimFunc func(
+  tvm::tirx::Function func(
       /*params=*/args,
       /*body=*/body,
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
@@ -139,7 +139,7 @@ void PrimFuncFrameNode::ExitWithScope() {
       ir::DefFunction(func_name, func);
     }
   } else {
-    TVM_FFI_THROW(ValueError) << "Cannot find where to insert PrimFunc";
+    TVM_FFI_THROW(ValueError) << "Cannot find where to insert Function";
   }
   is_declaration = false;
 }

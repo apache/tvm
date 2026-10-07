@@ -62,7 +62,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
 
-  static PrimFunc Transform(PrimFunc func) {
+  static Function Transform(Function func) {
     Analyzer analyzer;
 
     auto new_body = ffi::make_object<PermutedLayoutInjector>(func, analyzer)
@@ -73,7 +73,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return func;
   }
 
-  explicit PermutedLayoutInjector(PrimFunc func, const Analyzer& analyzer)
+  explicit PermutedLayoutInjector(Function func, const Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
     for (const Var& param : func->params) {
       if (auto buffer = param.as<TensorVar>()) {
@@ -330,10 +330,10 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
 namespace transform {
 
 Pass InjectPermutedLayout() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return PermutedLayoutInjector::Transform(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectPermutedLayout", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectPermutedLayout", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -22,7 +22,7 @@
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/function.h>
 
-#include "../../te/operation/create_primfunc.h"
+#include "../../te/operation/create_function.h"
 #include "./utils.h"
 
 namespace tvm {

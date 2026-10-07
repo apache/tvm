@@ -38,7 +38,7 @@ def test_rewrite_to_shuffle_0():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((4,), "float32")):
             A_local = T.alloc_tensor((16,), scope="local")
             for i in range(4):
@@ -48,7 +48,7 @@ def test_rewrite_to_shuffle_0():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((4,), "float32x4", layout=None), B: T.Tensor((4,), "float32")):
             A_local = T.alloc_tensor((4,), "float32x4", scope="local", layout=None)
             for i in range(4):
@@ -70,7 +70,7 @@ def test_rewrite_to_shuffle_1():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((8,), "float32"), B: T.Tensor((1,), "float32")):
             A_local = T.alloc_tensor((8,), scope="local")
             A_local[T.ramp(0, 1, 4)] = A[T.ramp(0, 1, 4)]
@@ -88,7 +88,7 @@ def test_rewrite_to_shuffle_1():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((2,), "float32x4", layout=None), B: T.Tensor((1,), "float32")):
             A_local = T.alloc_tensor((2,), "float32x4", scope="local", layout=None)
             A_local[0] = A[0]
@@ -113,7 +113,7 @@ def test_address_of():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
@@ -121,7 +121,7 @@ def test_address_of():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((4,), "float32x4", layout=None)):
             for i in range(4):
                 T.evaluate(T.address_of(A[i * 4]))
@@ -136,7 +136,7 @@ def test_scalar_read_without_write():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32")):
             for i in range(4):
                 T.evaluate(A[i * 4])
@@ -144,7 +144,7 @@ def test_scalar_read_without_write():
     # Expected is the same as Before - no transformation
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32")):
             for i in range(4):
                 T.evaluate(A[i * 4])
@@ -158,7 +158,7 @@ def test_decl_buffer_alias_chain_uses_flat_root_map():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32")):
             A_view = T.decl_tensor((16,), "float32", data=A.data)
             A_view_2 = T.decl_tensor((16,), "float32", data=A_view.data)

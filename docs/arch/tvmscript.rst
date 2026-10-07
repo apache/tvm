@@ -47,7 +47,7 @@ context; symbolic IR values are created and resolved by builders.
 
 Function construction, JIT and macro decorators require ``@`` application at the
 function definition site. Later application to an existing function is rejected.
-Use a registered namespace, such as ``@T.prim_func`` or ``@Ts.prim_func(private=True)``.
+Use a registered namespace, such as ``@T.function`` or ``@Ts.function(private=True)``.
 Python definitions support namespace aliases such as ``Alias = T``; bare callable
 aliases and preconfigured decorator aliases are unsupported. Source strings resolve
 namespace aliases from imports or ``extra_vars``, not executable prefix assignments.
@@ -95,8 +95,8 @@ separate parser setting.
 canonical namespace paths rooted at ``tirx``, ``relax``, ``ir`` and ``s_tir``.
 Source code selects its own aliases through imports or explicit environments; the parser
 does not provide implicit ``T``, ``R``, ``I`` or ``Ts`` bindings. For example,
-``from tvm.script import tirx as X`` makes ``X.prim_func`` resolve to
-``tirx.prim_func`` without changing the callable. Printed scripts show suggested imports
+``from tvm.script import tirx as X`` makes ``X.function`` resolve to
+``tirx.function`` without changing the callable. Printed scripts show suggested imports
 as comments: include those imports in executable source or pass equivalent
 ``extra_vars`` when parsing a printed script. The public registration helpers
 identify scalar annotations and mutable
@@ -174,7 +174,7 @@ For example, a small function can be authored, printed and parsed again:
    import tvm
    from tvm.script import tirx as T
 
-   @T.prim_func
+   @T.function
    def increment(A: T.Tensor((4,), "float32")):
        for i in T.serial(4):
            A[i] = A[i] + 1.0

@@ -25,7 +25,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-def run_passes(func: tvm.tirx.PrimFunc):
+def run_passes(func: tvm.tirx.Function):
     mod = tvm.IRModule.from_expr(func)
 
     cuda_target = tvm.target.Target("cuda", host="llvm")
@@ -41,7 +41,7 @@ def run_passes(func: tvm.tirx.PrimFunc):
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_read_thread_id_independent_location():
-    @Ts.prim_func(check_well_formed=False)
+    @Ts.function(check_well_formed=False)
     def func(p0_arg: T.Tensor((1, 2, 1, 1), "float32"), p1: T.Tensor(2, "float32")) -> None:
         p0 = T.Var("p0", T.Tensor([2], dtype="float32", data=p0_arg.data))
         result_local = Ts.sblock_alloc_buffer([1], dtype="float32", scope="local")
@@ -61,7 +61,7 @@ def test_sync_read_thread_id_independent_location():
 
 
 def test_sync_inside_condition():
-    @Ts.prim_func
+    @Ts.function
     def func1(A: T.Tensor((4, 4), "float32")) -> None:
         A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         bx = T.launch_thread("blockIdx.x", 1)
@@ -72,7 +72,7 @@ def test_sync_inside_condition():
             for i, j in T.grid(4, 4):
                 A[i, j] = A_shared[i, j] + 1.0
 
-    @Ts.prim_func
+    @Ts.function
     def func2(A: T.Tensor((4, 4), "float32")) -> None:
         A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         bx = T.launch_thread("blockIdx.x", 1)
@@ -83,7 +83,7 @@ def test_sync_inside_condition():
             for i, j in T.grid(4, 4):
                 A[i, j] = A_shared[i, j] + 1.0
 
-    @Ts.prim_func
+    @Ts.function
     def func3(A: T.Tensor((4, 4), "float32")) -> None:
         A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         bx = T.launch_thread("blockIdx.x", 1)
@@ -103,7 +103,7 @@ def test_sync_inside_condition():
 
 
 def test_sync_shared_dyn():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def func(A: T.Tensor((4, 4), "float32"), E: T.Tensor((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         B = T.alloc_tensor((24,), "float32", scope="shared.dyn")
@@ -120,7 +120,7 @@ def test_sync_shared_dyn():
         E_1 = T.decl_tensor((16,), data=E.data)
         E_1[threadIdx_x] = D_1[threadIdx_x]
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(A: T.Tensor((4, 4), "float32"), E: T.Tensor((4, 4), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         B_1 = T.alloc_tensor((24,), "float32", scope="shared.dyn")
@@ -144,7 +144,7 @@ def test_sync_shared_dyn():
 
 
 def test_sync_shared_aliasing_buffer_views():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def func(A: T.Tensor((64,), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 1)
         shared_storage = T.alloc_tensor((32,), "float16", scope="shared")
@@ -169,7 +169,7 @@ def test_sync_shared_aliasing_buffer_views():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_sync_bind():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def func(A: T.Tensor((16 * 512), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
         A_shared = T.alloc_tensor((512,), "float32", scope="shared")
@@ -199,7 +199,7 @@ def test_sync_bind():
             (threadIdx_x,),
         )
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(A: T.Tensor((8192,), "float32")):
         blockIdx_x = T.launch_thread("blockIdx.x", 16)
         A_shared_1 = T.alloc_tensor((512,), "float32", scope="shared")

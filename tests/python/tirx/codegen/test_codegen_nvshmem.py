@@ -33,12 +33,12 @@ from tvm.testing import env
 NUM_WORKERS = 4
 
 
-def run_prim_func(sess, prim_func, *args):
-    """Compile, export, load, and run a PrimFunc in the shared disco session."""
+def run_function(sess, function, *args):
+    """Compile, export, load, and run a Function in the shared disco session."""
     target = tvm.target.Target("cuda")
     with tempfile.TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/test.so"
-        mod = tvm.compile(prim_func, target=target, tir_pipeline="tirx")
+        mod = tvm.compile(function, target=target, tir_pipeline="tirx")
         print(mod.mod.imports[0].inspect_source())
         mod.export_library(path)
         rt_mod = sess.load_vm_module(path)
@@ -76,7 +76,7 @@ def test_codegen_nvshmem():
         sess.sync_worker_0()
 
         def test_thread_info(sess):
-            @T.prim_func
+            @T.function
             def main(res: T.Tensor((2,), "int32")):
                 T.device_entry()
                 cta_id = T.cta_id([1])
@@ -85,7 +85,7 @@ def test_codegen_nvshmem():
                 res[1] = T.nvshmem.n_pes()
 
             res_array = sess.empty((2,), "int32")
-            run_prim_func(sess, main, res_array)
+            run_function(sess, main, res_array)
 
         def test_transfer(sess, scope, shape, nwarps, nelems, op_name):
             """Tests data transfer operations (get/put) at thread, warp, and block scopes."""
@@ -96,7 +96,7 @@ def test_codegen_nvshmem():
                 op_func = getattr(op_func, scope)
 
             # fmt: off
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)):
                 T.device_entry()
                 cta_id = T.cta_id([1])
@@ -119,7 +119,7 @@ def test_codegen_nvshmem():
             A_array = create_nvshmem_array(sess, shape, dtype, init_fn)
             B_array = create_nvshmem_array(sess, shape, dtype)
             sess.sync_worker_0()
-            run_prim_func(sess, main, A_array, B_array)
+            run_function(sess, main, A_array, B_array)
 
             for i in range(NUM_WORKERS):
                 if is_get:
@@ -135,7 +135,7 @@ def test_codegen_nvshmem():
             cmp_value = 1 if sig_op == "set" else 2
 
             # fmt: off
-            @T.prim_func
+            @T.function
             def main(res: T.Tensor((1,), "uint64")):
                 T.device_entry()
                 cta_id = T.cta_id([1])
@@ -152,7 +152,7 @@ def test_codegen_nvshmem():
 
             res_array = create_nvshmem_array(sess, (1,), "uint64")
             sess.sync_worker_0()
-            run_prim_func(sess, main, res_array)
+            run_function(sess, main, res_array)
 
             for i in range(NUM_WORKERS):
                 res = res_array.debug_get_from_remote(i).numpy()
@@ -168,7 +168,7 @@ def test_codegen_nvshmem():
             if scope != "thread":
                 op_func = getattr(op_func, scope)
 
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor(shape, dtype),
                 B: T.Tensor(shape, dtype),
@@ -210,7 +210,7 @@ def test_codegen_nvshmem():
             signal_array = create_nvshmem_array(sess, (1,), "uint64")
 
             sess.sync_worker_0()
-            run_prim_func(sess, main, A_array, B_array, signal_array)
+            run_function(sess, main, A_array, B_array, signal_array)
 
             for i in range(NUM_WORKERS):
                 expected = A_array.debug_get_from_remote(i).numpy()
@@ -224,7 +224,7 @@ def test_codegen_nvshmem():
             dtype = "float32"
 
             # fmt: off
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype), res: T.Tensor((1,), "uint64")):  # noqa: E501
                 T.device_entry()
                 cta_id = T.cta_id([1])
@@ -247,7 +247,7 @@ def test_codegen_nvshmem():
             A_array = create_nvshmem_array(sess, shape, dtype, init_fn)
             B_array = create_nvshmem_array(sess, shape, dtype)
             res_array = create_nvshmem_array(sess, (1,), "uint64")
-            run_prim_func(sess, main, A_array, B_array, res_array)
+            run_function(sess, main, A_array, B_array, res_array)
 
             for i in range(NUM_WORKERS):
                 expected_B = A_array.debug_get_from_remote(i).numpy()

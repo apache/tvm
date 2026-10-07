@@ -41,7 +41,7 @@ def f_op_dispatcher(op_call: TilePrimitiveCall, sctx: DispatchContext):
 
     Returns
     -------
-    Optional[PrimFunc]
+    Optional[Function]
         The result of the operator implementation
     """
     assert sctx.target is not None, "Target not found"

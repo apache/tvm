@@ -150,7 +150,7 @@ class BasePyModule:
     def _collect_function_names(self):
         """Collect names of TIR and Relax functions from IRModule."""
         for global_var, func in self.ir_mod.functions_items():
-            if isinstance(func, tirx.PrimFunc):
+            if isinstance(func, tirx.Function):
                 self.tir_func_names.append(global_var.name_hint)
             elif isinstance(func, relax.Function):
                 self.relax_func_names.append(global_var.name_hint)
@@ -162,7 +162,7 @@ class BasePyModule:
             {
                 gv: func
                 for gv, func in self.ir_mod.functions_items()
-                if isinstance(func, tirx.PrimFunc)
+                if isinstance(func, tirx.Function)
             }
         )
         if tir_mod:

@@ -38,7 +38,7 @@ from tvm.script import tirx as T
 def test_basic(consume_params):
     @tvm.script.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ) -> None:
@@ -103,7 +103,7 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -174,7 +174,7 @@ def test_basic(consume_params):
                 R.output(conv2)
             return conv2
 
-        @Ts.prim_func
+        @Ts.function
         def transform_layout_IOHW_to_OIHW(
             w1: T.Tensor((3, 16, 3, 3), "float32"), out: T.Tensor((16, 3, 3, 3), "float32")
         ):
@@ -1441,7 +1441,7 @@ def test_symbolic_var_2():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
             T.func_attr({"tirx.noalias": True})
 
@@ -1468,7 +1468,7 @@ def test_symbolic_var_2():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def zeros(T_full: T.Tensor((n_zeros, n_zeros))):
             T.func_attr({"tirx.noalias": True})
 
@@ -1529,7 +1529,7 @@ def test_symbolic_var_from_shape():
                 R.output(A_scale)
             return A_scale
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice(
             Input_2d: T.Tensor(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,
@@ -1584,7 +1584,7 @@ def test_symbolic_var_from_shape():
                 R.output(output)
             return output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice(
             Input_2d: T.Tensor(shape=[16, 16], dtype="int32"),
             slice_index: T.int64,

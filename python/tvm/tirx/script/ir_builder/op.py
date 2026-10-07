@@ -92,7 +92,7 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
         for module_frame in reversed(list(IRBuilder.current().frames)):
             if isinstance(module_frame, IRModuleFrame) and func in module_frame.functions:
                 declaration = module_frame.functions[func]
-                if isinstance(declaration, tir.PrimFunc):
+                if isinstance(declaration, tir.Function):
                     # The Relax-facing signature may erase pointer results to Any.
                     return Call(func, args, ty=declaration.ret_type)
                 break

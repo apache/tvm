@@ -158,13 +158,13 @@ class TIRxOpaqueLower : public StmtExprMutator {
 namespace transform {
 
 Pass LowerTIRxOpaque() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto fptr = f.CopyOnWrite();
     fptr->body = TIRxOpaqueLower::Rewrite(std::move(fptr->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTIRxOpaque", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxOpaque", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

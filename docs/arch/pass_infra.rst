@@ -225,7 +225,7 @@ Function-Level Passes
 Function-level passes are used to implement various intra-function level
 optimizations for a given Relax/TensorIR module. It fetches one function at a time from
 the function list of a module for optimization and yields a rewritten Relax
-``Function`` or TensorIR ``PrimFunc``. Most of passes can be classified into this category, such as
+``Function`` or TensorIR ``Function``. Most of passes can be classified into this category, such as
 common subexpression elimination and inference simplification in Relax as well as vectorization
 and flattening storage in TensorIR, etc.
 
@@ -319,8 +319,8 @@ favorably use Python APIs to create a specific pass object.
         ffi::Array<ffi::String> required,
         bool traceable = false);
 
-    Pass CreatePrimFuncPass(
-        std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+    Pass CreateFunctionPass(
+        std::function<Function(Function, IRModule, PassContext)> pass_func,
         int opt_level,
         ffi::String name,
         ffi::Array<ffi::String> required,

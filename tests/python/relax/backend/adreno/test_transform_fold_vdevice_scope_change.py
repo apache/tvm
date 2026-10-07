@@ -45,7 +45,7 @@ def test_maxpool2d_scope_folding():
             }
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def max_pool2d_opencl(
             gv: T.Tensor((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
             pool_max: T.Tensor(
@@ -86,7 +86,7 @@ def test_maxpool2d_scope_folding():
                         ],
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def te_layout_transform(
             x: T.Tensor((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float32"),
             te_layout_transform: T.Tensor(
@@ -107,7 +107,7 @@ def test_maxpool2d_scope_folding():
                         v_self, v_i0 // T.int64(4), v_i1, v_i2, v_i0 % T.int64(4)
                     ] = x[v_self, v_i0, v_i1, v_i2]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def te_layout_transform2(
             lv2: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"
@@ -170,7 +170,7 @@ def test_maxpool2d_scope_folding():
             }
         )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def max_pool2d_opencl(
             gv: T.Tensor((T.int64(2), T.int64(1), T.int64(26), T.int64(26), T.int64(4)), "float32"),
             pool_max: T.Tensor(
@@ -211,7 +211,7 @@ def test_maxpool2d_scope_folding():
                         ],
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def te_layout_transform(
             x: T.Tensor((T.int64(2), T.int64(4), T.int64(26), T.int64(26)), "float32"),
             te_layout_transform: T.Tensor(
@@ -232,7 +232,7 @@ def test_maxpool2d_scope_folding():
                         v_self, v_i0 // T.int64(4), v_i1, v_i2, v_i0 % T.int64(4)
                     ] = x[v_self, v_i0, v_i1, v_i2]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def te_layout_transform2(
             lv2: T.Tensor(
                 (T.int64(2), T.int64(1), T.int64(13), T.int64(13), T.int64(4)), "float32"

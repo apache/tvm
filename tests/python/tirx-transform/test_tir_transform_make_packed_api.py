@@ -58,7 +58,7 @@ def _find_compute_scope(func):
 def test_no_op_when_global_symbol_is_absent(use_global_symbol):
     func_attr = {"target": tvm.target.Target("llvm", host="llvm")}
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         T.func_attr(func_attr)
         T.evaluate(0)
@@ -85,7 +85,7 @@ def test_target_host_removed():
 
     @I.ir_module
     class before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"global_symbol": "main", "target": T.target("cuda", host=host)})
             T.evaluate(0)
@@ -106,13 +106,13 @@ def test_internal_subroutine_call():
 
     @I.ir_module
     class before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"target": T.target("llvm", host="llvm")})
             before.subroutine(A.data)
 
         # this test fails if it's made public
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def subroutine(A_data: T.handle("float32")):
             T.func_attr({"target": T.target("llvm")})
             T.evaluate(A_data)
@@ -139,12 +139,12 @@ def test_subroutine_call_to_externally_visible_subroutine():
 
     @I.ir_module
     class before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
             before.subroutine(A.data)
 
-        @T.prim_func
+        @T.function
         def subroutine(A_data: T.handle("float32")):
             T.func_attr({"global_symbol": "subroutine", "target": T.target("llvm", host="llvm")})
             T.evaluate(A_data)
@@ -171,14 +171,14 @@ def test_zero_arg_function():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def func_without_arg() -> T.int64:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             return T.int64(42)
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def func_without_arg(
             self_handle: T.handle,
             args: T.handle,
@@ -212,7 +212,7 @@ def test_pointer_return():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(arg: T.handle) -> T.handle:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             return arg
@@ -236,7 +236,7 @@ def test_return_from_parallel_scope_is_rejected():
 
     i = tirx.Var("i", "int32")
     body = tirx.For(i, 0, 1, tirx.ForKind.PARALLEL, tirx.Return(i))
-    func = tirx.PrimFunc([], body, tvm.ir.PrimType("int32"))
+    func = tirx.Function([], body, tvm.ir.PrimType("int32"))
     func = func.with_attr("global_symbol", "main")
     func = func.with_attr("target", tvm.target.Target("llvm", host="llvm"))
 
@@ -249,7 +249,7 @@ def test_int_parameter():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(arg: T.int32) -> T.int32:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             if arg > 0:
@@ -259,7 +259,7 @@ def test_int_parameter():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(
             self_handle: T.handle,
             args: T.handle,
@@ -316,7 +316,7 @@ def test_bool_parameter():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(arg: T.bool) -> T.int32:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             if arg:
@@ -326,7 +326,7 @@ def test_bool_parameter():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(
             self_handle: T.handle,
             args: T.handle,
@@ -383,7 +383,7 @@ def test_float_parameter():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(arg: T.float32) -> T.int32:
             T.func_attr({"target": T.target("llvm", host="llvm")})
             if arg > T.float32(0):
@@ -393,7 +393,7 @@ def test_float_parameter():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(
             self_handle: T.handle,
             args: T.handle,
@@ -462,7 +462,7 @@ def test_forward_reference_symbolic_variable():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((batch_size + 1,), "int32"), B: T.Tensor((batch_size,), "int32")):
             T.func_attr({"target": T.target("llvm", host="llvm")})
 
@@ -479,7 +479,7 @@ def test_buffer_alignment_attached_to_buffer_var():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32", align=64)):
             T.func_attr({"global_symbol": "main", "target": T.target("llvm", host="llvm")})
             T.evaluate(A[0])

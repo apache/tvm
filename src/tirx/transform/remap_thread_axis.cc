@@ -67,7 +67,7 @@ class ThreadAxisRewriter : public StmtExprMutator {
   const std::unordered_map<std::string, ffi::String>& tmap_;
 };
 
-PrimFunc RemapThreadAxis(PrimFunc func, ffi::Map<ffi::String, ffi::String> thread_map) {
+Function RemapThreadAxis(Function func, ffi::Map<ffi::String, ffi::String> thread_map) {
   std::unordered_map<std::string, ffi::String> tmap;
   for (const auto& kv : thread_map) {
     tmap[kv.first] = kv.second;
@@ -96,10 +96,10 @@ PrimFunc RemapThreadAxis(PrimFunc func, ffi::Map<ffi::String, ffi::String> threa
 namespace transform {
 
 Pass RemapThreadAxis(ffi::Map<ffi::String, ffi::String> thread_map) {
-  auto pass_func = [thread_map](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [thread_map](Function f, IRModule m, PassContext ctx) {
     return RemapThreadAxis(std::move(f), thread_map);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.RemapThreadAxis", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemapThreadAxis", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

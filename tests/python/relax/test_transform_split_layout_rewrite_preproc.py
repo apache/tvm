@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 def test_single_buffer():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func(
             X: T.Tensor((224, 224), "float32"),
             W: T.Tensor((224, 224), "float32"),
@@ -59,7 +59,7 @@ def test_single_buffer():
 
     @I.ir_module
     class After:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func_prepacked(
             X: T.Tensor((224, 224), "float32"),
             W_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
@@ -71,7 +71,7 @@ def test_single_buffer():
                     vj = Ts.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func_weight_prepack(
             W: T.Tensor((224, 224), "float32"),
             W_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
@@ -106,7 +106,7 @@ def test_single_buffer():
 def test_multiple_buffers():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func(
             X: T.Tensor((224, 224), "float32"),
             W1: T.Tensor((224, 224), "float32"),
@@ -152,7 +152,7 @@ def test_multiple_buffers():
 
     @I.ir_module
     class After:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func_prepacked(
             X: T.Tensor((224, 224), "float32"),
             W1_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
@@ -169,7 +169,7 @@ def test_multiple_buffers():
                         + W2_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
                     )
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func_weight_prepack(
             W1: T.Tensor((224, 224), "float32"),
             W2: T.Tensor((224, 224), "float32"),
@@ -218,7 +218,7 @@ def test_multiple_buffers():
 def test_attr_inheritance():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func(
             X: T.Tensor((224, 224), "float32"),
             W: T.Tensor((224, 224), "float32"),
@@ -251,7 +251,7 @@ def test_attr_inheritance():
 
     @I.ir_module
     class After:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func_prepacked(
             X: T.Tensor((224, 224), "float32"),
             W_rewrite: T.Tensor((4, 4, 56, 56), "float32"),
@@ -264,7 +264,7 @@ def test_attr_inheritance():
                     vj = Ts.axis.spatial(224, j0 * 56 + j1)
                     Out[vi, vj] = X[vi, vj] + W_rewrite[vi // 56, vj // 56, vi % 56, vj % 56]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tir_func_weight_prepack(
             W: T.Tensor((224, 224), "float32"),
             W_rewrite: T.Tensor((4, 4, 56, 56), "float32"),

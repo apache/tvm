@@ -36,7 +36,7 @@ def test_elementwise():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             for i in T.serial(0, 16):
                 B_new = T.decl_tensor([1, 16], "float32")
@@ -47,7 +47,7 @@ def test_elementwise():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             A_1 = T.decl_tensor(256, dtype="float32", data=A.data, layout=None)
             C_1 = T.decl_tensor(256, dtype="float32", data=C.data, layout=None)
@@ -74,7 +74,7 @@ def test_elementwise_without_decl_buffer():
 
     @I.ir_module(check_well_formed=False)
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             for i in T.serial(0, 16):
                 B_new_buf = T.alloc_tensor((1, 16), "float32")
@@ -86,7 +86,7 @@ def test_elementwise_without_decl_buffer():
 
     @I.ir_module(check_well_formed=False)
     class Expected:
-        @T.prim_func
+        @T.function
         def main(input_A: T.Tensor((16, 16), "float32"), input_C: T.Tensor((16, 16), "float32")):
             A = T.decl_tensor(256, dtype="float32", data=input_A.data, layout=None)
             C = T.decl_tensor(256, dtype="float32", data=input_C.data, layout=None)
@@ -107,7 +107,7 @@ def test_gpu():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             i0 = T.launch_thread("blockIdx.x", 4)
             i1 = T.launch_thread("threadIdx.x", 2)
@@ -120,7 +120,7 @@ def test_gpu():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             A_1 = T.decl_tensor(256, dtype="float32", data=A.data, layout=None)
             C_1 = T.decl_tensor(256, dtype="float32", data=C.data, layout=None)
@@ -143,7 +143,7 @@ def test_symbolic():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((n, m), "float32"),  # noqa: F821
             C: T.Tensor((n, m), "float32"),  # noqa: F821
@@ -159,7 +159,7 @@ def test_symbolic():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((n, m), "float32"),  # noqa: F821
             C: T.Tensor((n, m), "float32"),  # noqa: F821
@@ -185,7 +185,7 @@ def test_fused_symbolic():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((32, n, n), "float32"),  # noqa: F821
             B: T.Tensor((32, n, n), "float32"),  # noqa: F821
@@ -198,7 +198,7 @@ def test_fused_symbolic():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(
             input_A: T.Tensor((32, n, n), "float32"),  # noqa: F821
             input_B: T.Tensor((32, n, n), "float32"),  # noqa: F821
@@ -219,7 +219,7 @@ def test_fused_symbolic_with_predicate():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((32, n, n), "float32"),  # noqa: F821
             B: T.Tensor((32, n, n), "float32"),  # noqa: F821
@@ -239,7 +239,7 @@ def test_fused_symbolic_with_predicate():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(
             input_A: T.Tensor((32, n, n), "float32"),  # noqa: F821
             input_B: T.Tensor((32, n, n), "float32"),  # noqa: F821
@@ -261,7 +261,7 @@ def test_multi_alloc():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((4, 32), "float32"), D: T.Tensor((4, 32), "float32")):
             for i, j in T.grid(4, 32):
                 B = T.decl_tensor((4, 32), "float32", scope="global")
@@ -272,7 +272,7 @@ def test_multi_alloc():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((4, 32), "float32"), D: T.Tensor((4, 32), "float32")):
             A_1 = T.decl_tensor(128, "float32", data=A.data, layout=None)
             D_1 = T.decl_tensor(128, "float32", data=D.data, layout=None)
@@ -293,7 +293,7 @@ def test_strided():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             for i0 in T.serial(4):
                 B = T.decl_tensor([4, 17], "float32")
@@ -305,7 +305,7 @@ def test_strided():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16, 16), "float32"), C: T.Tensor((16, 16), "float32")):
             A_1 = T.decl_tensor(256, dtype="float32", data=A.data, layout=None)
             C_1 = T.decl_tensor(256, dtype="float32", data=C.data, layout=None)
@@ -328,14 +328,14 @@ def test_boolean():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(10, "bool"), B: T.Tensor(10, "bool")) -> None:
             for i0 in T.serial(10):
                 B[i0] = A[i0]
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(input_A: T.Tensor(10, "bool"), input_B: T.Tensor(10, "bool")) -> None:
             A = T.decl_tensor(10, dtype="bool", data=input_A.data, layout=None)
             B = T.decl_tensor(10, dtype="bool", data=input_B.data, layout=None)
@@ -352,7 +352,7 @@ def test_flatten_inside_block():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main():
             A = T.alloc_tensor([32, 32])
             for i, j in T.grid(32, 32):
@@ -360,7 +360,7 @@ def test_flatten_inside_block():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main():
             A = T.alloc_tensor([1024], layout=None)
             for i, j in T.grid(32, 32):
@@ -374,7 +374,7 @@ def test_build_with_optional_unroll_explicit():
     def check(value):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((4, 5, 6), "int16"), B: T.Tensor((4, 5, 6), "int16")):
                 for ax0 in T.serial(4, annotations={"unroll_explicit": value}):
                     for ax1, ax2 in T.grid(5, 6):

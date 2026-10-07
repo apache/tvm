@@ -139,7 +139,7 @@ def _select_default_pipeline(mod, target):
     scheduled = {
         gv: func
         for gv, func in mod.functions.items()
-        if isinstance(func, tirx.PrimFunc) and not func.is_tirx
+        if isinstance(func, tirx.Function) and not func.is_tirx
     }
     if not scheduled:
         return None

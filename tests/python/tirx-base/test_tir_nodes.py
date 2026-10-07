@@ -298,13 +298,13 @@ def test_equality_string_imm():
     x == y
 
 
-def test_prim_func():
+def test_function():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
     b = tvm.tirx.decl_tensor((x,), "float32")
     stmt = tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 10), tvm.tirx.Evaluate(x + 1)])
 
-    func = tvm.tirx.PrimFunc([x, y, b], stmt)
+    func = tvm.tirx.Function([x, y, b], stmt)
     # make sure we can print
     assert func.params[2].same_as(b)
     assert not hasattr(func, "buffer_map")

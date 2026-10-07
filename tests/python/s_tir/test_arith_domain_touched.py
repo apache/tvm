@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 m = T.dynamic("m", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def scalar_func(A: T.Tensor((100, m)), B: T.Tensor((100, m))):
     for i, j in T.grid(100, m):
         A[i, j] = B[i - 1, j + 1] + A[i - 1, j - 1]
@@ -74,7 +74,7 @@ def test_domain_touched_vector():
     pytest.skip("BufferRegion arithmetic in expressions not supported")
     m = tvm.runtime.convert(128)
 
-    @Ts.prim_func
+    @Ts.function
     def func(A: T.Tensor((n * m,)), B: T.Tensor((n * m,)), n: T.int32):  # noqa: F821
         for i in T.serial(n):
             A[i * m : (i + 1) * m : 1] = A[i * m : (i + 1) * m : 1] + B[i * m : (i + 1) * m : 1]

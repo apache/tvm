@@ -28,10 +28,10 @@ namespace tirx {
 namespace transform {
 
 Pass LowerThreadAllreduce() {
-  auto pass_func = [](tirx::PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](tirx::Function f, IRModule m, PassContext ctx) {
     return tirx::detail::LowerThreadAllreduce<tirx::StmtExprMutator>(std::move(f));
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "tirx.LowerThreadAllreduce", {});
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "tirx.LowerThreadAllreduce", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

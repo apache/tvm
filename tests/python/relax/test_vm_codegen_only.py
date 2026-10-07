@@ -354,7 +354,7 @@ def test_vm_builtin_reshape():
 def test_vm_kill_object():
     @I.ir_module
     class TestKillObject:
-        @Ts.prim_func
+        @Ts.function
         def full(T_full: T.Tensor((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
@@ -364,7 +364,7 @@ def test_vm_kill_object():
                     Ts.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(0)
 
-        @Ts.prim_func
+        @Ts.function
         def full1(T_full: T.Tensor((T.int64(4),), "float32")):
             T.func_attr({"global_symbol": "full1", "tirx.noalias": True})
             for ax0 in range(T.int64(4)):
@@ -374,7 +374,7 @@ def test_vm_kill_object():
                     Ts.writes(T_full[v_ax0])
                     T_full[v_ax0] = T.float32(1)
 
-        # PrimFuncs called directly are treated as impure
+        # Functions called directly are treated as impure
         @R.function(pure=False)
         def main() -> R.Tensor((4,), dtype="float32"):
             R.func_attr({"global_symbol": "main"})

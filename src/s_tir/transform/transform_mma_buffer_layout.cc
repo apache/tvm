@@ -194,14 +194,14 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
 namespace transform {
 
 Pass TransformMmaBufferLayout() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = ffi::make_object<MmaBufferLayoutTransformer>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(std::move(n->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.TransformMmaBufferLayout", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.TransformMmaBufferLayout", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

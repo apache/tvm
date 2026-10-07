@@ -63,11 +63,11 @@ namespace codegen {
 // NVPTX code generator.
 class CodeGenNVPTX : public CodeGenLLVM {
  public:
-  llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+  llvm::Function* DeclareFunction(const GlobalVar& gvar, const Function& f) final {
     // add function as void return value
     return CodeGenLLVM::DeclareFunctionInternal(gvar, f);
   }
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) final {
+  void AddFunction(const GlobalVar& gvar, const Function& f) final {
     // add function as void return value
     CodeGenLLVM::AddFunctionInternal(gvar, f);
     // annotate as kernel function

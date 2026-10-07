@@ -66,7 +66,7 @@ def test_rvv(target):
         pytest.skip(f"{target} not enabled")
 
     def check_rvv_presence(N, extent):
-        @T.prim_func
+        @T.function
         def load_vec(A: T.Tensor((N,), "int8")):
             for j in T.vectorized(0, extent):
                 A[j] = 1
@@ -108,7 +108,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
         pytest.skip(f"{target} not enabled")
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def rvv_with_vscale(A: T.Tensor((8,), dtype='float32', align=4, offset_factor=1), B: T.Tensor((4, 8), dtype='float32', align=4, offset_factor=1, strides=[8, 1]), C: T.Tensor((4,), dtype='float32', align=4, offset_factor=1)):
 
         zero = T.call_llvm_intrin('float32xvscalex2', 'llvm.riscv.vfmv.v.f', T.Broadcast(T.float32(0.0), T.vscale() * 2), C[0], T.uint64(1))
@@ -125,7 +125,7 @@ def test_rvv_vscale_llvm_dbginfo(target):
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
 def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
-    @T.prim_func
+    @T.function
     def fixed16_negative(
         A: T.Tensor((14, 23, 67, 99), "float32"),
         B: T.Tensor((14, 23, 67, 99), "float32"),
@@ -135,7 +135,7 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
                 if wo * 16 + wi < 99:
                     B[n, c, h, wo * 16 + wi] = T.float32(0) - A[n, c, h, wo * 16 + wi]
 
-    @T.prim_func
+    @T.function
     def fixed16_negative_int64(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
         for wi in T.vectorized(T.int64(0), T.int64(16)):
             B[wi] = T.float32(0) - A[wi]
@@ -167,7 +167,7 @@ def test_rvv_fixed_width_vectorized_loop_uses_scalable_chunks():
 
 @pytest.mark.skipif(not env.has_llvm_min_version(14), reason="need llvm >= 14")
 def test_rvv_scalable_ramp_expression():
-    @T.prim_func
+    @T.function
     def ramp_compare(B: T.Tensor((16,), "int32")):
         for i in T.vectorized(16):
             B[i] = T.Select(i * 3 + 5 < 29, i * 3 + 5, -1)

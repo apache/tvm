@@ -53,8 +53,8 @@ class CodeGenTrainium final : public CodeGenC {
   using CodeGenC::PrintType;
   // override print thread tag.
   void PrintArgUnionDecl();
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& func) final;
-  void InitFuncState(const PrimFunc& f) final;
+  void AddFunction(const GlobalVar& gvar, const Function& func) final;
+  void InitFuncState(const Function& f) final;
   std::string GetStorageScopeStr(const std::string& scope);   // NOLINT(*)
   void Dispatch_(const VarNode* op, std::ostream& os) final;  // NOLINT(*)
   void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)

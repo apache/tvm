@@ -49,7 +49,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
  public:
   using s_tir::StmtExprVisitor::Visit_;
 
-  static ffi::Map<TensorVar, ffi::Optional<Stmt>> Detect(const PrimFunc& func) {
+  static ffi::Map<TensorVar, ffi::Optional<Stmt>> Detect(const Function& func) {
     auto detector = ffi::make_object<LCADetector>();
     for (const Var& param : func->params) {
       if (auto buffer = param.as<TensorVar>()) {
@@ -382,7 +382,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
   support::Arena arena_;
 };
 
-ffi::Map<TensorVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func) {
+ffi::Map<TensorVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const Function& func) {
   return LCADetector::Detect(func);
 }
 

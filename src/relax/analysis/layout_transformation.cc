@@ -19,8 +19,8 @@
 
 /*!
  * \file relax/analysis/layout_transformation.cc
- * \brief Analyze the PrimFunc and suggest layout transformation on it's blocks and buffers based on
- * the user provided layout transformations on it's outputs.
+ * \brief Analyze the tirx::Function and suggest layout transformation on it's blocks and buffers
+ * based on the user provided layout transformations on it's outputs.
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -563,18 +563,19 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
 };
 
 /*!
- * \brief Analyzes the PrimFunc and user provided output buffer transformations to propose
- * transformations of block and buffers within the PrimFunc.
+ * \brief Analyzes the tirx::Function and user provided output buffer transformations to propose
+ * transformations of block and buffers within the tirx::Function.
  * \details It does a best effort analysis to propose transformations which would preserve
  * sequential access to buffers (especially output buffers). Since this is best effort, it is
- * possible that the PrimFunc is too complex for analysis. In such a case, no transformations are
- * proposed.
+ * possible that the tirx::Function is too complex for analysis. In such a case, no transformations
+ * are proposed.
  */
-class PrimFuncAnalyzer : public s_tir::StmtExprVisitor {
+class FunctionAnalyzer : public s_tir::StmtExprVisitor {
  public:
-  explicit PrimFuncAnalyzer(const PrimFunc& func, ffi::Array<IndexMap> write_transformations) {
+  explicit FunctionAnalyzer(const tirx::Function& func,
+                            ffi::Array<IndexMap> write_transformations) {
     TVM_FFI_ICHECK_LE(write_transformations.size(), func->params.size())
-        << "Incompatible PrimFunc and write_transformations";
+        << "Incompatible Function and write_transformations";
 
     size_t first_write_index = func->params.size() - write_transformations.size();
     for (size_t i = 0; i < write_transformations.size(); ++i) {
@@ -640,21 +641,22 @@ class PrimFuncAnalyzer : public s_tir::StmtExprVisitor {
 };
 
 ffi::Map<s_tir::SBlock, ffi::Map<ffi::ObjectRef, tirx::IndexMap>> SuggestLayoutTransforms(
-    const PrimFunc& prim_func, ffi::Array<IndexMap> write_buffer_transformations) {
-  // No changes to the PrimFunc are required if no transformations on output buffers.
+    const tirx::Function& function, ffi::Array<IndexMap> write_buffer_transformations) {
+  // No changes to the tirx::Function are required if no transformations on output buffers.
   if (write_buffer_transformations.empty()) return {};
 
-  auto analyzer = ffi::make_object<PrimFuncAnalyzer>(prim_func, write_buffer_transformations);
-  analyzer->Visit(prim_func->body);
+  auto analyzer = ffi::make_object<FunctionAnalyzer>(function, write_buffer_transformations);
+  analyzer->Visit(function->body);
   return analyzer->GetSuggestedTransforms();
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.analysis.suggest_layout_transforms",
-                        [](PrimFunc fn, ffi::Array<tirx::IndexMap> write_buffer_transformations) {
-                          return SuggestLayoutTransforms(fn, write_buffer_transformations);
-                        });
+  refl::GlobalDef().def(
+      "relax.analysis.suggest_layout_transforms",
+      [](tirx::Function fn, ffi::Array<tirx::IndexMap> write_buffer_transformations) {
+        return SuggestLayoutTransforms(fn, write_buffer_transformations);
+      });
 }
 
 }  // namespace relax

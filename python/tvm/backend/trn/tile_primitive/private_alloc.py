@@ -73,7 +73,7 @@ def alloc_const_bias_trn(
     )
 
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def const_bias_init():
         with T.nki.tensorized_instruction():
             for p_loop in T.serial(0, par_size, annotations={"nki_dim": "P"}):
@@ -124,7 +124,7 @@ def alloc_identity_trn(
     )
 
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def identity_init():
         with T.nki.tensorized_instruction():
             for p_loop in T.serial(0, par_size, annotations={nki_dim: "P"}):

@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 from tvm.target import Target
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise(
     A: T.Tensor([512, 512], dtype="float32"), B: T.Tensor([512, 512], dtype="float32")
 ) -> None:
@@ -36,7 +36,7 @@ def element_wise(
             B[vi, vj] = A[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def reduction_loop_only(
     A: T.Tensor(2, "float32"),
     B: T.Tensor(2, "float32"),
@@ -52,7 +52,7 @@ def reduction_loop_only(
             C[()] = T.min(C[()], A[k0] / B[k0])
 
 
-@Ts.prim_func
+@Ts.function
 def zero_dim_add(
     A: T.Tensor((), "float32"),
     B: T.Tensor((), "float32"),
@@ -64,7 +64,7 @@ def zero_dim_add(
 
 
 def test_cuda_element_wise():
-    @Ts.prim_func
+    @Ts.function
     def elementwise_0(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -99,7 +99,7 @@ def test_cuda_element_wise():
 
 
 def test_cuda_reduction_loop_only():
-    @Ts.prim_func
+    @Ts.function
     def reduction_loop_only_0(
         A: T.Tensor(2, "float32"),
         B: T.Tensor(2, "float32"),
@@ -132,7 +132,7 @@ def test_cuda_reduction_loop_only():
 
 
 def test_cuda_zero_dim_add():
-    @Ts.prim_func
+    @Ts.function
     def zero_dim_add_0(
         A: T.Tensor((), "float32"),
         B: T.Tensor((), "float32"),

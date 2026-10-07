@@ -96,7 +96,7 @@ def test_flatten_remaps_loads_in_view_shape():
     """A view sized by a local scalar: the scalar's rebuild must reach the
     load embedded in the view's shape."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         n = T.alloc_local([1], "int32")
         n[0] = 8
@@ -112,7 +112,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
     scalar load into every access index; those spliced loads must follow
     the scalar's rebuild."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         n = T.alloc_local([1], "int32")
         n[0] = 4
@@ -143,7 +143,7 @@ def test_flatten_keeps_identity_of_already_flat_buffers():
     """A flat buffer whose type is unchanged by flattening must keep its
     identity (no gratuitous rebuild)."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def before():
         flat = T.alloc_tensor([32], "float32", scope="shared", layout=None)
         flat[0] = T.float32(0)

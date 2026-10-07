@@ -197,7 +197,7 @@ def test_print():
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func
+        @T.function
         def add_func(
             A: T.Tensor((M,), dtype_str), B: T.Tensor((M,), dtype_str), C: T.Tensor((M,), dtype_str)
         ) -> None:
@@ -217,7 +217,7 @@ def test_print():
         A_np, B_np = generate_random_data((M, N), dtype), generate_random_data((M, N), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func
+        @T.function
         def add_func(
             A: T.Tensor((M, N), dtype_str),
             B: T.Tensor((M, N), dtype_str),
@@ -240,7 +240,7 @@ def test_print():
         A_np, B_np = generate_random_data((M, N, K), dtype), generate_random_data((M, N, K), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func
+        @T.function
         def add_func(
             A: T.Tensor((M, N, K), dtype_str),
             B: T.Tensor((M, N, K), dtype_str),
@@ -264,7 +264,7 @@ def test_print():
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func
+        @T.function
         def add_func(
             A: T.Tensor((M,), dtype_str), B: T.Tensor((M,), dtype_str), C: T.Tensor((M,), dtype_str)
         ) -> None:
@@ -286,7 +286,7 @@ def test_print():
         A_np, B_np = generate_random_data((M,), dtype), generate_random_data((M,), dtype)
         C_np = A_np + B_np
 
-        @T.prim_func
+        @T.function
         def add_func(
             A: T.Tensor((M,), dtype_str), B: T.Tensor((M,), dtype_str), C: T.Tensor((M,), dtype_str)
         ) -> None:

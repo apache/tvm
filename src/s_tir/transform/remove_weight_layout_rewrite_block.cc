@@ -45,13 +45,13 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  static std::tuple<PrimFunc, ffi::Map<TensorVar, TensorVar>,
+  static std::tuple<Function, ffi::Map<TensorVar, TensorVar>,
                     std::unordered_map<const VarNode*, IndexMap>,
                     std::unordered_map<const VarNode*, ffi::Array<PrimExpr>>>
-  Rewrite(PrimFunc f) {
+  Rewrite(Function f) {
     auto rewriter = ffi::make_object<RemoveLayoutRewriteBlock>();
 
-    PrimFuncNode* n = f.CopyOnWrite();
+    FunctionNode* n = f.CopyOnWrite();
     n->body = rewriter->Mutate(n->body, InplaceMode::kAllow).ValueOrUnchanged(std::move(n->body));
     return std::make_tuple(f, rewriter->buf_map_, rewriter->buffer_var_to_index_map_,
                            rewriter->buffer_var_to_rewritten_shape_);
@@ -139,11 +139,11 @@ class WeightLayoutRewriteBlockRemover : public StmtExprMutator {
     return StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  static PrimFunc Remove(PrimFunc f, bool skip_tensor_rewrite) {
+  static Function Remove(Function f, bool skip_tensor_rewrite) {
     auto [f_, buf_map, buffer_var_to_index_map, buffer_var_to_rewritten_shape] =
         RemoveLayoutRewriteBlock::Rewrite(f);
 
-    PrimFuncNode* n = f_.CopyOnWrite();
+    FunctionNode* n = f_.CopyOnWrite();
 
     ffi::Array<tirx::Var> params;
     for (const tirx::Var& param : f_->params) {
@@ -168,10 +168,10 @@ class WeightLayoutRewriteBlockRemover : public StmtExprMutator {
 namespace transform {
 
 Pass RemoveWeightLayoutRewriteBlock(bool skip_tensor_rewrite) {
-  auto pass_func = [skip_tensor_rewrite](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [skip_tensor_rewrite](Function f, IRModule m, PassContext ctx) {
     return WeightLayoutRewriteBlockRemover::Remove(std::move(f), skip_tensor_rewrite);
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.RemoveWeightLayoutRewriteBlock", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.RemoveWeightLayoutRewriteBlock", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

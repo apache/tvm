@@ -94,7 +94,7 @@ using namespace tvm::prim;
  * - one of whose use site is a BindingBlock different from its allocation site,
  * - that is used as a condition or branch return of a IfNode,
  * - that is used as the body of a SeqExprNode,
- * - that is used as arguments in a Call whose op is not a PrimFunc.
+ * - that is used as arguments in a Call whose op is not a tirx::Function.
  *
  * In practice, we do create a storage token for such tensor at first. But at
  * any time we find a tensor satisfying any of the conditions above, we erase
@@ -578,12 +578,12 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     }
 
     // - Increase the reference counters of the arguments when the callee is
-    // a PrimFunc of the context module or an external function via 'call_packed'.
+    // a tirx::Function of the context module or an external function via 'call_packed'.
     // It assumes external function calls via 'call_packed' do not retain memory
     // from the arguments.
     // - Otherwise, discard the tokens used by the arguments, as there might be
     // potential external reference.
-    if (IsPrimFuncGlobalVar(call->op) || call->op->IsInstance<ExternFuncNode>() ||
+    if (IsFunctionGlobalVar(call->op) || call->op->IsInstance<ExternFuncNode>() ||
         call->op.same_as(call_tir_dyn_op)) {
       ffi::Array<Expr> args = call->op.same_as(call_tir_dyn_op)
                                   ? call->args[1].as_or_throw<Tuple>()->fields
@@ -623,11 +623,12 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
   /******************** Utilities ********************/
 
   /*!
-   * \brief Check if the input op is GlobalVar corresponding to a PrimFunc inside the ctx module.
+   * \brief Check if the input op is GlobalVar corresponding to a tirx::Function inside the ctx
+   * module.
    * \param op The op to be checked
-   * \return A boolean indicating if the input op corresponds to a PrimFunc.
+   * \return A boolean indicating if the input op corresponds to a tirx::Function.
    */
-  bool IsPrimFuncGlobalVar(const Expr& op) {
+  bool IsFunctionGlobalVar(const Expr& op) {
     const auto* global_var = op.as<GlobalVarNode>();
     if (global_var == nullptr) {
       return false;
@@ -636,7 +637,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
     if (func_it == ctx_mod_->functions.end()) {
       return false;
     }
-    return (*func_it).second->IsInstance<tirx::PrimFuncNode>();
+    return (*func_it).second->IsInstance<tirx::FunctionNode>();
   }
 
   /*!
@@ -740,7 +741,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
 
   /*!
    * \brief The context IRModule, used for checking if a callee function is
-   * a PrimFunc inside the IRModule.
+   * a tirx::Function inside the IRModule.
    */
   const IRModule& ctx_mod_;
   /*! \brief The arithmetic analyzer. */

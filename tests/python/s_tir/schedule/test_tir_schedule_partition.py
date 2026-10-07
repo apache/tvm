@@ -34,7 +34,7 @@ from tvm.tirx.expr import IntImm
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise(A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("B"):
@@ -42,7 +42,7 @@ def elementwise(A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))) -> N
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_symbolic(
     A: T.Tensor((128, 128, n)),  # noqa: F821
     B: T.Tensor((128, 128, n)),  # noqa: F821
@@ -54,7 +54,7 @@ def elementwise_symbolic(
             B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_with_anno(A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))) -> None:
     for i, j in T.grid(128, 128):
         for k in T.serial(0, 128, annotations={"useless_annotation": True}):
@@ -65,7 +65,7 @@ def elementwise_with_anno(A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 1
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_with_thread_binding(
     A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
 ) -> None:
@@ -78,7 +78,7 @@ def elementwise_with_thread_binding(
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_with_opaque_block(
     A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
 ) -> None:
@@ -93,7 +93,7 @@ def elementwise_with_opaque_block(
                 B[vi, vj, vk] = A[vi, vj, vk] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_partition_with_opaque_block(
     A: T.Tensor([128, 128, 128]), B: T.Tensor([128, 128, 128])
 ) -> None:
@@ -130,7 +130,7 @@ def elementwise_partition_with_opaque_block(
                                 B[vi, vj, vk] = A[vi, vj, vk] * T.float32(2)
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_loop_partition_case0(
     A: T.Tensor([128, 128, 128]), B: T.Tensor([128, 128, 128])
 ) -> None:
@@ -208,7 +208,7 @@ def elementwise_loop_partition_case0(
                             B[vi, vj, vk] = A[vi, vj, vk] * T.float32(2)
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_loop_partition_case1(
     A: T.Tensor([128, 128, 128]), B: T.Tensor([128, 128, 128])
 ) -> None:
@@ -274,7 +274,7 @@ def elementwise_loop_partition_case1(
                             B[vi, vj, vk] = A[vi, vj, vk] * T.float32(2)
 
 
-@Ts.prim_func
+@Ts.function
 def opaque_access(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float32")) -> None:
     for i, j in T.grid(16, 16):
         with Ts.sblock("A"):
@@ -290,7 +290,7 @@ def opaque_access(A: T.Tensor([16, 16], "float32"), B: T.Tensor([16, 16], "float
             T.evaluate(T.tvm_fill_fragment(B.data, 16, 16, 16, 0, vi * 16 + vj))
 
 
-@Ts.prim_func
+@Ts.function
 def opaque_access_loop_partition(A: T.Tensor((16, 16)), B: T.Tensor((16, 16))) -> None:
     for i in range(16):
         with Ts.sblock("A_j_common"):
@@ -393,13 +393,13 @@ def test_partition_with_opaque_access():
 
 
 def test_partition_int64_extent_with_mixed_factors():
-    def _create_prim_func():
+    def _create_function():
         m = te.const(384, "int64")
         A = te.placeholder((m,), name="A", dtype="float32")
         B = te.compute((m,), lambda i: A[i] + 1, name="B")
-        return te.create_prim_func([A, B])
+        return te.create_function([A, B])
 
-    mod = _create_prim_func()
+    mod = _create_function()
     sch = tvm.s_tir.Schedule(mod, debug_mask="all")
     (i,) = sch.get_loops(sch.get_sblock("B"))
     sch.loop_partition(

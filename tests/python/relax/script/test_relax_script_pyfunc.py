@@ -51,7 +51,7 @@ class TestPyFuncModule(BasePyModule):
         result = torch.nn.functional.dropout(result, p=0.1, training=False)
         return result * 10.0
 
-    @Ts.prim_func
+    @Ts.function
     def simple_tir_func(
         A: T.Tensor((n,), "float32"),
         B: T.Tensor((n,), "float32"),

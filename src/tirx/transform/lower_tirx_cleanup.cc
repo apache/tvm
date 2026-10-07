@@ -111,7 +111,7 @@ class LayoutApplier : public IRMutatorWithAnalyzer {
         auto root_opt = buffer_aliases_.Get(var.value());
         TVM_FFI_ICHECK(root_opt.has_value())
             << "buffer_data projects " << var.value()->name << ", which has no visible definition "
-            << "(AllocTensor/DeclTensor/PrimFunc parameter) at this point";
+            << "(AllocTensor/DeclTensor/Function parameter) at this point";
         Var root = root_opt.value();
         if (auto mapped = VarRemapGet(root); mapped != nullptr) {
           root = mapped.as_or_throw<Var>();
@@ -393,7 +393,7 @@ class BufferOffsetRemover : public StmtExprMutator {
 };
 
 namespace {
-Target ResolveTarget(const PrimFunc& f) {
+Target ResolveTarget(const Function& f) {
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
   if (!target.has_value()) {
     target = Target::Current(false);
@@ -405,7 +405,7 @@ Target ResolveTarget(const PrimFunc& f) {
 namespace transform {
 
 Pass LowerTIRxCleanup() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
@@ -415,7 +415,7 @@ Pass LowerTIRxCleanup() {
     n->body = BufferOffsetRemover::Remove(n->body.value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTIRxCleanup", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTIRxCleanup", {});
 }
 
 }  // namespace transform

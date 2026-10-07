@@ -35,7 +35,7 @@ from itertools import pairwise
 import tvm
 from tvm.script import tirx as T
 from tvm.sym import Analyzer
-from tvm.tirx import IntImm, PrimFunc, Var, is_tensor_var
+from tvm.tirx import Function, IntImm, Var, is_tensor_var
 from tvm.tirx.layout import Layout, TileLayout
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
@@ -2053,7 +2053,7 @@ def _get_or_encode_descriptor(spec: TensorMapSpec, sctx: DispatchContext):
     tensor_map = T.Var(f"{spec.descriptor_name}_tensormap", ty=T.handle("tensormap").ty)
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def create_tensor_map():
         T.bind(T.tvm_stack_alloca("tensormap", 1), var=tensor_map)
         T.tensormap_encode_tiled(
@@ -2088,7 +2088,7 @@ def _prefetch_main_descriptor(tensor_map, key: str, sctx: DispatchContext) -> No
     warp_id = sctx.launch_params["warp_id_in_cta"][0]
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def prefetch_tensor_map():
         if warp_id == 0:
             if T.cuda.elect_sync() != T.uint32(0):
@@ -2120,7 +2120,7 @@ def _emit_plan(
     selector_bind,
     tensor_map_is_address: bool,
     sctx: DispatchContext,
-) -> PrimFunc:
+) -> Function:
     spec = plan.spec
     tensor_map_address = tensor_map if tensor_map_is_address else T.address_of(tensor_map)
 
@@ -2190,7 +2190,7 @@ def _emit_plan(
 
     if not plan.issue_axes:
         # fmt: off
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             emit_at(shared_ptr(), spec.coordinates)
         # fmt: on
@@ -2199,7 +2199,7 @@ def _emit_plan(
         flat_extent = plan.issue_extent()
 
         # fmt: off
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for issue in T.unroll(flat_extent):
                 smem_offset, coordinates = T.meta_var(plan.offsets_and_coords(issue))
@@ -2216,11 +2216,11 @@ def _emit_plan(
 
     if selector_bind is not None:
         body = tvm.tirx.SeqStmt([selector_bind, impl.body])
-        impl = PrimFunc([], body, ret_type=None).with_attr("global_symbol", "impl")
+        impl = Function([], body, ret_type=None).with_attr("global_symbol", "impl")
     return impl
 
 
-def copy_tma_auto_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_tma_auto_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     """Lower one ``tma_auto`` call."""
 
     plan = _build_auto_plan(op_call, sctx)
@@ -2231,7 +2231,7 @@ def copy_tma_auto_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Pri
     return impl
 
 
-def copy_tma_explicit_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_tma_explicit_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     """Lower one direct TensorMap and exactly one TMA instruction."""
 
     plan, candidates = _build_explicit_plan(op_call, sctx)
@@ -2283,7 +2283,7 @@ _COMMON_PREDICATES = [
     priority=10,
     when=_COMMON_PREDICATES,
 )
-def copy_async_dispatch_tma_auto(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_async_dispatch_tma_auto(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return copy_tma_auto_impl(op, sctx)
 
 
@@ -2294,5 +2294,5 @@ def copy_async_dispatch_tma_auto(op: TilePrimitiveCall, sctx: DispatchContext) -
     priority=10,
     when=_COMMON_PREDICATES,
 )
-def copy_async_dispatch_tma_explicit(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_async_dispatch_tma_explicit(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return copy_tma_explicit_impl(op, sctx)

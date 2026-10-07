@@ -43,7 +43,7 @@ def test_transform_fuse_transpose_matmul():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def NT_matmul(
             x: T.Tensor((T.int64(128), T.int64(256)), "float32"),
             w: T.Tensor((T.int64(128), T.int64(256)), "float32"),
@@ -96,7 +96,7 @@ def test_transform_fuse_transpose_matmul_const():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def NT_matmul(
             x: T.Tensor((T.int64(128), T.int64(256)), "float32"),
             w: T.Tensor((T.int64(128), T.int64(256)), "float32"),

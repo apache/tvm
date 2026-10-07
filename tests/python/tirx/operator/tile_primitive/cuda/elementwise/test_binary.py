@@ -89,7 +89,7 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
     const = T.float16(3.0) if dtype == "float16" else T.float32(3.0)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def binary_op_region_region(
         A: T.Tensor(g_shape, dtype, layout=g_layout), B: T.Tensor(g_shape, dtype, layout=g_layout)
     ) -> None:
@@ -122,7 +122,7 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
         T.cuda.cta_sync()
         Tx.cta.copy(A[tuple(copy_slice)], A_smem[tuple(copy_slice)])
 
-    @T.prim_func
+    @T.function
     def binary_op_const_region_or_region_const(
         A: T.Tensor(g_shape, dtype, layout=g_layout), _B: T.Tensor(g_shape, dtype, layout=g_layout)
     ) -> None:
@@ -158,7 +158,7 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
         Tx.cta.copy(A[tuple(copy_slice)], A_smem[tuple(copy_slice)])
         # fmt: on
 
-    def get_prim_func(operands_type):
+    def get_function(operands_type):
         if operands_type == "region_region":
             return binary_op_region_region
         elif operands_type in ["const_region", "region_const"]:
@@ -195,7 +195,7 @@ def test_binary_op_shared(input, op_type, operands_type, dtype):
         np.random.seed(0)
         A_np = np.random.rand(*g_shape).astype(dtype)
         B_np = np.random.rand(*g_shape).astype(dtype)
-        mod = tvm.IRModule({"main": get_prim_func(operands_type)})
+        mod = tvm.IRModule({"main": get_function(operands_type)})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         print(f"compiled source code: {mod.mod.imports[0].inspect_source()}")
         A_ref = get_ref(A_np, B_np)
@@ -220,7 +220,7 @@ def test_binary_non_commutative_const_lhs_rejected(op_type):
 
     with pytest.raises(Exception):
 
-        @T.prim_func
+        @T.function
         def bad_kernel() -> None:
             T.device_entry()
             _bx = T.cta_id([1])
@@ -253,7 +253,7 @@ def test_binary_op_shared_subcta_scope(exec_scope, op_type):
         ("warpgroup", "mul"): Tx.wg.mul,
     }[(exec_scope, op_type)]
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor(g_shape, dtype, layout=TileLayout(S[g_shape])),
         B: T.Tensor(g_shape, dtype, layout=TileLayout(S[g_shape])),
@@ -317,7 +317,7 @@ def test_binary_op_local_subcta_trivial(exec_scope, rhs_kind, op_type):
         exec_scope
     ]
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor(a_shape, dtype, layout=TileLayout(S[a_shape])),
         B: T.Tensor(b_shape, dtype, layout=TileLayout(S[b_shape])),
@@ -428,7 +428,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
     tx_op = {"add": Tx.add, "sub": Tx.sub, "mul": Tx.mul, "fdiv": Tx.fdiv}[op_type]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_binary_cta(
         A: T.Tensor(a_shape, dtype, layout=TileLayout(S[a_shape])),
         B: T.Tensor(b_shape, dtype, layout=TileLayout(S[b_shape])),
@@ -458,7 +458,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
             tx_op(A_local, A_local, B_local)
             Tx.copy(A[tx], A_local)
 
-    @T.prim_func
+    @T.function
     def test_binary_thread(
         A: T.Tensor(a_shape, dtype, layout=TileLayout(S[a_shape])),
         B: T.Tensor(b_shape, dtype, layout=TileLayout(S[b_shape])),
@@ -489,7 +489,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
             Tx.copy(A[tx], A_local)
         # fmt: on
 
-    def get_prim_func():
+    def get_function():
         if exec_scope == "cta":
             return test_binary_cta
         elif exec_scope == "thread":
@@ -502,7 +502,7 @@ def test_binary_op_vectorized(input, storage_scope, exec_scope, op_type, dtype):
         np.random.seed(0)
         A_np = np.random.rand(*a_shape).astype(dtype)
         B_np = np.random.rand(*b_shape).astype(dtype)
-        mod = tvm.IRModule({"main": get_prim_func()})
+        mod = tvm.IRModule({"main": get_function()})
         mod = tvm.compile(mod, target=target, tir_pipeline="tirx")
         print(f"compiled source code: {mod.mod.imports[0].inspect_source()}")
         np_op = {"add": np.add, "sub": np.subtract, "mul": np.multiply, "fdiv": np.divide}[op_type]
@@ -537,7 +537,7 @@ def test_binary_op_packed_f32x2_auto_dispatch(op_type):
     a_shape, b_shape = (64, 32), (64, 32)
     dtype = "float32"
 
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor(a_shape, dtype, layout=TileLayout(S[a_shape])),
         B: T.Tensor(b_shape, dtype, layout=TileLayout(S[b_shape])),
@@ -599,7 +599,7 @@ def test_binary_op_warpgroup_wg_local_layout(op_name):
     rows, cols = 128, 16
     target = tvm.target.Target("cuda")
 
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
         B: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
@@ -676,7 +676,7 @@ def test_binary_op_warpgroup_wg_local_emits_packed_f32x2(op_name, ptx_op):
     dtype = "float32"
     rows, cols = 128, 16
 
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
         B: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
@@ -731,7 +731,7 @@ def test_fma_warpgroup_wg_local_emits_packed_f32x2():
     dtype = "float32"
     rows, cols = 128, 16
 
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
         C: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
@@ -771,7 +771,7 @@ def test_binary_add_f32_sm100_packed_f32x2_dispatch():
     shape = (64, 32)
     lay = TileLayout(S[shape])
 
-    @T.prim_func
+    @T.function
     def k(
         A: T.Tensor(shape, "float32", layout=lay), B: T.Tensor(shape, "float32", layout=lay)
     ) -> None:
@@ -800,7 +800,7 @@ def test_binary_add_f32_sm100_packed_f32x2_dispatch():
 def test_binary_maximum_reg():
     N = 128
 
-    @T.prim_func
+    @T.function
     def relu_max(
         A: T.Tensor((N,), "float32"), B: T.Tensor((N,), "float32"), C: T.Tensor((N,), "float32")
     ) -> None:
@@ -838,7 +838,7 @@ def test_binary_add_f16_scalar_fallback_dispatch():
     shape = (64, 32)
     lay = TileLayout(S[shape])
 
-    @T.prim_func
+    @T.function
     def k(
         A: T.Tensor(shape, "float16", layout=lay), B: T.Tensor(shape, "float16", layout=lay)
     ) -> None:
@@ -869,7 +869,7 @@ def test_mul_tcgen05_16x256b_atom_warpgroup_dispatch():
     regs_per_thread = 32
     atom_layout = tcgen05_atom_layout("16x256b", (rows, cols), "float32")
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor((128, regs_per_thread), "float32"),
         B: T.Tensor((128, regs_per_thread), "float32"),

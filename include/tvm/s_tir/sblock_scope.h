@@ -164,7 +164,7 @@ class SRefTreeCreator : public s_tir::StmtExprVisitor {
     auto creator = ffi::make_object<SRefTreeCreator>(include_loops);
     for (const auto& kv : mod->functions) {
       const BaseFunc& base_func = kv.second;
-      if (auto opt = base_func.as<PrimFunc>()) {
+      if (auto opt = base_func.as<Function>()) {
         auto func = opt.value();
         creator->Visit(func->body);
       }

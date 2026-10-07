@@ -71,7 +71,7 @@ MATMUL_M = 32
 
 @tvm.script.ir_module
 class MatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((16, 16), "float32"),
         B: T.Tensor((16, 16), "float32"),
@@ -89,7 +89,7 @@ class MatmulModule:
 
 @tvm.script.ir_module
 class MatmulReluModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((16, 16), "float32"),
         B: T.Tensor((16, 16), "float32"),
@@ -112,7 +112,7 @@ class MatmulReluModule:
 
 @tvm.script.ir_module
 class BatchMatmulModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor([16, 32, 32]), B: T.Tensor([16, 32, 32]), C: T.Tensor([16, 32, 32])
     ) -> None:  # pylint: disable=no-self-argument
@@ -128,7 +128,7 @@ class BatchMatmulModule:
 
 @tvm.script.ir_module
 class AddModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor([32], "float32"), B: T.Tensor([32], "float32"), C: T.Tensor([32], "float32")
     ) -> None:  # pylint: disable=no-self-argument
@@ -143,7 +143,7 @@ class AddModule:
 # A huge matmul that must cause timeout in the timeout test below.
 @tvm.script.ir_module
 class MatmulHugeModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((4096, 4096), "float32"),
         B: T.Tensor((4096, 4096), "float32"),

@@ -38,7 +38,7 @@ def _is_buffer_binding(node, *op_names):
 def test_alloc_seq():
     scope_tb = "local.L0A"
 
-    @T.prim_func
+    @T.function
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
@@ -67,7 +67,7 @@ def test_alloc_different_dtypes():
     def make_mod(dtype_list, length):
         assert len(dtype_list) == 4
 
-        @T.prim_func
+        @T.function
         def func():
             # Allocate all buffers in parent scope (before any loops)
             A = T.alloc_tensor((length,), dtype_list[0], scope="local.L0A")
@@ -135,7 +135,7 @@ def test_alloc_different_dtypes():
 def test_address_of():
     # In this test, the storage rewrite pass is allowed to
     # combine buffers B and D, but not C
-    @T.prim_func
+    @T.function
     def before(A: T.Tensor(8, "float32"), E: T.Tensor(8, "float32")):
         B = T.alloc_tensor((8,))
         for i in range(8):
@@ -181,7 +181,7 @@ def test_address_of():
 
 
 def test_parallel_alloc():
-    @T.prim_func
+    @T.function
     def func1(n: T.int32):
         for i in T.parallel(n):
             for j in range(10):
@@ -194,7 +194,7 @@ def test_parallel_alloc():
     # With flat AllocTensor, the for body is a SeqStmt; first element is AllocTensor
     assert _is_buffer_binding(body.body.body[0], "tirx.alloc_tensor")
 
-    @T.prim_func
+    @T.function
     def func2(n: T.int32):
         for t in T.serial(n):
             with T.parallel_launch():
@@ -211,7 +211,7 @@ def test_parallel_alloc():
 
 
 def test_while_alloc():
-    @T.prim_func
+    @T.function
     def func_parallel(n: T.int32):
         for i in T.parallel(n):
             j = T.alloc_tensor((1,), "int32")
@@ -221,7 +221,7 @@ def test_while_alloc():
                 A[j[0]] = A[j[0]] + T.float32(2)
                 j[0] = j[0] + j[0] + 1
 
-    @T.prim_func
+    @T.function
     def func_serial(n: T.int32):
         for i in T.serial(n):
             j = T.alloc_tensor((1,), "int32")
@@ -266,7 +266,7 @@ def test_while_alloc():
 
 
 def test_alloc_seq_type():
-    @T.prim_func
+    @T.function
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
@@ -300,7 +300,7 @@ def test_alloc_seq_type():
 def test_alloc_seq_type2():
     scope_tb = "local.L0A2"
 
-    @T.prim_func
+    @T.function
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
@@ -328,7 +328,7 @@ def test_alloc_seq_type2():
 
 
 def test_reuse_small_buffer():
-    @T.prim_func
+    @T.function
     def func(n: T.int32):
         for i in T.serial(n):
             for j in range(10):
@@ -360,7 +360,7 @@ def test_reuse_small_buffer():
 
 
 def test_access_in_let_value():
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((8,), "float32")):
         for i in range(8):
             B = T.alloc_tensor((1,))
@@ -368,7 +368,7 @@ def test_access_in_let_value():
             x: T.let[T.float32] = T.exp(B[0])
             A[i] = (x + 1.0) / (x - 1.0)
 
-    @T.prim_func
+    @T.function
     def func_rewritten(A: T.Tensor((8,), "float32")) -> None:
         B = T.alloc_tensor((1,))
         for i in range(8):
@@ -391,7 +391,7 @@ def test_decl_buffer_is_not_vectorized():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main() -> None:
             A_data: T.let[T.handle("int32")] = T.call_extern(
                 "dummy_func", dtype=T.handle("int32").ty
@@ -408,7 +408,7 @@ def test_rewrite_decl_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
             B = T.decl_tensor(16, dtype="float32")
             C = T.decl_tensor(16, dtype="float32")
@@ -424,7 +424,7 @@ def test_rewrite_decl_buffer():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
             B = T.decl_tensor(16, dtype="float32")
             C = T.decl_tensor(16, dtype="float32", data=B.data)
@@ -448,7 +448,7 @@ def test_decl_buffer_alias_chain_uses_flat_root():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(D: T.Tensor(1, "float32")):
             A = T.decl_tensor(16, dtype="float32")
             B = T.decl_tensor(16, dtype="float32", data=A.data)
@@ -458,7 +458,7 @@ def test_decl_buffer_alias_chain_uses_flat_root():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(D: T.Tensor(1, "float32")):
             A = T.decl_tensor(16, dtype="float32")
             B = T.decl_tensor(16, dtype="float32", data=A.data)
@@ -474,7 +474,7 @@ def test_decl_buffer_alias_chain_uses_flat_root():
 def test_decl_buffer_alias_extends_source_lifetime():
     """An access through an alias prevents reuse of its source allocation."""
 
-    @T.prim_func
+    @T.function
     def func(D: T.Tensor(1, "float32")):
         A = T.decl_tensor(16, dtype="float32")
         B = T.decl_tensor(16, dtype="float32", data=A.data)
@@ -505,7 +505,7 @@ def test_no_orphaned_decl_buffer():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
             B = T.decl_tensor(16, dtype="float32")
             C = T.decl_tensor(16, dtype="float32")
@@ -522,7 +522,7 @@ def test_no_orphaned_decl_buffer():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(16, "float32"), D: T.Tensor(16, "float32")):
             B = T.decl_tensor(16, dtype="float32")
             C = T.decl_tensor(16, dtype="float32", data=B.data)

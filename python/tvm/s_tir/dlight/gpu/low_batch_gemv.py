@@ -31,7 +31,7 @@ from ..analysis import (
     collect_vars_used_in_prim_expr,
     get_max_shared_memory_per_block,
     is_broadcast_epilogue,
-    normalize_prim_func,
+    normalize_function,
 )
 from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
@@ -211,14 +211,14 @@ class LowBatchGEMV(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         if block_infos is None:
             return None
         reduction_block_infos = [
@@ -236,7 +236,7 @@ class LowBatchGEMV(GPUScheduleRule):
             for iter in reduction_block_info.iters
         ]
         sch.pad_einsum(reduction_block_info.block_rv, pad_value)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         dequantize_block = None
         pad_input_block = None
         for block_info in block_infos:

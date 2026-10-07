@@ -349,7 +349,7 @@ class MetalMatmul(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule | None:
@@ -357,7 +357,7 @@ class MetalMatmul(GPUScheduleRule):
             get_simdgroup_intrin_group,
         )
 
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         root_block = get_root_block(sch)
@@ -490,7 +490,7 @@ class MatmulTensorization(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule | None:
@@ -498,7 +498,7 @@ class MatmulTensorization(GPUScheduleRule):
             get_wmma_intrin_group,
         )
 
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         root_block = get_root_block(sch)
@@ -711,7 +711,7 @@ class MatmulInt8Tensorization(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule | None:
@@ -719,7 +719,7 @@ class MatmulInt8Tensorization(GPUScheduleRule):
             get_wmma_intrin_group,
         )
 
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         root_block = get_root_block(sch)
@@ -965,11 +965,11 @@ class Matmul(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,missing-docstring
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> s_tir.Schedule | None:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
         config = self.get_configs(target)

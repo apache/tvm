@@ -66,11 +66,11 @@ TVM_DLL ffi::Array<ffi::Array<TensorRegion>> GetSBlockReadWriteRegion(
  * \brief Detect the lowest common ancestor(LCA) of buffer access, including both high-level
  *        access(TensorLoad, TensorStore) and low-level access(Load, Store and opaque access).
  *        The LCA may be a For loop or a Block.
- * \param func The PrimFunc to be detected.
+ * \param func The Function to be detected.
  * \return The Map from buffer to the LCA of all access to it. The lca is function root if the
  *         return stmt is std::nullopt.
  */
-TVM_DLL ffi::Map<TensorVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
+TVM_DLL ffi::Map<TensorVar, ffi::Optional<Stmt>> DetectBufferAccessLCA(const Function& func);
 
 /*!
  * \brief Find the "anchor block" of the given module.
@@ -99,7 +99,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 /*! \brief Verify variable/buffer definitions, load types and schedulable block boundaries. */
-TVM_DLL bool VerifyWellFormed(const tirx::PrimFunc& func, bool assert_mode = true);
+TVM_DLL bool VerifyWellFormed(const tirx::Function& func, bool assert_mode = true);
 /*! \brief Verify S-TIR or mixed modules, including definitions shared across functions. */
 TVM_DLL bool VerifyWellFormed(const IRModule& mod, bool assert_mode = true);
 
@@ -123,7 +123,7 @@ TVM_DLL double EstimateTIRFlops(const IRModule& mod);
  * \param assert_on_error If true, an error will be thrown for an impure function.
  * \return The purity of the function.
  */
-TVM_DLL bool IsPureFunction(const PrimFunc& func, bool assert_on_error = false);
+TVM_DLL bool IsPureFunction(const Function& func, bool assert_on_error = false);
 
 /*!
  * \brief Verify the correctness of a GPU code
@@ -131,7 +131,7 @@ TVM_DLL bool IsPureFunction(const PrimFunc& func, bool assert_on_error = false);
  * \param constraints The dict to specify constraints to check.
  * \return valid Whether it is a valid GPU code.
  */
-TVM_DLL bool VerifyGPUCode(const PrimFunc& func, ffi::Map<ffi::String, PrimExpr> constraints);
+TVM_DLL bool VerifyGPUCode(const Function& func, ffi::Map<ffi::String, PrimExpr> constraints);
 
 /*! \brief Helper struct for return value of IdentifyMemCpy */
 struct MemCpyDetails {
@@ -158,12 +158,12 @@ TVM_DLL Region DomainTouched(const Stmt& body, const TensorVar& buffer, bool con
                              bool consider_stores);
 
 /*!
- * \brief Calculate the allocated memory per scope in bytes needed inside the TIR PrimFunc
- * \param func The TIR PrimFunc for which the allocated memory size to be calculated
+ * \brief Calculate the allocated memory per scope in bytes needed inside the TIR Function
+ * \param func The TIR Function for which the allocated memory size to be calculated
  * \return Allocated memory size per scope in bytes.
  */
 TVM_DLL ffi::Map<ffi::String, ffi::Map<ffi::String, int64_t>> CalculateAllocatedBytes(
-    const PrimFunc& func);
+    const Function& func);
 
 /*!
  * \brief Calculate the allocated memory per scope in bytes for each function inside the module
@@ -180,7 +180,7 @@ TVM_DLL ffi::Map<ffi::String, ffi::Map<ffi::String, int64_t>> CalculateAllocated
 TVM_DLL ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses();
 
 /*!
- * \brief Verifies that the VTCM usage for all prim_funcs in the given IRModule.
+ * \brief Verifies that the VTCM usage for all functions in the given IRModule.
  * \param mod The module to be checked.
  * \param limit The limit to check.
  * \return true if the VTCM usage is within the provided limit.
@@ -188,12 +188,12 @@ TVM_DLL ffi::Array<tvm::transform::Pass> GetVTCMCompactionPasses();
 TVM_DLL bool VerifyVTCMLimit(const IRModule& mod, int64_t limit);
 
 /*!
- * \brief Verifies that the VTCM usage of the given prim_func is within the provided limit.
+ * \brief Verifies that the VTCM usage of the given function is within the provided limit.
  * \param func The function to be checked.
  * \param limit The limit to check.
  * \return true if the VTCM usage is within the provided limit.
  */
-TVM_DLL bool VerifyVTCMLimit(const PrimFunc& func, int64_t limit);
+TVM_DLL bool VerifyVTCMLimit(const Function& func, int64_t limit);
 
 namespace transform {
 
