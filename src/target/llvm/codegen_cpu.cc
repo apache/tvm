@@ -580,8 +580,8 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
       // always not inline compute function to make the code structure clean
       fcompute->addFnAttr(llvm::Attribute::NoInline);
     }
-    // Add alignment attribute if needed.
-    auto f = alloc_storage_info_.find(var.get());
+    // Alignment facts are shared by aliases of the same physical pointer.
+    auto f = alloc_storage_info_.find(GetBufferPhysicalRoot(var.get()));
     if (f != alloc_storage_info_.end()) {
       unsigned align = f->second.alignment;
       if (align > 1) {
