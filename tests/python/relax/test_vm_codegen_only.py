@@ -383,20 +383,20 @@ def test_vm_kill_object():
             alloc: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
                 storage, R.prim_value(0), R.shape([4]), R.dtype("float32")
             )
-            _: R.Tuple = cls.full(alloc)
+            _: R.Tuple = R.call_tir_packed(cls.full, (alloc,))
             __1: R.Tuple = R.vm.kill_object(alloc)
             x: R.Tensor((4,), dtype="float32") = alloc
             alloc1: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
                 storage, R.prim_value(0), R.shape([4]), R.dtype("float32")
             )
-            _1: R.Tuple = cls.full(alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.full, (alloc1,))
             _1_1: R.Tuple = R.vm.kill_object(alloc1)
             y: R.Tensor((4,), dtype="float32") = alloc1
             storage_1: R.Any = R.vm.alloc_storage(R.shape([16]), R.prim_value(0), R.dtype("uint8"))
             alloc2: R.Tensor((4,), dtype="float32") = R.vm.alloc_tensor(
                 storage_1, R.prim_value(0), R.shape([4]), R.dtype("float32")
             )
-            _2: R.Tuple = cls.full1(alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.full1, (alloc2,))
             z: R.Tensor((4,), dtype="float32") = alloc2
             _2_1: R.Tuple = R.vm.kill_object(storage)
             return z

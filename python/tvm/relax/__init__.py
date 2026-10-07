@@ -68,6 +68,7 @@ from .exec_builder import ExecBuilder
 from .op.base import (
     call_tir,
     call_tir_inplace,
+    call_tir_packed,
     call_pure_packed,
     call_dps_packed,
     call_tir_with_grad,

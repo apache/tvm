@@ -137,6 +137,17 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
   Instruction::Arg VisitExpr_(const CallNode* call_node) final {
     Call call = ffi::GetRef<Call>(call_node);
 
+    // ComputePrimValue may introduce pure native calls after purity removal.
+    // Their runtime behavior is the explicit bridge underneath the wrapper.
+    if (call_node->op.same_as(Op::Get("relax.call_pure_packed")) &&
+        call_node->args[0].same_as(Op::Get("relax.call_tir_packed"))) {
+      Call inner =
+          Call::Unchecked(call_node->ty, call_node->args[0],
+                          ffi::Array<Expr>(call_node->args.begin() + 1, call_node->args.end()),
+                          call_node->attrs, call_node->ty_args, call_node->span);
+      return VisitExpr(inner);
+    }
+
     if (call_node->op.same_as(null_value_op_)) {
       return Instruction::Arg::Register(Instruction::kVoidRegister);
     }
@@ -152,6 +163,9 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         EmitAllocStorage(call, dst_reg);
       } else if (call_node->op.same_as(alloc_tensor_op_)) {
         EmitAllocTensor(call, dst_reg);
+      } else if (call_node->op.same_as(Op::Get("relax.call_tir_packed"))) {
+        auto arguments = call_node->args[1].as_or_throw<Tuple>();
+        builder_->EmitCall(VisitExpr(call_node->args[0]), VisitArray(arguments->fields), dst_reg);
       } else if (call_node->op.same_as(kill_object_op_)) {
         dst_reg = EmitKillObject(call);
       } else {

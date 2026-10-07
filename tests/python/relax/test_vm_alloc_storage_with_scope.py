@@ -52,7 +52,7 @@ class Module:
             R.shape([2 * 2]), runtime_device_index=0, dtype="float32", storage_scope="global"
         )
         alloc = R.vm.alloc_tensor(storage, offset=0, shape=R.shape([2, 2]), dtype="float32")
-        _: R.Tuple = cls.add(x, x, alloc)
+        _: R.Tuple = R.call_tir_packed(cls.add, (x, x, alloc))
         out: R.Tensor((2, 2), dtype="float32") = alloc
         return out
 

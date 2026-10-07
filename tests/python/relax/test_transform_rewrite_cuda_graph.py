@@ -57,20 +57,20 @@ def test_rewrite_cuda_graph():
             cls = Before
             storage: R.Any = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), "float32")
-            _1: R.Tuple = cls.exp(x, alloc)
+            _1: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             storage1: R.Any = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, 0, R.shape([2, 4]), "float32")
-            _2: R.Tuple = cls.exp(alloc, alloc1)
+            _2: R.Tuple = R.call_tir_packed(cls.exp, (alloc, alloc1))
             _3: R.Tuple = R.memory.kill_tensor(alloc)
             alloc2: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), "float32")
-            _4: R.Tuple = cls.exp(alloc1, alloc2)
+            _4: R.Tuple = R.call_tir_packed(cls.exp, (alloc1, alloc2))
             _5: R.Tuple = R.memory.kill_tensor(alloc1)
             storage2: R.Any = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
             alloc3: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage2, 0, R.shape([2, 4]), "float32")
-            _6: R.Tuple = cls.exp(alloc2, alloc3)
+            _6: R.Tuple = R.call_tir_packed(cls.exp, (alloc2, alloc3))
             _7: R.Tuple = R.memory.kill_tensor(alloc2)
             alloc4: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), "float32", 0)
-            _8 = cls.exp(alloc3, alloc4)
+            _8 = R.call_tir_packed(cls.exp, (alloc3, alloc4))
             _9: R.Tuple = R.memory.kill_tensor(alloc3)
             _10: R.Tuple = R.memory.kill_storage(storage)
             _11: R.Tuple = R.memory.kill_storage(storage1)
@@ -107,13 +107,13 @@ def test_rewrite_cuda_graph():
         def main_cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Any, storage2: R.Any) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
-            _2: R.Tuple = cls.exp(alloc, alloc1)
+            _2: R.Tuple = R.call_tir_packed(cls.exp, (alloc, alloc1))
             _3: R.Tuple = R.memory.kill_tensor(alloc)
             alloc2: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
-            _4: R.Tuple = cls.exp(alloc1, alloc2)
+            _4: R.Tuple = R.call_tir_packed(cls.exp, (alloc1, alloc2))
             _5: R.Tuple = R.memory.kill_tensor(alloc1)
             alloc3: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage2, 0, R.shape([2, 4]), "float32")
-            _6: R.Tuple = cls.exp(alloc2, alloc3)
+            _6: R.Tuple = R.call_tir_packed(cls.exp, (alloc2, alloc3))
             _7: R.Tuple = R.memory.kill_tensor(alloc2)
             gv: R.Tuple(R.Tensor((2, 4), dtype="float32")) = (alloc3,)
             return gv
@@ -126,14 +126,14 @@ def test_rewrite_cuda_graph():
             gv: R.Tuple(R.Any, R.Any, R.Any) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.get_cached_alloc", (cls.cuda_graph_alloc, R.prim_value(0)), ty_args=(R.Tuple(R.Any, R.Any, R.Any),))
             storage: R.Any = gv[0]
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
-            _1: R.Tuple = cls.exp(x, alloc)
+            _1: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             storage1: R.Any = gv[1]
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             storage2: R.Any = gv[2]
             gv1: R.Tuple(R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.main_cuda_graph_capture, (alloc, alloc1, storage, storage2), R.prim_value(0)), ty_args=(R.Tuple(R.Tensor((2, 4), dtype="float32")),))
             alloc3: R.Tensor((2, 4), dtype="float32") = gv1[0]
             alloc4: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), R.dtype("float32"), R.prim_value(0))
-            _6: R.Tuple = cls.exp(alloc3, alloc4)
+            _6: R.Tuple = R.call_tir_packed(cls.exp, (alloc3, alloc4))
             _7: R.Tuple = R.memory.kill_tensor(alloc3)
             _8: R.Tuple = R.memory.kill_storage(storage)
             _9: R.Tuple = R.memory.kill_storage(storage1)
@@ -170,20 +170,20 @@ def test_tuple():
             cls = Before
             storage: R.Any = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), "float32")
-            _: R.Tuple = cls.exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             storage1: R.Any = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, 0, R.shape([2, 4]), "float32")
-            _: R.Tuple = cls.exp(alloc, alloc1)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (alloc, alloc1))
             lv0 = (alloc1,)
             lv1 = (lv0,)
             lv2 = lv1[0]
             lv3 = lv2[0]
             alloc2: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), "float32")
-            _1: R.Tuple = cls.exp(lv3, alloc2)
+            _1: R.Tuple = R.call_tir_packed(cls.exp, (lv3, alloc2))
             _2: R.Tuple = R.memory.kill_tensor(alloc)
             _3: R.Tuple = R.memory.kill_tensor(alloc1)
             alloc3: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), R.dtype("float32"), R.prim_value(0))
-            _4: R.Tuple = cls.exp(alloc2, alloc3)
+            _4: R.Tuple = R.call_tir_packed(cls.exp, (alloc2, alloc3))
             _5: R.Tuple = R.memory.kill_tensor(alloc2)
             _6: R.Tuple = R.memory.kill_storage(storage)
             _7: R.Tuple = R.memory.kill_storage(storage1)
@@ -216,13 +216,13 @@ def test_tuple():
         def main_cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Any) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
-            _: R.Tuple = cls.exp(alloc, alloc1)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (alloc, alloc1))
             lv0: R.Tuple(R.Tensor((2, 4), dtype="float32")) = (alloc1,)
             lv1: R.Tuple(R.Tuple(R.Tensor((2, 4), dtype="float32"))) = (lv0,)
             lv2: R.Tuple(R.Tensor((2, 4), dtype="float32")) = lv1[0]
             lv3: R.Tensor((2, 4), dtype="float32") = lv2[0]
             alloc2: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
-            _1: R.Tuple = cls.exp(lv3, alloc2)
+            _1: R.Tuple = R.call_tir_packed(cls.exp, (lv3, alloc2))
             _2: R.Tuple = R.memory.kill_tensor(alloc)
             _3: R.Tuple = R.memory.kill_tensor(alloc1)
             gv: R.Tuple(R.Tensor((2, 4), dtype="float32")) = (alloc2,)
@@ -235,13 +235,13 @@ def test_tuple():
             gv: R.Tuple(R.Any, R.Any) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.get_cached_alloc", (cls.cuda_graph_alloc, R.prim_value(0)), ty_args=(R.Tuple(R.Any, R.Any),))
             storage: R.Any = gv[0]
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
-            _: R.Tuple = cls.exp(x, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             storage1: R.Any = gv[1]
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             gv1: R.Tuple(R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.main_cuda_graph_capture, (alloc, alloc1, storage), R.prim_value(0)), ty_args=(R.Tuple(R.Tensor((2, 4), dtype="float32")),))
             alloc2: R.Tensor((2, 4), dtype="float32") = gv1[0]
             alloc3: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), R.dtype("float32"), R.prim_value(0))
-            _4: R.Tuple = cls.exp(alloc2, alloc3)
+            _4: R.Tuple = R.call_tir_packed(cls.exp, (alloc2, alloc3))
             _5: R.Tuple = R.memory.kill_tensor(alloc2)
             _6: R.Tuple = R.memory.kill_storage(storage)
             _7: R.Tuple = R.memory.kill_storage(storage1)
@@ -274,17 +274,17 @@ def test_vm_builtin():
             cls = Before
             storage: R.Any = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), "float32")
-            _1: R.Tuple = cls.exp(x, alloc)
+            _1: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             storage1: R.Any = R.memory.alloc_storage(R.shape([32]), 0, "global", "float32")
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, 0, R.shape([2, 4]), "float32")
-            _2: R.Tuple = cls.exp(alloc, alloc1)
+            _2: R.Tuple = R.call_tir_packed(cls.exp, (alloc, alloc1))
             _3: R.Tuple = R.memory.kill_tensor(alloc)
             alloc2: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, 0, R.shape([2, 4]), "float32")
             lv: R.Tensor((2, 4), dtype="float32") = alloc2
             _4: R.Tuple = R.call_packed("vm.builtin.dummy", (x, lv), ty_args=R.Tuple())
             _5: R.Tuple = R.memory.kill_tensor(alloc1)
             alloc3: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), "float32", 0)
-            _6 = cls.exp(alloc2, alloc3)
+            _6 = R.call_tir_packed(cls.exp, (alloc2, alloc3))
             _7: R.Tuple = R.memory.kill_tensor(alloc2)
             _8: R.Tuple = R.memory.kill_storage(storage)
             return alloc3
@@ -316,7 +316,7 @@ def test_vm_builtin():
         def main_cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Any) -> R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
-            _2: R.Tuple = cls.exp(alloc, alloc1)
+            _2: R.Tuple = R.call_tir_packed(cls.exp, (alloc, alloc1))
             _3: R.Tuple = R.memory.kill_tensor(alloc)
             alloc2: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             lv: R.Tensor((2, 4), dtype="float32") = alloc2
@@ -330,7 +330,7 @@ def test_vm_builtin():
             gv: R.Tuple(R.Any, R.Any) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.get_cached_alloc", (cls.cuda_graph_alloc, R.prim_value(0)), ty_args=(R.Tuple(R.Any, R.Any),))
             storage: R.Any = gv[0]
             alloc: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
-            _1: R.Tuple = cls.exp(x, alloc)
+            _1: R.Tuple = R.call_tir_packed(cls.exp, (x, alloc))
             storage1: R.Any = gv[1]
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             gv1: R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.main_cuda_graph_capture, (alloc, alloc1, storage), R.prim_value(0)), ty_args=(R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")),))
@@ -339,7 +339,7 @@ def test_vm_builtin():
             _4: R.Tuple = R.call_packed("vm.builtin.dummy", (x, lv), ty_args=(R.Tuple,))
             _5: R.Tuple = R.memory.kill_tensor(alloc1)
             alloc3: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), R.dtype("float32"), R.prim_value(0))
-            _6: R.Tuple = cls.exp(alloc2, alloc3)
+            _6: R.Tuple = R.call_tir_packed(cls.exp, (alloc2, alloc3))
             _7: R.Tuple = R.memory.kill_tensor(alloc2)
             _8: R.Tuple = R.memory.kill_storage(storage)
             return alloc3
@@ -545,7 +545,7 @@ def test_capture_fixed_inputs():
         ):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
-            _1: R.Tuple = cls.fused_conv2d_relu(lv, lv1, alloc1)
+            _1: R.Tuple = R.call_tir_packed(cls.fused_conv2d_relu, (lv, lv1, alloc1))
             _: R.Tuple = R.memory.kill_tensor(alloc)
             lv1_1: R.Tensor((16, 32, 32, 16), dtype="float16") = alloc1
             lv2: R.Tensor((16,), dtype="float16") = params[3]
@@ -553,7 +553,7 @@ def test_capture_fixed_inputs():
             alloc2: R.Tensor((16, 32, 32, 16), dtype="float16") = R.memory.alloc_tensor(
                 storage, R.prim_value(0), R.shape([16, 32, 32, 16]), R.dtype("float16")
             )
-            _2: R.Tuple = cls.layer_norm(lv1_1, lv2, lv3, alloc2)
+            _2: R.Tuple = R.call_tir_packed(cls.layer_norm, (lv1_1, lv2, lv3, alloc2))
             _1_1: R.Tuple = R.memory.kill_tensor(alloc1)
             ln: R.Tensor((16, 32, 32, 16), dtype="float16") = alloc2
             lv4: R.Tensor((16, 3, 3, 16), dtype="float16") = params[2]
@@ -618,7 +618,7 @@ def test_capture_fixed_inputs():
             alloc: R.Tensor((16, 32, 32, 16), dtype="float16") = R.memory.alloc_tensor(
                 storage, R.prim_value(0), R.shape([16, 32, 32, 16]), R.dtype("float16")
             )
-            _: R.Tuple = cls.fused_conv2d_relu(data, lv, alloc)
+            _: R.Tuple = R.call_tir_packed(cls.fused_conv2d_relu, (data, lv, alloc))
             lv_1: R.Tensor((16, 32, 32, 16), dtype="float16") = alloc
             lv1: R.Tensor((16, 3, 3, 16), dtype="float16") = params[1]
             storage1: R.Any = gv[1]
@@ -650,7 +650,7 @@ def test_capture_fixed_inputs():
             alloc3: R.Tensor((16, 32, 32, 16), dtype="float16") = R.builtin.alloc_tensor(
                 R.shape([16, 32, 32, 16]), R.dtype("float16"), R.prim_value(0)
             )
-            _3: R.Tuple = cls.fused_conv2d_relu(ln, lv4, alloc3)
+            _3: R.Tuple = R.call_tir_packed(cls.fused_conv2d_relu, (ln, lv4, alloc3))
             _2: R.Tuple = R.memory.kill_tensor(alloc2)
             gv_1: R.Tensor((16, 32, 32, 16), dtype="float16") = alloc3
             _3_1: R.Tuple = R.memory.kill_storage(storage)
@@ -784,16 +784,16 @@ def test_dynamic_capture():
             alloc1: R.Tensor((m_main,), "float32") = R.memory.alloc_tensor(
                 storage, 0, R.shape([m_main]), "float32"
             )
-            _ = Before.add_one(x, alloc1)
+            _ = R.call_tir_packed(Before.add_one, (x, alloc1))
             storage1: R.Any = R.memory.alloc_storage(R.shape([16]), 0, "global", "float32")
             alloc2: R.Tensor((m_main,), "float32") = R.memory.alloc_tensor(
                 storage1, 0, R.shape([m_main]), "float32"
             )
-            _ = Before.add_one(alloc1, alloc2)
+            _ = R.call_tir_packed(Before.add_one, (alloc1, alloc2))
             alloc3: R.Tensor((m_main,), "float32") = R.builtin.alloc_tensor(
                 R.shape([m_main]), "float32", 0, "global"
             )
-            _ = Before.add_one(alloc2, alloc3)
+            _ = R.call_tir_packed(Before.add_one, (alloc2, alloc3))
             return alloc3
 
     m_add_one = T.dynamic("m")
@@ -832,7 +832,7 @@ def test_dynamic_capture():
         ):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
-            cls.add_one(alloc1, alloc2)
+            R.call_tir_packed(cls.add_one, (alloc1, alloc2))
             gv = R.tuple()
             return R.tuple()
 
@@ -851,7 +851,7 @@ def test_dynamic_capture():
             alloc1: R.Tensor((m_main,), dtype="float32") = R.memory.alloc_tensor(
                 storage, R.prim_value(0), R.shape([m_main]), R.dtype("float32")
             )
-            cls.add_one(x, alloc1)
+            R.call_tir_packed(cls.add_one, (x, alloc1))
             storage1: R.Any = gv[1]
             alloc2: R.Tensor((m_main,), dtype="float32") = R.memory.alloc_tensor(
                 storage1, R.prim_value(0), R.shape([m_main]), R.dtype("float32")
@@ -869,7 +869,7 @@ def test_dynamic_capture():
             alloc3: R.Tensor((m_main,), dtype="float32") = R.builtin.alloc_tensor(
                 R.shape([m_main]), R.dtype("float32"), R.prim_value(0), R.str("global")
             )
-            cls.add_one(alloc2, alloc3)
+            R.call_tir_packed(cls.add_one, (alloc2, alloc3))
             return alloc3
 
     mod = relax.transform.RewriteCUDAGraph()(Before)

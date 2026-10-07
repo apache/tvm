@@ -43,14 +43,14 @@ class Module:
         gv: R.Tuple(R.Any, R.Any) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.get_cached_alloc", (cls.cuda_graph_alloc, R.prim_value(0)), ty_args=(R.Tuple(R.Any, R.Any),))
         storage: R.Any = gv[0]
         alloc = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape((16, 16)), R.dtype("float32"))
-        _: R.Tuple = cls.add(x, alloc)
+        _: R.Tuple = R.call_tir_packed(cls.add, (x, alloc))
         storage1: R.Any = gv[1]
         gv1: R.Tuple(R.Tensor(dtype="float32"), R.Any, R.Any) = (alloc, storage1, storage)
         gv2: R.Tuple(R.Tensor((16, 16), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.cuda_graph_capture, gv1, R.prim_value(0)), ty_args=(R.Tuple(R.Tensor((16, 16), dtype="float32")),))
         storage2: R.Any = R.vm.alloc_storage(R.shape((1024,)), R.prim_value(0), R.dtype("uint8"))
         alloc3 = R.vm.alloc_tensor(storage2, R.prim_value(0), R.shape((16, 16)), R.dtype("float32"))
         lv4: R.Tensor((16, 16), dtype="float32") = gv2[0]
-        _3: R.Tuple = cls.add(lv4, alloc3)
+        _3: R.Tuple = R.call_tir_packed(cls.add, (lv4, alloc3))
         lv5: R.Tensor(dtype="float32") = alloc3
         return lv5
 
@@ -78,12 +78,12 @@ class Module:
         R.func_attr({"global_symbol": "cuda_graph_capture"})
         lv0: R.Tensor((16, 16), dtype="float32") = alloc
         alloc1 = R.vm.alloc_tensor(storage1, R.prim_value(0), R.shape((16, 16)), R.dtype("float32"))
-        _1: R.Tuple = cls.add(lv0, alloc1)
+        _1: R.Tuple = R.call_tir_packed(cls.add, (lv0, alloc1))
         lv1: R.Tensor(dtype="float32") = alloc1
         lv2: R.Tuple(R.Tensor(dtype="float32")) = (lv1,)
         lv3: R.Tensor(dtype="float32") = lv2[0]
         alloc2 = R.vm.alloc_tensor(storage, R.prim_value(0), R.shape((16, 16)), R.dtype("float32"))
-        _2: R.Tuple = cls.add(lv3, alloc2)
+        _2: R.Tuple = R.call_tir_packed(cls.add, (lv3, alloc2))
         lv4: R.Tensor(dtype="float32") = alloc2
         gv: R.Tuple(R.Tensor(dtype="float32")) = (lv4,)
         return gv

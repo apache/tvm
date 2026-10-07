@@ -249,6 +249,9 @@ bool IsImpureCall(const Call& call) {
     auto effect = static_cast<CallEffectKind>(effect_map[op]);
     return effect > CallEffectKind::kPure;
   }
+  TVM_FFI_CHECK(!call->op->ty.as<tvm::FuncTypeNode>(), TypeError)
+      << "Ordinary Relax calls cannot invoke a native TIRx function; "
+      << "use R.call_tir or R.call_tir_packed";
   // the Type must be FuncType
   auto func_ty = GetTypeAs<FuncTypeNode>(call->op);
   return !func_ty->purity;

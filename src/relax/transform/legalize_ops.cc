@@ -343,7 +343,7 @@ class LegalizeMutator : public ExprMutator {
     } else {
       // No legalization.
       if (enable_warning_ && !op.same_as(call_tir_op) && !op.same_as(call_dps_packed_op) &&
-          !op.same_as(call_pure_packed_op)) {
+          !op.same_as(call_pure_packed_op) && !op.same_as(Op::Get("relax.call_tir_packed"))) {
         if (shapes_are_known_if_required) {
           LOG(WARNING) << "No legalization func for " << op->name << " is found.";
         } else {
