@@ -396,7 +396,7 @@ void CheckTIRxCarrier(const Type& native, const Type& actual,
       const auto& scope = argument->vdevice.value()->memory_scope;
       actual_scope = scope.empty() ? ffi::String("global") : scope;
     }
-    // High-level DPS calls may precede SpecializePrimFuncBasedOnCallSite.
+    // High-level DPS calls may precede SpecializeFunctionBasedOnCallSite.
     // The packed bridge is after that phase and requires matching carriers.
     if (native_scope != "global" || (actual_scope && !allow_storage_specialization)) {
       TVM_FFI_CHECK(actual_scope && actual_scope.value() == native_scope, TypeError)
@@ -486,8 +486,11 @@ Type InferTypeCallTIRPacked(const CallNode* call) {
 Expr NormalizeCallTIRPacked(const BlockBuilder& ctx, Call call) {
   NativeTIRxSignature(call->args[0]);
   Tuple arguments = InlineTIRxArguments(ctx, call->args[1]);
-  CheckTIRxArguments(ContextualTIRxSignature(ctx, call->args[0], arguments), arguments->fields,
-                     ctx);
+  tvm::FuncType signature = ContextualTIRxSignature(ctx, call->args[0], arguments);
+  TVM_FFI_CHECK(ffi::StructuralEqual()(TIRxPackedValueType(signature->ret_type, true), call->ty),
+                TypeError)
+      << "R.call_tir_packed result type does not match the native function result";
+  CheckTIRxArguments(signature, arguments->fields, ctx);
   if (!arguments.same_as(call->args[1])) {
     call.CopyOnWrite()->args.Set(1, arguments);
   }
