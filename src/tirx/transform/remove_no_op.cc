@@ -151,11 +151,11 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     return value.as<CallNode>() != nullptr;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore store = ffi::GetRef<BufferStore>(op);
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    TensorStore store = ffi::GetRef<TensorStore>(op);
 
     // Helper function that returns a statement containing only the
-    // side effects of evaluating this BufferStore, but not the store
+    // side effects of evaluating this TensorStore, but not the store
     // itself.
     auto only_side_effects = [&]() {
       ffi::Array<Stmt> statements;
@@ -255,7 +255,7 @@ Stmt RemoveNoOp(Stmt stmt, const sym::Analyzer& analyzer, bool ignore_profiler_c
 namespace transform {
 
 Pass RemoveNoOp() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     RemoveNoOpConfig config =
         ctx->GetConfig<RemoveNoOpConfig>("tirx.RemoveNoOp")
@@ -273,7 +273,7 @@ Pass RemoveNoOp() {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.RemoveNoOp", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemoveNoOp", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

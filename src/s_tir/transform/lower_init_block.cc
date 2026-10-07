@@ -86,14 +86,14 @@ class InitBlockLower : public StmtExprMutator {
 namespace transform {
 
 Pass LowerInitBlock() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto fptr = f.CopyOnWrite();
     fptr->body = ffi::make_object<InitBlockLower>()
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerInitBlock", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerInitBlock", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

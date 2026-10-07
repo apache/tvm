@@ -763,7 +763,7 @@ FindInplaceOpportunities(const DataflowBlock& block, const ffi::Array<Var>& inpu
   return {size_match_list, exact_match_list};
 }
 
-// Replace buffers in a PrimFunc according to the mapping.
+// Replace buffers in a tirx::Function according to the mapping.
 tirx::Stmt RemapBuffers(const tirx::Stmt& stmt,
                         const ffi::Map<tirx::TensorVar, tirx::TensorVar>& buffer_map) {
   class BufferMapper : public tirx::StmtExprMutator {
@@ -862,7 +862,7 @@ class ModuleInplaceTransformer : public ExprMutator {
   }
 
   // Given the call and indices of arguments that could be done in-place,
-  // replace the call with a call to an in-place PrimFunc.
+  // replace the call with a call to an in-place tirx::Function.
   // (Made public for testing.)
   Call CreateInplaceCall(const Call& call, const ffi::Array<int64_t>& inplace_indices) {
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
@@ -873,18 +873,18 @@ class ModuleInplaceTransformer : public ExprMutator {
     auto* legalized_call_cow = legalized_call.CopyOnWrite();
 
     // The legalized call should be call_tir. We will replace it with call_tir_inplace
-    // and replace the called PrimFunc with an inplace version
+    // and replace the called tirx::Function with an inplace version
     auto legal_op = legalized_call->args[0].as_or_throw<GlobalVar>();
     legalizers_added.push_back(legal_op);
     auto inline_legal_op_name = legal_op->name_hint + "_inplace";
 
     auto mod = builder_->GetContextIRModule();
-    auto old_primfunc = mod->Lookup(legal_op).as_or_throw<tirx::PrimFunc>();
+    auto old_function = mod->Lookup(legal_op).as_or_throw<tirx::Function>();
 
-    tirx::Stmt new_body = old_primfunc->body.value();
+    tirx::Stmt new_body = old_function->body.value();
 
     size_t num_outs = inplace_indices.size();
-    size_t num_params = old_primfunc->params.size();
+    size_t num_params = old_function->params.size();
 
     // the replacement we must make:
     // 1. For each output var, replace its corresponding buffers with the corresponding inplace
@@ -897,8 +897,8 @@ class ModuleInplaceTransformer : public ExprMutator {
     ffi::Map<tirx::Var, tirx::Var> var_subst_map;
     for (size_t i = 0; i < num_outs; i++) {
       // we will substitute output i with the corresponding param indicated by inplace indices
-      auto output_var = old_primfunc->params[num_params - num_outs + i];
-      auto inplace_var = old_primfunc->params[inplace_indices[i]];
+      auto output_var = old_function->params[num_params - num_outs + i];
+      auto inplace_var = old_function->params[inplace_indices[i]];
       var_subst_map.Set(output_var, inplace_var);
 
       // also do the same with the buffer vars
@@ -920,15 +920,15 @@ class ModuleInplaceTransformer : public ExprMutator {
 
     // now get rid of the last num_outputs arguments
     // (couldn't do earlier or else it would have thrown off the indexing)
-    ffi::Array<tirx::Var> new_params(old_primfunc->params.begin(),
-                                     old_primfunc->params.begin() + (num_params - num_outs));
+    ffi::Array<tirx::Var> new_params(old_function->params.begin(),
+                                     old_function->params.begin() + (num_params - num_outs));
 
-    tirx::PrimFunc new_primfunc(new_params, new_body, old_primfunc->ret_type, old_primfunc->attrs,
-                                old_primfunc->span);
+    tirx::Function new_function(new_params, new_body, old_function->ret_type, old_function->attrs,
+                                old_function->span);
 
     // note: this might be a good time to get rid of the old legalized function, but we don't do it
     // now because later ops might need the same one. Instead, we will clean up at the end
-    auto new_gv = builder_->AddFunction(new_primfunc, inline_legal_op_name);
+    auto new_gv = builder_->AddFunction(new_function, inline_legal_op_name);
 
     // update the call (change the op, update the argument, change the attrs)
     legalized_call_cow->op = call_tir_inplace_op;
@@ -999,7 +999,7 @@ ffi::Array<ffi::ObjectRef> DataflowAliasAnalysis(const DataflowBlock& block,
 }
 
 // this would be preferable to do as a dataflow block pass,
-// but the transformation adds new PrimFuncs, so it affects the module
+// but the transformation adds new Functions, so it affects the module
 tvm::transform::Pass DataflowUseInplaceCalls() {
   return tvm::transform::CreateModulePass(
       [](const IRModule& mod, const PassContext& ctx) -> IRModule {

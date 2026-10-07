@@ -93,9 +93,9 @@ class TextureFlattener : public TextureLoweringBase {
   explicit TextureFlattener(const ffi::Array<Var>& params, IRVisitorWithAnalyzer* bound_analyzer)
       : TextureLoweringBase(params, bound_analyzer) {}
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     Stmt stmt = StmtExprMutator::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
-    op = stmt.as<BufferStoreNode>();
+    op = stmt.as<TensorStoreNode>();
     std::string storage_scope = GetStorageScope(op->buffer);
     // Lower to two dimensional access
     if (IsTextureStorage(storage_scope)) {
@@ -165,7 +165,7 @@ class TextureFlattener : public TextureLoweringBase {
   std::unordered_map<Var, PrimExpr> let_binding_;
 };
 
-PrimFunc TextureFlattenHandler(PrimFunc func) {
+Function TextureFlattenHandler(Function func) {
   auto fptr = func.CopyOnWrite();
   auto bound_analyzer = ffi::make_object<IRVisitorWithAnalyzer>();
   bound_analyzer->Visit(fptr->body);
@@ -178,10 +178,10 @@ PrimFunc TextureFlattenHandler(PrimFunc func) {
 namespace transform {
 
 Pass TextureFlatten() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return TextureFlattenHandler(std::move(f));
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten",
+  return tirx::transform::CreateFunctionPass(pass_func, 0, "s_tir.backend.adreno.TextureFlatten",
                                              {});
 }
 

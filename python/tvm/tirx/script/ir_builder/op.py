@@ -93,7 +93,7 @@ def _call_global(func: ir.GlobalVar, *args: Expr) -> Call:
         for module_frame in reversed(list(IRBuilder.current().frames)):
             if isinstance(module_frame, IRModuleFrame) and func in module_frame.functions:
                 declaration = module_frame.functions[func]
-                if isinstance(declaration, tir.PrimFunc):
+                if isinstance(declaration, tir.Function):
                     # The Relax-facing signature may erase pointer results to Any.
                     return Call(func, args, ty=declaration.ret_type)
                 break
@@ -336,13 +336,14 @@ def register_script_namespace(
                 current = getattr(current, part, None)
             op = _ir.Op.get(op_name)
             identity = getattr(current, "__tvm_op__", None)
-            if (
-                callable(current)
-                and isinstance(identity, _ir.Op)
-                and identity.same_as(op)
-                and op.get_attr("TScriptPrinterName") is None
-            ):
-                op.set_attr("TScriptPrinterName", op_name)
+            if callable(current) and isinstance(identity, _ir.Op) and identity.same_as(op):
+                op.set_attr(
+                    "TScriptStandardCall",
+                    bool(getattr(current, "__tvm_standard_call__", False)),
+                    override=True,
+                )
+                if op.get_attr("TScriptPrinterName") is None:
+                    op.set_attr("TScriptPrinterName", op_name)
     else:
         _register_script_namespace_printer_names(namespace, f"tirx.{name}", override)
     return namespace

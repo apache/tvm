@@ -40,7 +40,7 @@ from tvm.tirx.trn import op as trn_op
 def test_failed_invalid_prefix():
     with IRBuilder() as ib:  # pylint: disable=invalid-name
         with IB.ir_module():
-            with TB.prim_func():
+            with TB.function():
                 TB.func_name_("foo")
     mod = ib.get()
 
@@ -173,10 +173,10 @@ A[128, 128]
     )
 
 
-def test_buffer_store():
+def test_tensor_store():
     a = tirx.decl_tensor((128, 128), "float16", name="A")
     with IRBuilder() as ib:
-        TB.buffer_store(a, a[128, 128] + 1, [128, 128])
+        TB.tensor_store(a, a[128, 128] + 1, [128, 128])
     obj = ib.get()
     _assert_print(
         obj,
@@ -206,7 +206,7 @@ for i in range(128):
 
 def test_assert_stmt():
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.assert_(True, "assertion")
             TB.evaluate(TB.call_extern("int32", "after_assert"))
     obj = ib.get().body
@@ -238,7 +238,7 @@ while v < 10:
 @pytest.mark.parametrize("declare", [TB.alloc_tensor, TB.decl_tensor])
 def test_allocate(declare):
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
             buf = declare([128, 128], "float32")
             TB.evaluate(1)
@@ -255,7 +255,7 @@ T.evaluate(1)
 def test_allocate_with_decl_buffer_sugar():
     # AllocTensor and DeclTensor are flat siblings
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
             buf = TB.alloc_tensor([128, 128], "float32")
             buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
@@ -274,7 +274,7 @@ T.evaluate(1)
 def test_allocate_with_decl_buffer_sugar_multi_usage():
     # AllocTensor and DeclTensor are flat siblings
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
             buf = TB.alloc_tensor([128, 128], "float32")
             buf2 = TB.decl_tensor([128, 128], "float32", data=buf.data)
@@ -292,7 +292,7 @@ T.evaluate(v.data)
 
 def test_allocate_with_decl_buffer_no_sugar_mismatch():
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
             buf = TB.alloc_tensor([128, 128], "float32")
             buf2 = TB.decl_tensor([256, 256], "float32", data=buf.data)
@@ -311,12 +311,12 @@ T.evaluate(v.data)
 def test_decl_buffer():
     # DeclTensor is flat: we need a frame to hold multiple stmts
     with IRBuilder() as ib:
-        with TB.prim_func():
+        with TB.function():
             TB.func_name_("test")
             buf = TB.decl_tensor((10, 10), data=TB.ptr("float32"))
             TB.evaluate(1)
     obj = ib.get()
-    # Print only the body (skip PrimFunc wrapper)
+    # Print only the body (skip Function wrapper)
     _assert_print(
         obj.body,
         """
@@ -669,7 +669,7 @@ def nested_seqstmt():
     of `tirx.SeqStmt` below results in a single flat `tirx.SeqStmt`
     containing the three `tirx.Evaluate` calls.
     """
-    func = tvm.tirx.PrimFunc(
+    func = tvm.tirx.Function(
         params=[],
         body=tvm.tirx.SeqStmt(
             [
@@ -684,7 +684,7 @@ def nested_seqstmt():
 
 def test_print_kwargs_schedule_op_full_code():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test():
         A = T.alloc_tensor((16,), "float32")
         Tx.memset(A[0:16], T.float32(1.25), dispatch="v10", bar=7, foo=42)
@@ -693,7 +693,7 @@ def test_print_kwargs_schedule_op_full_code():
     expected = (
         "# from tvm.script import tirx as T\n"
         "\n"
-        "@T.prim_func\n"
+        "@T.function\n"
         "def test():\n"
         '    A = T.alloc_tensor((16,), "float32", layout="default")\n'
         '    T.tile.memset(A[0:16], T.float32(1.25), dispatch="v10", bar=7, foo=42)'
@@ -709,22 +709,22 @@ def from_source(code):
 
 
 def test_default_script_prefix_tirx_irmodule_non_main():
-    """IRModule with non-main TIRx PrimFunc should default to T prefix."""
-    mod = tvm.IRModule({"foo": _make_minimal_tirx_prim_func()})
+    """IRModule with non-main TIRx Function should default to T prefix."""
+    mod = tvm.IRModule({"foo": _make_minimal_tirx_function()})
     code = mod.script()
     assert "# from tvm.script import tirx as T" in code
     assert "# from tvm.script import tir as T" not in code
-    assert "@T.prim_func" in code
+    assert "@T.function" in code
     assert "def foo(" in code
     parsed = from_source(code)
     assert parsed.script() == code
     assert_structural_equal(mod, parsed)
 
 
-def _make_minimal_tirx_prim_func():
+def _make_minimal_tirx_function():
     source = (
         "# from tvm.script import tirx as T\n\n"
-        "@T.prim_func()\n"
+        "@T.function()\n"
         'def f(A: T.Tensor((1,), "float32")):\n'
         "    A[0] = T.float32(1)"
     )
@@ -785,7 +785,7 @@ def test_printer_ptx_more():
             sat_d=False,
             is_sparse=False,
         ),
-        'd: T.handle = T.handle()\nT.cuda.tcgen05.encode_instr_descriptor(d, d_dtype="f16", a_dtype="f16", b_dtype="f16", M=16, N=16, K=16, trans_a=T.bool(True), trans_b=T.bool(False))',  # noqa: E501
+        'd: T.handle = T.handle()\nT.cuda.tcgen05_encode_instr_descriptor(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", trans_a=True, trans_b=False)',  # noqa: E501
     )
     _assert_namespace_print(
         cuda_op.cuda_tcgen05_encode_instr_descriptor_block_scaled(
@@ -795,8 +795,6 @@ def test_printer_ptx_more():
             b_dtype="f16",
             sfa_dtype="f16",
             sfb_dtype="f16",
-            sfa_tmem_addr=a,
-            sfb_tmem_addr=b,
             M=16,
             N=16,
             K=16,
@@ -808,9 +806,7 @@ def test_printer_ptx_more():
             neg_b=False,
         ),
         "d: T.handle = T.handle()\n"
-        "a: T.handle = T.handle()\n"
-        "b: T.handle = T.handle()\n"
-        'T.cuda.tcgen05.encode_instr_descriptor_block_scaled(d, d_dtype="f16", a_dtype="f16", b_dtype="f16", sfa_dtype="f16", sfb_dtype="f16", sfa_tmem_addr=a, sfb_tmem_addr=b, M=16, N=16, K=16, trans_a=T.bool(True), trans_b=T.bool(False), is_sparse=T.bool(True))',  # noqa: E501
+        'T.cuda.tcgen05_encode_instr_descriptor_block_scaled(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", is_sparse=True, sfa_dtype="f16", sfb_dtype="f16", trans_a=True, trans_b=False)',  # noqa: E501
     )
 
 
@@ -849,7 +845,7 @@ def test_printer_cuda_more():
 
 
 def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
-    @T.prim_func
+    @T.function
     def kernel(x: T.int32):
         mask = T.cuda.__activemask()
         T.evaluate(T.cuda.__shfl_sync(mask, x, 0, 32))
@@ -871,7 +867,7 @@ def test_printer_cuda_low_level_warp_intrinsics_roundtrip():
 
 
 def test_printer_webgpu_namespace_roundtrip():
-    @T.prim_func
+    @T.function
     def kernel(x: T.int32):
         T.evaluate(T.webgpu.subgroup_shuffle(x, 0))
         T.evaluate(T.webgpu.subgroup_shuffle_up(x, 1))

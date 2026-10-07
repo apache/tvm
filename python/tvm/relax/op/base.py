@@ -101,16 +101,16 @@ def call_tir(
     out_ty: TensorType | list[TensorType],
 ) -> Call:
     """
-    Call a tirx.prim_func and return the output.
+    Call a tirx.function and return the output.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tirx PrimFunc.
+        The GlobalVar referring to a tirx Function.
 
     args : Expr
         The ordered tensor and primitive input arguments.  These correspond
-        positionally to the leading parameters of the PrimFunc.
+        positionally to the leading parameters of the Function.
 
     out_ty : Union[TensorType, List[TensorType]]
         The type information of the call_tir output.
@@ -143,18 +143,18 @@ def call_tir_with_grad(
     te_grad_kwargs: dict[str, Object] | None = None,
 ) -> Call:
     """
-    Call a tirx.prim_func and return the output. This intrinsic will bind a te gradient function
+    Call a tirx.function and return the output. This intrinsic will bind a te gradient function
     (refered by te_grad_name) to the call_tir_with_grad node. The te gradient function will be
     called by the Gradient pass.
 
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a tirx PrimFunc.
+        The GlobalVar referring to a tirx Function.
 
     args : Expr
         The ordered tensor and primitive input arguments.  These correspond
-        positionally to the leading parameters of the PrimFunc.
+        positionally to the leading parameters of the Function.
 
     out_ty : Union[TensorType, List[TensorType]]
         The type information of the call_tir_with_grad output.
@@ -199,7 +199,7 @@ def call_tir_inplace(
     out_ty: TensorType | list[TensorType],
 ) -> Call:
     """
-    Call a TIR PrimFunc and return the result, doing the specified computations in-place
+    Call a TIR Function and return the result, doing the specified computations in-place
     (based on the `inplace_indices` argument; outputs will alias the inputs
     selected by in-place indices).
 
@@ -214,11 +214,11 @@ def call_tir_inplace(
     Parameters
     ----------
     gvar : GlobalVar
-        The GlobalVar referring to a TIR PrimFunc.
+        The GlobalVar referring to a TIR Function.
 
     args : Expr
         The ordered tensor and primitive input arguments.  These correspond
-        positionally to the leading parameters of the PrimFunc.
+        positionally to the leading parameters of the Function.
 
     inplace_indices : Union[int, List[int]]
         Specify which arguments should be used for in-place computations.
@@ -380,7 +380,7 @@ def make_closure(
     Parameters
     ----------
     func : Expr
-        The closure, can be ExternFunc or PrimFunc.
+        The closure, can be ExternFunc or Function.
 
     args : Expr
         The input arguments.

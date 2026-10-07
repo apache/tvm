@@ -554,7 +554,7 @@ Stmt TensorVar::vstore(ffi::Array<PrimExpr> begin, PrimExpr value) const {
       indices.Set(indices.size() - 1, prim::Ramp(base, 1, factor));
     }
   }
-  return BufferStore(*this, value, indices);
+  return TensorStore(*this, value, indices);
 }
 
 ffi::String TensorVar::scope() const { return (*this)->storage_scope; }

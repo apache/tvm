@@ -27,7 +27,7 @@ from tvm.script import tirx as T
 def test_basic():
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def add(
             rxplaceholder: T.Tensor(T.int64(8), "float32"),
             rxplaceholder_1: T.Tensor((), "float32"),
@@ -35,34 +35,34 @@ def test_basic():
         ):
             T.evaluate(0)
 
-        @Ts.prim_func
+        @Ts.function
         def reshape(
             rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"),
             T_reshape: T.Tensor(T.int64(8), "float32"),
         ):
             T.evaluate(0)
 
-        @Ts.prim_func
+        @Ts.function
         def relu(
             rxplaceholder: T.Tensor(T.int64(8), "float32"), compute: T.Tensor(T.int64(8), "float32")
         ):
             T.evaluate(0)
 
-        @Ts.prim_func
+        @Ts.function
         def log(
             rxplaceholder: T.Tensor(T.int64(10), "float32"),
             compute: T.Tensor(T.int64(10), "float32"),
         ):
             T.evaluate(0)
 
-        @Ts.prim_func
+        @Ts.function
         def exp(
             rxplaceholder: T.Tensor((T.int64(2), T.int64(4)), "float32"),
             compute: T.Tensor((T.int64(2), T.int64(4)), "float32"),
         ):
             T.evaluate(0)
 
-        @Ts.prim_func
+        @Ts.function
         def pad(
             rxplaceholder: T.Tensor(T.int64(8), "float32"),
             PadInput: T.Tensor(T.int64(10), "float32"),

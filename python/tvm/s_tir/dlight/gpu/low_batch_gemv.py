@@ -31,7 +31,7 @@ from ..analysis import (
     collect_vars_used_in_prim_expr,
     get_max_shared_memory_per_block,
     is_broadcast_epilogue,
-    normalize_prim_func,
+    normalize_function,
 )
 from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
@@ -39,18 +39,18 @@ from .base import GPUScheduleRule
 
 def _get_reduction_expr(block: s_tir.SBlock) -> tirx.Expr | None:
     # Detect and return `Y` in `X[...] = X[...] + Y`
-    buffer_store = block.body
-    if not isinstance(buffer_store, tirx.BufferStore):
+    tensor_store = block.body
+    if not isinstance(tensor_store, tirx.TensorStore):
         return None
-    if not isinstance(buffer_store.value, tirx.Add):
+    if not isinstance(tensor_store.value, tirx.Add):
         return None
     if not tvm_ffi.structural_equal(
-        buffer_store.value.a,
-        tirx.TensorLoad(buffer_store.buffer, block.body.indices),
+        tensor_store.value.a,
+        tirx.TensorLoad(tensor_store.buffer, block.body.indices),
         map_free_vars=True,
     ):
         return None
-    return buffer_store.value.b
+    return tensor_store.value.b
 
 
 def _has_pad_einsum_compatible_access(block: s_tir.SBlock) -> bool:
@@ -211,14 +211,14 @@ class LowBatchGEMV(GPUScheduleRule):
 
     def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
         self,
-        func: tirx.PrimFunc,
+        func: tirx.Function,
         target: Target,
         _: bool,
     ) -> None | s_tir.Schedule | list[s_tir.Schedule]:
-        if not isinstance(func, tirx.PrimFunc) or not self.is_target_available(target):
+        if not isinstance(func, tirx.Function) or not self.is_target_available(target):
             return None
         sch = s_tir.Schedule(func)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         if block_infos is None:
             return None
         reduction_block_infos = [
@@ -236,7 +236,7 @@ class LowBatchGEMV(GPUScheduleRule):
             for iter in reduction_block_info.iters
         ]
         sch.pad_einsum(reduction_block_info.block_rv, pad_value)
-        block_infos = normalize_prim_func(sch)
+        block_infos = normalize_function(sch)
         dequantize_block = None
         pad_input_block = None
         for block_info in block_infos:

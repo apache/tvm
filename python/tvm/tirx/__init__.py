@@ -48,7 +48,7 @@ from .stmt import Stmt, Bind, AssertStmt, ForKind, For, While, Return, Break, Co
 # Legacy alias: LetStmt was folded into the body-less Bind statement.
 LetStmt = Bind
 
-from .stmt import BufferStore, RegionStmt
+from .stmt import TensorStore, RegionStmt
 
 from .stmt import SeqStmt
 from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
@@ -56,7 +56,7 @@ from .stmt import BufferRegion, BufferRegionType
 from .stmt import ScopeIdDefStmt
 from .tile_primitive import DispatchContext, TilePrimitiveCall
 
-from .function import PrimFunc, IndexMap
+from .function import Function, IndexMap
 
 from .op import call_packed_lowered, call_cpacked_lowered, register_intrin_lowering
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern

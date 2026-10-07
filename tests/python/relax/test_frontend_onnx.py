@@ -3672,11 +3672,11 @@ def test_clip():
 
     @I.ir_module
     class ExpectedClipMinMax:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
             T.evaluate(0)
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def minimum(var_input: T.handle, var_max: T.handle, var_output: T.handle):
             T.evaluate(0)
 
@@ -3713,7 +3713,7 @@ def test_clip():
 
     @I.ir_module
     class ExpectedClipMin:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
             T.evaluate(0)
 
@@ -3740,7 +3740,7 @@ def test_clip():
 
     @I.ir_module
     class ExpectedClipMaxOnlyInput:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
             T.evaluate(0)
 
@@ -3806,11 +3806,11 @@ def test_clip_v6(max, min):
 
     @I.ir_module
     class ExpectedClipV6:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def maximum(var_input: T.handle, var_output: T.handle):
             T.evaluate(0)
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def minimum(var_input: T.handle, var_output: T.handle):
             T.evaluate(0)
 
@@ -8300,7 +8300,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadConstantWithInputs:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def pad(input: T.handle, PadInput: T.handle):
                 T.evaluate(0)
 
@@ -8328,7 +8328,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadConstantAttrs:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def pad(input: T.handle, PadInput: T.handle):
                 T.evaluate(0)
 
@@ -8354,7 +8354,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadReflectWithInputs:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
                 T.evaluate(0)
 
@@ -8381,7 +8381,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadReflectAttrs:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
                 T.evaluate(0)
 
@@ -8407,7 +8407,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadEdgeWithInputs:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
                 T.evaluate(0)
 
@@ -8434,7 +8434,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadEdgeAttrs:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
                 T.evaluate(0)
 
@@ -8461,7 +8461,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
             @I.ir_module
             class ExpectedPadWrapWithInputs:
-                @Ts.prim_func(private=True)
+                @Ts.function(private=True)
                 def circular_pad(input: T.handle, CircularPadInput: T.handle):
                     T.evaluate(0)
 
@@ -8486,7 +8486,7 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
 
         @I.ir_module
         class ExpectedPadWrapWithAxes:
-            @Ts.prim_func(private=True)
+            @Ts.function(private=True)
             def circular_pad(input: T.handle, CircularPadInput: T.handle):
                 T.evaluate(0)
 
@@ -8998,7 +8998,7 @@ def test_tile():
 
     @I.ir_module
     class ExpectedTileDynamicInput:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tile(input: T.handle, T_tile: T.handle):
             T.evaluate(0)
 
@@ -9053,7 +9053,7 @@ def test_tile():
 
     @I.ir_module
     class ExpectedTileStaticInput:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def tile(input: T.handle, T_tile: T.handle):
             T.evaluate(0)
 
@@ -9123,7 +9123,7 @@ def test_tile_dynamic_repeats():
 
             @I.ir_module
             class ExpectedTileRank2:
-                @Ts.prim_func(private=True)
+                @Ts.function(private=True)
                 def dyn_tile(input: T.handle, var_T_tile: T.handle):
                     T.evaluate(0)
 
@@ -9159,7 +9159,7 @@ def test_tile_dynamic_repeats():
 
             @I.ir_module
             class ExpectedTileRank3:
-                @Ts.prim_func(private=True)
+                @Ts.function(private=True)
                 def dyn_tile(input: T.handle, var_T_tile: T.handle):
                     T.evaluate(0)
 
@@ -9197,7 +9197,7 @@ def test_tile_dynamic_repeats():
 
             @I.ir_module
             class ExpectedTileRank4:
-                @Ts.prim_func(private=True)
+                @Ts.function(private=True)
                 def dyn_tile(input: T.handle, var_T_tile: T.handle):
                     T.evaluate(0)
 
@@ -9488,7 +9488,7 @@ def test_einsum():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def einsum(x: T.handle, T_einsum: T.handle):
             T.evaluate(0)
 

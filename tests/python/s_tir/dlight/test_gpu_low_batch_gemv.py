@@ -32,7 +32,7 @@ def test_batch_decode_gemv():
 
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
 
@@ -62,7 +62,7 @@ def test_batch_decode_gemv():
 
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(lv429: T.Tensor((T.int64(4096), T.int64(3584)), "uint32"), lv430: T.Tensor((T.int64(4096), T.int64(896)), "float16"), lv807: T.Tensor((batch_size, T.int64(1), T.int64(28672)), 'float16'), NT_matmul_intermediate: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -160,7 +160,7 @@ def test_batch_gemv():
     # fmt: off
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(A: T.Tensor((batch_size, T.int64(1), T.int64(K)), 'float16'), B: T.Tensor((T.int64(N), T.int64(K)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(N)), 'float16')):
         T.func_attr({"tirx.noalias": True, "tirx.HoistIfThenElseExprWithBlock": 1})
 
@@ -176,7 +176,7 @@ def test_batch_gemv():
 
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(A: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16'), B: T.Tensor((T.int64(4096), T.int64(4096)), "float16"), NT_matmul: T.Tensor((batch_size, T.int64(1), T.int64(4096)), 'float16')):
         T.func_attr({"tirx.HoistIfThenElseExprWithBlock": 1, "tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -261,7 +261,7 @@ def test_reduction_symbolic_var():
     # fmt: off
     kv_seq_len = T.dynamic("kv_seq_len")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), kv_seq_len)), B: T.Tensor((T.int64(1), T.int64(32), kv_seq_len, T.int64(128))), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
 
@@ -284,7 +284,7 @@ def test_reduction_symbolic_var():
 def test_small_spatial_axis():
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def func(
         A: T.Tensor((batch_size, T.int64(4096)), "float16"),
         B: T.Tensor((T.int64(8), T.int64(4096)), "float16"),
@@ -304,7 +304,7 @@ def test_small_spatial_axis():
     # fmt: off
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(A: T.Tensor((batch_size, T.int64(4096)), 'float16'), B: T.Tensor((T.int64(8), T.int64(4096)), "float16"), C: T.Tensor((batch_size, T.int64(8)), 'float16')):
         T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -395,7 +395,7 @@ def test_outer_reduction():
     # fmt: off
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
         B0: T.Tensor((512, 6144), "uint32"),
         B1: T.Tensor((128, 6144), "float16"),
@@ -422,7 +422,7 @@ def test_outer_reduction():
 
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(B0: T.Tensor((512, 6144), "uint32"), B1: T.Tensor((128, 6144), "float16"), A: T.Tensor((batch_size, 1, 4096), 'float16'), C: T.Tensor((batch_size, 1, 6144), 'float16')):
         T.func_attr({"tirx.is_scheduled": True})
 
@@ -541,7 +541,7 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
     # fmt: off
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(A: T.Tensor((batch_size, T.int64(1), T.int64(128)), 'float16'), B: T.Tensor((T.int64(128), T.int64(128)), "float16"), C: T.Tensor((batch_size, T.int64(1), T.int64(128)), 'float16')):
         T.func_attr({"tir.noalias": True})
 
@@ -567,7 +567,7 @@ def test_low_batch_gemv_cuda_target_without_max_shared_memory_per_block():
 def test_low_batch_gemv_rejects_non_einsum_buffer_access():
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
         A: T.Tensor((batch_size, 8), "float16"),
         B: T.Tensor((4, batch_size + 8), "float16"),
@@ -591,7 +591,7 @@ def test_low_batch_gemv_broadcast_epilogue():
     # fmt: off
     batch_size = T.dynamic("batch_size")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
         A: T.Tensor((T.int64(1), batch_size, T.int64(1), T.int64(128)), 'float16'),
         B: T.Tensor((T.int64(128), T.int64(128)), "float16"),

@@ -363,7 +363,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
         // These statements leave the kernel region for host scope, where a
         // ``buffer_data`` projection of a device-local view cannot be
         // resolved.  Rewrite each projection onto its storage root, which is
-        // a PrimFunc parameter and therefore visible on the host.
+        // a Function parameter and therefore visible on the host.
         res = KernelReplacePointSearcher::Seek(StorageRootResolver::Apply(stmt, buffer_root_),
                                                std::move(res));
       }
@@ -445,7 +445,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
    *
    * A ``DeclTensor`` whose data is ``buffer_data(src)`` is a view over
    * ``src``'s storage, so it inherits ``src``'s root; anything else owns its
-   * storage.  Buffers with no definition in the body (PrimFunc parameters)
+   * storage.  Buffers with no definition in the body (Function parameters)
    * are absent from the map and are their own root.
    */
   void RegisterStorageRoot(const Var& old_var, const Var& new_var,
@@ -585,9 +585,9 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
     static auto f_op_dispatcher_ = ffi::Function::GetGlobal("tirx.f_op_dispatcher");
     TVM_FFI_ICHECK(f_op_dispatcher_.has_value())
         << "Internal Error: tirx.f_op_dispatcher is not registered";
-    PrimFunc res =
-        f_op_dispatcher_.value()(ffi::GetRef<tirx::TilePrimitiveCall>(op), sctx).cast<PrimFunc>();
-    TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a PrimFunc";
+    Function res =
+        f_op_dispatcher_.value()(ffi::GetRef<tirx::TilePrimitiveCall>(op), sctx).cast<Function>();
+    TVM_FFI_ICHECK(res.defined()) << "TIRx dispatcher did not return a Function";
     // Implementation found, handle callbacks
     if (auto bufs = sctx->callbacks.Get(tirx::callback::kPrivateAlloc)) {
       auto buf_list = bufs.value().as<Array<TensorVar>>().value();
@@ -1516,7 +1516,7 @@ class TilePrimitiveDispatcher : public StmtExprMutator {
 };
 
 namespace {
-Target ResolveTarget(const PrimFunc& f) {
+Target ResolveTarget(const Function& f) {
   auto target = f->GetAttr<Target>(tvm::attr::kTarget);
   if (!target.has_value()) {
     target = Target::Current(false);
@@ -1528,7 +1528,7 @@ Target ResolveTarget(const PrimFunc& f) {
 namespace transform {
 
 Pass TilePrimitiveDispatch() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     Target target = ResolveTarget(f);
     auto* n = f.CopyOnWrite();
@@ -1538,7 +1538,7 @@ Pass TilePrimitiveDispatch() {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.TilePrimitiveDispatch", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.TilePrimitiveDispatch", {});
 }
 
 }  // namespace transform

@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func
+@T.function
 def ptx_griddepcontrol(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     T.launch_thread("blockIdx.x", 1)

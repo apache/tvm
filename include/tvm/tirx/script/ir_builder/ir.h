@@ -64,15 +64,15 @@ TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
 
 /*!
  * \brief The primitive function statement.
- * \return The PrimFuncFrame.
+ * \return The FunctionFrame.
  */
-PrimFuncFrame PrimFunc(bool is_private, bool persistent = false);
+FunctionFrame Function(bool is_private, bool persistent = false);
 
 /*! \brief Construct a bodyless function signature using the ordinary signature operations. */
-PrimFuncFrame DeclFunction(bool is_private = false, bool persistent = false);
+FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);
 
 /*!
- * \brief The PrimFunc variable arguments adding function.
+ * \brief The Function variable arguments adding function.
  * \param name The name of the variable.
  * \param var The variable argument.
  * \return The variable.
@@ -80,7 +80,7 @@ PrimFuncFrame DeclFunction(bool is_private = false, bool persistent = false);
 Var Arg(ffi::String name, Var var);
 
 /*!
- * \brief The PrimFunc buffer arguments adding function.
+ * \brief The Function buffer arguments adding function.
  * \param name The name of the buffer.
  * \param buffer The buffer argument.
  * \return The buffer.
@@ -88,20 +88,20 @@ Var Arg(ffi::String name, Var var);
 TensorVar Arg(ffi::String name, TensorVar buffer);
 
 /*!
- * \brief The PrimFunc naming statement.
- * \param name The name of the PrimFunc.
+ * \brief The Function naming statement.
+ * \param name The name of the Function.
  */
 void FuncName(ffi::String name);
 
 /*!
- * \brief The PrimFunc annotation statement.
- * \param attrs The annotations of the PrimFunc.
+ * \brief The Function annotation statement.
+ * \param attrs The annotations of the Function.
  */
 void FuncAttrs(ffi::Map<ffi::String, ffi::Any> attrs);
 
 /*!
- * \brief The PrimFunc return type statement.
- * \param ret_type The return type of the PrimFunc.
+ * \brief The Function return type statement.
+ * \param ret_type The return type of the Function.
  * \return The return type.
  */
 Type FuncRet(Type ret_type);
@@ -284,7 +284,7 @@ ThenFrame Then();
 ElseFrame Else();
 
 /*!
- * \brief The buffer declaration frame.
+ * \brief Declare a tensor binding or allocate its storage.
  * \param shape The type of the buffer prior to flattening.
  * \param dtype The data type in the content of the buffer.
  * \param buffer_name The name of the buffer.
@@ -295,14 +295,13 @@ ElseFrame Else();
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
  * \param layout The layout of the buffer.
- * \return The declaration frame.
+ * \return The declared tensor.
  */
-DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                           ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                           ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor,
-                           ffi::Optional<Layout> layout = std::nullopt,
-                           ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
+TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                     ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
 
 /*!
  * \brief Statement-level buffer allocation (binds a buffer-returning allocation Call).
@@ -334,7 +333,7 @@ RegionFrame Region(Op op, ffi::Array<Expr> args,
  * \param indices The indices location to be stored.
  * \return The same statement that was added to the parent frame.
  */
-tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
+tvm::tirx::Stmt TensorStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices);
 
 /*!
  * \brief Evaluate the input expression.

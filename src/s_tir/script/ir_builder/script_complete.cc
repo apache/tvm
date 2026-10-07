@@ -130,7 +130,7 @@ class ScriptCompleter : public s_tir::StmtExprMutator {
   bool is_root_block_ = true;
 };
 
-PrimFunc ScriptComplete(PrimFunc func, const ffi::Array<TensorVar>& root_allocates) {
+Function ScriptComplete(Function func, const ffi::Array<TensorVar>& root_allocates) {
   if (!func->body.has_value()) return func;
   ffi::Map<Var, TensorVar> buffer_var_map;
   for (const Var& param : func->params) {

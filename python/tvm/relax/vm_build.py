@@ -21,7 +21,7 @@ import tvm
 from tvm import relax
 from tvm.ir.module import IRModule
 from tvm.runtime import Executable
-from tvm.tirx.function import PrimFunc
+from tvm.tirx.function import Function
 
 from . import _ffi_api
 
@@ -273,7 +273,7 @@ def build(
 
 
 def _filter_tir(mod: tvm.IRModule) -> tvm.IRModule | None:
-    tir_mod = {gvar: func for gvar, func in mod.functions.items() if isinstance(func, PrimFunc)}
+    tir_mod = {gvar: func for gvar, func in mod.functions.items() if isinstance(func, Function)}
 
     if tir_mod:
         return IRModule(tir_mod, attrs=mod.attrs)

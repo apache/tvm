@@ -1066,7 +1066,7 @@ def test_call_tir_with_float16_args():
                 R.output(C)
             return C
 
-        @Ts.prim_func
+        @Ts.function
         def tir_identity(
             Input: T.Tensor(64, "float16"),
             Output: T.Tensor(64, "float16"),

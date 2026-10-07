@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func
+@T.function
 def ptx_ldmatrix(
     A: T.Tensor((16, 16), "float16"), B: T.Tensor((16, 16), "float16"), num: T.int32, trans: T.uint8
 ) -> None:

@@ -28,7 +28,7 @@ from tvm.script import tirx as T
 def test_reshape_expand_dims():
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def reshape(
             rxplaceholder: T.Tensor((T.int64(8), T.int64(3)), "float32"),
             T_reshape: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
@@ -48,7 +48,7 @@ def test_reshape_expand_dims():
                         (v_ax0 * 12 + v_ax1 * 3 + v_ax2) % T.int64(3),
                     ]
 
-        @Ts.prim_func
+        @Ts.function
         def expand_dims(
             rxplaceholder: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
             expand_dims: T.Tensor(
@@ -77,7 +77,7 @@ def test_reshape_expand_dims():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def reshape(
             rxplaceholder: T.Tensor((T.int64(8), T.int64(3)), "float32"),
             T_reshape: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
@@ -97,7 +97,7 @@ def test_reshape_expand_dims():
                         (v_ax0 * T.int64(12) + v_ax1 * T.int64(3) + v_ax2) % T.int64(3),
                     ]
 
-        @Ts.prim_func
+        @Ts.function
         def expand_dims(
             rxplaceholder: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
             expand_dims: T.Tensor(
@@ -137,7 +137,7 @@ def test_reshape_pattern_detect():
     # fmt: off
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
             for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
                 for ax0_ax1_ax2_ax3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
@@ -151,7 +151,7 @@ def test_reshape_pattern_detect():
                             Ts.writes(T_reshape[v_ax0, v_ax1, v_ax2, v_ax3])
                             T_reshape[v_ax0, v_ax1, v_ax2, v_ax3] = rxplaceholder[(((v_ax2 * T.int64(64) + v_ax3) // T.int64(320) + v_ax1) // T.int64(4096) + v_ax0) % T.int64(2), ((v_ax2 * T.int64(64) + v_ax3) // T.int64(320) + v_ax1) % T.int64(4096), (v_ax2 * T.int64(64) + v_ax3) % T.int64(320)]
 
-        @Ts.prim_func
+        @Ts.function
         def expand_dims(
             rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32"),
             expand_dims: T.Tensor(
@@ -183,7 +183,7 @@ def test_reshape_pattern_detect():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def expand_dims(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32"), expand_dims_1: T.Tensor((T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)), "float32")):
             # with Ts.sblock("root"):
             for i0, i1, i2, i3, i4, i5 in T.grid(T.int64(2), T.int64(1), T.int64(4096), T.int64(1), T.int64(5), T.int64(64)):
@@ -193,7 +193,7 @@ def test_reshape_pattern_detect():
                     Ts.writes(expand_dims_1[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1])
                     expand_dims_1[i0_1, i1_1, i2_1, i3_1, i4_1, i5_1] = rxplaceholder[i0_1, i2_1, i4_1, i5_1]
 
-        @Ts.prim_func
+        @Ts.function
         def reshape(rxplaceholder: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float32"), T_reshape: T.Tensor((T.int64(2), T.int64(4096), T.int64(5), T.int64(64)), "float32")):
             # with Ts.sblock("root"):
             for ax0_ax1_ax2_ax3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
@@ -228,7 +228,7 @@ def test_reshape_dynamic_shape():
 
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(
             A: T.Tensor((n, 16, 128), "float16"), T_reshape: T.Tensor((1, n, 16, 128), "float16")
         ):
@@ -270,7 +270,7 @@ def test_reshape_dynamic_shape():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(
             A: T.Tensor((n, 16, 128), "float16"), T_reshape: T.Tensor((1, n, 16, 128), "float16")
         ):
@@ -317,7 +317,7 @@ def test_reshape_dynamic_shape():
 def test_reshape_non_dataflow():
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def reshape(
             rxplaceholder: T.Tensor((T.int64(8), T.int64(3)), "float32"),
             T_reshape: T.Tensor((T.int64(2), T.int64(4), T.int64(3)), "float32"),
@@ -352,7 +352,7 @@ def test_reshape_non_dataflow():
 def test_tuple_get_reshape():
     @tvm.script.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def fused_reshape5(
             lv2_0: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
             lv2_1: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
@@ -413,7 +413,7 @@ def test_tuple_get_reshape():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def fused_reshape5(
             lv2_0: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
             lv2_1: T.Tensor((T.int64(2), T.int64(4096), T.int64(320)), "float16"),
@@ -479,7 +479,7 @@ def test_invalid_reshape():
         # The strided_slice op has the reshape pattern, but it can take only a part of the input.
         # It can't be replaced with the reshape op because reshape expects to preserve the "volume"
         # of the input.
-        @Ts.prim_func
+        @Ts.function
         def strided_slice(
             A: T.Tensor((T.int64(1), T.int64(1024)), "int32"),
             T_strided_slice: T.Tensor((T.int64(1), T.int64(1000)), "int32"),
@@ -492,7 +492,7 @@ def test_invalid_reshape():
                     Ts.writes(T_strided_slice[v_ax0, v_ax1])
                     T_strided_slice[v_ax0, v_ax1] = A[v_ax0, v_ax1]
 
-        @Ts.prim_func
+        @Ts.function
         def add_one(
             A: T.Tensor((T.int64(1), T.int64(1000)), "int32"),
             T_add_one: T.Tensor((T.int64(1), T.int64(1000)), "int32"),
@@ -548,7 +548,7 @@ def test_reshape_scalar():
 
     @tvm.script.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             A: T.Tensor((T.int64(1),), "float32"),
             B: T.Tensor((T.int64(1),), "float32"),
@@ -563,7 +563,7 @@ def test_reshape_scalar():
                     Ts.writes(T_add[v_ax0])
                     T_add[v_ax0] = A[v_ax0] + B[v_ax0]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def reshape(A: T.Tensor((), "float32"), T_reshape: T.Tensor((T.int64(1),), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -612,7 +612,7 @@ def test_rewrite_static_reshape():
                 R.output(z)
             return z
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             y1: T.Tensor((T.int64(64), T.int64(4)), "float32"),
             y2: T.Tensor((T.int64(64), T.int64(4)), "float32"),
@@ -633,7 +633,7 @@ def test_rewrite_static_reshape():
             # to Relax
             relax.transform.RewriteDataflowReshape(),
             # Clean up afterwards, removing the no-longer-required
-            # PrimFunc "reshape"
+            # Function "reshape"
             relax.transform.DeadCodeElimination(),
         ]
     )(Before)
@@ -670,7 +670,7 @@ def test_rewrite_static_reshape():
 #                 R.output(z)
 #             return z
 
-#         @T.prim_func(private=True)
+#         @T.function(private=True)
 #         def add(
 #             y1: T.Tensor([N // 4, 4], "float32"),
 #             y2: T.Tensor([N // 4, 4], "float32"),
@@ -694,7 +694,7 @@ def test_rewrite_static_reshape():
 #             # to Relax
 #             relax.transform.RewriteDataflowReshape(),
 #             # Clean up afterwards, removing the no-longer-required
-#             # PrimFunc "reshape"
+#             # Function "reshape"
 #             relax.transform.DeadCodeElimination(),
 #         ]
 #     )(Before)
@@ -735,7 +735,7 @@ def test_rewrite_dynamic_reshape():
 
         add_N = T.int64()
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def add(
             y1: T.Tensor([add_N * 4, T.int64(4)], "float32"),
             y2: T.Tensor([add_N * 4, T.int64(4)], "float32"),
@@ -757,7 +757,7 @@ def test_rewrite_dynamic_reshape():
             # to Relax
             relax.transform.RewriteDataflowReshape(),
             # Clean up afterwards, removing the no-longer-required
-            # PrimFunc "reshape"
+            # Function "reshape"
             relax.transform.DeadCodeElimination(),
         ]
     )(Before)

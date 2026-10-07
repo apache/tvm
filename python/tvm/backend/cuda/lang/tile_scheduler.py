@@ -17,7 +17,7 @@
 """Reusable tile scheduler helpers for TIR tests/kernels.
 
 These classes emit TIR via @T.inline. Decorate with @T.meta_class so that
-instances are automatically treated as meta values inside @T.prim_func.
+instances are automatically treated as meta values inside @T.function.
 """
 
 from tvm.backend.cuda.lang.clc import query_cancel_first_ctaid_x

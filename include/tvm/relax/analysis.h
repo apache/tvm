@@ -556,30 +556,30 @@ TVM_DLL std::set<const VarNode*> GetUsedVars(const Expr& expr);
 TVM_DLL Expr RemoveAllUnused(Expr expr);
 
 /*!
- * \brief Annotate Op Pattern Kind for PrimFunc, which is used in relax FuseOps.
+ * \brief Annotate Op Pattern Kind for tirx::Function, which is used in relax FuseOps.
  *
- * \param func The PrimFunc to be analyzed.
+ * \param func The tirx::Function to be analyzed.
  * \return The Op Pattern Kind.
  *
  * \note This analysis applies on TIR function but is primarily used by relax passes.
  *       As a result we place it under the relax namespace.
  */
-TVM_DLL OpPatternKind AnalyzeOpPatternKind(const tirx::PrimFunc& func);
+TVM_DLL OpPatternKind AnalyzeOpPatternKind(const tirx::Function& func);
 
 /*!
- * \brief Check if the given PrimFunc is essentially doing a reshape operation.
+ * \brief Check if the given tirx::Function is essentially doing a reshape operation.
  * The reshape operation also includes expand_dims, squeeze, flatten, etc.
  * \details Here the allowed reshape pattern is: for example, assume the operation is
  *  `B[l_0, l_1, ..., l_b] = A[r_0, r_1, ..., r_a]`, we check if we can prove that the flattened
  * index of l_0, ..., l_b under buffer B equals to the flattened index of r_0, ..., r_a under
  * buffer A.
  * \param func The function to be examined.
- * \return A boolean indicating if the given PrimFunc is doing a reshape.
+ * \return A boolean indicating if the given tirx::Function is doing a reshape.
  * \note According to the description above, the returned result can only be false-negative and
  * cannot be false-positive, since whenever we cannot prove the equality, we return false. This
  * property guarantees the safety of this function.
  */
-TVM_DLL bool HasReshapePattern(const tirx::PrimFunc& func);
+TVM_DLL bool HasReshapePattern(const tirx::Function& func);
 
 /*!
  * \brief Check if the given expression (likely a function body) contains any impure calls.
@@ -639,10 +639,10 @@ TVM_DLL bool CheckWellFormed(ffi::Variant<IRModule, Function> obj, bool check_ty
 
 /*!
  * \brief Using the layout transforms on the outputs, suggest layout transformation on the blocks
- * and buffers for the PrimFunc.
+ * and buffers for the tirx::Function.
  *
- * \param fn The PrimFunc to be analyzed.
- * \param write_buffer_transformations Array of IndexMap transformations on PrimFunc outputs.
+ * \param fn The tirx::Function to be analyzed.
+ * \param write_buffer_transformations Array of IndexMap transformations on tirx::Function outputs.
  * \return Suggested transforms per block in `fn`. For each block the returned value is a map
  * from the object (block or buffer) to it's index map transformation.
  */

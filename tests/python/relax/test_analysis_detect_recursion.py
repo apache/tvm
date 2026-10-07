@@ -417,11 +417,11 @@ def test_mutual_recursion_via_references():
     assert_groups(groups, [["a", "b", "c"]])
 
 
-def test_disregard_primfuncs():
+def test_disregard_functions():
     @tvm.script.ir_module
-    class CallPrimFunc:
+    class CallFunction:
         # copied from test_analysis.py
-        @Ts.prim_func
+        @Ts.function
         def identity_identity(A: T.Tensor((4, 4), "float32"), B: T.Tensor((4, 4), "float32")):
             C = Ts.sblock_alloc_buffer((128, 128), "float32")
             for i0, i1 in T.grid(4, 4):
@@ -435,18 +435,18 @@ def test_disregard_primfuncs():
 
         @R.function
         def a(x: R.Tensor((4, 4), "float32")) -> R.Any:
-            cls = CallPrimFunc
+            cls = CallFunction
             y = R.call_tir(cls.identity_identity, x, R.Tensor((4, 4), "float32"))
             return cls.b(y)
 
         @R.function
         def b(x: R.Tensor((4, 4), "float32")) -> R.Any:
-            cls = CallPrimFunc
+            cls = CallFunction
             y = R.call_tir(cls.identity_identity, x, R.Tensor((4, 4), "float32"))
             return cls.a(y)
 
-    groups = detect_recursion(CallPrimFunc)
-    # the prim func should not be listed here
+    groups = detect_recursion(CallFunction)
+    # the function should not be listed here
     assert_groups(groups, [["a", "b"]])
 
 

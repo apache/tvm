@@ -31,7 +31,7 @@ def test_rocm_inf_nan():
     def check_inf_nan(n, value, dtype):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((1,), dtype), C: T.Tensor((1,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -87,7 +87,7 @@ def test_rocm_vectorize_add():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
@@ -112,7 +112,7 @@ def test_rocm_vectorize_add():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_warp_shuffle():
-    @T.prim_func
+    @T.function
     def func(
         A: T.Tensor((32,), dtype="float32"),
     ):
@@ -139,7 +139,7 @@ def test_rocm_warp_shuffle():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_rocm(), reason="need rocm")
 def test_rocm_vectorized_exp():
-    @T.prim_func
+    @T.function
     def func(
         A: T.Tensor((4,), dtype="float32"),
         B: T.Tensor((4,), dtype="float32"),
@@ -169,7 +169,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):

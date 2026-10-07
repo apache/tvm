@@ -86,7 +86,7 @@ canonical SF-transpose, from ``test_permute_layout.py``):
     post = TileLayout(S[shape : (blk, 128, 1, 4)])  # destination (4↔32 transposed)
 
 
-    @Tx.prim_func
+    @Tx.function
     def f(A_buf: Tx.Tensor(shape, dtype, layout=pre), B_buf: Tx.Tensor(shape, dtype, layout=post)):
 
         Tx.device_entry()

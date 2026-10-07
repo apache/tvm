@@ -49,7 +49,7 @@ from tvm.script import tirx as T
 # fmt: off
 # pylint: disable=no-member,invalid-name,unused-variable,line-too-long,redefined-outer-name,unexpected-keyword-arg,too-many-nested-blocks,not-callable
 
-@Ts.prim_func
+@Ts.function
 def cuda_matmul(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048], 'float32'), C: T.Tensor([2048, 2048], 'float32')) -> None:  # pylint: disable=undefined-loop-variable
 
     for by in T.thread_binding(0, 32, thread = "blockIdx.y"):
@@ -71,7 +71,7 @@ def cuda_matmul(A: T.Tensor([2048, 2048], 'float32'), B: T.Tensor([2048, 2048], 
                                                 C[vi, vj] = 0.0
                                             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
 
-@Ts.prim_func
+@Ts.function
 def cuda_matmul_read_at_a(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tensor([2048, 2048], dtype='float32'), C: T.Tensor([2048, 2048], dtype='float32')) -> None:
 
     A_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
@@ -102,7 +102,7 @@ def cuda_matmul_read_at_a(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tenso
                                                 C[vi, vj] = T.float32(0)
                                             C[vi, vj] = C[vi, vj] + A_shared[vi, vk] * B[vk, vj]
 
-@Ts.prim_func
+@Ts.function
 def cuda_matmul_read_at_ab(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tensor([2048, 2048], dtype='float32'), C: T.Tensor([2048, 2048], dtype='float32')) -> None:
 
     A_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")
@@ -142,7 +142,7 @@ def cuda_matmul_read_at_ab(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tens
                                                 C[vi, vj] = T.float32(0)
                                             C[vi, vj] = C[vi, vj] + A_shared[vi, vk] * B_shared[vk, vj]
 
-@Ts.prim_func
+@Ts.function
 def cuda_matmul_write_at_c(A: T.Tensor([2048, 2048], dtype='float32'), B: T.Tensor([2048, 2048], dtype='float32'), C: T.Tensor([2048, 2048], dtype='float32')) -> None:
 
     A_shared = Ts.sblock_alloc_buffer([2048, 2048], dtype="float32", scope="shared")

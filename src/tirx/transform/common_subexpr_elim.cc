@@ -880,7 +880,7 @@ namespace transform {
  * \return The pass.
  */
 Pass CommonSubexprElim() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto [insert_before, expr_remap] = CSEPlanner::Plan(f->body.value());
     if (!insert_before.empty()) {
@@ -890,7 +890,7 @@ Pass CommonSubexprElim() {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.CommonSubexprElim", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.CommonSubexprElim", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -24,20 +24,20 @@ import tvm
 from tvm.ir.module import IRModule
 from tvm.runtime import Executable
 from tvm.target import Target
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 
 
-def _contains_relax(mod: PrimFunc | IRModule) -> bool:
-    if isinstance(mod, PrimFunc):
+def _contains_relax(mod: Function | IRModule) -> bool:
+    if isinstance(mod, Function):
         return False
     if isinstance(mod, IRModule):
         return any(isinstance(func, tvm.relax.Function) for _, func in mod.functions_items())
 
-    raise ValueError(f"Function input must be a PrimFunc or IRModule, but got {type(mod)}")
+    raise ValueError(f"Function input must be a Function or IRModule, but got {type(mod)}")
 
 
 def compile(  # pylint: disable=redefined-builtin
-    mod: PrimFunc | IRModule,
+    mod: Function | IRModule,
     target: Target | None = None,
     *,
     relax_pipeline: tvm.transform.Pass | Callable | str | None = "default",
@@ -51,8 +51,8 @@ def compile(  # pylint: disable=redefined-builtin
 
     Parameters
     ----------
-    mod : Union[PrimFunc, IRModule]
-        The input module to be compiled. Can be a PrimFunc or an IRModule containing
+    mod : Union[Function, IRModule]
+        The input module to be compiled. Can be a Function or an IRModule containing
         TIR or Relax functions.
     target : Optional[Target]
         The target platform to compile for.

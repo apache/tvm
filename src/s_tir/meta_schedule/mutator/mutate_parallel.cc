@@ -78,7 +78,7 @@ const SBlockRVNode* GetInstGetSBlockOutput(const Instruction& inst) {
  * \brief Analyze the parallel structure
  * \param self The schedule state
  * \param block_name The name of the root block
- * \param func_name The name of the PrimFunc
+ * \param func_name The name of the Function
  * \param limit The uplimit of the parallelism
  * \return The parallel structure
  */
@@ -212,7 +212,7 @@ struct MutateParallelNode::Candidate {
   int64_t parallel_extent;
   /*! \brief The name of the root block */
   ffi::String block_name;
-  /*! \brief The name of the PrimFunc */
+  /*! \brief The name of the Function */
   ffi::String func_name;
 };
 

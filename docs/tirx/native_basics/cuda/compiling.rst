@@ -18,7 +18,7 @@
 Compiling and inspecting
 ========================
 
-Wrap the ``PrimFunc`` in an ``IRModule`` and compile with
+Wrap the ``Function`` in an ``IRModule`` and compile with
 ``tvm.compile(mod, target=..., tir_pipeline="tirx")``; it runs the TIRx lowering
 pipeline and returns an ``Executable`` you call directly. With an active CUDA
 device, target ``"cuda"`` auto-detects its architecture (for example
@@ -75,7 +75,7 @@ Rung 2 in full — a 256-element block sum via a shared-memory tree reduction
 
 .. code-block:: python
 
-    @Tx.prim_func
+    @Tx.function
     def block_sum(A: Tx.Tensor((256,), "float32"), out: Tx.Tensor((1,), "float32")):
 
         Tx.device_entry()

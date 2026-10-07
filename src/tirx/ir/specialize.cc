@@ -19,7 +19,7 @@
 
 /*!
  * \file src/tirx/ir/specialize.cc
- * \brief Specialize parameters of PrimFunc.
+ * \brief Specialize parameters of Function.
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_equal.h>
@@ -44,7 +44,7 @@ using VarMap = std::unordered_map<Var, Expr>;
 /**************** Helper functions ****************/
 
 /*! \brief Helper function to check whether the given var is in function parameter list. */
-inline bool IsParam(const PrimFunc& func, const Var& param) {
+inline bool IsParam(const Function& func, const Var& param) {
   return std::any_of(func->params.begin(), func->params.end(),
                      [&](const Var& var) { return var.same_as(param); });
 }
@@ -79,18 +79,18 @@ inline bool IsParam(const PrimFunc& func, const Var& param) {
   }
 
 /*! \brief Mutator to specialize function and remove const parameters */
-class PrimFuncSpecializer : public StmtExprMutator {
+class FunctionSpecializer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  explicit PrimFuncSpecializer(const VarMap& var_map) {
+  explicit FunctionSpecializer(const VarMap& var_map) {
     for (const auto& [var, value] : var_map) {
       if (!var.as<TensorVar>()) VarRemapSet(var, value);
     }
   }
 
-  static PrimFunc Specialize(PrimFunc f, const VarMap& var_map) {
-    auto specializer = ffi::make_object<PrimFuncSpecializer>(var_map);
+  static Function Specialize(Function f, const VarMap& var_map) {
+    auto specializer = ffi::make_object<FunctionSpecializer>(var_map);
     for (const Var& param : f->params) {
       auto buffer = param.as<TensorVar>();
       auto replacement = var_map.find(param);
@@ -142,7 +142,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
     auto body = std::move(body_result).ValueOrUnchanged(f->body);
 
     if (param_updated || !body_unchanged) {
-      return PrimFunc(params, body, f->ret_type, f->attrs, f->span);
+      return Function(params, body, f->ret_type, f->attrs, f->span);
     } else {
       return f;
     }
@@ -153,7 +153,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
    public:
     using StmtExprVisitor::Visit_;
 
-    explicit BufferPlanner(PrimFuncSpecializer* specializer) : specializer_(specializer) {}
+    explicit BufferPlanner(FunctionSpecializer* specializer) : specializer_(specializer) {}
 
    private:
     ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) final {
@@ -180,7 +180,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
       return StmtExprVisitor::Visit_(op);
     }
 
-    PrimFuncSpecializer* specializer_;
+    FunctionSpecializer* specializer_;
   };
 
   UnchangedOr<Expr> Mutate_(const CallNode* op, InplaceMode inplace_mode) final {
@@ -326,7 +326,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
         << "mutation must occur at the buffer's point of definition "
         << "(see discussion on https://github.com/apache/tvm/pull/14565 for more details).  "
         << "Please add a definition for this buffer, "
-        << "either as a TensorType-annotated PrimFunc parameter, "
+        << "either as a TensorType-annotated Function parameter, "
         << "in a block's buffer allocations, "
         << "or in a DeclTensor statement.";
   }
@@ -347,7 +347,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
  * \param specific_buf The matching buffer.
  * \param var_map The var mapping to be updated.
  * \note This function will match target buffer's shape, strides and element_offset
- *   For example, we define a buffer in PrimFunc:
+ *   For example, we define a buffer in Function:
  *   A: T.Tensor([m, n])
  *
  *   Then we match it with a buffer B =  tirx.decl_tensor((8, 16))
@@ -357,7 +357,7 @@ class PrimFuncSpecializer : public StmtExprMutator {
  *   If the buffer signature is not a Var, the mapping will fail.
  *   e.g. A: T.Tensor([m * 2, n + 1])
  */
-void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const TensorVar& specific_buf,
+void UpdateSpecializeVarMap(const Function& func, const Var& param, const TensorVar& specific_buf,
                             VarMap* var_map) {
   // preliminaries
   prim::ExprDeepEqual equal;
@@ -432,11 +432,11 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Tensor
  * \param specific_expr The parameter value.
  * \param var_map The var mapping to be updated.
  */
-void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Expr& specific_expr,
+void UpdateSpecializeVarMap(const Function& func, const Var& param, const Expr& specific_expr,
                             VarMap* var_map) {
-  // check param is in PrimFunc's parameters
+  // check param is in Function's parameters
   TVM_FFI_CHECK(IsParam(func, param), ValueError)
-      << "Specialize expects param to be in PrimFunc's params";
+      << "Specialize expects param to be in Function's params";
   // Specialize a scalar parameter rather than a buffer parameter.
   TVM_FFI_CHECK(!param.as<TensorVar>(), ValueError)
       << "Specialize expects param to not have a TensorType annotation";
@@ -446,7 +446,7 @@ void UpdateSpecializeVarMap(const PrimFunc& func, const Var& param, const Expr& 
 
 /**************** Implementation ****************/
 
-PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map) {
+Function Specialize(Function func, const ffi::Map<Var, ffi::Variant<TensorVar, Expr>>& param_map) {
   VarMap var_map;
   for (const auto& kv : param_map) {
     const Var& param = kv.first;
@@ -459,14 +459,14 @@ PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<TensorVar, E
       TVM_FFI_THROW(TypeError) << "specialize expected instance to be TensorVar or Expr";
     }
   }
-  return PrimFuncSpecializer::Specialize(func, std::move(var_map));
+  return FunctionSpecializer::Specialize(func, std::move(var_map));
 }
 
 /**************** FFI ****************/
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tirx.Specialize", [](PrimFunc func,
+  refl::GlobalDef().def("tirx.Specialize", [](Function func,
                                               const ffi::Map<Var, ffi::Any>& param_map) {
     VarMap var_map;
     for (const auto& [param, instance] : param_map) {
@@ -481,7 +481,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                  << instance.GetTypeKey();
       }
     }
-    return PrimFuncSpecializer::Specialize(func, std::move(var_map));
+    return FunctionSpecializer::Specialize(func, std::move(var_map));
   });
 }
 

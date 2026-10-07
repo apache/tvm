@@ -631,7 +631,7 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
   /*! \brief Entry point */
   ffi::Array<s_tir::SBlockRV> Run() {
     std::vector<s_tir::SBlockRV> results;
-    auto f_collect = [this, &results](tirx::PrimFunc func, ffi::String func_name) {
+    auto f_collect = [this, &results](tirx::Function func, ffi::String func_name) {
       func_name_ = func_name;
       block_names_.clear();
       blocks_to_collect_.clear();
@@ -643,14 +643,14 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
 
     if (sch_->func_working_on().has_value()) {
       GlobalVar gv = sch_->func_working_on().value();
-      tirx::PrimFunc func = sch_->mod()->functions[gv].as_or_throw<tirx::PrimFunc>();
+      tirx::Function func = sch_->mod()->functions[gv].as_or_throw<tirx::Function>();
       f_collect(func, gv->name_hint);
     } else {
       for (const auto& [gv, base_func] : sch_->mod()->functions) {
         // `gv->name_hint` is the name of the function
-        // `base_func` can be PrimFunc or relax::Function
-        if (const auto* func = base_func.as<tirx::PrimFuncNode>()) {
-          f_collect(ffi::GetRef<tirx::PrimFunc>(func), gv->name_hint);
+        // `base_func` can be Function or relax::Function
+        if (const auto* func = base_func.as<tirx::FunctionNode>()) {
+          f_collect(ffi::GetRef<tirx::Function>(func), gv->name_hint);
         }
       }
     }
@@ -690,7 +690,7 @@ class SBlockCollector : public s_tir::StmtExprVisitor {
   std::unordered_set<ffi::String> block_names_;
   /* \brief The list of blocks to collect in order */
   ffi::Array<ffi::String> blocks_to_collect_;
-  /*! \brief Name of the current PrimFunc */
+  /*! \brief Name of the current Function */
   ffi::String func_name_;
 };
 

@@ -973,7 +973,7 @@ Stmt LoopPartition(Stmt stmt, bool partition_const_loop, bool no_unroll_loop_wit
 namespace transform {
 
 Pass LoopPartition() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<LoopPartitionConfig>("s_tir.LoopPartition");
@@ -985,7 +985,7 @@ Pass LoopPartition() {
                                    cfg.value()->unroll_loop_with_partition_hint_no_interval);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LoopPartition", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LoopPartition", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

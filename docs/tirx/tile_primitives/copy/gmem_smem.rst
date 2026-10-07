@@ -91,7 +91,7 @@ A warp (32 threads) copies a ``32×32`` ``float32`` tile global → shared and b
     fs = (slice(0, 32), slice(0, 32))
 
 
-    @Tx.prim_func
+    @Tx.function
     def kernel(A: Tx.Tensor(shape, dtype), B: Tx.Tensor(shape, dtype)):
 
         Tx.device_entry()

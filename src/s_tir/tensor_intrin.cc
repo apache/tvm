@@ -26,7 +26,7 @@
 
 namespace tvm {
 namespace s_tir {
-using tirx::PrimFunc;
+using tirx::Function;
 using tirx::TensorTypeNode;
 
 TVM_FFI_STATIC_INIT_BLOCK() { TensorIntrinNode::RegisterReflection(); }
@@ -41,7 +41,7 @@ class TensorIntrinManager {
   }
 };
 
-TensorIntrin::TensorIntrin(PrimFunc desc, PrimFunc impl) {
+TensorIntrin::TensorIntrin(Function desc, Function impl) {
   // Check the number of func var is equal
   TVM_FFI_CHECK_EQ(desc->params.size(), impl->params.size(), ValueError)
       << "The number of parameters of the description and the implementation of the "
@@ -88,7 +88,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("s_tir.TensorIntrin",
-           [](PrimFunc desc_func, PrimFunc intrin_func) {
+           [](Function desc_func, Function intrin_func) {
              return TensorIntrin(desc_func, intrin_func);
            })
       .def("s_tir.TensorIntrinRegister", TensorIntrin::Register)

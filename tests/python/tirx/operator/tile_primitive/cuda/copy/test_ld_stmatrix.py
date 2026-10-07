@@ -112,7 +112,7 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
 
     # fmt: off
     if direction == "ld":
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
             T.device_entry()
@@ -135,7 +135,7 @@ def _build_warp_kernel(num, direction, trans, swizzle=False):
                     gr, gc = _coord(row, cp, t, w)
                     B[gr, gc] = r_view[t * 2 + w]
     else:  # direction == "st"
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
             T.device_entry()
@@ -178,7 +178,7 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
 
     # fmt: off
     if direction == "ld":
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
             T.device_entry()
@@ -206,7 +206,7 @@ def _build_warpgroup_kernel(num, direction, trans, swizzle=False):
                     gr, gc = _coord(wid, row, cp, t, w)
                     B[gr, gc] = r_view[t * 2 + w]
     else:
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
             T.device_entry()
@@ -254,7 +254,7 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
 
     # fmt: off
     if direction == "ld":
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
             T.device_entry()
@@ -280,7 +280,7 @@ def _build_cta_kernel(num, direction, trans, swizzle=False):
                     gr, gc = _coord(wid, row, cp, t, w)
                     B[gr, gc] = r_view[t * 2 + w]
     else:
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor((M, N), 'float16'), B: T.Tensor((M, N), 'float16')) -> None:
 
             T.device_entry()
@@ -393,7 +393,7 @@ def _build_multi_iter_kernel(outer_ext: int):
     s_layout = ComposeLayout(3, 3, 3, TileLayout(S[(512,)]))
     full = tuple(slice(0, e) for e in shape)
 
-    @T.prim_func
+    @T.function
     def kernel(A: T.Tensor(shape, "float16"), B: T.Tensor(shape, "float16")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -472,7 +472,7 @@ def test_ldstmatrix_tcgen05_warpgroup_atom_emits_ldmatrix():
     reg_layout = tcgen05_atom_layout("16x256b", (m, k), "float32")
     smem_layout = mma_shared_layout("bfloat16", 3, (m, k))
 
-    @T.prim_func
+    @T.function
     def kernel(smem: T.Tensor((m, k), "bfloat16", scope="shared", layout=smem_layout)) -> None:
         T.device_entry()
         T.cta_id([1])

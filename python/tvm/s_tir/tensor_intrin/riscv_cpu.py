@@ -74,7 +74,7 @@ def rvv_vec_dot_product_kernels(
         }
     """
 
-    @Ts.prim_func
+    @Ts.function
     def rvv_vec_dot_prod_desc(
         A: T.Tensor((n_elems,), data_dtype, offset_factor=1),
         B: T.Tensor((n_lanes, n_elems), weight_dtype, offset_factor=1),
@@ -106,7 +106,7 @@ def rvv_vec_dot_product_kernels(
         wide_dtype += str(DataType(data_dtype).bits * 2)
 
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def rvv_vec_dot_prod_impl(
         A: T.Tensor((n_elems,), data_dtype, offset_factor=1),
         B: T.Tensor((n_lanes, n_elems), weight_dtype, offset_factor=1),

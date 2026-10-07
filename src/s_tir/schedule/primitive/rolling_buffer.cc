@@ -390,12 +390,12 @@ class RollingBufferRewriter : public StmtExprMutator {
     return stmt;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    TensorStore stmt = StmtExprMutator::Mutate_(op, inplace_mode)
                            .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                           .as_or_throw<BufferStore>();
+                           .as_or_throw<TensorStore>();
     if (stmt->buffer.same_as(info_->old_buffer)) {
-      BufferStoreNode* n = stmt.CopyOnWrite();
+      TensorStoreNode* n = stmt.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
       // Need to add predicate to the current block to avoid recomputing elements.
       rewrite_block_predicate_ = true;

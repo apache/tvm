@@ -446,7 +446,7 @@ def test_call_tir():
 
     @tvm.script.ir_module
     class TestCallTIR:
-        @Ts.prim_func
+        @Ts.function
         def addone(
             A: T.Tensor((m_addone, n_addone), "float32"),
             B: T.Tensor((m_addone, n_addone), "float32"),

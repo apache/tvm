@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@Ts.prim_func
+@Ts.function
 def main(p0: T.Tensor((), "int32"), T_stack: T.Tensor((T.int64(3),), "int32")):
     T.func_attr({"tirx.noalias": True})
     # with Ts.sblock("root"):
@@ -56,10 +56,10 @@ def main(p0: T.Tensor((), "int32"), T_stack: T.Tensor((T.int64(3),), "int32")):
 
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
-def test_normalize_primfunc_with_scalar():
+def test_normalize_function_with_scalar():
     sch = tvm.s_tir.Schedule(main)
-    f_normalize_prim_func = tvm.get_global_func("s_tir.schedule.NormalizePrimFunc")
-    assert f_normalize_prim_func(sch)
+    f_normalize_function = tvm.get_global_func("s_tir.schedule.NormalizeFunction")
+    assert f_normalize_function(sch)
 
 
 if __name__ == "__main__":

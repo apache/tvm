@@ -66,7 +66,7 @@ are a plain ``enum.Enum`` whose integer values start at 0 and index a names list
     EV_NAMES = ["load", "compute", "store"]
 
 
-    @Tx.prim_func
+    @Tx.function
     def profiled_kernel(
         out: Tx.Tensor((N,), "float32"),
         inp: Tx.Tensor((N,), "float32"),

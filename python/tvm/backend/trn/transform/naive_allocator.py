@@ -21,7 +21,7 @@ import tvm_ffi
 
 from tvm.ir import Call, Op, Var
 from tvm.tirx import Bind, IntImm
-from tvm.tirx.transform.function_pass import prim_func_pass
+from tvm.tirx.transform.function_pass import function_pass
 
 
 def is_const_shape(shape) -> bool:
@@ -113,7 +113,7 @@ def _allocate_missing_buffers(stmt, alloc_pool_start: int):
     )
 
 
-@prim_func_pass(opt_level=0, name="TrnNaiveAllocator")
+@function_pass(opt_level=0, name="TrnNaiveAllocator")
 class TrnNaiveAllocator:
     def transform_function(self, func, mod, ctx):
         alloc_pool_start = _get_alloc_pool_start(func.body)

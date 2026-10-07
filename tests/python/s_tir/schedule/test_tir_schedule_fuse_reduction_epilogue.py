@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_before(
     A: T.Tensor((16, 16), "int8"),
     B: T.Tensor((16, 16), "int8"),
@@ -52,7 +52,7 @@ def matmul_bias_before(
             D[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_expected(
     A: T.Tensor((16, 16), "int8"),
     B: T.Tensor((16, 16), "int8"),
@@ -70,7 +70,7 @@ def matmul_bias_expected(
             D[vi, vj] = D[vi, vj] + T.cast(A[vi, vk], "int32") * T.cast(B[vj, vk], "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_fp32_before(
     A: T.Tensor((32, 32), "float32"),
     B: T.Tensor((32, 32), "float32"),
@@ -90,7 +90,7 @@ def matmul_bias_fp32_before(
             D[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_fp32_expected(
     A: T.Tensor((32, 32), "float32"),
     B: T.Tensor((32, 32), "float32"),
@@ -108,7 +108,7 @@ def matmul_bias_fp32_expected(
             D[vi, vj] = D[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_multiple_epilogue_before(
     A: T.Tensor((16, 16), "int8"),
     B: T.Tensor((16, 16), "int8"),
@@ -133,7 +133,7 @@ def matmul_bias_multiple_epilogue_before(
             E[vi, vj] = temp[vi, vj] + C[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_multiple_epilogue_expected(
     A: T.Tensor((16, 16), "int8"),
     B: T.Tensor((16, 16), "int8"),
@@ -217,7 +217,7 @@ def test_fuse_reduction_epilogue_multiple_epilogue():
     assert mod is not None
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_invalid_multiple_use_before(
     A: T.Tensor((16, 16), "int8"),
     B: T.Tensor((16, 16), "int8"),
@@ -247,7 +247,7 @@ def test_fuse_reduction_epilogue_reject_multiple_use():
         sch.fuse_reduction_epilogue("multiply", "bad_epilogue")
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_bias_invalid_scaling_before(
     A: T.Tensor((16, 16), "int8"),
     B: T.Tensor((16, 16), "int8"),

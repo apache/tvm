@@ -96,14 +96,14 @@ class PaddingInfoAnalyzer {
       Var block_var = block->iter_vars[i]->var;
       iter_values.insert_or_assign(block_var.get(), realize->iter_values[i]);
     }
-    const BufferStoreNode* store = block->body.as<BufferStoreNode>();
+    const TensorStoreNode* store = block->body.as<TensorStoreNode>();
     if (!store) {
-      SetError("Block body expect a BufferStore to the write buffer");
+      SetError("Block body expect a TensorStore to the write buffer");
       return false;
     }
     const CallNode* if_then_else = store->value.as<CallNode>();
     if (!if_then_else || !if_then_else->op.same_as(prim::if_then_else_op())) {
-      SetError("Value of BufferStore expect to be constrained by a padding predicate");
+      SetError("Value of TensorStore expect to be constrained by a padding predicate");
       return false;
     }
     auto f_substitute =
@@ -245,7 +245,7 @@ static std::pair<Stmt, SBlockRealize> CreateConstBlock(const SBlockRealizeNode* 
                    }));
 
   // create block to fill const pad values
-  BufferStore store = block->body.as_or_throw<BufferStore>();
+  TensorStore store = block->body.as_or_throw<TensorStore>();
   store.CopyOnWrite()->value = info.pad_value;
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/{}, /*writes=*/{write_region},
@@ -356,7 +356,7 @@ static std::pair<Stmt, SBlockRealize> CreateInBoundBlock(const SBlockRealizeNode
   }
 
   // create new block realize node
-  BufferStore store = block->body.as_or_throw<BufferStore>();
+  TensorStore store = block->body.as_or_throw<TensorStore>();
   store.CopyOnWrite()->value = rewrite_expr(info.in_bound_value);
   store.CopyOnWrite()->indices = store->indices.Map(rewrite_expr);
   SBlock new_block(/*iter_vars=*/new_iter_vars, /*reads=*/reads, /*writes=*/writes,

@@ -86,25 +86,25 @@ TensorVar TensorDecl(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buf
                                   offset_factor, layout, allocated_addr));
 }
 
-PrimFuncFrame PrimFunc(bool is_private, bool persistent) {
-  ffi::ObjectPtr<PrimFuncFrameNode> n = ffi::make_object<PrimFuncFrameNode>();
+FunctionFrame Function(bool is_private, bool persistent) {
+  ffi::ObjectPtr<FunctionFrameNode> n = ffi::make_object<FunctionFrameNode>();
   n->name = std::nullopt;
   n->is_private = is_private;
   n->args.clear();
   n->ret_type = std::nullopt;
   n->attrs = {};
   n->persistent = persistent;
-  return PrimFuncFrame(n);
+  return FunctionFrame(n);
 }
 
-PrimFuncFrame DeclFunction(bool is_private, bool persistent) {
-  PrimFuncFrame frame = PrimFunc(is_private, persistent);
+FunctionFrame DeclFunction(bool is_private, bool persistent) {
+  FunctionFrame frame = Function(is_private, persistent);
   frame->is_declaration = true;
   return frame;
 }
 
 Var Arg(ffi::String name, Var var) {
-  PrimFuncFrame frame = FindPrimFuncFrame("T.Arg");
+  FunctionFrame frame = FindFunctionFrame("T.Arg");
   details::Namer::Name(var, name);
   frame->args.push_back(var);
   return var;
@@ -116,9 +116,9 @@ TensorVar Arg(ffi::String name, TensorVar buffer) {
 }
 
 void FuncName(ffi::String name) {
-  PrimFuncFrame frame = FindPrimFuncFrame("T.func_name");
+  FunctionFrame frame = FindFunctionFrame("T.func_name");
   if (frame->name.has_value()) {
-    TVM_FFI_THROW(InternalError) << "ValueError: Duplicate prim func name, previous one is "
+    TVM_FFI_THROW(InternalError) << "ValueError: Duplicate function name, previous one is "
                                  << frame->name.value();
   }
   frame->name = name;
@@ -126,7 +126,7 @@ void FuncName(ffi::String name) {
 
 void FuncAttrs(ffi::Map<ffi::String, ffi::Any> new_attrs) {
   using namespace tvm::tirx;
-  PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
+  FunctionFrame frame = FindFunctionFrame("T.func_attr");
   for (const auto& [key, value] : new_attrs) {
     if (key == tvm::attr::kGlobalSymbol && frame->is_private) {
       TVM_FFI_THROW(InternalError)
@@ -139,7 +139,7 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> new_attrs) {
     if (auto prev = frame->attrs.Get(key)) {
       TVM_FFI_THROW(InternalError)
           << "ValueError: "
-          << "Duplicate prim func annotation for key = \"" << key << "\".  "
+          << "Duplicate function annotation for key = \"" << key << "\".  "
           << "Previous value was " << prev.value() << ", with later definition as " << value;
     } else {
       frame->attrs.Set(key, value);
@@ -148,9 +148,9 @@ void FuncAttrs(ffi::Map<ffi::String, ffi::Any> new_attrs) {
 }
 
 tvm::Type FuncRet(tvm::Type ret_type) {
-  PrimFuncFrame frame = FindPrimFuncFrame("T.ret_type");
+  FunctionFrame frame = FindFunctionFrame("T.ret_type");
   if (frame->ret_type.has_value()) {
-    TVM_FFI_THROW(InternalError) << "ValueError: Duplicate prim func return type, previous one is "
+    TVM_FFI_THROW(InternalError) << "ValueError: Duplicate function return type, previous one is "
                                  << frame->ret_type.value();
   }
   frame->ret_type = ret_type;
@@ -185,7 +185,7 @@ ffi::Array<tvm::tirx::Var> ScopeId(ffi::Optional<ffi::Array<PrimExpr>> extents, 
   }
   // Emit a standalone ScopeIdDefStmt to the current TIRFrame's stmts list.
   // The def is visible to all subsequent stmts within the same enclosing
-  // scope (PrimFunc body, RegionStmt body, ExecScope body, etc.).
+  // scope (Function body, RegionStmt body, ExecScope body, etc.).
   tvm::tirx::ScopeIdDef def(
       scope_ids.Map([](tvm::tirx::Var var) { return var.as_or_throw<tvm::PrimVar>(); }), extents,
       tvm::tirx::StringPairToScopeBinding(parent, cur));
@@ -464,7 +464,7 @@ ElseFrame Else() {
   return ElseFrame(n);
 }
 
-tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices) {
+tvm::tirx::Stmt TensorStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExpr> indices) {
   PrimType buffer_dtype = buffer->dtype;
   PrimType index_ty = indices.empty() ? PrimType::Int(32) : indices.back().ty();
   bool is_index_scalable = !indices.empty() && index_ty.IsScalableVector();
@@ -506,26 +506,26 @@ tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExp
     }
 
     if (!lanes_match) {
-      TVM_FFI_THROW(InternalError) << "TypeError: Incompatible types in BufferStore"
+      TVM_FFI_THROW(InternalError) << "TypeError: Incompatible types in TensorStore"
                                    << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                                    << "`, indexing lanes: " << index_lanes;
     }
     value = tvm::prim::cast(lhs_dtype, value);
   }
-  tvm::tirx::Stmt store = tvm::tirx::BufferStore(buffer, value, indices);
+  tvm::tirx::Stmt store = tvm::tirx::TensorStore(buffer, value, indices);
   if (lhs_dtype != rhs_dtype) {
     if (lhs_dtype.code() != rhs_dtype.code()) {
       if ((lhs_dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt)) &&
           (rhs_dtype.code() == DLDataTypeCode::kDLFloat ||
            rhs_dtype.code() == DLDataTypeCode::kDLBfloat)) {
         ffi::String kernel_name = "<unknown>";
-        if (ffi::Optional<PrimFuncFrame> frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+        if (ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->FindFrame<FunctionFrame>()) {
           kernel_name = frame.value()->name.value_or("<anonymous>");
         }
-        LOG(WARNING) << "Casting in BufferStore may lose precision"
+        LOG(WARNING) << "Casting in TensorStore may lose precision"
                      << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
                      << "`, indexing lanes: " << index_lanes << ", kernel: `" << kernel_name << "`"
-                     << "\nBufferStore:\n"
+                     << "\nTensorStore:\n"
                      << store;
       }
     }
@@ -534,11 +534,11 @@ tvm::tirx::Stmt BufferStore(TensorVar buffer, PrimExpr value, ffi::Array<PrimExp
   return store;
 }
 
-DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                           ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                           ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor, ffi::Optional<Layout> layout,
-                           ffi::Optional<PrimExpr> allocated_addr) {
+TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                     int offset_factor, ffi::Optional<Layout> layout,
+                     ffi::Optional<PrimExpr> allocated_addr) {
   std::string scope = static_cast<std::string>(storage_scope);
   if (scope.empty()) {
     scope = "global";
@@ -566,21 +566,30 @@ DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Stri
     }
   }
 
-  ffi::ObjectPtr<DeclTensorFrameNode> n = ffi::make_object<DeclTensorFrameNode>(
-      TensorDecl(shape, dtype, buffer_name, data, strides, elem_offset, storage_scope, align,
-                 offset_factor, layout, allocated_addr_arr));
-  if (data.has_value()) {
-    n->data = data.value();
-  } else if (scope == "tmem") {
-    // Tensor memory is an externally allocated address space.  Make that
-    // address-to-pointer relationship explicit so every DeclTensor has a
-    // physical data binding.
-    n->data =
-        Call(n->buffer.DataPointerType(), tvm::tirx::reinterpret_op(), {allocated_addr.value()});
+  TensorVar buffer = TensorDecl(shape, dtype, buffer_name, data, strides, elem_offset,
+                                storage_scope, align, offset_factor, layout, allocated_addr_arr);
+  if (scope == "tmem") {
+    // Tensor memory is externally allocated; make its address-to-pointer binding explicit.
+    data = Call(buffer.DataPointerType(), tvm::tirx::reinterpret_op(), {allocated_addr.value()});
   }
-  // For tmem, even without `data`, we should not emit an Allocate node.
-  n->allocated = (scope == "tmem") || data.has_value();
-  return DeclTensorFrame(n);
+  Span span = IRBuilder::Current()->GetCurrentSourceSpan();
+  if (data.has_value()) {
+    AddToParent(tvm::tirx::Bind(buffer.var(),
+                                Call(buffer.type(), tvm::tirx::decl_tensor_op(),
+                                     {data.value(), tvm::Tuple(buffer->shape),
+                                      DataTypeImm(buffer->dtype->dtype), StringImm(buffer.scope())},
+                                     {}, {}, span),
+                                span));
+  } else {
+    // Without a backing pointer, declare and allocate the tensor together.
+    AddToParent(tvm::tirx::Bind(buffer.var(),
+                                Call(buffer.type(), tvm::tirx::alloc_tensor_op(),
+                                     {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
+                                      StringImm(buffer.scope())},
+                                     DictAttrs(), {}, span),
+                                span));
+  }
+  return buffer;
 }
 
 TensorVar AllocTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String storage_scope,
@@ -628,7 +637,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("script.ir_builder.tirx.TensorType", TensorTypeDecl)
-      .def("script.ir_builder.tirx.PrimFunc", PrimFunc)
+      .def("script.ir_builder.tirx.Function", Function)
       .def("script.ir_builder.tirx.DeclFunction", DeclFunction)
       .def("script.ir_builder.tirx.Arg",
            [](ffi::String name, ffi::ObjectRef obj) -> ffi::ObjectRef {
@@ -687,7 +696,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .def("script.ir_builder.tirx.Else", Else)
       .def("script.ir_builder.tirx.DeclTensor", DeclTensor)
       .def("script.ir_builder.tirx.Region", Region)
-      .def("script.ir_builder.tirx.BufferStore", BufferStore)
+      .def("script.ir_builder.tirx.TensorStore", TensorStore)
       .def("script.ir_builder.tirx.Evaluate", Evaluate)
       .def("script.ir_builder.tirx.Ptr", Ptr);
 }

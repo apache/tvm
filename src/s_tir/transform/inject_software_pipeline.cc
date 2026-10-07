@@ -301,11 +301,11 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(region.get(), InplaceMode::kDisallow).ValueOrUnchanged(region);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto replacement = VarRemapGet(op->buffer).as<TensorVar>();
-    BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
+    TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                            .as_or_throw<BufferStore>();
+                            .as_or_throw<TensorStore>();
     if (!replacement) {
       return store;
     }
@@ -1087,7 +1087,7 @@ class PipelineInjector : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  static Stmt Inject(const PrimFunc& func) {
+  static Stmt Inject(const Function& func) {
     auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     auto injector = ffi::make_object<PipelineInjector>(global_symbol);
     for (const Var& param : func->params) {
@@ -1209,11 +1209,11 @@ class PipelineInjector : public StmtExprMutator {
     auto pipeline_orders =
         op->annotations.at(s_tir::attr::software_pipeline_order).as_or_throw<ffi::Array<int64_t>>();
     TVM_FFI_ICHECK_EQ(pipeline_stages.size(), original_order.size())
-        << "PrimFunc " << global_symbol_ << " has original order "
+        << "Function " << global_symbol_ << " has original order "
         << original_order.Map([](const auto& block) { return block->name_hint; })
         << ", but pipeline annotation is " << pipeline_stages << " with different size";
     TVM_FFI_ICHECK_EQ(pipeline_orders.size(), original_order.size())
-        << "PrimFunc " << global_symbol_ << " has original order "
+        << "Function " << global_symbol_ << " has original order "
         << original_order.Map([](const auto& block) { return block->name_hint; })
         << ", but pipeline annotation is " << pipeline_orders << " with different size";
 
@@ -1331,14 +1331,14 @@ namespace transform {
  * \return The IR transform pass.
  */
 Pass InjectSoftwarePipeline() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* fptr = f.CopyOnWrite();
     fptr->body = software_pipeline::PipelineInjector::Inject(f);
     fptr->body = s_tir::ConvertSSA(std::move(fptr->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectSoftwarePipeline", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectSoftwarePipeline", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

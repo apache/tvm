@@ -74,7 +74,7 @@ def _shared_scratch_copy_kernel(num_bytes: int):
     tail, lanes, reg_dtype = copy_ptx_form(num_bytes)
     ld_chain, st_chain = f"ld.shared.{tail}", f"st.shared.{tail}"
 
-    @T.prim_func
+    @T.function
     def func(out: T.Tensor((nelems,), smem_dtype)):
         T.device_entry()
         T.cta_id([1])
@@ -109,7 +109,7 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
     """Shared ↔ register typed copies must codegen to ``ld.shared`` / ``st.shared``."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy_kernel(D: T.Tensor((4,), 'uint32')) -> None:
 
         T.device_entry()
@@ -138,7 +138,7 @@ def test_ptx_ld_st_codegen_emits_shared_asm():
 
 
 def test_ptx_ld_st_raw_shared_address_codegen():
-    @T.prim_func
+    @T.function
     def main(out: T.Tensor((2,), "uint64")):
         T.device_entry()
         tx = T.thread_id([32])
@@ -164,7 +164,7 @@ def test_ptx_ld_st_raw_shared_address_codegen():
 def test_ptx_ld_st_immediate_offset_codegen():
     """An immediate displacement must stay inside the PTX memory operand."""
 
-    @T.prim_func
+    @T.function
     def main(src: T.Tensor((4,), "uint64"), out: T.Tensor((4,), "uint64")):
         T.device_entry()
         tx = T.thread_id([32])
@@ -187,7 +187,7 @@ def test_ptx_ld_st_immediate_offset_codegen():
 def test_ptx_ld_global_nc_v8_codegen():
     """FlashMLA index loads need ``ld.global.nc`` with a 256B prefetch."""
 
-    @T.prim_func
+    @T.function
     def copy_kernel(src: T.Tensor((8,), "int32"), out: T.Tensor((8,), "int32")) -> None:
         T.device_entry()
         tx = T.thread_id([32])
@@ -214,7 +214,7 @@ def test_ptx_ld_global_nc_v8_codegen():
 def test_ptx_ld_global_nc_v4_u64_256b_codegen():
     """FlashMLA 32-byte index loads may use four 64-bit PTX outputs."""
 
-    @T.prim_func
+    @T.function
     def copy_kernel(src: T.Tensor((4,), "uint64"), out: T.Tensor((4,), "uint64")) -> None:
         T.device_entry()
         tx = T.thread_id([32])
@@ -237,7 +237,7 @@ def test_ptx_ld_global_nc_v4_u64_256b_codegen():
 def test_ptx_ld_vector_scatter_dst_codegen():
     """Vector loads may write independent destination pointers."""
 
-    @T.prim_func
+    @T.function
     def copy_kernel(src: T.Tensor((4,), "int32"), out: T.Tensor((4,), "int32")) -> None:
         T.device_entry()
         tx = T.thread_id([32])

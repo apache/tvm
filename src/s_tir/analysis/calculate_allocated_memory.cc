@@ -19,7 +19,7 @@
 
 /*!
  * \file tirx/analysis/calculate_allocated_memory.cc
- * \brief Calculate allocated memory per memory scope required by PrimFuncs.
+ * \brief Calculate allocated memory per memory scope required by Functions.
  */
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -54,7 +54,7 @@ class AllocTensorCalculator : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
 
-  tvm::ffi::Map<ffi::String, int64_t> operator()(const PrimFunc& func) {
+  tvm::ffi::Map<ffi::String, int64_t> operator()(const Function& func) {
     this->Visit(func->body);
     tvm::ffi::Map<ffi::String, int64_t> res;
     for (auto [k, v] : _max_size) {
@@ -118,7 +118,7 @@ class AllocTensorCalculator : public StmtExprVisitor {
 };
 
 tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAllocatedBytes(
-    const PrimFunc& func) {
+    const Function& func) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
   auto alloc_buffer_result = ffi::make_object<AllocTensorCalculator>()->operator()(func);
   results.Set("main", alloc_buffer_result);
@@ -129,10 +129,10 @@ tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > CalculateAlloca
     const IRModule& mod) {
   tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > results;
   for (const auto& kv : mod->functions) {
-    if (auto prim_func = kv.second.as<tirx::PrimFunc>()) {
+    if (auto function = kv.second.as<tirx::Function>()) {
       ffi::String func_name = kv.first->name_hint;
       auto alloc_buffer_result =
-          ffi::make_object<AllocTensorCalculator>()->operator()(prim_func.value());
+          ffi::make_object<AllocTensorCalculator>()->operator()(function.value());
       results.Set(func_name, alloc_buffer_result);
     }
   }
@@ -144,13 +144,13 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   refl::GlobalDef().def(
       "s_tir.analysis.calculate_allocated_bytes",
       [](ffi::ObjectRef obj) -> tvm::ffi::Map<ffi::String, tvm::ffi::Map<ffi::String, int64_t> > {
-        if (auto func = obj.as<PrimFunc>()) {
+        if (auto func = obj.as<Function>()) {
           return CalculateAllocatedBytes(func.value());
         } else if (auto mod = obj.as<IRModule>()) {
           return CalculateAllocatedBytes(mod.value());
         } else {
           TVM_FFI_THROW(TypeError)
-              << "Expect the input to be either PrimFunc or IRModule, but gets: "
+              << "Expect the input to be either Function or IRModule, but gets: "
               << obj->GetTypeKey();
           throw;
         }
@@ -169,7 +169,7 @@ bool VerifyVTCMLimit(const IRModule& mod, int64_t limit) {
   return true;
 }
 
-bool VerifyVTCMLimit(const PrimFunc& func, int64_t limit) {
+bool VerifyVTCMLimit(const Function& func, int64_t limit) {
   auto sizes = CalculateAllocatedBytes(func)["main"];
   const auto vtcm_allocated = sizes.Get("global.vtcm").value_or(0);
   if (limit > 0 && vtcm_allocated > limit) {
@@ -215,7 +215,7 @@ namespace transform {
 Pass VerifyVTCMLimit(ffi::Optional<Target> default_target) {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto opt = kv.second.as<PrimFunc>()) {
+      if (auto opt = kv.second.as<Function>()) {
         auto func = opt.value();
 
         std::optional<int64_t> limit = std::nullopt;

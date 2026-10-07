@@ -77,7 +77,7 @@ class VtcmAllocator : public StmtExprMutator {
   }
 };
 
-PrimFunc LowerVtcmAlloc(PrimFunc func) {
+Function LowerVtcmAlloc(Function func) {
   auto fptr = func.CopyOnWrite();
   fptr->body = ffi::make_object<VtcmAllocator>()
                    ->Mutate(fptr->body, InplaceMode::kAllow)
@@ -88,10 +88,10 @@ PrimFunc LowerVtcmAlloc(PrimFunc func) {
 namespace transform {
 
 Pass LowerVtcmAlloc() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return s_tir::LowerVtcmAlloc(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerVtcmAlloc", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerVtcmAlloc", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

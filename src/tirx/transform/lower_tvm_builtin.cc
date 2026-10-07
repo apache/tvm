@@ -55,7 +55,7 @@ class BuiltinLower : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  static PrimFunc Build(PrimFunc func) {
+  static Function Build(Function func) {
     if (!func->body.has_value()) return func;
     ffi::Optional<PrimExpr> device_type = std::nullopt;
     bool preserve_ffi_kernel = false;
@@ -491,7 +491,7 @@ class BuiltinLower : public StmtExprMutator {
     // no need to perform any store for a scalar shape
     for (size_t i = 0; i < op->args.size(); ++i) {
       prep_seq.emplace_back(
-          BufferStore(scope.stack_shape.value(),
+          TensorStore(scope.stack_shape.value(),
                       prim::cast(PrimType::Int(64), op->args[i].as_or_throw<PrimExpr>()),
                       {ConstInt32(stack_begin + i)}));
     }
@@ -755,14 +755,14 @@ class BuiltinLower : public StmtExprMutator {
 namespace transform {
 
 Pass LowerTVMBuiltin() {
-  auto pass_func = [](PrimFunc func, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function func, IRModule m, PassContext ctx) {
     if (IsHostFunc(func).value_or(false)) {
       func = BuiltinLower::Build(func);
       VLOG(2) << "LowerTVMBuiltin: " << func;
     }
     return func;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerTVMBuiltin", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerTVMBuiltin", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

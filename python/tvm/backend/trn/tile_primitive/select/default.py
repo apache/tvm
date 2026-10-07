@@ -20,7 +20,7 @@
 from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import FloatImm, PrimFunc, TilePrimitiveCall
+from tvm.tirx import FloatImm, Function, TilePrimitiveCall
 from tvm.tirx.op.tile import Select
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
@@ -34,7 +34,7 @@ from ..dim_utils import get_ewise_dim_map
 from ..instruction_generator import InstructionGenerator
 
 
-def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     """Generate schedule for select operation on Trainium."""
     if sctx.scope_kind != "thread":
         fail("requires thread exec_scope for TRN select")
@@ -110,7 +110,7 @@ def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
 
     # fmt: off
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
             with T.nki.tensorized_instruction():
@@ -142,5 +142,5 @@ def select_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         )
     ],
 )
-def select_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def select_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return select_trn(op, sctx)

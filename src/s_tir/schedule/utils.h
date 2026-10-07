@@ -385,9 +385,9 @@ inline std::unordered_set<std::string> GetSBlockNames(const IRModule& mod) {
     std::unordered_set<std::string> block_names;
   };
 
-  if (auto prim_func = tirx::FindEntryFunc(mod, nullptr)) {
+  if (auto function = tirx::FindEntryFunc(mod, nullptr)) {
     auto collector = ffi::make_object<BlockNameCollector>();
-    collector->Visit(prim_func->body);
+    collector->Visit(function->body);
     return collector->block_names;
   }
   return {};

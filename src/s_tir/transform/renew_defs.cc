@@ -49,7 +49,7 @@ class RenewDefMutator : public StmtExprMutator {
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
 
-  static PrimFunc Transform(const PrimFunc& func) {
+  static Function Transform(const Function& func) {
     auto generator = ffi::make_object<RenewDefMutator>();
     // Establish explicit parameters and symbols in their types before visiting uses.
     for (const Var& param : func->params) {
@@ -62,7 +62,7 @@ class RenewDefMutator : public StmtExprMutator {
     // Visit body
     auto body = generator->Mutate(func->body).ValueOrUnchanged(func->body);
     // Recreate function
-    return PrimFunc(params, body, func->ret_type, func->attrs, func->span);
+    return Function(params, body, func->ret_type, func->attrs, func->span);
   }
 
  private:
@@ -164,7 +164,7 @@ class RenewDefMutator : public StmtExprMutator {
   }
 };
 
-PrimFunc RenewDefs(const PrimFunc& func) { return RenewDefMutator::Transform(func); }
+Function RenewDefs(const Function& func) { return RenewDefMutator::Transform(func); }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;

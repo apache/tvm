@@ -80,7 +80,7 @@ Stmt MergeNest(const std::vector<std::vector<Stmt>>& nest, Stmt body) {
   return body;
 }
 
-PrimFunc IRConvertSSA::VisitPrimFunc(PrimFunc func) {
+Function IRConvertSSA::VisitFunction(Function func) {
   std::unordered_set<const VarNode*> parameter_symbols;
   // Define explicit parameters before the symbolic values in their types.
   for (const Var& param : func->params) {
@@ -139,7 +139,7 @@ PrimFunc IRConvertSSA::VisitPrimFunc(PrimFunc func) {
 
   // If anything changed, update the returned function
   if (!params.same_as(func->params) || !attrs.same_as(func->attrs) || !body_unchanged) {
-    func = PrimFunc(params, body, func->ret_type, attrs);
+    func = Function(params, body, func->ret_type, attrs);
   }
 
   // Pop function-scope remaps in reverse order
@@ -349,7 +349,7 @@ std::pair<int32_t, int32_t> GetWmmaFragmentDimSize(const std::string& shape_str,
   return std::pair<int32_t, int32_t>(0, 0);
 }
 
-std::optional<bool> IsHostFunc(const PrimFunc& func) {
+std::optional<bool> IsHostFunc(const Function& func) {
   if (func->HasNonzeroAttr(tvm::tirx::attr::kIsHostFunc)) {
     return true;
   } else if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
@@ -363,8 +363,8 @@ IRModule IRConvertSSA::VisitIRModule(IRModule mod) {
   ffi::Map<GlobalVar, BaseFunc> functions;
   bool made_change = false;
   for (auto [gvar, base_func] : mod->functions) {
-    if (auto* ptr = base_func.as<tirx::PrimFuncNode>()) {
-      auto updated = VisitPrimFunc(ffi::GetRef<tirx::PrimFunc>(ptr));
+    if (auto* ptr = base_func.as<tirx::FunctionNode>()) {
+      auto updated = VisitFunction(ffi::GetRef<tirx::Function>(ptr));
       if (!updated.same_as(base_func)) {
         made_change = true;
         base_func = updated;

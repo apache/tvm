@@ -126,7 +126,7 @@ class TestModule:
         }
     )
 
-    @Ts.prim_func
+    @Ts.function
     def tir_func(
         x: T.Tensor((T.int64(128), T.int64(128)), "float32"),
         y: T.Tensor((T.int64(128), T.int64(128)), "float32"),
@@ -183,7 +183,7 @@ from __future__ import annotations
 class Module:
     I.module_attrs({"device_num": 10})
     I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
-    @Ts.prim_func
+    @Ts.function
     def tir_func(x: T.Tensor((T.int64(128), T.int64(128)), "float32"), y: T.Tensor((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tirx.noalias": True})
         with Ts.sblock("root"):
@@ -928,7 +928,7 @@ T_1: R.Tensor((1, x, 3), dtype="float32") = R.sin(R_1)
 def test_module_cross_func_call():
     @I.ir_module
     class TestModule:
-        @Ts.prim_func
+        @Ts.function
         def tir_func(
             x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")
         ):
@@ -953,7 +953,7 @@ from __future__ import annotations
 
 @I.ir_module
 class Module:
-    @Ts.prim_func
+    @Ts.function
     def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
         T.evaluate(0)
 
@@ -978,7 +978,7 @@ from __future__ import annotations
 
 @I.ir_module
 class Module:
-    @Ts.prim_func
+    @Ts.function
     def tir_func(x: T.Tensor((T.int64(128),), "float32"), y: T.Tensor((T.int64(128),), "float32")):
         T.evaluate(0)
 

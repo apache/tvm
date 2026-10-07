@@ -150,7 +150,7 @@ def _workload(
         name="B",
     )
     # pylint: enable=invalid-name
-    return te.create_prim_func([A, B])
+    return te.create_function([A, B])
 
 
 def _schedule(

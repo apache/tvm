@@ -19,7 +19,7 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx import Function, TilePrimitiveCall
 from tvm.tirx.op.tile import UnaryReduce
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 
@@ -32,7 +32,7 @@ from ..unary.utils import get_const_bias_tensor, try_find_inst_unary
 from .utils import opcode_table
 
 
-def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for unary reduction operations."""
     op = TilePrimitiveCall.downcast(op)
     assert isinstance(op, UnaryReduce), f"invalid operator downcast: {op}"
@@ -106,7 +106,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         # Direct implementation without intermediate buffer
         # fmt: off
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 with T.nki.tensorized_instruction():
@@ -132,7 +132,7 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     else:
         # fmt: off
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
@@ -191,5 +191,5 @@ def unary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         )
     ],
 )
-def unary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def unary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return unary_reduce_trn(op, sctx)

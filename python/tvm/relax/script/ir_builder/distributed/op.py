@@ -42,11 +42,11 @@ def call_tir(
     Parameters
     ----------
     func : Union[str, Expr]
-        The destination-passing-style function, can be ExternFunc or PrimFunc.
+        The destination-passing-style function, can be ExternFunc or Function.
 
     args : Expr
         The ordered distributed-tensor and primitive input arguments.  These
-        correspond positionally to the leading parameters of the PrimFunc.
+        correspond positionally to the leading parameters of the Function.
 
     out_ty : Union[DTensorType, List[DTensorType]]
         The type information of the call_tir output.

@@ -701,7 +701,7 @@ def test_multiple_entries_multiple_calls_same_extern():
 def test_ignore_call_tir():
     @I.ir_module
     class Conv2dReLUCallTIR:
-        @Ts.prim_func
+        @Ts.function
         def relu(
             data: T.Tensor((1, 64, 56, 56), "float32"),
             out: T.Tensor((1, 64, 56, 56), "float32"),
@@ -729,7 +729,7 @@ def test_ignore_call_tir():
 
     @I.ir_module
     class Conv2dReLUCallTIR_partitioned:
-        @Ts.prim_func
+        @Ts.function
         def relu(
             data: T.Tensor((1, 64, 56, 56), "float32"),
             out: T.Tensor((1, 64, 56, 56), "float32"),

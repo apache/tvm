@@ -31,7 +31,7 @@ from tvm.target import Target
 
 
 def test_cpu_matmul():
-    @Ts.prim_func
+    @Ts.function
     def cpu_matmul_0(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -62,7 +62,7 @@ def test_cpu_matmul():
                     Ts.writes(C[v0, v1])
                     C[v0, v1] = C_global[v0, v1]
 
-    @Ts.prim_func
+    @Ts.function
     def cpu_matmul_1(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -93,7 +93,7 @@ def test_cpu_matmul():
                     Ts.writes(C[v0, v1])
                     C[v0, v1] = C_global[v0, v1]
 
-    @Ts.prim_func
+    @Ts.function
     def cpu_matmul_2(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -133,7 +133,7 @@ def test_cpu_matmul():
         ("SamplePerfectTile", [16, 32]),
     ]
 
-    mod = te.create_prim_func(te_workload.matmul(512, 512, 512))
+    mod = te.create_function(te_workload.matmul(512, 512, 512))
     actual = generate_design_space(
         kind="llvm",
         mod=mod,
@@ -149,7 +149,7 @@ def test_cpu_matmul():
 
 
 def test_cpu_matmul_relu():
-    @Ts.prim_func
+    @Ts.function
     def cpu_matmul_relu_0(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -180,7 +180,7 @@ def test_cpu_matmul_relu():
                 Ts.writes(compute[i0_4, i1_4])
                 compute[i0_4, i1_4] = T.max(C[i0_4, i1_4], T.float32(0))
 
-    @Ts.prim_func
+    @Ts.function
     def cpu_matmul_relu_1(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -211,7 +211,7 @@ def test_cpu_matmul_relu():
                     Ts.writes(compute[i0, i1])
                     compute[i0, i1] = T.max(C[i0, i1], T.float32(0))
 
-    @Ts.prim_func
+    @Ts.function
     def cpu_matmul_relu_2(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -257,7 +257,7 @@ def test_cpu_matmul_relu():
         ("SamplePerfectTile", [4, 4, 32, 1]),
         ("SamplePerfectTile", [64, 8]),
     ]
-    mod = te.create_prim_func(te_workload.matmul_relu(512, 512, 512))
+    mod = te.create_function(te_workload.matmul_relu(512, 512, 512))
     actual = generate_design_space(
         kind="llvm",
         mod=mod,
@@ -273,7 +273,7 @@ def test_cpu_matmul_relu():
 
 
 def test_cuda_matmul():
-    @Ts.prim_func
+    @Ts.function
     def cuda_matmul_0(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -363,7 +363,7 @@ def test_cuda_matmul():
         ("SampleCategorical", 1),
         ("SampleCategorical", 0),
     ]
-    mod = te.create_prim_func(te_workload.matmul(512, 512, 512))
+    mod = te.create_function(te_workload.matmul(512, 512, 512))
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
@@ -379,7 +379,7 @@ def test_cuda_matmul():
 
 
 def test_cuda_matmul_relu():
-    @Ts.prim_func
+    @Ts.function
     def cuda_matmul_relu_0(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -481,7 +481,7 @@ def test_cuda_matmul_relu():
         ("SampleCategorical", 1),
         ("SampleCategorical", 3),
     ]
-    mod = te.create_prim_func(te_workload.matmul_relu(512, 512, 512))
+    mod = te.create_function(te_workload.matmul_relu(512, 512, 512))
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
@@ -497,7 +497,7 @@ def test_cuda_matmul_relu():
 
 
 def test_cuda_sum_with_trivial_block_iter():
-    @Ts.prim_func
+    @Ts.function
     def sum_with_trivial_block_iter(
         A: T.Tensor((1, 64, 768), "float32"),
         B: T.Tensor((1, 64, 1), "float32"),
@@ -523,7 +523,7 @@ def test_cuda_sum_with_trivial_block_iter():
 
 
 def test_multi_level_tiling_hexagon():
-    @Ts.prim_func
+    @Ts.function
     def cpu_conv2d_nhwc(
         inputs: T.Tensor((1, 56, 56, 64), "float16"),
         weight: T.Tensor((3, 3, 64, 64), "float16"),
@@ -590,7 +590,7 @@ def test_multi_level_tiling_hexagon():
     H = 56
     W = 56
 
-    mod = te.create_prim_func(
+    mod = te.create_function(
         te_workload.conv2d_nhwc(1, H, W, I, O, 3, 1, 1, 1, in_dtype="float16", out_dtype="float16")
     )
 
@@ -628,7 +628,7 @@ def test_multi_level_tiling_hexagon():
 
 
 def test_cache_read_specify_consumer():
-    @Ts.prim_func
+    @Ts.function
     def cache_read_specify_consumer_0(
         A: T.Tensor((512, 512), "float32"),
         B: T.Tensor((512, 512), "float32"),
@@ -720,7 +720,7 @@ def test_cache_read_specify_consumer():
         ("SampleCategorical", 2),
     ]
     A, B, C = te_workload.matmul(512, 512, 512)
-    mod = te.create_prim_func([A, B, C + A])
+    mod = te.create_function([A, B, C + A])
 
     space = generate_design_space(
         kind="cuda",
@@ -738,7 +738,7 @@ def test_cache_read_specify_consumer():
 
 def test_max_pool_blocked():
     # fmt off
-    @Ts.prim_func
+    @Ts.function
     def pool_blocked_cache_read_write(
         X: T.Tensor((1, 2, 8, 8, 8, 8, 32), "uint8"),
         pool: T.Tensor((1, 2, 4, 4, 8, 8, 32), "uint8"),
@@ -844,7 +844,7 @@ def test_max_pool_blocked():
     height = width = 64
     channel = 64
 
-    mod = te.create_prim_func(max_pool_blocked_compute(height, width, channel))
+    mod = te.create_function(max_pool_blocked_compute(height, width, channel))
 
     actual = generate_design_space(
         kind="llvm",

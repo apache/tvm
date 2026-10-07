@@ -92,23 +92,23 @@ inline tvm::tirx::Stmt AsStmt(const ffi::Array<tvm::tirx::Stmt>& stmt) {
 }
 
 /*!
- * \brief Check whether the top frame in IRBuilder frame stack is PrimFuncFrame.
+ * \brief Check whether the top frame in IRBuilder frame stack is FunctionFrame.
  * \param method The method name to be printed when throwing exception.
- * \return The top frame of PrimFuncFrame.
+ * \return The top frame of FunctionFrame.
  */
-inline PrimFuncFrame FindPrimFuncFrame(const ffi::String& method) {
-  if (ffi::Optional<PrimFuncFrame> frame = IRBuilder::Current()->GetLastFrame<PrimFuncFrame>()) {
+inline FunctionFrame FindFunctionFrame(const ffi::String& method) {
+  if (ffi::Optional<FunctionFrame> frame = IRBuilder::Current()->GetLastFrame<FunctionFrame>()) {
     return frame.value();
-  } else if (ffi::Optional<PrimFuncFrame> frame =
-                 IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
+  } else if (ffi::Optional<FunctionFrame> frame =
+                 IRBuilder::Current()->FindFrame<FunctionFrame>()) {
     TVM_FFI_THROW(ValueError)
-        << method << " must be called at the top of a PrimFunc.  "
-        << "While " << method << " did occur within the PrimFunc \"" << frame.value()->name
+        << method << " must be called at the top of a Function.  "
+        << "While " << method << " did occur within the Function \"" << frame.value()->name
         << "\", other frames (e.g. block/if/else/let) had been introduced since the "
-        << "PrimFunc's frame";
+        << "Function's frame";
   } else {
-    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a PrimFunc, "
-                              << "but " << method << " occurred outside of any T.prim_func() frame";
+    TVM_FFI_THROW(ValueError) << method << " must be called at the top of a Function, "
+                              << "but " << method << " occurred outside of any T.function() frame";
   }
   throw;
 }

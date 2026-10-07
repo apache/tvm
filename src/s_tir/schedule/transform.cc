@@ -479,11 +479,11 @@ UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const SBlockNode* op,
   return block;
 }
 
-UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const BufferStoreNode* op,
+UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const TensorStoreNode* op,
                                                        InplaceMode inplace_mode) {
-  BufferStore node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+  TensorStore node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                          .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                         .as_or_throw<BufferStore>();
+                         .as_or_throw<TensorStore>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }
@@ -497,7 +497,7 @@ UnchangedOr<PrimExpr> BlockBufferAccessSimplifier::Mutate_(const TensorLoadNode*
   return node;
 }
 
-/******** PrimFunc-level analysis and transformation ********/
+/******** Function-level analysis and transformation ********/
 
 void GetLeafBlocksHelper(Schedule sch, SBlockRV cur_block_rv, ffi::Array<SBlockRV>* leaf_blocks) {
   ffi::Array<SBlockRV> blocks = sch->GetChildBlocks(cur_block_rv);
@@ -510,7 +510,7 @@ void GetLeafBlocksHelper(Schedule sch, SBlockRV cur_block_rv, ffi::Array<SBlockR
   }
 }
 
-ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
+ffi::Optional<ffi::ObjectRef> NormalizeFunction(Schedule sch) {
   SBlockRV root_block = sch->GetSBlock("root");
   ffi::Array<SBlockRV> leaf_blocks;
   GetLeafBlocksHelper(sch, root_block, &leaf_blocks);
@@ -571,7 +571,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("s_tir.schedule.NormalizePrimFunc", NormalizePrimFunc);
+  refl::GlobalDef().def("s_tir.schedule.NormalizeFunction", NormalizeFunction);
 }
 
 }  // namespace s_tir

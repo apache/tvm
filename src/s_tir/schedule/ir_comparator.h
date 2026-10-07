@@ -53,7 +53,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool Dispatch_(const CallNode* op, const PrimExpr& other) override;
   bool Dispatch_(const ForNode* op, const Stmt& other) override;
   bool Dispatch_(const SeqStmtNode* op, const Stmt& other) override;
-  bool Dispatch_(const BufferStoreNode* op, const Stmt& other) override;
+  bool Dispatch_(const TensorStoreNode* op, const Stmt& other) override;
   bool Dispatch_(const SBlockRealizeNode* op, const Stmt& other) override;
   bool Dispatch_(const SBlockNode* op, const Stmt& other) override;
 
@@ -149,7 +149,7 @@ class AutoTensorizeComparator : public TensorizeComparator {
   bool DispatchDefault_(const ffi::Object* op, const Stmt& other) override;
 
   bool Dispatch_(const SBlockNode* op, const Stmt& other) override;
-  bool Dispatch_(const BufferStoreNode* op, const Stmt& other) override;
+  bool Dispatch_(const TensorStoreNode* op, const Stmt& other) override;
 
   bool Dispatch_(const TensorLoadNode* op, const PrimExpr& other) override;
 

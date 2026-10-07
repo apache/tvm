@@ -36,7 +36,7 @@ np.random.seed(0)
 @tvm.script.ir_module
 class Gemm_F16F16F16:
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((M, K), "float16"),  # type: ignore
         B: T.Tensor((K, N), "float16"),  # type: ignore
@@ -53,7 +53,7 @@ class Gemm_F16F16F16:
 @tvm.script.ir_module
 class Gemm_F16F16F32:
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((M, K), "float16"),  # type: ignore
         B: T.Tensor((K, N), "float16"),  # type: ignore

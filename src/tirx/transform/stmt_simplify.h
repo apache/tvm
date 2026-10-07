@@ -19,7 +19,7 @@
 
 /*!
  * \file stmt_simplify.h
- * \brief Statement-level simplification of TIR PrimFuncs.
+ * \brief Statement-level simplification of TIR Functions.
  */
 #ifndef TVM_TIR_TRANSFORM_STMT_SIMPLIFY_H_
 #define TVM_TIR_TRANSFORM_STMT_SIMPLIFY_H_
@@ -54,7 +54,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
-  static PrimFunc Apply(PrimFunc func, const sym::Analyzer& analyzer,
+  static Function Apply(Function func, const sym::Analyzer& analyzer,
                         ffi::Optional<StmtSimplifyConfig> config_opt = std::nullopt);
 
   explicit StmtSimplifier(const sym::Analyzer& analyzer, StmtSimplifyConfig config)
@@ -64,7 +64,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   using Parent = IRMutatorWithAnalyzer;
   StmtSimplifier(const VTable* vtable, const sym::Analyzer& analyzer, StmtSimplifyConfig config)
       : Parent(analyzer.get(), vtable), config_(config) {}
-  PrimFunc Run(PrimFunc func);
+  Function Run(Function func);
 
   UnchangedOr<ffi::Any> Mutate(ffi::AnyView input, InplaceMode inplace_mode) final;
 
@@ -75,7 +75,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   UnchangedOr<Stmt> Mutate_(const IfThenElseNode* op, InplaceMode inplace_mode) override;
 
   // eliminate useless stores
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override;
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override;
 
  private:
   bool ArrayDeepEqual(const ffi::Array<PrimExpr>& lhs, const ffi::Array<PrimExpr>& rhs);
@@ -93,11 +93,11 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
   ffi::Map<Var, PrimExpr> non_inlined_bindings_;
 };
 
-/* \brief Simplify statements in the prim func
+/* \brief Simplify statements in the function
  *
  * Applies the same behavior as the tirx.transform.StmtSimplify pass.
  */
-PrimFunc StmtSimplify(PrimFunc func, const sym::Analyzer& analyzer);
+Function StmtSimplify(Function func, const sym::Analyzer& analyzer);
 
 }  // namespace tirx
 }  // namespace tvm

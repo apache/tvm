@@ -41,7 +41,7 @@ def test_native_concise_scopes_unwind_with_their_parent():
     def observe(*items):
         variables.extend(items)
 
-    @T.prim_func
+    @T.function
     def main():
         bx = T.launch_thread("blockIdx.x", 2)
         tx = T.launch_thread("threadIdx.x", 32)
@@ -91,7 +91,7 @@ def test_tir_ptr_proxy():
 
 def test_grid():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test():
         T.device_entry()
         for (*lvs,) in T.grid(10, (2, 12)):
@@ -108,12 +108,12 @@ def from_source(code):
 
 def test_range():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test():
         l = T.meta_var([i for i in range(10)])  # noqa: E741
         T.evaluate(l[3])
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected():
         T.evaluate(3)
     # fmt: on
@@ -129,7 +129,7 @@ def test_scalar_annotation_syntax():
     """Test the scalar annotation syntax: x: T.int32 = init, x: T.int32, and T.let."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test():
         T.device_entry()
                 # Scalar with init value
@@ -155,7 +155,7 @@ def test_let_annotation_syntax():
     """Test explicit LetStmt syntax: T.let[T.int32] and T.let."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test():
         blockIdx_x = T.launch_thread("blockIdx.x", 4)
         threadIdx_x = T.launch_thread("threadIdx.x", 128)
@@ -175,12 +175,12 @@ def test_let_annotation_syntax():
 
 
 def test_tuple_let_binding_and_traversal():
-    @T.prim_func
+    @T.function
     def from_list(x: T.int32, y: T.float32) -> T.int32:
         pair: T.let = [x, (y,)]
         return pair[0]
 
-    @T.prim_func
+    @T.function
     def from_tuple(x: T.int32, y: T.float32) -> T.int32:
         pair: T.let = (x, (y,))
         return pair[0]
@@ -208,7 +208,7 @@ def test_annotation_syntax_comprehensive():
 
     # 1. T.let with T.Var(PointerType) — round-trip
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_let_var():
         T.device_entry()
         smem = T.alloc_shared([128], "float16")
@@ -223,7 +223,7 @@ def test_annotation_syntax_comprehensive():
     # 2. Banned: handle as scalar annotation
     src_handle = """
 from tvm.script import tirx as T
-@T.prim_func
+@T.function
 def func():
     x: T.handle = T.int64(0)
 """
@@ -234,7 +234,7 @@ def func():
     src_ptr = """
 from tvm.script import tirx as T
 from tvm.ir import PointerType, PrimType
-@T.prim_func
+@T.function
 def func():
     x: T.Var(name="x", ty=PointerType(PrimType("float16"))) = T.int64(0)
 """
@@ -243,7 +243,7 @@ def func():
 
     # 4. An explicit mutable scalar declaration retains updates — round-trip
     # fmt: off
-    @T.prim_func
+    @T.function
     def test_bare_assign():
         T.device_entry()
         tid = T.launch_thread("threadIdx.x", 128)
@@ -257,7 +257,7 @@ def func():
 
 def test_pointer_expression_assignment_uses_bind():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func() -> None:
         T.device_entry()
         buf = T.alloc_tensor((4,), "uint32", scope="shared")
@@ -287,7 +287,7 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
     # ptr = X.bind_(buf.ptr_to([1]), name="ptr"); X.emit_(X.evaluate(ptr))
     # Pointer expressions are ordinary immutable bindings.
     # fmt: off
-    @T.prim_func
+    @T.function
     def func() -> None:
         T.device_entry()
         buf = T.alloc_tensor((4,), "uint32", scope="shared")
@@ -315,7 +315,7 @@ def test_pointer_expression_rebinding_creates_distinct_native_bindings():
 
 def test_pointer_expression_assignment_can_shadow_extra_var():
     source = """
-@T.prim_func
+@T.function
 def func() -> None:
     T.device_entry()
     buf = T.alloc_tensor((4,), "uint32", scope="shared")
@@ -340,7 +340,7 @@ def test_roundtrip_unary_inplace():
     """Single-arg unary ops (in-place) should round-trip."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), "float32", scope="global")) -> None:
         T.device_entry()
         cta_id = T.cta_id([1])
@@ -367,7 +367,7 @@ def test_roundtrip_unary_different_dst_src():
     """Unary ops with different dst and src should keep both args."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(
         A: T.Tensor((128,), "float32", scope="global"),
         B: T.Tensor((128,), "float32", scope="global"),
@@ -391,13 +391,13 @@ def test_vector_annotation_syntax_1d():
     """Test x: T.f32[N] produces the same IR as T.alloc_local([N], 'float32')."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         v: T.float32[8]
         T.evaluate(v[0])  # noqa: F821
 
-    @T.prim_func
+    @T.function
     def func():  # noqa: F811
         T.device_entry()
         v = T.alloc_local([8], "float32")
@@ -408,7 +408,7 @@ def test_vector_annotation_syntax_1d():
         # Re-create the annotation version for comparison:
 
         # fmt: off
-    @T.prim_func
+    @T.function
     def annotation_func():
         T.device_entry()
         v: T.float32[8]
@@ -428,7 +428,7 @@ def test_vector_annotation_syntax_multidim():
     """Test x: T.f32[M, N] produces the same IR as T.alloc_local([M, N], 'float32')."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         m: T.float32[4, 8]
@@ -445,7 +445,7 @@ def test_vector_annotation_shorthand_aliases():
     """Test shorthand aliases: T.f32, T.i32, T.f16, etc."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         a: T.f32[4]
@@ -463,7 +463,7 @@ def test_scalar_annotation_shorthand():
     """Test x: T.f32 (scalar) shorthand produces same IR as x: T.float32."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         x: T.f32 = 0
@@ -483,7 +483,7 @@ def test_vector_annotation_with_python_variable_size():
     vec_size = 16
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func():
         T.device_entry()
         v: T.f16[vec_size]
@@ -522,11 +522,11 @@ def test_module_string_constants_keep_common_constructor_values():
 
 
 def test_thread_return_is_distinct_from_function_return():
-    @T.prim_func
+    @T.function
     def thread_exit():
         T.thread_return()
 
-    @T.prim_func
+    @T.function
     def function_exit():
         return 0
 
@@ -541,7 +541,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     # Invalid loop placement must be rejected, while disabled checks preserve the original IR.
     from tvm import error, ir, tirx
 
-    invalid = tirx.PrimFunc(params=[], body=tirx.Break())
+    invalid = tirx.Function(params=[], body=tirx.Break())
 
     # Direct construction retains the native statement for an explicit verifier pass.
     ir.assert_structural_equal(invalid.body, tirx.Break())
@@ -549,7 +549,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
 
-    @T.prim_func
+    @T.function
     def valid():
         for i in range(2):
             break
@@ -571,7 +571,7 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
 
 def test_roundtrip_break_for():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
@@ -587,7 +587,7 @@ def test_roundtrip_break_for():
 
 def test_roundtrip_break_while():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
@@ -606,7 +606,7 @@ def test_roundtrip_break_while():
 
 def test_roundtrip_break_nested():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
@@ -626,7 +626,7 @@ def test_roundtrip_break_nested():
 
 def test_roundtrip_continue_for():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
@@ -642,7 +642,7 @@ def test_roundtrip_continue_for():
 
 def test_roundtrip_continue_while():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
@@ -662,7 +662,7 @@ def test_roundtrip_continue_while():
 
 def test_roundtrip_continue_nested():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
@@ -682,7 +682,7 @@ def test_roundtrip_continue_nested():
 
 def test_roundtrip_break_and_continue():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
@@ -700,7 +700,7 @@ def test_roundtrip_break_and_continue():
 
 def test_roundtrip_unreachable_after_break():
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((5,), 'int32')):
 
         T.device_entry()
@@ -719,7 +719,7 @@ def test_roundtrip_serial_unroll_false():
     """T.serial(N, unroll=False) should round-trip."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -741,7 +741,7 @@ def test_roundtrip_serial_unroll_true():
     """T.serial(N, unroll=True) should round-trip as a pragma-unroll request."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -763,7 +763,7 @@ def test_roundtrip_serial_unroll_count():
     """T.serial(N, unroll=2) should preserve the requested unroll count."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -785,7 +785,7 @@ def test_roundtrip_serial_unroll_false_with_other_annotations():
     """When other annotations exist alongside disable_unroll, fall back to full dict."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def test(A: T.Tensor((128,), 'float32', scope='global')) -> None:
 
         T.device_entry()
@@ -804,7 +804,7 @@ def test_roundtrip_serial_unroll_false_with_other_annotations():
 
 def test_loop_var_dtype_uint32():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32')):
 
         for i in T.serial(128, dtype="uint32"):
@@ -826,7 +826,7 @@ def _assert_roundtrip(func):
 
 def test_loop_var_dtype_uint32_with_step():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32')):
 
         for i in T.serial(4, 128, step=2, dtype="uint32"):
@@ -844,7 +844,7 @@ def test_loop_var_dtype_uint32_with_step():
 @pytest.mark.parametrize("for_kind", ["serial", "parallel", "vectorized", "unroll"])
 def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((4,), 'float32')):
 
         for i in getattr(T, for_kind)(4, dtype="uint32"):
@@ -857,7 +857,7 @@ def test_loop_var_dtype_uint32_all_for_kinds(for_kind):
 
 def test_grid_loop_var_dtype_uint32():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((8, 16), 'float32')):
 
         for i, j in T.grid(8, 16, dtype="uint32"):
@@ -872,7 +872,7 @@ def test_grid_loop_var_dtype_uint32():
 
 def test_loop_var_dtype_defaults_to_int32():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32')):
 
         for i in range(128):
@@ -887,7 +887,7 @@ def test_loop_var_dtype_inferred_from_unsigned_extent():
     """A uint32 extent makes the loop var uint32 without an explicit dtype."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32'), n: T.uint32):
 
         for i in range(n):
@@ -902,7 +902,7 @@ def test_loop_var_dtype_casts_mismatched_bound():
     """A non-literal bound of another dtype is cast to the requested loop dtype."""
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), 'float32'), n: T.int32):
 
         for i in T.serial(n, dtype="uint32"):

@@ -203,7 +203,7 @@ def test_tuple_inputs():
     A0 = te.placeholder((m, n), name="A0")
     A1 = te.placeholder((m, n), name="A1")
     T0, T1 = te.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name="T")
-    s = te.create_prim_func([A0, A1, T0])
+    s = te.create_function([A0, A1, T0])
 
 
 def test_tuple_with_different_deps():
@@ -214,7 +214,7 @@ def test_tuple_with_different_deps():
     B0, B1 = te.compute((m, n), lambda i, j: (A0[i, j] * 2, A1[i, j] * 3), name="B")
     C = te.compute((m, n), lambda i, j: B0[i, j] + 4, name="C")
 
-    te.create_prim_func([A0, A1, C])
+    te.create_function([A0, A1, C])
 
 
 def test_tensor_inputs():

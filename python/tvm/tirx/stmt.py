@@ -22,8 +22,8 @@ Each statement node have subfields that can be visited from python side.
 
     x = tvm.tirx.Var("n", "int32")
     buffer = tvm.tirx.decl_tensor((16,), "float32")
-    st = tvm.tirx.stmt.BufferStore(buffer, 1, (x,))
-    assert isinstance(st, tvm.tirx.stmt.BufferStore)
+    st = tvm.tirx.stmt.TensorStore(buffer, 1, (x,))
+    assert isinstance(st, tvm.tirx.stmt.TensorStore)
     assert(st.buffer == buffer)
 """
 
@@ -233,8 +233,8 @@ class While(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.While, condition, body, span)  # type: ignore
 
 
-@tvm_ffi.register_object("tirx.BufferStore")
-class BufferStore(Stmt):
+@tvm_ffi.register_object("tirx.TensorStore")
+class TensorStore(Stmt):
     """Store a value into a tensor variable.
 
     Parameters
@@ -265,7 +265,7 @@ class BufferStore(Stmt):
         span: Span | None = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferStore,
+            _ffi_api.TensorStore,
             buffer,
             value,
             indices,

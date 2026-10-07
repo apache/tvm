@@ -29,7 +29,7 @@ from tvm.topi.math import cast
 def test_matmul_t_buffer():
     """Shared allocations should be merged, preserving DeclTensor if present
 
-    This test uses a matmul PrimFunc adapted from
+    This test uses a matmul Function adapted from
     test_matmul_dyn_shared, using `T.Tensor` (Allocate without
     DeclTensor) for the replaced allocations.
     """
@@ -38,7 +38,7 @@ def test_matmul_t_buffer():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((1024, 1024), "float16"),
             B: T.Tensor((1024, 1024), "float16"),
@@ -83,7 +83,7 @@ def test_matmul_t_buffer():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((1024, 1024), "float16"),
             B: T.Tensor((1024, 1024), "float16"),
@@ -140,7 +140,7 @@ def test_matmul_t_buffer():
 def test_matmul_decl_buffer():
     """Shared allocations should be merged, preserving DeclTensor if present
 
-    This test uses a matmul PrimFunc adapted from
+    This test uses a matmul Function adapted from
     test_matmul_dyn_shared, using `T.decl_tensor` (Allocate followed by DeclTensor)
     for the replaced allocations.
     """
@@ -149,7 +149,7 @@ def test_matmul_decl_buffer():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((1024, 1024), "float16"),
             B: T.Tensor((1024, 1024), "float16"),
@@ -208,7 +208,7 @@ def test_simple_alloc_no_reuse():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
@@ -231,7 +231,7 @@ def test_simple_alloc_reuse():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main():
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
@@ -253,7 +253,7 @@ def test_async_copy():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
@@ -296,7 +296,7 @@ def test_decl_buffer_alias_extends_allocation_lifetime():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(C: T.Tensor((128,), "float32")):
             threadIdx_x = T.launch_thread("threadIdx.x", 128)
             A_sh = T.alloc_tensor((128,), "float32", scope="shared.dyn")
@@ -317,7 +317,7 @@ def test_decl_buffer_alias_extends_allocation_lifetime():
 def test_multi_thread_extent_blocks():
     """Each launch_thread block must get its own merged buffer.
 
-    Reproduces the scoping bug from PR #19605: a single PrimFunc
+    Reproduces the scoping bug from PR #19605: a single Function
     with two sibling launch_thread regions, each containing its
     own shared.dyn allocations. The merged buffer must be allocated
     inside each kernel body — not just the first.
@@ -326,7 +326,7 @@ def test_multi_thread_extent_blocks():
 
     @I.ir_module(check_well_formed=False)
     class Before:
-        @Ts.prim_func(check_well_formed=False)
+        @Ts.function(check_well_formed=False)
         def main(
             X: T.Tensor((128,), "float32"),
             Y: T.Tensor((128,), "float32"),

@@ -31,8 +31,8 @@ using tvm::tirx::Layout;
 using tvm::tirx::TensorVar;
 using tvm::tirx::Var;
 
-PrimFuncFrame PrimFunc(bool is_private = false, bool persistent = false);
-PrimFuncFrame DeclFunction(bool is_private = false, bool persistent = false);
+FunctionFrame Function(bool is_private = false, bool persistent = false);
+FunctionFrame DeclFunction(bool is_private = false, bool persistent = false);
 
 /*!
  * \brief Bind a buffer subregion in an S-TIR block.

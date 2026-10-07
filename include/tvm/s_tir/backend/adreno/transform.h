@@ -39,7 +39,7 @@ namespace backend {
 namespace adreno {
 namespace transform {
 
-using tirx::transform::CreatePrimFuncPass;
+using tirx::transform::CreateFunctionPass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 

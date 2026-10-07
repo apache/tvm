@@ -32,7 +32,7 @@ def _check(original, transformed):
     tvm.ir.assert_structural_equal(mod["main"], transformed.with_attr("global_symbol", "main"))
 
 
-@Ts.prim_func
+@Ts.function
 def element_func(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
     B = Ts.sblock_alloc_buffer((16, 16))
     for i0 in range(0, 16):
@@ -46,7 +46,7 @@ def element_func(A: T.Tensor((16, 16)), C: T.Tensor((16, 16))) -> None:
                 C[i, j] = B[i, j] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_element_func(A: T.Tensor([16, 16]), C: T.Tensor([16, 16])) -> None:
     for i_0 in range(0, 16):
         with Ts.sblock():
@@ -63,7 +63,7 @@ def transformed_element_func(A: T.Tensor([16, 16]), C: T.Tensor([16, 16])) -> No
                     C[i, j] = B[i, j] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def original_func() -> None:
     A = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i0, j0 in T.grid(128, 128):
@@ -88,7 +88,7 @@ def original_func() -> None:
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_func() -> None:
     A = Ts.sblock_alloc_buffer([128, 128])
     for i0, j0 in T.grid(128, 128):
@@ -129,7 +129,7 @@ def transformed_func() -> None:
                             )
 
 
-@Ts.prim_func
+@Ts.function
 def match_buffer_func() -> None:
     C = Ts.sblock_alloc_buffer((128, 128))
     for i in range(128):
@@ -143,7 +143,7 @@ def match_buffer_func() -> None:
                     C1[()] = 0
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_match_buffer_func() -> None:
     for i in range(0, 128):
         with Ts.sblock():
@@ -157,7 +157,7 @@ def transformed_match_buffer_func() -> None:
                     C1[()] = 0
 
 
-@Ts.prim_func
+@Ts.function
 def opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
     A_cache = Ts.sblock_alloc_buffer([1024])
     for i in T.serial(0, 8):
@@ -187,7 +187,7 @@ def opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
                     B[v] = A_cache[v]
 
 
-@Ts.prim_func
+@Ts.function
 def transformed_opaque_access(A: T.Tensor([1024]), B: T.Tensor([1024])) -> None:
     for i in T.serial(0, 8):
         with Ts.sblock():
@@ -233,7 +233,7 @@ def test_loop_carried_dependency():
     such that buffer accesses with loop carried dependencies are covered,
     and the allocate buffer should keep the order."""
 
-    @Ts.prim_func
+    @Ts.function
     def before(A: T.Tensor((8, 8, 8), "int32"), B: T.Tensor((8, 8, 8), "int32")):
         C = Ts.sblock_alloc_buffer([8, 8, 8], dtype="int32")
         D = Ts.sblock_alloc_buffer([8, 8, 8], dtype="int32")
@@ -257,7 +257,7 @@ def test_loop_carried_dependency():
                             + D[vi, vj, vk]
                         )
 
-    @Ts.prim_func
+    @Ts.function
     def after(A: T.Tensor((8, 8, 8), "int32"), B: T.Tensor((8, 8, 8), "int32")) -> None:
         for i in T.serial(8):
             with Ts.sblock():
@@ -291,7 +291,7 @@ def test_1D_cascade_op_rolling_buffer():
     """The intermediate buffer must be allocated above rolling buffer's rolling loop,
     which is marked as opaque in consumer block's iter mappings."""
 
-    @Ts.prim_func
+    @Ts.function
     def before(A: T.Tensor((4, 16), "int32"), C: T.Tensor((4, 8), "int32")):
         B = Ts.sblock_alloc_buffer((4, 6), "int32")
         for c in T.serial(4):
@@ -317,7 +317,7 @@ def test_1D_cascade_op_rolling_buffer():
                                 C[cc, vi * 4 + vj] + B[cc, T.floormod(vi * 4 + vj + vk, 6)]
                             )
 
-    @Ts.prim_func
+    @Ts.function
     def after(A: T.Tensor((4, 16), "int32"), C: T.Tensor((4, 8), "int32")):
         for c in T.serial(4):
             with Ts.sblock():
@@ -349,11 +349,11 @@ def test_buffer_conditional_lowering():
     """Buffers passed as pointer arguments are unmodified
 
     Confirm that the `tirx.PlanAndUpdateBufferAllocationLocation` pass
-    leaves (Buffer nodes corresponding to pointer-typed PrimFunc arguments)
+    leaves (Buffer nodes corresponding to pointer-typed Function arguments)
     unchanged, rather than lowering them to `reads`, `writes`, and `alloc_tensor` nodes.
     """
 
-    @Ts.prim_func
+    @Ts.function
     def before(A: T.handle("float32")):
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         for i in range(1):
@@ -368,12 +368,12 @@ def test_dltensor_buffer_is_unlowered():
     """Buffers allocated with a Bind are unmodified
 
     Confirm that the `tirx.PlanAndUpdateBufferAllocationLocation` pass
-    leaves (Buffer nodes corresponding to PrimFunc DLTensor arguments)
+    leaves (Buffer nodes corresponding to Function DLTensor arguments)
     unchanged, rather than lowering them to `reads`, `writes`, and
     `alloc_tensor` nodes.
     """
 
-    @Ts.prim_func
+    @Ts.function
     def before(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
         ndim: T.int32 = T.tvm_struct_get(dlpack_handle, 0, 5, "int32")
         stride_ptr: T.let[T.handle("int64")] = T.tvm_struct_get(
@@ -401,7 +401,7 @@ def test_dltensor_buffer_is_unlowered():
 def test_reduce_buffer_dominate_reduce_loops():
     """Reduction write buffer allocation should dominate all reduce loops"""
 
-    @Ts.prim_func
+    @Ts.function
     def before(x: T.Tensor((256, 256, 256), "float32"), x_red: T.Tensor((256, 256), "float32")):
         x_red_ = Ts.sblock_alloc_buffer((256, 256))
         for ax0_0, k1_0, ax1_0 in T.grid(4, 4, 4):
@@ -419,7 +419,7 @@ def test_reduce_buffer_dominate_reduce_loops():
                     v1 = Ts.axis.spatial(256, ax1_0 * 64 + ax1)
                     x_red[v0, v1] = x_red_[v0, v1]
 
-    @Ts.prim_func
+    @Ts.function
     def after(x: T.Tensor((256, 256, 256), "float32"), x_red: T.Tensor((256, 256), "float32")):
         for ax0_0 in range(4):
             with Ts.sblock(""):

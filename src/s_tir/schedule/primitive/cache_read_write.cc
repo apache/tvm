@@ -221,7 +221,7 @@ SBlock MakeReindexCacheStage(const TensorRegion& cache_region, ReindexCacheStage
       /*name_hint*/ cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
-      BufferStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
+      TensorStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
       /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
@@ -324,7 +324,7 @@ SBlock MakeCacheStage(const TensorRegion& cache_region, CacheStageInfo* info,
       /*name_hint=*/cache_region->source.as_or_throw<tvm::tirx::TensorVar>().name() + "_" +
           storage_scope,
       /*body=*/
-      BufferStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
+      TensorStore(info->write_buffer, MakeTensorLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
       /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
@@ -431,7 +431,7 @@ SBlock MakeReIndexStage(const SBlock& block, CacheStageInfo* info,
       /*writes=*/{BufferRegionFromPoint(info->write_buffer, dst_indices)},
       /*name_hint=*/info->write_buffer.name() + "_reindex",
       /*body=*/
-      BufferStore(info->write_buffer, MakeTensorLoad(info->read_buffer, src_indices), dst_indices));
+      TensorStore(info->write_buffer, MakeTensorLoad(info->read_buffer, src_indices), dst_indices));
 
   // Step 4: Create surrounding loops
 
@@ -1434,18 +1434,18 @@ class CacheWriteRewriter : public StmtExprMutator {
     return ret;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) override {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) override {
     bool rewrite_buffer = store->buffer.same_as(info_->write_buffer);
     auto value = Mutate(store->value);
     auto indices = Mutate(store->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore stmt = ffi::GetRef<BufferStore>(store);
+    TensorStore stmt = ffi::GetRef<TensorStore>(store);
     if (!value.UnchangedOrSameAs(store->value) || !indices.UnchangedOrSameAs(store->indices)) {
       auto* n = stmt.CopyOnWrite();
       n->value = std::move(value).ValueOrUnchanged(store->value);
       n->indices = std::move(indices).ValueOrUnchanged(store->indices);
     }
     if (rewrite_buffer) {
-      BufferStoreNode* n = stmt.CopyOnWrite();
+      TensorStoreNode* n = stmt.CopyOnWrite();
       n->buffer = info_->read_buffer;
       if (!cache_full_region_) {
         n->indices = RewriteIndices(n->indices);
@@ -1589,18 +1589,18 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
   }
 
  private:
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
     bool rewrite_buffer = store->buffer.same_as(info_->write_buffer);
     auto value = Mutate(store->value);
     auto indices = Mutate(store->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore stmt = ffi::GetRef<BufferStore>(store);
+    TensorStore stmt = ffi::GetRef<TensorStore>(store);
     if (!value.UnchangedOrSameAs(store->value) || !indices.UnchangedOrSameAs(store->indices)) {
       auto* n = stmt.CopyOnWrite();
       n->value = std::move(value).ValueOrUnchanged(store->value);
       n->indices = std::move(indices).ValueOrUnchanged(store->indices);
     }
     if (rewrite_buffer) {
-      BufferStoreNode* n = stmt.CopyOnWrite();
+      TensorStoreNode* n = stmt.CopyOnWrite();
       n->buffer = info_->read_buffer;
       n->indices = new_indices_;
       return stmt;
@@ -1684,14 +1684,14 @@ class InvalidBufferAccessError : public ScheduleErrorContextObj {
   InvalidBufferAccessError(IRModule mod, TensorVar buffer, SBlock block, ErrorKind kind)
       : mod_(std::move(mod)), buffer_(std::move(buffer)), block_(std::move(block)), kind_(kind) {}
   ffi::String FastErrorString() const final {
-    return "ScheduleError: The target buffer should be accessed via TensorLoad or BufferStore. The "
+    return "ScheduleError: The target buffer should be accessed via TensorLoad or TensorStore. The "
            "indices should be the same if there are multiple accesses to the target buffer.";
   }
 
   ffi::String DetailRenderTemplate() const final {
     std::ostringstream os;
     os << "The target buffer " << buffer_.name()
-       << " should be accessed in the leaf block {0} via TensorLoad or BufferStore. The indices "
+       << " should be accessed in the leaf block {0} via TensorLoad or TensorStore. The indices "
           "should be the same if there are multiple accesses to the target buffer. ";
     if (kind_ == ErrorKind::kNoAccess) {
       os << "No buffer accesses found.";
@@ -1747,7 +1747,7 @@ class ReIndexCollector : public StmtExprVisitor {
     throw MakeScheduleError<NotLeafBlockError>(mod_, block_);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(store->value));
     for (const PrimExpr& index : store->indices) {
       TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(Visit(index));
@@ -1877,16 +1877,16 @@ class ReIndexRewriter : public StmtExprMutator {
     }
     return node;
   }
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto value = Mutate(op->value);
     auto indices = Mutate(op->indices).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore buffer_store = ffi::GetRef<BufferStore>(op);
+    TensorStore tensor_store = ffi::GetRef<TensorStore>(op);
     if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
-      auto* n = buffer_store.CopyOnWrite();
+      auto* n = tensor_store.CopyOnWrite();
       n->value = std::move(value).ValueOrUnchanged(op->value);
       n->indices = std::move(indices).ValueOrUnchanged(op->indices);
     }
-    return VisitBufferAccess(std::move(buffer_store));
+    return VisitBufferAccess(std::move(tensor_store));
   }
 
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final {

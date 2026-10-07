@@ -30,7 +30,7 @@ from tvm.relax import ExternFunc
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tirx as T
-from tvm.tirx.function import PrimFunc
+from tvm.tirx.function import Function
 
 
 @pytest.fixture(scope="module")
@@ -431,7 +431,7 @@ def test_emit_te():
         B = te.placeholder((n, m), dtype="float32", name="B")
         C = te.placeholder((n, m), dtype="float32", name="C")
         out = te_func((A, B), {"C": C}, "")
-        return tvm.te.create_prim_func([A, B, C, out], index_dtype_override="int64")
+        return tvm.te.create_function([A, B, C, out], index_dtype_override="int64")
 
     # check TIR structure matches expected
     assert_structural_equal(mod["te_func"].body, get_tir_func().body)
@@ -473,13 +473,13 @@ def test_emit_te_multiple():
     mod = bb.finalize()
     rx_func = mod["rx_func"]
 
-    prim_func = []
+    function = []
     for gv in mod.get_global_vars():
-        if isinstance(mod[gv], PrimFunc):
-            prim_func.append(mod[gv])
+        if isinstance(mod[gv], Function):
+            function.append(mod[gv])
 
-    # only two PrimFuncs were generated since two of them are equal so got deduped
-    assert len(prim_func) == 2
+    # only two Functions were generated since two of them are equal so got deduped
+    assert len(function) == 2
     assert rx_func.body.blocks[0].bindings[0].value.args[0].name_hint == "te_func"
     assert rx_func.body.blocks[0].bindings[1].value.args[0].name_hint == "te_func"
     assert rx_func.body.blocks[0].bindings[2].value.args[0].name_hint == "te_func1"
@@ -707,8 +707,8 @@ def test_finalize_public_private_name_conflict():
         return topi.full((), "int64", tirx.IntImm("int64", 1))
 
     with bb.function("func", []):
-        gv0 = bb.emit_te(te_zero, primfunc_name_hint="func")
-        gv1 = bb.emit_te(te_one, primfunc_name_hint="func")
+        gv0 = bb.emit_te(te_zero, function_name_hint="func")
+        gv1 = bb.emit_te(te_one, function_name_hint="func")
         bb.emit_func_output((gv0, gv1))
 
     mod = bb.get()

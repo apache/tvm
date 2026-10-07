@@ -24,7 +24,7 @@ from tvm.backend.trn.layout import is_trainium_layout
 from tvm.ir import TensorRegion, assert_structural_equal
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
     fail,
@@ -110,7 +110,7 @@ def get_pf_dim_from_buffer_region(
     return p_dim, f_dim
 
 
-def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     """Schedule GEMM operation on Trainium."""
     # Basic validation checks
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
@@ -241,7 +241,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
 
     if C.scope() == "trn.psum":
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl_C_psum():
             for lhs_b_loop, rhs_b_loop, reduction_b_loop in T.grid(lhs_b_extent, rhs_b_extent, reduction_b_extent):  # noqa: E501
                 matmul_inst_macro(lhs_b_loop, rhs_b_loop, reduction_b_loop, C, True, None)
@@ -268,7 +268,7 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         max_psum_slots = acc_psum.ty.shape[0]
 
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl_C_sbuf():
         for lhs_b_loop, rhs_b_loop in T.grid(lhs_b_extent, rhs_b_extent):
             for reduction_b_loop in T.serial(0, reduction_b_extent):
@@ -300,5 +300,5 @@ def matmul_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
         )
     ],
 )
-def gemm_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def gemm_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return matmul_trn(op, sctx)

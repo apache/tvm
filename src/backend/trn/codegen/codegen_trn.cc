@@ -54,7 +54,7 @@ std::string PrintShapeAsList(const ffi::Array<PrimExpr>& shape) {
 }
 }  // namespace
 
-void CodeGenTrainium::InitFuncState(const PrimFunc& f) { CodeGenC::InitFuncState(f); }
+void CodeGenTrainium::InitFuncState(const Function& f) { CodeGenC::InitFuncState(f); }
 
 CodeGenTrainium::CodeGenTrainium(Target target) : target_(target) {
   decl_stream << "import neuronxcc.nki.language as nl\n";
@@ -75,7 +75,7 @@ CodeGenTrainium::CodeGenTrainium(Target target) : target_(target) {
                  {"exp", "nki.language.exp"}};
 }
 
-void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const Function& func) {
   TVM_FFI_CHECK(func->body.has_value(), ValueError)
       << "Kernel code generation requires a function body";
   // NOTE: There is no inter-function calls among Trainium kernels.
@@ -83,7 +83,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // process.
   // We can switch to follow the flow with inter-function call process
   // after the Trainium function declaration is properly printed.
-  // In Trainium, for PrimFuncs with signature
+  // In Trainium, for Functions with signature
   //    def func(A: Buffer, B: Buffer, x: int, y: float) -> None
   // where there are trailing pod parameters, the codegen emits a struct
   //    struct func_params{ x: int; y: float; }
@@ -104,7 +104,7 @@ void CodeGenTrainium::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // add to alloc buffer type.
   auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   TVM_FFI_ICHECK(global_symbol.has_value())
-      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+      << "CodeGenC: Expect Function to have the global_symbol attribute";
 
   // Function header.
   this->stream << "def " << static_cast<std::string>(global_symbol.value()) << "(";
@@ -351,7 +351,7 @@ std::string CodeGenTrainium::PrintIndices(const Array<PrimExpr>& indices) {
   return os.str();
 }
 
-void CodeGenTrainium::Dispatch_(const BufferStoreNode* op) {
+void CodeGenTrainium::Dispatch_(const TensorStoreNode* op) {
   LOG(FATAL) << "Trainium codegen does not support buffer store";
 }
 
@@ -381,7 +381,7 @@ std::string PrintBool(bool b) { return b ? "True" : "False"; }
 void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(!op->op.as<GlobalVarNode>())
       << "CodegenTrainium does not support inter-function calls, "
-      << "but expression " << ffi::GetRef<Call>(op) << " calls PrimFunc " << op->op;
+      << "but expression " << ffi::GetRef<Call>(op) << " calls Function " << op->op;
   const auto* op_node = op->op.as<OpNode>();
   auto is_op = [&](const Op& compat, const char* canonical_name) {
     return op->op.same_as(compat) || (op_node != nullptr && op_node->name == canonical_name);
@@ -686,15 +686,15 @@ ffi::Module BuildTrainium(IRModule mod, Target target) {
   std::string fmt = fTrainium_compile.has_value() ? "Trainiumlib" : "Trainium";
 
   for (auto kv : mod->functions) {
-    TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>())
-        << "CodeGenTrainium: Can only take PrimFunc";
+    TVM_FFI_ICHECK(kv.second->IsInstance<FunctionNode>())
+        << "CodeGenTrainium: Can only take Function";
     auto global_symbol = kv.second->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value());
     std::string func_name = global_symbol.value();
     source_maker << "# Function: " << func_name << "\n";
     CodeGenTrainium cg(target);
     cg.Init(output_ssa);
-    auto f = kv.second.as_or_throw<PrimFunc>();
+    auto f = kv.second.as_or_throw<Function>();
     cg.AddFunction(kv.first, f);
 
     std::string fsource = cg.Finish();

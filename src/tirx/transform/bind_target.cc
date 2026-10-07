@@ -19,10 +19,10 @@
 
 /*!
  * \file bind_target.cc
- * \brief Pass to bind target to primfunc for heterogeneous compilation.
+ * \brief Pass to bind target to function for heterogeneous compilation.
  *
  * This pass analyzes function call patterns in an IRModule and binds appropriate
- * targets (host/device) to each PrimFunc based on where they are called from.
+ * targets (host/device) to each Function based on where they are called from.
  *
  * The pass handles the following scenarios:
  * 1. Functions called from host code (CPU)
@@ -76,10 +76,10 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
     // since they represent the entry points where host/device calls originate
     for (const auto& [gvar, func] : mod->functions) {
       bool is_externally_exposed = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
-      const auto* prim_func = func.as<PrimFuncNode>();
+      const auto* function = func.as<FunctionNode>();
 
-      if (is_externally_exposed && prim_func != nullptr) {
-        visitor->Visit(prim_func->body);
+      if (is_externally_exposed && function != nullptr) {
+        visitor->Visit(function->body);
       }
     }
 
@@ -154,11 +154,11 @@ class CallSubstitutor : public StmtExprMutator {
       : replacements_(replacements) {}
 
   /*!
-   * \brief Substitute function calls in a PrimFunc.
-   * \param func The PrimFunc to process
-   * \return The modified PrimFunc with updated calls
+   * \brief Substitute function calls in a Function.
+   * \param func The Function to process
+   * \return The modified Function with updated calls
    */
-  PrimFunc Substitute(PrimFunc func) {
+  Function Substitute(Function func) {
     auto f = func.CopyOnWrite();
     auto body = Mutate(f->body, InplaceMode::kDisallow).ValueOrUnchanged(f->body);
 
@@ -223,7 +223,7 @@ class CallSubstitutor : public StmtExprMutator {
  * \brief Bind appropriate targets to functions in an IRModule.
  *
  * This function analyzes the call patterns in the module and binds appropriate
- * targets to each PrimFunc based on where they are called from. The binding
+ * targets to each Function based on where they are called from. The binding
  * follows these rules:
  *
  * 1. Externally exposed functions (with global symbol) get the full target
@@ -266,15 +266,15 @@ IRModule BindTarget(IRModule mod, const Target& target) {
                                 [](const auto& kv) { return kv.first->name_hint; });
 
   for (auto [gvar, func] : mod->functions) {
-    const auto* prim_func_node = func.as<PrimFuncNode>();
-    if (prim_func_node == nullptr) {
-      // Skip non-PrimFunc entries
+    const auto* function_node = func.as<FunctionNode>();
+    if (function_node == nullptr) {
+      // Skip non-Function entries
       continue;
     }
-    auto prim_func = ffi::GetRef<PrimFunc>(prim_func_node);
+    auto function = ffi::GetRef<Function>(function_node);
 
     bool is_externally_exposed =
-        prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+        function->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
 
     if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
       // Rule 1: If the function has a target, and the target has a host, and the function does not
@@ -284,22 +284,22 @@ IRModule BindTarget(IRModule mod, const Target& target) {
 
       if (target_host && !func_target_host && is_externally_exposed) {
         auto new_target = Target::WithHost(func_target.value(), target_host.value());
-        new_mod->Update(gvar, WithAttr(std::move(prim_func), tvm::attr::kTarget, new_target));
+        new_mod->Update(gvar, WithAttr(std::move(function), tvm::attr::kTarget, new_target));
       }
       continue;
     }
 
-    if (prim_func->HasNonzeroAttr(tvm::tirx::attr::kIsHostFunc)) {
+    if (function->HasNonzeroAttr(tvm::tirx::attr::kIsHostFunc)) {
       // Rule 2: If the function is marked as host function, bind the host target to the function
-      prim_func = WithAttr(std::move(prim_func), tvm::attr::kTarget,
-                           Target::WithHost(target_host, target_host));
-      new_mod->Update(gvar, WithoutAttr(std::move(prim_func), tvm::tirx::attr::kIsHostFunc));
+      function = WithAttr(std::move(function), tvm::attr::kTarget,
+                          Target::WithHost(target_host, target_host));
+      new_mod->Update(gvar, WithoutAttr(std::move(function), tvm::tirx::attr::kIsHostFunc));
       continue;
     }
 
     if (is_externally_exposed) {
       // Rule 3: Externally exposed functions get the full target
-      new_mod->Update(gvar, WithAttr(std::move(prim_func), tvm::attr::kTarget, target));
+      new_mod->Update(gvar, WithAttr(std::move(function), tvm::attr::kTarget, target));
     } else {
       const auto* gvar_node = gvar.get();
       bool called_by_host = host_called_global_vars.count(gvar_node);
@@ -308,9 +308,9 @@ IRModule BindTarget(IRModule mod, const Target& target) {
       if (called_by_host && called_by_device) {
         // Rule 4.1: Called by both host and device
         // Bind device target to current function
-        PrimFunc host_func = s_tir::RenewDefs(prim_func);
+        Function host_func = s_tir::RenewDefs(function);
         new_mod->Update(gvar,
-                        WithAttr(std::move(prim_func), tvm::attr::kTarget, target_without_host));
+                        WithAttr(std::move(function), tvm::attr::kTarget, target_without_host));
 
         // Create duplicate with host target for host callers
         host_func = WithAttr(std::move(host_func), tvm::attr::kTarget, target_host);
@@ -322,17 +322,17 @@ IRModule BindTarget(IRModule mod, const Target& target) {
 
       } else if (called_by_host) {
         // Rule 4.2: Called by host only
-        new_mod->Update(gvar, WithAttr(std::move(prim_func), tvm::attr::kTarget, target_host));
+        new_mod->Update(gvar, WithAttr(std::move(function), tvm::attr::kTarget, target_host));
       } else if (called_by_device) {
         // Rule 4.3: Called by device only
         new_mod->Update(gvar,
-                        WithAttr(std::move(prim_func), tvm::attr::kTarget, target_without_host));
+                        WithAttr(std::move(function), tvm::attr::kTarget, target_without_host));
       } else {
         // Rule 4.4: Not called by any context
         // NOTE: To keep the current behavior, we bind the target to the full target, but it needs
         // further check
         new_mod->Update(gvar,
-                        WithAttr(std::move(prim_func), tvm::attr::kTarget, target_without_host));
+                        WithAttr(std::move(function), tvm::attr::kTarget, target_without_host));
       }
     }
   }
@@ -342,16 +342,16 @@ IRModule BindTarget(IRModule mod, const Target& target) {
     auto substitutor = ffi::make_object<CallSubstitutor>(host_function_replacements);
 
     for (auto [gvar, func] : mod->functions) {
-      const auto* prim_func = func.as<PrimFuncNode>();
-      if (prim_func == nullptr) {
+      const auto* function = func.as<FunctionNode>();
+      if (function == nullptr) {
         continue;
       }
 
       bool is_externally_exposed =
-          prim_func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
+          function->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_externally_exposed) {
         // Update calls in externally exposed functions to use host duplicates
-        PrimFunc new_func = substitutor->Substitute(func.as_or_throw<PrimFunc>());
+        Function new_func = substitutor->Substitute(func.as_or_throw<Function>());
         new_mod->Update(gvar, new_func);
       }
     }
@@ -366,7 +366,7 @@ namespace transform {
  * \brief Create a pass that binds targets to functions in an IRModule.
  *
  * This pass analyzes the call patterns in the module and binds appropriate
- * targets (host/device) to each PrimFunc based on where they are called from.
+ * targets (host/device) to each Function based on where they are called from.
  *
  * \param target The target to bind (should include both host and device)
  * \return A transform pass that performs target binding

@@ -49,8 +49,8 @@ Dispatch runs in the ``tirx.TilePrimitiveDispatch`` pass, the first phase of
 #. builds a ``DispatchContext`` carrying the target, scope, launch parameters,
    value ranges, and encoded ``inter``/``intra`` maps plus ``scope_kind``;
 #. invokes the global FFI hook ``tirx.f_op_dispatcher`` with the call and
-   context, which returns a ``PrimFunc``;
-#. splices that ``PrimFunc`` body in place of the call and drains side-effect
+   context, which returns a ``Function``;
+#. splices that ``Function`` body in place of the call and drains side-effect
    callbacks for private allocations and device or host initialization.
 
 If a ``TilePrimitiveCall`` survives lowering, the verifier reports a fatal

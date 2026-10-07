@@ -83,7 +83,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
             [
                 relax.backend.adreno.transform.FoldVDeviceScopeChange(),
                 relax.transform.DeadCodeElimination(),
-                relax.transform.SpecializePrimFuncBasedOnCallSite(),
+                relax.transform.SpecializeFunctionBasedOnCallSite(),
             ]
         )
     from tvm.s_tir import dlight as dl  # pylint: disable=import-outside-toplevel

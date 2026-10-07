@@ -31,7 +31,7 @@ def test_decode_gemv_1():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -53,7 +53,7 @@ def test_decode_gemv_1():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((4096, 512), 'uint32'), S: T.Tensor((4096, 128), 'float16'), V: T.Tensor((1, 1, 4096), 'float16'), C: T.Tensor((1, 1, 4096), 'float16')):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -102,7 +102,7 @@ def test_decode_gemv_2():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((512, 4096), "uint32"), S: T.Tensor((128, 4096), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -124,7 +124,7 @@ def test_decode_gemv_2():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((512, 4096), "uint32"), S: T.Tensor((128, 4096), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -164,7 +164,7 @@ def test_decode_gemv_3():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((512, 4096), "uint32"), S: T.Tensor((128, 4096), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -186,7 +186,7 @@ def test_decode_gemv_3():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((512, 4096), 'uint32'), S: T.Tensor((128, 4096), 'float16'), V: T.Tensor((1, 1, 4096), 'float16'), C: T.Tensor((1, 1, 4096), 'float16')):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -237,7 +237,7 @@ def test_decode_gemv_4():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -259,7 +259,7 @@ def test_decode_gemv_4():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -301,7 +301,7 @@ def test_decode_gemv_sigmoid():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), D: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -330,7 +330,7 @@ def test_decode_gemv_sigmoid():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((4096, 512), 'uint32'), S: T.Tensor((4096, 128), 'float16'), V: T.Tensor((1, 1, 4096), 'float16'), D: T.Tensor((1, 1, 4096), 'float16')):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -387,7 +387,7 @@ def test_decode_gemv_1_fp32():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((4096, 512), "uint32"), S: T.Tensor((4096, 128), "float16"), V: T.Tensor((1, 1, 4096), "float16"), C: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -416,7 +416,7 @@ def test_decode_gemv_1_fp32():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def func(W: T.Tensor((4096, 512), 'uint32'), S: T.Tensor((4096, 128), 'float16'), V: T.Tensor((1, 1, 4096), 'float16'), C: T.Tensor((1, 1, 4096), 'float16')):
             T.func_attr({"global_symbol": "main", "tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -472,7 +472,7 @@ def test_reduction_no_spatial():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((1, 1, 4096), "float16"), B: T.Tensor((4096,), "float16"), rms_norm: T.Tensor((1, 4096), "float16")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             Ared_temp = Ts.sblock_alloc_buffer((1, 1))
@@ -489,7 +489,7 @@ def test_reduction_no_spatial():
 
     @I.ir_module
     class After:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((1, 1, 4096), 'float16'), B: T.Tensor((4096,), 'float16'), rms_norm: T.Tensor((1, 4096), 'float16')):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -543,7 +543,7 @@ def test_spatial_inner_no_broadcasting():
     # fmt: off
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main(lv575: T.Tensor((1376, 4096), "uint32"), lv576: T.Tensor((344, 4096), "float16"), lv574: T.Tensor((1, 1, 11008), "float16"), lv570: T.Tensor((1, 1, 4096), "float16"), p_output0_intermediate: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"tirx.noalias": True})
             p_output0_intermediate_1 = Ts.sblock_alloc_buffer((11008, 4096), "float16")
@@ -571,7 +571,7 @@ def test_spatial_inner_no_broadcasting():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(lv575: T.Tensor((1376, 4096), "uint32"), lv576: T.Tensor((344, 4096), "float16"), lv574: T.Tensor((1, 1, 11008), "float16"), lv570: T.Tensor((1, 1, 4096), "float16"), p_output0_intermediate: T.Tensor((1, 1, 4096), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             var_matmul_intermediate_local = Ts.sblock_alloc_buffer((1, 1, 4096), "float16", scope="local")
@@ -622,7 +622,7 @@ def test_spatial_inner_broadcasting():
     # fmt: off
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256, 256), "float32")):
             T.func_attr({"tirx.noalias": True})
             temp_local = Ts.sblock_alloc_buffer((256,))
@@ -644,7 +644,7 @@ def test_spatial_inner_broadcasting():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256, 256), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             temp_local_shared = Ts.sblock_alloc_buffer((256,), scope="shared")
@@ -697,7 +697,7 @@ def test_reduction_inner_no_broadcasting():
     # fmt: off
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256,), "float32")):
             T.func_attr({"tirx.noalias": True})
             temp_local = Ts.sblock_alloc_buffer((256,))
@@ -719,7 +719,7 @@ def test_reduction_inner_no_broadcasting():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256,), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -765,7 +765,7 @@ def test_reduction_inner_no_broadcasting2():
     # fmt: off
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main(lv9: T.Tensor((2560, 320), "uint32"), lv10: T.Tensor((2560, 80), "float16"), lv1: T.Tensor((1, 2560), "float16"), p_output0_intermediate: T.Tensor((1, 2560), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -794,7 +794,7 @@ def test_reduction_inner_no_broadcasting2():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(lv9: T.Tensor((2560, 320), "uint32"), lv10: T.Tensor((2560, 80), "float16"), lv1: T.Tensor((1, 2560), "float16"), p_output0_intermediate: T.Tensor((1, 2560), "float32")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             # with Ts.sblock("root"):
@@ -849,7 +849,7 @@ def test_reduction_inner_spatial_choose_perfect_factor():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), n), 'float16'), B: T.Tensor((T.int64(1), T.int64(32), n, T.int64(100)), 'float16'), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16")):
             T.func_attr({"tirx.noalias": True})
 
@@ -866,7 +866,7 @@ def test_reduction_inner_spatial_choose_perfect_factor():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((T.int64(1), T.int64(32), T.int64(1), n), 'float16'), B: T.Tensor((T.int64(1), T.int64(32), n, T.int64(100)), 'float16'), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(100)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -914,7 +914,7 @@ def test_reduction_inner_spatial_non_affine_write_back_falls_back():
     # The partial innermost tile leaves three div/mod components in the write-back binding.
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((2, 4, 20), "float32"),
             W: T.Tensor((3,), "float32"),
@@ -931,7 +931,7 @@ def test_reduction_inner_spatial_non_affine_write_back_falls_back():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((2, 4, 20), "float32"),
             W: T.Tensor((3,), "float32"),
@@ -986,7 +986,7 @@ def test_reduction_inner_spatial_non_affine_without_mixed_access():
     # The failure depends on the spatial extents, not mixed spatial/reduction indexing.
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((2, 2, 3, 20), "float32"),
             C: T.Tensor((2, 2, 20), "float32"),
@@ -1014,7 +1014,7 @@ def test_reduction_inner_spatial_reordered_access_declines():
     # `_normalize` fuses the spatial loops in dominant-read order: n, x, y.
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((2, 16, 3, 20), "float32"),
             C: T.Tensor((2, 20, 16), "float32"),
@@ -1036,7 +1036,7 @@ def test_reduction_inner_spatial_affine_write_back_still_applies():
     # An exact innermost tile leaves only two div/mod components.
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((2, 4, 16), "float32"),
             W: T.Tensor((3,), "float32"),
@@ -1060,7 +1060,7 @@ def test_reduction_inner_spatial_uses_normalized_split_extent():
     # x // 2 normalizes the x extent from 8 to 4, which must also be used for tx.
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(
             A: T.Tensor((2, 3, 3, 4), "float32"),
             C: T.Tensor((2, 3, 8), "float32"),
@@ -1087,7 +1087,7 @@ def test_repeat_transpose_gemv():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_relax_repeat_relax_permute_dims_relax_matmul1(lv716: T.Tensor((T.int64(1), kv_seq_len, T.int64(8), T.int64(128)), 'float16'), astype66: T.Tensor((T.int64(1), T.int64(32), T.int64(1), kv_seq_len), 'float16'), var_matmul_intermediate: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
             T.func_attr({"tirx.noalias": True})
 
@@ -1118,7 +1118,7 @@ def test_repeat_transpose_gemv():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def fused_relax_repeat_relax_permute_dims_relax_matmul1(lv716: T.Tensor((T.int64(1), kv_seq_len, T.int64(8), T.int64(128)), 'float16'), astype66: T.Tensor((T.int64(1), T.int64(32), T.int64(1), kv_seq_len), 'float16'), var_matmul_intermediate: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -1169,7 +1169,7 @@ def test_gemv_dyn_shape_epilogue():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def main(
             A: T.Tensor((T.int64(4096), vocab_size), "float16"),
             B: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
@@ -1200,7 +1200,7 @@ def test_gemv_dyn_shape_epilogue():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def main(A: T.Tensor((T.int64(4096), vocab_size), 'float16'), B: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"), C: T.Tensor((T.int64(1), T.int64(1), vocab_size))):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
 
@@ -1251,7 +1251,7 @@ def test_gemv_output_one_element():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def main(A: T.Tensor((T.int64(1), T.int64(2048)), "float16"), weight: T.Tensor((T.int64(1), T.int64(2048)), "float16"), out: T.Tensor((T.int64(1), T.int64(1)), "float16")):
             T.func_attr({"tirx.noalias": True})
             NT_matmul_intermediate = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)), "float16")
@@ -1268,7 +1268,7 @@ def test_gemv_output_one_element():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def main(A: T.Tensor((T.int64(1), T.int64(2048)), "float16"), weight: T.Tensor((T.int64(1), T.int64(2048)), "float16"), out: T.Tensor((T.int64(1), T.int64(1)), "float16")):
             T.func_attr({"tirx.is_scheduled": True, "tirx.noalias": True})
             NT_matmul_intermediate_shared = Ts.sblock_alloc_buffer((T.int64(1), T.int64(1)), "float16", scope="shared")
@@ -1312,7 +1312,7 @@ def test_no_reduction_loop_check():
     # fmt: off
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(lv43: T.Tensor((T.int64(1), T.int64(32), T.int64(1)), "float16"), lv44: T.Tensor((T.int64(1), T.int64(1), T.int64(1)), "float16"), matmul: T.Tensor((T.int64(1), T.int64(32), T.int64(1)), "float16")):
             T.func_attr({"op_pattern": 4, "tirx.noalias": True})
             # with Ts.sblock("root"):

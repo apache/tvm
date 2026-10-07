@@ -59,10 +59,10 @@ def test_dso_module_load():
             0,
             n - 1,
             tvm.tirx.ForKind.SERIAL,
-            tvm.tirx.BufferStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1]),
+            tvm.tirx.TensorStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1]),
         )
         mod = tvm.IRModule.from_expr(
-            tvm.tirx.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
+            tvm.tirx.Function([Ab], stmt).with_attr("global_symbol", "main")
         )
         m = tvm.tirx.build(mod, target="llvm")
         for name in names:
@@ -106,7 +106,7 @@ def test_device_module_dump():
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
 
-    sch = tvm.s_tir.Schedule(te.create_prim_func([A, B]))
+    sch = tvm.s_tir.Schedule(te.create_function([A, B]))
     # create iter var and assign them tags.
     num_thread = 8
     bx, tx = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
@@ -175,8 +175,8 @@ def test_combine_module_llvm():
     n = tvm.runtime.convert(nn)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    mod1 = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd1"))
-    mod2 = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd2"))
+    mod1 = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd1"))
+    mod2 = tvm.IRModule.from_expr(te.create_function([A, B]).with_attr("global_symbol", "myadd2"))
 
     def check_llvm():
         dev = tvm.cpu(0)

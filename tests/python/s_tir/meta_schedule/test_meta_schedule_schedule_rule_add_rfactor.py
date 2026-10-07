@@ -24,11 +24,11 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
-from tvm.te import create_prim_func
+from tvm.te import create_function
 
 
 def test_cpu_matmul():
-    @Ts.prim_func
+    @Ts.function
     def cpu_matmul_0(
         A: T.Tensor((4, 512), "float32"),
         B: T.Tensor((512, 4), "float32"),
@@ -44,7 +44,7 @@ def test_cpu_matmul():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
-    @Ts.prim_func
+    @Ts.function
     def cpu_matmul_1(
         A: T.Tensor((4, 512), "float32"),
         B: T.Tensor((512, 4), "float32"),
@@ -72,7 +72,7 @@ def test_cpu_matmul():
                     C[i, j] = T.float32(0)
                 C[i, j] = C[i, j] + C_rf[i, j, vi2_1]
 
-    @Ts.prim_func
+    @Ts.function
     def cpu_matmul_2(
         A: T.Tensor((4, 512), "float32"),
         B: T.Tensor((512, 4), "float32"),
@@ -107,7 +107,7 @@ def test_cpu_matmul():
     decision_2 = [
         ("SamplePerfectTile", [4, 128]),
     ]
-    mod = create_prim_func(te_workload.matmul(n=4, m=4, k=512))
+    mod = create_function(te_workload.matmul(n=4, m=4, k=512))
     actual = generate_design_space(
         kind="llvm",
         mod=mod,
@@ -123,7 +123,7 @@ def test_cpu_matmul():
 
 
 def test_cpu_argmax():
-    @Ts.prim_func
+    @Ts.function
     def argmax(
         idx: T.Tensor((128, 128), "int32"),
         val: T.Tensor((128, 128), "float32"),
@@ -148,7 +148,7 @@ def test_cpu_argmax():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @Ts.prim_func
+    @Ts.function
     def argmax_0(
         idx: T.Tensor((128, 128), "int32"),
         val: T.Tensor((128, 128), "float32"),
@@ -172,7 +172,7 @@ def test_cpu_argmax():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @Ts.prim_func
+    @Ts.function
     def argmax_1(
         idx: T.Tensor((128, 128), "int32"),
         val: T.Tensor((128, 128), "float32"),
@@ -219,7 +219,7 @@ def test_cpu_argmax():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @Ts.prim_func
+    @Ts.function
     def argmax_2(
         idx: T.Tensor((128, 128), "int32"),
         val: T.Tensor((128, 128), "float32"),

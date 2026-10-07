@@ -31,7 +31,7 @@ from tvm.target import Target
 
 @tvm.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024, 1024), 'float32'), B: T.Tensor((1024, 1024), 'float32'), C: T.Tensor((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
 
@@ -44,7 +44,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class ParallelizeVectorizeUnroll:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((1024, 1024), 'float32'), B: T.Tensor((1024, 1024), 'float32'), C: T.Tensor((1024, 1024), 'float32')) -> None:
         T.func_attr({"global_symbol": "main"})
 
@@ -62,7 +62,7 @@ class ParallelizeVectorizeUnroll:
 # from tvm.script import tirx as T
 @tvm.script.ir_module
 class PureSpatial:
-    @Ts.prim_func
+    @Ts.function
     def main(placeholder: T.Tensor((1, 13, 13, 3, 85), "float32"), placeholder_1: T.Tensor((1, 26, 26, 3, 85), "float32"), placeholder_2: T.Tensor((1, 52, 52, 3, 85), "float32"), T_expand_dims: T.Tensor((1, 80, 10647), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         T_strided_slice_with_axes = Ts.sblock_alloc_buffer([1, 52, 52, 3, 1], dtype="float32")
@@ -217,7 +217,7 @@ class PureSpatial:
 
 
 def test_parallel_vectorize_unroll():
-    @Ts.prim_func
+    @Ts.function
     def Matmul_0(
         A: T.Tensor((1024, 1024), "float32"),
         B: T.Tensor((1024, 1024), "float32"),

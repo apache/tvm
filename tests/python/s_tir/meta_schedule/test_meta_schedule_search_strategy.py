@@ -37,7 +37,7 @@ MATMUL_M = 32
 
 @tvm.script.ir_module
 class Matmul:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((32, 32), 'float32'), B: T.Tensor((32, 32), 'float32'), C: T.Tensor((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
 
@@ -50,7 +50,7 @@ class Matmul:
 
 @tvm.script.ir_module
 class OtherBlock:
-    @Ts.prim_func
+    @Ts.function
     def main(A: T.Tensor((32, 32), 'float32'), B: T.Tensor((32, 32), 'float32'), C: T.Tensor((32, 32), 'float32')) -> None: # type: ignore
         T.func_attr({"global_symbol": "main"})
 
@@ -336,7 +336,7 @@ def test_meta_schedule_evolutionary_search_skip_invalid_measured_trace():  # pyl
             workload=workload,
             run_secs=[0.1],
             target=tvm.target.Target("llvm"),
-            args_info=ms.arg_info.ArgInfo.from_prim_func(func=Matmul["main"]),
+            args_info=ms.arg_info.ArgInfo.from_function(func=Matmul["main"]),
         )
     )
 

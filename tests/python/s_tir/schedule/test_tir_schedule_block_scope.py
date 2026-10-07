@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((128, 128), "float32")
     for i, j in T.grid(128, 128):
@@ -44,7 +44,7 @@ def elementwise(A: T.Tensor((128, 128), "float32"), C: T.Tensor((128, 128), "flo
             C[vi, vj] = B[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("init"):
@@ -56,7 +56,7 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def war_dependency(
     A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))
 ) -> None:

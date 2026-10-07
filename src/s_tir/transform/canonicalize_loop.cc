@@ -88,14 +88,14 @@ class LoopCanonicalizer : public StmtExprMutator {
 namespace transform {
 
 Pass CanonicalizeLoop() {
-  auto pass_func = [=](PrimFunc func, IRModule m, PassContext ctx) {
-    PrimFuncNode* fptr = func.CopyOnWrite();
+  auto pass_func = [=](Function func, IRModule m, PassContext ctx) {
+    FunctionNode* fptr = func.CopyOnWrite();
     fptr->body = ffi::make_object<LoopCanonicalizer>()
                      ->Mutate(fptr->body, InplaceMode::kAllow)
                      .ValueOrUnchanged(std::move(fptr->body));
     return func;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.CanonicalizeLoop", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.CanonicalizeLoop", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

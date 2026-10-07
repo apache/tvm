@@ -45,7 +45,7 @@ def test_callback():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_A(
             A: T.Tensor((4, 4), "int32"),
             rank: T.int64,
@@ -56,7 +56,7 @@ def test_callback():
                     vi, vj = Ts.axis.remap("SS", [i, j])
                     A_sharded[vi, vj] = A[rank * 2 + vi, vj]
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def slice_B(
             B: T.Tensor((2, 2), "float32"),
             rank: T.int64,

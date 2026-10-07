@@ -55,7 +55,7 @@ class DistBufferReplacer : public s_tir::StmtExprMutator {
 
 class DistSBlockInfoCollector : public s_tir::StmtExprVisitor {
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     buffer_access_indices[op->buffer].push_back(op->indices);
     return s_tir::StmtExprVisitor::Visit_(op);
   }
@@ -127,13 +127,13 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
   using DimShard = std::unordered_map<int, int>;
 
  public:
-  static std::tuple<PrimFunc, std::string> DistBufferCompact(
-      const std::vector<ShardingSpec>& sharding_specs, PrimFunc prim_func) {
-    prim_func = s_tir::RenewDefs(prim_func);
-    auto compactor = ffi::make_object<DistributedBufferCompactor>(sharding_specs, prim_func);
+  static std::tuple<tirx::Function, std::string> DistBufferCompact(
+      const std::vector<ShardingSpec>& sharding_specs, tirx::Function function) {
+    function = s_tir::RenewDefs(function);
+    auto compactor = ffi::make_object<DistributedBufferCompactor>(sharding_specs, function);
     ffi::Array<Var> new_params;
     ffi::Map<TensorVar, TensorVar> replace_buffer_map;
-    for (const Var& param : prim_func->params) {
+    for (const Var& param : function->params) {
       if (!param->ty.as<TensorTypeNode>()) {
         new_params.push_back(param);
         continue;
@@ -145,28 +145,30 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
         replace_buffer_map.Set(buffer, shard_buffer);
       }
     }
-    auto new_body = compactor->Mutate(prim_func->body, InplaceMode::kDisallow)
-                        .ValueOrUnchanged(prim_func->body);
+    auto new_body =
+        compactor->Mutate(function->body, InplaceMode::kDisallow).ValueOrUnchanged(function->body);
     if (new_body.has_value()) {
       new_body = DistBufferReplacer::BufferReplace(new_body.value(), replace_buffer_map);
     }
-    PrimFunc new_func(new_params, new_body, prim_func->ret_type, prim_func->attrs, prim_func->span);
+    tirx::Function new_func(new_params, new_body, function->ret_type, function->attrs,
+                            function->span);
     return std::make_tuple(new_func, compactor->add_allreduce_kind_);
   }
 
-  DistributedBufferCompactor(const std::vector<ShardingSpec>& sharding_specs, PrimFunc prim_func)
+  DistributedBufferCompactor(const std::vector<ShardingSpec>& sharding_specs,
+                             tirx::Function function)
       : sharding_specs_(sharding_specs) {
-    PropagateShardingSpecOnBlock(prim_func);
+    PropagateShardingSpecOnBlock(function);
   }
 
  private:
   // todo: if cannot propagate, insert allgather
   // todo: if reduce, insert allreduce
-  void PropagateShardingSpecOnBlock(PrimFunc prim_func) {
-    extractor_->Visit(prim_func->body);
+  void PropagateShardingSpecOnBlock(tirx::Function function) {
+    extractor_->Visit(function->body);
     std::unordered_set<BufferAxis, BufferAxisHash> visited;
-    for (int i = 0, j = 0; i < static_cast<int>(prim_func->params.size()); i++) {
-      Var param_var = prim_func->params[i];
+    for (int i = 0, j = 0; i < static_cast<int>(function->params.size()); i++) {
+      Var param_var = function->params[i];
       if (!param_var->ty.as<TensorTypeNode>()) {
         continue;
       }
@@ -400,11 +402,11 @@ class LowerTIRToLocalView : public ExprMutator {
     std::vector<ShardingSpec> sharding_specs;
     ffi::Array<Expr> args = val->args[1].as_or_throw<Tuple>()->fields;
     GlobalVar gvar = val->args[0].as_or_throw<GlobalVar>();
-    tirx::PrimFunc prim_func = MatchPrimFunc(builder_->GetContextIRModule(), gvar).value();
-    TVM_FFI_ICHECK_LE(args.size(), prim_func->params.size());
+    tirx::Function function = MatchFunction(builder_->GetContextIRModule(), gvar).value();
+    TVM_FFI_ICHECK_LE(args.size(), function->params.size());
     for (size_t i = 0; i < args.size(); ++i) {
       const Expr& arg = args[i];
-      const tirx::Var& param = prim_func->params[i];
+      const tirx::Var& param = function->params[i];
       if (param->ty.as<tirx::TensorTypeNode>()) {
         const auto* ty = GetTypeAs<DTensorTypeNode>(arg);
         TVM_FFI_CHECK(ty, TypeError)
@@ -423,9 +425,9 @@ class LowerTIRToLocalView : public ExprMutator {
     for (const auto& ty : output_tys) {
       sharding_specs.push_back(ShardingSpec(ty->device_mesh, ty->placement));
     }
-    auto [new_prim_func, allreduce_kind] =
-        tirx::DistributedBufferCompactor::DistBufferCompact(sharding_specs, prim_func);
-    auto new_gvar = builder_->AddFunction(new_prim_func, gvar->name_hint);
+    auto [new_function, allreduce_kind] =
+        tirx::DistributedBufferCompactor::DistBufferCompact(sharding_specs, function);
+    auto new_gvar = builder_->AddFunction(new_function, gvar->name_hint);
     Call call = this->VisitExpr(binding->value).as_or_throw<Call>();
     ffi::ObjectPtr<CallNode> new_call_node = ffi::make_object<CallNode>(*call.get());
     new_call_node->op = Op::Get("relax.dist.call_tir_local_view");

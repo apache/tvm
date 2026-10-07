@@ -361,7 +361,7 @@ class TokenBufferCollector : public StmtExprVisitor {
   bool changed{false};
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     bool is_token_value = false;
     if (const auto* call = store->value.as<CallNode>()) {
       is_token_value = IsTokenProducer(call);
@@ -396,7 +396,7 @@ class TokenDeclarationCollector : public StmtExprVisitor {
   bool changed{false};
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     std::set<DeclarationKey> possible;
     if (const auto* call = store->value.as<CallNode>(); call && IsTokenProducer(call)) {
       possible.insert(DeclarationKey{DeclarationKind::kRange, GetName(call)});
@@ -489,7 +489,7 @@ class TokenVerifier : public StmtExprVisitor {
   explicit TokenVerifier(const TokenBufferSet& token_buffers) : token_buffers_(token_buffers) {}
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     if (!token_buffers_.count(store->buffer.get())) {
       return StmtExprVisitor::Visit_(store);
     }
@@ -579,7 +579,7 @@ class StripIket : public StmtExprMutator {
     return StmtExprMutator::Mutate_(alloc, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
     if (token_buffers_.count(store->buffer.get())) return Evaluate(0);
     return StmtExprMutator::Mutate_(store, inplace_mode);
   }
@@ -648,7 +648,7 @@ class RemoveStrippedIketNoOps : public StmtExprMutator {
   }
 };
 
-bool IsCudaDeviceFunction(const PrimFunc& function) {
+bool IsCudaDeviceFunction(const Function& function) {
   auto target = function->GetAttr<Target>(tvm::attr::kTarget);
   CallingConv calling_conv =
       function->GetAttr<CallingConv>(tvm::attr::kCallingConv, CallingConv::kDefault).value();
@@ -656,7 +656,7 @@ bool IsCudaDeviceFunction(const PrimFunc& function) {
          calling_conv == CallingConv::kDeviceKernelLaunch;
 }
 
-bool IsSm90OrNewer(const PrimFunc& function) {
+bool IsSm90OrNewer(const Function& function) {
   auto target = function->GetAttr<Target>(tvm::attr::kTarget);
   if (!target.has_value()) return false;
   auto arch = target.value()->GetAttr<ffi::String>("arch");
@@ -669,7 +669,7 @@ bool IsSm90OrNewer(const PrimFunc& function) {
   return std::stoi(value.substr(3, end - 3)) >= 90;
 }
 
-std::string FunctionName(const GlobalVar& global_var, const PrimFunc& function) {
+std::string FunctionName(const GlobalVar& global_var, const Function& function) {
   if (auto symbol = function->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol)) {
     return symbol.value();
   }
@@ -678,7 +678,7 @@ std::string FunctionName(const GlobalVar& global_var, const PrimFunc& function) 
 
 struct KernelIketInfo {
   GlobalVar global_var;
-  PrimFunc function;
+  Function function;
   std::string name;
   std::map<DeclarationKey, Declaration> declarations;
   bool has_payload_calls{false};
@@ -1074,8 +1074,8 @@ class InstrumentOfficialKernel : public StmtExprMutator {
   InstrumentOfficialKernel(const KernelIketInfo& info, std::string device_source)
       : info_(info), device_source_(std::move(device_source)) {}
 
-  PrimFunc Run() {
-    PrimFunc result = info_.function;
+  Function Run() {
+    Function result = info_.function;
     result.CopyOnWrite()->body =
         Mutate(info_.function->body).ValueOrUnchanged(info_.function->body);
     return result;
@@ -1191,9 +1191,9 @@ bool IketEnabled(const IRModule& module) {
 IRModule LowerIketImpl(IRModule module) {
   if (!IketEnabled(module)) {
     for (const auto& [global_var, base_function] : module->functions) {
-      const auto* prim_func = base_function.as<PrimFuncNode>();
-      if (!prim_func || !prim_func->body.has_value()) continue;
-      PrimFunc function = ffi::GetRef<PrimFunc>(prim_func);
+      const auto* function_node = base_function.as<FunctionNode>();
+      if (!function_node || !function_node->body.has_value()) continue;
+      Function function = ffi::GetRef<Function>(function_node);
       auto collector = ffi::make_object<AnnotationCollector>();
       collector->Visit(function->body);
       TokenBufferSet tokens = CollectTokenBuffers(function->body.value());
@@ -1222,9 +1222,9 @@ IRModule LowerIketImpl(IRModule module) {
 
   std::vector<KernelIketInfo> kernels;
   for (const auto& [global_var, base_function] : module->functions) {
-    const auto* prim_func = base_function.as<PrimFuncNode>();
-    if (!prim_func || !prim_func->body.has_value()) continue;
-    PrimFunc function = ffi::GetRef<PrimFunc>(prim_func);
+    const auto* function_node = base_function.as<FunctionNode>();
+    if (!function_node || !function_node->body.has_value()) continue;
+    Function function = ffi::GetRef<Function>(function_node);
     auto collector = ffi::make_object<AnnotationCollector>();
     collector->Visit(function->body);
     if (!collector->has_annotations) continue;

@@ -348,7 +348,7 @@ inline int GetNumOutput(Call call) {
   }
 }
 
-void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::PrimFunc& func,
+void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::Function& func,
                            distributed::AxisGroupGraph* axis_group_graph) {
   auto tir_var_axis_group_list = tirx::BufferAxisGraphExtractor::GetTIRVarAxisGraph(func);
   ffi::Map<tirx::Var, Expr> input_var_to_relax_expr;

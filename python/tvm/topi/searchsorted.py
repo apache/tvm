@@ -43,8 +43,8 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
     lo = lo_buf
     hi = hi_buf
 
-    T.buffer_store(lo, cast(0, out_dtype), T.tensor_indices(lo, 0))
-    T.buffer_store(hi, cast(search_range, out_dtype), T.tensor_indices(hi, 0))
+    T.tensor_store(lo, cast(0, out_dtype), T.tensor_indices(lo, 0))
+    T.tensor_store(hi, cast(search_range, out_dtype), T.tensor_indices(hi, 0))
 
     # Reference: pytorch/aten/src/ATen/native/cuda/Bucketization.cu
     def condition(current_val, target_val):
@@ -62,9 +62,9 @@ def binary_search(sequence_offset, search_range, sorted_sequence, value, right, 
             )
         ):
             with T.then_():
-                T.buffer_store(lo, mid + 1, T.tensor_indices(lo, 0))
+                T.tensor_store(lo, mid + 1, T.tensor_indices(lo, 0))
             with T.else_():
-                T.buffer_store(hi, mid, T.tensor_indices(hi, 0))
+                T.tensor_store(hi, mid, T.tensor_indices(hi, 0))
 
     return lo[T.tensor_indices(lo, 0)]
 
@@ -115,7 +115,7 @@ def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
                     sequence_id = i // values_shape[-1]
                     sequence_offset = sequence_id * search_range
 
-                T.buffer_store(
+                T.tensor_store(
                     indices,
                     binary_search(
                         sequence_offset,

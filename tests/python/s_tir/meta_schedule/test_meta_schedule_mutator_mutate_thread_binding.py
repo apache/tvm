@@ -24,7 +24,7 @@ from tvm.target import Target
 # pylint: disable=invalid-name, no-member
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise(
     A: T.Tensor([512, 512], dtype="float32"), B: T.Tensor([512, 512], dtype="float32")
 ) -> None:

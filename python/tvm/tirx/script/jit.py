@@ -26,7 +26,7 @@ from typing import Any
 
 from tvm.script.ir_builder.ir import constexpr
 from tvm.script.parser import protocol_registry
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 
 
 class OptionalAnnotation:
@@ -69,11 +69,11 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
     ) -> TIRJit | Callable[[FunctionType], TIRJit]:
         """Decorator: capture the kernel and defer parsing until ``.specialize()``.
 
-        Use ``@T.jit`` (instead of ``@T.prim_func``) when the kernel takes
+        Use ``@T.jit`` (instead of ``@T.function``) when the kernel takes
         compile-time parameters annotated with ``T.constexpr`` or runtime
         parameters that may be removed with ``T.Optional``. The resulting object
         exposes ``.specialize(**const_args)``, which returns a
-        ``tvm.tirx.PrimFunc``.
+        ``tvm.tirx.Function``.
 
         Parameters
         ----------
@@ -121,7 +121,7 @@ def make_jit(builder: object, *, namespace_path: str) -> Callable[..., Any]:
                 for i in T.serial(N):
                     B[i] = A[i] + 1.0
 
-            kernel = add.specialize(N=1024)  # returns a PrimFunc
+            kernel = add.specialize(N=1024)  # returns a Function
 
             @T.jit
             def guarded(
@@ -172,10 +172,10 @@ class TIRJit:
 
     Parses the function body lazily: parsing is deferred until ``.specialize()``
     supplies concrete values for the params annotated as ``T.constexpr``. The
-    return type of ``.specialize()`` is a ``tvm.tirx.PrimFunc``, identical in
-    type to what ``@T.prim_func`` produces today.
+    return type of ``.specialize()`` is a ``tvm.tirx.Function``, identical in
+    type to what ``@T.function`` produces today.
 
-    Constexpr params are removed from the resulting PrimFunc's parameter list;
+    Constexpr params are removed from the resulting Function's parameter list;
     their values are baked into the IR (e.g. into ``T.Tensor((M, K), ...)``
     shape annotations and into the body).
     """
@@ -282,24 +282,24 @@ class TIRJit:
         self.constexpr_names: frozenset[str] = frozenset(constexpr_names)
         self.constexpr_defaults: dict[str, Any] = constexpr_defaults
         self.optional_names: frozenset[str] = frozenset(optional_names)
-        self._cache: dict[tuple[tuple[str, type, Any], ...], PrimFunc] = {}
+        self._cache: dict[tuple[tuple[str, type, Any], ...], Function] = {}
 
-    def specialize(self, **const_args: Any) -> PrimFunc:
-        """Build a PrimFunc by binding constexprs and absent optional params.
+    def specialize(self, **const_args: Any) -> Function:
+        """Build a Function by binding constexprs and absent optional params.
 
         Parameters
         ----------
         **const_args : Any
             One hashable value per ``T.constexpr``-annotated parameter.  A
             ``T.Optional`` parameter may additionally be supplied as ``None``
-            to remove it from the resulting PrimFunc ABI.  Omitting an
+            to remove it from the resulting Function ABI.  Omitting an
             optional parameter keeps it as a normal runtime parameter.
 
         Returns
         -------
-        PrimFunc
-            A concrete TIRx PrimFunc, identical in type to the output of
-            ``@T.prim_func``. Repeated selections reuse the cached function.
+        Function
+            A concrete TIRx Function, identical in type to the output of
+            ``@T.function``. Repeated selections reuse the cached function.
 
         Raises
         ------
@@ -356,7 +356,7 @@ class TIRJit:
         if cached is not None:
             return cached
 
-        prim_func = parse(
+        function = parse(
             self.func,
             self._closure_vars,
             definition_scope=self._definition_scope,
@@ -367,6 +367,6 @@ class TIRJit:
             _const_args=const_args,
             check_well_formed=self.check_well_formed,
         )
-        setattr(prim_func, "__name__", self.func.__name__)
-        self._cache[cache_key] = prim_func
-        return prim_func
+        setattr(function, "__name__", self.func.__name__)
+        self._cache[cache_key] = function
+        return function

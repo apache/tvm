@@ -26,7 +26,7 @@ from tvm.ir import TensorRegion
 from tvm.runtime import DataType
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import PrimFunc, Var
+from tvm.tirx import Function, Var
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.tile_primitive import TilePrimitiveCall
 
@@ -153,7 +153,7 @@ def get_vec_len(
 
 def copy_vec_load_impl(
     op_call: TilePrimitiveCall, sctx: DispatchContext, inst_type: CopyInstType
-) -> PrimFunc | None:
+) -> Function | None:
     """Schedule copy operation between global and local/shared memory on CUDA across a CTA/thread.
     The implementation tries to vectorize the copy operation and parallelize over
     threads in a CTA/using a single thread.
@@ -204,7 +204,7 @@ def copy_vec_load_impl(
 
     if sctx.is_cta:
         # fmt: off
-        @T.prim_func
+        @T.function
         def impl():
             """Implement copy operation with vectorized loads/stores."""
             for s in T.serial(0, n_elements // (tx * vec_len)):
@@ -225,7 +225,7 @@ def copy_vec_load_impl(
         # fmt: on
     elif sctx.is_thread:
         # fmt: off
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for s in T.serial(0, n_elements // (vec_len)):
                 if inst_type == CopyInstType.NORMAL:

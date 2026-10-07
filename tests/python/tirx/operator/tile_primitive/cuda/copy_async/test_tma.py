@@ -254,7 +254,7 @@ def _direct_plan(variant, **kwargs):
 
 def _count_tma(stmt):
     counter = _TMACounter()
-    counter.visit_stmt(stmt.body if isinstance(stmt, tvm.tirx.PrimFunc) else stmt)
+    counter.visit_stmt(stmt.body if isinstance(stmt, tvm.tirx.Function) else stmt)
     return counter
 
 
@@ -1117,7 +1117,7 @@ def test_auto_defers_dynamic_global_dimension_bounds_to_runtime():
 def test_dispatch_propagates_flat_bind_to_auto_coordinate_proof():
     func = _from_source(
         """
-@T.prim_func
+@T.function
 def bind_coordinate(D: T.Tensor((33360, 6144), 'bfloat16')):
 
     T.device_entry()
@@ -1525,7 +1525,7 @@ def test_explicit_shared_pointer_counts_each_offset_once():
 def test_explicit_allows_different_operand_ranks_with_equal_payload_bytes():
     source = _from_source(
         """
-@T.prim_func
+@T.function
 def rank_change(A: T.Tensor((8, 8), 'float16')):
 
     T.device_entry()
@@ -1546,7 +1546,7 @@ def rank_change(A: T.Tensor((8, 8), 'float16')):
 
 
 _SELECTOR_SOURCE = """
-@T.prim_func
+@T.function
 def selector_gather(
     A: T.Tensor((256, 64), 'bfloat16'),
     B: T.Tensor((512, 80), 'bfloat16'),
@@ -1696,7 +1696,7 @@ def _build_sparse_decode_qo_tma_regression():
     shared_bytes = (q_elements + q_tail_elements + o_elements) * 2
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def kernel(
         Q_storage: T.Tensor((64 * 576,), 'bfloat16'),
         O_storage: T.Tensor((64 * 512,), 'bfloat16'),
@@ -1992,7 +1992,7 @@ def _build_selector_gather_gpu_kernel(dtype="float16"):
     shared_bytes = 4 * cols * tvm.DataType(dtype).bits // 8
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor((rows, cols), dtype),
         B: T.Tensor((rows, cols), dtype),

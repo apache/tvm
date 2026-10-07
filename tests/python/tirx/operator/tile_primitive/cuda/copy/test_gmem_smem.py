@@ -39,7 +39,7 @@ def _build_kernel(scope, n_threads, shape, dtype):
 
     if scope == "warpgroup":
 
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
@@ -55,7 +55,7 @@ def _build_kernel(scope, n_threads, shape, dtype):
 
     elif scope == "warp":
 
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
@@ -68,7 +68,7 @@ def _build_kernel(scope, n_threads, shape, dtype):
 
     elif scope == "cta":
 
-        @T.prim_func
+        @T.function
         def kernel(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
             T.device_entry()
             T.cta_id([1])
@@ -205,7 +205,7 @@ def test_copy_g2s_s2g(task, dtype, scope):
     if scope == "thread":
         thread_cnt = 1
 
-    @T.prim_func
+    @T.function
     def copy_sync(
         A: T.Tensor(g_shape, dtype, layout=layoutA), B: T.Tensor(g_shape, dtype, layout=layoutB)
     ) -> None:
@@ -353,7 +353,7 @@ def test_swizzled_smem_emit_must_be_swizzle_aware():
     shape = (128, 32)
     s_layout = ComposeLayout(3, 3, 3, TileLayout(S[shape]))
 
-    @T.prim_func
+    @T.function
     def kernel(A: T.Tensor(shape, "float16")) -> None:
         T.device_entry()
         T.cta_id([1])
@@ -517,7 +517,7 @@ def test_gmem_smem_swizzle_uses_structured_compose_apply():
         swizzle.swizzle_inner,
     )
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor(shape, "float16", layout=g_layout),
         B: T.Tensor(shape, "float16", layout=g_layout),

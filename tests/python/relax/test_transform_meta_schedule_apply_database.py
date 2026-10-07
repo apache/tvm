@@ -30,7 +30,7 @@ target = tvm.target.Target({"kind": "llvm", "num-cores": 16})
 def test_apply_to_func_with_different_block_name():
     @I.ir_module
     class RecordModule:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((2,), "float32"), B: T.Tensor((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
@@ -40,7 +40,7 @@ def test_apply_to_func_with_different_block_name():
 
     @I.ir_module
     class BlockRenamedModule:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((2,), "float32"), B: T.Tensor((2,), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             for i in T.serial(2):
@@ -50,7 +50,7 @@ def test_apply_to_func_with_different_block_name():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((2,), "float32"), B: T.Tensor((2,), "float32")):
             T.func_attr(
                 {

@@ -68,17 +68,17 @@ class TIRFrame : public IRBuilderFrame {
 };
 
 /*!
- * \brief A frame that represents the PrimFunc containing TIR statements.
+ * \brief A frame that represents the Function containing TIR statements.
  *
- * \sa PrimFuncFrame
+ * \sa FunctionFrame
  */
-class PrimFuncFrameNode : public TIRFrameNode {
+class FunctionFrameNode : public TIRFrameNode {
  public:
   /*! \brief The name of the block. */
   ffi::Optional<ffi::String> name;
   /*! \brief Function parameters. */
   ffi::Array<tvm::tirx::Var> args;
-  /*! \brief Whether the PrimFunc is annotated as private. */
+  /*! \brief Whether the Function is annotated as private. */
   bool is_private;
   /*! \brief The return type of the function. */
   ffi::Optional<Type> ret_type;
@@ -89,23 +89,23 @@ class PrimFuncFrameNode : public TIRFrameNode {
   /*! \brief Whether this frame declares a bodyless signature. */
   bool is_declaration{false};
   /*! \brief Finalized function and its module identity. */
-  ffi::Optional<tvm::tirx::PrimFunc> function;
+  ffi::Optional<tvm::tirx::Function> function;
   ffi::Optional<GlobalVar> global_var;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimFuncFrameNode>()
-        .def_ro("name", &PrimFuncFrameNode::name)
-        .def_ro("args", &PrimFuncFrameNode::args)
-        .def_ro("is_private", &PrimFuncFrameNode::is_private)
-        .def_ro("ret_type", &PrimFuncFrameNode::ret_type)
-        .def_ro("attrs", &PrimFuncFrameNode::attrs)
-        .def_ro("persistent", &PrimFuncFrameNode::persistent)
-        .def_ro("is_declaration", &PrimFuncFrameNode::is_declaration)
-        .def_ro("function", &PrimFuncFrameNode::function)
-        .def_ro("global_var", &PrimFuncFrameNode::global_var);
+    refl::ObjectDef<FunctionFrameNode>()
+        .def_ro("name", &FunctionFrameNode::name)
+        .def_ro("args", &FunctionFrameNode::args)
+        .def_ro("is_private", &FunctionFrameNode::is_private)
+        .def_ro("ret_type", &FunctionFrameNode::ret_type)
+        .def_ro("attrs", &FunctionFrameNode::attrs)
+        .def_ro("persistent", &FunctionFrameNode::persistent)
+        .def_ro("is_declaration", &FunctionFrameNode::is_declaration)
+        .def_ro("function", &FunctionFrameNode::function)
+        .def_ro("global_var", &FunctionFrameNode::global_var);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tirx.PrimFuncFrame", PrimFuncFrameNode,
+  TVM_FFI_DECLARE_OBJECT_INFO("script.ir_builder.tirx.FunctionFrame", FunctionFrameNode,
                               TIRFrameNode);
 
  public:
@@ -116,26 +116,26 @@ class PrimFuncFrameNode : public TIRFrameNode {
   void ExitWithScope() final;
 
   /*! \brief Register validation for an extension-owned function attribute. */
-  using AttrValidator = std::function<void(const PrimFuncFrameNode*, const ffi::Any&)>;
+  using AttrValidator = std::function<void(const FunctionFrameNode*, const ffi::Any&)>;
   static void RegisterAttrValidator(ffi::String key, AttrValidator validator);
   void ValidateAttrs() const;
 
   /*! \brief Complete dialect-specific function construction before publication. */
-  virtual tvm::tirx::PrimFunc FinalizeFunction(tvm::tirx::PrimFunc func);
+  virtual tvm::tirx::Function FinalizeFunction(tvm::tirx::Function func);
 };
 
 /*!
- * \brief Managed reference to PrimFuncFrameNode.
+ * \brief Managed reference to FunctionFrameNode.
  *
- * \sa PrimFuncFrameNode
+ * \sa FunctionFrameNode
  */
-class PrimFuncFrame : public TIRFrame {
+class FunctionFrame : public TIRFrame {
  public:
-  explicit PrimFuncFrame(ffi::ObjectPtr<PrimFuncFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
+  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameNode> data) : TIRFrame(ffi::UnsafeInit{}) {
     TVM_FFI_ICHECK(data != nullptr);
     data_ = std::move(data);
   }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimFuncFrame, TIRFrame, PrimFuncFrameNode);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, TIRFrame, FunctionFrameNode);
 };
 
 /*!
@@ -459,41 +459,6 @@ class ElseFrame : public TIRFrame {
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(ElseFrame, TIRFrame, ElseFrameNode);
-};
-
-class DeclTensorFrameNode : public TIRFrameNode {
- public:
-  explicit DeclTensorFrameNode(ffi::UnsafeInit tag) : buffer(tag) {}
-
-  explicit DeclTensorFrameNode(tvm::tirx::TensorVar buffer) : buffer(std::move(buffer)) {}
-
-  /*! \brief The declared buffer. */
-  tvm::tirx::TensorVar buffer;
-  /*! \brief Physical pointer expression backing the declaration. */
-  ffi::Optional<Expr> data;
-  /*! \brief The buffer allocated or not. */
-  bool allocated;
-
-  static void RegisterReflection() {
-    namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DeclTensorFrameNode>()
-        .def_ro("buffer", &DeclTensorFrameNode::buffer)
-        .def_ro("data", &DeclTensorFrameNode::data)
-        .def_ro("allocated", &DeclTensorFrameNode::allocated);
-  }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.tirx.DeclTensorFrame", DeclTensorFrameNode,
-                                    TIRFrameNode);
-
- public:
-  void ExitWithScope() final;
-};
-
-class DeclTensorFrame : public TIRFrame {
- public:
-  explicit DeclTensorFrame(ffi::ObjectPtr<DeclTensorFrameNode> data) : TIRFrame(data) {
-    TVM_FFI_ICHECK(data != nullptr);
-  }
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(DeclTensorFrame, TIRFrame, DeclTensorFrameNode);
 };
 
 }  // namespace tirx

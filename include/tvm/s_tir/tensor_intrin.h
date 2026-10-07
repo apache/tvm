@@ -36,13 +36,13 @@ class TensorIntrinNode : public ffi::Object {
  public:
   explicit TensorIntrinNode(ffi::UnsafeInit tag) : desc(tag), impl(tag) {}
 
-  TensorIntrinNode(tirx::PrimFunc desc, tirx::PrimFunc impl)
+  TensorIntrinNode(tirx::Function desc, tirx::Function impl)
       : desc(std::move(desc)), impl(std::move(impl)) {}
 
   /*! \brief The function to describe the computation. */
-  tirx::PrimFunc desc;
+  tirx::Function desc;
   /*! \brief The function of the implementation for the execution. */
-  tirx::PrimFunc impl;
+  tirx::Function impl;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -63,7 +63,7 @@ class TensorIntrin : public ffi::ObjectRef {
    * \param desc The function to describe the computation.
    * \param impl The function of the implementation for the execution.
    */
-  TVM_DLL explicit TensorIntrin(tirx::PrimFunc desc, tirx::PrimFunc impl);
+  TVM_DLL explicit TensorIntrin(tirx::Function desc, tirx::Function impl);
 
   /*!
    * \brief Create and register a TensorIntrin. After registration, the TensorIntrin can be looked

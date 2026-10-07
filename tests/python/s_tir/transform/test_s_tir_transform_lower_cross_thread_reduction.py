@@ -43,7 +43,7 @@ def _check_fail(original):
         tvm.s_tir.transform.LowerCrossThreadReduction()(mod)
 
 
-@Ts.prim_func
+@Ts.function
 def loop_split(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -59,7 +59,7 @@ def loop_split(
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_loop_split(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -99,7 +99,7 @@ def lowered_loop_split(
                 B[vi] = reduce_temp0[0]
 
 
-@Ts.prim_func
+@Ts.function
 def no_normal_reduction(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -115,7 +115,7 @@ def no_normal_reduction(
 
 
 # complains that k is defined outside of a block
-@Ts.prim_func(check_well_formed=False)
+@Ts.function(check_well_formed=False)
 def lowered_no_normal_reduction(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -144,7 +144,7 @@ def lowered_no_normal_reduction(
                 B[vi] = reduce_temp0[0]
 
 
-@Ts.prim_func
+@Ts.function
 def two_bound_loops(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -162,7 +162,7 @@ def two_bound_loops(
 
 
 # complains that ko is defined outside of a block
-@Ts.prim_func(check_well_formed=False)
+@Ts.function(check_well_formed=False)
 def lowered_two_bound_loops(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -193,7 +193,7 @@ def lowered_two_bound_loops(
                     B[vi] = reduce_temp0[0]
 
 
-@Ts.prim_func
+@Ts.function
 def multiple_blocks_under_reduction_loop(
     A: T.Tensor([16, 16, 16], dtype="float32"), B: T.Tensor([16], dtype="float32")
 ) -> None:
@@ -220,7 +220,7 @@ def multiple_blocks_under_reduction_loop(
                     B[vi] = B[vi] + B_rf_local[vk0, vi]
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_multiple_blocks_under_reduction_loop(
     A: T.Tensor([16, 16, 16], dtype="float32"), B: T.Tensor([16], dtype="float32")
 ) -> None:
@@ -270,7 +270,7 @@ def lowered_multiple_blocks_under_reduction_loop(
                 B[vi] = reduce_temp0[0]
 
 
-@Ts.prim_func
+@Ts.function
 def with_block_predicate(
     A: T.Tensor([128, 120], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -287,7 +287,7 @@ def with_block_predicate(
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_with_block_predicate(
     A: T.Tensor([128, 120], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -328,7 +328,7 @@ def lowered_with_block_predicate(
                 B[vi] = reduce_temp0[0]
 
 
-@Ts.prim_func
+@Ts.function
 def single_reduction_loop_with_block_predicate(
     A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
 ) -> None:
@@ -378,7 +378,7 @@ def single_reduction_loop_with_block_predicate(
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_single_reduction_loop_with_block_predicate(
     A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
 ) -> None:
@@ -474,7 +474,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def spatial_reduction_with_shared_prefetch(
     A: T.Tensor((128, 150528), "float32"),
     B: T.Tensor((128, 150528), "float32"),
@@ -569,7 +569,7 @@ def spatial_reduction_with_shared_prefetch(
                 C[v0, v1] = C_local[v0, v1]
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_spatial_reduction_with_shared_prefetch(
     A: T.Tensor((128, 150528), "float32"),
     B: T.Tensor((128, 150528), "float32"),
@@ -689,7 +689,7 @@ def lowered_spatial_reduction_with_shared_prefetch(
                     C[v0, v1] = C_local[v0, v1]
 
 
-@Ts.prim_func
+@Ts.function
 def spatial_reduction_loop_predicate(A: T.Tensor((2, 32), "float32"), B: T.Tensor((2,), "float32")):
     for i_0 in range(1):
         for i_1 in T.thread_binding(16, thread="threadIdx.y"):
@@ -709,7 +709,7 @@ def spatial_reduction_loop_predicate(A: T.Tensor((2, 32), "float32"), B: T.Tenso
 k_0 = T.dynamic("k_0", "int32")
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_reduction_spatial_loop_predicate(
     A: T.Tensor((2, 32), "float32"), B: T.Tensor((2,), "float32")
 ):
@@ -749,7 +749,7 @@ def lowered_reduction_spatial_loop_predicate(
                     B[vi] = cross_thread_B[0]
 
 
-@Ts.prim_func
+@Ts.function
 def single_reduction_loop_with_tensorize(
     input_A: T.Tensor((1, 64, 7, 7, 32), "uint8"),
     input_B: T.Tensor((16, 64, 1, 1, 8, 32, 4), "int8"),
@@ -814,7 +814,7 @@ def single_reduction_loop_with_tensorize(
                 )
 
 
-@Ts.prim_func
+@Ts.function
 def nested_reduction_loop_with_inner_match_buffers(
     in0: T.Tensor((4, 16), "int8"),
     in1: T.Tensor((4, 16), "int8"),
@@ -864,7 +864,7 @@ def nested_reduction_loop_with_inner_match_buffers(
                         C[0] = A_i32 + B_i32 + C[0]
 
 
-@Ts.prim_func
+@Ts.function
 def reducer_max(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -880,7 +880,7 @@ def reducer_max(
 
 
 # complains that k is defined outside of a block
-@Ts.prim_func(check_well_formed=False)
+@Ts.function(check_well_formed=False)
 def lowered_reducer_max(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -909,7 +909,7 @@ def lowered_reducer_max(
                 B[vi] = reduce_temp0[0]
 
 
-@Ts.prim_func
+@Ts.function
 def zero_rank_buffer(A: T.Tensor([128], dtype="float32"), B: T.Tensor([], dtype="float32")) -> None:
     for k in T.thread_binding(0, 128, thread="threadIdx.x"):
         with Ts.sblock("B"):
@@ -922,7 +922,7 @@ def zero_rank_buffer(A: T.Tensor([128], dtype="float32"), B: T.Tensor([], dtype=
 
 
 # complains that k is defined outside of a block
-@Ts.prim_func(check_well_formed=False)
+@Ts.function(check_well_formed=False)
 def lowered_zero_rank_buffer(
     A: T.Tensor([128], dtype="float32"), B: T.Tensor([], dtype="float32")
 ) -> None:
@@ -949,8 +949,8 @@ def lowered_zero_rank_buffer(
             B[()] = reduce_temp0[0]
 
 
-@Ts.prim_func
-def multiple_bufferstore(
+@Ts.function
+def multiple_tensorstore(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
     C = Ts.sblock_alloc_buffer([], dtype="float32")
@@ -966,7 +966,7 @@ def multiple_bufferstore(
                 B[vi] = B[vi] + C[()]
 
 
-@Ts.prim_func
+@Ts.function
 def reduction_loop_not_deepest(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -981,7 +981,7 @@ def reduction_loop_not_deepest(
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def reduction_loop_bound_to_blockidx(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -996,7 +996,7 @@ def reduction_loop_bound_to_blockidx(
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def different_access_indices(
     A: T.Tensor([128, 128, 128], dtype="float32"), B: T.Tensor([128, 128], dtype="float32")
 ) -> None:
@@ -1018,7 +1018,7 @@ def different_access_indices(
                 B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def invalid_reducer(
     A: T.Tensor([128, 128], dtype="float32"), B: T.Tensor([128], dtype="float32")
 ) -> None:
@@ -1033,7 +1033,7 @@ def invalid_reducer(
                 B[vi] = B[vi] - A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def softmax(
     A: T.Tensor([256, 256], dtype="float32"), T_softmax_norm: T.Tensor([256, 256], dtype="float32")
 ) -> None:
@@ -1091,7 +1091,7 @@ def softmax(
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_softmax(
     A: T.Tensor([256, 256], dtype="float32"), T_softmax_norm: T.Tensor([256, 256], dtype="float32")
 ) -> None:
@@ -1193,7 +1193,7 @@ def lowered_softmax(
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_split(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -1220,7 +1220,7 @@ def argmax_split(
                 argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_argmax_split(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -1282,7 +1282,7 @@ def lowered_argmax_split(
                 argmax_v1[i] = cross_thread_argmax_v1[0]
 
 
-@Ts.prim_func
+@Ts.function
 def argmin_split_init_update_reordered(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -1309,7 +1309,7 @@ def argmin_split_init_update_reordered(
                 argmin_v0[i] = v_argmin_v0
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_argmin_split_init_update_reordered(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -1371,7 +1371,7 @@ def lowered_argmin_split_init_update_reordered(
                 argmin_v1[i] = cross_thread_argmin_v1[0]
 
 
-@Ts.prim_func
+@Ts.function
 def layer_norm_tuple_sum(
     data: T.Tensor((128, 768), "float32"),
     gamma: T.Tensor(768, "float32"),
@@ -1421,7 +1421,7 @@ def layer_norm_tuple_sum(
                 ) * gamma[ax1] + bias[ax1]
 
 
-@Ts.prim_func
+@Ts.function
 def lowered_layer_norm_tuple_sum(
     data: T.Tensor((128, 768), "float32"),
     gamma: T.Tensor(768, "float32"),
@@ -1511,7 +1511,7 @@ def lowered_layer_norm_tuple_sum(
                 ) * gamma[ax1] + bias[ax1]
 
 
-@Ts.prim_func
+@Ts.function
 def thread_broadcast_1(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256,), "float32")):
     temp_local = Ts.sblock_alloc_buffer((256,), scope="local")
     for i in T.thread_binding(256, thread="blockIdx.x"):
@@ -1531,7 +1531,7 @@ def thread_broadcast_1(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256,), "
 
 
 # complains that k is defined outside of a block
-@Ts.prim_func(check_well_formed=False)
+@Ts.function(check_well_formed=False)
 def lowered_thread_broadcast_1(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256,), "float32")):
     temp_local = Ts.sblock_alloc_buffer((256,), scope="local")
     cross_thread_temp_local = Ts.sblock_alloc_buffer((1,), strides=(1,), scope="local")
@@ -1566,7 +1566,7 @@ def lowered_thread_broadcast_1(A: T.Tensor((256, 256), "float32"), B: T.Tensor((
 # fmt: off
 n = T.dynamic("n")
 
-@Ts.prim_func
+@Ts.function
 def thread_broadcast_2(lv1605: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), lv1606: T.Tensor((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), lv1582: T.Tensor((T.int64(1), T.int64(1), T.int64(1), n), 'float16'), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), T.int64(1), n))):
 
     var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
@@ -1612,7 +1612,7 @@ def thread_broadcast_2(lv1605: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.
 
 n = T.dynamic("n")
 
-@Ts.prim_func
+@Ts.function
 def lowered_thread_broadcast_2(lv1605: T.Tensor((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16"), lv1606: T.Tensor((T.int64(1), T.int64(32), n, T.int64(128)), 'float16'), lv1582: T.Tensor((T.int64(1), T.int64(1), T.int64(1), n), 'float16'), var_compute_intermediate: T.Tensor((T.int64(1), T.int64(32), T.int64(1), n))):
 
     var_NT_matmul_intermediate_local = Ts.sblock_alloc_buffer((T.int64(1), T.int64(32), T.int64(1), n), "float16", scope="local")
@@ -1674,7 +1674,7 @@ def lowered_thread_broadcast_2(lv1605: T.Tensor((T.int64(1), T.int64(32), T.int6
 # fmt: on
 
 
-@Ts.prim_func
+@Ts.function
 def no_thread_broadcast(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256, 256), "float32")):
     temp_1_local = Ts.sblock_alloc_buffer((256,), scope="local")
     temp_2_local = Ts.sblock_alloc_buffer((1,), scope="local")
@@ -1701,7 +1701,7 @@ def no_thread_broadcast(A: T.Tensor((256, 256), "float32"), B: T.Tensor((256, 25
 
 
 # complains that k is defined outside of a block
-@Ts.prim_func(check_well_formed=False)
+@Ts.function(check_well_formed=False)
 def lowered_no_thread_broadcast(
     A: T.Tensor((256, 256), "float32"), B: T.Tensor((256, 256), "float32")
 ):
@@ -1803,8 +1803,8 @@ def test_zero_rank_buffer():
     _check(zero_rank_buffer, lowered_zero_rank_buffer)
 
 
-def test_multiple_bufferstore():
-    _check_fail(multiple_bufferstore)
+def test_multiple_tensorstore():
+    _check_fail(multiple_tensorstore)
 
 
 def test_reduction_block_not_deepest():

@@ -40,13 +40,13 @@ class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer
  public:
   using Int32DTypeNarrowerBase::Mutate;
   using Int32DTypeNarrowerBase::Mutate_;
-  static PrimFunc RewriteDataType(PrimFunc func) {
+  static Function RewriteDataType(Function func) {
     CheckBufferParams(func);
     auto narrower = ffi::make_object<Int32DTypeNarrower>(func);
     return narrower->Rewrite(func);
   }
 
-  explicit Int32DTypeNarrower(PrimFunc func) : Int32DTypeNarrowerBase(std::move(func)) {}
+  explicit Int32DTypeNarrower(Function func) : Int32DTypeNarrowerBase(std::move(func)) {}
 
  private:
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final {
@@ -62,10 +62,10 @@ class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer
 namespace transform {
 
 Pass ForceNarrowIndexToInt32() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     return Int32DTypeNarrower::RewriteDataType(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.ForceNarrowIndexToInt32", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ForceNarrowIndexToInt32", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

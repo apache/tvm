@@ -119,7 +119,7 @@ const VarNode* GetTensorVar(const Expr& expr) {
 }
 
 // Hardware axis identity belongs to a lexical definition, not to a reused Var.
-// Each pass instance processes one device PrimFunc after SplitHostDevice.
+// Each pass instance processes one device Function after SplitHostDevice.
 struct WarpThreadBinding {
   ffi::String tag;
   PrimExpr extent;
@@ -225,7 +225,7 @@ class WarpStoreCoeffFinder : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     if (op->buffer.get() != buffer_) {
       return StmtExprVisitor::Visit_(op);
     }
@@ -468,12 +468,12 @@ class WarpAccessRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(op, inplace_mode);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) override {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) override {
     // The source is a memory access, not a direct address use checked by the Var hook.
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore store = ffi::GetRef<BufferStore>(op);
+    TensorStore store = ffi::GetRef<TensorStore>(op);
     if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
       auto* n = store.CopyOnWrite();
       n->value = std::move(value).ValueOrUnchanged(op->value);
@@ -719,7 +719,7 @@ class WarpMemoryRewriter : public StmtExprMutator {
 namespace transform {
 
 Pass LowerWarpMemory() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
@@ -732,7 +732,7 @@ Pass LowerWarpMemory() {
                   .ValueOrUnchanged(stmt);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.LowerWarpMemory", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.LowerWarpMemory", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

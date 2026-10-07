@@ -65,7 +65,7 @@ Var GetSimdgroupBufferVar(const Expr& data) {
 
 }  // namespace
 
-void CodeGenMetal::InitFuncState(const PrimFunc& f) {
+void CodeGenMetal::InitFuncState(const Function& f) {
   CodeGenC::InitFuncState(f);
   analyzer_ = sym::Analyzer();
   // analyze the data;
@@ -84,7 +84,7 @@ CodeGenMetal::CodeGenMetal(Target target) : target_(target) {
               << "};\n\n";
 }
 
-void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+void CodeGenMetal::AddFunction(const GlobalVar& gvar, const Function& func) {
   TVM_FFI_CHECK(func->body.has_value(), ValueError)
       << "Kernel code generation requires a function body";
   // NOTE: There is no inter-function calls among Metal kernels.
@@ -92,7 +92,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // process.
   // We can switch to follow the flow with inter-function call process
   // after the Metal function declaration is properly printed.
-  // In Metal, for PrimFuncs with signature
+  // In Metal, for Functions with signature
   //    def func(A: Buffer, B: Buffer, x: int, y: float) -> None
   // where there are trailing pod parameters, the codegen emits a struct
   //    struct func_params{ x: int; y: float; }
@@ -109,7 +109,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
   // add to alloc buffer type.
   auto global_symbol = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
   TVM_FFI_ICHECK(global_symbol.has_value())
-      << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
+      << "CodeGenC: Expect Function to have the global_symbol attribute";
 
   // Function header.
   this->stream << "kernel void " << static_cast<std::string>(global_symbol.value()) << "(";
@@ -454,7 +454,7 @@ void CodeGenMetal::Dispatch_(const prim::BroadcastNode* op, std::ostream& os) { 
 void CodeGenMetal::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   TVM_FFI_ICHECK(!op->op.as<GlobalVarNode>())
       << "CodegenMetal does not support inter-function calls, "
-      << "but expression " << ffi::GetRef<Call>(op) << " calls PrimFunc " << op->op;
+      << "but expression " << ffi::GetRef<Call>(op) << " calls Function " << op->op;
   auto f_check_simdgroup_shape = [](PrimExpr col, PrimExpr row) {
     TVM_FFI_ICHECK(col->IsInstance<IntImmNode>() && row->IsInstance<IntImmNode>())
         << "Only constant shape is supported for simdgroup matrix, but got " << col << "x" << row;
@@ -581,7 +581,7 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
   bool fmt_locked = false;
 
   for (auto kv : mod->functions) {
-    TVM_FFI_ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
+    TVM_FFI_ICHECK(kv.second->IsInstance<FunctionNode>()) << "CodeGenMetal: Can only take Function";
     auto global_symbol = kv.second->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol);
     TVM_FFI_ICHECK(global_symbol.has_value());
     std::string func_name = global_symbol.value();
@@ -589,7 +589,7 @@ ffi::Module BuildMetal(IRModule mod, Target target) {
     source_maker << "// Function: " << func_name << "\n";
     CodeGenMetal cg(target);
     cg.Init(output_ssa);
-    auto f = kv.second.as_or_throw<PrimFunc>();
+    auto f = kv.second.as_or_throw<Function>();
     auto calling_conv = f->GetAttr<CallingConv>(tvm::attr::kCallingConv);
     TVM_FFI_ICHECK(calling_conv.has_value())
         << "CodeGenMetal: expected kCallingConv attribute to be set.";

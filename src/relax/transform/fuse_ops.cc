@@ -24,7 +24,7 @@
  * algorithm described below. By grouping bindings into new Relax functions, we substitute the
  * bindings in the function being manipulated into function calls to the new grouped function.
  *
- * A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
+ * A follow-up pass named "FuseTIR" will generate a TIR tirx::Function for each grouped function.
  */
 
 #include <tvm/ffi/cast.h>
@@ -205,14 +205,14 @@ class GraphCreator : public ExprVisitor {
     OpPatternKind pattern = OpPatternKind::kOpaque;
     ffi::Array<Expr> args = call->args;
 
-    // - If the op being called is a TIR PrimFunc, we get the function op pattern directly from the
-    // function attribute and visit the arguments one by one.
+    // - If the op being called is a TIR tirx::Function, we get the function op pattern directly
+    // from the function attribute and visit the arguments one by one.
     // - Otherwise, the pattern of the current binding variable node is set to `kOpaque`, and we
     // recurse into the call expression.
     const auto* op = call->op.as<OpNode>();
     if (op == call_tir_op_.get() || op == call_tir_inplace_op_.get()) {
       const GlobalVar& global_var = call->args[0].as_or_throw<GlobalVar>();
-      tirx::PrimFunc func = mod_->Lookup(global_var).as_or_throw<tirx::PrimFunc>();
+      tirx::Function func = mod_->Lookup(global_var).as_or_throw<tirx::Function>();
 
       // Override args for call_tir
       args = call->args[1].as_or_throw<Tuple>()->fields;
@@ -1469,7 +1469,7 @@ IRModule FuseOpsByPattern(const tvm::ffi::Array<transform::FusionPattern>& patte
     } else {
       for (const auto& gv : mod->GetGlobalVars()) {
         const auto& base_func = mod->Lookup(gv);
-        if (base_func->IsInstance<tirx::PrimFuncNode>()) {
+        if (base_func->IsInstance<tirx::FunctionNode>()) {
           continue;
         }
         const FunctionNode* function = base_func.as<FunctionNode>();

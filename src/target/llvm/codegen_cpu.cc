@@ -216,13 +216,13 @@ llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(llvm::StringRef name,
   return DIFunction;
 }
 
-llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& func) {
+llvm::DISubprogram* CodeGenCPU::CreateDebugFunction(const GlobalVar& gvar, const Function& func) {
   std::string name = func->GetAttr<ffi::String>(tvm::attr::kGlobalSymbol).value_or(gvar->name_hint);
   return CreateDebugFunction(name, func->params.Map([](const Var& var) { return var->ty; }),
                              func->ret_type);
 }
 
-void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+void CodeGenCPU::AddFunction(const GlobalVar& gvar, const Function& func) {
   di_subprogram_ = CreateDebugFunction(gvar, func);
   EmitDebugLocation(func->span);
   CodeGenLLVM::AddFunction(gvar, func);

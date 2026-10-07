@@ -39,7 +39,7 @@ def check_error(func, rel_lineno, error_type):
     """Check the original exception class and its real source location."""
     source_code = inspect.getsource(func)
     indent = len(re.match(r"^\s*", source_code).group(0))
-    source_code = "@Ts.prim_func\n" + "\n".join(line[indent:] for line in source_code.splitlines())
+    source_code = "@Ts.function\n" + "\n".join(line[indent:] for line in source_code.splitlines())
     with pytest.raises(error_type) as caught:
         from_source(source_code, extra_vars={"T": T, "Ts": Ts})
     assert type(caught.value) is error_type
@@ -165,7 +165,7 @@ def test_invalid_block_axes():
 
 
 def test_duplicate_block_axes():
-    @Ts.prim_func
+    @Ts.function
     def duplicate_block_axes() -> None:
         for i, j in T.grid(16, 16):
             with Ts.sblock():
@@ -173,7 +173,7 @@ def test_duplicate_block_axes():
                 vi = Ts.axis.S(16, j)
                 T.evaluate(vi)
 
-    @Ts.prim_func
+    @Ts.function
     def duplicate_block_axes_remap() -> None:
         for i, j in T.grid(16, 16):
             with Ts.sblock():
@@ -227,7 +227,7 @@ def test_invalid_match_buffer_region():
 
 
 def test_buffer_rebinding_preserves_distinct_allocations():
-    @Ts.prim_func
+    @Ts.function
     def rebound_buffer() -> None:
         A = Ts.sblock_alloc_buffer((128, 128), "float32")
         A = Ts.sblock_alloc_buffer((128, 128), "float32")
@@ -239,7 +239,7 @@ def test_buffer_rebinding_preserves_distinct_allocations():
     first, second = block.alloc_buffers
     assert not first.same_as(second)
     store = block.body
-    assert isinstance(store, tirx.BufferStore)
+    assert isinstance(store, tirx.TensorStore)
     assert store.buffer.same_as(second)
     assert store.value.a.source.same_as(second)
 
@@ -279,7 +279,7 @@ def test_duplicate_block_signature():
                 with Ts.init():  # error
                     T.evaluate(1.0)
 
-    @Ts.prim_func
+    @Ts.function
     def duplicate_axes() -> None:
         for i, j in T.grid(16, 16):
             with Ts.sblock():
@@ -417,7 +417,7 @@ def test_implicit_root_has_attrs():
     check_error(implicit_root_has_axes, 2, tvm.error.InternalError)
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_not_affine(
     A: T.Tensor((128, 128, 128, 128)), B: T.Tensor((128, 128, 128, 128))
 ) -> None:
@@ -428,7 +428,7 @@ def elementwise_not_affine(
             B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def elementwise_non_single_branch(
     A: T.Tensor((128, 128, 128)), B: T.Tensor((128, 128, 128))
 ) -> None:
@@ -594,7 +594,7 @@ def test_multi_line_error_report():
     # four physical lines so its AST node spans lineno..end_lineno > lineno.
     source_code = "\n".join(
         [
-            "@Ts.prim_func",
+            "@Ts.function",
             "def f() -> None:",
             "    for i, j in T.grid(16, 16):",
             "        vi, vj = Ts.axis.remap(",
@@ -630,7 +630,7 @@ def test_multi_line_error_report():
 def test_tir_func_private_manual_global_symbol_fail():
     with pytest.raises(tvm.error.InternalError):
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def matmul(
             A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
         ) -> None:
@@ -648,7 +648,7 @@ def test_tir_func_private_manual_global_symbol_fail():
 def test_buffer_input_requires_shape_arg():
     with pytest.raises(TypeError):
 
-        @Ts.prim_func
+        @Ts.function
         def func(A: T.Tensor(dtype="int32")):
             T.evaluate(0)
 

@@ -42,10 +42,10 @@ def _design_space(mod):
     )
 
 
-def get_c2d_prim_func(stage: int):
+def get_c2d_function(stage: int):
     if stage == 0:
         # fmt: off
-        @Ts.prim_func
+        @Ts.function
         def c2d(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with Ts.sblock("root"):
@@ -106,7 +106,7 @@ def get_c2d_prim_func(stage: int):
         # fmt: on
     else:
         # fmt: off
-        @Ts.prim_func
+        @Ts.function
         def c2d(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with Ts.sblock("root"):
@@ -188,18 +188,18 @@ def test_cuda_c2d():
         mod,
         sketches=actual,
         expected_mods=[
-            get_c2d_prim_func(stage=0),
-            get_c2d_prim_func(stage=4),
-            get_c2d_prim_func(stage=5),
+            get_c2d_function(stage=0),
+            get_c2d_function(stage=4),
+            get_c2d_function(stage=5),
         ],
         expected_decisions=[c2d_decision, c2d_decision, c2d_decision],
     )
 
 
-def get_gmm_prim_func(stage: int):
+def get_gmm_function(stage: int):
     if stage == 0:
         # fmt: off
-        @Ts.prim_func
+        @Ts.function
         def gmm(X: T.Tensor((1, 1024, 1024), "float32"), Y: T.Tensor((1, 1024, 1024), "float32"), Z: T.Tensor((1, 1024, 1024), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with Ts.sblock("root"):
@@ -254,7 +254,7 @@ def get_gmm_prim_func(stage: int):
         # fmt: on
     else:
         # fmt: off
-        @Ts.prim_func
+        @Ts.function
         def gmm(X: T.Tensor((1, 1024, 1024), "float32"), Y: T.Tensor((1, 1024, 1024), "float32"), Z: T.Tensor((1, 1024, 1024), "float32")):
             T.func_attr({"global_symbol": "main", "tirx.noalias": True})
             with Ts.sblock("root"):
@@ -327,9 +327,9 @@ def test_cuda_gmm():
         mod,
         sketches=actual,
         expected_mods=[
-            get_gmm_prim_func(stage=0),
-            get_gmm_prim_func(stage=4),
-            get_gmm_prim_func(stage=5),
+            get_gmm_function(stage=0),
+            get_gmm_function(stage=4),
+            get_gmm_function(stage=5),
         ],
         expected_decisions=[gmm_decision, gmm_decision, gmm_decision],
     )

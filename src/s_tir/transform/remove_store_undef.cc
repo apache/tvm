@@ -36,7 +36,7 @@ namespace s_tir {
 using namespace tvm::tirx;
 
 struct UndefInfo {
-  std::unordered_set<const BufferStoreNode*> undef_stores;
+  std::unordered_set<const TensorStoreNode*> undef_stores;
   std::unordered_set<const VarNode*> undef_bind_vars;
 };
 
@@ -52,7 +52,7 @@ class StoreUndefLocator : public StmtExprVisitor {
   StoreUndefLocator() = default;
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     // Check the value for undef.
     bool stash_undef = false;
     std::swap(has_undef_, stash_undef);
@@ -61,7 +61,7 @@ class StoreUndefLocator : public StmtExprVisitor {
     if (stash_undef) {
       auto value = op->value.as<PrimExpr>();
       TVM_FFI_ICHECK(value && SideEffect(value.value()) <= CallEffectKind::kReadState)
-          << "Error: T.undef() used in BufferStore expressions "
+          << "Error: T.undef() used in TensorStore expressions "
           << "must not have other side effects";
       undef_stores_.insert(op);
     }
@@ -124,10 +124,10 @@ class StoreUndefLocator : public StmtExprVisitor {
   bool has_undef_{false};
 
   std::unordered_set<const VarNode*> var_bindings_with_undef_;
-  std::unordered_set<const BufferStoreNode*> undef_stores_;
+  std::unordered_set<const TensorStoreNode*> undef_stores_;
 };
 
-// Remove BufferStores whose value depends on T.undef, and also
+// Remove TensorStores whose value depends on T.undef, and also
 // remove Bind nodes whose value contains undef.  Undef in buffer
 // indices is already caught eagerly in the locator phase.
 class StoreUndefRemover : public StmtExprMutator {
@@ -149,7 +149,7 @@ class StoreUndefRemover : public StmtExprMutator {
       : stores_to_remove_(info.undef_stores), bind_vars_to_remove_(info.undef_bind_vars) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     if (stores_to_remove_.count(op)) {
       return Evaluate(0);
     } else {
@@ -165,7 +165,7 @@ class StoreUndefRemover : public StmtExprMutator {
     }
   }
 
-  const std::unordered_set<const BufferStoreNode*>& stores_to_remove_;
+  const std::unordered_set<const TensorStoreNode*>& stores_to_remove_;
   const std::unordered_set<const VarNode*>& bind_vars_to_remove_;
 };
 
@@ -192,28 +192,28 @@ class ContainsUndefChecker : public StmtExprVisitor {
 
 namespace transform {
 Pass RemoveStoreUndefInternal() {
-  auto pass_func = [](PrimFunc f, IRModule m, tvm::transform::PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, tvm::transform::PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     n->body = StoreUndefRemover::Apply(std::move(n->body).value());
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.RemoveStoreUndefInternal", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.RemoveStoreUndefInternal", {});
 }
 
 Pass ValidateAllUndefRemoved() {
-  auto pass_func = [](PrimFunc f, IRModule m, tvm::transform::PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, tvm::transform::PassContext ctx) {
     if (!f->body.has_value()) return f;
     bool contains_undef = ContainsUndefChecker::Check(f->body.value());
     TVM_FFI_ICHECK(!contains_undef)
-        << "Expected removal of BufferStore containing tirx::undef_op() "
+        << "Expected removal of TensorStore containing tirx::undef_op() "
         << "to remove all instances of tirx::undef_op().  "
         << "Instead, result was"
         << "\n"
         << f;
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.ValidateAllUndefRemoved", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.ValidateAllUndefRemoved", {});
 }
 
 Pass RemoveStoreUndef() {

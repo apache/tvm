@@ -70,7 +70,7 @@ bool MatchPrimType(const Type& type, F f) {
 // Select allocation calls before opaque-access filtering.
 class ComputeLegalizePlanner : public StmtExprVisitor {
  public:
-  void Plan(PrimFunc func) {
+  void Plan(Function func) {
     this->Visit(func->body);
     // A later opaque access can veto an earlier allocation candidate.
     for (const Var& var : opaque_var_access_) {
@@ -161,7 +161,7 @@ class ComputeLegalizer : public StmtExprMutator {
   using StmtExprMutator::Mutate_;
   explicit ComputeLegalizer(PrimType promote_dtype) : promote_dtype_(promote_dtype) {}
 
-  PrimFunc LegalizeWithPlanner(PrimFunc func, ComputeLegalizePlanner* planner) {
+  Function LegalizeWithPlanner(Function func, ComputeLegalizePlanner* planner) {
     planner->Plan(func);
     promoted_buffers_ = planner->Allocations();
     auto* n = func.CopyOnWrite();
@@ -169,7 +169,7 @@ class ComputeLegalizer : public StmtExprMutator {
     return func;
   }
 
-  virtual PrimFunc Legalize(PrimFunc func) = 0;
+  virtual Function Legalize(Function func) = 0;
 
   virtual bool MatchType(const Type& type) const = 0;
 
@@ -371,7 +371,7 @@ class ComputeLegalizer : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto value_result = this->Mutate(op->value, inplace_mode);
     bool value_unchanged = value_result.UnchangedOrSameAs(op->value);
     PrimExpr value = std::move(value_result).ValueOrUnchanged(op->value);
@@ -393,7 +393,7 @@ class ComputeLegalizer : public StmtExprMutator {
         TVM_FFI_ICHECK(MatchType(value.ty()));
         value = DTypeConversion(value, storage_dtype);
       }
-      return BufferStore(new_buf, value, indices);
+      return TensorStore(new_buf, value, indices);
     }
   }
 
@@ -486,7 +486,7 @@ class BF16ComputeLegalizer : public ComputeLegalizer {
   using ComputeLegalizer::Mutate;
   using ComputeLegalizer::Mutate_;
   BF16ComputeLegalizer() : ComputeLegalizer(PrimType::Float(32)) {}
-  PrimFunc Legalize(PrimFunc func) {
+  Function Legalize(Function func) {
     auto planner = ffi::make_object<BF16ComputeLegalizePlanner>();
     return LegalizeWithPlanner(func, planner.get());
   }
@@ -500,7 +500,7 @@ class FP8ComputeLegalizer : public ComputeLegalizer {
   using ComputeLegalizer::Mutate;
   using ComputeLegalizer::Mutate_;
   explicit FP8ComputeLegalizer(PrimType promote_dtype) : ComputeLegalizer(promote_dtype) {}
-  PrimFunc Legalize(PrimFunc func) {
+  Function Legalize(Function func) {
     auto planner = ffi::make_object<FP8ComputeLegalizePlanner>();
     return LegalizeWithPlanner(func, planner.get());
   }
@@ -520,7 +520,7 @@ class StorageLegalizer : public StmtExprMutator {
  public:
   using StmtExprMutator::Mutate;
   using StmtExprMutator::Mutate_;
-  PrimFunc Legalize(PrimFunc func) {
+  Function Legalize(Function func) {
     for (const Var& param : func->params) {
       TVM_FFI_ICHECK(!param->ty.as<TensorTypeNode>())
           << "This pass must be called after MakePackedAPI";
@@ -564,7 +564,7 @@ class StorageLegalizer : public StmtExprMutator {
     }
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     PrimExpr value =
         this->ChangeToUInt(Mutate(op->value, inplace_mode).ValueOrUnchanged(op->value));
     TensorVar new_buf = GetRemappedBuffer(op->buffer);
@@ -577,7 +577,7 @@ class StorageLegalizer : public StmtExprMutator {
       if (MatchType(op->value.ty())) {
         TVM_FFI_ICHECK(new_buf->dtype.MatchesCode(DLDataTypeCode::kDLUInt));
       }
-      return BufferStore(new_buf, value, indices);
+      return TensorStore(new_buf, value, indices);
     }
   }
 
@@ -745,7 +745,7 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
 }
 
 Pass BF16ComputeLegalize() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
     if (opt_target.has_value() &&
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
@@ -753,7 +753,7 @@ Pass BF16ComputeLegalize() {
     }
     return ffi::make_object<BF16ComputeLegalizer>()->Legalize(f);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.BF16ComputeLegalize", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.BF16ComputeLegalize", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -762,7 +762,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Pass BF16StorageLegalize() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
     if (opt_target.has_value() &&
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_bf16")) {
@@ -770,7 +770,7 @@ Pass BF16StorageLegalize() {
     }
     return ffi::make_object<BF16StorageLegalizer>()->Legalize(f);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.BF16StorageLegalize", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.BF16StorageLegalize", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -779,7 +779,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Pass FP8ComputeLegalize(ffi::String promote_dtype) {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
     if (opt_target.has_value() &&
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
@@ -788,7 +788,7 @@ Pass FP8ComputeLegalize(ffi::String promote_dtype) {
     return ffi::make_object<FP8ComputeLegalizer>(PrimType(ffi::StringToDLDataType(promote_dtype)))
         ->Legalize(f);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.FP8ComputeLegalize", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.FP8ComputeLegalize", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
@@ -797,7 +797,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 Pass FP8StorageLegalize() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto opt_target = f->GetAttr<Target>(tvm::attr::kTarget);
     if (opt_target.has_value() &&
         CheckDataTypeSupport(opt_target.value(), "tvm.support.nvcc.supports_fp8")) {
@@ -805,7 +805,7 @@ Pass FP8StorageLegalize() {
     }
     return ffi::make_object<FP8StorageLegalizer>()->Legalize(f);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.FP8StorageLegalize", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.FP8StorageLegalize", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

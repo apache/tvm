@@ -509,7 +509,7 @@ class BufferIndicesMapExtractor : public StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     ffi::Array<Var> indices;
     bool check_ = false;
     for (size_t i = 0; i < store->indices.size(); i++) {

@@ -31,27 +31,27 @@ using tirx::TIRFrame;
 using tirx::TIRFrameNode;
 
 /*! \brief Function frame owning schedulable TIR construction. */
-class PrimFuncFrameNode : public tirx::PrimFuncFrameNode {
+class FunctionFrameNode : public tirx::FunctionFrameNode {
  public:
   /*! \brief Buffers allocated in the implicit root block. */
   ffi::Array<tvm::tirx::TensorVar> root_alloc_buffers;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<PrimFuncFrameNode>().def_ro("root_alloc_buffers",
-                                                &PrimFuncFrameNode::root_alloc_buffers);
+    refl::ObjectDef<FunctionFrameNode>().def_ro("root_alloc_buffers",
+                                                &FunctionFrameNode::root_alloc_buffers);
   }
-  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.PrimFuncFrame", PrimFuncFrameNode,
-                                    tirx::PrimFuncFrameNode);
-  tvm::tirx::PrimFunc FinalizeFunction(tvm::tirx::PrimFunc func) final;
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("script.ir_builder.s_tir.FunctionFrame", FunctionFrameNode,
+                                    tirx::FunctionFrameNode);
+  tvm::tirx::Function FinalizeFunction(tvm::tirx::Function func) final;
 };
 
-class PrimFuncFrame : public tirx::PrimFuncFrame {
+class FunctionFrame : public tirx::FunctionFrame {
  public:
-  explicit PrimFuncFrame(ffi::ObjectPtr<PrimFuncFrameNode> data)
-      : tirx::PrimFuncFrame(std::move(data)) {}
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(PrimFuncFrame, tirx::PrimFuncFrame,
-                                                PrimFuncFrameNode);
+  explicit FunctionFrame(ffi::ObjectPtr<FunctionFrameNode> data)
+      : tirx::FunctionFrame(std::move(data)) {}
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(FunctionFrame, tirx::FunctionFrame,
+                                                FunctionFrameNode);
 };
 
 /*!

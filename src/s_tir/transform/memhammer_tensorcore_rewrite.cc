@@ -136,8 +136,8 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
       {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
       {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
   };
-  // TODO(tian): the assumption that the RHS of BufferStore is TensorLoad may not be accurate
-  const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
+  // TODO(tian): the assumption that the RHS of TensorStore is TensorLoad may not be accurate
+  const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
   const TensorLoadNode* buf_load = TVM_TYPE_AS(buf_store->value, TensorLoadNode);
 
   TensorVar src_buffer = buf_load->source.as_or_throw<tvm::tirx::TensorVar>();
@@ -233,8 +233,8 @@ Stmt RewriteWmmaStore(Stmt stmt) {
       {loops[n - 1]->loop_var, IntSet::FromMinExtent(loops[n - 1]->min, loops[n - 1]->extent)},
       {loops[n - 2]->loop_var, IntSet::FromMinExtent(loops[n - 2]->min, loops[n - 2]->extent)},
   };
-  // TODO(tian): the assumption that the RHS of BufferStore is TensorLoad may not be accurate
-  const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
+  // TODO(tian): the assumption that the RHS of TensorStore is TensorLoad may not be accurate
+  const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
   const TensorLoadNode* buf_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "wmma.accumulator") {
@@ -451,7 +451,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
   };
 
   // Step 2. Find matrixC buffer
-  const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
+  const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
   const TensorLoadNode* buf_load = nullptr;
   auto walk_fn = [&](const TensorLoad& load) -> ffi::Expected<ffi::WalkResult> {
     if (load->source.as_or_throw<tvm::tirx::TensorVar>().scope() == "m16n8k8.matrixC") {
@@ -506,7 +506,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
                         {tx}, DictAttrs(), /*body=*/
                         For(vec.as_or_throw<PrimVar>(), 0, 2, ForKind::kVectorized,
                             /*body=*/
-                            BufferStore(new_tgt_buffer,
+                            TensorStore(new_tgt_buffer,
                                         MakeTensorLoad(new_src_buffer, {floordiv(tx, 4),
                                                                         floormod(tx, 4) * 2 + vec}),
                                         {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}))),

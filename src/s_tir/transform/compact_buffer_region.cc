@@ -77,7 +77,7 @@ class Var2BufferCollector : public StmtExprVisitor {
       var2buffer_;
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     var2buffer_[op->buffer.var()].insert(op->buffer);
     return StmtExprVisitor::Visit_(op);
   }
@@ -116,7 +116,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
   static std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> Collect(
-      const PrimFunc& f, bool collect_inbound) {
+      const Function& f, bool collect_inbound) {
     auto region_collector = ffi::make_object<BufferAccessRegionCollector>(collect_inbound);
     // collect buffer var to aliased buffer mapping
     auto var2buffer_collector = ffi::make_object<Var2BufferCollector>();
@@ -157,7 +157,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     VisitBufferAccess(BufferRegionFromPoint(op->buffer, op->indices));
     return Visit(op->value);
   }
@@ -616,12 +616,12 @@ class BufferCompactor : public StmtExprMutator {
   explicit BufferCompactor(std::unordered_map<Var, BufferAllocInfo> buffer_info)
       : buffer_info_(std::move(buffer_info)) {}
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _op, InplaceMode inplace_mode) final {
     TensorVar original_buffer = _op->buffer;
-    BufferStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
+    TensorStore store = StmtExprMutator::Mutate_(_op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_op))
-                            .as_or_throw<BufferStore>();
-    BufferStoreNode* op = store.CopyOnWrite();
+                            .as_or_throw<TensorStore>();
+    TensorStoreNode* op = store.CopyOnWrite();
     RewriteBufferAccess(original_buffer, &op->buffer, &op->indices);
     return store;
   }
@@ -786,7 +786,7 @@ ffi::Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info,
 }
 
 Stmt BufferCompactorCompact(
-    const PrimFunc& f,
+    const Function& f,
     const std::unordered_map<TensorVar, Region, ffi::ObjectPtrHash, ffi::ObjectPtrEqual>& regions,
     const std::unordered_map<Var, StorageAlignAnnotation>& storage_align) {
   // collect buffer allocation info for no-alias buffers
@@ -826,15 +826,15 @@ Stmt BufferCompactorCompact(
 namespace transform {
 
 Pass CompactBufferAllocation(bool is_strict) {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
-    PrimFuncNode* fptr = f.CopyOnWrite();
+    FunctionNode* fptr = f.CopyOnWrite();
     auto region = BufferAccessRegionCollector::Collect(f, /*collect_inbound=*/is_strict);
     auto storage_align = CollectStorageAlignAnnotation(f->body.value());
     fptr->body = BufferCompactorCompact(f, region, storage_align);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.CompactBufferAllocation", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.CompactBufferAllocation", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

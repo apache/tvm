@@ -46,11 +46,11 @@ class Int32DTypeNarrowerBase : public Normalizer {
   using Normalizer::Mutate_;
 
  protected:
-  explicit Int32DTypeNarrowerBase(PrimFunc func)
+  explicit Int32DTypeNarrowerBase(Function func)
       : Normalizer(PrimType::Int(32)), func_(std::move(func)) {}
 
   /*! \brief Reject integer buffer parameters wider than int32. */
-  static void CheckBufferParams(const PrimFunc& func) {
+  static void CheckBufferParams(const Function& func) {
     for (const Var& param : func->params) {
       if (auto buffer = param.as<TensorVar>();
           buffer && buffer.value()->dtype.MatchesCode(DLDataTypeCode::kDLInt) &&
@@ -103,7 +103,7 @@ class Int32DTypeNarrowerBase : public Normalizer {
     return alloc;
   }
 
-  PrimFunc func_;
+  Function func_;
 };
 
 }  // namespace tirx

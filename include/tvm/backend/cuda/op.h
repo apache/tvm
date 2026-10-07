@@ -23,11 +23,57 @@
 #ifndef TVM_BACKEND_CUDA_OP_H_
 #define TVM_BACKEND_CUDA_OP_H_
 
+#include <tvm/ir/attrs.h>
 #include <tvm/ir/op.h>
 
 namespace tvm {
 namespace backend {
 namespace cuda {
+
+// tcgen05 instruction descriptor attributes.
+
+/*! \brief Static options for the dense tcgen05 instruction descriptor. */
+struct TCGen05InstrDescriptorAttrs : public AttrsNode {
+  ffi::String d_dtype;
+  ffi::String a_dtype;
+  ffi::String b_dtype;
+  int64_t M;
+  int64_t N;
+  int64_t K;
+  bool trans_a;
+  bool trans_b;
+  int64_t n_cta_groups = 1;
+  bool neg_a = false;
+  bool neg_b = false;
+  bool sat_d = false;
+  bool is_sparse = false;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.cuda.TCGen05InstrDescriptorAttrs",
+                                    TCGen05InstrDescriptorAttrs, AttrsNode);
+};
+
+/*! \brief Static options for the block-scaled tcgen05 instruction descriptor. */
+struct TCGen05InstrDescriptorBlockScaledAttrs : public AttrsNode {
+  ffi::String d_dtype;
+  ffi::String a_dtype;
+  ffi::String b_dtype;
+  ffi::String sfa_dtype;
+  ffi::String sfb_dtype;
+  int64_t M;
+  int64_t N;
+  int64_t K;
+  bool trans_a;
+  bool trans_b;
+  int64_t n_cta_groups = 1;
+  bool neg_a = false;
+  bool neg_b = false;
+  bool is_sparse = false;
+
+  static void RegisterReflection();
+  TVM_FFI_DECLARE_OBJECT_INFO_FINAL("tirx.cuda.TCGen05InstrDescriptorBlockScaledAttrs",
+                                    TCGen05InstrDescriptorBlockScaledAttrs, AttrsNode);
+};
 
 /*!
  * \name Frontend-only NVIDIA IKET annotations

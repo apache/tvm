@@ -1146,7 +1146,7 @@ def test_handle_existence_of_call_tir():
                 R.output(Output)
             return Output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relu(
             Input: T.Tensor(T.int64(10), "float32"),
             Output: T.Tensor(T.int64(10), "float32"),
@@ -1198,7 +1198,7 @@ def test_handle_existence_of_call_tir():
             Output = composite_lambda(Input)
             return Output
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relu(
             Input: T.Tensor(T.int64(10), "float32"),
             Output: T.Tensor(T.int64(10), "float32"),

@@ -22,6 +22,7 @@
  *
  *  builtin intrinsic operators specific to CUDA target.
  */
+#include <tvm/backend/cuda/op.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/runtime/base.h>
@@ -31,6 +32,51 @@
 #include <string>
 
 namespace tvm {
+namespace backend {
+namespace cuda {
+
+void TCGen05InstrDescriptorAttrs::RegisterReflection() {
+  namespace refl = ffi::reflection;
+  refl::ObjectDef<TCGen05InstrDescriptorAttrs>()
+      .def_ro("d_dtype", &TCGen05InstrDescriptorAttrs::d_dtype)
+      .def_ro("a_dtype", &TCGen05InstrDescriptorAttrs::a_dtype)
+      .def_ro("b_dtype", &TCGen05InstrDescriptorAttrs::b_dtype)
+      .def_ro("M", &TCGen05InstrDescriptorAttrs::M)
+      .def_ro("N", &TCGen05InstrDescriptorAttrs::N)
+      .def_ro("K", &TCGen05InstrDescriptorAttrs::K)
+      .def_ro("trans_a", &TCGen05InstrDescriptorAttrs::trans_a)
+      .def_ro("trans_b", &TCGen05InstrDescriptorAttrs::trans_b)
+      .def_ro("n_cta_groups", &TCGen05InstrDescriptorAttrs::n_cta_groups, refl::DefaultValue(1))
+      .def_ro("neg_a", &TCGen05InstrDescriptorAttrs::neg_a, refl::DefaultValue(false))
+      .def_ro("neg_b", &TCGen05InstrDescriptorAttrs::neg_b, refl::DefaultValue(false))
+      .def_ro("sat_d", &TCGen05InstrDescriptorAttrs::sat_d, refl::DefaultValue(false))
+      .def_ro("is_sparse", &TCGen05InstrDescriptorAttrs::is_sparse, refl::DefaultValue(false));
+}
+
+void TCGen05InstrDescriptorBlockScaledAttrs::RegisterReflection() {
+  namespace refl = ffi::reflection;
+  refl::ObjectDef<TCGen05InstrDescriptorBlockScaledAttrs>()
+      .def_ro("d_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::d_dtype)
+      .def_ro("a_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::a_dtype)
+      .def_ro("b_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::b_dtype)
+      .def_ro("sfa_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::sfa_dtype)
+      .def_ro("sfb_dtype", &TCGen05InstrDescriptorBlockScaledAttrs::sfb_dtype)
+      .def_ro("M", &TCGen05InstrDescriptorBlockScaledAttrs::M)
+      .def_ro("N", &TCGen05InstrDescriptorBlockScaledAttrs::N)
+      .def_ro("K", &TCGen05InstrDescriptorBlockScaledAttrs::K)
+      .def_ro("trans_a", &TCGen05InstrDescriptorBlockScaledAttrs::trans_a)
+      .def_ro("trans_b", &TCGen05InstrDescriptorBlockScaledAttrs::trans_b)
+      .def_ro("n_cta_groups", &TCGen05InstrDescriptorBlockScaledAttrs::n_cta_groups,
+              refl::DefaultValue(1))
+      .def_ro("neg_a", &TCGen05InstrDescriptorBlockScaledAttrs::neg_a, refl::DefaultValue(false))
+      .def_ro("neg_b", &TCGen05InstrDescriptorBlockScaledAttrs::neg_b, refl::DefaultValue(false))
+      .def_ro("is_sparse", &TCGen05InstrDescriptorBlockScaledAttrs::is_sparse,
+              refl::DefaultValue(false));
+}
+
+}  // namespace cuda
+}  // namespace backend
+
 namespace tirx {
 namespace builtin {
 
@@ -56,6 +102,9 @@ void RegisterCudaTargetBuiltins() {
   static bool registered = false;
   if (registered) return;
   registered = true;
+
+  backend::cuda::TCGen05InstrDescriptorAttrs::RegisterReflection();
+  backend::cuda::TCGen05InstrDescriptorBlockScaledAttrs::RegisterReflection();
 
   OpDef("tirx.tvm_load_matrix_sync")
       .signature(
@@ -406,20 +455,12 @@ void RegisterDeviceIntrinsics() {
                           sig::arg("cond"))
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Int(64));
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.tcgen05_encode_instr_descriptor"), "cuda",
-                          CallEffectKind::kOpaque, sig::arg("desc"), sig::arg("d_dtype"),
-                          sig::arg("a_dtype"), sig::arg("b_dtype"), sig::arg<IntExpr>("M"),
-                          sig::arg<IntExpr>("N"), sig::arg<IntExpr>("K"), sig::arg("trans_a"),
-                          sig::arg("trans_b"), sig::arg<IntExpr>("n_cta_groups"), sig::arg("neg_a"),
-                          sig::arg("neg_b"), sig::arg("sat_d"), sig::arg("is_sparse"))
+                          CallEffectKind::kOpaque, sig::arg("desc"),
+                          sig::call_attrs<backend::cuda::TCGen05InstrDescriptorAttrs>())
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled"), "cuda",
-                          CallEffectKind::kOpaque, sig::arg("desc"), sig::arg("d_dtype"),
-                          sig::arg("a_dtype"), sig::arg("b_dtype"), sig::arg("sfa_dtype"),
-                          sig::arg("sfb_dtype"), sig::arg("sfa_tmem_addr"),
-                          sig::arg("sfb_tmem_addr"), sig::arg<IntExpr>("M"), sig::arg<IntExpr>("N"),
-                          sig::arg<IntExpr>("K"), sig::arg("trans_a"), sig::arg("trans_b"),
-                          sig::arg<IntExpr>("n_cta_groups"), sig::arg("neg_a"), sig::arg("neg_b"),
-                          sig::arg("is_sparse"))
+                          CallEffectKind::kOpaque, sig::arg("desc"),
+                          sig::call_attrs<backend::cuda::TCGen05InstrDescriptorBlockScaledAttrs>())
       .set_attr<TFixedReturnType>("TFixedReturnType", PrimType::Void());
   RegisterDeviceIntrinsic(OpDef("tirx.cuda.tcgen05_encode_matrix_descriptor"), "cuda",
                           CallEffectKind::kOpaque, sig::arg("desc"), sig::arg("addr"),

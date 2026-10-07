@@ -31,7 +31,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_before(
     A: T.Tensor((128, 127), "float32"),
     B: T.Tensor((127, 127), "float32"),
@@ -60,7 +60,7 @@ def matmul_before(
             C[i, j] = C_shared[i, j]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_expected(
     A: T.Tensor((128, 127), "float32"),
     B: T.Tensor((127, 127), "float32"),
@@ -107,7 +107,7 @@ def test_pad_matmul():
 
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def matmul_before(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((n, 128), "float32"),
@@ -122,7 +122,7 @@ def test_pad_matmul():
 
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def matmul_after(
         A: T.Tensor((128, 128), "float32"),
         B: T.Tensor((n, 128), "float32"),
@@ -157,7 +157,7 @@ def test_pad_matmul():
 def test_pad_matmul_2():
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def before(
         A: T.Tensor((1, n, 4096)),
         B: T.Tensor((11008, 4096)),
@@ -182,7 +182,7 @@ def test_pad_matmul_2():
 
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def after(
         A: T.Tensor((1, n, 4096)),
         B: T.Tensor((11008, 4096)),
@@ -228,7 +228,7 @@ def test_pad_matmul_2():
 def test_pad_rms():
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def before(
         A: T.Tensor((1, n, 4096)),
         W: T.Tensor((4096,), "float32"),
@@ -255,7 +255,7 @@ def test_pad_rms():
 
     n = T.dynamic("n", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def after(
         A: T.Tensor((1, n, 4096)), W: T.Tensor((4096,), "float32"), Result: T.Tensor((1, n, 4096))
     ):

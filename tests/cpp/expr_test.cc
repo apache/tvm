@@ -66,7 +66,7 @@ TEST(Expr, RequiredIRReferences) {
   CheckRequiredIRReference<tirx::Stmt>();
   CheckRequiredIRReference<tirx::Evaluate>();
   CheckRequiredIRReference<s_tir::SBlock>();
-  CheckRequiredIRReference<tirx::PrimFunc>();
+  CheckRequiredIRReference<tirx::Function>();
   CheckRequiredIRReference<relax::Function>();
   CheckRequiredIRReference<Type>();
   CheckRequiredIRReference<PrimType>();

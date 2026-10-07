@@ -49,7 +49,7 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
   using s_tir::IRMutatorWithAnalyzer::Mutate;
   using s_tir::IRMutatorWithAnalyzer::Mutate_;
 
-  static PrimFunc Inject(PrimFunc func) {
+  static Function Inject(Function func) {
     sym::Analyzer ana;
     auto pass = ffi::make_object<TextureAllocInjector>(ana);
     auto writer = func.CopyOnWrite();
@@ -123,10 +123,10 @@ class TextureAllocInjector : public s_tir::IRMutatorWithAnalyzer {
 namespace transform {
 
 Pass InjectTextureAlloc() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return TextureAllocInjector::Inject(std::move(f));
   };
-  return tirx::transform::CreatePrimFuncPass(pass_func, 0,
+  return tirx::transform::CreateFunctionPass(pass_func, 0,
                                              "s_tir.backend.adreno.InjectTextureAlloc", {});
 }
 

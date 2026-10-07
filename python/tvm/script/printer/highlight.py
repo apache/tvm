@@ -35,7 +35,7 @@ def cprint(
 
     Parameters
     ----------
-    printable : Union[IRModule, PrimFunc, str]
+    printable : Union[IRModule, Function, str]
 
         The TVMScript to be printed
 

@@ -29,7 +29,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/transform.h>  // For the class Pass and the class PassContext
 #include <tvm/tirx/expr_functor.h>
-#include <tvm/tirx/function.h>  // For the class PrimFunc
+#include <tvm/tirx/function.h>  // For the class Function
 #include <tvm/tirx/stmt.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>  // For the declaration of the pass

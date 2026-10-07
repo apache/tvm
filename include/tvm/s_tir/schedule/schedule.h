@@ -324,7 +324,7 @@ class ScheduleNode : public ffi::Object {
   /*!
    * \brief Get the list of output blocks within the given scope
    * An output block is a block which has atleast one buffer being written
-   * to, but is not allocated within the PrimFunc
+   * to, but is not allocated within the Function
    * \param scope_block_rv The scope block from which output blocks are collected
    * \return A list of all blocks that write to some output buffer
    * block
@@ -593,7 +593,7 @@ class ScheduleNode : public ffi::Object {
    * \brief Inline a block into its consumer(s). It requires:
    * 1) The block is a complete non-root block, which only produces one buffer
    * 2) The block must not be the only leaf in the scope.
-   * 3) The body of the block must be a BufferStore statement in the form of,
+   * 3) The body of the block must be a TensorStore statement in the form of,
    *    A[i, j, k, ...] = ...
    * where the indices of the LHS are all distinct atomic variables,
    * and no variables other than those indexing variables are allowed in the statement.
@@ -605,7 +605,7 @@ class ScheduleNode : public ffi::Object {
    * 1) The block is a complete non-root block, which only produces and consumers one buffer
    * 2) The block must not be the only leaf in the scope.
    * 3) The only producer of the block is a read-after-write producer and a complete non-root block
-   * 4) The body of the block must be a BufferStore statement in the form of,
+   * 4) The body of the block must be a TensorStore statement in the form of,
    *    B[f(i, j, k, ...)] = g(i, j, k, A[i, j, k, ...] ...)
    * where the indices of each `TensorLoad` on the RHS are all distinct atomic variables,
    * and no variables other than those indexing variables are allowed in the statement.
@@ -815,7 +815,7 @@ class ScheduleNode : public ffi::Object {
    * \details This schedule primitives identifies the Einsum pattern in the block body, and find its
    * producer blocks. It then pads the computation of the Einsum pattern and its producer blocks.
    * The output buffer and the producer buffer is resized according to the padding size. It requires
-   * the output buffer and the producer buffer to be allocated inside the PrimFunc.
+   * the output buffer and the producer buffer to be allocated inside the Function.
    *
    * The padding is a list of non-negative integers, each element corresponds to the padding for
    * each block iter in the order of block iters. The block and its producer blocks should have

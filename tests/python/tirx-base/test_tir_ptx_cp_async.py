@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 from tvm.testing import env
 
 
-@T.prim_func
+@T.function
 def ptx_cp_async(A: T.Tensor((32, 128), "float16"), B: T.Tensor((32, 128), "float16")) -> None:
     T.func_attr({"global_symbol": "default_function", "tirx.noalias": True})
     T.launch_thread("blockIdx.x", 1)

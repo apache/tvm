@@ -19,7 +19,7 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx import Function, TilePrimitiveCall
 from tvm.tirx.op.tile import BinaryReduce
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 
@@ -31,7 +31,7 @@ from ..reduction.utils import generate_intermediate_buffer
 from .utils import opcode_table
 
 
-def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for binary reduction operations."""
     op = TilePrimitiveCall.downcast(op)
     assert isinstance(op, BinaryReduce), f"invalid operator downcast: {op}"
@@ -104,7 +104,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         # Direct implementation without intermediate buffer
         # fmt: off
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 with T.nki.tensorized_instruction():
@@ -125,7 +125,7 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         # Implementation with intermediate buffer
         # fmt: off
         # This fragment captures buffers and indices from its insertion scope.
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             for b_loop in T.serial(0, spatial_b_extent):
                 for reduction_b_loop in T.serial(0, reduction_b_extent):
@@ -169,5 +169,5 @@ def binary_reduce_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc 
         )
     ],
 )
-def binary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def binary_reduce_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return binary_reduce_trn(op, sctx)

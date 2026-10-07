@@ -56,7 +56,7 @@ def test_fma_scalar_scalar():
     scale_val = 0.5
     bias_val = -1.0
 
-    @T.prim_func
+    @T.function
     def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
@@ -97,7 +97,7 @@ def test_fma_buffer_scale_scalar_bias():
 
     coeff = 0.695
 
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
         B: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
@@ -143,7 +143,7 @@ def test_mul_scalar_broadcast():
     dtype = "float32"
     target = tvm.target.Target("cuda")
 
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
         Scale: T.Tensor((1,), dtype, layout=TileLayout(S[1])),
@@ -191,7 +191,7 @@ def test_add_rounding_mode():
 
     round_const = float(2**23 + 2**22)
 
-    @T.prim_func
+    @T.function
     def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
@@ -238,7 +238,7 @@ def test_fma_no_layout():
     scale_val = 2.0
     bias_val = 1.0
 
-    @T.prim_func
+    @T.function
     def test_func(A: T.Tensor((N,), dtype, layout=TileLayout(S[N]))) -> None:
         T.device_entry()
         _bx = T.cta_id([1])
@@ -279,7 +279,7 @@ def test_sub_buffer_buffer_rounding():
     dtype = "float32"
     target = tvm.target.Target("cuda")
 
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
         B: T.Tensor((N,), dtype, layout=TileLayout(S[N])),
@@ -324,7 +324,7 @@ def test_fma_warpgroup_wg_local_layout():
     bias_val = -0.25
     target = tvm.target.Target("cuda")
 
-    @T.prim_func
+    @T.function
     def test_func(
         A: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
         B: T.Tensor((rows, cols), dtype, layout=TileLayout(S[rows, cols])),
@@ -371,7 +371,7 @@ def test_fma_f32_sm100_packed_f32x2_dispatch():
     shape = (64, 32)
     lay = TileLayout(S[shape])
 
-    @T.prim_func
+    @T.function
     def k(
         A: T.Tensor(shape, "float32", layout=lay),
         B: T.Tensor(shape, "float32", layout=lay),

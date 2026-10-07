@@ -22,7 +22,7 @@ from typing import Literal
 from tvm.s_tir import TensorIntrin
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
-from tvm.tirx import Expr, PrimFunc, Var
+from tvm.tirx import Expr, Function, Var
 
 ######## simdgroup matrix intrinsics ########
 
@@ -41,8 +41,8 @@ def get_simdgroup_index(buffer: Var, stride: Expr, col: int, row: int):
 
 def get_make_filled_simdgroup_matrix_intrin(
     dtype: str, col: int = 8, row: int = 8
-) -> tuple[PrimFunc, PrimFunc]:
-    @Ts.prim_func
+) -> tuple[Function, Function]:
+    @Ts.function
     def desc(A: T.Tensor((col, row), dtype, scope="metal.simdgroup", offset_factor=1)) -> None:
         with Ts.sblock("root"):
             Ts.reads()
@@ -55,7 +55,7 @@ def get_make_filled_simdgroup_matrix_intrin(
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def impl(
         A: T.Tensor((col, row), dtype, scope="metal.simdgroup", strides=[d1, d0], offset_factor=1),
     ) -> None:
@@ -79,10 +79,10 @@ def get_simdgroup_load_intrin(
     col: int = 8,
     row: int = 8,
     transpose_matrix: bool = False,
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     align = col * row
 
-    @Ts.prim_func
+    @Ts.function
     def desc(
         A: T.Tensor((col, row), dtype, align=align, scope=scope, offset_factor=1),
         C: T.Tensor((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
@@ -104,7 +104,7 @@ def get_simdgroup_load_intrin(
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def impl(
         A: T.Tensor((col, row), dtype, align=align, scope=scope, strides=[s1, s0], offset_factor=1),
         C: T.Tensor(
@@ -138,10 +138,10 @@ def get_simdgroup_store_intrin(
     col: int = 8,
     row: int = 8,
     transpose_matrix: bool = False,
-) -> tuple[PrimFunc, PrimFunc]:
+) -> tuple[Function, Function]:
     align = col * row
 
-    @Ts.prim_func
+    @Ts.function
     def desc(
         A: T.Tensor((col, row), dtype, align=align, scope="metal.simdgroup", offset_factor=1),
         C: T.Tensor((col, row), dtype, align=align, scope=scope, offset_factor=1),
@@ -162,7 +162,7 @@ def get_simdgroup_store_intrin(
     d0 = T.dynamic("d0", "int32")
     d1 = T.dynamic("d1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def impl(
         A: T.Tensor(
             (col, row),
@@ -192,8 +192,8 @@ def get_simdgroup_store_intrin(
 
 def get_simdgroup_multiply_accumulate_intrin(
     m_dim: int, n_dim: int, k_dim: int, dtype: str
-) -> tuple[PrimFunc, PrimFunc]:
-    @Ts.prim_func
+) -> tuple[Function, Function]:
+    @Ts.function
     def desc(
         A: T.Tensor((m_dim, k_dim), dtype, scope="metal.simdgroup", offset_factor=1),
         B: T.Tensor((k_dim, n_dim), dtype, scope="metal.simdgroup", offset_factor=1),
@@ -214,7 +214,7 @@ def get_simdgroup_multiply_accumulate_intrin(
     c0 = T.dynamic("c0", "int32")
     c1 = T.dynamic("c1", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def impl(
         A: T.Tensor(
             (m_dim, k_dim), dtype, scope="metal.simdgroup", strides=[a1, a0], offset_factor=1

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include "create_primfunc.h"
+#include "create_function.h"
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/structural_mutate.h>
@@ -73,17 +73,17 @@ class OpaqueArtifactVerifier : public ObjectVisitor {
     }
     if (const auto* expr = value.as<OpaqueExprNode>()) {
       TVM_FFI_THROW(InternalError)
-          << "CreatePrimFunc produced construction-only opaque artifact " << expr->GetTypeKey();
+          << "CreateFunction produced construction-only opaque artifact " << expr->GetTypeKey();
     }
     if (value.as<OpaqueTypeNode>()) {
       TVM_FFI_THROW(InternalError)
-          << "CreatePrimFunc produced construction-only opaque artifact ir.OpaqueType";
+          << "CreateFunction produced construction-only opaque artifact ir.OpaqueType";
     }
     return ObjectVisitor::Visit(value);
   }
 };
 
-void VerifyNoOpaqueArtifacts(const PrimFunc& func) {
+void VerifyNoOpaqueArtifacts(const Function& func) {
   ffi::make_object<OpaqueArtifactVerifier>()->Visit(func);
 }
 
@@ -226,13 +226,13 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
     return s_tir::StmtExprMutator::Mutate(value, inplace_mode);
   }
 
-  PrimFunc Process(PrimFunc func) {
+  Function Process(Function func) {
     for (int i = 0, n = func->params.size(); i < n; ++i) {
       if (auto buffer = func->params[i].as<TensorVar>()) {
         buffer2index_[buffer.value()] = i;
       }
     }
-    PrimFuncNode* f = func.CopyOnWrite();
+    FunctionNode* f = func.CopyOnWrite();
     f->body = Mutate(f->body, InplaceMode::kDisallow).ValueOrUnchanged(f->body);
     if (this->layout_free_buffer_indices_.empty()) {
       return func;
@@ -452,7 +452,7 @@ Stmt GenerateInitStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
   for (int i = 0; i < n_buffers; ++i) {
     const TensorVar& buffer = buffers[i];
     PrimExpr identity = f_transform_and_remap(reduce->combiner->identity_element[i]);
-    init_stmts.push_back(BufferStore(buffer, identity, indices));
+    init_stmts.push_back(TensorStore(buffer, identity, indices));
   }
   return SeqStmt::Flatten(init_stmts);
 }
@@ -505,7 +505,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
     temp_vars.reserve(n_buffers);
     body_stmts.reserve(n_buffers);
 
-    // - When there is only one buffer, we directly create a BufferStore which stores "combiner(lhs,
+    // - When there is only one buffer, we directly create a TensorStore which stores "combiner(lhs,
     //   rhs)" into the target buffer position.
     // - In case there are multiple buffers, to avoid incorrect results, we create some intermediate
     //   variables and use Bind nodes to bind the variables with "combiner(lhs, rhs)". After that,
@@ -520,7 +520,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
         PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
         return f_transform_and_remap(combined);
       }();
-      body_stmts.push_back(BufferStore(buffer, value, indices));
+      body_stmts.push_back(TensorStore(buffer, value, indices));
     }
     Stmt body = SeqStmt::Flatten(body_stmts);
     if (n_buffers > 1) {
@@ -538,7 +538,7 @@ Stmt GenerateBodyStmt(const ffi::Array<PrimExpr>& indices, const ffi::Array<Tens
     // Case 2. Data parallel compute
     TVM_FFI_ICHECK_EQ(buffers.size(), 1);
     const PrimExpr& compute_body = f_transform_and_remap(expr_body);
-    return BufferStore(buffers[0], analyzer->Simplify(compute_body), indices);
+    return TensorStore(buffers[0], analyzer->Simplify(compute_body), indices);
   }
 }
 
@@ -786,7 +786,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
 
   // The access region does not need to be collected here, as it will
   // be generated with the later application of "s_tir.script.Complete" in
-  // GenerateAndCompletePrimFunc.  Waiting until later also handles
+  // GenerateAndCompleteFunction.  Waiting until later also handles
   // the case where there is only a single BlockNode, which then
   // becomes the root s_tir::SBlock of the function, and should not have
   // reads/writes filled in.
@@ -884,7 +884,7 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
   }
 }
 
-PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
+Function GenerateAndCompleteFunction(const ffi::Array<te::Tensor>& arg_list,
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
   for (const te::Tensor& tensor : arg_list) {
@@ -894,20 +894,20 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<te::Tensor>& arg_list,
   }
   Stmt body = SeqStmt::Flatten(root_stmts);
   body = info->transformer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
-  PrimFunc func = WithAttrs(
-      PrimFunc(/*params=*/std::move(parameters),
+  Function func = WithAttrs(
+      Function(/*params=*/std::move(parameters),
                /*body=*/std::move(body),
                /*ret_type=*/VoidType()),
       {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
-  func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
+  func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();
   return func;
 }
 
-PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
+Function CreateFunction(const ffi::Array<te::Tensor>& arg_list,
                         std::optional<PrimType> index_dtype_override) {
-  // Information used in CreatePrimFunc and its sub-functions.
+  // Information used in CreateFunction and its sub-functions.
   CreateFuncInfo info(arg_list);
   // Root body stmts.
   ffi::Array<Stmt> root_stmts;
@@ -925,8 +925,8 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
     RewriteStageToBlock(op, &info, &root_stmts, analyzer.get());
   }
 
-  // Step 4. Create func and complete prim func.
-  auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  // Step 4. Create and complete the function.
+  auto func = GenerateAndCompleteFunction(arg_list, root_stmts, &info);
   if (index_dtype_override.has_value()) {
     func = ffi::make_object<s_tir::IndexDataTypeNormalizer>(index_dtype_override.value())
                ->Rewrite(std::move(func));
@@ -938,19 +938,19 @@ PrimFunc CreatePrimFunc(const ffi::Array<te::Tensor>& arg_list,
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("te.CreatePrimFunc", [](ffi::PackedArgs args, ffi::Any* ret) {
+  refl::GlobalDef().def_packed("te.CreateFunction", [](ffi::PackedArgs args, ffi::Any* ret) {
     ffi::Array<ffi::ObjectRef> arg_list = args[0].cast<ffi::Array<ffi::ObjectRef>>();
     std::optional<PrimType> index_dtype_override{std::nullopt};
     // Add conversion to make std::optional compatible with FFI.
     if (args[1] != nullptr) {
       index_dtype_override = args[1].cast<PrimType>();
     }
-    *ret = CreatePrimFunc(arg_list, index_dtype_override);
+    *ret = CreateFunction(arg_list, index_dtype_override);
   });
 }
 
 // Relax version impl
-PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_var_list,
+Function GenerateAndCompleteFunction(const ffi::Array<ffi::ObjectRef>& arg_tir_var_list,
                                      const ffi::Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   ffi::Array<Var> parameters;
   for (const ffi::ObjectRef& arg : arg_tir_var_list) {
@@ -965,18 +965,18 @@ PrimFunc GenerateAndCompletePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_tir_v
   }
   Stmt body = SeqStmt::Flatten(root_stmts);
   body = info->transformer->Mutate(body, InplaceMode::kAllow).ValueOrUnchanged(body);
-  PrimFunc func = WithAttrs(
-      PrimFunc(/*params=*/std::move(parameters),
+  Function func = WithAttrs(
+      Function(/*params=*/std::move(parameters),
                /*body=*/std::move(body),
                /*ret_type=*/VoidType()),
       {{"global_symbol", ffi::String("main")}, {"tirx.noalias", true}, {tvm::attr::kSTir, true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("s_tir.script.Complete");
   TVM_FFI_ICHECK(fcomplete.has_value());
-  func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
+  func = (*fcomplete)(std::move(func), info->root_alloc).cast<Function>();
   return func;
 }
 
-PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
+Function CreateFunction(const ffi::Array<ffi::ObjectRef>& arg_list,
                         std::optional<PrimType> index_dtype_override) {
   ffi::Array<te::Tensor> tensor_arg_list;
   for (const ffi::ObjectRef& x : arg_list) {
@@ -985,7 +985,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
       tensor_arg_list.push_back(tensor);
     }
   }
-  // Information used in CreatePrimFunc and its sub-functions.
+  // Information used in CreateFunction and its sub-functions.
   CreateFuncInfo info(tensor_arg_list);
   // Root body stmts.
   ffi::Array<Stmt> root_stmts;
@@ -1002,7 +1002,7 @@ PrimFunc CreatePrimFunc(const ffi::Array<ffi::ObjectRef>& arg_list,
   for (const te::Operation& op : order) {
     RewriteStageToBlock(op, &info, &root_stmts, analyzer.get());
   }
-  auto func = GenerateAndCompletePrimFunc(arg_list, root_stmts, &info);
+  auto func = GenerateAndCompleteFunction(arg_list, root_stmts, &info);
   if (index_dtype_override.has_value()) {
     func = ffi::make_object<s_tir::IndexDataTypeNormalizer>(index_dtype_override.value())
                ->Rewrite(std::move(func));

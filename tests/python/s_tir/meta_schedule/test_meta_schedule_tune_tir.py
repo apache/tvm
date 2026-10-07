@@ -39,7 +39,7 @@ logging.basicConfig()
 logging.getLogger("tvm.s_tir.meta_schedule").setLevel(logging.DEBUG)
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
@@ -49,7 +49,7 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def two_step(A: T.Tensor((1024, 1024), "float32"), C: T.Tensor((1024, 1024), "float32")) -> None:
     B = Ts.sblock_alloc_buffer((1024, 1024), "float32")
 

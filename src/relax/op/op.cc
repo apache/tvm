@@ -321,18 +321,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
  *
  * The `R.call_tir` operator and its variants accept an `arg_ty`
  * parameter, which specifies the shape of the tensor or tensors
- * returned by a PrimFunc.  This output shape must be compatible with
- * the shape defined by the PrimFunc's signature.
+ * returned by a tirx::Function.  This output shape must be compatible with
+ * the shape defined by the tirx::Function's signature.
  *
  * For dynamic shapes, it is not always possible to infer the output
- * of a TIR PrimFunc from its inputs.  For example, a PrimFunc that
+ * of a TIR tirx::Function from its inputs.  For example, a tirx::Function that
  * accepts input buffer `T.Tensor([16], "float32")` and output buffer
  * `T.Tensor([M, N], "float32")` infers the values of `M` and `N` from
  * the shape of the provided output buffer.
  *
- * If the arguments provided are not compatible with the PrimFunc's
+ * If the arguments provided are not compatible with the tirx::Function's
  * signature, an error will be raised.  If the arguments are
- * compatible with the PrimFunc's signature, but are not sufficient to
+ * compatible with the tirx::Function's signature, but are not sufficient to
  * determine the output's Type, then `std::nullopt` will be returned.
  *
  * \param func_ty The Type of the TIR callee.
@@ -363,13 +363,13 @@ ffi::Optional<Type> InferCallTIROutputTypeFromArguments(
   TVM_FFI_CHECK(args, TypeError) << "The second argument to `R.call_tir` must be a tuple, "
                                  << "but instead received expression of type " << arg_ty;
 
-  // R.call_tir expects the PrimFunc to have two groups of arguments.
+  // R.call_tir expects the tirx::Function to have two groups of arguments.
   //
   // 1. Input arguments that are explicitly provided as Relax arguments.
   // 2. Output tensor arguments.
   //
   // In order to determine the return type of `R.call_tir`, we must
-  // identify the PrimFunc arguments that will be in group (2).
+  // identify the tirx::Function arguments that will be in group (2).
   size_t num_input_arguments = args->fields.size();
 
   TVM_FFI_CHECK_LE(args->fields.size(), callee_params.size(), ValueError)
@@ -458,7 +458,8 @@ Type InferTypeCallTIR(const CallNode* call_node) {
     TVM_FFI_VISIT_THROW(InternalError, call) << "ty_args should have exactly 1 output type.";
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
-      << "R.call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
+      << "R.call_tir expects the first argument to be a GlobalVar referring to a TIR "
+         "tirx::Function. "
       << "However, the argument " << call->args[0] << " instead has type "
       << call->args[0]->GetTypeKey();
 
@@ -496,7 +497,7 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
 
   TVM_FFI_ICHECK_EQ(call->ty_args.size(), 1)
       << "R.call_tir should have exactly one `ty_args` parameter, "
-      << "which defines the output of the PrimFunc.";
+      << "which defines the output of the tirx::Function.";
 
   auto unwrap_binding = [&ctx](Expr expr) -> ffi::Optional<Expr> {
     if (auto var = expr.as<Var>()) {
@@ -569,9 +570,9 @@ void ValidateCallTIR(const CallNode* call) {
       InferCallTIROutputTypeFromArguments(GetType(callee), GetType(arg_tuple), opt_inplace_indices);
   if (inferred_ty.has_value()) {
     TVM_FFI_CHECK(IsBaseOf(inferred_ty.value(), explicit_ty), TypeError)
-        << "The `out_ty` argument for R.call_tir must be compatible with the PrimFunc.  "
-        << "However, the PrimFunc's signature implies that the output should be " << inferred_ty
-        << ", but the `out_ty` argument was " << explicit_ty;
+        << "The `out_ty` argument for R.call_tir must be compatible with the tirx::Function.  "
+        << "However, the tirx::Function's signature implies that the output should be "
+        << inferred_ty << ", but the `out_ty` argument was " << explicit_ty;
   }
 }
 

@@ -69,7 +69,7 @@ n_main_relax = T.dynamic("n")
 
 @R.py_module
 class AddModuleSymbolic(BasePyModule):
-    @Ts.prim_func
+    @Ts.function
     def add_tir(
         x: T.Tensor((n_add_tir,), dtype="float32"),
         y: T.Tensor((n_add_tir,), dtype="float32"),
@@ -207,7 +207,7 @@ n_matmul_relax = T.dynamic("n")
 
 @R.py_module
 class MatrixModuleSymbolic(BasePyModule):
-    @Ts.prim_func
+    @Ts.function
     def matmul_tir(
         a: T.Tensor((m_matmul_tir, k_matmul_tir), dtype="float32"),
         b: T.Tensor((k_matmul_tir, n_matmul_tir), dtype="float32"),

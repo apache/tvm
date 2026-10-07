@@ -60,7 +60,7 @@ class AssumeChecker : public StmtExprVisitor {
  public:
   using StmtExprVisitor::Visit_;
 
-  /* This class checks if the primfunc has assume statement.
+  /* This class checks if the function has assume statement.
   If yes, then only the FuncAnanlyzerMutator class runs. This is to ensure speedup in the pass.*/
   bool has_assume = false;
 
@@ -83,7 +83,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
 
-  /* This class analyzes the complete primfunc.
+  /* This class analyzes the complete function.
   It parses the buffer assumptions and eliminates the redundant branch
   introduced due to layout specific padding by leveraging from buffer assumptions.
   On eliminating the branch there are more opportunities to vectorize the code
@@ -91,14 +91,14 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 
   Example:
   -------------
-  Prim Func Before :
+  Function Before :
   for (...)
     T.assume( assume_condition or A[i] == 0 )
   for (...)
     out = T.if_then_else(if_then_else_condition, 0, function(A))
     # here function(A) is some function on Var A
 
-  Prim Func After :
+  Function After :
     for (...)
     T.assume( assume_condition or A[i] == 0 )
   for (...)
@@ -219,10 +219,10 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     return ffi::Unchanged();
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore store = Parent::Mutate_(op, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    TensorStore store = Parent::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                            .as_or_throw<BufferStore>();
+                            .as_or_throw<TensorStore>();
     if (!op->unique()) inplace_mode = InplaceMode::kDisallow;
 
     // Eliminate the builtin if_then_else statement
@@ -264,23 +264,23 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
         if (ffi::StructuralEqual()(then_clause_in_then_context, else_clause_in_then_context)) {
           PrimExpr value = analyzer_->Simplify(else_clause);
           if (inplace_mode == InplaceMode::kAllow) {
-            const_cast<BufferStoreNode*>(op)->value = std::move(value);
+            const_cast<TensorStoreNode*>(op)->value = std::move(value);
             return ffi::Unchanged();
           } else {
-            auto copy = ffi::make_object<BufferStoreNode>(*op);
+            auto copy = ffi::make_object<TensorStoreNode>(*op);
             copy->value = std::move(value);
-            return BufferStore(std::move(copy));
+            return TensorStore(std::move(copy));
           }
         } else if (ffi::StructuralEqual()(then_clause_in_else_context,
                                           else_clause_in_else_context)) {
           PrimExpr value = analyzer_->Simplify(then_clause);
           if (inplace_mode == InplaceMode::kAllow) {
-            const_cast<BufferStoreNode*>(op)->value = std::move(value);
+            const_cast<TensorStoreNode*>(op)->value = std::move(value);
             return ffi::Unchanged();
           } else {
-            auto copy = ffi::make_object<BufferStoreNode>(*op);
+            auto copy = ffi::make_object<TensorStoreNode>(*op);
             copy->value = std::move(value);
-            return BufferStore(std::move(copy));
+            return TensorStore(std::move(copy));
           }
         } else {
           return Parent::Mutate_(op, inplace_mode);
@@ -379,13 +379,13 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
 namespace transform {
 
 Pass UseAssumeToReduceBranches() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     sym::Analyzer analyzer;
 
     // The pass runs & eliminates pad branch with overcompute only if,
-    // the primfunc has op_pattern defined and is an elementwise op.
-    // AnnotateTIROpPattern pass will set op_pattern in op attributes of the primfunc.
+    // the function has op_pattern defined and is an elementwise op.
+    // AnnotateTIROpPattern pass will set op_pattern in op attributes of the function.
     if (n->attrs.GetAttr<int64_t>("op_pattern").has_value()) {
       ffi::Optional<int64_t> opt_pattern = f->GetAttr<int64_t>("op_pattern");
       if (opt_pattern.has_value()) {
@@ -394,7 +394,7 @@ Pass UseAssumeToReduceBranches() {
 
         if (pattern == relax::OpPatternKind::kElemWise ||
             pattern == relax::OpPatternKind::kBroadcast) {
-          // If the primfunc contains assume statement then, run the mutator pass.
+          // If the function contains assume statement then, run the mutator pass.
           auto assume_checker = ffi::make_object<AssumeChecker>();
           assume_checker->Visit(std::move(n->body));
 
@@ -409,7 +409,7 @@ Pass UseAssumeToReduceBranches() {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.UseAssumeToReduceBranches", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.UseAssumeToReduceBranches", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -380,13 +380,13 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
     bool normalize_thread_bindings_;
     std::vector<const ForNode*> thread_bindings_;
   };
-  auto pass_func = [normalize_thread_bindings](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [normalize_thread_bindings](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
-    PrimFuncNode* n = f.CopyOnWrite();
+    FunctionNode* n = f.CopyOnWrite();
     n->body = Simplifier::Run(std::move(n->body).value(), normalize_thread_bindings);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.SimplifyForFeatureExtraction", {});
 }
 
 /*!
@@ -530,7 +530,7 @@ struct Feature {
     static constexpr int64_t kCount = 16;
 
     ArithOps() = default;
-    ArithOps(const BufferStoreNode* store, int64_t prod_loop_extent);
+    ArithOps(const TensorStoreNode* store, int64_t prod_loop_extent);
 
     void Export(std::vector<double>* v) const {
       double vs[] = {
@@ -598,7 +598,7 @@ struct Feature {
 
   static constexpr int64_t kCount = ArithOps::kCount + ForKindFeature::kCount * 3 + 8;
 
-  explicit Feature(const BufferStoreNode* store, const LoopNest& loop_nest, bool is_gpu)
+  explicit Feature(const TensorStoreNode* store, const LoopNest& loop_nest, bool is_gpu)
       : arith_ops(store, loop_nest.prod),
         vectorize(loop_nest.vectorize),
         unroll(loop_nest.unroll),
@@ -630,7 +630,7 @@ struct Feature {
   }
 };
 
-Feature::ArithOps::ArithOps(const BufferStoreNode* store, int64_t prod_loop_extent) {
+Feature::ArithOps::ArithOps(const TensorStoreNode* store, int64_t prod_loop_extent) {
   class ArithOpCounter : public StmtExprVisitor {
    public:
     using StmtExprVisitor::Visit_;
@@ -868,11 +868,11 @@ struct Feature {
     }
   }
 
-  explicit Feature(const BufferStoreNode* store, const LoopNest& loop_nest,
+  explicit Feature(const TensorStoreNode* store, const LoopNest& loop_nest,
                    int64_t cache_line_bytes, IntVec* for_touched_bytes,
                    ForBufferMap<IntVec>* buffer_touched_under_loop, sym::AnalyzerObj* analyzer);
 
-  void Init(const BufferStoreNode* store, int n_loops);
+  void Init(const TensorStoreNode* store, int n_loops);
 
   void SetRegion(const LoopNest& loop_nest,                        //
                  IntVec* for_touched_bytes,                        //
@@ -882,7 +882,7 @@ struct Feature {
   std::vector<SubFeature> sub_features;
 };
 
-void Feature::Init(const BufferStoreNode* store, int n_loops) {
+void Feature::Init(const TensorStoreNode* store, int n_loops) {
   struct Info {
     AccessType access_type = AccessType::kUnknownRW;
     std::vector<MultiIndex> multi_indices;
@@ -1120,7 +1120,7 @@ void Feature::SubFeature::SetFeature(const LoopNest& loop_nest, int64_t cache_li
   this->unique_lines_d_reuse_ct = this->unique_lines / proxy_reuse_ct;
 }
 
-Feature::Feature(const BufferStoreNode* store, const LoopNest& loop_nest, int64_t cache_line_bytes,
+Feature::Feature(const TensorStoreNode* store, const LoopNest& loop_nest, int64_t cache_line_bytes,
                  IntVec* for_touched_bytes, ForBufferMap<IntVec>* buffer_touched_under_loop,
                  sym::AnalyzerObj* analyzer) {
   int n_loops = loop_nest.loops.size();
@@ -1327,7 +1327,7 @@ class WorkloadEmbeddingExtractor : public StmtExprVisitor {
   static std::vector<double> Extract(const IRModule& mod) {
     auto self = ffi::make_object<WorkloadEmbeddingExtractor>();
     for (const auto& kv : mod->functions) {
-      if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
+      if (const FunctionNode* func = kv.second.as<FunctionNode>()) {
         self->Visit(func->body);
       }
     }
@@ -1408,7 +1408,7 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
     auto collector = ffi::make_object<PerStoreFeatureCollector>(is_gpu, cache_line_bytes,
                                                                 arith_intensity_curve_num_samples);
     for (const auto& kv : mod->functions) {
-      if (const PrimFuncNode* func = kv.second.as<PrimFuncNode>()) {
+      if (const FunctionNode* func = kv.second.as<FunctionNode>()) {
         collector->Visit(func->body);
         for (const Var& param : func->params) {
           if (auto buffer = param.as<TensorVar>()) {
@@ -1445,7 +1445,7 @@ class PerStoreFeatureCollector : public StmtExprVisitor {
     return std::nullopt;
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* store) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* store) final {
     if (store->value->IsInstance<IntImmNode>() || store->value->IsInstance<FloatImmNode>()) {
       return std::nullopt;
     }

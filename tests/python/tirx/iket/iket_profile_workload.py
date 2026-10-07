@@ -34,7 +34,7 @@ from tvm.script import tirx as T
 from tvm.tirx.cuda import iket
 
 
-@T.prim_func
+@T.function
 def canonical_iket_workload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     profiler = iket.IketProfiler()
@@ -50,7 +50,7 @@ def canonical_iket_workload(out: T.Tensor((32,), "int32")):
     out[tx] = tx + 1
 
 
-@T.prim_func
+@T.function
 def native_payload_workload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     profiler = iket.IketProfiler()
@@ -71,7 +71,7 @@ def native_payload_workload(out: T.Tensor((32,), "int32")):
     out[tx] = tx + 2
 
 
-@T.prim_func
+@T.function
 def extended_payload_workload(out: T.Tensor((32,), "int32")):
     T.device_entry()
     profiler = iket.IketProfiler()

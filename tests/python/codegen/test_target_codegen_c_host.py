@@ -29,7 +29,7 @@ def test_add():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def test_fadd(
             A: T.Tensor((1024,), "float32"),
             B: T.Tensor((1024,), "float32"),
@@ -62,7 +62,7 @@ def test_reinterpret():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def test_reinterpret(
             A: T.Tensor((1024,), "int32"),
             B: T.Tensor((1024,), "float32"),
@@ -93,7 +93,7 @@ def test_ceil():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def test_ceil(
             A: T.Tensor((1024,), "float32"),
             B: T.Tensor((1024,), "float32"),
@@ -124,7 +124,7 @@ def test_floor():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def test_floor(
             A: T.Tensor((1024,), "float32"),
             B: T.Tensor((1024,), "float32"),
@@ -155,7 +155,7 @@ def test_round():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def test_round(
             A: T.Tensor((1024,), "float32"),
             B: T.Tensor((1024,), "float32"),
@@ -192,11 +192,11 @@ def test_round():
 def test_subroutine_call():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, dtype="float32")):
             Module.subroutine(A.data)
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def subroutine(A_data: T.handle("float32")):
             A = T.decl_tensor(1, dtype="float32", data=A_data)
             A[0] = 42.0
@@ -218,7 +218,7 @@ def test_subroutine_call():
 def test_workspace_allocation_cast():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((256,), "float32")):
             workspace = T.alloc_tensor((256,), "float32", scope="global")
             for i in range(256):
@@ -236,7 +236,7 @@ def test_workspace_allocation_cast():
 def test_local_alloc_buffer_uses_plain_c_pointer():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1,), "float32")):
             B = T.alloc_tensor((1,), "float32", scope="local")
             for i in range(1):
@@ -260,7 +260,7 @@ def test_vector_access_ptr_address_uses_ramp_base():
     buffer = tvm.tirx.decl_tensor((8,), "float32x2", name="A")
     access_ptr = buffer.access_ptr(access_mask=3, offset=2, extent=4)
     body = tvm.tirx.Evaluate(tvm.tirx.call_extern("void", "consume", access_ptr))
-    func = tvm.tirx.PrimFunc([buffer], body).with_attr("global_symbol", "main")
+    func = tvm.tirx.Function([buffer], body).with_attr("global_symbol", "main")
 
     source = tvm.tirx.build(tvm.IRModule.from_expr(func), target="c").inspect_source()
     call = next(line.strip() for line in source.splitlines() if line.strip().startswith("consume("))
@@ -272,7 +272,7 @@ def test_vector_access_ptr_address_uses_ramp_base():
 def test_if_then_else_avoids_extraneous_parentheses():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((8,), "int32"), B: T.Tensor((8,), "int32")):
             for i in range(8):
                 B[i] = T.if_then_else(i == 0, 1, A[i])

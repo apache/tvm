@@ -82,8 +82,8 @@ def test_ir2():
     array = tvm.tirx.Var("array", handle_type)
     buf = tvm.tirx.decl_tensor([buf_size], "int32", data=array)
 
-    st = tvm.tirx.BufferStore(buf, x + 1, [1])
-    assert isinstance(st, tvm.tirx.BufferStore)
+    st = tvm.tirx.TensorStore(buf, x + 1, [1])
+    assert isinstance(st, tvm.tirx.TensorStore)
     assert st.buffer == buf
     assert st.buffer.data.args[0].same_as(buf)
     assert st.buffer.data.ty == array.ty
@@ -298,13 +298,13 @@ def test_equality_string_imm():
     x == y
 
 
-def test_prim_func():
+def test_function():
     x = tvm.tirx.Var("x", "int32")
     y = tvm.tirx.Var("y", "int32")
     b = tvm.tirx.decl_tensor((x,), "float32")
     stmt = tvm.tirx.SeqStmt([tvm.tirx.Bind(x, 10), tvm.tirx.Evaluate(x + 1)])
 
-    func = tvm.tirx.PrimFunc([x, y, b], stmt)
+    func = tvm.tirx.Function([x, y, b], stmt)
     # make sure we can print
     assert func.params[2].same_as(b)
     assert not hasattr(func, "buffer_map")
@@ -345,8 +345,8 @@ def test_buffer_load_store():
     assert not hasattr(x, "buffer")
     with pytest.raises(TypeError, match="cannot be constructed directly"):
         tvm.ir.TensorLoad(b, [0])
-    s = tvm.tirx.BufferStore(b, 0.1, [0])
-    assert isinstance(s, tvm.tirx.BufferStore)
+    s = tvm.tirx.TensorStore(b, 0.1, [0])
+    assert isinstance(s, tvm.tirx.TensorStore)
 
 
 def test_intimm_cond():
@@ -418,13 +418,13 @@ def test_buffer_load_scalable_vec():
     assert load.ty.dtype == "float32xvscalex8"
 
 
-def test_buffer_store_scalable_vec():
+def test_tensor_store_scalable_vec():
     b = tvm.tirx.decl_tensor((24,), "int32")
     value = tvm.tirx.expr.Broadcast(1, 4 * tvm.tirx.vscale())
     index = tvm.tirx.expr.Ramp(0, 1, 4 * tvm.tirx.vscale())
-    store = tvm.tirx.BufferStore(b, value, [index])
+    store = tvm.tirx.TensorStore(b, value, [index])
 
-    assert isinstance(store, tvm.tirx.BufferStore)
+    assert isinstance(store, tvm.tirx.TensorStore)
     assert store.value.ty.dtype == "int32xvscalex4"
 
 
@@ -433,7 +433,7 @@ def test_scalable_vec_cast():
     value = tvm.tirx.expr.Broadcast(1, 12 * tvm.tirx.vscale()).astype("float32xvscalex12")
     index = tvm.tirx.expr.Ramp(0, 1, 12 * tvm.tirx.vscale())
 
-    store = tvm.tirx.BufferStore(b, value, [index])
+    store = tvm.tirx.TensorStore(b, value, [index])
 
     assert isinstance(store.value.value, tvm.tirx.expr.FloatImm)
 

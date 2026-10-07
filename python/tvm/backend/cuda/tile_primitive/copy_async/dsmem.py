@@ -22,7 +22,7 @@ import operator
 
 import tvm
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, Var
+from tvm.tirx import Function, Var
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
     fail,
@@ -44,7 +44,7 @@ def _is_shared_to_shared(op_call: TilePrimitiveCall) -> bool:
     return src_scope.startswith("shared") and dst_scope.startswith("shared")
 
 
-def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     """Implement shared-to-shared cross-CTA copy using cp.async.bulk.
 
     Uses cp.async.bulk.shared::cluster.shared::cta.mbarrier::complete_tx::bytes
@@ -145,7 +145,7 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
     dst_tile = to_tile_layout(dst_buf.layout, dst_buf.shape)
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         # Map mbar to remote CTA (complete_tx targets the destination's mbar).
         # mapa writes its result into a declared register, so the mapped
@@ -230,5 +230,5 @@ def copy_dsmem_impl(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFu
         ),
     ],
 )
-def copy_async_dispatch_dsmem(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_async_dispatch_dsmem(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return copy_dsmem_impl(op, sctx)

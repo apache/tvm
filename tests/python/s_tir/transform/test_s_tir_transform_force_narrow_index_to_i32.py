@@ -30,7 +30,7 @@ def _narrow(func):
 
 
 def test_block():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         for i in T.serial(0, T.int64(16)):
             for j in T.serial(0, T.int64(8)):
@@ -38,7 +38,7 @@ def test_block():
                     vi = Ts.axis.spatial(T.int64(128), i * T.int64(8) + j)
                     B[vi] = A[vi] + T.float32(1)
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         for i in T.serial(0, T.int32(16)):
             for j in T.serial(0, T.int32(8)):
@@ -52,7 +52,7 @@ def test_block():
 def test_block_iters_used_only_in_regions():
     """Blockized blocks use their iterators only in access and match_buffer regions."""
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
         A: T.Tensor((T.int64(16), T.int64(16)), "float32"),
         B: T.Tensor((T.int64(16), T.int64(16)), "float32"),
@@ -93,7 +93,7 @@ def test_block_iters_used_only_in_regions():
                         vi_i, vj_i = Ts.axis.remap("SS", [i_i, j_i])
                         B_tile[vi_i, vj_i] = A_tile[vi_i, vj_i] + T.float32(1)
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")):
         for i_o, j_o in T.grid(2, 2):
             with Ts.sblock("tile_o"):
@@ -115,7 +115,7 @@ def test_block_iters_used_only_in_regions():
 
 
 def test_fail_on_buffer_param():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def func(A: T.Tensor((128,), "int64"), B: T.Tensor((128,), "int64")):
         for i in T.serial(0, 16):
             for j in T.serial(0, 8):
@@ -128,7 +128,7 @@ def test_fail_on_buffer_param():
 
 
 def test_fail_on_block_alloc_buffer():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def func(A: T.Tensor((128,), "int32"), B: T.Tensor((128,), "int32")):
         C = Ts.sblock_alloc_buffer((128,), "int64")
         for i in T.serial(0, 16):
@@ -152,7 +152,7 @@ def test_metal_simdgroup_matmul_builds():
 
     n = T.dynamic("n")
 
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((T.int64(1), n, T.int64(256)), "float16"),
         B: T.Tensor((T.int64(256), T.int64(256)), "float16"),

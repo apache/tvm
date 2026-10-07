@@ -237,7 +237,7 @@ def test_gemm_tcgen05_cta_group_1(task):
     r_smem_B = list(slice(B_region[i][0], B_region[i][1]) for i in range(len(B_shape)))
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async(
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
@@ -364,7 +364,7 @@ def test_gemm_tcgen05_cta_group_1_layout_f_m64():
     c_layout = tmem_datapath_layout("F", 64, N)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_layout_f(
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
@@ -513,7 +513,7 @@ def test_gemm_tcgen05_cta_group_2(task):
     r_smem_B = list(slice(B_region[i][0], B_region[i][1]) for i in range(len(B_shape)))
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async(
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
@@ -682,7 +682,7 @@ def test_gemm_tcgen05_cta_group_2_layout_b():
     total_bytes = per_cta_bytes * 2
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async(
         A: T.Tensor((M_per_cta * 2, K), A_dtype),
         B: T.Tensor((N_logical, K), B_dtype),
@@ -840,7 +840,7 @@ def test_gemm_tcgen05_cta_group_2_datapath_b_readback():
     b_layout = mma_shared_layout(b_dtype, 3, b_shape)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async(
         A: T.Tensor((m_per_cta * 2, k), input_dtype),
         B: T.Tensor((n_logical, k), input_dtype),
@@ -1024,7 +1024,7 @@ def test_gemm_block_scaled_fp8_cta_group_1(task):
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async_fn(A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((128,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
         T.device_entry()
@@ -1220,7 +1220,7 @@ def test_gemm_block_scaled_fp8_cta_group_2(task):
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async_fn(A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((M_total,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
         T.device_entry()
@@ -1418,7 +1418,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_1():
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async_fn(A_packed: T.Tensor(A_packed_shape, 'uint8'), B_packed: T.Tensor(B_packed_shape, 'uint8'), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((128,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
         T.device_entry()
@@ -1598,7 +1598,7 @@ def test_gemm_block_scaled_nvfp4_cta_group_2():
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async_fn(A_packed: T.Tensor(A_packed_shape, 'uint8'), B_packed: T.Tensor(B_packed_shape, 'uint8'), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((M_total,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
         T.device_entry()
@@ -1807,7 +1807,7 @@ def test_gemm_block_scaled_fp8_sf_id():
     SF_smem_post_layout = TileLayout(S[(4, 32) : (1, 4)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async_fn(A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype), SFA_in: T.Tensor((128,), 'uint32'), SFB_in: T.Tensor((128,), 'uint32')) -> None:  # noqa: E501
 
         T.device_entry()
@@ -2155,7 +2155,7 @@ def test_gemm_tcgen05_arbitrary_tiles(task):
     B_gmem_kw = {"layout": B_gmem_layout} if B_gmem_layout is not None else {}
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async(
         A: T.Tensor(A_shape, A_dtype, **A_gmem_kw),
         B: T.Tensor(B_shape, B_dtype, **B_gmem_kw),
@@ -2287,7 +2287,7 @@ def test_gemm_tcgen05_no_swizzle_smem_descriptor_codegen(a_layout_kind):
     B_layout = _mn_major_layout(dtype, SwizzleMode.SWIZZLE_128B_ATOM, (K, B_N))
     C_layout = TileLayout(S[(M, 2, N // 2) : (1 @ TLane, 64 @ TLane, 1 @ TCol)])
 
-    @T.prim_func
+    @T.function
     def gemm_async_no_swizzle(
         A: T.Tensor((M, K), dtype, layout=A_layout), B: T.Tensor((K, B_N), dtype, layout=B_layout)
     ) -> None:
@@ -2349,7 +2349,7 @@ def test_gemm_tcgen05_cta_group_2_accepts_replicated_tmem_a_codegen():
     A_layout = TileLayout(S[(M, K) : (1 @ TLane, 1 @ TCol)] + R[2 : 64 @ TLane])
     B_layout = mma_shared_layout(dtype, SwizzleMode.SWIZZLE_128B_ATOM, (N_half, K))
 
-    @T.prim_func
+    @T.function
     def gemm_async_replicated_a() -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
@@ -2411,7 +2411,7 @@ def test_gemm_tcgen05_cta_group_2_rejects_flat_tmem_a_codegen():
     A_layout = TileLayout(S[(M, K) : (1 @ TLane, 1 @ TCol)])
     B_layout = mma_shared_layout(dtype, SwizzleMode.SWIZZLE_128B_ATOM, (N_half, K))
 
-    @T.prim_func
+    @T.function
     def gemm_async_flat_a() -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
@@ -2485,7 +2485,7 @@ def test_gemm_tcgen05_no_swizzle_col_major_a_ws_local_idesc():
     B_layout = mma_shared_layout(dtype, SwizzleMode.SWIZZLE_128B_ATOM, (K, N))
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_ws(
         A: T.Tensor((M, K), dtype),
         B: T.Tensor((K, N), dtype),
@@ -2618,7 +2618,7 @@ def test_gemm_tcgen05_contiguous_kslice_partial_k(k_lo, k_hi):
     total_bytes = (M * K_alloc + N * K_alloc) * 2
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async(
         A: T.Tensor(A_shape, dtype), B: T.Tensor(B_shape, dtype), C: T.Tensor(C_shape, "float32")
     ) -> None:
@@ -2720,7 +2720,7 @@ def _run_dense_gemm(
     if tma_dtype_B is not None:
         b_tma_kw["tma_dtype"] = tma_dtype_B
 
-    @T.prim_func
+    @T.function
     def gemm_async(
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
@@ -2843,7 +2843,7 @@ def _run_dense_gemm(
     if tma_dtype_B is not None:
         b_tma_kw["tma_dtype"] = tma_dtype_B
 
-    @T.prim_func
+    @T.function
     def gemm_async(
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
@@ -2938,7 +2938,7 @@ def _build_smem_desc_kernel(smem_desc, weight_stationary=False, pass_descI=False
     r_smem_B = [slice(2, 3), slice(0, 128), slice(0, 64)]
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def gemm_async(
         A: T.Tensor(A_shape, A_dtype), B: T.Tensor(B_shape, B_dtype), C: T.Tensor(C_shape, C_dtype)
     ) -> None:
@@ -3048,7 +3048,7 @@ def _build_explicit_cta2_dense_kernel(M_per_cta, mma_m):
         C_layout = TileLayout(S[(M_per_cta, N) : (1 @ TLane, 1 @ TCol)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def kernel() -> None:
         T.device_entry()
         cta_id = T.cta_id([2])
@@ -3076,7 +3076,7 @@ def _build_explicit_block_scaled_split_n_kernel():
     sf_layout = sf_tmem_layout(M, SF_K=1, sf_per_mma=1)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def kernel() -> None:
         T.device_entry()
         cta_id = T.cta_id([2])
@@ -3288,7 +3288,7 @@ def _build_cta1_m64_packed_c_kernel(weight_stationary=None, mma_config=None):
     B_layout = mma_shared_layout(B_dtype, SwizzleMode.SWIZZLE_32B_ATOM, (N, K))
     C_layout = TileLayout(S[(M, 2, N // 2) : (1 @ TLane, 64 @ TLane, 1 @ TCol)])
 
-    @T.prim_func
+    @T.function
     def gemm_packed_c(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
@@ -3376,7 +3376,7 @@ def _build_cta1_m64_batched_c_kernel():
     B_layout = mma_shared_layout(B_dtype, SwizzleMode.SWIZZLE_32B_ATOM, (N, K))
     C_layout = TileLayout(S[(2, M, N // 2) : (64 @ TLane, 1 @ TLane, 1 @ TCol)])
 
-    @T.prim_func
+    @T.function
     def gemm_batched_c(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
@@ -3429,7 +3429,7 @@ def _build_cta1_m64_identity_c_ws_kernel():
     B_dtype = "bfloat16"
     B_layout = mma_shared_layout(B_dtype, SwizzleMode.SWIZZLE_32B_ATOM, (N, K))
 
-    @T.prim_func
+    @T.function
     def gemm_identity_c(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
@@ -3496,7 +3496,7 @@ def _build_cta1_m64_flat_a_ws_kernel():
     B_layout = mma_shared_layout(B_dtype, SwizzleMode.SWIZZLE_32B_ATOM, (N, K))
     C_layout = TileLayout(S[(M, 2, N // 2) : (1 @ TLane, 64 @ TLane, 1 @ TCol)])
 
-    @T.prim_func
+    @T.function
     def gemm_flat_a(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
@@ -3563,7 +3563,7 @@ def _build_m128_batched_a_kernel():
     B_dtype = "bfloat16"
     B_layout = mma_shared_layout(B_dtype, SwizzleMode.SWIZZLE_32B_ATOM, (N, K))
 
-    @T.prim_func
+    @T.function
     def gemm_m128_batched_a(B: T.Tensor((N, K), B_dtype)) -> None:
         T.device_entry()
         warp_id = T.warp_id([4])
@@ -3834,8 +3834,13 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     sctx = DispatchContext(target, ExecScope("thread"), {}, {}, scope_kind="thread")
     script = gemm_async_tcgen05_impl(call, sctx).script()
 
-    assert "T.cuda.get_tmem_addr(T.uint32(256), 1, 0)" in script
-    assert "T.cuda.get_tmem_addr(T.uint32(320), 2, 0)" in script
+    # Check the addresses consumed by MMA, rather than the former unused
+    # initial-address operands of the instruction descriptor encoder.
+    assert "sfa_linear % 128 // 4 + 1" in script
+    assert "sfb_linear % 128 // 4 + 2" in script
+    assert "T.cuda.get_tmem_addr(T.uint32(256), sfa_tlane, sfa_tcol // 4)" in script
+    assert "T.cuda.get_tmem_addr(T.uint32(320), sfb_tlane, sfb_tcol // 4)" in script
+    assert "descI_local, sfa_addr, sfb_addr, should_accum" in script
 
 
 @pytest.mark.parametrize(

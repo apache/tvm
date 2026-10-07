@@ -54,9 +54,9 @@ ffi::Array<StmtSRef> GetSBlocks(const ScheduleState& self, const ffi::String& na
   };
 
   BaseFunc func = self->mod->Lookup(gv);
-  const auto* prim_func = TVM_TYPE_AS(func, PrimFuncNode);
+  const auto* function = TVM_TYPE_AS(func, FunctionNode);
   auto finder = ffi::make_object<Finder>(self, name);
-  finder->Visit(prim_func->body);
+  finder->Visit(function->body);
   return std::move(finder->results_);
 }
 

@@ -76,7 +76,7 @@ divisible by ``32``, so this falls through to ``fallback`` (from
     full = (slice(0, 4), slice(0, 6))
 
 
-    @Tx.prim_func
+    @Tx.function
     def kernel(A: Tx.Tensor(shape, dtype), B: Tx.Tensor(shape, dtype)):
 
         Tx.device_entry()

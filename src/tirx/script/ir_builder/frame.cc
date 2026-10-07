@@ -38,7 +38,7 @@ namespace tirx {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   TIRFrameNode::RegisterReflection();
-  PrimFuncFrameNode::RegisterReflection();
+  FunctionFrameNode::RegisterReflection();
   ForFrameNode::RegisterReflection();
   AssertFrameNode::RegisterReflection();
   RegionFrameNode::RegisterReflection();
@@ -46,22 +46,21 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   IfFrameNode::RegisterReflection();
   ThenFrameNode::RegisterReflection();
   ElseFrameNode::RegisterReflection();
-  DeclTensorFrameNode::RegisterReflection();
 }
 
 namespace {
-std::map<ffi::String, PrimFuncFrameNode::AttrValidator>& AttrValidators() {
-  static std::map<ffi::String, PrimFuncFrameNode::AttrValidator> validators;
+std::map<ffi::String, FunctionFrameNode::AttrValidator>& AttrValidators() {
+  static std::map<ffi::String, FunctionFrameNode::AttrValidator> validators;
   return validators;
 }
 }  // namespace
 
-void PrimFuncFrameNode::RegisterAttrValidator(ffi::String key, AttrValidator validator) {
+void FunctionFrameNode::RegisterAttrValidator(ffi::String key, AttrValidator validator) {
   TVM_FFI_ICHECK(AttrValidators().emplace(std::move(key), std::move(validator)).second)
       << "Duplicate function attribute validator";
 }
 
-void PrimFuncFrameNode::ValidateAttrs() const {
+void FunctionFrameNode::ValidateAttrs() const {
   for (const auto& [key, value] : attrs) {
     auto it = AttrValidators().find(key);
     if (it != AttrValidators().end()) it->second(this, value);
@@ -72,12 +71,12 @@ void TIRFrameNode::BindBufferRegion(tvm::tirx::TensorVar buffer, tvm::TensorRegi
   TVM_FFI_THROW(ValueError) << "match_buffer requires a frame that supports region aliases";
 }
 
-tvm::tirx::PrimFunc PrimFuncFrameNode::FinalizeFunction(tvm::tirx::PrimFunc func) { return func; }
+tvm::tirx::Function FunctionFrameNode::FinalizeFunction(tvm::tirx::Function func) { return func; }
 
-void PrimFuncFrameNode::ExitWithScope() {
+void FunctionFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   ValidateAttrs();
-  // if the prim func is not private and there isn't already a global symbol,
+  // if the function is not private and there isn't already a global symbol,
   // add a global symbol
   auto insert_attr = [&](ffi::String key, ffi::Any value) {
     if (!attrs.defined()) {
@@ -105,7 +104,7 @@ void PrimFuncFrameNode::ExitWithScope() {
       << "A function declaration cannot contain body statements";
   ffi::Optional<tvm::tirx::Stmt> body = std::nullopt;
   if (!is_declaration) body = AsStmt(stmts);
-  tvm::tirx::PrimFunc func(
+  tvm::tirx::Function func(
       /*params=*/args,
       /*body=*/body,
       /*ret_type=*/ret_type.value_or(TupleType::Empty()),
@@ -139,7 +138,7 @@ void PrimFuncFrameNode::ExitWithScope() {
       ir::DefFunction(func_name, func);
     }
   } else {
-    TVM_FFI_THROW(ValueError) << "Cannot find where to insert PrimFunc";
+    TVM_FFI_THROW(ValueError) << "Cannot find where to insert Function";
   }
   is_declaration = false;
 }
@@ -269,35 +268,6 @@ void ElseFrameNode::EnterWithScope() {
 void ElseFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   FindIfFrame("T.else_")->else_stmts = stmts;
-}
-
-void DeclTensorFrameNode::ExitWithScope() {
-  TIRFrameNode::ExitWithScope();
-  if (allocated) {
-    TVM_FFI_ICHECK(data.has_value());
-    AddToParent(tvm::tirx::SeqStmt::Flatten(
-                    tvm::tirx::Bind(buffer,
-                                    tvm::Call(buffer.type(), tvm::tirx::decl_tensor_op(),
-                                              {data.value(), tvm::Tuple(buffer->shape),
-                                               tvm::DataTypeImm(buffer->dtype->dtype),
-                                               tvm::StringImm(buffer.scope())},
-                                              {}, {}, source_span),
-                                    source_span),
-                    AsStmt(stmts)),
-                source_span);
-  } else {
-    // data is undefined in `decl_tensor(...)`, lower to `alloc_tensor(...)`.
-    AddToParent(
-        tvm::tirx::SeqStmt::Flatten(
-            tvm::tirx::Bind(buffer.var(),
-                            Call(buffer.type(), tvm::tirx::alloc_tensor_op(),
-                                 {tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
-                                  StringImm(buffer.scope())},
-                                 DictAttrs(), {}, source_span),
-                            source_span),
-            AsStmt(stmts)),
-        source_span);
-  }
 }
 
 }  // namespace tirx

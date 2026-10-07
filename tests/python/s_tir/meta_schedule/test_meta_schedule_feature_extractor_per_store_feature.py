@@ -32,7 +32,7 @@ from tvm.script import tirx as T
 N_FEATURES = 164
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(
     A: T.Tensor((512, 512), "float32"),
     B: T.Tensor((512, 512), "float32"),
@@ -58,7 +58,7 @@ def matmul(
 # from tvm.script import tirx as T
 @tvm.script.ir_module
 class LayoutTransform:
-    @Ts.prim_func
+    @Ts.function
     def main(placeholder: T.Tensor((1, 16, 7, 7, 32), "float32"), placeholder_1: T.Tensor((25088,), "float32"), T_layout_trans: T.Tensor((1, 1, 7, 7, 512), "float32")) -> None:
         # function attr dict
         T.func_attr({"tirx.noalias": True, "global_symbol": "main"})
@@ -417,7 +417,7 @@ def test_cpu_matmul():
 
 def test_cpu_fusion():
     # pylint: disable=all
-    @Ts.prim_func
+    @Ts.function
     def func(
         A: T.Tensor([64, 32], dtype="float32"),
         B: T.Tensor([64, 32], dtype="float32"),
@@ -448,7 +448,7 @@ def test_cpu_fusion():
     )
     feature = feature.numpy()
     assert feature.shape == (2, N_FEATURES)
-    ## Features for BufferStore(B)
+    ## Features for TensorStore(B)
     f = feature[0]
     # Group 1.1: arith
     assert_allclose(
@@ -580,7 +580,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    ## Features for BufferStore(C)
+    ## Features for TensorStore(C)
     f = feature[1]
     # Group 1.1: arith
     assert_allclose(
@@ -715,7 +715,7 @@ def test_cpu_fusion():
 
 
 def test_empty_feature():
-    @Ts.prim_func
+    @Ts.function
     def full(T_full: T.Tensor((T.int64(2), T.int64(3)), "float32")):
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
             with Ts.sblock("T_full"):
@@ -795,7 +795,7 @@ def test_gpu():
     )
     feature = feature.numpy()
     assert feature.shape == (4, N_FEATURES)
-    ### Check feature[0]: BufferStore(A_shared) <= A[...]
+    ### Check feature[0]: TensorStore(A_shared) <= A[...]
     f = feature[0]
     # Group 1.1: arith
     assert_allclose(
@@ -1001,7 +1001,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    ### Check feature[1]: BufferStore(B_shared) <= B[...]
+    ### Check feature[1]: TensorStore(B_shared) <= B[...]
     f = feature[1]
     # Group 1.1: arith
     assert_allclose(
@@ -1207,7 +1207,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    ### Check feature[2]: BufferStore(C_local) <= C_local[...] + A_shared[...] * B_shared[...]
+    ### Check feature[2]: TensorStore(C_local) <= C_local[...] + A_shared[...] * B_shared[...]
     f = feature[2]
     # Group 1.1: arith
     assert_allclose(
@@ -1427,7 +1427,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    ### Check feature[3]: BufferStore(C) <= C_local[...]
+    ### Check feature[3]: TensorStore(C) <= C_local[...]
     f = feature[3]
     # Group 1.1: arith
     assert_allclose(
@@ -1626,7 +1626,7 @@ def test_cpu_layout_transform():
     )
 
 
-@Ts.prim_func
+@Ts.function
 def negative_extent(A: T.Tensor((1,), "float32")):
     for j in range(0, -1):
         A[j] = A[j] + 1.0

@@ -37,7 +37,7 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
         if not tvm.get_global_func("tvm.contrib.hipblas.matmul", True):
             print("skip because extern function is not available")
             return
-        f = tvm.compile(te.create_prim_func([A, B, C]), target=target)
+        f = tvm.compile(te.create_function([A, B, C]), target=target)
 
         def run_and_check():
             dev = tvm.rocm(0)
@@ -65,7 +65,7 @@ def verify_batch_matmul(Ashape, Bshape, Cshape, in_dtype, out_dtype, rtol=1e-5):
     B = te.placeholder(Bshape, name="B", dtype=in_dtype)
     C = hipblas.batch_matmul(A, B, dtype=out_dtype)
 
-    f = tvm.compile(te.create_prim_func([A, B, C]), target="rocm")
+    f = tvm.compile(te.create_function([A, B, C]), target="rocm")
 
     def run_and_check():
         dev = tvm.rocm(0)

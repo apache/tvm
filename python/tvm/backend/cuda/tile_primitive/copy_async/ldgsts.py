@@ -43,7 +43,7 @@ async pipeline.
 
 from tvm.runtime import DataType
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, Var
+from tvm.tirx import Function, Var
 from tvm.tirx.expr import IntImm as _IntImm
 from tvm.tirx.operator.tile_primitive.dispatcher import (
     predicate,
@@ -140,7 +140,7 @@ def _is_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> tuple[bool,
     return True, None
 
 
-def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     op_call = TilePrimitiveCall.downcast(op_call)
     src: Var = op_call.src.source
     dst: Var = op_call.dst.source
@@ -173,7 +173,7 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
         s_start = [r.min for r in s_br.region]
         g_start = [r.min for r in g_br.region]
 
-        @T.prim_func(check_well_formed=False)
+        @T.function(check_well_formed=False)
         def impl():
             _emit_cp_async(
                 s_buf.ptr_to(s_start),
@@ -246,7 +246,7 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     v0 = _IntImm("int32", 0)
 
     # fmt: off
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         tid = _decl_tid()
         for f in T.unroll(total_outer):
@@ -268,5 +268,5 @@ def _emit_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
     priority=20,
     when=[predicate("ldgsts_applicable", _is_ldgsts)],
 )
-def copy_schedule_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def copy_schedule_ldgsts(op_call: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return _emit_ldgsts(op_call, sctx)

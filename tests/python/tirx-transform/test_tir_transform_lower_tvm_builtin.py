@@ -33,7 +33,7 @@ def my_matmul(a, b, c):
 def test_lower_call_packed():
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((64, 64), "float32"),
             B: T.Tensor((64, 64), "float32"),
@@ -45,7 +45,7 @@ def test_lower_call_packed():
 
     @I.ir_module(check_well_formed=False)
     class Expected:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((64, 64), "float32"),
             B: T.Tensor((64, 64), "float32"),
@@ -121,14 +121,14 @@ def test_lower_call_packed_raw_string(call):
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr({"target": tvm.target.Target("llvm")})
             T.evaluate(invoke("testing.echo", "payload"))
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr({"target": tvm.target.Target("llvm")})
             stack_ffi_any: T.let[T.handle] = T.tvm_stack_alloca("tvm_ffi_any", 2)
@@ -162,20 +162,20 @@ def test_call_packed_return_non_i32():
 
         # Build statements using direct TIR construction (no ir_builder)
         # 1. Store packed_echo(const) result into Ab[0]
-        store0 = tvm.tirx.BufferStore(
+        store0 = tvm.tirx.TensorStore(
             Ab, packed_echo(tvm.tirx.const(expected_value[0], "float32")), [0]
         )
 
         # 2. Let binding: Aptr_dup = packed_echo(Ab.data), then store const into Ab[1]
         Aptr_dup = tvm.tirx.Var("Aptr_dup", Ab.data.ty)
-        store1 = tvm.tirx.BufferStore(Ab, tvm.tirx.const(expected_value[1], "float32"), [1])
+        store1 = tvm.tirx.TensorStore(Ab, tvm.tirx.const(expected_value[1], "float32"), [1])
         bind_stmt = tvm.tirx.Bind(Aptr_dup, packed_echo(Ab.data))
 
         # Combine into sequence
         stmt = tvm.tirx.SeqStmt([store0, bind_stmt, store1])
 
         return tvm.IRModule.from_expr(
-            tvm.tirx.PrimFunc([Ab], stmt).with_attr("global_symbol", "packed_test")
+            tvm.tirx.Function([Ab], stmt).with_attr("global_symbol", "packed_test")
         )
 
     mod = build_tir()
@@ -186,7 +186,7 @@ def test_call_packed_return_non_i32():
 
 
 def test_lower_overflow_int32():
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def variance4(rxplaceholder: T.Tensor((T.int64(1), T.int64(32), T.int64(25690112)), "float32")):
         T.func_attr({"global_symbol": "variance4", "tirx.noalias": True})
         rxplaceholder_red = T.alloc_tensor((32,), "float32")
@@ -215,7 +215,7 @@ def test_lower_device_allocate():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr({"target": T.target("llvm")})
             with T.device_context(2, 0):  # kDLCuda
@@ -238,7 +238,7 @@ def test_lower_cpu_allocation():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr({"target": T.target("llvm")})
             with T.device_context(1, 0):  # kDLCPU
@@ -248,7 +248,7 @@ def test_lower_cpu_allocation():
 
     @I.ir_module
     class Expected:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr({"target": T.target("llvm")})
             ptr = T.alloc_tensor((16,), "float32")
@@ -264,7 +264,7 @@ def test_lower_allocate_requires_device_id():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr({"target": T.target("cuda"), "tirx.is_host_func": True})
             ptr = T.alloc_tensor((16,), "float32")
@@ -287,7 +287,7 @@ def test_lower_allocate_requires_device_type():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr({"tirx.is_host_func": True})
             ptr = T.alloc_tensor((1024 * 1024,), "float32")
@@ -309,7 +309,7 @@ def test_lower_cpu_alloc_with_function_attr():
 
     @I.ir_module
     class Before:
-        @T.prim_func
+        @T.function
         def main():
             T.func_attr({"target": T.target("llvm")})
             ptr = T.alloc_tensor((16,), "float32")

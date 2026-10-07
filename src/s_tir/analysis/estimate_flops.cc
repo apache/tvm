@@ -171,7 +171,7 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
     for (const Expr& arg : op->args) result += Dispatch(arg);
     return result;
   }
-  TResult Dispatch_(const BufferStoreNode* store) override { return Dispatch(store->value); }
+  TResult Dispatch_(const TensorStoreNode* store) override { return Dispatch(store->value); }
   TResult Dispatch_(const SBlockRealizeNode* block) override {
     return Dispatch(block->block->body);
   }
@@ -265,7 +265,7 @@ double EstimateTIRFlops(const IRModule& mod) {
   FlopEstimator counter;
   TResult result;
   double cached_result = 0;
-  VisitPrimFuncs(mod, [&result, &counter, &cached_result](const PrimFuncNode* f) {
+  VisitFunctions(mod, [&result, &counter, &cached_result](const FunctionNode* f) {
     if (auto cached = f->attrs.GetAttr<int64_t>("estimated_flops")) {
       cached_result += cached.value();
     } else {

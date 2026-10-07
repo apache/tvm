@@ -39,7 +39,7 @@ def test_redistribute_replica_to_shard():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def strided_slice(A: T.Tensor((T.int64(10), T.int64(10)), "float32"), worker_id: T.int64, redistribute_replica_to_shard: T.Tensor((T.int64(10), T.int64(5)), "float32")):
             T.func_attr({"tirx.noalias": True})
             # with Ts.sblock("root"):

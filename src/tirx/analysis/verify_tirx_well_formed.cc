@@ -143,7 +143,7 @@ class DeviceFuncVerifier : public Verifier<DeviceFuncVerifier> {
   using Verifier::Visit;
 };
 
-bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode, bool device_func) {
+bool VerifyTIRxWellFormed(const Function& func, bool assert_mode, bool device_func) {
   if (!ExecScopeVerifier::Verify(func, assert_mode)) {
     return false;
   }
@@ -166,8 +166,8 @@ bool VerifyTIRxWellFormed(const PrimFunc& func, bool assert_mode, bool device_fu
 
 bool VerifyTIRxWellFormed(const IRModule& mod, bool assert_mode, bool device_func) {
   for (const auto& [gvar, base_func] : mod->functions) {
-    if (auto prim_func = base_func.as<PrimFunc>()) {
-      bool res = VerifyTIRxWellFormed(prim_func.value(), assert_mode, device_func);
+    if (auto function = base_func.as<Function>()) {
+      bool res = VerifyTIRxWellFormed(function.value(), assert_mode, device_func);
       if (!res) {
         return false;
       }
@@ -180,12 +180,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("tirx.analysis.VerifyTIRxWellFormed",
                         [](const ffi::ObjectRef& obj, bool assert_mode, bool device_func) {
-                          if (auto n = obj.as<PrimFunc>()) {
+                          if (auto n = obj.as<Function>()) {
                             return VerifyTIRxWellFormed(n.value(), assert_mode, device_func);
                           } else if (auto n = obj.as<IRModule>()) {
                             return VerifyTIRxWellFormed(n.value(), assert_mode, device_func);
                           } else {
-                            LOG(FATAL) << "Expects PrimFunc or IRModule,  but get "
+                            LOG(FATAL) << "Expects Function or IRModule,  but get "
                                        << obj->GetTypeKey() << " instead.";
                             return false;
                           }

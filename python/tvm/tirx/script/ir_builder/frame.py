@@ -31,8 +31,8 @@ from . import _ffi_api
 class TIRFrame(IRBuilderFrame): ...
 
 
-@_register_object("script.ir_builder.tirx.PrimFuncFrame")
-class PrimFuncFrame(TIRFrame):
+@_register_object("script.ir_builder.tirx.FunctionFrame")
+class FunctionFrame(TIRFrame):
     """Native function frame retaining signature and finalized results."""
 
     def default_buffer_layout(self, shape, scope):
@@ -82,13 +82,6 @@ class ThenFrame(TIRFrame): ...
 
 @_register_object("script.ir_builder.tirx.ElseFrame")
 class ElseFrame(TIRFrame): ...
-
-
-@_register_object("script.ir_builder.tirx.DeclTensorFrame")
-class DeclTensorFrame(TIRFrame):
-    def __enter__(self) -> Var:
-        super().__enter__()
-        return self.buffer
 
 
 @_register_object("script.ir_builder.tirx.RegionFrame")

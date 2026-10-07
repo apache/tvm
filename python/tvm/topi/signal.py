@@ -90,18 +90,18 @@ def stft(
                 with col_loop(0, output_ptr.shape[2]) as col:
                     batch = tirx.floordiv(batch_row, output_ptr.shape[1])
                     row = tirx.floormod(batch_row, output_ptr.shape[1])
-                    T.buffer_store(
+                    T.tensor_store(
                         output,
                         tirx.Cast(data_ptr.dtype, 0),
                         (batch, row, col, 0),
                     )
-                    T.buffer_store(
+                    T.tensor_store(
                         output,
                         tirx.Cast(data_ptr.dtype, 0),
                         (batch, row, col, 1),
                     )
                     with T.serial(0, win_length) as wlen:
-                        T.buffer_store(
+                        T.tensor_store(
                             output,
                             output[(batch, row, col, 0)]
                             + (
@@ -111,7 +111,7 @@ def stft(
                             ),
                             (batch, row, col, 0),
                         )
-                        T.buffer_store(
+                        T.tensor_store(
                             output,
                             output[(batch, row, col, 1)]
                             - (
@@ -123,13 +123,13 @@ def stft(
                         )
                     with T.if_(normalized):
                         with T.then_():
-                            T.buffer_store(
+                            T.tensor_store(
                                 output,
                                 output[(batch, row, col, 0)]
                                 / (tirx.sqrt(tirx.const(n_fft, "float32"))),
                                 (batch, row, col, 0),
                             )
-                            T.buffer_store(
+                            T.tensor_store(
                                 output,
                                 output[(batch, row, col, 1)]
                                 / (tirx.sqrt(tirx.const(n_fft, "float32"))),
@@ -210,12 +210,12 @@ def dft(
                 base_idx = i * n_fft
                 with T.serial(0, n_fft) as n:
                     n_idx = base_idx + n
-                    T.buffer_store(
+                    T.tensor_store(
                         re_output_ptr,
                         tirx.Cast(re_output_ptr.dtype, 0),
                         T.tensor_indices(re_output_ptr, n_idx),
                     )
-                    T.buffer_store(
+                    T.tensor_store(
                         im_output_ptr,
                         tirx.Cast(im_output_ptr.dtype, 0),
                         T.tensor_indices(im_output_ptr, n_idx),
@@ -226,7 +226,7 @@ def dft(
                         w = _w * k
                         cos_w = tirx.Cast(re_output_ptr.dtype, tirx.cos(w))
                         sin_w = tirx.Cast(re_output_ptr.dtype, tirx.sin(w))
-                        T.buffer_store(
+                        T.tensor_store(
                             re_output_ptr,
                             re_output_ptr[T.tensor_indices(re_output_ptr, n_idx)]
                             + (
@@ -235,7 +235,7 @@ def dft(
                             ),
                             T.tensor_indices(re_output_ptr, n_idx),
                         )
-                        T.buffer_store(
+                        T.tensor_store(
                             im_output_ptr,
                             im_output_ptr[T.tensor_indices(im_output_ptr, n_idx)]
                             + (
@@ -245,13 +245,13 @@ def dft(
                             T.tensor_indices(im_output_ptr, n_idx),
                         )
 
-                    T.buffer_store(
+                    T.tensor_store(
                         re_output_ptr,
                         re_output_ptr[T.tensor_indices(re_output_ptr, n_idx)]
                         * (tirx.Cast(re_output_ptr.dtype, factor)),
                         T.tensor_indices(re_output_ptr, n_idx),
                     )
-                    T.buffer_store(
+                    T.tensor_store(
                         im_output_ptr,
                         im_output_ptr[T.tensor_indices(im_output_ptr, n_idx)]
                         * (tirx.Cast(im_output_ptr.dtype, factor)),

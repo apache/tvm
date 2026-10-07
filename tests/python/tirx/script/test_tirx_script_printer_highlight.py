@@ -25,7 +25,7 @@ from tvm.script import tirx as T
 def test_highlight_script():
     @tvm.script.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(  # type: ignore
             A: T.Tensor([16, 128, 128]),
             B: T.Tensor([16, 128, 128]),

@@ -201,7 +201,7 @@ def test_tirx_jit_specializes_captured_shape_and_value():
         for index in range(width):
             output[index] = value
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(output: T.Tensor((4,), "int32")):
         for index in range(4):
             output[index] = 3

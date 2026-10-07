@@ -193,12 +193,12 @@ class BufferReplacer : public StmtExprMutator {
     return replacement ? MakeTensorLoad(replacement.value(), {0}) : ffi::GetRef<TensorLoad>(load);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* store, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* store, InplaceMode inplace_mode) final {
     if (auto replacement = VarRemapGet(store->buffer).as<TensorVar>()) {
       PrimExpr value = StmtExprMutator::Mutate(ffi::AnyView(store->value), inplace_mode)
                            .ValueOrUnchanged(store->value)
                            .as_or_throw<PrimExpr>();
-      return BufferStore(replacement.value(), std::move(value), {0});
+      return TensorStore(replacement.value(), std::move(value), {0});
     } else {
       return StmtExprMutator::Mutate_(store, inplace_mode);
     }
@@ -374,7 +374,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
     inits.reserve(n_buffers);
     for (int i = 0; i < n_buffers; ++i) {
       inits.push_back(
-          BufferStore(it_buffers.value()[i], reducer->identity_element[i], {IntImm::Int32(0)}));
+          TensorStore(it_buffers.value()[i], reducer->identity_element[i], {IntImm::Int32(0)}));
     }
     stmts.push_back(SBlockRealize(/*iter_values=*/{},
                                   /*predicate=*/IntImm::Bool(true),
@@ -516,7 +516,7 @@ Stmt TransformReductionBlock(const SBlockRealizeNode* realize,                  
                                .as_or_throw<PrimExpr>());
     }
     for (int i = 0; i < n_buffers; ++i) {
-      wb_updates.push_back(BufferStore(
+      wb_updates.push_back(TensorStore(
           wb_buffers[i], MakeTensorLoad(ct_buffers[i], {IntImm::Int32(0)}), wb_indices));
       wb_regions.push_back(BufferRegion(wb_buffers[i], region));
     }
@@ -733,11 +733,11 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
       }
     }
 
-    // Condition 3. Get the identity values of the block init and the BufferStore block combiner
+    // Condition 3. Get the identity values of the block init and the TensorStore block combiner
     // updates of the reduction. Extract the commutative reducer, combiner lhs and combiner rhs from
     // the reduction identities and the reduction combiner.
     ffi::Array<PrimExpr> init_values{nullptr};
-    ffi::Array<BufferStore> updates{nullptr};
+    ffi::Array<TensorStore> updates{nullptr};
     te::CommReducer reducer{nullptr};
     ffi::Array<PrimExpr> combiner_lhs{nullptr};
     ffi::Array<PrimExpr> combiner_rhs{nullptr};
@@ -750,7 +750,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     int is_local_buf = -1;
     ffi::Array<TensorVar> reduction_buffers;
     reduction_buffers.reserve(updates.size());
-    for (const BufferStore& buf_store : updates) {
+    for (const TensorStore& buf_store : updates) {
       reduction_buffers.push_back(buf_store->buffer);
       if (buf_store->buffer.scope() == "local") {
         TVM_FFI_CHECK_NE(is_local_buf, 0, ValueError)
@@ -995,14 +995,14 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
 namespace transform {
 
 Pass LowerCrossThreadReduction() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
+    FunctionNode* fptr = f.CopyOnWrite();
     fptr->body = ffi::make_object<CrossThreadReductionTransformer>()
                      ->Mutate(fptr->body)
                      .ValueOrUnchanged(fptr->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.LowerCrossThreadReduction", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.LowerCrossThreadReduction", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

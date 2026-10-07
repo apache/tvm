@@ -33,7 +33,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
     for i, j in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -41,7 +41,7 @@ def element_wise(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
             B[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_parallelized(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
     for i0 in T.parallel(0, 128):
         for i1 in T.serial(0, 128):
@@ -50,7 +50,7 @@ def element_wise_parallelized(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) 
                 B[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_i_bound(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> None:
     for i0 in T.thread_binding(0, 128, thread="threadIdx.x"):
         for i1 in T.serial(0, 128):
@@ -59,7 +59,7 @@ def element_wise_i_bound(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))) -> No
                 B[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_compute_at_split(A: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     B = Ts.sblock_alloc_buffer((128, 128))
     for i in T.serial(0, 128):
@@ -74,7 +74,7 @@ def element_wise_compute_at_split(A: T.Tensor((128, 128)), C: T.Tensor((128, 128
                 C[vi, vj] = B[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_compute_at_split_vectorized(
     A: T.Tensor((128, 128)), C: T.Tensor((128, 128))
 ) -> None:
@@ -92,7 +92,7 @@ def element_wise_compute_at_split_vectorized(
                     C[vi, vj] = B[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_split_predicate(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
     for i, j_0, j_1 in T.grid(128, 13, 10):
         with Ts.sblock("B"):
@@ -102,7 +102,7 @@ def element_wise_split_predicate(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]
             B[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_split_predicate_parallelized(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128])
 ) -> None:
@@ -116,7 +116,7 @@ def element_wise_split_predicate_parallelized(
                     B[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_split_predicate_vectorized(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128])
 ) -> None:
@@ -129,7 +129,7 @@ def element_wise_split_predicate_vectorized(
                 B[vi, vj] = A[vi, vj] * 2.0
 
 
-@Ts.prim_func
+@Ts.function
 def element_wise_compute_at_split_j0_j1o_bound(
     A: T.Tensor((128, 128)), C: T.Tensor((128, 128))
 ) -> None:
@@ -147,7 +147,7 @@ def element_wise_compute_at_split_j0_j1o_bound(
                     C[vi, vj] = B[vi, vj] + 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 128))) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("C"):
@@ -157,7 +157,7 @@ def matmul(A: T.Tensor((128, 128)), B: T.Tensor((128, 128)), C: T.Tensor((128, 1
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
@@ -167,7 +167,7 @@ def rowsum(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
             B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def rowsum_unrolled(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
     for i0 in T.unroll(0, 128):
         for i1 in T.serial(0, 128):
@@ -178,7 +178,7 @@ def rowsum_unrolled(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
@@ -189,7 +189,7 @@ def rowsum_not_quasi_affine(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> Non
             B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def rowsum_not_compact_data_flow(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
     for i, k in T.grid(128, 16):
         with Ts.sblock("B"):
@@ -199,7 +199,7 @@ def rowsum_not_compact_data_flow(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
             B[vk] = B[vk] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def rowsum_cross_thread_reduction(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
     for i0 in T.serial(0, 128):
         for i1 in T.thread_binding(0, 128, thread="threadIdx.x"):
@@ -210,14 +210,14 @@ def rowsum_cross_thread_reduction(A: T.Tensor((128, 128)), B: T.Tensor((128,))) 
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def opaque_block(A: T.Tensor((16,))) -> None:
     for i in T.serial(0, 15):
         with Ts.sblock("opaque"):
             A[i + 1] = A[i + 1] + A[i]
 
 
-@Ts.prim_func
+@Ts.function
 def block_inside_init(
     A: T.Tensor([128, 128, 128], dtype="float32"), B: T.Tensor([128, 128], dtype="float32")
 ) -> None:
@@ -236,7 +236,7 @@ def block_inside_init(
                         B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def thread_bound_block_inside_init(
     A: T.Tensor([128, 128, 128], dtype="float32"), B: T.Tensor([128, 128], dtype="float32")
 ) -> None:
@@ -255,7 +255,7 @@ def thread_bound_block_inside_init(
                         B[vi, vj] = B[vi, vj] + A[vi, vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def decomposed_gemm(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -281,7 +281,7 @@ def decomposed_gemm(
                 C[vi, vj] = local[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def decomposed_gemm_after_vectorize(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -308,7 +308,7 @@ def decomposed_gemm_after_vectorize(
                     C[vi, vj] = local[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def nested_block_bind(
     A: T.Tensor((16, 16, 16, 16), "float32"), B: T.Tensor((16, 16, 16), "float32")
 ):
@@ -323,7 +323,7 @@ def nested_block_bind(
                     B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
 
 
-@Ts.prim_func
+@Ts.function
 def thread_bound_nested_block(
     A: T.Tensor((16, 16, 16, 16), "float32"), B: T.Tensor((16, 16, 16), "float32")
 ) -> None:
@@ -340,7 +340,7 @@ def thread_bound_nested_block(
                             B[vi, vj, vk] = B[vi, vj, vk] + A[vi, vj, vk, vl]
 
 
-@Ts.prim_func
+@Ts.function
 def nested_block_bind_after_cache_read(
     A: T.Tensor((16, 16), "float32"), B: T.Tensor((16,), "float32")
 ) -> None:
@@ -361,7 +361,7 @@ def nested_block_bind_after_cache_read(
                     B[vi] = B[vi] + A_shared[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def thread_bound_nested_block_after_cache_read(
     A: T.Tensor((16, 16), "float32"), B: T.Tensor((16,), "float32")
 ) -> None:
@@ -382,7 +382,7 @@ def thread_bound_nested_block_after_cache_read(
                     B[vi] = B[vi] + A_shared[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def decomposed_gemm_parallelize_init(
     A: T.Tensor((16, 16), "float32"),
     B: T.Tensor((16, 16), "float32"),
@@ -415,7 +415,7 @@ def decomposed_gemm_parallelize_init(
                 C[vi, vj] = local[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def scatter_compute(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
     for i in T.grid(8):
         with Ts.sblock("first_half"):
@@ -428,7 +428,7 @@ def scatter_compute(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")
             B[vi] = A[vi + 8]
 
 
-@Ts.prim_func
+@Ts.function
 def scatter_compute_parallelize(
     A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")
 ) -> None:
@@ -644,7 +644,7 @@ def test_scatter_parallelize():
 
 
 def test_bind_thread_iter_var_dtype():
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def before(
         A: T.Tensor((T.int64(128), T.int64(128))),
         B: T.Tensor((T.int64(128), T.int64(128))),
@@ -654,7 +654,7 @@ def test_bind_thread_iter_var_dtype():
                 vi, vj = Ts.axis.remap("SS", [i, j])
                 B[vi, vj] = A[vi, vj] * 2.0
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def expected(
         A: T.Tensor((T.int64(128), T.int64(128))),
         B: T.Tensor((T.int64(128), T.int64(128))),

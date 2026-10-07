@@ -110,7 +110,7 @@ class BufferTouchedDomain final : public s_tir::IRVisitorWithAnalyzer {
     return Parent::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     // Record store-exclusive buffer access
     Touch(&std::get<StoreAccess>(buffer_access_map_[op->buffer.get()]).set, op->indices);
     // Record load-store inclusive buffer access
@@ -141,7 +141,7 @@ Region DomainTouched(const Stmt& stmt, const TensorVar& buffer, bool consider_lo
   return visitor->FindUnion(buffer, consider_loads, consider_stores);
 }
 
-ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
+ffi::Map<TensorVar, ffi::Array<ffi::ObjectRef>> DomainTouchedAccessMap(const Function& func) {
   auto visitor = ffi::make_object<BufferTouchedDomain>();
   visitor->Visit(func->body);
   auto buffer_access_map = visitor->GetAccessedBufferRegions();

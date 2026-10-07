@@ -53,8 +53,8 @@ class CodeGenTrainium final : public CodeGenC {
   using CodeGenC::PrintType;
   // override print thread tag.
   void PrintArgUnionDecl();
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& func) final;
-  void InitFuncState(const PrimFunc& f) final;
+  void AddFunction(const GlobalVar& gvar, const Function& func) final;
+  void InitFuncState(const Function& f) final;
   std::string GetStorageScopeStr(const std::string& scope);   // NOLINT(*)
   void Dispatch_(const VarNode* op, std::ostream& os) final;  // NOLINT(*)
   void PrintType(const PrimType& t, std::ostream& os) final;  // NOLINT(*)
@@ -62,7 +62,7 @@ class CodeGenTrainium final : public CodeGenC {
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const RegionStmtNode* op) final;                        // NOLINT(*)
   void Dispatch_(const ForNode* op) final;                               // NOLINT(*)
-  void Dispatch_(const BufferStoreNode* op) final;                       // NOLINT(*)=
+  void Dispatch_(const TensorStoreNode* op) final;                       // NOLINT(*)=
   void Dispatch_(const EvaluateNode* op) final;                          // NOLINT(*)
   std::string PrintIndices(const ffi::Array<PrimExpr>& indices);         // NOLINT(*)
   void Dispatch_(const TensorLoadNode* op, std::ostream& os) final;      // NOLINT(*)

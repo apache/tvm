@@ -394,7 +394,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
     batch_size = T.dynamic("batch_size")
     seq_len = T.dynamic("seq_len")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         qkv: T.Tensor((batch_size, seq_len, fused_heads, head_dim), dtype),
         q: T.Tensor((batch_size, seq_len, num_q_heads, head_dim), dtype),
@@ -524,7 +524,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     seq_len = T.dynamic("seq_len", "int32")
     position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def fused_rope(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
         position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
@@ -561,7 +561,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     seq_len = T.dynamic("seq_len")
     position_map_elem_offset = T.dynamic("position_map_elem_offset")
 
-    @Ts.prim_func
+    @Ts.function
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
         position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
@@ -741,7 +741,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
     seq_len = T.dynamic("seq_len", "int32")
     position_map_elem_offset = T.dynamic("position_map_elem_offset", "int32")
 
-    @Ts.prim_func(private=True)
+    @Ts.function(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
         position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),
@@ -778,7 +778,7 @@ def llama4_rope_with_position_map(  # pylint: disable=too-many-arguments
     seq_len = T.dynamic("seq_len")
     position_map_elem_offset = T.dynamic("position_map_elem_offset")
 
-    @Ts.prim_func
+    @Ts.function
     def fused_rope_longrope_scaling(  # pylint: disable=too-many-locals
         qkv: T.Tensor((seq_len, fused_heads, head_dim), dtype),
         position_map: T.Tensor((seq_len,), "int32", elem_offset=position_map_elem_offset),

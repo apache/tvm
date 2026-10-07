@@ -51,8 +51,8 @@ class CodeGenWebGPU final : public CodeGenC {
   // overrides
   std::string Finish() final;
   using CodeGenC::AddFunction;
-  runtime::FunctionInfo AddFunction(const PrimFunc& f, bool skip_readonly_decl);  // NOLINT(*)
-  void InitFuncState(const PrimFunc& f) final;
+  runtime::FunctionInfo AddFunction(const Function& f, bool skip_readonly_decl);  // NOLINT(*)
+  void InitFuncState(const Function& f) final;
   void PrintStorageSync(const CallNode* op) final;  // NOLINT(*)
   using CodeGenC::PrintType;
   void PrintType(const PrimType& t, std::ostream& os) final;                      // NOLINT(*)
@@ -81,7 +81,7 @@ class CodeGenWebGPU final : public CodeGenC {
   // stmt printing
   void Dispatch_(const RegionStmtNode* op) final;
   void Dispatch_(const BindNode* op) final;
-  void Dispatch_(const BufferStoreNode* op) final;
+  void Dispatch_(const TensorStoreNode* op) final;
   void Dispatch_(const ForNode* op) final;
   void DispatchAllocTensor(const BindNode* op, const CallNode* buffer_call);
   void Dispatch_(const AssertStmtNode* op) final;

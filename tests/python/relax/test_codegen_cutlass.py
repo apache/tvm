@@ -1255,7 +1255,7 @@ def split_transform_deploy_mod(mod):
         if "transform_params" in gv.name_hint:
             transform_func_name = gv.name_hint
             mod_transform[gv] = func
-        elif isinstance(func, tvm.tirx.PrimFunc):
+        elif isinstance(func, tvm.tirx.Function):
             mod_transform[gv] = func
         else:
             mod_deploy[gv] = func
@@ -1267,7 +1267,7 @@ def split_transform_deploy_mod(mod):
 def test_fp16A_int4B_gemm():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def decode(
             A: T.Tensor((T.int64(64), T.int64(64)), "int8"),
             B: T.Tensor((T.int64(128),), "float16"),
@@ -1300,7 +1300,7 @@ def test_fp16A_int4B_gemm():
                         * B[v_j]
                     )
 
-        @Ts.prim_func
+        @Ts.function
         def encode(
             A: T.Tensor((T.int64(128), T.int64(64)), "float16"),
             w_gathered: T.Tensor((T.int64(64), T.int64(64)), "int8"),
@@ -1524,7 +1524,7 @@ def test_fp16A_int4B_gemm():
 def test_fp16A_int8B_gemm():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def decode(
             A: T.Tensor((T.int64(64), T.int64(64)), "int8"),
             B: T.Tensor((T.int64(64),), "float16"),
@@ -1539,7 +1539,7 @@ def test_fp16A_int8B_gemm():
                     Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
-        @Ts.prim_func
+        @Ts.function
         def encode(
             A: T.Tensor((T.int64(64), T.int64(64)), "float16"),
             w_gathered: T.Tensor((T.int64(64), T.int64(64)), "int8"),
@@ -1670,7 +1670,7 @@ def test_fp16A_int8B_gemm():
 def test_rms_norm():
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def rms_norm(
             A: T.Tensor((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
             B: T.Tensor((T.int64(4096),), "float16"),
@@ -1724,8 +1724,8 @@ def test_rms_norm():
     mod = partition_for_cutlass(Module)
 
     # TODO(@tvm-team): This is temporary patch.Currently, the remaining packed function triggers error since it is not scheduled.
-    # This is because RunCodegen does not support PrimFunc well yet.
-    # i.e., it does remove the global symbol of PrimFunc, which would be no longer used,
+    # This is because RunCodegen does not support Function well yet.
+    # i.e., it does remove the global symbol of Function, which would be no longer used,
     # and thus, the following DCE cannot remove this. Revisit when resolved.
     with tvm.target.Target("cuda"):
         mod = tvm.s_tir.transform.DefaultGPUSchedule()(mod)
@@ -1805,7 +1805,7 @@ def test_fp16A_int8B_gemm_batched():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def decode(
             A: T.Tensor((T.int64(64), T.int64(64)), "int8"),
             B: T.Tensor((T.int64(64),), "float16"),
@@ -1820,7 +1820,7 @@ def test_fp16A_int8B_gemm_batched():
                     Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_j]
 
-        @Ts.prim_func
+        @Ts.function
         def encode(
             A: T.Tensor((T.int64(64), T.int64(64)), "float16"),
             w_gathered: T.Tensor((T.int64(64), T.int64(64)), "int8"),
@@ -1940,7 +1940,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def decode(
             A: T.Tensor((T.int64(128), T.int64(128)), "int8"),
             B: T.Tensor((T.int64(2), T.int64(128)), "float16"),
@@ -1954,7 +1954,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                     Ts.writes(decode_1[v_i, v_j])
                     decode_1[v_i, v_j] = T.Cast("float16", A[v_i, v_j]) * B[v_i // T.int64(64), v_j]
 
-        @Ts.prim_func
+        @Ts.function
         def encode(
             A: T.Tensor((T.int64(128), T.int64(128)), "float16"),
             w_gathered: T.Tensor((T.int64(128), T.int64(128)), "int8"),

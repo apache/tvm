@@ -81,7 +81,7 @@ class SSAVerifier final : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(node);
   }
 
-  void Run(const PrimFunc& func) {
+  void Run(const Function& func) {
     for (auto param : func->params) {
       MarkDef(param, param);
     }
@@ -113,7 +113,7 @@ class SSAVerifier final : public StmtExprVisitor {
   std::unordered_map<Var, Expr> def_map_;
 };
 
-bool VerifySSA(const PrimFunc& func) {
+bool VerifySSA(const Function& func) {
   auto visitor = ffi::make_object<SSAVerifier>();
   visitor->Run(func);
   return visitor->is_ssa_;
@@ -129,7 +129,7 @@ namespace transform {
 Pass VerifySSA() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto func = kv.second.as<PrimFunc>()) {
+      if (auto func = kv.second.as<Function>()) {
         TVM_FFI_CHECK(VerifySSA(func.value()), RuntimeError)
             << "IR is not in SSA form" << func.value();
       }

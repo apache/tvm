@@ -52,14 +52,14 @@ class AssumeRemover : public StmtExprMutator {
 
 namespace transform {
 Pass RemoveAssumeInternal() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     n->body = ffi::make_object<AssumeRemover>()
                   ->Mutate(n->body, InplaceMode::kAllow)
                   .ValueOrUnchanged(n->body);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.RemoveAssumeInternal", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.RemoveAssumeInternal", {});
 }
 
 Pass RemoveAssume() {

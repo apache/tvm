@@ -20,7 +20,7 @@ from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 
 
-@Ts.prim_func
+@Ts.function
 def buffer_load_store_func(
     A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
@@ -45,7 +45,7 @@ def buffer_load_store_func(
                     )
 
 
-@Ts.prim_func
+@Ts.function
 def buffer_opaque_access(
     B: T.Tensor([16, 16], "float32"), C: T.Tensor([16, 16], "float32")
 ) -> None:
@@ -67,12 +67,12 @@ def buffer_opaque_access(
             C[vi, vj] = B[vi, vj]
 
 
-@Ts.prim_func
+@Ts.function
 def lca_is_func_root(A: T.Tensor([0, 0], "float32")) -> None:
     A[0, 0] = 1.0
 
 
-@Ts.prim_func
+@Ts.function
 def match_buffer_func(
     A: T.Tensor((128, 128), "float32"), B: T.Tensor((128, 128), "float32")
 ) -> None:
@@ -92,7 +92,7 @@ def match_buffer_func(
             T.evaluate(B1.data)
 
 
-@Ts.prim_func
+@Ts.function
 def global_buffer_with_blockidx(
     a: T.Tensor((1, 32), "int32"), b: T.Tensor((1, 32), "int32")
 ) -> None:

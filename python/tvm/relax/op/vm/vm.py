@@ -121,13 +121,13 @@ def kill_object(obj: Expr) -> Call:
 
 
 def call_tir_dyn(func: Expr, args: Tuple) -> Call:
-    """Construct a Call to call_tir_dyn (invoke the given TIR PrimFunc)
+    """Construct a Call to call_tir_dyn (invoke the given TIR Function)
     consisting of the input tensors and the shape of the result.
 
     Parameters
     ----------
     func : Expr
-        An expression evaluating to a TIR PrimFunc.
+        An expression evaluating to a TIR Function.
 
     args : Tuple
         The input args, includes a list of tensors, and a ShapeExpr.

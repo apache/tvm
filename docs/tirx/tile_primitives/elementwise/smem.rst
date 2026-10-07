@@ -79,7 +79,7 @@ round):
     full = (slice(0, 32), slice(0, 32))
 
 
-    @Tx.prim_func
+    @Tx.function
     def unary_op(A: Tx.Tensor((32, 32), "float32", layout=s_layout)):
 
         Tx.device_entry()

@@ -19,9 +19,11 @@
 
 from __future__ import annotations
 
+import tvm_ffi
+
 from tvm import tirx
-from tvm.ir import Call, Op, StringImm
-from tvm.ir.op import _init_op_api
+from tvm.ir import Attrs, Call, Op, StringImm
+from tvm.ir.op import _init_op_api, _make_op_api
 from tvm.ir.type import PointerType, PrimType
 from tvm.runtime import const
 from tvm.tirx.op import bitwise_and, call_intrin, tvm_access_ptr
@@ -633,6 +635,24 @@ def ptx_legacy_ldmatrix(*all_args):
     )
 
 
+@tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorAttrs")
+class TCGen05InstrDescriptorAttrs(Attrs):
+    """Static options for the dense tcgen05 instruction descriptor."""
+
+
+@tvm_ffi.register_object("tirx.cuda.TCGen05InstrDescriptorBlockScaledAttrs")
+class TCGen05InstrDescriptorBlockScaledAttrs(Attrs):
+    """Static options for the block-scaled tcgen05 instruction descriptor."""
+
+
+_encode_instr_descriptor = _make_op_api(
+    Op.get("tirx.cuda.tcgen05_encode_instr_descriptor"), __name__
+)
+_encode_instr_descriptor_block_scaled = _make_op_api(
+    Op.get("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled"), __name__
+)
+
+
 def cuda_tcgen05_encode_instr_descriptor(
     desc,
     *,
@@ -699,23 +719,21 @@ def cuda_tcgen05_encode_instr_descriptor(
         Whether the MMA operation is sparse.
     """
     _choice("n_cta_groups", n_cta_groups, _TCGEN05_CTA_GROUP)
-    return call_intrin(
-        "",
-        "tirx.cuda.tcgen05_encode_instr_descriptor",
+    return _encode_instr_descriptor(
         desc,
-        d_dtype,
-        a_dtype,
-        b_dtype,
-        M,
-        N,
-        K,
-        trans_a,
-        trans_b,
-        n_cta_groups,
-        neg_a,
-        neg_b,
-        sat_d,
-        is_sparse,
+        d_dtype=d_dtype,
+        a_dtype=a_dtype,
+        b_dtype=b_dtype,
+        M=M,
+        N=N,
+        K=K,
+        trans_a=trans_a,
+        trans_b=trans_b,
+        n_cta_groups=n_cta_groups,
+        neg_a=neg_a,
+        neg_b=neg_b,
+        sat_d=sat_d,
+        is_sparse=is_sparse,
     )
 
 
@@ -727,8 +745,6 @@ def cuda_tcgen05_encode_instr_descriptor_block_scaled(
     b_dtype,
     sfa_dtype,
     sfb_dtype,
-    sfa_tmem_addr,
-    sfb_tmem_addr,
     M,
     N,
     K,
@@ -761,12 +777,6 @@ def cuda_tcgen05_encode_instr_descriptor_block_scaled(
     sfb_dtype : str
         The datatype of scale factor matrix B.
 
-    sfa_tmem_addr : Expr
-        The address of the scale factor matrix A in tensor memory, should be uint32_t.
-
-    sfb_tmem_addr : Expr
-        The address of the scale factor matrix B in tensor memory, should be uint32_t.
-
     M : int
         The size of non-reduction dimension of Matrix A.
 
@@ -797,26 +807,22 @@ def cuda_tcgen05_encode_instr_descriptor_block_scaled(
         Whether the MMA operation is sparse.
     """
     _choice("n_cta_groups", n_cta_groups, _TCGEN05_CTA_GROUP)
-    return call_intrin(
-        "",
-        "tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled",
+    return _encode_instr_descriptor_block_scaled(
         desc,
-        d_dtype,
-        a_dtype,
-        b_dtype,
-        sfa_dtype,
-        sfb_dtype,
-        sfa_tmem_addr,
-        sfb_tmem_addr,
-        M,
-        N,
-        K,
-        trans_a,
-        trans_b,
-        n_cta_groups,
-        neg_a,
-        neg_b,
-        is_sparse,
+        d_dtype=d_dtype,
+        a_dtype=a_dtype,
+        b_dtype=b_dtype,
+        sfa_dtype=sfa_dtype,
+        sfb_dtype=sfb_dtype,
+        M=M,
+        N=N,
+        K=K,
+        trans_a=trans_a,
+        trans_b=trans_b,
+        n_cta_groups=n_cta_groups,
+        neg_a=neg_a,
+        neg_b=neg_b,
+        is_sparse=is_sparse,
     )
 
 

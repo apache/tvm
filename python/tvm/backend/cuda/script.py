@@ -119,6 +119,9 @@ class IketNamespace:
         self.official_event = _op_wrapper(_cuda_op.cuda_iket_official_event)
 
 
+TCGen05InstrDescriptorAttrs = _cuda_op.TCGen05InstrDescriptorAttrs
+TCGen05InstrDescriptorBlockScaledAttrs = _cuda_op.TCGen05InstrDescriptorBlockScaledAttrs
+
 iket = IketNamespace()
 wgmma = CudaWgmmaNamespace()
 tcgen05 = CudaTcgen05Namespace()

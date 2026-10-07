@@ -23,7 +23,7 @@ from . import _ffi_api
 
 
 def ConvertSSA():
-    """De-duplicate definitions, including schedulable block iterators, across PrimFuncs."""
+    """De-duplicate definitions, including schedulable block iterators, across Functions."""
     return _ffi_api.ConvertSSA()
 
 
@@ -320,7 +320,7 @@ def VerifyVTCMLimit(default_target=None):
     Parameters
     ----------
     default_target : Optional[tvm.target.Target]
-        The default target to use if a PrimFunc does not have a target attribute.
+        The default target to use if a Function does not have a target attribute.
 
     Returns
     -------
@@ -408,7 +408,7 @@ def MergeSharedMemoryAllocations():
 
 
 def DefaultGPUSchedule():
-    """Set default thread bindings for GPU PrimFuncs.
+    """Set default thread bindings for GPU Functions.
 
     Returns
     -------

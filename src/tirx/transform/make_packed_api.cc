@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
+ * \file make_packed_api.cc Lower Function to use the packed function API.
  */
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/extra/module.h>
@@ -186,7 +186,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
  * \returns The global_symbol to be used for the function at call
  * sites, or std::nullopt if the function is to remain unchanged.
  */
-ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
+ffi::Optional<ffi::String> RequiresPackedAPI(const Function& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
   if (auto opt = func->GetAttr<CallingConv>(tvm::attr::kCallingConv)) {
@@ -204,7 +204,7 @@ ffi::Optional<ffi::String> RequiresPackedAPI(const PrimFunc& func) {
   return global_symbol.value();
 }
 
-PrimFunc MakePackedAPI(PrimFunc func) {
+Function MakePackedAPI(Function func) {
   if (!func->body.has_value()) return func;
   auto global_symbol = RequiresPackedAPI(func);
   if (!global_symbol.has_value()) {
@@ -290,7 +290,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   ffi::Array<Var> undefined = UndefinedVars(func_ptr->body.value(), func_ptr->params);
   TVM_FFI_ICHECK_EQ(undefined.size(), 0)
-      << "In PrimFunc " << name_hint << " variables " << undefined
+      << "In Function " << name_hint << " variables " << undefined
       << " are used, but are not passed in as API arguments";
 
   func_ptr->ret_type = PrimType::Int(32);
@@ -305,9 +305,9 @@ Pass MakePackedAPI() {
   auto pass_func = [](IRModule mod, PassContext ctx) {
     ffi::Map<GlobalVar, ffi::String> packed_func_methods;
     for (const auto& [gvar, base_func] : mod->functions) {
-      if (auto opt = base_func.as<PrimFunc>()) {
-        auto prim_func = opt.value();
-        if (auto global_symbol = RequiresPackedAPI(prim_func)) {
+      if (auto opt = base_func.as<Function>()) {
+        auto function = opt.value();
+        if (auto global_symbol = RequiresPackedAPI(function)) {
           packed_func_methods.Set(gvar, global_symbol.value());
         }
       }
@@ -317,7 +317,7 @@ Pass MakePackedAPI() {
     IRModule updates;
 
     for (const auto& [gvar, base_func] : mptr->functions) {
-      if (auto opt = base_func.as<PrimFunc>()) {
+      if (auto opt = base_func.as<Function>()) {
         auto func = opt.value();
         if (!func->body.has_value()) continue;
         auto orig_func = func;

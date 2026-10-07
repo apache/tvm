@@ -93,13 +93,13 @@ class IrregularLoopAnnotator : public StmtExprMutator {
 namespace transform {
 
 Pass AnnotateIrregularLoop() {
-  auto pass_func = [](PrimFunc func, IRModule mod, PassContext ctx) -> PrimFunc {
+  auto pass_func = [](Function func, IRModule mod, PassContext ctx) -> Function {
     if (!func->body.has_value()) return func;
     func.CopyOnWrite()->body = IrregularLoopAnnotator::Annotate(func->body.value());
     return func;
   };
 
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.AnnotateIrregularLoop", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.AnnotateIrregularLoop", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

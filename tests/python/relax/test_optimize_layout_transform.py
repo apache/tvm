@@ -45,7 +45,7 @@ def _run_pass_compare_output(Before, Expected):
 def test_optimize_transform_layout_pass_one_arg():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relax_add_replacement(
             arg0: T.Tensor((4, 4), "float32"),
             arg1: T.Tensor((4, 4), "float32"),
@@ -99,7 +99,7 @@ def test_optimize_transform_layout_pass_one_arg():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relax_add_replacement(
             arg0: T.Tensor((4, 4), "float32"),
             arg1: T.Tensor((4, 4), "float32"),
@@ -147,7 +147,7 @@ def test_optimize_transform_layout_pass_one_arg():
 def test_optimize_transform_layout_pass_two_args():
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relax_add_replacement(
             arg0: T.Tensor((4, 4), "float32"),
             arg1: T.Tensor((4, 4), "float32"),
@@ -214,7 +214,7 @@ def test_optimize_transform_layout_pass_two_args():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relax_add_replacement(
             arg0: T.Tensor((4, 4), "float32"),
             arg1: T.Tensor((4, 4), "float32"),
@@ -275,7 +275,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
 
     @I.ir_module
     class Before:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relax_relu_replacement(
             arg0: T.Tensor((16,), "float32"), output: T.Tensor((16,), "float32")
         ):
@@ -288,7 +288,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     Ts.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def remove_pad(input: T.Tensor((p0,)), output: T.Tensor((i0,))):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
 
@@ -348,7 +348,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def relax_relu_replacement(
             arg0: T.Tensor((16,), "float32"), output: T.Tensor((16,), "float32")
         ):
@@ -361,7 +361,7 @@ def test_tranform_layout_tir_remove_pad_transform_layout():
                     Ts.writes(output[v_ax0])
                     output[v_ax0] = T.max(arg0[v_ax0], T.float32(0))
 
-        @Ts.prim_func(private=True)
+        @Ts.function(private=True)
         def remove_pad(input: T.Tensor((p0,)), output: T.Tensor((i0,))):
             T.func_attr({"operator_name": "remove_pad", "tirx.noalias": True})
 

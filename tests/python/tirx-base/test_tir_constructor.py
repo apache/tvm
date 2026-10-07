@@ -149,7 +149,7 @@ def test_expr_constructor():
     script = tvm.tirx.Evaluate(x_with_attrs).script()
     assert "attrs" in script
     assert "disable_tma" in script
-    func = tvm.tirx.PrimFunc([attr_arg], tvm.tirx.Evaluate(x_with_attrs))
+    func = tvm.tirx.Function([attr_arg], tvm.tirx.Evaluate(x_with_attrs))
     assert (
         tvm.script.from_source(
             func.script(), extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx}
@@ -210,7 +210,7 @@ def test_expr_constructor():
         ty="int32",
     )
     simplified = tvm.tirx.transform.StmtSimplify()(
-        tvm.IRModule({"main": tvm.tirx.PrimFunc([], tvm.tirx.Evaluate(outer_if))})
+        tvm.IRModule({"main": tvm.tirx.Function([], tvm.tirx.Evaluate(outer_if))})
     )["main"].body.value
     assert simplified.attrs["keep"] is True
 
@@ -310,8 +310,8 @@ def test_stmt_constructor():
 
     buffer_var = tvm.tirx.Var("buf", tvm.ir.PointerType(tvm.ir.PrimType("bool")))
     buffer = tvm.tirx.decl_tensor([16], "bool", data=buffer_var)
-    x = tvm.tirx.BufferStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
-    assert isinstance(x, tvm.tirx.BufferStore)
+    x = tvm.tirx.TensorStore(buffer, tvm.tirx.IntImm("bool", 1), [10])
+    assert isinstance(x, tvm.tirx.TensorStore)
     assert x.buffer == buffer
     assert x.buffer.data.args[0].same_as(buffer)
     assert x.buffer.data.ty == tvm.tirx.buffer_data_pointer_type(buffer)

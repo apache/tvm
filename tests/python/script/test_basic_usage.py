@@ -266,7 +266,7 @@ def test_native_concise_scopes_unwind_with_their_parent():
     def observe(*items):
         variables.extend(items)
 
-    @T.prim_func
+    @T.function
     def main():
         bx = T.launch_thread("blockIdx.x", 2)
         tx = T.launch_thread("threadIdx.x", 32)
@@ -285,13 +285,13 @@ def test_loop_control_validation_preserves_valid_and_unchecked_ir():
     from tvm import ir, tirx
     from tvm.script import tirx as T
 
-    invalid = tirx.PrimFunc(params=[], body=tirx.Break())
+    invalid = tirx.Function(params=[], body=tirx.Break())
     ir.assert_structural_equal(invalid.body, tirx.Break())
     assert not tirx.analysis.verify_well_formed(invalid, assert_mode=False)
     with pytest.raises(error.InternalError, match="requires an enclosing loop"):
         tirx.analysis.verify_well_formed(invalid)
 
-    @T.prim_func
+    @T.function
     def valid():
         for i in range(2):
             break

@@ -118,7 +118,7 @@ Type InferTypeCallTIRLocalView(const Call& call, const BlockBuilder& ctx) {
   }
   TVM_FFI_ICHECK(call->args[0]->IsInstance<GlobalVarNode>())
       << "call_tir_local_view expects the first argument to be a GlobalVar referring to a TIR "
-         "PrimFunc. "
+         "tirx::Function. "
       << "However, gets " << call->args[0];
   return call->ty_args[0];
 }

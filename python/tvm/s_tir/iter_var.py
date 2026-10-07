@@ -31,7 +31,7 @@ class IterVar(OpaqueExpr, ExprWithOp):
     """Represent iteration variable.
 
     IterVar represents axis iterations in the computation.
-    It may appear as a primitive-valued expression in TE construction. CreatePrimFunc
+    It may appear as a primitive-valued expression in TE construction. CreateFunction
     lowers value occurrences to the underlying variable, while retaining block axis
     metadata. Use ``.var`` for primitive analyses outside TE lowering.
 

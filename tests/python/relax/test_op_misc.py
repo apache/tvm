@@ -30,7 +30,7 @@ def identity_packed(a):
     return tvm.runtime.tensor(a.numpy())
 
 
-@Ts.prim_func
+@Ts.function
 def identity_tir(A: T.Tensor([54, 96]), B: T.Tensor([54, 96])) -> None:
     for i, j in T.grid(54, 96):
         with Ts.sblock("compute"):

@@ -584,7 +584,7 @@ Stmt HoistExpression(Stmt stmt, HoistExpressionConfig config) {
 namespace transform {
 
 Pass HoistExpression() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistExpressionConfig>("s_tir.HoistExpression");
@@ -595,7 +595,7 @@ Pass HoistExpression() {
     n->body = ExpressionHoister::Hoist(std::move(n->body).value(), cfg.value());
     return f;
   };
-  auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "s_tir.InsertHoistedExpression", {});
+  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistedExpression", {});
 
   return tvm::transform::Sequential(
       {
@@ -612,7 +612,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 static Pass HoistIfThenElseImpl() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     auto cfg = ctx->GetConfig<HoistIfThenElseConfig>("s_tir.HoistIfThenElse");
@@ -635,7 +635,7 @@ static Pass HoistIfThenElseImpl() {
     n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
     return f;
   };
-  auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "s_tir.InsertHoistIfThenElse", {});
+  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistIfThenElse", {});
   return tvm::transform::Sequential(
       {
           insertion_pass,
@@ -646,7 +646,7 @@ static Pass HoistIfThenElseImpl() {
 }
 
 static Pass HoistIfThenElseBasicImpl() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     if (!f->body.has_value()) return f;
     auto* n = f.CopyOnWrite();
     HoistExpressionConfig config(static_cast<int>(HoistedConditionals::kIfElseStmt),
@@ -654,7 +654,7 @@ static Pass HoistIfThenElseBasicImpl() {
     n->body = ExpressionHoister::Hoist(std::move(n->body).value(), config);
     return f;
   };
-  auto insertion_pass = CreatePrimFuncPass(pass_func, 0, "s_tir.InsertHoistIfThenElseBasic", {});
+  auto insertion_pass = CreateFunctionPass(pass_func, 0, "s_tir.InsertHoistIfThenElseBasic", {});
   return tvm::transform::Sequential(
       {
           insertion_pass,

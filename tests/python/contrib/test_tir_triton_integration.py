@@ -69,7 +69,7 @@ def test_tir_triton_integration():
 
     @I.ir_module
     class Module:
-        @Ts.prim_func
+        @Ts.function
         def add(
             x: T.Tensor((add_m,), "float32"),
             y: T.Tensor((add_m,), "float32"),
@@ -109,7 +109,7 @@ def test_tir_triton_integration():
 
     @I.ir_module
     class Parsed:
-        @Ts.prim_func
+        @Ts.function
         def add(x: T.Tensor((m,)), y: T.Tensor((m,)), output: T.Tensor((m,))):
             with Ts.sblock("root"):
                 Ts.reads(x[0:m], y[0:m])

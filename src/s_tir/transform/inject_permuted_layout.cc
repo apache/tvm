@@ -62,7 +62,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
 
-  static PrimFunc Transform(PrimFunc func) {
+  static Function Transform(Function func) {
     Analyzer analyzer;
 
     auto new_body = ffi::make_object<PermutedLayoutInjector>(func, analyzer)
@@ -73,7 +73,7 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return func;
   }
 
-  explicit PermutedLayoutInjector(PrimFunc func, const Analyzer& analyzer)
+  explicit PermutedLayoutInjector(Function func, const Analyzer& analyzer)
       : IRMutatorWithAnalyzer(analyzer) {
     for (const Var& param : func->params) {
       if (auto buffer = param.as<TensorVar>()) {
@@ -205,13 +205,13 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return indices;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Rewrite write from global to shared.dyn or shared
     // We assume the shape of the shared memory is [..., row_size, col_size],
     // where row_size is divisible by 64, or divisible by 32 and col_size is divisible by 2.
     auto store = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                     .as_or_throw<BufferStore>();
+                     .as_or_throw<TensorStore>();
 
     if (!permute_ || store->buffer->shape.size() < 2) {
       return store;
@@ -330,10 +330,10 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
 namespace transform {
 
 Pass InjectPermutedLayout() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return PermutedLayoutInjector::Transform(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "s_tir.InjectPermutedLayout", {});
+  return CreateFunctionPass(pass_func, 0, "s_tir.InjectPermutedLayout", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

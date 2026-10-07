@@ -33,16 +33,16 @@ using tirx::TensorDecl;
 using tvm::s_tir::IterVar;
 using tvm::s_tir::IterVarType;
 
-PrimFuncFrame PrimFunc(bool is_private, bool persistent) {
-  auto n = ffi::make_object<PrimFuncFrameNode>();
+FunctionFrame Function(bool is_private, bool persistent) {
+  auto n = ffi::make_object<FunctionFrameNode>();
   n->is_private = is_private;
   n->persistent = persistent;
   n->attrs = {};
-  return PrimFuncFrame(std::move(n));
+  return FunctionFrame(std::move(n));
 }
 
-PrimFuncFrame DeclFunction(bool is_private, bool persistent) {
-  PrimFuncFrame frame = PrimFunc(is_private, persistent);
+FunctionFrame DeclFunction(bool is_private, bool persistent) {
+  FunctionFrame frame = Function(is_private, persistent);
   frame->is_declaration = true;
   return frame;
 }
@@ -201,21 +201,21 @@ TensorVar SBlockAllocBuffer(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::Opt
   TensorVar buffer = TensorDecl(shape, dtype, "", std::nullopt, strides, elem_offset, storage_scope,
                                 align, offset_factor, layout, allocated_addr);
   IRBuilder builder = IRBuilder::Current();
-  auto opt_func_frame = builder->FindFrame<tirx::PrimFuncFrame>();
+  auto opt_func_frame = builder->FindFrame<tirx::FunctionFrame>();
   if (opt_func_frame.has_value()) {
-    TVM_FFI_CHECK(opt_func_frame.value().as<PrimFuncFrameNode>() != nullptr, ValueError)
-        << "ValueError: `Ts.alloc_tensor()` is only for s_tir PrimFuncs. "
-           "Use `T.alloc_tensor()` inside default (tirx) PrimFuncs.";
+    TVM_FFI_CHECK(opt_func_frame.value().as<FunctionFrameNode>() != nullptr, ValueError)
+        << "ValueError: `Ts.alloc_tensor()` is only for s_tir Functions. "
+           "Use `T.alloc_tensor()` inside default (tirx) Functions.";
   }
 
   // Walk up the frame stack: attach to the innermost enclosing s_tir::SBlock (lifting
   // the allocation past any intermediate For/If/While frames). Fall back to the
-  // PrimFunc root when no sblock is in scope. When neither is present (raw
+  // Function root when no sblock is in scope. When neither is present (raw
   // IRBuilder construction used by tests), just return the buffer.
   if (ffi::Optional<SBlockFrame> block_frame = builder->FindFrame<SBlockFrame>()) {
     block_frame.value()->alloc_buffers.push_back(buffer);
   } else if (opt_func_frame.has_value()) {
-    ffi::GetRef<PrimFuncFrame>(opt_func_frame.value().as<PrimFuncFrameNode>())
+    ffi::GetRef<FunctionFrame>(opt_func_frame.value().as<FunctionFrameNode>())
         ->root_alloc_buffers.push_back(buffer);
   }
   return buffer;
@@ -317,7 +317,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("script.ir_builder.s_tir.PrimFunc", PrimFunc)
+      .def("script.ir_builder.s_tir.Function", Function)
       .def("script.ir_builder.s_tir.DeclFunction", DeclFunction)
       .def("script.ir_builder.s_tir.MatchBuffer", MatchBuffer)
       .def("script.ir_builder.s_tir.Block", Block)

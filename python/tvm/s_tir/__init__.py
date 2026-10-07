@@ -52,12 +52,12 @@ def renew_defs(func):
 
     Parameters
     ----------
-    func: PrimFunc
+    func: Function
         The input function
 
     Returns
     -------
-    result : PrimFunc
+    result : Function
         The new generated func.
     """
     return _ffi_api.RenewDefs(func)
@@ -75,9 +75,9 @@ _register_namespace_initializer(_initialize_script_namespace, aliases=("s_tir",)
 
 
 def _check_script_module(module):
-    from tvm.tirx import PrimFunc
+    from tvm.tirx import Function
 
-    if any(isinstance(fn, PrimFunc) and not fn.is_tirx for fn in module.functions.values()):
+    if any(isinstance(fn, Function) and not fn.is_tirx for fn in module.functions.values()):
         from tvm.s_tir.script.ir_builder import _check_module_well_formed
 
         _check_module_well_formed(module)

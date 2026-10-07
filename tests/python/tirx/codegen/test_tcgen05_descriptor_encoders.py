@@ -68,7 +68,7 @@ def _compile_and_run(kernel, n_out):
 def test_smem_descriptor_matches_runtime_encoder(ldo, sdo, swizzle):
     """`base | (addr >> 4)` must reproduce the C bitfield fill exactly."""
 
-    @T.prim_func
+    @T.function
     def kernel(out: T.Tensor((2,), "uint64")):
         T.device_entry()
         T.cta_id([1])
@@ -111,7 +111,7 @@ def test_smem_descriptor_matches_runtime_encoder(ldo, sdo, swizzle):
 def test_instr_descriptor_block_scaled_matches_runtime_encoder(
     m, n, k, a_dtype, b_dtype, trans_a, trans_b, cta_group
 ):
-    @T.prim_func
+    @T.function
     def kernel(out: T.Tensor((1,), "uint64")):
         T.device_entry()
         T.cta_id([1])
@@ -125,8 +125,6 @@ def test_instr_descriptor_block_scaled_matches_runtime_encoder(
                 b_dtype=b_dtype,
                 sfa_dtype="float8_e8m0fnu",
                 sfb_dtype="float8_e8m0fnu",
-                sfa_tmem_addr=0,
-                sfb_tmem_addr=0,
                 M=m,
                 N=n,
                 K=k,

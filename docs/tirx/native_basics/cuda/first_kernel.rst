@@ -28,7 +28,7 @@ with one block of 256 threads.
     from tvm.script import tirx as Tx
 
 
-    @Tx.prim_func
+    @Tx.function
     def scale(A: Tx.Tensor((256,), "float32"), B: Tx.Tensor((256,), "float32")):
 
         Tx.device_entry()  # everything below runs on the device
@@ -51,7 +51,7 @@ with one block of 256 threads.
 
 What the surrounding calls do:
 
-- ``tvm.IRModule({"main": scale})`` wraps the ``PrimFunc`` into an *IRModule* — a
+- ``tvm.IRModule({"main": scale})`` wraps the ``Function`` into an *IRModule* — a
   named collection of functions; ``"main"`` is the entry point the compiler builds
   and the symbol you call.
 - ``tvm.compile(mod, target=..., tir_pipeline="tirx")`` returns an **Executable**:

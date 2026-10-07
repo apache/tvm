@@ -26,12 +26,12 @@ from tvm.s_tir.meta_schedule.testing.space_generation import (
 from tvm.script import s_tir as Ts
 from tvm.script import tirx as T
 from tvm.target import Target
-from tvm.te import create_prim_func
+from tvm.te import create_function
 
 
 @tvm.script.ir_module
 class Softmax_mn_after_inline:
-    @Ts.prim_func
+    @Ts.function
     def main(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -61,7 +61,7 @@ class Softmax_mn_after_inline:
 
 
 def test_gpu_softmax_mn():
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_0(
         A: T.Tensor((256, 256), "float32"),
         T_softmax_norm: T.Tensor((256, 256), "float32"),
@@ -103,7 +103,7 @@ def test_gpu_softmax_mn():
                 Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_6, i1_2] = T_softmax_exp[i0_6, i1_2] / T_softmax_expsum[i0_6]
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_1(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -155,7 +155,7 @@ def test_gpu_softmax_mn():
                 Ts.sblock_attr({"axis": 1})
                 T_softmax_norm[i0_6, i1_2] = T_softmax_exp[i0_6, i1_2] / T_softmax_expsum[i0_6]
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_2(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -205,7 +205,7 @@ def test_gpu_softmax_mn():
                             T_softmax_exp[i0_5, i1] / T_softmax_expsum_shared[i0_5]
                         )
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_3(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -277,7 +277,7 @@ def test_gpu_softmax_mn():
         ("SampleCategorical", 1),
         ("SampleCategorical", 7),
     ]
-    mod = create_prim_func(te_workload.softmax_mn(n=256, m=256))
+    mod = create_function(te_workload.softmax_mn(n=256, m=256))
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
@@ -293,7 +293,7 @@ def test_gpu_softmax_mn():
 
 
 def test_gpu_softmax_mn_after_inline():
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_after_inline_0(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -327,7 +327,7 @@ def test_gpu_softmax_mn_after_inline():
                     T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4]) / T_softmax_expsum[i0_4]
                 )
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_after_inline_1(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -363,7 +363,7 @@ def test_gpu_softmax_mn_after_inline():
                     T.exp(A[i0_4, i1_1] - T_softmax_maxelem[i0_4]) / T_softmax_expsum[i0_4]
                 )
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_after_inline_2(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -407,7 +407,7 @@ def test_gpu_softmax_mn_after_inline():
                             / T_softmax_expsum_shared[i0_4]
                         )
 
-    @Ts.prim_func
+    @Ts.function
     def softmax_mn_after_inline_3(
         A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")
     ) -> None:
@@ -491,7 +491,7 @@ def test_gpu_softmax_mn_after_inline():
 
 
 def test_gpu_batch_norm_bmn():
-    @Ts.prim_func
+    @Ts.function
     def batch_norm_bmn_0(A: T.Tensor((1, 512, 512), "float32"), D: T.Tensor(1, "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -513,7 +513,7 @@ def test_gpu_batch_norm_bmn():
                 Ts.writes(D[b])
                 D[b] = T.sqrt(C[b])
 
-    @Ts.prim_func
+    @Ts.function
     def batch_norm_bmn_1(A: T.Tensor((1, 512, 512), "float32"), D: T.Tensor(1, "float32")) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
@@ -545,7 +545,7 @@ def test_gpu_batch_norm_bmn():
         ("SampleCategorical", 6),
     ]
 
-    mod = create_prim_func(te_workload.norm_bmn(B=1, M=512, N=512))
+    mod = create_function(te_workload.norm_bmn(B=1, M=512, N=512))
     actual = generate_design_space(
         kind="cuda",
         mod=mod,
@@ -560,7 +560,7 @@ def test_gpu_batch_norm_bmn():
     )
 
 
-@Ts.prim_func
+@Ts.function
 def argmax(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
@@ -586,7 +586,7 @@ def argmax(
             argmax_v1[i] = v_argmax_v1
 
 
-@Ts.prim_func
+@Ts.function
 def argmax_32(
     idx: T.Tensor((1, 32), "int32"),
     val: T.Tensor((1, 32), "float32"),
@@ -613,7 +613,7 @@ def argmax_32(
 
 
 def test_gpu_argmax():
-    @Ts.prim_func
+    @Ts.function
     def argmax_0(
         idx: T.Tensor((128, 128), "int32"),
         val: T.Tensor((128, 128), "float32"),
@@ -639,7 +639,7 @@ def test_gpu_argmax():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @Ts.prim_func
+    @Ts.function
     def argmax_1(
         idx: T.Tensor((128, 128), "int32"),
         val: T.Tensor((128, 128), "float32"),
@@ -688,7 +688,7 @@ def test_gpu_argmax():
 
 
 def test_gpu_argmax_32():
-    @Ts.prim_func
+    @Ts.function
     def argmax_0(
         idx: T.Tensor((1, 32), "int32"),
         val: T.Tensor((1, 32), "float32"),
@@ -714,7 +714,7 @@ def test_gpu_argmax_32():
                 argmax_v0[i] = v_argmax_v0
                 argmax_v1[i] = v_argmax_v1
 
-    @Ts.prim_func
+    @Ts.function
     def argmax_1(
         idx: T.Tensor((1, 32), "int32"),
         val: T.Tensor((1, 32), "float32"),

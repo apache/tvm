@@ -35,7 +35,7 @@ from tvm.script import tirx as T
 # pylint: disable=no-member,invalid-name,unused-variable,unexpected-keyword-arg
 
 
-@Ts.prim_func
+@Ts.function
 def rowsum_blockized(A: T.Tensor([32, 4, 128]), B: T.Tensor([32, 4])) -> None:
     for i0, i2_0 in T.grid(32, 16):
         with Ts.sblock("blockized_B"):
@@ -52,7 +52,7 @@ def rowsum_blockized(A: T.Tensor([32, 4, 128]), B: T.Tensor([32, 4])) -> None:
                     B[io, ii] = B[io, ii] + A[io, ii, k]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])) -> None:
     for i, j, k in T.grid(128, 128, 128):
         with Ts.sblock("update"):
@@ -62,7 +62,7 @@ def matmul(A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 1
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_decompose0(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -77,7 +77,7 @@ def matmul_decompose0(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_decompose1(
     A: T.Tensor([32, 4, 128], elem_offset=0, align=64, offset_factor=1),
     B: T.Tensor([32, 4], elem_offset=0, align=64, offset_factor=1),
@@ -99,7 +99,7 @@ def matmul_decompose1(
                     B[io, ii] = B[io, ii] + A[io, ii, k]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_decompose2(
     A: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
     B: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
@@ -115,7 +115,7 @@ def matmul_decompose2(
                 C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_decompose_fail3(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -127,7 +127,7 @@ def matmul_decompose_fail3(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_decompose4(
     A: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
     B: T.Tensor([128, 128], elem_offset=0, align=64, offset_factor=1),
@@ -152,7 +152,7 @@ def matmul_decompose4(
                     C[vi, vj] = C[vi, vj] + (A[vi, vk] * B[vj, vk])
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_with_annotation(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -165,7 +165,7 @@ def matmul_with_annotation(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def matmul_decompose_with_annotation(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
@@ -182,7 +182,7 @@ def matmul_decompose_with_annotation(
             C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
 
 
-@Ts.prim_func
+@Ts.function
 def colsum_with_vectorization(
     A: T.Tensor([128, 32], dtype="float32"), B: T.Tensor([32], dtype="float32")
 ) -> None:
@@ -195,7 +195,7 @@ def colsum_with_vectorization(
                 B[vi] = B[vi] + A[vk, vi]
 
 
-@Ts.prim_func
+@Ts.function
 def colsum_decompose_with_vectorization(
     A: T.Tensor([128, 32], dtype="float32"), B: T.Tensor([32], dtype="float32")
 ) -> None:
@@ -294,7 +294,7 @@ def test_decompose_reduction_ref_hash_check():
 
 
 def test_decompose_reduction_nested_block():
-    @Ts.prim_func
+    @Ts.function
     def nested_block(A: T.Tensor((1, 64), "float32"), B: T.Tensor((1,), "float32")):
         for i, ko in T.grid(1, 2):
             with Ts.sblock("outer"):
@@ -311,7 +311,7 @@ def test_decompose_reduction_nested_block():
                         vki = Ts.axis.remap("R", [ki])
                         B[vi] += C[vki]
 
-    @Ts.prim_func
+    @Ts.function
     def decomposed_nested_block(A: T.Tensor((1, 64), "float32"), B: T.Tensor((1,), "float32")):
         for i in range(1):
             with Ts.sblock("outer_init"):
@@ -350,7 +350,7 @@ def test_decompose_reduction_nested_block():
 def test_decompose_reduction_with_thread_binding():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((32, 16), "float32"), B: T.Tensor((32,), "float32")):
             for t in T.thread_binding(0, 32, thread="threadIdx.x"):
                 for r in T.serial(16):
@@ -362,7 +362,7 @@ def test_decompose_reduction_with_thread_binding():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((32, 16), "float32"), B: T.Tensor((32,), "float32")):
             for t_init in T.thread_binding(0, 32, thread="threadIdx.x"):
                 with Ts.sblock("B_init"):
@@ -384,7 +384,7 @@ def test_decompose_reduction_with_thread_binding():
 def test_decompose_reduction_preserves_general_spatial_predicates():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((8, 8), "float32"), B: T.Tensor((8,), "float32")):
             for i, k in T.grid(10, 10):
                 with Ts.sblock("B"):
@@ -397,7 +397,7 @@ def test_decompose_reduction_preserves_general_spatial_predicates():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((8, 8), "float32"), B: T.Tensor((8,), "float32")):
             for i_init in range(10):
                 with Ts.sblock("B_init"):
@@ -420,7 +420,7 @@ def test_decompose_reduction_preserves_general_spatial_predicates():
 def test_decompose_reduction_drops_mixed_rfactor_bound():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((20,), "float32"), B: T.Tensor((), "float32")):
             for k in range(20):
                 with Ts.sblock("B"):
@@ -431,7 +431,7 @@ def test_decompose_reduction_drops_mixed_rfactor_bound():
 
     @I.ir_module
     class Expected:
-        @Ts.prim_func
+        @Ts.function
         def main(A: T.Tensor((20,), "float32"), B: T.Tensor((), "float32")):
             B_rf = Ts.sblock_alloc_buffer((16,), elem_offset=T.int64(0))
             for k_1_init in range(16):

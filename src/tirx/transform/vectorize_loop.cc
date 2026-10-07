@@ -222,10 +222,10 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     return TryPredicateBufferAccess(load);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto store = StmtExprMutator::Mutate_(op, inplace_mode)
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                     .as_or_throw<BufferStore>();
+                     .as_or_throw<TensorStore>();
     return TryPredicateBufferAccess(store);
   }
 
@@ -298,7 +298,7 @@ class TryPredicateBufferAccesses : public StmtExprMutator {
     return load;
   }
 
-  Stmt TryPredicateBufferAccess(BufferStore store) {
+  Stmt TryPredicateBufferAccess(TensorStore store) {
     if (auto mask = GetLaneMask(store->indices)) {
       ffi::Array<Expr> args{store->buffer.var(), store->value};
       for (const PrimExpr& index : store->indices) args.push_back(index);
@@ -349,14 +349,14 @@ class VecAllocAccess : public StmtExprMutator {
     return UpdateBufferAccess(load);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore store =
+    TensorStore store =
         value.UnchangedOrSameAs(op->value) && indices.UnchangedOrSameAs(op->indices)
-            ? ffi::GetRef<BufferStore>(op)
-            : BufferStore(op->buffer, std::move(value).ValueOrUnchanged(op->value),
+            ? ffi::GetRef<TensorStore>(op)
+            : TensorStore(op->buffer, std::move(value).ValueOrUnchanged(op->value),
                           std::move(indices).ValueOrUnchanged(op->indices), op->span);
     return UpdateBufferAccess(store);
   }
@@ -1002,9 +1002,9 @@ class Vectorizer : public StmtExprMutator {
       return vectors[0];
     }
   }
-  // BufferStore
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    auto store = ffi::GetRef<BufferStore>(op);
+  // TensorStore
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    auto store = ffi::GetRef<TensorStore>(op);
 
     auto fmutate = [this](const PrimExpr& index) {
       return this->Mutate(index).ValueOrUnchanged(index);
@@ -1410,7 +1410,7 @@ namespace transform {
 
 // TODO(tvm-team): Make it as a target property.
 Pass VectorizeLoop(bool enable_vectorize) {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
     if (enable_vectorize) {
       n->body = ffi::make_object<LoopVectorizer>(n->attrs)
@@ -1423,7 +1423,7 @@ Pass VectorizeLoop(bool enable_vectorize) {
     }
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.VectorizeLoop", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.VectorizeLoop", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

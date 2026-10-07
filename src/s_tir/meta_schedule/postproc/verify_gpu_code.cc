@@ -147,8 +147,8 @@ class VerifyGPUCodeNode : public PostprocNode {
 
   bool Verify(const IRModule& mod) const {
     for (const auto& kv : mod->functions) {
-      if (auto prim_func = kv.second.as<tirx::PrimFunc>()) {
-        if (!s_tir::VerifyGPUCode(prim_func.value(), this->target_constraints_)) {
+      if (auto function = kv.second.as<tirx::Function>()) {
+        if (!s_tir::VerifyGPUCode(function.value(), this->target_constraints_)) {
           return false;
         }
       }
@@ -161,9 +161,9 @@ class VerifyGPUCodeNode : public PostprocNode {
     for (const auto& kv : mod->functions) {
       const GlobalVar& g_var = kv.first;
       const BaseFunc& base_func = kv.second;
-      if (const auto* prim_func = base_func.as<tirx::PrimFuncNode>()) {
-        if (prim_func->body.has_value() &&
-            !s_tir::ThreadExtentChecker::Check(prim_func->body.value(), thread_warp_size_)) {
+      if (const auto* function = base_func.as<tirx::FunctionNode>()) {
+        if (function->body.has_value() &&
+            !s_tir::ThreadExtentChecker::Check(function->body.value(), thread_warp_size_)) {
           return false;
         }
         IRModule lowered{ffi::UnsafeInit()};
@@ -195,7 +195,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           pass_list.push_back(tirx::transform::LowerIntrin());
           // Convert Function to IRModule
           tvm::transform::PassContext pass_ctx = tvm::transform::PassContext::Current();
-          tirx::PrimFunc f = WithAttr(ffi::GetRef<tirx::PrimFunc>(prim_func), "global_symbol",
+          tirx::Function f = WithAttr(ffi::GetRef<tirx::Function>(function), "global_symbol",
                                       ffi::String(g_var->name_hint));
           f = WithAttr(f, tvm::attr::kTarget, this->target_);  // Required for LowerIntrin
           bool noalias = pass_ctx->GetConfig<bool>("tirx.noalias", true).value();

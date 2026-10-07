@@ -44,7 +44,7 @@ def _design_space(mod):
 
 def test_cuda_c1d():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def c1d_0(inputs: T.Tensor((1, 256, 64), "float32"), weight: T.Tensor((3, 64, 128), "float32"), conv1d_nlc: T.Tensor((1, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -122,7 +122,7 @@ def test_cuda_c1d():
 
 def test_cuda_c2d():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def c2d_0(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -206,7 +206,7 @@ def test_cuda_c2d():
 
 def test_cuda_c3d():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def c3d_0(inputs: T.Tensor((1, 16, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 7, 3, 64), "float32"), conv3d_ndhwc: T.Tensor((1, 8, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -296,7 +296,7 @@ def test_cuda_c3d():
 
 def test_cuda_cap():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def cap_0(inputs: T.Tensor((1, 16, 16, 4, 4, 32), "float32"), weight: T.Tensor((3, 3, 4, 4, 32, 32), "float32"), conv2d_capsule_nhwijc: T.Tensor((1, 8, 8, 4, 4, 32), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -390,7 +390,7 @@ def test_cuda_cap():
 
 def test_cuda_dep():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def dep_0(placeholder: T.Tensor((1, 112, 112, 32), "float32"), placeholder_1: T.Tensor((1, 3, 3, 32), "float32"), depth_conv2d_nhwc: T.Tensor((1, 112, 112, 32), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -471,7 +471,7 @@ def test_cuda_dep():
 
 def test_cuda_dil():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def dil_0(inputs: T.Tensor((1, 224, 224, 3), "float32"), weight: T.Tensor((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Tensor((1, 109, 109, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -552,7 +552,7 @@ def test_cuda_dil():
 
 def test_cuda_gmm():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def gmm_0(X: T.Tensor((1, 128, 128), "float32"), Y: T.Tensor((1, 128, 128), "float32"), Z: T.Tensor((1, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -626,7 +626,7 @@ def test_cuda_gmm():
 
 def test_cuda_grp():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def grp_0(inputs: T.Tensor((1, 56, 56, 64), "float32"), weight: T.Tensor((3, 3, 16, 128), "float32"), conv2d_nhwc: T.Tensor((1, 28, 28, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -708,7 +708,7 @@ def test_cuda_grp():
 
 def test_cuda_t2d():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def t2d_0(inputs: T.Tensor((1, 4, 4, 512), "float32"), weight: T.Tensor((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Tensor((1, 8, 8, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -792,7 +792,7 @@ def test_cuda_t2d():
 
 def test_cuda_nrm():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def nrm_0(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor(1, "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -818,7 +818,7 @@ def test_cuda_nrm():
                         Ts.reads(C[v_b])
                         Ts.writes(D[v_b])
                         D[v_b] = T.sqrt(C[v_b])
-    @Ts.prim_func
+    @Ts.function
     def nrm_1(A: T.Tensor((1, 256, 256), "float32"), D: T.Tensor(1, "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -865,7 +865,7 @@ def test_cuda_nrm():
 
 def test_cuda_sfm():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def sfm_0(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -905,7 +905,7 @@ def test_cuda_sfm():
                         Ts.writes(T_softmax_norm[v_i0, v_i1])
                         Ts.sblock_attr({"axis": 1})
                         T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_1(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -945,7 +945,7 @@ def test_cuda_sfm():
                         Ts.writes(T_softmax_norm[v_i0, v_i1])
                         Ts.sblock_attr({"axis": 1})
                         T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_2(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -987,7 +987,7 @@ def test_cuda_sfm():
                             Ts.writes(T_softmax_norm[v_i0, v_i1])
                             Ts.sblock_attr({"axis": 1})
                             T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum_shared[v_i0]
-    @Ts.prim_func
+    @Ts.function
     def sfm_3(A: T.Tensor((256, 256), "float32"), T_softmax_norm: T.Tensor((256, 256), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1064,7 +1064,7 @@ def test_cuda_sfm():
 
 def test_cuda_cbr():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def cbr_0(data: T.Tensor((1, 224, 224, 3), "float32"), kernel: T.Tensor((7, 7, 3, 64), "float32"), bias: T.Tensor(64, "float32"), bn_offset: T.Tensor(64, "float32"), bn_scale: T.Tensor(64, "float32"), compute: T.Tensor((1, 112, 112, 64), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):
@@ -1147,7 +1147,7 @@ def test_cuda_cbr():
 
 def test_cuda_tbg():
     # fmt: off
-    @Ts.prim_func
+    @Ts.function
     def tbg_0(query: T.Tensor((1, 128, 12, 64), "float32"), value: T.Tensor((1, 128, 12, 64), "float32"), C: T.Tensor((1, 12, 128, 128), "float32")) -> None:
         T.func_attr({"global_symbol": "main", "tirx.noalias": True})
         with Ts.sblock("root"):

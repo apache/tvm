@@ -426,7 +426,7 @@ def test_module_dict_from_deserialized_targets():
 
     from tvm.script import tirx as T
 
-    @Ts.prim_func
+    @Ts.function
     def func():
         T.evaluate(0)
 

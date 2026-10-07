@@ -64,18 +64,18 @@ _Span = _base.SpanEntry | _ir.Span | None
 # --------------------------------------
 
 
-def prim_func(
+def function(
     is_private: bool = False,
     persistent: bool = False,
     *,
     private: bool | None = None,
-) -> frame.PrimFuncFrame:
+) -> frame.FunctionFrame:
     """The primitive function statement.
 
     Parameters
     ----------
     is_private : bool
-        Whether the PrimFunc is annotated as private.
+        Whether the Function is annotated as private.
     persistent : bool
         Whether this is a persistent kernel.
     private : bool
@@ -83,12 +83,12 @@ def prim_func(
 
     Returns
     -------
-    res : frame.PrimFuncFrame
-        The PrimFuncFrame.
+    res : frame.FunctionFrame
+        The FunctionFrame.
     """
     if private is not None:
         is_private = private
-    return _ffi_api.PrimFunc(is_private, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.Function(is_private, persistent)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def function_(
@@ -97,7 +97,7 @@ def function_(
     persistent: bool = False,
     decl: bool = False,
     span: _Span = None,
-) -> frame.PrimFuncFrame:
+) -> frame.FunctionFrame:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.function_`.
 
     Private/persistent options pass to the native TIRx function frame.
@@ -106,7 +106,7 @@ def function_(
     native = (
         _ffi_api.DeclFunction(private, persistent)
         if decl
-        else _ffi_api.PrimFunc(private, persistent)
+        else _ffi_api.Function(private, persistent)
     )
     return _base.at_(span, native)
 
@@ -138,12 +138,12 @@ def func_ret_type_(annotation: Any, *, span: _Span = None) -> None:
 
 
 def func_attr(attrs: dict[str, Any]) -> None:
-    """The PrimFunc annotation statement.
+    """The Function annotation statement.
 
     Parameters
     ----------
     attrs : Dict[str, Any]
-        The annotations of the PrimFunc.
+        The annotations of the Function.
     """
     _ffi_api.FuncAttrs(attrs)  # type: ignore[attr-defined] # pylint: disable=no-member
 
@@ -158,7 +158,7 @@ def device_entry() -> frame.RegionFrame:
     return region("tirx.device_entry", [])
 
 
-def check_well_formed_(function: _tir.PrimFunc) -> None:
+def check_well_formed_(function: _tir.Function) -> None:
     """Validate a completed TIRx function."""
     try:
         _tir.analysis.verify_well_formed(function)
@@ -173,7 +173,7 @@ def check_well_formed_(function: _tir.PrimFunc) -> None:
 def _check_module_well_formed(module: _ir.IRModule) -> None:
     """Validate completed functions belonging to the TIRx dialect."""
     for function in module.functions.values():
-        if isinstance(function, _tir.PrimFunc) and function.is_tirx:
+        if isinstance(function, _tir.Function) and function.is_tirx:
             check_well_formed_(function)
 
 
@@ -325,14 +325,14 @@ def set_mutable_cell_(
     Updates emit a scalar buffer store. Targets must denote scalar storage.
     """
     if isinstance(target, _ir.TensorLoad):
-        return _base.at_(span, buffer_store(target.source, value, list(target.indices)))
+        return _base.at_(span, tensor_store(target.source, value, list(target.indices)))
     elif (
         _tir.is_tensor_var(target)
         and len(target.ty.shape) == 1
         and isinstance(target.ty.shape[0], _tir.IntImm)
         and target.ty.shape[0].value == 1
     ):
-        return _base.at_(span, buffer_store(target, value, [0]))
+        return _base.at_(span, tensor_store(target, value, [0]))
     else:
         raise TypeError("A mutable assignment requires scalar storage")
 
@@ -386,7 +386,7 @@ def setitem_(
     target: Any, key: Any, value: Any, *, span: _Span = None
 ) -> _base.AlreadyEmitted[_tir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
-    return _base.at_(span, buffer_store(target, value, key))
+    return _base.at_(span, tensor_store(target, value, key))
 
 
 def setattr_(
@@ -437,7 +437,7 @@ def bind(  # pylint: disable=invalid-name
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def buffer_store(
+def tensor_store(
     buffer: Var,  # pylint: disable=redefined-outer-name
     value: Expr,
     indices: list[Expr | slice],
@@ -481,7 +481,7 @@ def buffer_store(
             expr_indices.append(index)
     if isinstance(value, bool) and buffer.ty.dtype == "bool":
         value = IntImm("bool", value)
-    return AlreadyEmitted(_ffi_api.BufferStore(buffer, value, expr_indices))
+    return AlreadyEmitted(_ffi_api.TensorStore(buffer, value, expr_indices))
 
 
 def evaluate(value: Expr) -> AlreadyEmitted[_tir.Stmt]:
@@ -987,7 +987,6 @@ __all__ = [
     "bind",
     "bind_",
     "break_",
-    "buffer_store",
     "call_global_var_",
     "check_well_formed_",
     "compute_scope",
@@ -1005,6 +1004,7 @@ __all__ = [
     "func_name_",
     "func_ret",
     "func_ret_type_",
+    "function",
     "function_",
     "ge_",
     "grid",
@@ -1019,7 +1019,6 @@ __all__ = [
     "or_",
     "parallel",
     "parallel_launch",
-    "prim_func",
     "range_",
     "region",
     "resolve_global_info_",
@@ -1028,6 +1027,7 @@ __all__ = [
     "set_mutable_cell_",
     "setattr_",
     "setitem_",
+    "tensor_store",
     "then_",
     "thread_binding",
     "unpack_",

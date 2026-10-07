@@ -330,7 +330,7 @@ def test_multi_func():
 def test_no_local_func():
     @I.ir_module
     class Before:
-        @Ts.prim_func
+        @Ts.function
         def sub(
             A: T.Tensor((16, 16), "float32"),
             B: T.Tensor((16, 16), "float32"),

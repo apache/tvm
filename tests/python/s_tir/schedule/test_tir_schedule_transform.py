@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 
 @tvm.script.ir_module
 class DenseTIRModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((1024, 1024), "uint8"),
         placeholder_1: T.Tensor((64, 256, 16, 4), "int8"),
@@ -48,7 +48,7 @@ class DenseTIRModule:
 
 @tvm.script.ir_module
 class DenseTIRModuleTiled:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((1024, 1024), "uint8"),
         placeholder_1: T.Tensor((64, 256, 16, 4), "int8"),
@@ -74,7 +74,7 @@ class DenseTIRModuleTiled:
 
 @tvm.script.ir_module
 class Conv2dNCHWcTIRModule:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),
@@ -115,7 +115,7 @@ class Conv2dNCHWcTIRModule:
 
 @tvm.script.ir_module
 class Conv2dNCHWcTIRModuleTiled:
-    @Ts.prim_func
+    @Ts.function
     def main(
         placeholder: T.Tensor((1, 4, 56, 56, 16), "uint8"),
         placeholder_1: T.Tensor((16, 4, 1, 1, 4, 16, 4), "int8"),

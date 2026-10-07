@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 from tvm.script import tirx as T
 from tvm.sym.analyzer import Analyzer
-from tvm.tirx import PrimFunc
+from tvm.tirx import Function
 from tvm.tirx.layout import TileLayout
 from tvm.tirx.operator.tile_primitive import (
     DispatchContext,
@@ -267,7 +267,7 @@ def _no_replica(op: TilePrimitiveCall, sctx: DispatchContext):
         predicate("no_replica", _no_replica),
     ],
 )
-def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     """``gemm`` -> warp-level ``mma.sync`` of the m16n8k* family.
 
     This is the ``"mma.m16n8k*"`` variant. It targets the m16n8k* tensor-core
@@ -556,7 +556,7 @@ def gemm_cuda_mma_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Prim
     n_rN = inst.n // 4
     n_kHi = inst.k // (4 * inst.k_pack)
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         d_local = D.local(*d_shape, layout=D_reg)
         c_local = C.local(*c_shape, layout=C_reg)

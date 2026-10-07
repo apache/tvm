@@ -90,7 +90,7 @@ std::tuple<TensorType, ffi::Optional<int64_t>> GetTensorArgInfoWithIndex(const C
   return {ffi::GetRef<TensorType>(tensor_ty), int_imm_axis};
 }
 
-tirx::PrimFunc GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_ty) {
+tirx::Function GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_ty) {
   tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
 
   tirx::Var value("value", field_ty);
@@ -103,7 +103,7 @@ tirx::PrimFunc GetDLTensorField(tirx::TVMStructFieldKind field, PrimType field_t
 
   DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
-  tirx::PrimFunc func(ffi::Array<tirx::Var>{dlpack_handle}, body, field_ty, attrs);
+  tirx::Function func(ffi::Array<tirx::Var>{dlpack_handle}, body, field_ty, attrs);
 
   FuncType ty({TensorType(std::nullopt, kUnknownNDim)}, field_ty);
   func->ty = ty;
@@ -126,7 +126,7 @@ Expr LegalizeTensorDtypeCode(const BlockBuilder& bb, const Call& call) {
   PrimType field_ty = call->ty.as_or_throw<tvm::PrimType>();
 
   Expr arg = call->args[0];
-  tirx::PrimFunc getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorTypeCode, field_ty);
+  tirx::Function getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorTypeCode, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_code");
   return Call::Unchecked(Type::Missing(), gvar_getter, {arg});
@@ -155,7 +155,7 @@ Expr LegalizeTensorDtypeBits(const BlockBuilder& bb, const Call& call) {
   PrimType field_ty = call->ty.as_or_throw<tvm::PrimType>();
 
   Expr arg = call->args[0];
-  tirx::PrimFunc getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorTypeBits, field_ty);
+  tirx::Function getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorTypeBits, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_bits");
   return Call::Unchecked(Type::Missing(), gvar_getter, {arg});
@@ -184,7 +184,7 @@ Expr LegalizeTensorDtypeLanes(const BlockBuilder& bb, const Call& call) {
   PrimType field_ty = call->ty.as_or_throw<tvm::PrimType>();
 
   Expr arg = call->args[0];
-  tirx::PrimFunc getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorTypeLanes, field_ty);
+  tirx::Function getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorTypeLanes, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_dtype_lanes");
   return Call::Unchecked(Type::Missing(), gvar_getter, {arg});
@@ -213,7 +213,7 @@ Expr LegalizeTensorNDim(const BlockBuilder& bb, const Call& call) {
   PrimType field_ty = call->ty.as_or_throw<tvm::PrimType>();
 
   Expr arg = call->args[0];
-  tirx::PrimFunc getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorNDim, field_ty);
+  tirx::Function getter = GetDLTensorField(tirx::TVMStructFieldKind::kDLTensorNDim, field_ty);
 
   GlobalVar gvar_getter = bb->AddFunction(getter, "_get_tensor_ndim");
   return Call::Unchecked(Type::Missing(), gvar_getter, {arg});
@@ -253,7 +253,7 @@ Type InferTypeTensorShape(const Call& call, const BlockBuilder&) {
 Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
   PrimType field_ty = call->ty.as_or_throw<tvm::PrimType>();
 
-  tirx::PrimFunc getter = [&]() -> tirx::PrimFunc {
+  tirx::Function getter = [&]() -> tirx::Function {
     tirx::Var dlpack_handle("dlpack_handle", PointerType::VoidPointerTy());
     tirx::Var axis("axis", PrimType::Int(64));
 
@@ -290,7 +290,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     DictAttrs attrs({{"tirx.is_scheduled", true}, {"tirx.is_host_func", true}});
 
-    tirx::PrimFunc func({dlpack_handle, axis}, body, field_ty, attrs);
+    tirx::Function func({dlpack_handle, axis}, body, field_ty, attrs);
 
     FuncType ty({TensorType(std::nullopt, kUnknownNDim), axis->ty.as_or_throw<PrimType>()},
                 field_ty);
@@ -331,8 +331,8 @@ Type InferTypeTensorStride(const Call& call, const BlockBuilder&) {
     // As of 2024-03-14, Relax does not have an explicit
     // representation for striding in `TensorType`.  The
     // `FLegalize` function for most operators is implemented in terms
-    // of `topi`, and is then converted from TE to `tirx::PrimFunc`
-    // using `tvm::tirx::CreatePrimFunc`.  The `te::Tensor` is
+    // of `topi`, and is then converted from TE to `tirx::Function`
+    // using `tvm::tirx::CreateFunction`.  The `te::Tensor` is
     // converted to a `tirx::TensorVar` in `RewriteStageToBlock`, and uses
     // the default empty list for the strides.  The empty strides
     // represent a compact data array.

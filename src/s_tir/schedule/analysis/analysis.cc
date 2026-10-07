@@ -37,12 +37,12 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 /******** IR Module ********/
 
-const PrimFuncNode* GetRootPrimFunc(const IRModule& mod, const StmtNode* root_block,
+const FunctionNode* GetRootFunction(const IRModule& mod, const StmtNode* root_block,
                                     GlobalVar* result_g_var) {
   for (const auto& kv : mod->functions) {
     const GlobalVar& g_var = kv.first;
     const BaseFunc& base_func = kv.second;
-    if (const auto* func = base_func.as<PrimFuncNode>()) {
+    if (const auto* func = base_func.as<FunctionNode>()) {
       if (const auto* realize = func->body.as<SBlockRealizeNode>()) {
         if (realize->block.get() == root_block) {
           if (result_g_var != nullptr) {
@@ -906,7 +906,7 @@ SBlockRealize GetSBlockRealize(const ScheduleState& self, const StmtSRef& block_
 
   const SBlockNode* block = TVM_SREF_TO_SBLOCK(block_sref);
   if (block_sref->parent == nullptr) {
-    const PrimFuncNode* func = GetRootPrimFunc(self->mod, block, nullptr);
+    const FunctionNode* func = GetRootFunction(self->mod, block, nullptr);
     return func->body.as_or_throw<SBlockRealize>();
   } else {
     auto finder = ffi::make_object<BlockRealizeFinder>(block);
@@ -1357,7 +1357,7 @@ void AddShapeVarBounds(const ScheduleState& state, const StmtSRefNode* sref,
   while (sref->parent != nullptr) {
     sref = sref->parent;
   }
-  const PrimFuncNode* f = GetRootPrimFunc(state->mod, sref->stmt, nullptr);
+  const FunctionNode* f = GetRootFunction(state->mod, sref->stmt, nullptr);
   for (const Var& param : f->params) {
     if (auto buffer = param.as<TensorVar>()) {
       for (const PrimExpr& e : buffer.value()->shape) {
@@ -1614,7 +1614,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   return total_unused_block_vars >= 1;
 }
 
-bool IsSpatialPrimFunc(const PrimFunc& func) {
+bool IsSpatialFunction(const Function& func) {
   auto walk_fn = [](const SBlock& block) -> ffi::Expected<ffi::WalkResult> {
     for (const IterVar& iter_var : block->iter_vars) {
       if (iter_var->iter_type != IterVarType::kDataPar) {
@@ -1757,11 +1757,11 @@ struct TensorIntrinDescInfo {
 /*!
  * \brief Extract auxilary information from the tensor intrin description.
  * \param analyze The arithmetic analyzer
- * \param desc_func The description PrimFunc
+ * \param desc_func The description Function
  * \return The auxilary information
  */
 TensorIntrinDescInfo ExtractTensorIntrinDescInfo(sym::AnalyzerObj* analyzer,
-                                                 const PrimFunc& desc_func) {
+                                                 const Function& desc_func) {
   TensorIntrinDescInfo info;
   const auto* desc_scope_realize = desc_func->body.as<SBlockRealizeNode>();
   TVM_FFI_ICHECK(desc_scope_realize);
@@ -1788,7 +1788,7 @@ TensorIntrinDescInfo ExtractTensorIntrinDescInfo(sym::AnalyzerObj* analyzer,
 
 ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState& self,
                                                      const tirx::StmtSRef& block_sref,
-                                                     const tirx::PrimFunc& desc_func,
+                                                     const tirx::Function& desc_func,
                                                      bool allow_padding) {
   sym::Analyzer analyzer;
   const s_tir::SBlockRealize& block = GetSBlockRealize(self, block_sref);
@@ -1955,9 +1955,9 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("s_tir.schedule.IsSpatialPrimFunc", IsSpatialPrimFunc)
+      .def("s_tir.schedule.IsSpatialFunction", IsSpatialFunction)
       .def("s_tir.schedule.GetTensorizeLoopMapping", [](Schedule sch, SBlockRV block,
-                                                        PrimFunc desc_func, bool allow_padding) {
+                                                        Function desc_func, bool allow_padding) {
         return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func, allow_padding);
       });
 }
@@ -2148,7 +2148,7 @@ class AutoTensorizeMappingProposer {
 };
 
 bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tirx::StmtSRef& block_sref,
-                                  const tirx::PrimFunc& desc_func,
+                                  const tirx::Function& desc_func,
                                   AutoTensorizeComparator* extractor) {
   // Step 1. Analyze desc_func, extract its block, loops and loop vars
   // Step 2. Check if `desc_block` matches `block`
@@ -2161,14 +2161,14 @@ bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tirx::StmtSR
 }
 
 bool CheckAutoTensorizeApplicable(const s_tir::Schedule& sch, const s_tir::SBlockRV& block_rv,
-                                  const tirx::PrimFunc& desc_func) {
+                                  const tirx::Function& desc_func) {
   AutoTensorizeComparator extractor(sch->state()->mod);
   return CheckAutoTensorizeApplicable(sch->state(), sch->GetSRef(block_rv), desc_func, &extractor);
 }
 
 ffi::Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(
     const s_tir::ScheduleState& self, const tirx::StmtSRef& block_sref,
-    const tirx::PrimFunc& desc_func) {
+    const tirx::Function& desc_func) {
   AutoTensorizeComparator extractor(self->mod);
   if (!CheckAutoTensorizeApplicable(self, block_sref, desc_func, &extractor)) {
     return std::nullopt;
@@ -2193,7 +2193,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("s_tir.schedule.GetAutoTensorizeMappingInfo",
-           [](Schedule sch, SBlockRV block, PrimFunc desc_func) {
+           [](Schedule sch, SBlockRV block, Function desc_func) {
              return GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block), desc_func);
            })
       .def("s_tir.schedule.HasBlock", HasBlock)

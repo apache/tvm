@@ -63,23 +63,23 @@ ffi::Optional<Var> GetShardingVarFromIndex(PrimExpr index, ffi::Map<Var, Range> 
                                            const sym::Analyzer& analyzer);
 
 /*!
- * \brief Construct an axis group graph from a PrimFunc. Two buffer axis are connected if they
+ * \brief Construct an axis group graph from a tirx::Function. Two buffer axis are connected if they
  * are accessed by the same index.
  */
 class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
  public:
-  static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const PrimFunc& prim_func) {
+  static std::vector<std::vector<TIRVarAxis>> GetTIRVarAxisGraph(const tirx::Function& function) {
     auto extractor = ffi::make_object<BufferAxisGraphExtractor>();
-    extractor->Visit(prim_func->body);
+    extractor->Visit(function->body);
     ffi::Map<TensorVar, Var> inverse_buffer_map;
-    for (const Var& param : prim_func->params) {
+    for (const Var& param : function->params) {
       if (param->ty.as<TensorTypeNode>()) {
         inverse_buffer_map.Set(param.as_or_throw<TensorVar>(), param);
       }
     }
     std::vector<std::vector<TIRVarAxis>> tir_var_axis_group_list;
     std::unordered_set<BufferAxis, BufferAxisHash> visited;
-    for (const Var& param : prim_func->params) {
+    for (const Var& param : function->params) {
       if (!param->ty.as<TensorTypeNode>()) {
         continue;
       }
@@ -119,7 +119,7 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     buffer_access_indices_.push_back({op->buffer, op->indices});
 
@@ -481,7 +481,7 @@ void BuildAxisGraphPermuteDims(const Var& output_var, const Call& call,
                                distributed::AxisGroupGraph* axis_group_graph);
 void BuildAxisGraphReshape(const Var& output_var, const Call& call,
                            distributed::AxisGroupGraph* axis_group_graph);
-void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::PrimFunc& func,
+void BuildAxisGraphCallTIR(const Var& output_var, const Call& call, const tirx::Function& func,
                            distributed::AxisGroupGraph* axis_group_graph);
 
 }  // namespace distributed

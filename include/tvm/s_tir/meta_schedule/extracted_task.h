@@ -28,7 +28,7 @@
 
 namespace tvm {
 namespace tirx {
-class PrimFunc;
+class Function;
 }  // namespace tirx
 namespace te {
 class Tensor;

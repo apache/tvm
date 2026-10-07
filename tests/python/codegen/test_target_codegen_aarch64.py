@@ -43,7 +43,7 @@ def test_mul(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -81,7 +81,7 @@ def test_add(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -119,7 +119,7 @@ def test_sub(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -157,7 +157,7 @@ def test_muladd(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -206,7 +206,7 @@ def test_max(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -248,7 +248,7 @@ def test_min(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -290,7 +290,7 @@ def test_div(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -327,7 +327,7 @@ def test_mod(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -365,7 +365,7 @@ def test_eq(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -406,7 +406,7 @@ def test_neq(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -446,7 +446,7 @@ def test_or(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -483,7 +483,7 @@ def test_and(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), dtype=dtype),
@@ -520,7 +520,7 @@ def test_not(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((m,), dtype=dtype), C: T.Tensor((m,), dtype=dtype)):
             T.func_attr({"tirx.noalias": True})
 
@@ -557,7 +557,7 @@ def test_memcpy(dtype):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((m,), dtype=dtype),
             B: T.Tensor((m,), "int32"),
@@ -600,7 +600,7 @@ def test_vscale_range_function_attribute(mattr, expect_attr):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((m,)), C: T.Tensor((m,))):
             T.func_attr({"tirx.noalias": True})
 

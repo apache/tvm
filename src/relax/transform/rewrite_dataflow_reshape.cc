@@ -37,7 +37,7 @@
 namespace tvm {
 namespace relax {
 
-std::vector<size_t> GetUsedTensorArgIndices(const tirx::PrimFunc& fn, size_t num_args) {
+std::vector<size_t> GetUsedTensorArgIndices(const tirx::Function& fn, size_t num_args) {
   std::vector<size_t> indices;
   for (size_t i = 0; i < num_args; ++i) {
     if (auto buffer = fn->params[i].as<tirx::TensorVar>()) {
@@ -86,12 +86,12 @@ class DataflowReshapeRewriter : public ExprMutator {
       return ffi::GetRef<Call>(call);
     }
 
-    // We bring the calls of reshape PrimFunc back to calls of high-level
+    // We bring the calls of reshape tirx::Function back to calls of high-level
     // relax.reshape op, which will be lowered to calls of the ExternFunc
     // vm.builtin.reshape in the LowerRuntimeBuiltin pass.
 
     auto prim_fn =
-        mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::PrimFunc>();
+        mod_->Lookup(call->args[0].as_or_throw<GlobalVar>()).as_or_throw<tirx::Function>();
     auto arg_tuple = call->args[1].as_or_throw<Tuple>()->fields;
     auto used_tensor_arg_indices = GetUsedTensorArgIndices(prim_fn, arg_tuple.size());
 
@@ -115,9 +115,9 @@ class DataflowReshapeRewriter : public ExprMutator {
 
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
     const GlobalVar& global_var = call->args[0].as_or_throw<GlobalVar>();
-    const auto* func = mod_->functions.Get(global_var).value().as<tirx::PrimFuncNode>();
+    const auto* func = mod_->functions.Get(global_var).value().as<tirx::FunctionNode>();
     TVM_FFI_ICHECK_NOTNULL(func);
-    if (!HasReshapePattern(ffi::GetRef<tirx::PrimFunc>(func))) {
+    if (!HasReshapePattern(ffi::GetRef<tirx::Function>(func))) {
       return false;
     }
 

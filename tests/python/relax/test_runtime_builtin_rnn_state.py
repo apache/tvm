@@ -214,7 +214,7 @@ def rnn_state_get(
     # fmt: off
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _rnn_state_get(
         storage: T.Tensor((reserved_nseq, max_history, *shape), dtype),
         seq_slot_ids: T.Tensor((batch_size,), 'int32'),
@@ -231,7 +231,7 @@ def rnn_state_get(
                     # The following line is equivalent to:
                     # `output[vi, *vs] = storage[seq_id, history_id, *vs]`
                     # However, unpacking operator in subscript requires Python 3.11 or newer
-                    T.buffer_store(
+                    T.tensor_store(
                         output, T.TensorLoad(storage, [seq_id, history_id, *vs]), [vi, *vs]
                     )
     # fmt: on
@@ -245,7 +245,7 @@ def rnn_state_set(
     # fmt: off
     batch_size = T.dynamic("batch_size", "int32")
 
-    @Ts.prim_func
+    @Ts.function
     def _rnn_state_set(
         storage: T.Tensor((reserved_nseq, max_history, *shape), dtype),
         seq_slot_ids: T.Tensor((batch_size,), 'int32'),
@@ -264,7 +264,7 @@ def rnn_state_set(
                     # The following line is equivalent to:
                     # `storage[seq_id, history_id, *vs] = data[vi, *vs]`
                     # However, unpacking operator in subscript requires Python 3.11 or newer
-                    T.buffer_store(
+                    T.tensor_store(
                         storage, T.TensorLoad(data, [vi, *vs]), [seq_id, history_id, *vs]
                     )
 

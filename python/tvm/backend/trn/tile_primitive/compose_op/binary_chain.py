@@ -19,7 +19,7 @@
 
 from tvm.ir import TensorRegion
 from tvm.script import tirx as T
-from tvm.tirx import PrimFunc, TilePrimitiveCall
+from tvm.tirx import Function, TilePrimitiveCall
 from tvm.tirx.op.tile import BinaryChain
 from tvm.tirx.operator.tile_primitive import DispatchContext, predicate, register_dispatch
 
@@ -29,7 +29,7 @@ from ..instruction_generator import InstructionGenerator
 from .utils import opcode_table
 
 
-def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc | None:
+def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> Function | None:
     """Generate a TRN schedule for binary chain operations."""
     op = TilePrimitiveCall.downcast(op)
     assert isinstance(op, BinaryChain), f"invalid operator downcast: {op}"
@@ -92,7 +92,7 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
     # Create implementation
     # fmt: off
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
             with T.nki.tensorized_instruction():
@@ -123,5 +123,5 @@ def binary_chain_trn(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc |
         )
     ],
 )
-def binary_chain_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> PrimFunc:
+def binary_chain_trn_dispatch(op: TilePrimitiveCall, sctx: DispatchContext) -> Function:
     return binary_chain_trn(op, sctx)

@@ -67,15 +67,15 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, AccessPath path) {
 
   for (const auto& gvar : gvars) {
     auto base_func = mod->functions[gvar];
-    if (auto prim_func = base_func.as<PrimFunc>()) {
-      Visit(prim_func.value(), path->Attr("functions")->MapItem(gvar));
+    if (auto function = base_func.as<Function>()) {
+      Visit(function.value(), path->Attr("functions")->MapItem(gvar));
     }
   }
 
   while (context.size()) context.pop_back();
 }
 
-void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
+void TIRVisitorWithPath::Visit(const Function& func, AccessPath path) {
   // TensorType metadata may introduce symbolic dimensions.  Define those
   // symbols before entering the buffer parameter itself.
   std::vector<DefContext<Var>> context;
@@ -203,7 +203,7 @@ void TIRVisitorWithPath::Dispatch_(const BreakNode* op, AccessPath path) {}
 
 void TIRVisitorWithPath::Dispatch_(const ContinueNode* op, AccessPath path) {}
 
-void TIRVisitorWithPath::Dispatch_(const BufferStoreNode* op, AccessPath path) {
+void TIRVisitorWithPath::Dispatch_(const TensorStoreNode* op, AccessPath path) {
   Visit(op->value, path->Attr("value"));
   VisitBufferUse(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));

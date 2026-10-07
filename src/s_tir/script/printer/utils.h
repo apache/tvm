@@ -27,7 +27,7 @@ namespace script {
 namespace printer {
 namespace details {
 
-void PrintSTirPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func);
+void PrintSTirFunction(DocTranslatorObj* d, const tirx::FunctionNode* func);
 
 }  // namespace details
 }  // namespace printer

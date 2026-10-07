@@ -50,7 +50,7 @@ void StmtExprVisitor::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprVisitor, ReturnNode>(vtable);
   SetDispatch<StmtExprVisitor, BreakNode>(vtable);
   SetDispatch<StmtExprVisitor, ContinueNode>(vtable);
-  SetDispatch<StmtExprVisitor, BufferStoreNode>(vtable);
+  SetDispatch<StmtExprVisitor, TensorStoreNode>(vtable);
   SetDispatch<StmtExprVisitor, AssertStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, SeqStmtNode>(vtable);
   SetDispatch<StmtExprVisitor, EvaluateNode>(vtable);
@@ -161,7 +161,7 @@ ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const ReturnNode* op) {
   return this->Visit(op->value);
 }
 
-ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const BufferStoreNode* op) {
+ffi::Optional<VisitInterrupt> StmtExprVisitor::Visit_(const TensorStoreNode* op) {
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->buffer));
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(this->Visit(op->value));
   for (const auto& child : op->indices) {
@@ -232,7 +232,7 @@ void StmtExprMutator::InitVTable(VTable* vtable) {
   SetDispatch<StmtExprMutator, ReturnNode>(vtable);
   SetDispatch<StmtExprMutator, BreakNode>(vtable);
   SetDispatch<StmtExprMutator, ContinueNode>(vtable);
-  SetDispatch<StmtExprMutator, BufferStoreNode>(vtable);
+  SetDispatch<StmtExprMutator, TensorStoreNode>(vtable);
   SetDispatch<StmtExprMutator, AssertStmtNode>(vtable);
   SetDispatch<StmtExprMutator, SeqStmtNode>(vtable);
   SetDispatch<StmtExprMutator, EvaluateNode>(vtable);
@@ -417,7 +417,7 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const ContinueNode* op, InplaceMode i
   return ffi::Unchanged();
 }
 
-UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {
+UnchangedOr<Stmt> StmtExprMutator::Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
   auto buffer = Mutate(op->buffer, inplace_mode).as_or_throw<UnchangedOr<TensorVar>>();
   auto value = Mutate(op->value, inplace_mode);
   auto indices = Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
@@ -425,13 +425,13 @@ UnchangedOr<Stmt> StmtExprMutator::Mutate_(const BufferStoreNode* op, InplaceMod
       indices.UnchangedOrSameAs(op->indices))
     return ffi::Unchanged();
   if (inplace_mode == InplaceMode::kAllow) {
-    auto* writable = const_cast<BufferStoreNode*>(op);
+    auto* writable = const_cast<TensorStoreNode*>(op);
     if (!buffer.IsUnchanged()) writable->buffer = std::move(buffer).ValueUnchecked();
     if (!value.IsUnchanged()) writable->value = std::move(value).ValueUnchecked();
     if (!indices.IsUnchanged()) writable->indices = std::move(indices).ValueUnchecked();
     return ffi::Unchanged();
   }
-  auto copy = ffi::make_object<BufferStoreNode>(*op);
+  auto copy = ffi::make_object<TensorStoreNode>(*op);
   if (!buffer.IsUnchanged()) copy->buffer = std::move(buffer).ValueUnchecked();
   if (!value.IsUnchanged()) copy->value = std::move(value).ValueUnchecked();
   if (!indices.IsUnchanged()) copy->indices = std::move(indices).ValueUnchecked();

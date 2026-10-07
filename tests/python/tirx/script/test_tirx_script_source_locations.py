@@ -41,7 +41,7 @@ from tvm.tirx.stmt import TilePrimitiveCall
 def test_parser_attaches_span_to_direct_call():
     sources = []
 
-    @T.prim_func
+    @T.function
     @_capture_source(sources)
     def direct_call():
         T.device_entry()
@@ -95,7 +95,7 @@ def _find_ir_node(func, predicate):
 def test_parser_attaches_span_to_nested_tensor_load():
     sources = []
 
-    @T.prim_func
+    @T.function
     @_capture_source(sources)
     def nested_load():
         source_buffer = T.alloc_tensor((1,), "int32")
@@ -126,7 +126,7 @@ def test_parser_retains_inline_call_site_and_definition_spans():
 
     sources = []
 
-    @T.prim_func
+    @T.function
     @_capture_source(sources)
     def inline_call():
         T.device_entry()
@@ -153,7 +153,7 @@ def test_parser_retains_inline_call_site_and_definition_spans():
 def test_parser_attaches_span_to_tile_primitive_call():
     sources = []
 
-    @T.prim_func
+    @T.function
     @_capture_source(sources)
     def tile_call():
         A = T.alloc_tensor((16,), "float32")
@@ -168,8 +168,8 @@ def test_parser_attaches_span_to_tile_primitive_call():
 
 
 def test_parser_spans_do_not_affect_structural_identity():
-    source_a = """@T.prim_func\ndef f():\n    T.evaluate(1)\n"""
-    source_b = """\n\n@T.prim_func\ndef f():\n    T.evaluate(1)\n"""
+    source_a = """@T.function\ndef f():\n    T.evaluate(1)\n"""
+    source_b = """\n\n@T.function\ndef f():\n    T.evaluate(1)\n"""
 
     func_a = tvm.script.from_source(source_a, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
     func_b = tvm.script.from_source(source_b, extra_vars={"I": tvm.script.ir, "T": tvm.script.tirx})
@@ -222,7 +222,7 @@ def test_native_bind_keeps_returned_and_stored_variable_identity():
         assert value.same_as(produced) and value.span.same_as(span)
         assert value.name == "producer_name"
 
-    @T.prim_func
+    @T.function
     def main(x: T.int32):
         renamed = T.bind(argument(x), var=produced)
         alias = renamed
@@ -266,7 +266,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
 
     monkeypatch.setattr(ir.Var, "view", view)
 
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor((4, 4), "float32")):
         renamed = A.view(mark())
         alias = renamed
@@ -285,7 +285,7 @@ def test_native_view_keeps_producer_identity_name_and_span(monkeypatch):
     )
     nodes = list(main.body.seq)
     assert len(nodes) == 3 and isinstance(nodes[0], tirx.Bind)
-    assert isinstance(nodes[1], tirx.BufferStore) and isinstance(nodes[2], tirx.Bind)
+    assert isinstance(nodes[1], tirx.TensorStore) and isinstance(nodes[2], tirx.Bind)
     assert nodes[0].var.same_as(value) and nodes[1].buffer.same_as(value)
     assert nodes[2].var.same_as(produced[1][0])
     ir.assert_structural_equal(nodes[0].value.args[0], captured.data)
@@ -322,7 +322,7 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     def observe(*items):
         observed.extend(items)
 
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor((4,), "float32")):
         initialize(A)
         renamed_layout = make(0)
@@ -358,7 +358,7 @@ def test_native_binding_preserves_metadata_but_binds_buffer_expressions():
     )
     with pytest.raises(TypeError):
 
-        @T.prim_func
+        @T.function
         def invalid():
             object()
 
@@ -388,7 +388,7 @@ def test_non_call_expression_reads_keep_their_source_range():
 
     holder = Holder()
 
-    @T.prim_func
+    @T.function
     def main():
         value
         holder.value

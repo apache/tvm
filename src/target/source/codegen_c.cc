@@ -44,7 +44,7 @@ using namespace tirx;
 
 void CodeGenC::Init(bool output_ssa) { print_ssa_form_ = output_ssa; }
 
-void CodeGenC::InitFuncState(const PrimFunc& f) {
+void CodeGenC::InitFuncState(const Function& f) {
   thread_extents_.clear();
   alloc_storage_scope_.clear();
   handle_data_type_.clear();
@@ -84,7 +84,7 @@ void CodeGenC::ReserveKeywordsAsUnique() {
   name_supply_->ReserveName("return");
 }
 
-void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
+void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Function& func,
                                       std::ostream& os) {
   PrintFuncPrefix(os);
   PrintType(func->ret_type, os);
@@ -93,7 +93,7 @@ void CodeGenC::PrintFunctionSignature(const ffi::String& function_name, const Pr
   PrintFunctionParameters(func, os);
 }
 
-void CodeGenC::PrintFunctionParameters(const PrimFunc& func, std::ostream& os) {
+void CodeGenC::PrintFunctionParameters(const Function& func, std::ostream& os) {
   os << "(";
   for (size_t i = 0; i < func->params.size(); ++i) {
     tirx::Var v = func->params[i];
@@ -144,7 +144,7 @@ void CodeGenC::PrintFunctionParameters(const PrimFunc& func, std::ostream& os) {
   }
 }
 
-bool CodeGenC::RegisterFunctionName(const GlobalVar& gvar, const PrimFunc& func) {
+bool CodeGenC::RegisterFunctionName(const GlobalVar& gvar, const Function& func) {
   if (internal_functions_.count(gvar)) return false;
 
   auto function_name = [&]() -> ffi::String {
@@ -167,7 +167,7 @@ bool CodeGenC::RegisterFunctionName(const GlobalVar& gvar, const PrimFunc& func)
   return true;
 }
 
-void CodeGenC::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
+void CodeGenC::DeclareFunction(const GlobalVar& gvar, const Function& func) {
   if (!RegisterFunctionName(gvar, func)) return;
   InitFuncState(func);
   PrintFunctionSignature(GetFunctionName(gvar), func, fwd_decl_stream);
@@ -182,7 +182,7 @@ ffi::String CodeGenC::GetFunctionName(const GlobalVar& gvar) {
   return it->second;
 }
 
-void CodeGenC::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
+void CodeGenC::AddFunction(const GlobalVar& gvar, const Function& f) {
   // If the function has already been forward-declared, this is a
   // no-op.
   DeclareFunction(gvar, f);
@@ -204,7 +204,7 @@ void CodeGenC::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
 
 void CodeGenC::PrintFuncPrefix(std::ostream& os) {}
 
-void CodeGenC::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {}
+void CodeGenC::PrintExtraAttrs(const Function& f, std::ostream& os) {}
 
 std::string CodeGenC::Finish() {
   std::ostringstream code;
@@ -1049,7 +1049,7 @@ void CodeGenC::Dispatch_(const TensorLoadNode* op, std::ostream& os) {  // NOLIN
   }
 }
 
-void CodeGenC::Dispatch_(const BufferStoreNode* op) {
+void CodeGenC::Dispatch_(const TensorStoreNode* op) {
   TVM_FFI_ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
 
   PrimType value_ty = op->value.ty();

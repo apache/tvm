@@ -700,7 +700,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     tirx::Var y = x.CopyWithSuffix("subst");
     PrimVar m("m", PrimType::Int(32));
     TensorVar buffer = fmakebuffer();
-    Stmt store = BufferStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
+    Stmt store = TensorStore(buffer, FloatImm(dtype, 0), {IntImm::Int32(0)});
     Stmt decl =
         SeqStmt({Bind(buffer, Call(buffer.type(), tvm::tirx::decl_tensor_op(),
                                    {x, tvm::Tuple(buffer->shape), DataTypeImm(buffer->dtype->dtype),
@@ -722,7 +722,7 @@ TEST(IRF, StructuralMapBufferDefinition) {
     TVM_FFI_ICHECK(decl_call->args[0].same_as(y));
     TVM_FFI_ICHECK(decl_node->var.as_or_throw<TensorVar>()->shape[0].same_as(m));
     TVM_FFI_ICHECK(!decl_node->var.same_as(buffer));
-    auto* store_node = seq_node->seq[1].as<BufferStoreNode>();
+    auto* store_node = seq_node->seq[1].as<TensorStoreNode>();
     TVM_FFI_ICHECK(store_node != nullptr);
     TVM_FFI_ICHECK(store_node->buffer.same_as(decl_node->var));
   }

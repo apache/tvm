@@ -34,7 +34,7 @@ using s_tir::LoopRV;
 using s_tir::SBlockRV;
 
 void CollectTensorizationJobs(
-    const s_tir::Schedule& sch, const ffi::String& func_name, const tirx::PrimFuncNode* func,
+    const s_tir::Schedule& sch, const ffi::String& func_name, const tirx::FunctionNode* func,
     bool vectorize_init_loop,
     std::vector<std::tuple<ffi::String, ffi::String, std::function<void(s_tir::SBlockRV)>>>* jobs) {
   auto walk_fn = [=, &jobs](const s_tir::SBlock& block) -> ffi::Expected<ffi::WalkResult> {
@@ -93,8 +93,8 @@ bool RewriteTensorizeNode::Apply(const s_tir::Schedule& sch) {
   for (const auto& kv : sch->mod()->functions) {
     GlobalVar g_var = kv.first;
     BaseFunc base_func = kv.second;
-    if (const tirx::PrimFuncNode* prim_func = base_func.as<tirx::PrimFuncNode>()) {
-      CollectTensorizationJobs(sch, g_var->name_hint, prim_func, vectorize_init_loop, &jobs);
+    if (const tirx::FunctionNode* function = base_func.as<tirx::FunctionNode>()) {
+      CollectTensorizationJobs(sch, g_var->name_hint, function, vectorize_init_loop, &jobs);
     }
   }
   for (const auto& job : jobs) {
