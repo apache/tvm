@@ -284,7 +284,7 @@ ThenFrame Then();
 ElseFrame Else();
 
 /*!
- * \brief The buffer declaration frame.
+ * \brief Declare a tensor binding or allocate its storage.
  * \param shape The type of the buffer prior to flattening.
  * \param dtype The data type in the content of the buffer.
  * \param buffer_name The name of the buffer.
@@ -295,14 +295,13 @@ ElseFrame Else();
  * \param align The alignment requirement of data pointer in bytes.
  * \param offset_factor The factor of elem_offset field.
  * \param layout The layout of the buffer.
- * \return The declaration frame.
+ * \return The declared tensor.
  */
-DeclTensorFrame DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
-                           ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
-                           ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope,
-                           int align, int offset_factor,
-                           ffi::Optional<Layout> layout = std::nullopt,
-                           ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
+TensorVar DeclTensor(ffi::Array<PrimExpr> shape, PrimType dtype, ffi::String buffer_name,
+                     ffi::Optional<Expr> data, ffi::Optional<ffi::Array<PrimExpr>> strides,
+                     ffi::Optional<PrimExpr> elem_offset, ffi::String storage_scope, int align,
+                     int offset_factor, ffi::Optional<Layout> layout = std::nullopt,
+                     ffi::Optional<PrimExpr> allocated_addr = std::nullopt);
 
 /*!
  * \brief Statement-level buffer allocation (binds a buffer-returning allocation Call).
