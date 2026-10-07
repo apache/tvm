@@ -232,13 +232,13 @@ bool DetectClipBound(const PrimExpr& cond,
 
   ffi::Optional<PrimExpr> min_value;
   ffi::Optional<PrimExpr> max_value;
-  if (is_const_int(ret.coeff.value(), 1)) {
+  if (IsConstInt(ret.coeff.value(), 1)) {
     // var + shift >=0 -> var >= -shift
     min_value = -ret.base.value();
     if (is_eq) {
       max_value = min_value;
     }
-  } else if (is_const_int(ret.coeff.value(), -1)) {
+  } else if (IsConstInt(ret.coeff.value(), -1)) {
     // -var + shift >=0 -> var <= shift
     max_value = ret.base;
     if (is_eq) {

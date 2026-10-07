@@ -63,7 +63,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   ExprDoc min = d->Translate(loop->min).value();
   ExprDoc extent = d->Translate(loop->extent).value();
   ExprDoc end = OperationDoc(OperationDocNode::Kind::kAdd, {min, extent});
-  if (prim::is_zero(loop->min)) {
+  if (prim::IsZero(loop->min)) {
     end = extent;
   } else if (loop->min.as<IntImmNode>() && loop->extent.as<IntImmNode>()) {
     // Python integer addition can widen the endpoint before the builder sees
@@ -120,7 +120,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
   {
     IdDoc var = VarDoc(d, loop->loop_var);
     ffi::Array<ExprDoc> bounds = {min, end};
-    if (loop->kind == tirx::ForKind::kThreadBinding && prim::is_zero(loop->min) &&
+    if (loop->kind == tirx::ForKind::kThreadBinding && prim::IsZero(loop->min) &&
         loop->min.ty() == loop->extent.ty()) {
       bounds = {end};
     }
@@ -133,7 +133,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
         bounds.push_back(values.back());
         keys.pop_back();
         values.pop_back();
-      } else if (prim::is_zero(loop->min) && loop->min.ty() == PrimType::Int(32)) {
+      } else if (prim::IsZero(loop->min) && loop->min.ty() == PrimType::Int(32)) {
         bounds.erase(bounds.begin());
       }
     }

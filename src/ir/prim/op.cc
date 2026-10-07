@@ -26,7 +26,7 @@
 #include "op_utils.h"
 
 namespace tvm {
-using prim::is_const_int;
+using prim::IsConstInt;
 using prim::MakeConst;
 using namespace prim::detail;
 namespace {
@@ -377,7 +377,7 @@ inline bool ConstPowerHelper(ValueType val, int* shift) {
   return true;
 }
 
-bool is_const_power_of_two_integer(const PrimExpr& x, int* shift) {
+bool IsPowerOfTwoInt(const PrimExpr& x, int* shift) {
   if (const auto* op = x.as<IntImmNode>()) {
     return ConstPowerHelper(op->value, shift);
   } else {
@@ -526,7 +526,7 @@ PrimExpr if_then_else(PrimExpr cond, PrimExpr true_value, PrimExpr false_value, 
 
 // likely
 PrimExpr likely(PrimExpr cond, Span span) {
-  if (is_const_int(cond)) return cond;
+  if (IsConstInt(cond)) return cond;
   return Call(cond.ty(), prim::builtin::likely(), {cond}, {}, {}, span).as_or_throw<PrimExpr>();
 }
 

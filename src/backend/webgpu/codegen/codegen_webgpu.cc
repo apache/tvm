@@ -834,7 +834,7 @@ void CodeGenWebGPU::DispatchAllocTensor(const BindNode* op, const CallNode* buff
 
 void CodeGenWebGPU::Dispatch_(const ForNode* op) {
   std::string begin_str = PrintExpr(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
+  PrimExpr end = IsZero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   std::string vid = AllocVarID(op->loop_var.get());

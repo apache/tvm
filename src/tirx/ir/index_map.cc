@@ -126,7 +126,7 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
   for (int i = 0, n = self->initial_indices.size(); i < n; ++i) {
     PrimVar index = self->initial_indices[i];
     PrimExpr expr{ffi::UnsafeInit{}};
-    if (is_one(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
+    if (IsOne(initial_ranges[i]->extent) && !inverse_exprs_map.count(index)) {
       expr = initial_ranges[i]->min;
     } else {
       expr = inverse_exprs_map.at(index);
@@ -299,7 +299,7 @@ ffi::Array<PrimExpr> IndexMapNode::MapShape(const ffi::Array<PrimExpr>& shape,
 
   ffi::Array<PrimExpr> output;
   for (auto& range : mapped) {
-    TVM_FFI_ICHECK(is_zero(range->min));
+    TVM_FFI_ICHECK(IsZero(range->min));
     output.push_back(range->extent);
   }
 

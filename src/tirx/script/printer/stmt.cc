@@ -355,7 +355,7 @@ ffi::Optional<ExprDoc> SeqStmtDocTranslate(DocTranslatorObj* d, ffi::AnyView inp
       continue;
     auto scalar = docs.back().as<AssignDoc>();
     if (!IsScalarBuffer(d, alloc->var) || !scalar.has_value() ||
-        !std::all_of(store->indices.begin(), store->indices.end(), tvm::prim::is_zero))
+        !std::all_of(store->indices.begin(), store->indices.end(), tvm::prim::IsZero))
       continue;
     bool reads_allocation = false;
     ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(

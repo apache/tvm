@@ -293,7 +293,7 @@ class ModularSetAnalyzer::Impl : public tvm::ExprFunctor<ModularSetAnalyzer::Ent
     Entry b = Dispatch(op->b);
     if (b.is_const() && b.base >= 0 && b.base < std::numeric_limits<int64_t>::max()) {
       int shift;
-      if (is_const_power_of_two_integer(IntImm::Int64(b.base + 1), &shift)) {
+      if (IsPowerOfTwoInt(IntImm::Int64(b.base + 1), &shift)) {
         return ModByConst(op->a, static_cast<int64_t>(1) << shift, true);
       }
     }

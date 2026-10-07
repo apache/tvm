@@ -2448,7 +2448,7 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
   if (op == nullptr) return ret;
 
   if (op->op.same_as(prim::builtin::likely()) &&
-      prim::is_const_int(op->args[0].as_or_throw<PrimExpr>())) {
+      prim::IsConstInt(op->args[0].as_or_throw<PrimExpr>())) {
     return op->args[0].as_or_throw<PrimExpr>();
   }
   static const Op& ceil_op = prim::builtin::ceil();
@@ -2508,7 +2508,7 @@ UnchangedOr<Expr> RewriteSimplifier::Impl::Mutate_(const CallNode* op, InplaceMo
       PrimExpr inner_then_expr = inner_call->args[1].as_or_throw<PrimExpr>();
       PrimExpr inner_else_expr = inner_call->args[2].as_or_throw<PrimExpr>();
       // Only check constant cases to avoid recursion
-      if (prim::is_const_number(inner_else_expr) && prim::is_const_number(else_expr) &&
+      if (prim::IsConstNumber(inner_else_expr) && prim::IsConstNumber(else_expr) &&
           analyzer_->CanProve(inner_else_expr == else_expr)) {
         return Call(ret_ty, op->op, {cond && inner_cond, inner_then_expr, else_expr}, op->attrs,
                     op->ty_args, op->span)
@@ -2554,7 +2554,7 @@ UnchangedOr<PrimExpr> RewriteSimplifier::Impl::Mutate_(const prim::CastNode* op,
 bool RewriteSimplifier::Impl::CanInlineLet(const prim::LetNode* op) {
   // Only inline trivial bindings to avoid deep expression explosion
   // when we need let to construct complicated expressions.
-  if (prim::is_const_number(op->value)) return true;
+  if (prim::IsConstNumber(op->value)) return true;
   if (op->value.as<PrimVar>()) return true;
   return false;
 }

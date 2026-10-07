@@ -1150,7 +1150,7 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
   if (op->kind == ForKind::kSerial || op->kind == ForKind::kUnrolled) {
     CodeGenLLVM::Dispatch_(op);
   } else if (op->kind == ForKind::kParallel) {
-    TVM_FFI_ICHECK(is_zero(op->min))
+    TVM_FFI_ICHECK(IsZero(op->min))
         << "Parallel launch require canonical loop with zero start index";
     TVM_FFI_ICHECK(op->HasTrivialStep())
         << "Parallel launch require canonical loop with trivial loop step";
@@ -1169,7 +1169,7 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
       TVM_FFI_ICHECK(!parallel_env_.in_parallel_loop)
           << "Nested parallel loop is not supported by threadpool, try fuse them instead";
       parallel_env_.in_parallel_loop = true;
-      PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
+      PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
       bool stride_pattern = false;
       if (auto it = op->annotations.find("parallel_stride_pattern"); it != op->annotations.end()) {
         ffi::Any annotation = (*it).second;
@@ -1177,7 +1177,7 @@ void CodeGenCPU::Dispatch_(const ForNode* op) {
           stride_pattern = value.value();
         } else if (auto value = annotation.try_cast<IntImm>();
                    value && value.value().ty() == PrimType::Bool()) {
-          stride_pattern = is_one(value.value());
+          stride_pattern = IsOne(value.value());
         } else {
           TVM_FFI_THROW(ValueError) << "parallel_stride_pattern must be a constant boolean";
         }
