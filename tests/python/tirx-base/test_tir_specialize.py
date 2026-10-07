@@ -331,8 +331,7 @@ def test_specialize_buffer_var_to_expr():
 def test_specialization_updates_ty():
     """Update type in specialization
 
-    A Function may have a `relax.Type`.  If that Function is
-    specialized, the type should be updated.
+    A Function's native function type must reflect its specialized parameters.
     """
 
     @T.function(private=True)
@@ -343,10 +342,10 @@ def test_specialization_updates_ty():
     def expected() -> T.int32:
         return 50
 
-    ty_before = tvm.relax.FuncType([tvm.ir.PrimType("int32")], tvm.ir.PrimType("int32"))
+    ty_before = tvm.ir.FuncType([tvm.ir.PrimType("int32")], tvm.ir.PrimType("int32"))
     tvm.ir.assert_structural_equal(before.ty, ty_before)
 
-    ty_expected = tvm.relax.FuncType([], tvm.ir.PrimType("int32"))
+    ty_expected = tvm.ir.FuncType([], tvm.ir.PrimType("int32"))
     tvm.ir.assert_structural_equal(expected.ty, ty_expected)
 
     n = before.params[0]

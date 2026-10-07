@@ -152,6 +152,17 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&GlobalVarDocTranslate>());
 }
 
+ffi::Optional<ExprDoc> OpDocTranslate(DocTranslatorObj*, ffi::AnyView input, const ffi::Object*) {
+  const auto* op = ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const OpNode>(input);
+  return NamespaceDoc("ir")->Attr("Op")->Attr("get")->Call(
+      {LiteralDoc::Str(op->name, std::nullopt)});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<OpNode>().attr(kDocTranslate,
+                                              FDocTranslate::FromNative<&OpDocTranslate>());
+}
+
 ffi::Optional<ExprDoc> FuncTypeDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                             const ffi::Object*) {
   const auto* ty =
