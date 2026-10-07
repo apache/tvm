@@ -528,75 +528,25 @@ struct TypeTraits<TypedExpr<ExpectedType>>
   }
 };
 
+// Include expr.h for expression conversion traits, which require complete literals.
+// Keep these declarations here to prevent accidental use of the default traits.
 template <>
 inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
 
-// define automatic conversion from bool, int64_t, double to PrimExpr
-// These functions are declared early to avoid circular dependency
 template <>
-struct TypeTraits<PrimExpr>
-    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double> {
-  using Base = ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double>;
-  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFINone) return PrimExpr::_type_is_nullable;
-    return TypeTraits<TypedExpr<PrimType>>::CheckAnyStrict(src);
-  }
-
-  TVM_FFI_INLINE static std::optional<PrimExpr> TryCastFromAnyView(const TVMFFIAny* src) {
-    // A required expression cannot accept None.
-    if (src->type_index == TypeIndex::kTVMFFINone) return std::nullopt;
-    return Base::TryCastFromAnyView(src);
-  }
-
-  TVM_FFI_INLINE static std::string TypeStr() { return "ir.PrimExpr"; }
-
-  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
-    return TypeTraits<TypedExpr<PrimType>>::GetMismatchTypeInfo(src);
-  }
-
-  TVM_DLL static PrimExpr ConvertFallbackValue(StrictBool value);
-  TVM_DLL static PrimExpr ConvertFallbackValue(int64_t value);
-  TVM_DLL static PrimExpr ConvertFallbackValue(double value);
-};
+struct TypeTraits<PrimExpr>;
 
 template <>
 inline constexpr bool use_default_type_traits_v<IntExpr> = false;
 
 template <>
-struct TypeTraits<IntExpr> : public ObjectRefWithFallbackTraitsBase<IntExpr, int64_t> {
-  using Base = ObjectRefWithFallbackTraitsBase<IntExpr, int64_t>;
-
-  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
-    if (!Base::CheckAnyStrict(src)) return false;
-    if (src->type_index == TypeIndex::kTVMFFINone) return true;
-    const auto* expr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ExprNode>(src->v_obj);
-    const auto* ty = expr->ty.as<PrimTypeNode>();
-    return ty != nullptr && ty->dtype.lanes == 1 &&
-           (ty->dtype.code == kDLInt || ty->dtype.code == kDLUInt);
-  }
-
-  TVM_FFI_INLINE static IntExpr ConvertFallbackValue(int64_t value) {
-    return TypeTraits<PrimExpr>::ConvertFallbackValue(value).as_or_throw<IntExpr>();
-  }
-
-  TVM_FFI_INLINE static std::string TypeStr() { return "ir.IntExpr"; }
-
-  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
-    return TypeTraits<TypedExpr<PrimType>>::GetMismatchTypeInfo(src);
-  }
-};
+struct TypeTraits<IntExpr>;
 
 template <>
 inline constexpr bool use_default_type_traits_v<Expr> = false;
 
-// Allow generic Expr arguments to use the primitive-literal conversions
-// already defined by PrimExpr.
 template <>
-struct TypeTraits<Expr> : public ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String> {
-  TVM_FFI_INLINE static Expr ConvertFallbackValue(PrimExpr value) { return value; }
-  TVM_DLL static Expr ConvertFallbackValue(ffi::String value);
-  TVM_DLL static std::optional<Expr> TryCastFromAnyView(const TVMFFIAny* src);
-};
+struct TypeTraits<Expr>;
 }  // namespace ffi
 
 }  // namespace tvm
