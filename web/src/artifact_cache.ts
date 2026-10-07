@@ -185,7 +185,10 @@ class CrossOriginStorage {
     if (typeof navigator === "undefined") {
       return false;
     }
-    return navigator.crossOriginStorage !== undefined;
+    // Check for `getFileHandle()` itself, so that an implementation exposing
+    // `navigator.crossOriginStorage` without the method falls back to the
+    // default cache.
+    return typeof navigator.crossOriginStorage?.getFileHandle === "function";
   }
 
   async match(request: RequestLike): Promise<Response | undefined> {
