@@ -515,6 +515,8 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
     explicit ComputeScopeStates(CodeGenCPU* parent) : parent_(parent) {}
 
     void EnterWithScope() {
+      // Inherit caller alignment facts without exporting helper-local assumptions.
+      alloc_storage_info_ = parent_->alloc_storage_info_;
       std::swap(function_, parent_->function_);
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
@@ -523,6 +525,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
     }
 
     void ExitWithScope() {
+      std::swap(alloc_storage_info_, parent_->alloc_storage_info_);
       std::swap(function_, parent_->function_);
       std::swap(analyzer_, parent_->analyzer_);
       std::swap(var_map_, parent_->var_map_);
@@ -533,6 +536,7 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
     llvm::Function* function_{nullptr};
     llvm::DISubprogram* di_subprogram_{nullptr};
     std::unordered_map<const VarNode*, llvm::Value*> var_map_;
+    std::unordered_map<const VarNode*, StorageInfo> alloc_storage_info_;
     std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
     sym::Analyzer analyzer_{sym::Analyzer()};
     CodeGenCPU* parent_;
@@ -580,8 +584,8 @@ void CodeGenCPU::CreateComputeScope(const RegionStmtNode* op) {
       // always not inline compute function to make the code structure clean
       fcompute->addFnAttr(llvm::Attribute::NoInline);
     }
-    // Add alignment attribute if needed.
-    auto f = alloc_storage_info_.find(var.get());
+    // Alignment facts are shared by aliases of the same physical pointer.
+    auto f = alloc_storage_info_.find(GetBufferPhysicalRoot(var.get()));
     if (f != alloc_storage_info_.end()) {
       unsigned align = f->second.alignment;
       if (align > 1) {
