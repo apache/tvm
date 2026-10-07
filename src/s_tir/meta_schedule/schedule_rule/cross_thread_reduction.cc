@@ -262,7 +262,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     int n_tgt_block_loop = static_cast<int>(tgt_block_loops.size());
 
     for (int i = 0; i < n_block_loop && i < n_tgt_block_loop; ++i) {
-      if (s_tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != tirx::IterVarType::kDataPar) {
+      if (s_tir::GetLoopIterType(sch->GetSRef(block_loops[i])) != s_tir::IterVarType::kDataPar) {
         return i - 1;
       } else if (sch->GetSRef(tgt_block_loops[i]).same_as(lca_sref)) {
         // If the lowest common ancestor is a loop, the compute location of the input block should

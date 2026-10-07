@@ -345,7 +345,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
   auto get_iter_vars = [=](const ffi::Array<PrimVar>& output, bool reduce_indices) {
     ffi::Array<PrimExpr> indices;
     for (size_t i = 0; i < output.size(); ++i) indices.push_back(output[i]);
-    ffi::Array<tirx::IterVar> reduce_axes;
+    ffi::Array<s_tir::IterVar> reduce_axes;
     for (size_t i = 0; i < n_dim; ++i) {
       auto i_start = start_index(output[axes[i]], out_size[i], in_size[i]);
       auto i_end = end_index(output[axes[i]], out_size[i], in_size[i]);
@@ -366,7 +366,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
         out_shape,
         [&](const ffi::Array<PrimVar>& output) {
           ffi::Array<PrimExpr> indices;
-          ffi::Array<tirx::IterVar> reduce_axes;
+          ffi::Array<s_tir::IterVar> reduce_axes;
           std::tie(indices, reduce_axes) = get_iter_vars(output, true);
           return tvm::max(x(indices), reduce_axes);  // NOLINT(*)
         },
@@ -377,7 +377,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
         out_shape,
         [&](const ffi::Array<PrimVar>& output) {
           ffi::Array<PrimExpr> indices;
-          ffi::Array<tirx::IterVar> reduce_axes;
+          ffi::Array<s_tir::IterVar> reduce_axes;
           std::tie(indices, reduce_axes) = get_iter_vars(output, true);
           return tvm::prim::sum(x(indices), reduce_axes);
         },
@@ -387,7 +387,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const ffi::Array<PrimExpr>& ou
         out_shape,
         [&](const ffi::Array<PrimVar>& output) {
           ffi::Array<PrimExpr> indices;
-          ffi::Array<tirx::IterVar> reduce_axes;
+          ffi::Array<s_tir::IterVar> reduce_axes;
           std::tie(indices, reduce_axes) = get_iter_vars(output, false);
 
           PrimExpr divide_factor = tvm::prim::cast(PrimType(x->dtype), 1);

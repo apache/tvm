@@ -23,10 +23,11 @@ from enum import Enum
 
 from tvm import s_tir, tirx
 from tvm.ir import Range
+from tvm.s_tir import IterVar
 from tvm.s_tir.schedule.schedule import SBlockRV
 from tvm.script import tirx as T
 from tvm.target import Target
-from tvm.tirx import Expr, IterVar, Var
+from tvm.tirx import Expr, Var
 from tvm.tirx.analysis import undefined_vars
 
 from ..analysis import IterInfo, SBlockInfo, get_root_block
@@ -215,7 +216,7 @@ def detect_iter_traits(block: s_tir.SBlock) -> tuple[list[IterTrait]] | None:
                 kind = IterKind.kIter_J
             else:
                 return None
-        elif iter_var.iter_type == tirx.IterVar.CommReduce:
+        elif iter_var.iter_type == s_tir.IterVar.CommReduce:
             if var in A_axes and var in B_axes and var not in C_axes:
                 kind = IterKind.kIter_K
             else:
@@ -276,8 +277,8 @@ def get_index_map(block: s_tir.SBlock) -> tuple[tirx.IndexMap, ...] | None:
 
 
 def get_sblock_info(sch: s_tir.Schedule, block: s_tir.schedule.SBlockRV) -> SBlockInfo:
-    def _iter_kind(loop: tirx.IterVar) -> str:
-        return {tirx.IterVar.DataPar: "S", tirx.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
+    def _iter_kind(loop: s_tir.IterVar) -> str:
+        return {s_tir.IterVar.DataPar: "S", s_tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
 
     def _is_reduction_block(block: s_tir.schedule.SBlockRV):
         for iter_var in sch.get(block).iter_vars:

@@ -24,12 +24,12 @@
 #include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/var.h>
+#include <tvm/s_tir/iter_var.h>
 
 #include <utility>
 
 namespace tvm {
-namespace tirx {
+namespace s_tir {
 
 namespace {
 
@@ -61,6 +61,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMutate(
   ffi::ObjectPtr<IterVarNode> copy = ffi::make_object<IterVarNode>(*self);
   copy->dom = std::move(mapped_dom).ValueOrUnchanged(std::move(copy->dom));
   copy->var = std::move(mapped_var).ValueOrUnchanged(std::move(copy->var));
+  copy->ty = copy->var.ty();
   return ffi::Any(std::move(copy));
 }
 
@@ -76,18 +77,17 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IterVarMaybeInplaceMuta
                                       return mutator->MutateExpected(self->var,
                                                                      ffi::InplaceMode::kAllow);
                                     }));
-  if (mapped_dom.UnchangedOrSameAs(self->dom) && mapped_var.UnchangedOrSameAs(self->var)) {
-    return ffi::Unchanged();
-  }
   self->dom = std::move(mapped_dom).ValueOrUnchanged(std::move(self->dom));
   self->var = std::move(mapped_var).ValueOrUnchanged(std::move(self->var));
+  self->ty = self->var.ty();
   return ffi::Unchanged();
 }
 
 }  // namespace
 
 // IterVar
-IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Span span) {
+IterVar::IterVar(Range dom, PrimVar var, IterVarType t, ffi::String thread_tag, Span span)
+    : PrimExpr(ffi::UnsafeInit{}) {
   ffi::ObjectPtr<IterVarNode> n = ffi::make_object<IterVarNode>(var);
   if (dom.defined() && dom->extent.defined()) {
     PrimType extent_ty = dom->extent.ty();
@@ -120,11 +120,11 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def(
-      "tirx.IterVar", [](Range dom, PrimVar var, int iter_type, ffi::String thread_tag, Span span) {
-        return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
-      });
+  refl::GlobalDef().def("s_tir.IterVar", [](Range dom, PrimVar var, int iter_type,
+                                            ffi::String thread_tag, Span span) {
+    return IterVar(dom, var, static_cast<IterVarType>(iter_type), thread_tag, span);
+  });
 }
 
-}  // namespace tirx
+}  // namespace s_tir
 }  // namespace tvm

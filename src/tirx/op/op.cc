@@ -30,7 +30,6 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/te/operation.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/op_attr_types.h>
@@ -44,7 +43,6 @@
 namespace tvm::prim {
 
 using namespace prim::detail;
-using tirx::IterVar;
 using tirx::TGlobalSymbol;
 using tirx::TIRxOpCategory;
 using tirx::TScriptPrinterName;
@@ -342,75 +340,6 @@ PrimExpr isinf(PrimExpr x, Span span) {
 
 // isfinite
 PrimExpr isfinite(PrimExpr x, Span span) { return !isinf(x, span) && !isnan(x, span); }
-
-PrimExpr sum(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
-  PrimExpr result = prim::Add(x, y, span);
-  PrimExpr identity_element = MakeConst(source.ty(), 0, span);
-  te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
-}
-
-PrimExpr all(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  TVM_FFI_ICHECK(source.ty().MatchesCode(DLDataTypeCode::kDLBool))
-      << "Expected boolean argument for tvm::all, but received " << source << " of type "
-      << source.ty();
-  PrimVar x("x", source.ty(), span), y("y", source.ty());
-  PrimExpr result = prim::And(x, y, span);
-  PrimExpr identity_element = MakeConst(source.ty(), true, span);
-  te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
-}
-
-PrimExpr any(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  TVM_FFI_ICHECK(source.ty().MatchesCode(DLDataTypeCode::kDLBool))
-      << "Expected boolean argument for tvm::any, but received " << source << " of type "
-      << source.ty();
-  PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
-  PrimExpr result = prim::Or(x, y, span);
-  PrimExpr identity_element = MakeConst(source.ty(), false, span);
-  te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
-}
-
-}  // namespace tvm::prim
-
-namespace tvm {
-PrimExpr max(PrimExpr source, ffi::Array<tirx::IterVar> rdom, ffi::Array<PrimExpr> init,
-             Span span) {
-  PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
-  PrimExpr result = prim::Max(x, y, span);
-  PrimExpr identity_element = prim::min_value(source.ty(), span);
-  te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
-}
-
-PrimExpr min(PrimExpr source, ffi::Array<tirx::IterVar> rdom, ffi::Array<PrimExpr> init,
-             Span span) {
-  PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
-  PrimExpr result = prim::Min(x, y, span);
-  PrimExpr identity_element = prim::max_value(source.ty(), span);
-  te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-  return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
-}
-
-}  // namespace tvm
-
-namespace tvm::prim {
-PrimExpr prod(PrimExpr source, ffi::Array<IterVar> rdom, ffi::Array<PrimExpr> init, Span span) {
-  if (source.ty().MatchesCode(DLDataTypeCode::kDLBool)) {
-    // Bool product (prod) has the same truth table as logical AND.  Reuse all() to
-    // avoid lowering bool prod through Mul, which LLVM codegen does not support.
-    return all(source, rdom, init, span);
-  } else {
-    // For non-bool types, we lower prod through Mul.
-    PrimVar x("x", source.ty(), span), y("y", source.ty(), span);
-    PrimExpr result = prim::Mul(x, y, span);
-    PrimExpr identity_element = MakeConst(source.ty(), 1, span);
-    te::CommReducer combiner = te::CommReducer({x}, {y}, {result}, {identity_element}, span);
-    return te::Reduce(combiner, {source}, rdom, IntImm::Bool(true), 0, init, span);
-  }
-}
 
 // fmod
 PrimExpr fmod(PrimExpr x, PrimExpr y, Span span) {

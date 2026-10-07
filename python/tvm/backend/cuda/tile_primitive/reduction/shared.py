@@ -130,7 +130,7 @@ def _emit_reduction_shared_cta(
 
     def get_thread_cnt():
         if exec_scope_name == "cta":
-            return sctx.launch_params["threadIdx.x"].dom.extent
+            return sctx.launch_params["threadIdx.x"][1]
         elif exec_scope_name == "warpgroup":
             return 128
         elif exec_scope_name == "warp":
@@ -159,7 +159,7 @@ def _emit_reduction_shared_cta(
     spatial_par = int(thread_cnt) // group_size
 
     def get_tid_in_scope():
-        tx_var = sctx.launch_params["threadIdx.x"].var
+        tx_var = sctx.launch_params["threadIdx.x"][0]
         if exec_scope_name == "cta":
             return tx_var
         elif exec_scope_name in ("warp", "warpgroup"):

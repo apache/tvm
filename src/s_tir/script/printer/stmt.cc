@@ -35,19 +35,19 @@ ffi::Array<StmtDoc> SBlockBody(DocTranslatorObj* d, const s_tir::SBlockNode* blo
         << "SBlockRealize binding count must match its iter vars";
     ffi::Array<AssignDoc> axes;
     for (size_t i = 0; i < block->iter_vars.size(); ++i) {
-      const tirx::IterVar& iter = block->iter_vars[i];
+      const s_tir::IterVar& iter = block->iter_vars[i];
       ffi::String kind;
       switch (iter->iter_type) {
-        case tirx::IterVarType::kDataPar:
+        case s_tir::IterVarType::kDataPar:
           kind = "spatial";
           break;
-        case tirx::IterVarType::kCommReduce:
+        case s_tir::IterVarType::kCommReduce:
           kind = "reduce";
           break;
-        case tirx::IterVarType::kOrdered:
+        case s_tir::IterVarType::kOrdered:
           kind = "scan";
           break;
-        case tirx::IterVarType::kOpaque:
+        case s_tir::IterVarType::kOpaque:
           kind = "opaque";
           break;
         default:

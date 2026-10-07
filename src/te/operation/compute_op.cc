@@ -22,6 +22,7 @@
  * \file compute_op.cc
  */
 
+#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/extra/structural_visit.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -60,6 +61,13 @@ static inline void AssertReduceEqual(const te::ReduceNode* a, const te::ReduceNo
       "except for the ReduceNode::value_index.  ";
 
   ffi::StructuralEqual eq;
+  // Compare expression values, not the binder semantics of axis metadata.
+  auto value_view = [](const ffi::Any& value) {
+    return ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(
+        value, [](const IterVar& axis) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
+          return ffi::Any(axis->var);
+        });
+  };
 
   TVM_FFI_ICHECK(a->combiner.same_as(b->combiner))
       << shared_text << "However, the reduction operation " << a->combiner << " does not match "
@@ -68,10 +76,10 @@ static inline void AssertReduceEqual(const te::ReduceNode* a, const te::ReduceNo
       << shared_text << "However, the input " << a->source << " does not match " << b->source;
   TVM_FFI_ICHECK(eq(a->axis, b->axis))
       << shared_text << "However, the reduction axis " << a->axis << " does not match " << b->axis;
-  TVM_FFI_ICHECK(eq(a->condition, b->condition))
+  TVM_FFI_ICHECK(eq(value_view(a->condition), value_view(b->condition)))
       << shared_text << "However, the predicate " << a->condition << " does not match "
       << b->condition;
-  TVM_FFI_ICHECK(eq(a->init, b->init))
+  TVM_FFI_ICHECK(eq(value_view(a->init), value_view(b->init)))
       << shared_text << "However, the initial value " << a->init << " does not match " << b->init;
 }
 
@@ -164,7 +172,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
   ffi::Array<Tensor> ret;
   std::unordered_set<Tensor> visited;
-  auto walk_fn = [&ret, &visited](const Call& call) -> ffi::Expected<ffi::WalkResult> {
+  auto visit_call = [&ret, &visited](const Call& call, ffi::StructuralVisitorObj* visitor)
+      -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
+    // Discover index dependencies before the tensor they index.
+    TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->DefaultVisitExpected(call));
     if (IsTensorLoad(call)) {
       Tensor t = GetTensorFromLoad(call);
       if (!visited.count(t)) {
@@ -172,10 +183,18 @@ ffi::Array<Tensor> ComputeOpNode::InputTensors() const {
         visited.insert(t);
       }
     }
-    return ffi::WalkResult::Advance();
+    return std::nullopt;
   };
-  auto visit = [&walk_fn](const PrimExpr& e) {
-    ffi::StructuralWalk<ffi::WalkOrder::kPostOrder>(e, walk_fn);
+  auto visit = [&visit_call](const PrimExpr& e) {
+    ffi::StructuralVisit(
+        e,
+        [](const IterVar&,
+           ffi::StructuralVisitorObj*) -> ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> {
+          // An axis used as a value denotes its variable, not its metadata domain.
+          // Reduction axis domains are visited explicitly below.
+          return std::nullopt;
+        },
+        visit_call);
   };
   for (const PrimExpr& e : body) {
     if (const auto* reduce = e.as<te::ReduceNode>()) {
@@ -255,6 +274,7 @@ class ComputeVerifier final : public tirx::StmtExprVisitor {
   }
 
   using tirx::StmtExprVisitor::Visit_;
+  ffi::Optional<VisitInterrupt> Visit_(const IterVarNode*) { return std::nullopt; }
   ffi::Optional<VisitInterrupt> Visit_(const te::ReduceNode* reduce) {
     TVM_FFI_ICHECK(0 == level_) << "Reductions are only allowed at the top level of compute. "
                                 << "Please create another tensor for further composition.";
@@ -277,6 +297,7 @@ class ComputeVerifier final : public tirx::StmtExprVisitor {
   static void InitVTable(VTable* table) {
     tirx::StmtExprVisitor::InitVTable(table);
     SetDispatch<ComputeVerifier, te::ReduceNode>(table);
+    SetDispatch<ComputeVerifier, IterVarNode>(table);
   }
 
  private:

@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/prim/expr.h>
+#include <tvm/s_tir/iter_var.h>
 #include <tvm/sym/bound.h>
 #include <tvm/tirx/op.h>
 
@@ -36,7 +37,21 @@
 
 namespace tvm {
 namespace te {
+using s_tir::IterVar;
+using s_tir::IterVarNode;
+using s_tir::IterVarType;
+using s_tir::IterVarType2String;
+using s_tir::kCommReduce;
+using s_tir::kDataPar;
+using s_tir::kOpaque;
+using s_tir::kOrdered;
+using s_tir::kParallelized;
+using s_tir::kTensorized;
+using s_tir::kThreadIndex;
+using s_tir::kUnrolled;
+using s_tir::kVectorized;
 using sym::IntSet;
+
 using namespace tvm::tirx;
 
 // internal node container for Operation

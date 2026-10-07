@@ -32,6 +32,7 @@ from tvm.runtime import convert
 from . import _ffi_api
 from . import tag as _tag
 from . import tensor as _tensor
+from .reduction import _iter_var_type
 
 
 def placeholder(shape, dtype=None, name="placeholder"):
@@ -127,7 +128,7 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
             f"args={len(arg_names)}, dimension={out_ndim}"
         )
 
-    dim_var = [tvm.tirx.IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
+    dim_var = [_iter_var_type()((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
 
     if not isinstance(body, list | tuple):
@@ -201,7 +202,7 @@ def scan(init, update, state_placeholder, inputs=None, name="scan", tag="", attr
         inputs = []
     if len(init) != len(update) or len(init) != len(state_placeholder):
         raise ValueError("init, update, state_placeholder must have same length")
-    axis = tvm.tirx.IterVar((init[0].shape[0], update[0].shape[0]), f"{name}.idx", 3)
+    axis = _iter_var_type()((init[0].shape[0], update[0].shape[0]), f"{name}.idx", 3)
     op = _ffi_api.ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs)
     res = [op.output(i) for i in range(len(update))]
     return res[0] if len(res) == 1 else res
@@ -507,7 +508,7 @@ def thread_axis(dom=None, tag="", name="", span=None):
     if not tag:
         raise ValueError("tag must be given as Positional or keyword argument")
     name = name if name else tag
-    return tvm.tirx.IterVar(dom, name, 1, tag, span)
+    return _iter_var_type()(dom, name, 1, tag, span)
 
 
 def reduce_axis(dom, name="rv", thread_tag="", span=None):
@@ -532,7 +533,7 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
     axis : IterVar
         An iteration variable representing the value.
     """
-    return tvm.tirx.IterVar(dom, name, 2, thread_tag, span)
+    return _iter_var_type()(dom, name, 2, thread_tag, span)
 
 
 def create_prim_func(

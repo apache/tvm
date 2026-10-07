@@ -22,6 +22,7 @@ from collections.abc import Callable
 
 import tvm_ffi
 
+from tvm import te as _te
 from tvm import tirx as _tirx
 from tvm.ir import Call, DataTypeImm, GenericConst, Op, StringImm, TensorLoad, is_prim_expr
 from tvm.ir.utils import derived_object
@@ -225,7 +226,7 @@ class ExprFunctor:
             ret = self.visit_data_type_imm_(expr)
         elif isinstance(expr, StringImm):
             ret = self.visit_string_imm_(expr)
-        elif isinstance(expr, _tirx.Let | _tirx.Reduce):
+        elif isinstance(expr, _tirx.Let | _te.Reduce):
             raise TypeError(f"Relax does not support {type(expr).__name__} expressions")
         elif isinstance(expr, Expr):
             if is_prim_expr(expr):

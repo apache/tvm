@@ -26,7 +26,7 @@
 namespace tvm {
 namespace relax {
 
-using tirx::IterVar;
+using s_tir::IterVar;
 using tirx::SLayout;
 
 std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::string& src_str,
@@ -63,7 +63,7 @@ SLayout TransposeSubLayoutLike(const SLayout& ref, const SLayout& src, const SLa
 SLayout TransposeLike(const SLayout& input, const SLayout& src, const SLayout& dst) {
   TVM_FFI_ICHECK(src.ndim() == dst.ndim() && input.ndim() == src.ndim())
       << "Layouts must have the same size";
-  std::vector<IterVar> axes;
+  std::vector<s_tir::IterVar> axes;
   for (size_t i = 0; i < src.ndim(); ++i) {
     axes.push_back(input->axes[src.IndexOf(dst[i])]);
   }

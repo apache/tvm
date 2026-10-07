@@ -275,7 +275,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, ffi::S
   }
   for (const For& loop : outer_loops) {
     if (loop->kind == ForKind::kThreadBinding) {
-      const ffi::String& thread_tag = loop->thread_binding.value()->thread_tag;
+      const ffi::String& thread_tag = loop->thread_binding.value();
       auto thread_scope = runtime::ThreadScope::Create(thread_tag);
       if (CanRelaxStorageUnderThread(runtime::StorageScope::Create(storage_scope), thread_scope)) {
         if (is_write_cache && thread_scope.dim_index == 0) {

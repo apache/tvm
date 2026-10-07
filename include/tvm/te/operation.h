@@ -28,6 +28,7 @@
 #include <tvm/ir/cow.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
+#include <tvm/te/reduction.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tirx/expr.h>
 #include <tvm/tirx/op.h>
@@ -106,7 +107,7 @@ class ReduceNode : public OpaqueExprNode {
   /*! \brief The init operand */
   ffi::Array<PrimExpr> init;
   /*! \brief The reduction axis */
-  ffi::Array<tirx::IterVar> axis;
+  ffi::Array<s_tir::IterVar> axis;
   /*!
    * \brief Predicate on the reduction
    *  Only add the body to reduction if condition is true.
@@ -134,7 +135,7 @@ class ReduceNode : public OpaqueExprNode {
  */
 class Reduce : public PrimExpr {
  public:
-  TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<tirx::IterVar> rdom,
+  TVM_DLL Reduce(CommReducer combiner, ffi::Array<PrimExpr> src, ffi::Array<s_tir::IterVar> rdom,
                  ffi::Optional<PrimExpr> condition, int value_index, ffi::Array<PrimExpr> init,
                  Span span = Span());
   explicit Reduce(ffi::ObjectPtr<ReduceNode> node) : PrimExpr(std::move(node)) {}
@@ -295,7 +296,7 @@ class ComputeOp : public Operation {
 class ScanOpNode : public OperationNode {
  public:
   /*! \brief IterVar to scan over */
-  IterVar scan_axis;
+  IterVar scan_axis{ffi::UnsafeInit{}};
   /*! \brief the initialization tensors */
   ffi::Array<Tensor> init;
   /*! \brief the update function represented by tensor */

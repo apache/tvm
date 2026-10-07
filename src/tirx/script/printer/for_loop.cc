@@ -76,7 +76,7 @@ ffi::Optional<ExprDoc> ForDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
     TVM_FFI_CHECK(loop->thread_binding.has_value(), TypeError)
         << "printer thread-binding loop lacks thread tag";
     keys.push_back("thread");
-    values.push_back(LiteralDoc::Str(loop->thread_binding.value()->thread_tag, std::nullopt));
+    values.push_back(LiteralDoc::Str(loop->thread_binding.value(), std::nullopt));
   }
   bool unroll_option = false;
   if (loop->kind == tirx::ForKind::kSerial && loop->annotations.size() == 1) {

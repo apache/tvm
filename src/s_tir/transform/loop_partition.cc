@@ -110,7 +110,7 @@ using ExpressionSet = std::unordered_set<PrimExpr, ffi::ObjectPtrHash, ffi::Obje
 // Virtual threads are lowered separately and are not hardware partition scopes.
 static bool IsVirtualThread(const ForNode* op) {
   if (op->kind != ForKind::kThreadBinding) return false;
-  const auto& tag = op->thread_binding.value()->thread_tag;
+  const auto& tag = op->thread_binding.value();
   return std::string(tag).rfind("vthread", 0) == 0;
 }
 
@@ -166,7 +166,7 @@ class CandidateSelector final : public StmtExprVisitor {
       return StmtExprVisitor::Visit_(op);
     }
     if (op->kind == ForKind::kThreadBinding &&
-        runtime::ThreadScope::Create(op->thread_binding.value()->thread_tag).rank != 0) {
+        runtime::ThreadScope::Create(op->thread_binding.value()).rank != 0) {
       return StmtExprVisitor::Visit_(op);
     }
     // partition const loop when sets partition_const_loop_
@@ -531,8 +531,7 @@ class LoopPartitioner : public StmtExprMutator {
     }
 
     // Relax threadIdx ranges to avoid introducing divergent partition branches.
-    bool relax = thread_scope &&
-                 runtime::ThreadScope::Create(op->thread_binding.value()->thread_tag).rank == 1;
+    bool relax = thread_scope && runtime::ThreadScope::Create(op->thread_binding.value()).rank == 1;
     auto& ranges = relax ? relax_map_ : hint_map_;
     ranges.insert({op->loop_var.get(), IntSet::Interval(op->min, op->min + op->extent - 1)});
     Stmt res = StmtExprMutator::Mutate_(op, InplaceMode::kDisallow)

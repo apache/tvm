@@ -208,6 +208,7 @@ IterVar IndexDataTypeNormalizer::VisitIterVar(const IterVar& iter_var) {
     IterVar new_iter_var = iter_var;
     IterVarNode* n = new_iter_var.CopyOnWrite();
     n->var = std::move(new_var);
+    n->ty = n->var.ty();
     n->dom = Range(min, extent);
     return new_iter_var;
   }

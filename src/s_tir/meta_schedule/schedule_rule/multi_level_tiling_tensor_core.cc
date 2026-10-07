@@ -35,10 +35,10 @@ namespace s_tir {
 namespace meta_schedule {
 
 using s_tir::GetSBlockVarTypes;
+using s_tir::IterVarType;
 using s_tir::LoopRV;
 using s_tir::SBlockRV;
 using s_tir::Schedule;
-using tirx::IterVarType;
 
 struct TensorCoreIntrinGroup {
   ffi::String init_intrin;

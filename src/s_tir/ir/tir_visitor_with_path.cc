@@ -27,12 +27,15 @@ using namespace tirx;
 using AccessPath = ffi::reflection::AccessPath;
 
 void TIRVisitorWithPath::Dispatch_(const SBlockNode* op, AccessPath path) {
-  std::vector<std::variant<DefContext<Var>, DefContext<IterVar>>> context;
+  std::vector<DefContext<Var>> context;
 
   {
     auto iter_path = path->Attr("iter_vars");
     for (size_t i = 0; i < op->iter_vars.size(); i++) {
-      context.push_back(WithDef(op->iter_vars[i], iter_path->ArrayItem(i)));
+      const IterVar& axis = op->iter_vars[i];
+      auto axis_path = iter_path->ArrayItem(i);
+      if (axis->dom.defined()) Visit(axis->dom, axis_path->Attr("dom"));
+      context.push_back(WithDef(axis->var.as_or_throw<Var>(), axis_path->Attr("var")));
     }
   }
 

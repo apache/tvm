@@ -67,7 +67,7 @@ class DistSBlockInfoCollector : public s_tir::StmtExprVisitor {
 
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockNode* op) final {
     for (const auto& iter_var : op->iter_vars) {
-      if (iter_var->iter_type == kCommReduce) {
+      if (iter_var->iter_type == s_tir::kCommReduce) {
         TVM_FFI_ICHECK(op->writes.size() == 1);
         reduce_buffer_ = op->writes[0]->source.as_or_throw<tvm::tirx::TensorVar>();
       }
@@ -187,7 +187,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
     }
   }
 
-  ffi::Array<IterVar> ShardIterVar(
+  ffi::Array<s_tir::IterVar> ShardIterVar(
       s_tir::SBlock block,
       const std::unordered_map<TensorVar, ffi::Array<ffi::Array<PrimExpr>>, ffi::ObjectPtrHash,
                                ffi::ObjectPtrEqual>& buffer_access_indices) {
@@ -225,7 +225,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
       }
     }
 
-    ffi::Array<IterVar> new_iter_vars;
+    ffi::Array<s_tir::IterVar> new_iter_vars;
     for (const auto& iter_var : block->iter_vars) {
       if (iter_var_shards_.count(iter_var->var)) {
         int shard = iter_var_shards_[iter_var->var];
@@ -235,8 +235,8 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
           sym::Analyzer analyzer;
           TVM_FFI_ICHECK(analyzer->CanProve(floormod(dom->extent, shard) == 0));
           new_iter_vars.push_back(
-              IterVar(Range::FromMinExtent(dom->min, floordiv(dom->extent, shard)), iter_var->var,
-                      iter_var->iter_type, iter_var->thread_tag));
+              s_tir::IterVar(Range::FromMinExtent(dom->min, floordiv(dom->extent, shard)),
+                             iter_var->var, iter_var->iter_type, iter_var->thread_tag));
           continue;
         }
       }
@@ -270,7 +270,8 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
                               .as_or_throw<s_tir::SBlock>();
     auto collector = ffi::make_object<DistSBlockInfoCollector>();
     collector->Visit(block);
-    ffi::Array<IterVar> new_iter_vars = ShardIterVar(block, collector->buffer_access_indices);
+    ffi::Array<s_tir::IterVar> new_iter_vars =
+        ShardIterVar(block, collector->buffer_access_indices);
     ffi::Array<TensorVar> new_alloc_buffers;
     ffi::Map<TensorVar, TensorVar> buffer_map;
     for (const TensorVar& buffer : block->alloc_buffers) {
@@ -282,8 +283,8 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
     }
     // condition for adding allreduce:
     // sharding on reduction axis
-    for (const IterVar& iter_var : new_iter_vars) {
-      if (iter_var->iter_type == kCommReduce && iter_var_shards_.count(iter_var->var)) {
+    for (const s_tir::IterVar& iter_var : new_iter_vars) {
+      if (iter_var->iter_type == s_tir::kCommReduce && iter_var_shards_.count(iter_var->var)) {
         TVM_FFI_ICHECK(add_allreduce_kind_ == "");
         AddAllReduceBlock(collector->reduce_kind);
         break;
@@ -311,7 +312,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
 
     for (int i = 0; i < static_cast<int>(realize->iter_values.size()); i++) {
       PrimExpr iter_value = realize->iter_values[i];
-      IterVar iter_var = realize->block->iter_vars[i];
+      s_tir::IterVar iter_var = realize->block->iter_vars[i];
       if (!iter_var_shards_.count(iter_var->var)) {
         continue;
       }

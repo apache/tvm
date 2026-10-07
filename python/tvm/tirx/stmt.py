@@ -38,7 +38,6 @@ from tvm.runtime import Object, Scriptable
 
 from . import _ffi_api
 from .exec_scope import ScopeIdDef
-from .expr import IterVar
 
 
 @tvm_ffi.register_object("tirx.Stmt")
@@ -159,7 +158,7 @@ class For(Stmt):
     body : Stmt
         The body statement.
 
-    thread_binding: Optional[tirx.IterVar]
+    thread_binding: Optional[str]
         The thread this loop binds to. Only valid
         if kind is ThreadBinding
 
@@ -179,7 +178,7 @@ class For(Stmt):
     extent: Expr
     kind: ForKind
     body: Stmt
-    thread_binding: IterVar | None
+    thread_binding: str | None
     annotations: Mapping[str, Object]
     step: Expr | None
     span: Span | None
@@ -191,7 +190,7 @@ class For(Stmt):
         extent: Expr,
         kind: ForKind,
         body: Stmt,
-        thread_binding: IterVar | None = None,
+        thread_binding: str | None = None,
         annotations: Mapping[str, Object] | None = None,
         step: Expr | None = None,
         span: Span | None = None,

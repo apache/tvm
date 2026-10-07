@@ -154,12 +154,12 @@ TVM_DLL Pass MakePackedAPI();
  *
  *  This can be used to get equivalent program which uses
  *  threadIdx.y in place of threadIdx.x by passing
- *  {"threadIdx.x": thread_axis("threadIdx.y")}
+ *  {"threadIdx.x": "threadIdx.y"}
  *
  *
  * \return The pass.
  */
-TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, IterVar> axis_map);
+TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, ffi::String> axis_map);
 
 /*!
  * \brief Annotate, split, and lower host/device functions.

@@ -173,7 +173,7 @@ def copy_vec_load_impl(
 
     # Thread and vectorization setup
     if sctx.is_cta:
-        tx = sctx.launch_params["threadIdx.x"].dom.extent
+        tx = sctx.launch_params["threadIdx.x"][1]
         assert "threadIdx.y" not in sctx.launch_params and "threadIdx.z" not in sctx.launch_params
     elif sctx.is_thread:
         tx = 1
@@ -261,7 +261,7 @@ def get_thread_cnt(sctx: DispatchContext) -> int | None:
     """Get thread count for the current execution scope."""
     scope_name = sctx.scope_kind
     if scope_name == "cta":
-        return sctx.launch_params["threadIdx.x"].dom.extent
+        return sctx.launch_params["threadIdx.x"][1]
     if scope_name == "warpgroup":
         return 128
     if scope_name == "warp":

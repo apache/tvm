@@ -164,7 +164,7 @@ def test_ir_builder_tir_block_complete():
     buffer_e = tirx.decl_tensor((128, 128), "float32", name="c")
     var_f = tirx.Var("f", "int32")
     block_expected = s_tir.SBlock(
-        iter_vars=[tirx.IterVar((0, 128), tirx.Var("", "int32"), iter_type=tirx.IterVar.DataPar)],
+        iter_vars=[s_tir.IterVar((0, 128), tirx.Var("", "int32"), iter_type=s_tir.IterVar.DataPar)],
         reads=[buffer_b[0:16, 0:16]],
         writes=[buffer_c[var_d:128, var_d:128]],
         name_hint="block",
@@ -208,10 +208,10 @@ def test_ir_builder_tir_axis():
     var_d = tirx.Var("d", "int32")
     block_expected = s_tir.SBlock(
         iter_vars=[
-            tirx.IterVar((0, 8), tirx.Var("", "int32"), iter_type=tirx.IterVar.DataPar),
-            tirx.IterVar((0, 16), tirx.Var("", "int32"), iter_type=tirx.IterVar.CommReduce),
-            tirx.IterVar((0, 32), tirx.Var("", "int32"), iter_type=tirx.IterVar.Ordered),
-            tirx.IterVar((0, 64), tirx.Var("", "int32"), iter_type=tirx.IterVar.Opaque),
+            s_tir.IterVar((0, 8), tirx.Var("", "int32"), iter_type=s_tir.IterVar.DataPar),
+            s_tir.IterVar((0, 16), tirx.Var("", "int32"), iter_type=s_tir.IterVar.CommReduce),
+            s_tir.IterVar((0, 32), tirx.Var("", "int32"), iter_type=s_tir.IterVar.Ordered),
+            s_tir.IterVar((0, 64), tirx.Var("", "int32"), iter_type=s_tir.IterVar.Opaque),
         ],
         reads=[],
         writes=[],

@@ -484,28 +484,6 @@ class IntExpr : public PrimExpr {
   static constexpr bool _type_container_is_exact = false;
 };
 
-/*!
- * \brief Base class for other IR constructs that can be converted to PrimExpr.
- * This is useful for the FFI to convert the expressions to PrimExpr.
- * \sa PrimExpr
- */
-class PrimExprConvertibleNode : public ffi::Object {
- public:
-  virtual ~PrimExprConvertibleNode() {}
-  virtual PrimExpr ToPrimExpr() const = 0;
-  TVM_FFI_DECLARE_OBJECT_INFO("ir.PrimExprConvertible", PrimExprConvertibleNode, ffi::Object);
-};
-
-/*!
- * \brief Managed reference to PrimExprConvertibleNode.
- * \sa PrimExprConvertibleNode
- */
-class PrimExprConvertible : public ffi::ObjectRef {
- public:
-  TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(PrimExprConvertible, ffi::ObjectRef,
-                                             PrimExprConvertibleNode);
-};
-
 namespace ffi {
 template <>
 inline constexpr bool use_default_type_traits_v<PrimType> = false;
@@ -556,17 +534,16 @@ inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
 // define automatic conversion from bool, int64_t, double to PrimExpr
 // These functions are declared early to avoid circular dependency
 template <>
-struct TypeTraits<PrimExpr> : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t,
-                                                                     double, PrimExprConvertible> {
-  using Base =
-      ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double, PrimExprConvertible>;
+struct TypeTraits<PrimExpr>
+    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double> {
+  using Base = ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double>;
   TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFINone) return PrimExpr::_type_is_nullable;
     return TypeTraits<TypedExpr<PrimType>>::CheckAnyStrict(src);
   }
 
   TVM_FFI_INLINE static std::optional<PrimExpr> TryCastFromAnyView(const TVMFFIAny* src) {
-    // PrimExprConvertible is nullable, but a required expression cannot accept None.
+    // A required expression cannot accept None.
     if (src->type_index == TypeIndex::kTVMFFINone) return std::nullopt;
     return Base::TryCastFromAnyView(src);
   }
@@ -580,9 +557,6 @@ struct TypeTraits<PrimExpr> : public ObjectRefWithFallbackTraitsBase<PrimExpr, S
   TVM_DLL static PrimExpr ConvertFallbackValue(StrictBool value);
   TVM_DLL static PrimExpr ConvertFallbackValue(int64_t value);
   TVM_DLL static PrimExpr ConvertFallbackValue(double value);
-  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
-    return value->ToPrimExpr();
-  }
 };
 
 template <>

@@ -174,7 +174,7 @@ PrimFunc Specialize(PrimFunc func, const ffi::Map<Var, ffi::Variant<TensorVar, E
 namespace attr {
 
 /*!
- * \brief List of thread IterVar that a DeviceLaunch function corresponds to.
+ * \brief Ordered launch-parameter tags for a device kernel.
  *
  * Type: ffi::Array<ffi::String>
  *

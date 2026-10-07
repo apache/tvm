@@ -205,7 +205,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
   // Thread entry
   struct ThreadEntry {
     runtime::ThreadScope scope;
-    IterVar iv;
+    ffi::Optional<PrimVar> var;
     int extent;
     // comparator
     bool operator<(const ThreadEntry& other) const {
@@ -261,7 +261,7 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       auto var = axis.as<PrimVar>();
       const VarNode* v = var.has_value() ? var.value().get() : nullptr;
       // The simply optimization replace a iteration variable with a constant
-      // when extent of the iteration is 1. As threaded IterVar always started from 0,
+      // when extent of the iteration is 1. As thread indexes always start from 0,
       // we can just ignore this variable in this case.
       if (v) {
         reduce_set.insert(v);
@@ -276,23 +276,23 @@ class ThreadAllreduceBuilder final : public DialectMutator {
     std::map<int, std::pair<ThreadEntry, bool>> thread_axes_by_dim;
     for (const RegionStmtNode* launch : thread_extents_) {
       ThreadEntry e;
-      IterVar iv(Range(), launch->body_params[0].as_or_throw<PrimVar>(), IterVarType::kThreadIndex,
-                 launch->args[0].as_or_throw<StringImm>()->value);
-      e.scope = runtime::ThreadScope::Create(iv->thread_tag);
-      e.iv = iv;
+      PrimVar var = launch->body_params[0].as_or_throw<PrimVar>();
+      ffi::String tag = launch->args[0].as_or_throw<StringImm>()->value;
+      e.scope = runtime::ThreadScope::Create(tag);
+      e.var = var;
       TVM_FFI_ICHECK_LE(e.scope.rank, 1);
       TVM_FFI_ICHECK_GE(e.scope.dim_index, 0) << "vthread do not work with cross thread reduction";
       if (e.scope.rank == 1) {
         const auto* ptr = launch->args[1].as_or_throw<PrimExpr>().as<IntImmNode>();
-        TVM_FFI_ICHECK(ptr) << "Need constant extent for reduce set " << iv;
+        TVM_FFI_ICHECK(ptr) << "Need constant extent for reduce set " << var;
         e.extent = ptr->value.as<int>().value();
-        bool is_reduce = reduce_set.count(iv->var.get());
+        bool is_reduce = reduce_set.count(var.get());
         nmatch += is_reduce;
         auto [it, inserted] =
             thread_axes_by_dim.emplace(e.scope.dim_index, std::make_pair(e, is_reduce));
         if (!inserted) {
           TVM_FFI_ICHECK_EQ(it->second.first.extent, e.extent)
-              << "Incompatible extents for nested bindings of " << iv->thread_tag;
+              << "Incompatible extents for nested bindings of " << tag;
           // Fresh lexical bindings of one hardware axis are aliases. Use the
           // innermost binding for generated indexes and reduce the axis once
           // when any of its live aliases appears in the reduction operands.
@@ -777,11 +777,11 @@ class ThreadAllreduceBuilder final : public DialectMutator {
       return IntImm::Int32(0);
     }
 
-    PrimExpr ret = tvec.front().iv->var;
+    PrimExpr ret = tvec.front().var.value();
     total_extent = tvec.front().extent;
     for (size_t i = 1; i < tvec.size(); ++i) {
       const ThreadEntry& e = tvec[i];
-      ret = ret + e.iv->var * total_extent;
+      ret = ret + e.var.value() * total_extent;
       total_extent *= e.extent;
     }
     return ret;

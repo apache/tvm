@@ -41,8 +41,8 @@
 namespace tvm {
 namespace tirx {
 
-using tirx::IterVar;
-using tirx::IterVarNode;
+using s_tir::IterVar;
+using s_tir::IterVarNode;
 using tirx::Var;
 
 const SLayoutAxis SLayoutAxis::UPPER_CASE[] = {
@@ -131,7 +131,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       TVM_FFI_ICHECK_EQ(factor, 0) << "Invalid layout " << name << ": invalid factor size "
                                    << factor << " before dimension " << c;
       PrimVar axis_var(std::string(1, c), index_ty);
-      IterVar axis(Range(IntImm(index_ty, 0), axis_var), axis_var, tirx::kDataPar);
+      IterVar axis(Range(IntImm(index_ty, 0), axis_var), axis_var, s_tir::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -143,7 +143,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       std::stringstream name;
       name << factor << c;
       IterVar axis(Range(IntImm(index_ty, 0), IntImm(index_ty, factor)),
-                   PrimVar(name.str(), index_ty), tirx::kDataPar);
+                   PrimVar(name.str(), index_ty), s_tir::kDataPar);
       if (!in_packing) {
         node->axes.push_back(axis);
       } else {
@@ -174,7 +174,7 @@ SLayout::SLayout(const std::string& name, PrimType index_ty) {  // NOLINT(*)
       }
       std::string grouped_name = ss.str();
       IterVar grouped_axis(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
-                           PrimVar(grouped_name, index_ty), tirx::kDataPar);
+                           PrimVar(grouped_name, index_ty), s_tir::kDataPar);
       node->axes.push_back(grouped_axis);
 
       in_packing = false;
@@ -250,13 +250,13 @@ ffi::Array<IterVar> SLayout::UnpackIterVar(IterVar packed_iter) {
     } else if (ch >= 'a' && ch <= 'z') {
       TVM_FFI_ICHECK(factor != 0) << "Invalid Factor Size";
       result.push_back(IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, factor)),
-                               PrimVar(std::string(1, ch), index_ty), tirx::kDataPar));
+                               PrimVar(std::string(1, ch), index_ty), s_tir::kDataPar));
       final_factor *= factor;
       factor = 0;
     } else if (ch >= 'A' && ch <= 'Z') {
       TVM_FFI_ICHECK(factor == 0) << "Can't have non-zero factors for primal axis";
       PrimVar axis_var(std::string(1, ch), index_ty);
-      result.push_back(IterVar(Range(IntImm(index_ty, 0), axis_var), axis_var, tirx::kDataPar));
+      result.push_back(IterVar(Range(IntImm(index_ty, 0), axis_var), axis_var, s_tir::kDataPar));
     }
   }
 
@@ -277,7 +277,7 @@ IterVar SLayout::PackIterVar(ffi::Array<IterVar> iter_vars) {
   }
 
   return IterVar(Range(IntImm(index_ty, 0), IntImm(index_ty, extent)),
-                 PrimVar(name.str(), index_ty), tirx::kDataPar);
+                 PrimVar(name.str(), index_ty), s_tir::kDataPar);
 }
 
 int32_t SLayout::FactorOf(const SLayoutAxis& axis) const {
@@ -323,11 +323,11 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
       int64_t offset = src_layout.FactorOf(prim_axis);
       if (offset == -1)
         norm_indexes[prim_axis.name()[0] - 'A'] =
-            norm_indexes[prim_axis.name()[0] - 'A'] + src_layout.PackedAxisAt(i);
+            norm_indexes[prim_axis.name()[0] - 'A'] + src_layout.PackedAxisAt(i)->var;
       else
         norm_indexes[prim_axis.name()[0] - 'A'] =
             norm_indexes[prim_axis.name()[0] - 'A'] +
-            src_layout.PackedAxisAt(i) * src_layout.FactorOf(prim_axis);
+            src_layout.PackedAxisAt(i)->var * src_layout.FactorOf(prim_axis);
       exists[prim_axis.name()[0]] = true;
     } else {
       ffi::BigInt value = 1;
@@ -347,7 +347,7 @@ inline bool GetStoreRule(ffi::Array<PrimExpr>* index_rule, ffi::Array<PrimExpr>*
         const SLayoutAxis& sub_axis = store_axis_impl.ToSubordinate(); /* Not Needed */
         const SLayoutAxis& prim_axis = store_axis_impl.ToPrimal();
 
-        PrimExpr factor_ij = indexdiv(src_layout.PackedAxisAt(i),
+        PrimExpr factor_ij = indexdiv(src_layout.PackedAxisAt(i)->var,
                                       IntImm(src_layout.PackedAxisAt(i)->var.ty(), index_divs[j]));
         if (j != 0) factor_ij = indexmod(factor_ij, extent);
 

@@ -305,7 +305,7 @@ def _impl(op_call, sctx):
             buf_idx[iter_buf_dims[bi]] = st_list[iter_buf_dims[bi]] + flat
         return tuple(buf_idx)
 
-    tid_x = sctx.launch_params["threadIdx.x"]
+    tid_x = sctx.launch_params["threadIdx.x"][0]
     dtype = src_buf.dtype
 
     # Shared 32/64b: base ptr + stride offset avoids buf[] flatten IMAD path.

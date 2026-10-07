@@ -304,7 +304,8 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ForMutate(
                                     mutator->MutateExpected(self->extent));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
                                     mutator->MutateExpected(self->body));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<IterVar>>, mapped_thread_binding,
+  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<ffi::String>>,
+                                    mapped_thread_binding,
                                     mutator->MutateExpected(self->thread_binding));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimExpr>>, mapped_step,
                                     mutator->MutateExpected(self->step));
@@ -344,7 +345,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> ForMaybeInplaceMutate(
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<Stmt>, mapped_body,
                                     mutator->MutateExpected(self->body, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(
-      ffi::UnchangedOr<ffi::Optional<IterVar>>, mapped_thread_binding,
+      ffi::UnchangedOr<ffi::Optional<ffi::String>>, mapped_thread_binding,
       mutator->MutateExpected(self->thread_binding, ffi::InplaceMode::kAllow));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Optional<PrimExpr>>, mapped_step,
                                     mutator->MutateExpected(self->step, ffi::InplaceMode::kAllow));
@@ -845,7 +846,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // For
 For::For(PrimVar loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-         ffi::Optional<IterVar> thread_binding, ffi::Map<ffi::String, Any> annotations,
+         ffi::Optional<ffi::String> thread_binding, ffi::Map<ffi::String, Any> annotations,
          ffi::Optional<PrimExpr> step, Span span)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_ICHECK(loop_var.defined());
@@ -916,7 +917,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
             ffi::FStructuralMutate::FromNative<&ForMaybeInplaceMutate>());
 
   refl::GlobalDef().def("tirx.For", [](PrimVar loop_var, PrimExpr min, PrimExpr extent, int kind,
-                                       Stmt body, ffi::Optional<IterVar> thread_binding,
+                                       Stmt body, ffi::Optional<ffi::String> thread_binding,
                                        ffi::Optional<ffi::Map<ffi::String, Any>> annotations,
                                        ffi::Optional<PrimExpr> step, Span span) {
     return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,

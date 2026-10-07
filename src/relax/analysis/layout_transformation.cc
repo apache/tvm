@@ -392,7 +392,8 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
     }
     block_transformation_ = maybe_block_transformation.value();
 
-    ffi::Array<Range> block_ranges = block_->iter_vars.Map([](const IterVar& i) { return i->dom; });
+    ffi::Array<Range> block_ranges =
+        block_->iter_vars.Map([](const s_tir::IterVar& i) { return i->dom; });
     if (!IsBijectiveAffine(block_transformation_, block_ranges)) {
       can_transform_block_ = false;
       LOG(WARNING) << "[LayoutInference] Inferred block transformation is not bijective affine, "
@@ -469,12 +470,12 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
 
   // Compute the spatial domain map of block
   void ComputeBlockSpatialDomain() {
-    for (const IterVar& v : block_->iter_vars) {
-      if (v->iter_type == kDataPar) {
+    for (const s_tir::IterVar& v : block_->iter_vars) {
+      if (v->iter_type == s_tir::kDataPar) {
         spatial_dom_.Set(v->var, v->dom);
         continue;
       }
-      if (v->iter_type == tirx::kCommReduce) continue;
+      if (v->iter_type == s_tir::kCommReduce) continue;
       LOG(WARNING) << "[LayoutInference] Cannot compute block spatial domain in presence of "
                       "unknown block iter_type : "
                    << v->iter_type;

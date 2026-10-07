@@ -44,7 +44,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
       return;
     }
   }
-  ffi::Array<tirx::IterVar> iters = sch->Get(block)->iter_vars;
+  ffi::Array<s_tir::IterVar> iters = sch->Get(block)->iter_vars;
 
   // when there is no loops, tirx will add a dummy iter var for the block
   // so loops.size() == 0 && iters.size() == 1
@@ -53,7 +53,7 @@ void ThreadBind(s_tir::Schedule sch, const s_tir::SBlockRV& block, int64_t max_t
   ffi::Array<s_tir::LoopRV> data_parallel_loops;
   // only fuse data parallel loops
   for (size_t i = 0; i < loops.size(); ++i) {
-    if (iters[i]->iter_type == tirx::IterVarType::kDataPar) {
+    if (iters[i]->iter_type == s_tir::IterVarType::kDataPar) {
       data_parallel_loops.push_back(loops[i]);
     }
   }
@@ -136,16 +136,16 @@ tirx::PrimFunc WrapBareSBlockBody(const tirx::PrimFunc& func) {
   tvm::IntImm one(tvm::PrimType::Int(32), 1);
   tirx::Var loop_var("u", tvm::PrimType::Int(32));
   tirx::Var iter_var_var("vu", tvm::PrimType::Int(32));
-  tirx::IterVar new_iter(tvm::Range::FromMinExtent(zero, one), iter_var_var.as_or_throw<PrimVar>(),
-                         tirx::IterVarType::kDataPar);
+  s_tir::IterVar new_iter(tvm::Range::FromMinExtent(zero, one), iter_var_var.as_or_throw<PrimVar>(),
+                          s_tir::IterVarType::kDataPar);
   s_tir::SBlock inner_block = realize->block;
-  inner_block.CopyOnWrite()->iter_vars = ffi::Array<tirx::IterVar>{new_iter};
+  inner_block.CopyOnWrite()->iter_vars = ffi::Array<s_tir::IterVar>{new_iter};
   s_tir::SBlockRealize inner_realize(
       /*iter_values=*/ffi::Array<tvm::PrimExpr>{loop_var.as_or_throw<tvm::PrimExpr>()},
       /*predicate=*/realize->predicate, inner_block);
   tirx::Stmt for_stmt =
       tirx::For(loop_var.as_or_throw<PrimVar>(), zero, one, tirx::ForKind::kSerial, inner_realize);
-  s_tir::SBlock root_block(/*iter_vars=*/ffi::Array<tirx::IterVar>{},
+  s_tir::SBlock root_block(/*iter_vars=*/ffi::Array<s_tir::IterVar>{},
                            /*reads=*/ffi::Array<tvm::TensorRegion>{},
                            /*writes=*/ffi::Array<tvm::TensorRegion>{},
                            /*name_hint=*/"root", /*body=*/for_stmt);

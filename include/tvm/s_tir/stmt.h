@@ -27,6 +27,7 @@
 #ifndef TVM_S_TIR_STMT_H_
 #define TVM_S_TIR_STMT_H_
 
+#include <tvm/s_tir/iter_var.h>
 #include <tvm/tirx/stmt.h>
 
 namespace tvm {
@@ -105,7 +106,7 @@ class SBlockNode : public tirx::StmtNode {
   explicit SBlockNode(tirx::Stmt body) : body(std::move(body)) {}
 
   /*! \brief The variables of the block. */
-  ffi::Array<tirx::IterVar> iter_vars;
+  ffi::Array<s_tir::IterVar> iter_vars;
   /*! \brief The read buffer regions of the block. */
   ffi::Array<TensorRegion> reads;
   /*! \brief The write buffer regions of the block. */
@@ -153,7 +154,7 @@ class SBlockNode : public tirx::StmtNode {
 class SBlock : public tirx::Stmt {
  public:
   TVM_DLL explicit SBlock(
-      ffi::Array<tirx::IterVar> iter_vars, ffi::Array<TensorRegion> reads,
+      ffi::Array<s_tir::IterVar> iter_vars, ffi::Array<TensorRegion> reads,
       ffi::Array<TensorRegion> writes, ffi::String name_hint, tirx::Stmt body,
       ffi::Optional<tirx::Stmt> init = std::nullopt,
       ffi::Array<tirx::TensorVar> alloc_buffers = ffi::Array<tirx::TensorVar>(),

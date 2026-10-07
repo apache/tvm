@@ -109,7 +109,7 @@ def is_gemv(sch: s_tir.Schedule, block_info: SBlockInfo) -> list[tirx.Var] | Non
         for iter_var in block_stmt.iter_vars
         if not isinstance(iter_var.dom.extent, tirx.IntImm)
     )
-    if symbolic_iter_var.iter_type != tirx.stmt.IterVar.DataPar:
+    if symbolic_iter_var.iter_type != s_tir.IterVar.DataPar:
         return None
     ret = [
         read.source

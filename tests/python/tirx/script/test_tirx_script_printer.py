@@ -23,7 +23,7 @@ from tvm_ffi import get_global_func
 import tvm
 import tvm.script
 import tvm.testing
-from tvm import ir, tirx
+from tvm import ir, s_tir, tirx
 from tvm import tirx as tir
 from tvm.ir import Range, assert_structural_equal
 from tvm.runtime.script_printer import _script
@@ -398,12 +398,12 @@ a""",
 
 
 def test_iter_var():
-    a = tirx.IterVar((0, 8), "a", iter_type=tirx.IterVar.DataPar)
+    a = s_tir.IterVar((0, 8), "a", iter_type=s_tir.IterVar.DataPar)
     _assert_print(
         a,
         """
 a = I.dynamic("a", dtype="int32")
-T.iter_var(a, T.Range(0, 8), "DataPar", "")
+Ts.iter_var(a, T.Range(0, 8), "DataPar", "")
 """,
     )
 

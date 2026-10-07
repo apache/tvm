@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ir/op.h>
+#include <tvm/s_tir/iter_var.h>
 #include <tvm/s_tir/stmt.h>
 
 #include "../../../tirx/script/printer/utils.h"
@@ -26,6 +27,24 @@ namespace script {
 namespace printer {
 namespace details {
 namespace {
+
+ffi::Optional<ExprDoc> IterVarDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                           const ffi::Object*) {
+  const auto* iter =
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const s_tir::IterVarNode>(input);
+  CallDoc domain = d->Translate(iter->dom).value().as_or_throw<CallDoc>();
+  domain->callee = NamespaceDoc("tirx")->Attr("Range");
+  return NamespaceDoc("s_tir")
+      ->Attr("iter_var")
+      ->Call({d->Translate(iter->var).value(), domain,
+              LiteralDoc::Str(s_tir::IterVarType2String(iter->iter_type), std::nullopt),
+              LiteralDoc::Str(iter->thread_tag, std::nullopt)});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  ffi::reflection::TypeAttrDef<s_tir::IterVarNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&IterVarDocTranslate>());
+}
 
 ffi::Optional<ExprDoc> CpAsyncRawDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                               const ffi::Object*) {

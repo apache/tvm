@@ -49,22 +49,42 @@ using namespace tvm::prim;
 
 namespace {
 
-void VerifyNoOpaqueArtifacts(const PrimFunc& func) {
-  ffi::String artifact;
-  ffi::StructuralWalk<ffi::WalkOrder::kPreOrder>(
-      func,
-      [&](const OpaqueExpr& expr) -> ffi::Expected<ffi::WalkResult> {
-        artifact = expr->GetTypeKey();
-        return ffi::WalkResult::Interrupt();
-      },
-      [&](const OpaqueType& type) -> ffi::Expected<ffi::WalkResult> {
-        artifact = type->GetTypeKey();
-        return ffi::WalkResult::Interrupt();
-      });
-  if (!artifact.empty()) {
-    TVM_FFI_THROW(InternalError) << "CreatePrimFunc produced construction-only opaque artifact "
-                                 << artifact;
+// Only SBlock.iter_vars entries have the retained axis-metadata role. Walk their
+// fields explicitly so opaque values in domains, types or annotations remain errors.
+class OpaqueArtifactVerifier : public ObjectVisitor {
+ public:
+  ffi::Optional<VisitInterrupt> Visit(ffi::AnyView value) final {
+    if (const auto* block = value.as<s_tir::SBlockNode>()) {
+      for (const auto& axis : block->iter_vars) {
+        Visit(axis->dom);
+        Visit(axis->var);
+        Visit(axis->ty);
+        Visit(axis->span);
+      }
+      Visit(block->reads);
+      Visit(block->writes);
+      Visit(block->body);
+      Visit(block->init);
+      Visit(block->alloc_buffers);
+      Visit(block->match_buffers);
+      Visit(block->annotations);
+      Visit(block->span);
+      return std::nullopt;
+    }
+    if (const auto* expr = value.as<OpaqueExprNode>()) {
+      TVM_FFI_THROW(InternalError)
+          << "CreatePrimFunc produced construction-only opaque artifact " << expr->GetTypeKey();
+    }
+    if (value.as<OpaqueTypeNode>()) {
+      TVM_FFI_THROW(InternalError)
+          << "CreatePrimFunc produced construction-only opaque artifact ir.OpaqueType";
+    }
+    return ObjectVisitor::Visit(value);
   }
+};
+
+void VerifyNoOpaqueArtifacts(const PrimFunc& func) {
+  ffi::make_object<OpaqueArtifactVerifier>()->Visit(func);
 }
 
 }  // namespace
@@ -72,9 +92,32 @@ void VerifyNoOpaqueArtifacts(const PrimFunc& func) {
 /*! \brief The helper mutator that transforms Tensor-callee Calls to TensorLoad. */
 class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
  public:
+  using s_tir::StmtExprMutator::Mutate_;
+
   explicit TensorLoadToBufferTransformer(
       const std::unordered_map<te::Tensor, TensorVar>& tensor2buffers)
-      : tensor2buffers_(tensor2buffers) {}
+      : s_tir::StmtExprMutator(VTableInstance()), tensor2buffers_(tensor2buffers) {}
+
+  TensorVar NormalizeBufferType(const TensorVar& buffer) {
+    auto type = Mutate(buffer.var()->ty).ValueOrUnchanged(buffer.var()->ty).cast<TensorType>();
+    if (type.same_as(buffer.var()->ty)) return buffer;
+    return TensorVar(buffer.name(), type, buffer.span());
+  }
+
+  s_tir::IterVar NormalizeAxisDomain(const s_tir::IterVar& axis) {
+    if (!axis->dom.defined()) return axis;
+    auto domain = Mutate(axis->dom).ValueOrUnchanged(axis->dom).cast<Range>();
+    if (domain.same_as(axis->dom)) return axis;
+    auto copy = ffi::make_object<s_tir::IterVarNode>(*axis.get());
+    copy->dom = std::move(domain);
+    return s_tir::IterVar(std::move(copy));
+  }
+
+  UnchangedOr<Expr> Mutate_(const s_tir::IterVarNode* op, InplaceMode) { return op->var; }
+
+  UnchangedOr<Expr> Mutate_(const te::ReduceNode* op, InplaceMode inplace_mode) {
+    return Mutate_(static_cast<const OpaqueExprNode*>(op), inplace_mode);
+  }
 
   UnchangedOr<Expr> Mutate_(const OpaqueExprNode* op, InplaceMode inplace_mode) final {
     const auto* reduce =
@@ -83,18 +126,8 @@ class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
       return s_tir::StmtExprMutator::Mutate_(op, inplace_mode);
     }
 
-    auto axis = reduce->axis.Map([this](const IterVar& iter_var) {
-      const Range& dom = iter_var->dom;
-      auto min_update = Mutate(dom->min);
-      auto extent_update = Mutate(dom->extent);
-      if (min_update.UnchangedOrSameAs(dom->min) && extent_update.UnchangedOrSameAs(dom->extent)) {
-        return iter_var;
-      }
-      PrimExpr min = std::move(min_update).ValueOrUnchanged(dom->min);
-      PrimExpr extent = std::move(extent_update).ValueOrUnchanged(dom->extent);
-      return IterVar(Range::FromMinExtent(min, extent), iter_var->var, iter_var->iter_type,
-                     iter_var->thread_tag);
-    });
+    auto axis =
+        reduce->axis.Map([this](const s_tir::IterVar& axis) { return NormalizeAxisDomain(axis); });
     bool axis_unchanged = axis.same_as(reduce->axis);
 
     auto source_update =
@@ -131,6 +164,17 @@ class TensorLoadToBufferTransformer : public s_tir::StmtExprMutator {
   }
 
  private:
+  static const VTable* VTableInstance() {
+    static const VTable table = [] {
+      VTable table;
+      s_tir::StmtExprMutator::InitVTable(&table);
+      SetDispatch<TensorLoadToBufferTransformer, s_tir::IterVarNode>(&table);
+      SetDispatch<TensorLoadToBufferTransformer, te::ReduceNode>(&table);
+      table.Finalize();
+      return table;
+    }();
+    return &table;
+  }
   /*! \brief The Map from Operations to buffers */
   const std::unordered_map<te::Tensor, TensorVar>& tensor2buffers_;
 };
@@ -243,18 +287,18 @@ class LayoutFreePlaceholdersNormalizer : public s_tir::StmtExprMutator {
  * (1) Each iter should reside in exactly one level.
  * (2) The domain of low level iter should be either free or ony depend on iters in high level.
  **/
-using NestedIterLevels = std::vector<std::vector<IterVar>>;
+using NestedIterLevels = std::vector<std::vector<s_tir::IterVar>>;
 
-NestedIterLevels GenerateNestedIterLevels(const ffi::Array<IterVar>& axes,
+NestedIterLevels GenerateNestedIterLevels(const ffi::Array<s_tir::IterVar>& axes,
                                           sym::AnalyzerObj* analyzer) {
   int global_max_depth = 0;
   std::unordered_map<Var, int> depth;
-  std::unordered_map<Var, IterVar> var2iter;
+  std::unordered_map<Var, s_tir::IterVar> var2iter;
   for (const auto& axis : axes) {
-    var2iter[axis->var] = axis;
+    var2iter.emplace(axis->var, axis);
   }
 
-  std::function<int(const IterVar&)> traverse = [&](const IterVar& axis) -> int {
+  std::function<int(const s_tir::IterVar&)> traverse = [&](const s_tir::IterVar& axis) -> int {
     auto depth_it = depth.find(axis->var);
     if (depth_it != depth.end()) {  // cache
       return depth_it->second;
@@ -335,7 +379,10 @@ ffi::Array<TensorVar> GenerateOutputBuffers(const te::ComputeOp& compute_op, Cre
   //  - Add the non-argument tensors to `alloc_tensor` of the root block
   ffi::Array<TensorVar> buffers;
   for (const te::Tensor& tensor : tensors) {
-    TensorVar buffer = decl_tensor(tensor->shape, tensor->dtype, tensor->GetNameHint(), "global");
+    TensorVar buffer = decl_tensor(info->transformer->Mutate(tensor->shape)
+                                       .ValueOrUnchanged(tensor->shape)
+                                       .cast<ffi::Array<PrimExpr>>(),
+                                   tensor->dtype, tensor->GetNameHint(), "global");
     info->tensor2buffers.insert_or_assign(tensor, buffer);
     buffers.push_back(buffer);
     if (!info->IsArg(tensor)) {
@@ -358,7 +405,7 @@ ffi::Map<ffi::String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& co
     if (auto tensor_value = value.try_cast<te::Tensor>()) {
       return info->tensor2buffers.at(tensor_value.value());
     } else {
-      return value;
+      return info->transformer->Mutate(value).ValueOrUnchanged(value);
     }
   };
   for (const auto& pair : compute_op->attrs) {
@@ -500,7 +547,7 @@ struct NestedScopeInfo {
   // loop var and range in the scope.
   std::vector<std::pair<Var, Range>> loop_vars;
   // block iters for current level's block.
-  ffi::Array<IterVar> block_iters;
+  ffi::Array<s_tir::IterVar> block_iters;
   // block bindings for current level's block.
   ffi::Array<PrimExpr> bindings;
   // store indices for current level's block.
@@ -509,12 +556,12 @@ struct NestedScopeInfo {
   ffi::Map<Var, PrimExpr> axes_remap;
 
   // helper to add new block var
-  void AddBlockIter(const ffi::Optional<IterVar>& origin_axis, const IterVar& iter,
+  void AddBlockIter(const ffi::Optional<s_tir::IterVar>& origin_axis, const s_tir::IterVar& iter,
                     const PrimExpr& value) {
     block_iters.push_back(iter);
     bindings.push_back(value);
     if (origin_axis.has_value()) {
-      if (iter->iter_type != IterVarType::kCommReduce) {
+      if (iter->iter_type != s_tir::IterVarType::kCommReduce) {
         store_indices.push_back(iter->var);
       }
       axes_remap.Set(origin_axis.value()->var, iter->var);
@@ -522,15 +569,15 @@ struct NestedScopeInfo {
   }
 
   // helper to renew leaf block var defs to ensure SSA.
-  void Renew(const ffi::Array<IterVar>& origin_axes) {
-    block_iters.MutateByApply([](const IterVar& itervar) {
-      auto n = ffi::make_object<IterVarNode>(*itervar.get());
+  void Renew(const ffi::Array<s_tir::IterVar>& origin_axes) {
+    block_iters.MutateByApply([](const s_tir::IterVar& itervar) {
+      auto n = ffi::make_object<s_tir::IterVarNode>(*itervar.get());
       n->var = n->var.CopyWithSuffix("");
-      return IterVar(n);
+      return s_tir::IterVar(n);
     });
     for (size_t i = 0; i < origin_axes.size(); ++i) {
       Var block_var = block_iters[i]->var;
-      if (origin_axes[i]->iter_type != IterVarType::kCommReduce) {
+      if (origin_axes[i]->iter_type != s_tir::IterVarType::kCommReduce) {
         store_indices.Set(i, block_var.as_or_throw<PrimExpr>());
       }
       axes_remap.Set(origin_axes[i]->var, block_var.as_or_throw<PrimExpr>());
@@ -541,12 +588,14 @@ struct NestedScopeInfo {
 Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* info,
                              sym::AnalyzerObj* analyzer) {
   // Step 1. Collect all iter axes in original TE compute op
-  ffi::Array<IterVar> axes = compute_op->axis;
+  ffi::Array<s_tir::IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
 
   // Step 2. Prepare nested iteration scopes.
   // For each axis, we generate loop and the first block binding at the level it belongs to.
   // In lower levels, we just create new block var and bind it to the previous level block var.
+  axes = axes.Map(
+      [&](const s_tir::IterVar& axis) { return info->transformer->NormalizeAxisDomain(axis); });
   auto axes_levels = GenerateNestedIterLevels(axes, analyzer);
   TVM_FFI_ICHECK(!axes_levels.empty());
   std::vector<NestedScopeInfo> scopes;
@@ -557,13 +606,14 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   for (size_t i = 0; i < axes_levels.size(); ++i) {
     NestedScopeInfo cur_scope;
     for (size_t j = 0; j < axes.size(); ++j) {
-      const IterVar& axis = axes[j];
+      const s_tir::IterVar& axis = axes[j];
       PrimType index_type =
           PrimType::Int(std::max(axis->dom->min.ty().bits(), axis->dom->extent.ty().bits()));
       bool first_times_define =
-          std::find(axes_levels[i].begin(), axes_levels[i].end(), axis) != axes_levels[i].end();
+          std::any_of(axes_levels[i].begin(), axes_levels[i].end(),
+                      [&](const s_tir::IterVar& candidate) { return candidate.same_as(axis); });
       if (first_times_define) {
-        if (axis->iter_type == IterVarType::kCommReduce) {
+        if (axis->iter_type == s_tir::IterVarType::kCommReduce) {
           reduction_init_scope = std::min(reduction_init_scope, i);
         }
         Var loop_var = Var(axis->var->name, index_type);
@@ -583,8 +633,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
                        .as_or_throw<PrimExpr>();
         }
         Range dom = Range::FromMinExtent(analyzer->Simplify(min), analyzer->Simplify(extent));
-        IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
-                               axis->thread_tag, axis->span);
+        s_tir::IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
+                                      axis->thread_tag, axis->span);
         cur_scope.loop_vars.emplace_back(loop_var, dom);
         cur_scope.AddBlockIter(axis, new_block_iter, loop_var.as_or_throw<PrimExpr>());
         defined_axes.insert(axis->var);
@@ -594,15 +644,15 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
         PrimExpr prev_binding = scopes[i - 1].axes_remap.at(axis->var);
         Var block_var("v_" + axis->var->name, index_type);
         Range dom = Range::FromMinExtent(prev_binding, MakeConst(index_type, 1));
-        IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
-                               axis->thread_tag, axis->span);
+        s_tir::IterVar new_block_iter(dom, block_var.as_or_throw<PrimVar>(), axis->iter_type,
+                                      axis->thread_tag, axis->span);
         cur_scope.AddBlockIter(axis, new_block_iter, prev_binding);
       }
     }
     if (i == axes_levels.size() - 1 && cur_scope.block_iters.empty()) {
       // for the leaf scope, we ensure at least one block var exists
-      IterVar dummy(Range::FromMinExtent(0, 1), PrimVar("vi", PrimType::Int(32)),
-                    IterVarType::kDataPar);
+      s_tir::IterVar dummy(Range::FromMinExtent(0, 1), PrimVar("vi", PrimType::Int(32)),
+                           s_tir::IterVarType::kDataPar);
       cur_scope.AddBlockIter(std::nullopt, dummy, 0);
     }
     scopes.push_back(cur_scope);
@@ -718,7 +768,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   for (int i = 0; i < extern_op->num_outputs(); ++i) {
     const TensorVar& placeholder = extern_op->output_placeholders[i];
     const te::Tensor& output_tensor = extern_op.output(i);
-    TensorVar output_buffer = placeholder;
+    TensorVar output_buffer = info->transformer->NormalizeBufferType(placeholder);
     if (!info->IsArg(output_tensor)) {
       PrimExpr zero_offset = IntImm(placeholder->elem_offset.ty(), 0);
       if (auto offset_var = placeholder->elem_offset.as<PrimVar>()) {
@@ -727,9 +777,9 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
       ffi::ObjectPtr<TensorTypeNode> type = CopyTensorType(output_buffer);
       type->elem_offset = zero_offset;
       output_buffer = RebuildTensorVar(output_buffer, std::move(type));
-      input_buffer_map.insert_or_assign(placeholder.get(), output_buffer);
       info->root_alloc.push_back(output_buffer);
     }
+    input_buffer_map.insert_or_assign(placeholder.get(), output_buffer);
     var_map.insert_or_assign(placeholder.get(), output_buffer.var());
     info->tensor2buffers.insert_or_assign(output_tensor, output_buffer);
   }
@@ -742,8 +792,9 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
   // reads/writes filled in.
 
   auto substituter = ffi::make_object<BufferSubstituter>(var_map, input_buffer_map);
-  Stmt substituted_body = substituter->Mutate(extern_op->body, InplaceMode::kDisallow)
-                              .ValueOrUnchanged(extern_op->body);
+  Stmt lowered_body = info->transformer->Mutate(extern_op->body).ValueOrUnchanged(extern_op->body);
+  Stmt substituted_body =
+      substituter->Mutate(lowered_body, InplaceMode::kDisallow).ValueOrUnchanged(lowered_body);
 
   auto transformer = ffi::make_object<TensorLoadToBufferTransformer>(info->tensor2buffers);
   Stmt body = transformer->Mutate(substituted_body, InplaceMode::kDisallow)
@@ -761,7 +812,10 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
                                             /*init=*/std::nullopt,
                                             /*alloc_buffers=*/{},
                                             /*match_buffers=*/{},
-                                            /*annotations=*/extern_op->attrs));
+                                            /*annotations=*/
+                                            info->transformer->Mutate(extern_op->attrs)
+                                                .ValueOrUnchanged(extern_op->attrs)
+                                                .cast<ffi::Map<ffi::String, ffi::Any>>()));
 }
 
 ffi::Array<te::Operation> CollectOrderedOps(const ffi::Array<te::Tensor>& arg_list) {
@@ -791,7 +845,8 @@ void InitializeBufferBinds(const ffi::Array<te::Operation>& ordered_ops, CreateF
       for (size_t i = 0; i < extern_op->inputs.size(); ++i) {
         const te::Tensor& input = extern_op->inputs[i];
         const TensorVar& buffer = extern_op->input_placeholders[i];
-        info->tensor2buffers.insert_or_assign(input, buffer);
+        info->tensor2buffers.insert_or_assign(input,
+                                              info->transformer->NormalizeBufferType(buffer));
       }
     }
   }
@@ -811,8 +866,10 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info,
     // Declare a buffer for any argument tensors without a pre-existing
     // buffer declaration recorded in the tensor2buffer binds map
     if (info->tensor2buffers.count(tensor) == 0) {
-      const TensorVar& buffer =
-          decl_tensor(placeholder->shape, placeholder->dtype, placeholder->name, "global");
+      const TensorVar& buffer = decl_tensor(info->transformer->Mutate(placeholder->shape)
+                                                .ValueOrUnchanged(placeholder->shape)
+                                                .cast<ffi::Array<PrimExpr>>(),
+                                            placeholder->dtype, placeholder->name, "global");
       info->tensor2buffers.insert_or_assign(tensor, buffer);
     }
   } else if (auto compute_op = op.as<te::ComputeOp>()) {

@@ -114,7 +114,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   virtual void Visit(const GlobalVar& obj, ffi::reflection::AccessPath path) {}
   virtual void Visit(const Range& obj, ffi::reflection::AccessPath path);
   virtual void Visit(const TensorRegion& obj, ffi::reflection::AccessPath path);
-  virtual void Visit(const IterVar& obj, ffi::reflection::AccessPath path);
 
   // Called when entering/exiting the scope of a GlobalVar definition.
   virtual void EnterDef(const GlobalVar& var, ffi::reflection::AccessPath path) {}
@@ -123,12 +122,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const Expr&, ffi::reflecti
   // Called when entering/exiting the scope of a tirx::Var definition.
   virtual void EnterDef(const Var& var, ffi::reflection::AccessPath path) {}
   virtual void ExitDef(const Var& var, ffi::reflection::AccessPath path) {}
-
-  // Called when entering/exiting the scope of an IterVar definition.
-  // By default, visits the `Range IterVarNode::dom`, then enters the
-  // scope of the internal `tirx::Var`.
-  virtual void EnterDef(const IterVar& var, ffi::reflection::AccessPath path);
-  virtual void ExitDef(const IterVar& var, ffi::reflection::AccessPath path);
 
   // Utility to visit an array of nodes
   template <typename T>

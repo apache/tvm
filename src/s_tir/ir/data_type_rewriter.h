@@ -60,7 +60,7 @@ class IndexDataTypeNormalizer : public tirx::IndexDataTypeNormalizer {
  private:
   ffi::Map<ffi::String, ffi::Any> VisitBlockAnnotations(
       const ffi::Map<ffi::String, ffi::Any>& annotations);
-  tirx::IterVar VisitIterVar(const tirx::IterVar& iter_var);
+  s_tir::IterVar VisitIterVar(const s_tir::IterVar& iter_var);
   TensorRegion VisitBufferRegion(const TensorRegion& buffer_region);
 };
 

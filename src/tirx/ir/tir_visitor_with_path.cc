@@ -112,17 +112,6 @@ void TIRVisitorWithPath::Visit(const PrimFunc& func, AccessPath path) {
   while (context.size()) context.pop_back();
 }
 
-void TIRVisitorWithPath::EnterDef(const IterVar& iter_var, AccessPath path) {
-  if (iter_var->dom.defined()) {
-    Visit(iter_var->dom, path->Attr("dom"));
-  }
-  EnterDef(iter_var->var, path->Attr("var"));
-}
-
-void TIRVisitorWithPath::ExitDef(const IterVar& iter_var, AccessPath path) {
-  ExitDef(iter_var->var, path->Attr("var"));
-}
-
 void TIRVisitorWithPath::Visit(const Type& type, AccessPath path) {
   Visit(ffi::AnyView(type), path);
 }
@@ -158,13 +147,6 @@ void TIRVisitorWithPath::Visit(const TensorRegion& region, AccessPath path) {
     Visit(region->source, path->Attr("source"));
   }
   Visit(region->region, path->Attr("region"));
-}
-
-void TIRVisitorWithPath::Visit(const IterVar& iter_var, AccessPath path) {
-  if (iter_var->dom.defined()) {
-    Visit(iter_var->dom, path->Attr("dom"));
-  }
-  Visit(iter_var->var, path->Attr("var"));
 }
 
 void TIRVisitorWithPath::Visit(const Range& range, AccessPath path) {

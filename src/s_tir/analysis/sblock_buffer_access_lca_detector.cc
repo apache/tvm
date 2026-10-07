@@ -101,8 +101,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
     auto* current_scope = arena_.make<ScopeInfo>(parent_scope, op, n);
 
     if (op->thread_binding.has_value()) {
-      const runtime::ThreadScope& scope =
-          runtime::ThreadScope::Create(op->thread_binding.value()->thread_tag);
+      const runtime::ThreadScope& scope = runtime::ThreadScope::Create(op->thread_binding.value());
       if (scope.rank == 0) {
         blockidx_scopes_.push_back(current_scope);
       }
@@ -156,7 +155,7 @@ class LCADetector : public s_tir::StmtExprVisitor {
 
     // function to collect `itervar_to_dom_scope`, the result scope for each block
     // iter var should be above all loop scopes the opaque iter var binding relates to.
-    auto do_collect_itervar_scope = [this](const IterVar& itervar,
+    auto do_collect_itervar_scope = [this](const s_tir::IterVar& itervar,
                                            const PrimExpr& binding) -> const ScopeInfo* {
       const ScopeInfo* highest_scope = nullptr;
       auto walk_fn = [this, &highest_scope](const Var& var) -> ffi::Expected<ffi::WalkResult> {
@@ -185,11 +184,11 @@ class LCADetector : public s_tir::StmtExprVisitor {
     const s_tir::SBlock& block = block_realize->block;
     bool is_reduce_block = false;
     for (size_t i = 0; i < block_realize->iter_values.size(); ++i) {
-      const IterVar& iter_var = block->iter_vars[i];
-      if (iter_var->iter_type != IterVarType::kDataPar) {
+      const s_tir::IterVar& iter_var = block->iter_vars[i];
+      if (iter_var->iter_type != s_tir::IterVarType::kDataPar) {
         const auto* scope = do_collect_itervar_scope(iter_var, block_realize->iter_values[i]);
         if (scope == nullptr) continue;
-        if (iter_var->iter_type == IterVarType::kCommReduce) {
+        if (iter_var->iter_type == s_tir::IterVarType::kCommReduce) {
           is_reduce_block = true;
           if (highest_reduce_scope == nullptr || scope->depth < highest_reduce_scope->depth) {
             highest_reduce_scope = scope;
