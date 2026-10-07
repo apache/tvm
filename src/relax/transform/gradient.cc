@@ -696,7 +696,7 @@ class GradientMutator : private ExprMutator {
 
     // the return value should be a VarNode, and a scalar
     orig_return_expr_ = seq_expr->body;
-    CheckAndSetTarget(seq_expr->body, target_index_);
+    CheckAndSetTarget(LookThroughTupleBinding(seq_expr->body, seq_expr->blocks[0]), target_index_);
 
     BindingBlock new_block = this->VisitBindingBlock(seq_expr->blocks[0]);
     return SeqExpr({new_block}, return_expr_);
@@ -724,11 +724,32 @@ class GradientMutator : private ExprMutator {
            tensor_ty->dtype.value().MatchesCode(DLDataTypeCode::kDLFloat);
   }
 
+  // A function may bind the tuple it returns to a Var first, e.g. `res = (a, b); return res`.
+  // Use the bound Tuple in that case, so that it is handled the same way as `return (a, b)`.
+  static Expr LookThroughTupleBinding(const Expr& ret, const BindingBlock& block) {
+    const auto* var = ret.as<VarNode>();
+    if (var == nullptr || !GetType(ret).as<TupleTypeNode>()) {
+      return ret;
+    }
+    for (const Binding& binding : block->bindings) {
+      const auto* var_binding = binding.as<VarBindingNode>();
+      if (var_binding && var_binding->var.get() == var && var_binding->value.as<TupleNode>()) {
+        return var_binding->value;
+      }
+    }
+    return ret;
+  }
+
   // When the return value is a Var, it is the target;
   // when the return value is a Tuple, the target is the target_index-th field of the return value
   // Check that the target should be a Var of scalar tensor ty
   void CheckAndSetTarget(const Expr& e, int target_index) {
     if (auto* var = e.as<VarNode>()) {
+      TVM_FFI_ICHECK(!GetType(e).as<TupleTypeNode>())
+          << "The return value " << e
+          << " is a tuple, but it is not bound to a Tuple expression in the function body, so "
+             "its fields cannot be selected as the target. Bind the fields to Vars and return "
+             "them as a tuple instead.";
       TVM_FFI_ICHECK_EQ(target_index, 0)
           << "When the function has only one return value, target_index can "
              "only be 0. But the target_index specified is "
