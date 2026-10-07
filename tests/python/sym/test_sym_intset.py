@@ -88,6 +88,27 @@ def test_mul_div():
     ck.verify(fld(x, 2), {x: tvm.sym.IntervalSet(-1, 10)}, (-1, 5))
 
 
+def test_mul_div_float_unknown_sign():
+    # A float interval (e.g. from casting a loop index) combined with a float of
+    # unknown sign, as in resize coordinate computations with symbolic sizes.
+    i = tvm.tirx.Var("i", "int32")
+    y = tvm.tirx.Var("y", "float32")
+    fi = tvm.tirx.Cast("float32", i)
+    dom_map = {i: tvm.sym.IntervalSet(0, 4)}
+
+    def bounds_at(expr, y_value):
+        res = tvm.sym.Analyzer().int_set(expr, dom_map)
+        analyzer = tvm.sym.Analyzer()
+        analyzer.bind(y, tvm.tirx.const(y_value, "float32"))
+        return tuple(analyzer.simplify(bound).value for bound in (res.min_value, res.max_value))
+
+    assert bounds_at(fi * y, 2.0) == (0.0, 8.0)
+    assert bounds_at(fi * y, -2.0) == (-8.0, 0.0)
+    assert bounds_at(y * fi, -2.0) == (-8.0, 0.0)
+    assert bounds_at(fi / y, 2.0) == (0.0, 2.0)
+    assert bounds_at(fi / y, -2.0) == (-2.0, 0.0)
+
+
 def test_mod():
     ck = IntSetChecker()
     x, y = tvm.tirx.Var("x", "int32"), tvm.tirx.Var("y", "int32")
