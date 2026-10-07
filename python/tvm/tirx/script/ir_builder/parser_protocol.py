@@ -916,7 +916,13 @@ def region(
     body_params: Sequence[Var] | None = None,
     attrs: _ir.DictAttrs | dict[str, Any] | None = None,
 ) -> frame.RegionFrame:
-    """Construct a result-free region with explicit fresh body parameters.
+    """Construct a result-free region with operation-defined body parameters.
+
+    When ``body_params`` is omitted, the operation's ``FRegionGetBodyParams``
+    hook creates fresh typed variables. Every region operation must register
+    the hook, returning an empty array for no body parameters. Missing hooks
+    reject construction even with explicit parameters. Explicit parameters must
+    match the hook's count and types and retain their identities.
 
     Operands and attributes belong to the enclosing scope. Entering the frame
     returns one parameter directly, or a sequence for zero or multiple parameters.
@@ -927,7 +933,7 @@ def region(
         op = _ir.Op.get(op)
     if attrs is None or isinstance(attrs, dict):
         attrs = _ir.make_node("ir.DictAttrs", **(attrs or {}))
-    return _ffi_api.Region(op, args, [] if body_params is None else body_params, attrs)
+    return _ffi_api.Region(op, args, body_params, attrs)
 
 
 def device_context(device_type: Expr, device_id: Expr) -> frame.RegionFrame:
@@ -962,7 +968,7 @@ def launch_thread(thread_tag: str, extent: Expr) -> frame.RegionFrame:
         with T.launch_thread("threadIdx.x", 32) as tx:
             T.evaluate(tx)
     """
-    return _ffi_api.LaunchThread(thread_tag, extent)
+    return region("tirx.launch_thread", [_StringImm(thread_tag), extent])
 
 
 # --------------------------------------

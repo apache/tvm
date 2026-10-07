@@ -722,19 +722,47 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // RegionStmt
+bool IsRegionOp(const Op& op) {
+  if (!Op::HasAttrMap("FRegionGetBodyParams")) return false;
+  static auto get_body_params = Op::GetAttrMap<FRegionGetBodyParams>("FRegionGetBodyParams");
+  return get_body_params.count(op);
+}
+
+ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attrs) {
+  TVM_FFI_CHECK(IsRegionOp(op), ValueError)
+      << op->name << " does not support region construction: FRegionGetBodyParams is required";
+  CallNode signature(op);
+  signature.args = std::move(args);
+  signature.attrs = std::move(attrs);
+  op.Validate(&signature);
+  static auto get_body_params = Op::GetAttrMap<FRegionGetBodyParams>("FRegionGetBodyParams");
+  ffi::Array<Var> params = get_body_params[op].CallExpected(&signature).value();
+  std::unordered_set<const VarNode*> definitions;
+  for (const Var& param : params) {
+    TVM_FFI_CHECK(!param->ty.as<MissingType>().has_value(), ValueError)
+        << "FRegionGetBodyParams for " << op->name << " must return typed variables";
+    TVM_FFI_CHECK(definitions.insert(param.get()).second, ValueError)
+        << "FRegionGetBodyParams for " << op->name << " must return distinct definitions";
+  }
+  return params;
+}
+
 RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params, DictAttrs attrs,
                        Stmt body, ffi::Array<Var> result_vars, Span span)
     : Stmt(ffi::UnsafeInit{}) {
   TVM_FFI_CHECK(op.defined() && body.defined(), ValueError)
       << "RegionStmt requires an operator and a body";
-  CallNode signature(op);
-  signature.args = args;
-  signature.attrs = attrs;
-  op.Validate(&signature);
+  ffi::Array<Var> expected_params = GetRegionBodyParams(op, args, attrs);
+  TVM_FFI_CHECK_EQ(body_params.size(), expected_params.size(), ValueError)
+      << op->name << " expects " << expected_params.size() << " body parameters";
+  for (size_t i = 0; i < body_params.size(); ++i) {
+    TVM_FFI_CHECK(ffi::StructuralEqual()(body_params[i]->ty, expected_params[i]->ty), ValueError)
+        << op->name << " body parameter " << i << " has a type inconsistent with its contract";
+  }
   if (op.same_as(tirx::builtin::device_context()) || op.same_as(tirx::builtin::compute_scope()) ||
       op.same_as(tirx::builtin::parallel_launch())) {
-    TVM_FFI_CHECK(body_params.empty() && result_vars.empty() && attrs->dict.empty(), ValueError)
-        << op->name << " expects no body parameters, results or attributes";
+    TVM_FFI_CHECK(result_vars.empty() && attrs->dict.empty(), ValueError)
+        << op->name << " expects no results or attributes";
   }
   std::unordered_set<const VarNode*> definitions;
   for (const auto& vars : {body_params, result_vars}) {
@@ -745,31 +773,14 @@ RegionStmt::RegionStmt(Op op, ffi::Array<Expr> args, ffi::Array<Var> body_params
   }
   static const Op device_scope = Op::Get("tirx.device_scope");
   if (op.same_as(tirx::builtin::device_entry()) || op.same_as(device_scope)) {
-    TVM_FFI_CHECK(body_params.empty() && result_vars.empty(), ValueError)
-        << op->name << " expects no body parameters or results";
+    TVM_FFI_CHECK(result_vars.empty(), ValueError) << op->name << " expects no results";
     if (op.same_as(tirx::builtin::device_entry())) {
       TVM_FFI_CHECK(attrs->dict.empty(), ValueError) << "device_entry expects no attrs";
     }
   }
   if (op.same_as(tirx::builtin::launch_thread())) {
-    TVM_FFI_CHECK(
-        args.size() == 2 && body_params.size() == 1 && result_vars.empty() && attrs->dict.empty(),
-        ValueError)
-        << "launch_thread expects tag, extent, one body parameter, and no results or attrs";
-    auto tag = args[0].as<StringImm>();
-    auto extent = args[1].as<PrimExpr>();
-    auto var = body_params[0].as<PrimVar>();
-    TVM_FFI_CHECK(tag && !tag.value()->value.empty(), ValueError)
-        << "launch_thread expects a nonempty StringImm thread tag";
-    auto integer = [](PrimType ty) {
-      return ty.IsScalar() &&
-             (ty.MatchesCode(DLDataTypeCode::kDLInt) || ty.MatchesCode(DLDataTypeCode::kDLUInt)) &&
-             ty.bits() > 1;
-    };
-    TVM_FFI_CHECK(extent && var && integer(extent.value().ty()) && integer(var.value().ty()) &&
-                      extent.value().ty() == var.value().ty(),
-                  ValueError)
-        << "launch_thread expects matching scalar integer extent and body parameter types";
+    TVM_FFI_CHECK(result_vars.empty() && attrs->dict.empty(), ValueError)
+        << "launch_thread expects no results or attrs";
   }
   auto n = ffi::make_object<RegionStmtNode>(std::move(op), std::move(body));
   n->args = std::move(args);
