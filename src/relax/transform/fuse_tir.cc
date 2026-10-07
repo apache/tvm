@@ -60,7 +60,7 @@ class SymbolicMatcher : ExprFunctor<void(const Expr& n, const PrimExpr& other)> 
     must_prove_ =
         analyzer_->Simplify(ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(must_prove_, f_substitute)
                                 .as_or_throw<PrimExpr>());
-    TVM_FFI_ICHECK(!is_zero(must_prove_));
+    TVM_FFI_ICHECK(!IsZero(must_prove_));
   }
 
  private:

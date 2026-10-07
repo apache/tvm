@@ -764,7 +764,7 @@ void CodeGenSPIRV::Dispatch_(const BufferStoreNode* op) {
 void CodeGenSPIRV::Dispatch_(const ForNode* op) {
   analyzer_->Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
   spirv::Value init_value = MakeValue(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
+  PrimExpr end = IsZero(op->min) ? op->extent : analyzer_->Simplify(op->min + op->extent);
   spirv::Value end_value = MakeValue(end);
 
   // loop step

@@ -527,7 +527,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
       if (binds[i].get() != loop->loop_var.get()) {
         return std::nullopt;
       }
-      if (!is_zero(loop->min)) {
+      if (!IsZero(loop->min)) {
         return std::nullopt;
       }
     }
@@ -544,7 +544,7 @@ ffi::Optional<ffi::ObjectRef> NormalizePrimFunc(Schedule sch) {
     for (const IterVar& iter : sch->Get(block)->iter_vars) {
       PrimVar var = iter->var.CopyWithSuffix("");
       index_map_inputs.push_back(var);
-      if (!is_one(iter->dom->extent)) {
+      if (!IsOne(iter->dom->extent)) {
         index_map_outputs.push_back(var);
         if (iter->iter_type == IterVarType::kDataPar) {
           has_spatial_iter = true;

@@ -315,7 +315,7 @@ static ffi::Optional<ScopeIdDef> Compliment(const ScopeIdDef& lhs, const ScopeId
   if (lhs->scope == ScopeBinding::kClusterCtaPair || rhs->scope == ScopeBinding::kClusterCtaPair) {
     return std::nullopt;
   }
-  if (is_zero(rhs.fused_extent())) return std::nullopt;
+  if (IsZero(rhs.fused_extent())) return std::nullopt;
   sym::Analyzer ana;
   auto try_compliment = [&](PrimExpr lhs_ext, PrimExpr rhs_ext,
                             ScopeBinding scope) -> ffi::Optional<ScopeIdDef> {

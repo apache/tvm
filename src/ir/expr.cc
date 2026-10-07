@@ -1128,7 +1128,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
 // Range
 Range::Range(PrimExpr begin, PrimExpr end, Span span)
-    : Range(ffi::make_object<RangeNode>(begin, tvm::prim::is_zero(begin) ? end : (end - begin),
+    : Range(ffi::make_object<RangeNode>(begin, tvm::prim::IsZero(begin) ? end : (end - begin),
                                         span)) {}
 
 TVM_FFI_STATIC_INIT_BLOCK() {

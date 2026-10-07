@@ -1063,7 +1063,7 @@ class Vectorizer : public StmtExprMutator {
     if (op->kind == ForKind::kVectorized) {
       LOG(WARNING) << "Detect vectorize inside vectorized loop, ignoring...";
     }
-    TVM_FFI_ICHECK(is_zero(op->min));
+    TVM_FFI_ICHECK(IsZero(op->min));
     TVM_FFI_ICHECK(!op->extent.ty().IsScalableVector() && !op->extent.ty().IsFixedLengthVector());
     auto extent_update = this->Mutate(op->extent, inplace_mode);
     bool extent_unchanged = extent_update.UnchangedOrSameAs(op->extent);
@@ -1315,7 +1315,7 @@ class LoopVectorizer : public StmtExprMutator {
     if (op->kind == ForKind::kVectorized) {
       auto* extent_as_int = op->extent.as<IntImmNode>();
 
-      TVM_FFI_ICHECK(is_zero(op->min));
+      TVM_FFI_ICHECK(IsZero(op->min));
       // General calls still have vectorization paths that query a compile-time
       // lane count, so keep them on the existing fixed-width path for now.
       if (extent_as_int && extent_as_int->value > 1 && TargetHasRVV(target_) &&

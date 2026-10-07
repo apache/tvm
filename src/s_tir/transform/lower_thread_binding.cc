@@ -56,7 +56,7 @@ class ThreadBindingLowerer : public StmtExprMutator {
     }
     PrimExpr min = Mutate(op->min, inplace_mode).ValueOrUnchanged(op->min);
     PrimExpr extent = Mutate(op->extent, inplace_mode).ValueOrUnchanged(op->extent);
-    TVM_FFI_ICHECK(is_zero(min)) << "Thread binding loops must start at zero";
+    TVM_FFI_ICHECK(IsZero(min)) << "Thread binding loops must start at zero";
     TVM_FFI_ICHECK(op->thread_binding.has_value());
     TVM_FFI_ICHECK(!op->annotations.count("loop_partition_hint") ||
                    op->annotations.at("loop_partition_hint") == nullptr)

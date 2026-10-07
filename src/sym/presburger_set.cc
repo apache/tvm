@@ -151,7 +151,7 @@ PrimExpr PresburgerSetNode::GenerateConstraint() const {
 #else
           auto coeff = disjunct.atEq(i, j);
 #endif
-          if (coeff >= 0 || is_zero(linear_eq)) {
+          if (coeff >= 0 || IsZero(linear_eq)) {
             linear_eq = linear_eq + IntImm::Int64(coeff) * vars[j];
           } else {
             linear_eq = linear_eq - IntImm::Int64(-coeff) * vars[j];
@@ -175,7 +175,7 @@ PrimExpr PresburgerSetNode::GenerateConstraint() const {
 #else
           auto coeff = disjunct.atIneq(i, j);
 #endif
-          if (coeff >= 0 || is_zero(linear_eq)) {
+          if (coeff >= 0 || IsZero(linear_eq)) {
             linear_eq = linear_eq + IntImm::Int64(coeff) * vars[j];
           } else {
             linear_eq = linear_eq - IntImm::Int64(-coeff) * vars[j];

@@ -71,7 +71,7 @@ ffi::ObjectRef RealizeBufferSubscript(
                                              ffi::Optional<PrimExpr>>>()) {
       all_points = false;
       ffi::Optional<PrimExpr> step = descriptor.value().get<2>();
-      TVM_FFI_CHECK(!step.has_value() || is_one(step.value()), ValueError)
+      TVM_FFI_CHECK(!step.has_value() || IsOne(step.value()), ValueError)
           << "Buffer slices with a non-unit step are not supported";
     }
   }
@@ -123,7 +123,7 @@ ffi::ObjectRef RealizeBufferRegionSubscript(Expr value, SubscriptSlice slice, Sp
                                              ffi::Optional<PrimExpr>>>()) {
       all_points = false;
       ffi::Optional<PrimExpr> step = descriptor.value().get<2>();
-      TVM_FFI_CHECK(!step.has_value() || is_one(step.value()), ValueError)
+      TVM_FFI_CHECK(!step.has_value() || IsOne(step.value()), ValueError)
           << "TensorRegion slices with a non-unit step are not supported";
     }
   }
@@ -448,7 +448,7 @@ ffi::Array<PrimExpr> TensorTypeNode::ElemOffset(ffi::Array<PrimExpr> input_indic
     }
   }
 
-  if (elem_offset.defined() && !is_zero(elem_offset) && !inner) {
+  if (elem_offset.defined() && !IsZero(elem_offset) && !inner) {
     output_index = output_index + elem_offset;
   }
 
@@ -596,11 +596,11 @@ TensorVar TensorVar::MakeSlice(ffi::Array<PrimExpr> begins, ffi::Array<PrimExpr>
     // check if stride is needed.
     for (size_t i = 0; i < extents.size(); ++i) {
       if (!can_relax) {
-        if (!is_zero(begins[i]) || !is_zero(ana->Simplify(extents[i] - n->shape[i]))) {
+        if (!IsZero(begins[i]) || !IsZero(ana->Simplify(extents[i] - n->shape[i]))) {
           need_stride = true;
         }
       }
-      if (!is_one(extents[i])) can_relax = false;
+      if (!IsOne(extents[i])) can_relax = false;
     }
     // make stride.
     if (need_stride) {

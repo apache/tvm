@@ -158,7 +158,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       type->shape.Set(i, analyzer_->canonical_simplify(type->shape[i]));
     }
     type->layout = std::nullopt;
-    if (type->elem_offset.defined() && !is_zero(type->elem_offset)) {
+    if (type->elem_offset.defined() && !IsZero(type->elem_offset)) {
       type->elem_offset = IntImm(type->elem_offset.ty().as_or_throw<PrimType>(), 0);
     }
     // Body-local buffers keep their identity when flattening changes nothing.

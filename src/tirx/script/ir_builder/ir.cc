@@ -334,7 +334,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, ffi::String thread,
                                                     Stmt body, Span span) -> For {
     TVM_FFI_ICHECK_EQ(vars.size(), 1);
     TVM_FFI_ICHECK_EQ(doms.size(), 1);
-    TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || is_one(*steps[0])));
+    TVM_FFI_ICHECK(steps.size() == 1 && (!steps[0].has_value() || IsOne(*steps[0])));
     IterVar iter_var(Range(nullptr), tvm::PrimVar("iter", dtype), IterVarType::kThreadIndex,
                      thread);
     return For(vars[0].as_or_throw<tvm::PrimVar>(), doms[0]->min, doms[0]->extent,

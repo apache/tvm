@@ -591,7 +591,7 @@ bool IsAffineBinding(const SBlockRealize& realize, const ffi::Map<Var, Range>& l
   }
   for (const sym::IterSumExpr& sum_expr : res->indices) {
     const ffi::Array<sym::IterSplitExpr>& args = sum_expr->args;
-    if (!args.empty() && !is_one(args[0]->scale)) {
+    if (!args.empty() && !IsOne(args[0]->scale)) {
       return false;
     }
   }
@@ -1053,7 +1053,7 @@ std::pair<ffi::Array<StmtSRef>, std::vector<int>> CollectComputeLocation(
   location_indices.reserve(n_candidate + 2);
   bool visited_reduce = false;
   for (size_t i = 0; i < n_candidate; ++i) {
-    if (is_one(TVM_SREF_TO_FOR(loop_srefs[i])->extent)) {
+    if (IsOne(TVM_SREF_TO_FOR(loop_srefs[i])->extent)) {
       continue;
     }
 
@@ -1387,7 +1387,7 @@ bool HasOp(const Stmt& stmt, const ffi::Array<Op>& ops) {
 
 bool HasIfThenElse(const Stmt& stmt) {
   auto visit_realize = [](const SBlockRealize& realize) -> ffi::Expected<ffi::WalkResult> {
-    if (!is_one(realize->predicate)) {
+    if (!IsOne(realize->predicate)) {
       return ffi::WalkResult::Interrupt(ffi::VisitInterrupt(true));
     }
     return ffi::WalkResult::Advance();
@@ -1571,7 +1571,7 @@ bool NeedsMultiLevelTiling(const ScheduleState& self, const StmtSRef& block_sref
   std::vector<const VarNode*> spatial_block_vars;
   spatial_block_vars.reserve(block->iter_vars.size());
   for (const IterVar& block_var : block->iter_vars) {
-    bool has_trivial_dom = is_zero(block_var->dom->min) && is_one(block_var->dom->extent);
+    bool has_trivial_dom = IsZero(block_var->dom->min) && IsOne(block_var->dom->extent);
     if (block_var->iter_type == IterVarType::kDataPar && !has_trivial_dom) {
       spatial_block_vars.push_back(block_var->var.get());
     }
@@ -1905,7 +1905,7 @@ ffi::Optional<TensorizeInfo> GetTensorizeLoopMapping(const s_tir::ScheduleState&
         continue;
       }
       // padding is allowed only when the block has trivial bindings
-      if (allow_padding && !is_zero(residual)) {
+      if (allow_padding && !IsZero(residual)) {
         allow_padding = false;
       }
 

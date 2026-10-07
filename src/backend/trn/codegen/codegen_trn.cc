@@ -297,7 +297,7 @@ void CodeGenTrainium::Dispatch_(const ForNode* op) {
   std::string extent = PrintExpr(op->extent);
   PrintIndent();
   std::string vid = AllocVarID(op->loop_var.get());
-  TVM_FFI_ICHECK(is_zero(op->min));
+  TVM_FFI_ICHECK(IsZero(op->min));
   if (ctx_.tensorizing) {
     stream << vid << " = nl.arange(" << extent << ")\n";
     if (op->annotations.count("nki_dim")) {
@@ -356,7 +356,7 @@ void CodeGenTrainium::Dispatch_(const BufferStoreNode* op) {
 }
 
 void CodeGenTrainium::Dispatch_(const EvaluateNode* op) {
-  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
+  if (auto value = op->value.as<PrimExpr>(); value && IsConstInt(value.value())) return;
   std::string vid = this->PrintExpr(op->value);
   if (vid != "") {
     this->PrintIndent();
@@ -405,7 +405,7 @@ void CodeGenTrainium::Dispatch_(const CallNode* op, std::ostream& os) {  // NOLI
 
   if (is_op(nki_matmul_op, "tirx.nki.matmul")) {
     TVM_FFI_ICHECK_EQ(op->args.size(), 4);
-    std::string accum = is_one(op->args[3].as_or_throw<PrimExpr>()) ? " += " : " = ";
+    std::string accum = IsOne(op->args[3].as_or_throw<PrimExpr>()) ? " += " : " = ";
     os << PrintExpr(op->args[0]) << accum;
     ctx_.is_matmul_input = true;
     os << "nisa.nc_matmul(" << PrintExpr(op->args[1]) << "," << PrintExpr(op->args[2]);

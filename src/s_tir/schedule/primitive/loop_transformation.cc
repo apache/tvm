@@ -1007,12 +1007,12 @@ StmtSRef Fuse(ScheduleState self, const ffi::Array<StmtSRef>& loop_srefs,
   for (int i = static_cast<int>(loops.size()) - 1; i > 0; i--) {
     PrimExpr next_lower = analyzer->canonical_simplify(loops[i]->extent * lower);
     substitute_value.Set(
-        i, is_one(loops[i]->extent)
+        i, IsOne(loops[i]->extent)
                ? PrimExpr(0)
                : floordiv(floormod(fused_var.as_or_throw<PrimExpr>(), next_lower), lower));
     lower = next_lower;
   }
-  substitute_value.Set(0, is_one(loops[0]->extent)
+  substitute_value.Set(0, IsOne(loops[0]->extent)
                               ? PrimExpr(0)
                               : floordiv(fused_var.as_or_throw<PrimExpr>(), lower));
   Stmt new_stmt = loops.back()->body;

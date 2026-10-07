@@ -72,10 +72,10 @@ class TIRxOpaqueLower : public StmtExprMutator {
     ffi::Any previous_remap = VarRemapGet(op->loop_var);
     PrimVar launch_var(ffi::UnsafeInit{});
     if (op->kind == ForKind::kThreadBinding) {
-      TVM_FFI_ICHECK(is_zero(min)) << "Thread binding must have zero minimum";
+      TVM_FFI_ICHECK(IsZero(min)) << "Thread binding must have zero minimum";
       launch_var = PrimVar(op->loop_var->name, extent.ty());
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), launch_var));
-    } else if (is_one(extent) && op->annotations.empty()) {
+    } else if (IsOne(extent) && op->annotations.empty()) {
       VarRemapSet(op->loop_var, prim::cast(op->loop_var.ty(), min));
     }
 
@@ -108,7 +108,7 @@ class TIRxOpaqueLower : public StmtExprMutator {
           << "Run LoopPartition before opaque lowering of a thread-binding loop with "
              "loop_partition_hint";
       TVM_FFI_ICHECK(op->thread_binding.has_value());
-    } else if (is_one(extent) && op->annotations.empty()) {
+    } else if (IsOne(extent) && op->annotations.empty()) {
       // Case 2. Unit loop elimination
       return body;
     } else {

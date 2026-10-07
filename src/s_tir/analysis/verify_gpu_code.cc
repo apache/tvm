@@ -232,7 +232,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
     for (const auto index : indices) {
       if (const auto* ramp = index.as<RampNode>()) {
         PrimType ramp_ty = ramp->ty.as_or_throw<PrimType>();
-        if (!is_one(ramp->stride) && ramp_ty.IsFixedLengthVector() &&
+        if (!IsOne(ramp->stride) && ramp_ty.IsFixedLengthVector() &&
             ElementBytes(ramp_ty) > max_vector_bytes_) {
           std::stringstream s;
           s << "Number of lanes (" << ramp_ty.lanes() << ") times number of bytes ("

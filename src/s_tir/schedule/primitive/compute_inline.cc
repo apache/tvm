@@ -579,7 +579,7 @@ class ComputeInliner : public BaseInliner {
     for (const Var& var : idx_vars_) prim_idx_vars.push_back(var.as_or_throw<PrimExpr>());
     auto inverse_iter_map = sym::InverseAffineIterMap(res->indices, prim_idx_vars);
     for (const auto& iter : producer_block->iter_vars) {
-      if (is_const_int(iter->dom->min) && analyzer_->CanProveEqual(iter->dom->extent, 1)) {
+      if (IsConstInt(iter->dom->min) && analyzer_->CanProveEqual(iter->dom->extent, 1)) {
         // fallback mapping for constant iters
         inverse_iter_map.Set(iter->var, iter->dom->min);
       }
@@ -705,7 +705,7 @@ class ReverseComputeInliner : public BaseInliner {
   bool BodyPatternAllowInline(const SBlockRealize& consumer_block_realize) {
     const SBlock& consumer_block = consumer_block_realize->block;
 
-    if (!is_one(consumer_block_realize->predicate)) {
+    if (!IsOne(consumer_block_realize->predicate)) {
       // Failure: Predicate is the consumer block is not supported
       return false;
     }
@@ -724,7 +724,7 @@ class ReverseComputeInliner : public BaseInliner {
     for (const auto& iter_var : consumer_block->iter_vars) {
       consumer_iter_doms.Set(iter_var->var, iter_var->dom);
       // Set default mapping for unit iters
-      if (is_const_int(iter_var->dom->extent, 1) && is_const_int(iter_var->dom->min)) {
+      if (IsConstInt(iter_var->dom->extent, 1) && IsConstInt(iter_var->dom->min)) {
         VarRemapSet(iter_var->var, iter_var->dom->min);
       }
     }
@@ -807,7 +807,7 @@ class ReverseComputeInliner : public BaseInliner {
                              .ValueOrUnchanged(consumer_iter_in_bound_);
     // Simplify the predicate using the producer block iter domains
     predicate = analyzer_->Simplify(predicate);
-    if (is_one(predicate)) {
+    if (IsOne(predicate)) {
       return producer_block_realize;
     }
     if (const auto* if_ = producer_block->body.as<IfThenElseNode>()) {
@@ -1156,7 +1156,7 @@ class ReductionEpilogueFuser : public BaseInliner {
 
 bool ReductionEpilogueFuser::BodyPatternAllowFusion(const SBlockRealize& epilogue_block_realize) {
   // 1. Validate predicate
-  if (!is_one(epilogue_block_realize->predicate)) {
+  if (!IsOne(epilogue_block_realize->predicate)) {
     // Failure: Predicate in epilogue block is not supported
     return false;
   }
