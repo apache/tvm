@@ -241,7 +241,7 @@ def test_activation_reduce_with_bias_scale():
         C = T.alloc_tensor(C_shape, dtype="float32", scope="trn.sbuf", layout=C_layout)
         bias = T.alloc_tensor(bias_shape, dtype="float32", scope="trn.sbuf", layout=bias_layout)
         for i in range(2):
-            Tx.unary_reduce(B, C, A[i*16:i*16+16], "sqrt", "sum", reduce_axes=1, bias=bias, scale=2.0)  # noqa: E501
+            Tx.unary_reduce_with_scale_bias(B, C, A[i*16:i*16+16], "sqrt", "sum", reduce_axes=1, bias=bias, scale=2.0)  # noqa: E501
 
     @T.prim_func
     def expected():
@@ -746,7 +746,7 @@ def test_unary_reduce_complex():
         qk = T.alloc_tensor((2, 128, 8192), scope="trn.sbuf", layout="FPF")
         running_max = T.alloc_tensor((16384, 1), dtype="float32", scope="trn.sbuf", layout="PF")
         for i in range(4):
-            Tx.unary_reduce(p[0:128, 0:8192], rowsum_p[i % 2, 0:128, 0], qk[i % 2, 0:128, 0:8192], "exp", "sum", bias=running_max[i * 128:i * 128 + 128, 0])  # noqa: E501
+            Tx.unary_reduce_with_scale_bias(p[0:128, 0:8192], rowsum_p[i % 2, 0:128, 0], qk[i % 2, 0:128, 0:8192], "exp", "sum", bias=running_max[i * 128:i * 128 + 128, 0], scale=1.0)  # noqa: E501
 
     @T.prim_func
     def expected():

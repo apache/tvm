@@ -173,7 +173,7 @@ def test_unary_with_bias_scale(op_type):
     bias_shape = [512, 1]
     bias_layout = TileLayout(S[(128, 4) : (1 @ P, 1 @ F)])
     scale = T.float32(2.0)
-    tx_func = Tx_func_map[op_type]
+    tx_func = getattr(Tx, op_type + "_with_scale_bias")
 
     # fmt: off
     @T.prim_func
@@ -210,7 +210,7 @@ def test_unary_with_bias_scale_2(op_type):
     dst_layout = src_layout
     bias = T.float32(1.0)
     scale = T.float32(2.0)
-    tx_func = Tx_func_map[op_type]
+    tx_func = getattr(Tx, op_type + "_with_scale_bias")
 
     # fmt: off
     @T.prim_func
@@ -261,7 +261,7 @@ def test_unary_with_guard():
         C_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             for j in range(4):
-                Tx.sqrt(C_sbuf[0: (i+1) * 128, 0: (j+1)*256], A_sbuf[0: (i+1) * 128, 0: (j+1)*256], bias=B_sbuf[0: (i+1) * 128, 0], scale=scale)  # noqa: E501
+                Tx.sqrt_with_scale_bias(C_sbuf[0: (i+1) * 128, 0: (j+1)*256], A_sbuf[0: (i+1) * 128, 0: (j+1)*256], bias=B_sbuf[0: (i+1) * 128, 0], scale=scale)  # noqa: E501
 
     @T.prim_func
     def expected():
