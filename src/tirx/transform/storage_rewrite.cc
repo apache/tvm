@@ -1655,7 +1655,7 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     // vectorized.
     if (indices.size()) {
       const prim::RampNode* ramp_index = indices[indices.size() - 1].as<prim::RampNode>();
-      if (ramp_index && is_one(ramp_index->stride)) {
+      if (ramp_index && IsOne(ramp_index->stride)) {
         if (ramp_index->lanes->IsInstance<IntImmNode>()) {
           int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
           sym::ModularSet me = analyzer_->modular_set(ramp_index->base);
@@ -1837,7 +1837,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       return {node, shuffle_index};
     }
 
-    if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
+    if (ramp_index && IsOne(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
       int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {
@@ -1882,7 +1882,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       return {node, shuffle_index};
     }
 
-    if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
+    if (ramp_index && IsOne(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
       int lanes = ramp_index->lanes.as_or_throw<IntImm>()->value.as<int>().value();
       PrimExpr new_index = ramp_index->base / MakeConst(ramp_index->base.ty(), lanes);
       if (lanes != info.factor()) {

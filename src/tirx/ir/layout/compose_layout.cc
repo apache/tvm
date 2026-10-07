@@ -47,7 +47,7 @@ PrimExpr ApplyFullSwizzle(const ComposeLayoutNode* layout, const PrimExpr& m) {
 }
 
 void AddExpr(std::optional<PrimExpr>* sum, const PrimExpr& term, const sym::Analyzer& analyzer) {
-  if (is_zero(term)) return;
+  if (IsZero(term)) return;
   if (sum->has_value()) {
     *sum = analyzer->Simplify(sum->value() + term);
   } else {

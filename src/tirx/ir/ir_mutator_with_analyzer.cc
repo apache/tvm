@@ -186,8 +186,8 @@ UnchangedOr<Stmt> IRMutatorWithAnalyzer::Mutate_(const IfThenElseNode* op,
                         .ValueOrUnchanged(op->else_case.value());
       });
     }
-    if (is_one(real_condition)) return then_case;
-    if (is_zero(real_condition)) {
+    if (IsOne(real_condition)) return then_case;
+    if (IsZero(real_condition)) {
       return else_case.value_or(Evaluate(0));
     }
 
@@ -270,10 +270,10 @@ UnchangedOr<Expr> IRMutatorWithAnalyzer::Mutate_(const CallNode* op, InplaceMode
         });
       });
     }
-    if (is_zero(cond)) {
+    if (IsZero(cond)) {
       return false_value;
     }
-    if (is_one(cond)) {
+    if (IsOne(cond)) {
       return true_value;
     }
     if (cond.same_as(op->args[0]) && true_value.same_as(op->args[1]) &&
@@ -323,10 +323,10 @@ UnchangedOr<PrimExpr> IRMutatorWithAnalyzer::Mutate_(const prim::SelectNode* op,
       false_value = Mutate(op->false_value, inplace_mode).ValueOrUnchanged(op->false_value);
     });
   }
-  if (is_zero(cond)) {
+  if (IsZero(cond)) {
     return false_value;
   }
-  if (is_one(cond)) {
+  if (IsOne(cond)) {
     return true_value;
   }
   // normal path

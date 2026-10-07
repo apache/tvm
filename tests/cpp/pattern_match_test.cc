@@ -72,7 +72,7 @@ TEST(Pattern, Basic) {
   // bit intrinsics
   {
     TVM_FFI_ICHECK((px >> pz).Match(x >> 1));
-    TVM_FFI_ICHECK(prim::is_const_int(pz.Eval(), 1));
+    TVM_FFI_ICHECK(prim::IsConstInt(pz.Eval(), 1));
   }
   TVM_FFI_ICHECK(!(px >> pz).Match(x << 1));
   TVM_FFI_ICHECK((px << pz).Match(x << 1));
@@ -83,7 +83,7 @@ TEST(Pattern, Basic) {
   // select
   {
     TVM_FFI_ICHECK(select(px > pz, py, py + pz).Match(prim::Select(x > 1, y, y + 1)));
-    TVM_FFI_ICHECK(prim::is_const_int(pz.Eval(), 1));
+    TVM_FFI_ICHECK(prim::IsConstInt(pz.Eval(), 1));
   }
   TVM_FFI_ICHECK(!select(px > pz, py, py + pz).Match(prim::Select(x > 2, y, y + 1)));
   TVM_FFI_ICHECK(!select(px > pz, py, py).Match(prim::Select(x > 2, y, y + 1)));
@@ -94,7 +94,7 @@ TEST(Pattern, Basic) {
   // if_then_else
   {
     TVM_FFI_ICHECK(if_then_else(px > pz, py, py + pz).Match(if_then_else(x > 1, y, y + 1)));
-    TVM_FFI_ICHECK(prim::is_const_int(pz.Eval(), 1));
+    TVM_FFI_ICHECK(prim::IsConstInt(pz.Eval(), 1));
   }
   // cast pattern
   {

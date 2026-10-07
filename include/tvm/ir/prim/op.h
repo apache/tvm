@@ -486,82 +486,6 @@ template <typename ValueType,
                                              std::is_same<ValueType, ffi::BigInt>::value>::type>
 inline PrimExpr MakeConst(PrimType dtype, ValueType value, Span span = Span());
 
-/*!
- * \brief Check whether x is a constant integer expression.
- * \param x The input argument
- * \param value the value to be compared against.
- * \return whether x is constant expression.
- */
-inline bool is_const_int(const PrimExpr& x, int64_t value);
-
-/*!
- * \brief Check whether x is a constant integer 1
- * \param x The input argument.
- * \note This only return true for integer types.
- * \return whether x is constant 1
- */
-inline bool is_one(const PrimExpr& x) { return is_const_int(x, 1); }
-
-/*!
- * \brief Check whether x is a constant integer 0
- * \param x The input argument
- * \return whether x is constant 0
- * \note This only return true for integer types.
- */
-inline bool is_zero(const PrimExpr& x) { return is_const_int(x, 0); }
-
-/*!
- * \brief Check whether x is an integer constant, including wide IntImm values.
- * \return whether x is constant
- */
-inline bool is_const_int(const PrimExpr& x);
-
-/*!
- * \brief Check whether x is an integer/float constant.
- * \note This only return true for integer types.
- * \return whether x is constant
- */
-inline bool is_const_number(const PrimExpr& x);
-
-/*!
- * \brief Check whether x is a constant power of two
- * If x is power of two, write the power to the shift.
- *
- * \param x The input expression.
- * \param shift The output shift if x is power of two.
- * \return whether x is constant power of two
- */
-TVM_DLL bool is_const_power_of_two_integer(const PrimExpr& x, int* shift);
-
-// Implementation details after this
-inline bool is_const_int(const PrimExpr& x) { return x.as<IntImmNode>() != nullptr; }
-
-inline bool is_const_number(const PrimExpr& x) {
-  if (x.as<IntImmNode>()) {
-    return true;
-  } else if (x.as<FloatImmNode>()) {
-    return true;
-  } else if (const auto* op = x.as<prim::BroadcastNode>()) {
-    return (op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>());
-  }
-  return false;
-}
-
-inline bool is_positive_const(const PrimExpr& a) {
-  const auto* as_int = a.as<IntImmNode>();
-  return as_int && as_int->value > 0;
-}
-
-inline bool is_negative_const(const PrimExpr& a) {
-  const auto* as_int = a.as<IntImmNode>();
-  return as_int && as_int->value < 0;
-}
-
-inline bool is_const_int(const PrimExpr& x, int64_t value) {
-  const auto* as_int = x.as<IntImmNode>();
-  return as_int && as_int->value == value;
-}
-
 template <typename ValueType>
 inline PrimExpr MakeConstScalar(PrimType dtype, ValueType value, Span span = Span()) {
   if constexpr (std::is_enum_v<ValueType>) {
@@ -749,6 +673,97 @@ inline PrimExpr operator%(const PrimExpr& a, const TB& b) {
   DivAmbiguityError(a);
   return a;
 }
+
+// Constant predicates
+namespace prim {
+
+/*!
+ * \brief Check whether x is a constant integer expression.
+ * \param x The input argument
+ * \param value the value to be compared against.
+ * \return whether x is constant expression.
+ */
+inline bool IsConstInt(const PrimExpr& x, int64_t value);
+
+/*!
+ * \brief Check whether x is a constant integer 1
+ * \param x The input argument.
+ * \note This only returns true for integer types.
+ * \return whether x is constant 1
+ */
+inline bool IsOne(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is a constant integer 0
+ * \param x The input argument
+ * \return whether x is constant 0
+ * \note This only returns true for integer types.
+ */
+inline bool IsZero(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is an integer constant, including wide IntImm values.
+ * \return whether x is constant
+ */
+inline bool IsConstInt(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is an integer or floating-point constant.
+ * \note Also recognizes a Broadcast containing an integer or floating-point constant.
+ * \return whether x is constant
+ */
+inline bool IsConstNumber(const PrimExpr& x);
+
+/*!
+ * \brief Check whether x is a constant power of two
+ * If x is power of two, write the power to the shift.
+ *
+ * \param x The input expression.
+ * \param shift The output shift if x is power of two.
+ * \return whether x is constant power of two
+ */
+TVM_DLL bool IsPowerOfTwoInt(const PrimExpr& x, int* shift);
+
+/*! \brief Check whether a is a positive integer constant. */
+inline bool IsPositiveConst(const PrimExpr& a);
+
+/*! \brief Check whether a is a negative integer constant. */
+inline bool IsNegativeConst(const PrimExpr& a);
+
+// Inline constant predicate implementations.
+inline bool IsConstInt(const PrimExpr& x) { return x.as<IntImmNode>() != nullptr; }
+
+inline bool IsConstNumber(const PrimExpr& x) {
+  if (x.as<IntImmNode>()) {
+    return true;
+  } else if (x.as<FloatImmNode>()) {
+    return true;
+  } else if (const auto* op = x.as<prim::BroadcastNode>()) {
+    return (op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>());
+  }
+  return false;
+}
+
+inline bool IsPositiveConst(const PrimExpr& a) {
+  const auto* as_int = a.as<IntImmNode>();
+  return as_int && as_int->value > 0;
+}
+
+inline bool IsNegativeConst(const PrimExpr& a) {
+  const auto* as_int = a.as<IntImmNode>();
+  return as_int && as_int->value < 0;
+}
+
+inline bool IsConstInt(const PrimExpr& x, int64_t value) {
+  const auto* as_int = x.as<IntImmNode>();
+  return as_int && as_int->value == value;
+}
+
+inline bool IsOne(const PrimExpr& x) { return IsConstInt(x, 1); }
+
+inline bool IsZero(const PrimExpr& x) { return IsConstInt(x, 0); }
+
+}  // namespace prim
 
 }  // namespace tvm
 #endif  // TVM_IR_PRIM_OP_H_

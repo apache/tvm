@@ -234,7 +234,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     PrimType dtype = op->ty.as_or_throw<PrimType>();
     TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt));
 
-    if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
+    if (support_bitwise_op_ && IsPowerOfTwoInt(op->b, &shift)) {
       // lower to right shift if possible.
       return op->a >> IntImm(dtype, shift);
     }
@@ -299,7 +299,7 @@ class IntrinInjecter : public IRMutatorWithAnalyzer {
     PrimType dtype = op->ty.as_or_throw<PrimType>();
     TVM_FFI_ICHECK(dtype.MatchesCode(DLDataTypeCode::kDLInt, DLDataTypeCode::kDLUInt));
 
-    if (support_bitwise_op_ && is_const_power_of_two_integer(op->b, &shift)) {
+    if (support_bitwise_op_ && IsPowerOfTwoInt(op->b, &shift)) {
       // lower to masking if possible.
       ffi::BigInt mask = (ffi::BigInt(1) << shift) - 1;
       return op->a & IntImm(dtype, mask);

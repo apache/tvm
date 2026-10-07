@@ -426,7 +426,7 @@ class Z3Prover::Impl : tvm::ExprFunctor<z3::expr(const Expr&)> {
     //    free var
     //
     //    NOTE: min + extent builds a fresh AddNode that is not folded, so we must
-    //    test is_const_int on min and extent individually and add the two constants
+    //    test IsConstInt on min and extent individually and add the two constants
     //    in C++. Otherwise this fast path is never taken and we always emit the more expensive
     //    symbolic constraint below.
     if (auto min_imm = min.as<IntImm>(), extent_imm = extent.as<IntImm>();

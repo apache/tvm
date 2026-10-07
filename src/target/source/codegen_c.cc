@@ -1397,7 +1397,7 @@ void CodeGenC::Dispatch_(const AssertStmtNode* op) {
 
 void CodeGenC::Dispatch_(const ForNode* op) {
   std::string begin_str = PrintExpr(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
+  PrimExpr end = IsZero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   PrintIndent();
@@ -1480,7 +1480,7 @@ void CodeGenC::Dispatch_(const SeqStmtNode* op) {
 }
 
 void CodeGenC::Dispatch_(const EvaluateNode* op) {
-  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
+  if (auto value = op->value.as<PrimExpr>(); value && IsConstInt(value.value())) return;
   const CallNode* call = op->value.as<CallNode>();
   if (call) {
     if (call->op.same_as(tirx::builtin::assume_aligned())) {

@@ -58,7 +58,7 @@ void AnalyzerObj::Bind(const Var& var, const PrimExpr& expr, bool allow_override
 
 void AnalyzerObj::Bind(const Var& var, const Range& range, bool allow_override) {
   TVM_FFI_ICHECK(range.defined());
-  if (prim::is_one(range->extent)) {
+  if (prim::IsOne(range->extent)) {
     this->Bind(var, range->min, allow_override);
   } else {
     this->const_int_bound.Bind(var, range, allow_override);
@@ -182,7 +182,7 @@ bool AnalyzerObj::CanProveLessEqualThanSymbolicShapeValue(const PrimExpr& lhs,
                                                           const PrimExpr& shape) {
   if (this->CanProve(lhs <= shape, ProofStrength::kSymbolicBound)) return true;
   // no need to do further attempt if shape is already a constant.
-  if (prim::is_const_int(shape)) return false;
+  if (prim::IsConstInt(shape)) return false;
   // collect constant scale and ignore symbolic part
   // so 32 * n => cscale = 32
   ffi::BigInt cscale = 1;
@@ -258,7 +258,7 @@ PrimExpr AnalyzerObj::Simplify(const PrimExpr& expr, int steps) {
   res = this->canonical_simplify(res);
 
   for (int i = 0; i < steps; ++i) {
-    if (prim::is_const_int(res)) {
+    if (prim::IsConstInt(res)) {
       return res;
     }
     if (i % 2 == 0) {
