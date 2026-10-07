@@ -20,6 +20,9 @@
 /*!
  * \file metal_device_api.mm
  */
+#include <cstdlib>
+#include <cstring>
+
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
@@ -184,15 +187,14 @@ void* MetalWorkspace::AllocDataSpace(Device device, size_t nbytes, size_t alignm
   id<MTLBuffer> buf;
   AUTORELEASEPOOL {
     id<MTLDevice> dev = GetDevice(device);
-    // GPU memory only
+    // GPU memory only.  Callers can override via TVM_METAL_STORAGE_MODE
+    // ("shared" or "managed") when Private-mode exposes a driver-level
+    // correctness issue on their workload — see apache/tvm#20157.
     MTLResourceOptions storage_mode = MTLResourceStorageModePrivate;
-    /*
-    #if TARGET_OS_IPHONE
-    storage_mode = MTLResourceStorageModeShared;
-    #else
-    storage_mode = MTLResourceStorageModeManaged;
-    #endif
-    */
+    if (const char* env = std::getenv("TVM_METAL_STORAGE_MODE")) {
+      if (std::strcmp(env, "shared") == 0)  storage_mode = MTLResourceStorageModeShared;
+      if (std::strcmp(env, "managed") == 0) storage_mode = MTLResourceStorageModeManaged;
+    }
     buf = [dev newBufferWithLength:nbytes options:storage_mode];
     TVM_FFI_ICHECK(buf != nil);
   };
