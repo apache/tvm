@@ -116,6 +116,21 @@ class Bind : public Stmt {
 };
 
 /*!
+ * \brief Check FRegionGetBodyParams registration without invoking it or creating variables.
+ */
+TVM_DLL bool IsRegionOp(const Op& op);
+
+/*!
+ * \brief Validate region operands and construct fresh typed body parameters.
+ * \param op The region operation.
+ * \param args Operands evaluated in the enclosing scope.
+ * \param attrs Attributes evaluated in the enclosing scope.
+ * \return Parameters from the required FRegionGetBodyParams hook.
+ * \throws ValueError if the operation has no registered region hook.
+ */
+TVM_DLL ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attrs);
+
+/*!
  * \brief A single-body statement whose semantics are defined by an operator.
  * Operands are evaluated in the enclosing scope. Body parameters are definitions
  * at body entry; result variables are definitions following the region.

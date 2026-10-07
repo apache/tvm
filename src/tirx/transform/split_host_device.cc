@@ -35,6 +35,7 @@
 #include <tvm/tirx/attrs.h>
 #include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
+#include <tvm/tirx/op_attr_types.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
@@ -50,6 +51,8 @@ namespace tirx {
 TVM_FFI_STATIC_INIT_BLOCK() {
   OpDef("tirx.device_scope", "Internal host/device splitting boundary.")
       .signature(sig::call_attrs<DictAttrsNode>())
+      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 }
 

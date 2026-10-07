@@ -50,6 +50,8 @@ void RegisterTRNTargetBuiltins() {
 
   OpDef("tirx.nki.tensorized_instruction", "Tensorize the NKI instructions in the region body.")
       .signature()
+      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("device_intrin"))
       .set_attr<TDeviceIntrinsicNamespace>("TDeviceIntrinsicNamespace", ffi::String("nki"))
       .set_attr<TScriptPrinterName>("TScriptPrinterName",
