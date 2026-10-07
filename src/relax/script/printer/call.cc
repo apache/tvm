@@ -288,6 +288,9 @@ ffi::Optional<ExprDoc> StandardCallDocTranslate(DocTranslatorObj* d, const CallN
           }
           fields.emplace_back(ffi::String(field->name), std::move(value));
         });
+    // Without attribute keywords the named builder does not construct attrs.
+    // Preserve even an empty or entirely default-valued schema explicitly.
+    if (fields.empty()) return RawCall(d, call);
     std::sort(fields.begin(), fields.end(),
               [](const auto& a, const auto& b) { return a.first < b.first; });
     for (const auto& [key, value] : fields) {
