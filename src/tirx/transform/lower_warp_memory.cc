@@ -37,7 +37,6 @@
 #include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>

@@ -22,8 +22,8 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr.h>
+#include <tvm/tirx/op.h>
 
 TEST(SimplePasses, SideEffect) {
   using namespace tvm::prim;

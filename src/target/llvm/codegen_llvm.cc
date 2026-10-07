@@ -29,7 +29,7 @@
 #include <llvm/ADT/StringRef.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #if LLVM_VERSION_MAJOR >= 17
 #include <llvm/TargetParser/Triple.h>
 #else
@@ -82,7 +82,6 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/op.h>
 #include <tvm/tirx/type.h>
 
 #include <algorithm>

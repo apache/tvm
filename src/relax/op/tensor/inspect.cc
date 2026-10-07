@@ -27,7 +27,6 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 

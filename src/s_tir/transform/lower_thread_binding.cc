@@ -21,7 +21,7 @@
 #include <tvm/ir/prim/op.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace s_tir {

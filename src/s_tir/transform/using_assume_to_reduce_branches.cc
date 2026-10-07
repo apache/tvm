@@ -42,7 +42,6 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/s_tir/transform.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/op.h>
 

@@ -29,7 +29,6 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/pattern.h>
 #include <tvm/target/target.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/exec_context.h>
 #include <tvm/tirx/exec_scope.h>
 #include <tvm/tirx/function.h>

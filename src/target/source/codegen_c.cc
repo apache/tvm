@@ -25,7 +25,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ir/unique_name_supply.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/type.h>
 
 #include <cctype>

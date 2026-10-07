@@ -30,7 +30,7 @@
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/ir/prim/expr.h>
 #include <tvm/sym/analyzer.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 namespace tvm {
 namespace tirx {

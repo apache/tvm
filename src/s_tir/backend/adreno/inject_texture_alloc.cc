@@ -26,7 +26,7 @@
 #include <tvm/s_tir/stmt_functor.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include "../../../backend/opencl/runtime/texture.h"
 #include "../../../s_tir/ir/ir_mutator_with_analyzer.h"

@@ -25,7 +25,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 namespace tvm {

@@ -35,7 +35,7 @@
 #include <tvm/sym/analyzer.h>
 #include <tvm/sym/bound.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include <optional>
 #include <unordered_map>

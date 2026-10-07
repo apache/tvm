@@ -730,7 +730,7 @@ def test_pass_dltensor_arg_to_tir():
         def is_bfloat16_dtype(tensor: T.handle) -> T.bool:
             T.func_attr({"tirx.is_scheduled": True, "tirx.is_host_func": True})
 
-            # From #include <tvm/tirx/builtin.h>
+            # From #include <tvm/tirx/op.h>
             kDLTensorTypeCode = T.meta_var(5)
             kDLTensorTypeBits = T.meta_var(6)
             kDLTensorTypeLanes = T.meta_var(7)

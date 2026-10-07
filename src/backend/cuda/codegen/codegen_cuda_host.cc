@@ -21,7 +21,7 @@
  *  \brief C host wrappers with direct CUDA kernel launches.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/tirx/attrs.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/type.h>
 
 #include <algorithm>

@@ -30,7 +30,6 @@
 #include <tvm/ir/with_context.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/sym/int_set.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/function.h>
 #include <tvm/tirx/layout.h>
 #include <tvm/tirx/op.h>

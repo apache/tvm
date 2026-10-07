@@ -20,8 +20,8 @@
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/ir/prim/vector_expr.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/layout.h>
+#include <tvm/tirx/op.h>
 
 #include <algorithm>
 #include <optional>

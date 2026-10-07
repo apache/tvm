@@ -28,7 +28,7 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/s_tir/backend/adreno/transform.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 #include <tvm/tirx/stmt.h>
 
 #include <unordered_map>

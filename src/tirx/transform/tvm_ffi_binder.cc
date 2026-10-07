@@ -28,7 +28,6 @@
 #include <tvm/ir/prim/expr.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/expr_functor.h>
 #include <tvm/tirx/op.h>
 

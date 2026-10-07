@@ -26,7 +26,6 @@
 #include <tvm/ir/op.h>
 #include <tvm/sym/iter_affine_map.h>
 #include <tvm/tirx/analysis.h>
-#include <tvm/tirx/builtin.h>
 #include <tvm/tirx/op.h>
 
 #include "../../sym/constraint_helpers.h"

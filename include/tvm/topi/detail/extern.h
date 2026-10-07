@@ -26,7 +26,7 @@
 
 #include <tvm/ir/prim/builtin.h>
 #include <tvm/te/operation.h>
-#include <tvm/tirx/builtin.h>
+#include <tvm/tirx/op.h>
 
 #include <string>
 #include <utility>
