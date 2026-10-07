@@ -360,8 +360,9 @@ tvm::FuncType ContextualTIRxSignature(const BlockBuilder& ctx, const Expr& calle
   if (it == mod->functions.end()) return signature;
   const auto* function = (*it).second.as<tirx::FunctionNode>();
   TVM_FFI_CHECK(function, TypeError) << "A Relax-to-TIRx call must refer to a native TIRx function";
-  TVM_FFI_CHECK(ffi::StructuralEqual()(signature, function->ty), TypeError)
-      << "The TIRx GlobalVar signature does not match its function";
+  // Specialization may replace the function while retaining its typed GlobalVar.
+  // Use the available definition at this boundary without modifying the symbol.
+  signature = function->ty.as_or_throw<tvm::FuncType>();
   auto substitutor = ffi::make_object<tvm::ExprMutator>();
   for (size_t i = 0; i < arguments->fields.size() && i < function->params.size(); ++i) {
     if (!function->params[i]->ty.as<PrimTypeNode>()) continue;
@@ -406,11 +407,13 @@ void CheckTIRxCarrier(const Type& native, const Type& actual,
 }
 
 void CheckTIRxArguments(const tvm::FuncType& signature, const ffi::Array<Expr>& arguments,
-                        const BlockBuilder& ctx) {
+                        const BlockBuilder& ctx, bool defer_storage_check = false) {
   FuncType adapted = TIRxToRelaxFuncType(signature);
   auto params = adapted->params.value();
   for (size_t i = 0; i < params.size() && i < arguments.size(); ++i) {
-    CheckTIRxCarrier(signature->arg_types[i], arguments[i]->ty);
+    if (!defer_storage_check || !signature->arg_types[i].as<tirx::TensorTypeNode>()) {
+      CheckTIRxCarrier(signature->arg_types[i], arguments[i]->ty);
+    }
     const auto* expected = params[i].as<TensorTypeNode>();
     const auto* actual = arguments[i]->ty.as<TensorTypeNode>();
     if (!expected || !actual) continue;
@@ -468,7 +471,10 @@ void ValidateCallTIRPacked(const CallNode* call) {
   }
   ffi::Array<Expr> args =
       arguments->fields.Map([](const Type& type) -> Expr { return Var("argument", type); });
-  CheckTIRxArguments(ffi::GetRef<tvm::FuncType>(native), args, BlockBuilder::Create(std::nullopt));
+  // Storage specialization belongs to normalization, where the concrete native
+  // function may differ from the unchanged GlobalVar signature.
+  CheckTIRxArguments(ffi::GetRef<tvm::FuncType>(native), args, BlockBuilder::Create(std::nullopt),
+                     true);
 }
 
 Type InferTypeCallTIRPacked(const CallNode* call) {
