@@ -211,41 +211,35 @@ def test_inferred_ty_with_prim_args():
     def func(M: T.int32, N: T.int32) -> T.int32:
         return M * N
 
-    expected = tvm.relax.FuncType(
+    expected = tvm.ir.FuncType(
         [
             tvm.ir.PrimType("int32"),
             tvm.ir.PrimType("int32"),
         ],
         tvm.ir.PrimType("int32"),
-        purity=True,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_ty_with_buffer_args():
-    """Function buffer arguments are inferred as R.Tensor"""
+    """Function buffer arguments retain native tensor types."""
 
     @Ts.function
     def func(A: T.Tensor([16, 16], "float32"), B: T.Tensor([256], "int32")) -> T.float32:
         return T.float32(42.0)
 
-    expected = tvm.relax.FuncType(
+    expected = tvm.ir.FuncType(
         [
-            tvm.relax.TensorType([16, 16], "float32"),
-            tvm.relax.TensorType([256], "int32"),
+            tvm.tirx.decl_tensor([16, 16], "float32", layout=None).ty,
+            tvm.tirx.decl_tensor([256], "int32", layout=None).ty,
         ],
         tvm.ir.PrimType("float32"),
-        purity=True,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_ty_with_internal_allocation():
-    """A pure function may still write to internal allocations.
-
-    Whether a function writes to internal allocations is not a visible
-    effect, and does not impact the purity of a function.
-    """
+    """Internal allocations do not change the native signature."""
 
     @Ts.function
     def func(A: T.Tensor([16, 16], "float32")) -> T.float32:
@@ -256,34 +250,29 @@ def test_inferred_ty_with_internal_allocation():
 
         return Sum[()]
 
-    expected = tvm.relax.FuncType(
+    expected = tvm.ir.FuncType(
         [
-            tvm.relax.TensorType([16, 16], "float32"),
+            tvm.tirx.decl_tensor([16, 16], "float32", layout=None).ty,
         ],
         tvm.ir.PrimType("float32"),
-        purity=True,
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
 
 
 def test_inferred_ty_with_output_buffer():
-    """A pure function may not write to an argument buffer
-
-    If an argument buffer is written to, the function must be impure.
-    """
+    """Output tensors remain native parameters with a void result."""
 
     @Ts.function
     def func(A: T.Tensor(16, "float32"), B: T.Tensor(16, "float32")):
         for i in range(16):
             B[i] = A[i]
 
-    expected = tvm.relax.FuncType(
+    expected = tvm.ir.FuncType(
         [
-            tvm.relax.TensorType([16], "float32"),
-            tvm.relax.TensorType([16], "float32"),
+            tvm.tirx.decl_tensor([16], "float32", layout=None).ty,
+            tvm.tirx.decl_tensor([16], "float32", layout=None).ty,
         ],
-        tvm.relax.TupleType([]),
-        purity=False,
+        tvm.ir.TupleType([]),
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
 

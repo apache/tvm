@@ -3673,11 +3673,19 @@ def test_clip():
     @I.ir_module
     class ExpectedClipMinMax:
         @Ts.function(private=True)
-        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_min: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @Ts.function(private=True)
-        def minimum(var_input: T.handle, var_max: T.handle, var_output: T.handle):
+        def minimum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_max: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3714,7 +3722,11 @@ def test_clip():
     @I.ir_module
     class ExpectedClipMin:
         @Ts.function(private=True)
-        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_min: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3741,7 +3753,11 @@ def test_clip():
     @I.ir_module
     class ExpectedClipMaxOnlyInput:
         @Ts.function(private=True)
-        def maximum(var_input: T.handle, var_min: T.handle, var_output: T.handle):
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"),
+            var_min: T.Tensor((), "float32"),
+            var_output: T.Tensor((32, 64), "float32"),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -3807,11 +3823,15 @@ def test_clip_v6(max, min):
     @I.ir_module
     class ExpectedClipV6:
         @Ts.function(private=True)
-        def maximum(var_input: T.handle, var_output: T.handle):
+        def maximum(
+            var_input: T.Tensor((32, 64), "float32"), var_output: T.Tensor((32, 64), "float32")
+        ):
             T.evaluate(0)
 
         @Ts.function(private=True)
-        def minimum(var_input: T.handle, var_output: T.handle):
+        def minimum(
+            var_input: T.Tensor((32, 64), "float32"), var_output: T.Tensor((32, 64), "float32")
+        ):
             T.evaluate(0)
 
         @R.function
@@ -8301,7 +8321,9 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
         @I.ir_module
         class ExpectedPadConstantWithInputs:
             @Ts.function(private=True)
-            def pad(input: T.handle, PadInput: T.handle):
+            def pad(
+                input: T.Tensor(input_shape, "float32"), PadInput: T.Tensor(out_shape, "float32")
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8329,7 +8351,9 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
         @I.ir_module
         class ExpectedPadConstantAttrs:
             @Ts.function(private=True)
-            def pad(input: T.handle, PadInput: T.handle):
+            def pad(
+                input: T.Tensor(input_shape, "float32"), PadInput: T.Tensor(out_shape, "float32")
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8355,7 +8379,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
         @I.ir_module
         class ExpectedPadReflectWithInputs:
             @Ts.function(private=True)
-            def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
+            def mirror_pad(
+                input: T.Tensor(input_shape, "float32"),
+                MirrorPadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8382,7 +8409,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
         @I.ir_module
         class ExpectedPadReflectAttrs:
             @Ts.function(private=True)
-            def mirror_pad(input: T.handle, MirrorPadInput: T.handle):
+            def mirror_pad(
+                input: T.Tensor(input_shape, "float32"),
+                MirrorPadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8408,7 +8438,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
         @I.ir_module
         class ExpectedPadEdgeWithInputs:
             @Ts.function(private=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            def replicate_pad(
+                input: T.Tensor(input_shape, "float32"),
+                ReplicatePadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8435,7 +8468,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
         @I.ir_module
         class ExpectedPadEdgeAttrs:
             @Ts.function(private=True)
-            def replicate_pad(input: T.handle, ReplicatePadInput: T.handle):
+            def replicate_pad(
+                input: T.Tensor(input_shape, "float32"),
+                ReplicatePadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8462,7 +8498,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
             @I.ir_module
             class ExpectedPadWrapWithInputs:
                 @Ts.function(private=True)
-                def circular_pad(input: T.handle, CircularPadInput: T.handle):
+                def circular_pad(
+                    input: T.Tensor(input_shape, "float32"),
+                    CircularPadInput: T.Tensor(out_shape, "float32"),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -8487,7 +8526,10 @@ def _make_pad_expected_ir(input_shape, pads, mode="constant", value=0.0, opset=1
         @I.ir_module
         class ExpectedPadWrapWithAxes:
             @Ts.function(private=True)
-            def circular_pad(input: T.handle, CircularPadInput: T.handle):
+            def circular_pad(
+                input: T.Tensor(input_shape, "float32"),
+                CircularPadInput: T.Tensor(out_shape, "float32"),
+            ):
                 T.evaluate(0)
 
             @R.function
@@ -8999,7 +9041,20 @@ def test_tile():
     @I.ir_module
     class ExpectedTileDynamicInput:
         @Ts.function(private=True)
-        def tile(input: T.handle, T_tile: T.handle):
+        def tile(
+            input: T.Tensor(
+                (tile_input_dim_0, tile_input_dim_1, tile_input_dim_2, tile_input_dim_3), "float32"
+            ),
+            T_tile: T.Tensor(
+                (
+                    tile_input_dim_0 * 2,
+                    tile_input_dim_1,
+                    tile_input_dim_2 * 3,
+                    tile_input_dim_3 * 2,
+                ),
+                "float32",
+            ),
+        ):
             T.evaluate(0)
 
         @R.function
@@ -9054,7 +9109,9 @@ def test_tile():
     @I.ir_module
     class ExpectedTileStaticInput:
         @Ts.function(private=True)
-        def tile(input: T.handle, T_tile: T.handle):
+        def tile(
+            input: T.Tensor((2, 3, 4, 5), "float32"), T_tile: T.Tensor((4, 3, 12, 10), "float32")
+        ):
             T.evaluate(0)
 
         @R.function
@@ -9124,7 +9181,10 @@ def test_tile_dynamic_repeats():
             @I.ir_module
             class ExpectedTileRank2:
                 @Ts.function(private=True)
-                def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                def dyn_tile(
+                    input: T.Tensor(input_shape, "float32"),
+                    var_T_tile: T.Tensor((tile_dim_0, tile_dim_1), "float32"),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -9160,7 +9220,10 @@ def test_tile_dynamic_repeats():
             @I.ir_module
             class ExpectedTileRank3:
                 @Ts.function(private=True)
-                def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                def dyn_tile(
+                    input: T.Tensor(input_shape, "float32"),
+                    var_T_tile: T.Tensor((tile_dim_0, tile_dim_1, tile_dim_2), "float32"),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -9198,7 +9261,12 @@ def test_tile_dynamic_repeats():
             @I.ir_module
             class ExpectedTileRank4:
                 @Ts.function(private=True)
-                def dyn_tile(input: T.handle, var_T_tile: T.handle):
+                def dyn_tile(
+                    input: T.Tensor(input_shape, "float32"),
+                    var_T_tile: T.Tensor(
+                        (tile_dim_0, tile_dim_1, tile_dim_2, tile_dim_3), "float32"
+                    ),
+                ):
                     T.evaluate(0)
 
                 @R.function
@@ -9489,7 +9557,7 @@ def test_einsum():
     @I.ir_module
     class Expected:
         @Ts.function(private=True)
-        def einsum(x: T.handle, T_einsum: T.handle):
+        def einsum(x: T.Tensor((3, 4), "float32"), T_einsum: T.Tensor((3,), "float32")):
             T.evaluate(0)
 
         @R.function
