@@ -61,7 +61,7 @@ def element_wise_thread_x(
 
 
 @Ts.prim_func
-def unified_element_wise_thread_x(
+def lowered_element_wise_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     with T.launch_thread("blockIdx.x", 128) as i:
@@ -93,7 +93,7 @@ def element_wise_thread_x_different_dtype(
 
 
 @Ts.prim_func
-def unified_element_wise_thread_x_different_dtype(
+def lowered_element_wise_thread_x_different_dtype(
     A: T.Tensor((128, 128), "float32"),
     B: T.Tensor((128, 128), "float32"),
     C: T.Tensor((128, 128), "float32"),
@@ -110,7 +110,7 @@ def unified_element_wise_thread_x_different_dtype(
 
 
 @Ts.prim_func
-def element_wise_env_thread_x(
+def element_wise_launch_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     i = T.launch_thread("blockIdx.x", 128)
@@ -126,7 +126,7 @@ def element_wise_env_thread_x(
 
 
 @Ts.prim_func
-def unified_element_wise_env_thread_x(
+def lowered_element_wise_launch_thread_x(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     i = T.launch_thread("blockIdx.x", 128)
@@ -152,7 +152,7 @@ def element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> 
 
 
 @Ts.prim_func
-def unified_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
+def lowered_element_wise_vthread_x(A: T.Tensor([128, 128]), B: T.Tensor([128, 128])) -> None:
     with T.launch_thread("vthread.x", 2) as i_0:
         with T.launch_thread("threadIdx.x", 64) as i_1:
             with T.launch_thread("vthread.x", 2) as j_0:
@@ -188,7 +188,7 @@ def element_wise_kernels_with_different_size(
 
 
 @Ts.prim_func
-def unified_element_wise_kernels_with_different_size(
+def lowered_element_wise_kernels_with_different_size(
     A: T.Tensor([128, 128]),
     B: T.Tensor([128, 128]),
     C: T.Tensor([256, 256]),
@@ -218,7 +218,7 @@ def element_wise_implicit_block(
 
 
 @Ts.prim_func
-def unified_element_wise_implicit_block(
+def lowered_element_wise_implicit_block(
     A: T.Tensor([128, 128]), B: T.Tensor([128, 128]), C: T.Tensor([128, 128])
 ) -> None:
     with T.launch_thread("threadIdx.y", 128) as i:
@@ -233,19 +233,19 @@ def unified_element_wise_implicit_block(
 
 
 def test_thread_x():
-    _check(element_wise_thread_x, unified_element_wise_thread_x)
+    _check(element_wise_thread_x, lowered_element_wise_thread_x)
 
 
 def test_thread_x_different_dtype():
-    _check(element_wise_thread_x_different_dtype, unified_element_wise_thread_x_different_dtype)
+    _check(element_wise_thread_x_different_dtype, lowered_element_wise_thread_x_different_dtype)
 
 
-def test_env_thread_x():
-    _check(element_wise_env_thread_x, unified_element_wise_env_thread_x)
+def test_launch_thread_x():
+    _check(element_wise_launch_thread_x, lowered_element_wise_launch_thread_x)
 
 
 def test_vthread_x():
-    _check(element_wise_vthread_x, unified_element_wise_vthread_x)
+    _check(element_wise_vthread_x, lowered_element_wise_vthread_x)
 
 
 def test_two_thread_x_in_same_kernel_not_equal():
@@ -254,12 +254,12 @@ def test_two_thread_x_in_same_kernel_not_equal():
 
 def test_kernels_with_different_size():
     _check(
-        element_wise_kernels_with_different_size, unified_element_wise_kernels_with_different_size
+        element_wise_kernels_with_different_size, lowered_element_wise_kernels_with_different_size
     )
 
 
 def test_implicit_block():
-    _check(element_wise_implicit_block, unified_element_wise_implicit_block)
+    _check(element_wise_implicit_block, lowered_element_wise_implicit_block)
 
 
 def test_inner_binding_with_annotation():
@@ -272,7 +272,7 @@ def test_inner_binding_with_annotation():
                     B[v] = A[v]
 
     @Ts.prim_func
-    def unified_inner_binding_with_annotation(
+    def lowered_inner_binding_with_annotation(
         A: T.Tensor((64,), "float32"), B: T.Tensor((64,), "float32")
     ):
         with T.launch_thread("blockIdx.x", 32) as blockIdx_x:
@@ -284,7 +284,7 @@ def test_inner_binding_with_annotation():
                         Ts.writes(B[v])
                         B[v] = A[v]
 
-    _check(inner_binding_with_annotation, unified_inner_binding_with_annotation)
+    _check(inner_binding_with_annotation, lowered_inner_binding_with_annotation)
 
 
 if __name__ == "__main__":

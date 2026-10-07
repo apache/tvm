@@ -33,7 +33,6 @@
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
-#include <optional>
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
@@ -155,8 +154,8 @@ class LoopUnroller : public StmtExprMutator {
                         unroll_depth_ <= auto_max_depth_);
 
     const auto& policy = unroll_policy_.Current();
-    auto_unroll = auto_unroll && (value * step_count_ <= policy.auto_unroll_max_step.value() ||
-                                  value <= auto_max_extent_);
+    auto_unroll = auto_unroll &&
+                  (value * step_count_ <= policy.auto_unroll_max_step || value <= auto_max_extent_);
 
     if (op->kind == ForKind::kUnrolled) {
       TVM_FFI_ICHECK_GE(value, 0) << "Cannot unroll non-constant loop";
@@ -176,7 +175,7 @@ class LoopUnroller : public StmtExprMutator {
       normal_loop_depth_ += 1;
     }
 
-    if ((auto_unroll && policy.unroll_explicit.value()) ||
+    if ((auto_unroll && policy.unroll_explicit) ||
         // unroll loops with extent = 1, no matter how many steps in body
         (0 <= value && value <= auto_max_extent_ && auto_max_extent_ == 1)) {
       return Unroll(op);
@@ -292,8 +291,8 @@ class LoopUnroller : public StmtExprMutator {
   }
 
   struct UnrollPolicy {
-    std::optional<int> auto_unroll_max_step;
-    std::optional<bool> unroll_explicit;
+    int auto_unroll_max_step{0};
+    bool unroll_explicit{true};
   };
   ScopeStack<UnrollPolicy> unroll_policy_;
   int auto_max_depth_;

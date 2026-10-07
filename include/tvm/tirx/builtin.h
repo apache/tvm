@@ -519,8 +519,10 @@ TVM_DLL const Op& tvm_warp_activemask();
  * and thread_axes may each be a scalar or an explicit Tuple of fields.
  * Each value, identity, pair of parameters and result have
  * the same primitive type. Inactive inputs are replaced by their identities.
- * Destinations are N tensor loads (optionally cast for boolean storage), and
- * thread_axes are reduction thread variables or zero for simplified unit axes.
+ * Destinations are N tensor loads at index zero of one-element result temporaries
+ * (optionally cast for boolean storage). Each result temporary must be accessed
+ * only at index zero. Thread axes are reduction thread variables or zero for
+ * simplified unit axes.
  * Other thread indices remain fixed. The operation writes the reduced values
  * to the destination tensors and returns void.
  */
