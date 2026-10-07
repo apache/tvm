@@ -831,37 +831,6 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm::Int32(value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(PrimType::Float(32), value)) {}
 
-Expr ffi::TypeTraits<Expr>::ConvertFallbackValue(ffi::String value) { return StringImm(value); }
-
-std::optional<Expr> ffi::TypeTraits<Expr>::TryCastFromAnyView(const TVMFFIAny* src) {
-  if (auto value =
-          ObjectRefWithFallbackTraitsBase<Expr, PrimExpr, ffi::String>::TryCastFromAnyView(src)) {
-    return value;
-  }
-  // Keep the recursive array conversion out of line: each element uses this
-  // trait again, while an outer Array<Expr> remains an array.
-  if (auto fields = ffi::TypeTraits<ffi::Array<Expr>>::TryCastFromAnyView(src)) {
-    return tvm::Tuple(std::move(*fields));
-  }
-  return std::nullopt;
-}
-
-namespace ffi {
-
-PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
-  return IntImm::Bool(value);
-}
-
-PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(int64_t value) {
-  return TypeTraits<IntImm>::ConvertFallbackValue(value);
-}
-
-PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value) {
-  return TypeTraits<FloatImm>::ConvertFallbackValue(value);
-}
-
-}  // namespace ffi
-
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
