@@ -1065,7 +1065,7 @@ void CodeGenCUDA::Dispatch_(const CallNode* op, std::ostream& os) {
     auto codegen = codegen_getter.value()(call_op->name).cast<ffi::Optional<tvm::ffi::Function>>();
     if (codegen.has_value()) {
       // codegen is registered, it should return a Call to cuda_func_call
-      auto func_call = codegen.value()(op->args);
+      auto func_call = codegen.value()(op->args, op->attrs);
       auto res = func_call.cast<ffi::Tuple<Call, ffi::Array<ffi::String>>>();
       print_cuda_func_call(res.get<0>().get(), os);
       for (const auto& tag : res.get<1>()) {

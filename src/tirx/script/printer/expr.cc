@@ -212,58 +212,6 @@ TVM_FFI_STATIC_INIT_BLOCK() {
                                FDocTranslate::FromNative<&CUDAFuncCallDocTranslate>());
 }
 
-template <bool block_scaled>
-ffi::Optional<ExprDoc> CUDAInstructionDescriptorDocTranslate(DocTranslatorObj* d,
-                                                             ffi::AnyView input,
-                                                             const ffi::Object*) {
-  const auto* call =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const CallNode>(input);
-  if (!CanTranslateExplicitResultCall(call) || call->args.size() != (block_scaled ? 17 : 14) ||
-      !ffi::StructuralEqual()(call->ty, PrimType::Void())) {
-    return RawCall(d, call);
-  }
-  Op op = call->op.as_or_throw<Op>();
-  if (op->args_info.size() != call->args.size()) return RawCall(d, call);
-  constexpr size_t optional_begin = block_scaled ? 13 : 9;
-  ffi::Array<ffi::String> keys;
-  ffi::Array<ExprDoc> values;
-  ExprDoc descriptor = d->Translate(call->args[0]).value();
-  for (size_t i = 1; i < call->args.size(); ++i) {
-    const Expr& arg = call->args[i];
-    if (i >= optional_begin) {
-      const auto* value = arg.as<IntImmNode>();
-      PrimType default_type = i == optional_begin ? PrimType::Int(32) : PrimType::Bool();
-      int64_t default_value = i == optional_begin ? 1 : 0;
-      if (value && value->value == default_value &&
-          ffi::StructuralEqual()(value->ty, default_type)) {
-        continue;
-      }
-    }
-    const auto* string = arg.as<StringImmNode>();
-    ExprDoc value = string ? LiteralDoc::Str(string->value, std::nullopt)
-                           : MaterializeCallArgument(d, arg, d->Translate(arg).value());
-    d->RecordOrigin(value, arg);
-    keys.push_back(op->args_info[i]->name);
-    values.push_back(value);
-  }
-  return NamespaceDoc("tirx")
-      ->Attr("cuda")
-      ->Attr("tcgen05")
-      ->Attr(block_scaled ? "encode_instr_descriptor_block_scaled" : "encode_instr_descriptor")
-      ->Call({descriptor}, keys, values);
-}
-
-TVM_FFI_STATIC_INIT_BLOCK() {
-  OpDef("tirx.cuda.tcgen05_encode_instr_descriptor")
-      .set_attr<FDocTranslate>(
-          kOpCallDocTranslate,
-          FDocTranslate::FromNative<&CUDAInstructionDescriptorDocTranslate<false>>());
-  OpDef("tirx.cuda.tcgen05_encode_instr_descriptor_block_scaled")
-      .set_attr<FDocTranslate>(
-          kOpCallDocTranslate,
-          FDocTranslate::FromNative<&CUDAInstructionDescriptorDocTranslate<true>>());
-}
-
 ffi::Optional<ExprDoc> LLVMIntrinsicDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                  const ffi::Object*) {
   const auto* call =

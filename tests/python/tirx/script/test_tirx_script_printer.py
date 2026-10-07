@@ -785,7 +785,7 @@ def test_printer_ptx_more():
             sat_d=False,
             is_sparse=False,
         ),
-        'd: T.handle = T.handle()\nT.cuda.tcgen05.encode_instr_descriptor(d, d_dtype="f16", a_dtype="f16", b_dtype="f16", M=16, N=16, K=16, trans_a=T.bool(True), trans_b=T.bool(False))',  # noqa: E501
+        'd: T.handle = T.handle()\nT.cuda.tcgen05_encode_instr_descriptor(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", trans_a=True, trans_b=False)',  # noqa: E501
     )
     _assert_namespace_print(
         cuda_op.cuda_tcgen05_encode_instr_descriptor_block_scaled(
@@ -795,8 +795,6 @@ def test_printer_ptx_more():
             b_dtype="f16",
             sfa_dtype="f16",
             sfb_dtype="f16",
-            sfa_tmem_addr=a,
-            sfb_tmem_addr=b,
             M=16,
             N=16,
             K=16,
@@ -808,9 +806,7 @@ def test_printer_ptx_more():
             neg_b=False,
         ),
         "d: T.handle = T.handle()\n"
-        "a: T.handle = T.handle()\n"
-        "b: T.handle = T.handle()\n"
-        'T.cuda.tcgen05.encode_instr_descriptor_block_scaled(d, d_dtype="f16", a_dtype="f16", b_dtype="f16", sfa_dtype="f16", sfb_dtype="f16", sfa_tmem_addr=a, sfb_tmem_addr=b, M=16, N=16, K=16, trans_a=T.bool(True), trans_b=T.bool(False), is_sparse=T.bool(True))',  # noqa: E501
+        'T.cuda.tcgen05_encode_instr_descriptor_block_scaled(d, K=16, M=16, N=16, a_dtype="f16", b_dtype="f16", d_dtype="f16", is_sparse=True, sfa_dtype="f16", sfb_dtype="f16", trans_a=True, trans_b=False)',  # noqa: E501
     )
 
 

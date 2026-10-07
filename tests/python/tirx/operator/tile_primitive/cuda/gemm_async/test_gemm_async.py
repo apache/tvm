@@ -3834,8 +3834,13 @@ def test_gemm_tcgen05_preserves_block_scale_tmem_lane_bases():
     sctx = DispatchContext(target, ExecScope("thread"), {}, {}, scope_kind="thread")
     script = gemm_async_tcgen05_impl(call, sctx).script()
 
-    assert "T.cuda.get_tmem_addr(T.uint32(256), 1, 0)" in script
-    assert "T.cuda.get_tmem_addr(T.uint32(320), 2, 0)" in script
+    # Check the addresses consumed by MMA, rather than the former unused
+    # initial-address operands of the instruction descriptor encoder.
+    assert "sfa_linear % 128 // 4 + 1" in script
+    assert "sfb_linear % 128 // 4 + 2" in script
+    assert "T.cuda.get_tmem_addr(T.uint32(256), sfa_tlane, sfa_tcol // 4)" in script
+    assert "T.cuda.get_tmem_addr(T.uint32(320), sfb_tlane, sfb_tcol // 4)" in script
+    assert "descI_local, sfa_addr, sfb_addr, should_accum" in script
 
 
 @pytest.mark.parametrize(

@@ -125,8 +125,6 @@ def test_instr_descriptor_block_scaled_matches_runtime_encoder(
                 b_dtype=b_dtype,
                 sfa_dtype="float8_e8m0fnu",
                 sfb_dtype="float8_e8m0fnu",
-                sfa_tmem_addr=0,
-                sfb_tmem_addr=0,
                 M=m,
                 N=n,
                 K=k,

@@ -66,8 +66,11 @@ def register_codegen(op, backend="cuda"):
         op_names = {full_op_name, canonical_op_name}
 
         @functools.wraps(func)
-        def wrapper(arg_list):
-            res = func(*arg_list)  # pylint: disable=not-callable
+        def wrapper(arg_list, attrs=None):
+            # Keep operand-only helpers callable directly while forwarding the
+            # typed static options of an attributed Call to its lowering.
+            kwargs = {} if attrs is None else {"attrs": attrs}
+            res = func(*arg_list, **kwargs)  # pylint: disable=not-callable
             if isinstance(res, tuple):
                 return res[0], res[1]
             return res, list()
