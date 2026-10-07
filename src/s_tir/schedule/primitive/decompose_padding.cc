@@ -118,7 +118,7 @@ class PaddingInfoAnalyzer {
                                  .as_or_throw<PrimExpr>();
     PrimExpr in_bound_value = if_then_else->args[1].as_or_throw<PrimExpr>();
     PrimExpr pad_value = if_then_else->args[2].as_or_throw<PrimExpr>();
-    if (!is_const_number(pad_value)) {
+    if (!IsConstNumber(pad_value)) {
       SetError("Pad value should be constant");
       return false;
     }

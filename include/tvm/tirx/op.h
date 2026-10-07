@@ -384,7 +384,7 @@ inline bool is_no_op(const tirx::Stmt& stmt) {
   if (!stmt.defined()) return true;
   if (const auto* op = stmt.as<tirx::EvaluateNode>()) {
     auto value = op->value.as<PrimExpr>();
-    return value && is_const_int(value.value());
+    return value && IsConstInt(value.value());
   }
   if (const auto* op = stmt.as<tirx::SeqStmtNode>()) {
     return op->seq.size() == 0;

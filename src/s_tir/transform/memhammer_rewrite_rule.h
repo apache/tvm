@@ -171,7 +171,7 @@ class CreateLocalStage : public RewriteRule {
     TensorVar tgt_buffer = constraints.write_region->source.as_or_throw<tvm::tirx::TensorVar>();
     return IsCopyBetweenScope(src_buffer, tgt_buffer, runtime::StorageRank::kGlobal,
                               runtime::StorageRank::kShared) &&
-           is_one(constraints.add_local_stage);
+           IsOne(constraints.add_local_stage);
   }
 };
 

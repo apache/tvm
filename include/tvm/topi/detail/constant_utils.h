@@ -56,11 +56,11 @@ inline bool IsConstInt(PrimExpr expr) { return expr->IsInstance<tvm::IntImmNode>
  * \return true if every element in array is constant int or uint, false otherwise.
  */
 inline bool IsConstIntArray(ffi::Array<PrimExpr> array) {
-  bool is_const_int = true;
+  bool IsConstInt = true;
   for (auto const& elem : array) {
-    is_const_int &= !elem.defined() || elem->IsInstance<tvm::IntImmNode>();
+    IsConstInt &= !elem.defined() || elem->IsInstance<tvm::IntImmNode>();
   }
-  return is_const_int;
+  return IsConstInt;
 }
 
 /*!

@@ -53,7 +53,7 @@ ffi::Optional<ffi::Array<Var>> CheckTrivialBufferAccess(const TensorRegion& buff
   ffi::Array<Var> indices;
   indices.reserve(buffer_region->region.size());
   for (const Range& range : buffer_region->region) {
-    if (!tvm::prim::is_one(range->extent)) {
+    if (!tvm::prim::IsOne(range->extent)) {
       return std::nullopt;
     }
     if (range->min->IsInstance<IntImmNode>()) {

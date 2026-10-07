@@ -47,7 +47,7 @@ class LoopCanonicalizer : public StmtExprMutator {
 
  private:
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    if (is_zero(op->min) && op->HasTrivialStep()) {
+    if (IsZero(op->min) && op->HasTrivialStep()) {
       return StmtExprMutator::Mutate_(op, inplace_mode);
     }
     const auto* loop_var = op->loop_var.get();

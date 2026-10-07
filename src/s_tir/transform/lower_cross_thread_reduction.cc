@@ -883,7 +883,7 @@ class CrossThreadReductionTransformer : public StmtExprMutator {
     //  - the block-realize has a non-constant-true predicate.
     bool need_in_thread_reduction =
         n_bound_reduction_loops < static_cast<int>(reduction_loops.size()) ||
-        !is_one(realize->predicate);
+        !IsOne(realize->predicate);
     // Step 3. Create intermediate buffers, storing them in `ct_buffers` and
     // `it_buffers`. Let the scope block allocate these new buffers.
     ffi::Array<TensorVar>& new_buffers = block2new_buffers_[block_stack_.back()];

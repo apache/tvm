@@ -573,7 +573,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
     indices_base.reserve(lhs->region.size());
     for (int i = 0; i < offset; i++) {
       // High-dim region must be element-wise
-      if (!is_one(lhs->region[i]->extent)) {
+      if (!IsOne(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareBufferRegion returning false because buffer extent high-dim region must be "
@@ -606,7 +606,7 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
     const std::vector<PrimExpr>& indices_base = it->second;
     for (int i = 0; i < offset; i++) {
       // High-dim region must be element-wise
-      if (!is_one(lhs->region[i]->extent)) {
+      if (!IsOne(lhs->region[i]->extent)) {
         if (assert_mode_) {
           std::ostringstream os;
           os << "CompareBufferRegion returning false because buffer extent high-dim region must be "

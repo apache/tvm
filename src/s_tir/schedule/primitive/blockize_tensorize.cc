@@ -97,7 +97,7 @@ ffi::Array<ffi::Array<sym::IterMark>> TrivialSubspaceDivision(const ffi::Array<I
                                                               const PrimExpr& predicate,
                                                               const ffi::Array<Var>& outer_iters,
                                                               const ffi::Array<Var>& inner_iters) {
-  if (!is_one(predicate)) return {};
+  if (!IsOne(predicate)) return {};
   ffi::Array<ffi::Array<sym::IterMark>> res;
   std::unordered_set<const VarNode*> outer_loop_vars;
   std::unordered_set<const VarNode*> inner_loop_vars;
@@ -256,10 +256,10 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
       outer_iter_vars->push_back(outer_iter);
     }
     PrimExpr sub = [&]() -> PrimExpr {
-      if (is_one(inner_mark->extent)) {
+      if (IsOne(inner_mark->extent)) {
         // Skip inner var when extent is 1
         // substitution
-        if (is_one(outer_mark->extent) && !preserve_unit_iters) {
+        if (IsOne(outer_mark->extent) && !preserve_unit_iters) {
           // Simplify outer if not preserve_unit_iters
           return IntImm(outer_mark->extent.ty(), 0);
         } else {
@@ -273,7 +273,7 @@ ffi::Map<Var, PrimExpr> DeriveBlockBinding(
         inner_bindings->push_back(NormalizeIterMapToExpr(inner_binding));
         inner_iter_vars->push_back(inner_iter);
         // substitution
-        if (is_one(outer_mark->extent)) {
+        if (IsOne(outer_mark->extent)) {
           return inner_iter->var;
         } else {
           return outer_iter * inner_mark->extent + inner_iter->var;

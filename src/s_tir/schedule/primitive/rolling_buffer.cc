@@ -214,7 +214,7 @@ class RollingBufferInfoCollector {
         // If the bound is just a Var, that implies the stride is 1
         iter_var = p_var.Eval();
         stride = 1;
-      } else if (is_const_int(bound->min)) {
+      } else if (IsConstInt(bound->min)) {
         // If the bound is an int, we can't roll over it
         iter_var = std::nullopt;
       } else {

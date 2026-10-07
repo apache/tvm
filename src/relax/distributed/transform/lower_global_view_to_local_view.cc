@@ -231,7 +231,7 @@ class DistributedBufferCompactor : public s_tir::StmtExprMutator {
         int shard = iter_var_shards_[iter_var->var];
         if (shard > 1) {
           Range dom = iter_var->dom;
-          TVM_FFI_ICHECK(is_zero(dom->min));
+          TVM_FFI_ICHECK(IsZero(dom->min));
           sym::Analyzer analyzer;
           TVM_FFI_ICHECK(analyzer->CanProve(floormod(dom->extent, shard) == 0));
           new_iter_vars.push_back(

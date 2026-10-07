@@ -308,7 +308,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         updated.CopyOnWrite()->annotations = std::move(annotations).ValueUnchecked();
         return updated;
       };
-      if (!normalize_thread_bindings_ && is_zero(loop->extent)) {
+      if (!normalize_thread_bindings_ && IsZero(loop->extent)) {
         return Evaluate(0);
       }
       if (normalize_thread_bindings_ && loop->kind == ForKind::kThreadBinding) {
@@ -349,7 +349,7 @@ Pass SimplifyForFeatureExtraction(bool normalize_thread_bindings = false) {
         thread_bindings_.pop_back();
         return result;
       }
-      if (!normalize_thread_bindings_ && is_zero(loop->min) && is_one(loop->extent) &&
+      if (!normalize_thread_bindings_ && IsZero(loop->min) && IsOne(loop->extent) &&
           loop->kind == ForKind::kSerial && loop->annotations.empty()) {
         VarRemapSet(loop->loop_var, MakeConst(loop->loop_var.ty(), 0.0));
         return Mutate(loop->body, inplace_mode).ValueOrUnchanged(loop->body);

@@ -190,11 +190,11 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
       // Duplicate bind: create rich assertion with both paths
       PrimExpr prev_value = it->second.value.as_or_throw<PrimExpr>();
       PrimExpr scond = analyzer_->Simplify(prev_value == value);
-      if (is_zero(scond)) {
+      if (IsZero(scond)) {
         TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << prev_value
                                      << " == " << value << " at " << RenderAccessPath(path);
       }
-      if (!is_one(scond)) {
+      if (!IsOne(scond)) {
         ffi::String current_path_str = RenderAccessPath(path);
         ffi::String first_path_str = RenderAccessPath(it->second.first_def_path);
         int param_index = GetParamIndex(path);
@@ -220,11 +220,11 @@ bool TVMFFIABIBuilder::BindScalar(const PrimExpr& arg, const PrimExpr& value,
     // Non-Var expression (e.g. batch_size + 1): defer assertion to Finalize()
     // so display-var substitution can render human-readable names.
     PrimExpr scond = analyzer_->Simplify(arg == value);
-    if (is_zero(scond)) {
+    if (IsZero(scond)) {
       TVM_FFI_THROW(InternalError) << "Bind have an unmet assertion: " << arg << " == " << value
                                    << " at " << RenderAccessPath(path);
     }
-    if (!is_one(scond)) {
+    if (!IsOne(scond)) {
       pending_const_asserts_.push_back({scond, path, arg});
     }
   }
@@ -249,11 +249,11 @@ bool TVMFFIABIBuilder::BindPointer(const Var& arg, const Expr& value,
   PrimExpr prev_value = pointer_as_uint(it->second.value);
   PrimExpr current_value = pointer_as_uint(value);
   PrimExpr condition = analyzer_->Simplify(prev_value == current_value);
-  if (is_zero(condition)) {
+  if (IsZero(condition)) {
     TVM_FFI_THROW(InternalError) << "Bind has an unmet pointer assertion at "
                                  << RenderAccessPath(path);
   }
-  if (!is_one(condition)) {
+  if (!IsOne(condition)) {
     ffi::String current_path = RenderAccessPath(path);
     ffi::String first_path = RenderAccessPath(it->second.first_def_path);
     ffi::Array<StringImm> parts{StringImm("Mismatched "), StringImm(current_path)};
@@ -409,8 +409,8 @@ void TVMFFIABIBuilder::BindBuffer(const TensorVar& arg, const TensorVar& value,
   }
 
   if (value->elem_offset.defined()) {
-    if (is_zero(arg->elem_offset)) {
-      TVM_FFI_ICHECK(is_zero(value->elem_offset))
+    if (IsZero(arg->elem_offset)) {
+      TVM_FFI_ICHECK(IsZero(value->elem_offset))
           << "Trying to bind a TensorVar with offset into one without offset "
           << " required elem_offset=" << arg->elem_offset
           << ", provided elem_offset=" << value->elem_offset;
@@ -423,11 +423,11 @@ void TVMFFIABIBuilder::BindBuffer(const TensorVar& arg, const TensorVar& value,
         PrimExpr factor = IntImm(offset.ty(), arg->offset_factor);
         PrimExpr zero = IntImm(offset.ty(), 0);
         PrimExpr acond = analyzer_->Simplify(truncmod(offset, factor) == zero);
-        if (is_zero(acond)) {
+        if (IsZero(acond)) {
           TVM_FFI_THROW(InternalError)
               << "Bind have an unmet assertion at " << RenderAccessPath(offset_path);
         }
-        if (!is_one(acond)) {
+        if (!IsOne(acond)) {
           int param_index = GetParamIndex(base_path);
           int data_bytes =
               ((((arg->dtype->dtype).bits * static_cast<int16_t>((arg->dtype->dtype).lanes)) + 7) /
@@ -448,7 +448,7 @@ void TVMFFIABIBuilder::BindBuffer(const TensorVar& arg, const TensorVar& value,
     TVM_FFI_ICHECK(fuzzy_match) << "TensorVar size mismatch at " << RenderAccessPath(base_path);
     size_t diff = value->shape.size() - arg->shape.size();
     for (size_t i = 0; i < diff; ++i) {
-      TVM_FFI_ICHECK(is_one(analyzer_->Simplify(value->shape[i])))
+      TVM_FFI_ICHECK(IsOne(analyzer_->Simplify(value->shape[i])))
           << "TensorVar shape mismatch at " << RenderAccessPath(base_path) << ": " << arg->shape
           << " vs " << value->shape;
     }
@@ -633,8 +633,8 @@ void TVMFFIABIBuilder::DecodeAllParams() {
                         {buffer.value(), IntImm::Int32(buffer.value()->data_alignment)}));
       // Empty tensors may have arbitrary data pointers. Their checks must not
       // be strengthened into an unconditional alignment promise.
-      if (is_const_int(size)) {
-        if (!is_zero(size)) decl_buffers_.push_back(alignment);
+      if (IsConstInt(size)) {
+        if (!IsZero(size)) decl_buffers_.push_back(alignment);
       } else {
         decl_buffers_.push_back(IfThenElse(size != 0, alignment));
       }
@@ -798,11 +798,11 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
         PrimExpr factor = IntImm(offset.ty(), buffer->offset_factor);
         PrimExpr zero = IntImm(offset.ty(), 0);
         PrimExpr acond = analyzer_->Simplify(truncmod(offset, factor) == zero);
-        if (is_zero(acond)) {
+        if (IsZero(acond)) {
           TVM_FFI_THROW(InternalError)
               << "Bind have an unmet assertion at " << RenderAccessPath(byte_offset_path);
         }
-        if (!is_one(acond)) {
+        if (!IsOne(acond)) {
           EmitAssert(acond, "ValueError",  //
                      "Misaligned Tensor data on argument #", std::to_string(param_index),
                      when_calling_imm_, sig_imm_, "`,\n  expected data alignment=",
@@ -819,7 +819,7 @@ Expr TVMFFIABIBuilder::DecodeParamDLTensor(const TensorVar& buffer, const PrimEx
     // Use custom assertion for device_type to show human-readable device name
     if (const auto* const_dt = device_type_.as<IntImmNode>()) {
       PrimExpr cond = analyzer_->Simplify(IntImm::Int32(const_dt->value) == actual_device_type);
-      if (!is_one(cond)) {
+      if (!IsOne(cond)) {
         std::string device_name = runtime::DLDeviceType2Str(const_dt->value.as<int>().value());
         EmitAssert(cond, "ValueError",  //
                    "Mismatched ", buf_name, ".device_type on argument #",

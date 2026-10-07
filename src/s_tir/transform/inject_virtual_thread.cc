@@ -480,7 +480,7 @@ class VTInjector : public s_tir::IRMutatorWithAnalyzer {
   }
   // For
   UnchangedOr<Stmt> Mutate_(const ForNode* op, InplaceMode inplace_mode) final {
-    TVM_FFI_ICHECK(is_zero(op->min));
+    TVM_FFI_ICHECK(IsZero(op->min));
     auto extent_result = this->Mutate(op->extent, inplace_mode);
     bool extent_unchanged = extent_result.UnchangedOrSameAs(op->extent);
     PrimExpr extent = std::move(extent_result).ValueOrUnchanged(op->extent);

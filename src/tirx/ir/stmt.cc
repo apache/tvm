@@ -913,7 +913,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
   });
 }
 
-bool ForNode::HasTrivialStep() const { return !step.has_value() || is_one(*step); }
+bool ForNode::HasTrivialStep() const { return !step.has_value() || IsOne(*step); }
 
 std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
   switch (type) {

@@ -517,7 +517,7 @@ class BuiltinLower : public StmtExprMutator {
     prep_seq.emplace_back(
         TVMStructSet(scope.stack_array, idx, builtin::kDLTensorShape, op->args[1]));
     Expr strides = op->args[2];
-    if (auto prim_strides = strides.as<PrimExpr>(); prim_strides && is_zero(prim_strides.value())) {
+    if (auto prim_strides = strides.as<PrimExpr>(); prim_strides && IsZero(prim_strides.value())) {
       strides = ConstHandle(0);
     }
     prep_seq.emplace_back(TVMStructSet(scope.stack_array, idx, builtin::kDLTensorStrides, strides));
@@ -534,7 +534,7 @@ class BuiltinLower : public StmtExprMutator {
     int data_bytes = GetVectorBytes(dtype);
     PrimExpr elem_offset = op->args[5].as_or_throw<PrimExpr>();
     PrimExpr byte_offset = elem_offset;
-    if (!is_zero(elem_offset)) {
+    if (!IsZero(elem_offset)) {
       byte_offset = elem_offset * IntImm(elem_offset.ty(), data_bytes);
     } else {
       byte_offset = elem_offset;

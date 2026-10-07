@@ -347,7 +347,7 @@ ffi::Array<PrimExpr> TileLayoutNode::GetShardShape() const {
 bool TileLayoutNode::IsTrivial() const {
   if (shard.size() > 1) return false;
   if (shard.size() == 1) {
-    if (!shard[0]->axis->IsMemoryAxis() || !is_one(shard[0]->stride)) return false;
+    if (!shard[0]->axis->IsMemoryAxis() || !IsOne(shard[0]->stride)) return false;
   }
   return replica.size() == 0 && offset.size() == 0;
 }

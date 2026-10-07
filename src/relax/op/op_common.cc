@@ -222,7 +222,7 @@ bool CanProveLayoutTransform(const SLayout& input_layout, const SLayout& desired
     ffi::Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
     sym::Analyzer analyzer;
     for (size_t i = 0; i < shape.size(); ++i) {
-      if (tvm::prim::is_const_int(shape[i])) {
+      if (tvm::prim::IsConstInt(shape[i])) {
         if (!analyzer->CanProveEqual(shape[i], back_shape[i])) {
           can_prove = false;
           break;

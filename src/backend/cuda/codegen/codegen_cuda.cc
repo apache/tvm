@@ -260,7 +260,7 @@ void CodeGenCUDA::InitFuncState(const PrimFunc& func) {
                         extractor->clusterCtaIdx_y_ext, extractor->clusterCtaIdx_z_ext};
   sym::Analyzer analyzer;
   cluster_cta_x_is_linear_rank_ =
-      is_one(analyzer->Simplify(launch_dimensions_[4] * launch_dimensions_[5]));
+      IsOne(analyzer->Simplify(launch_dimensions_[4] * launch_dimensions_[5]));
 }
 
 void CodeGenCUDA::DeclareFunction(const GlobalVar& gvar, const PrimFunc& func) {
@@ -376,7 +376,7 @@ void CodeGenCUDA::Dispatch_(const tirx::ForNode* op) {
   // those declarations are printed between the pragma and the for statement,
   // nvcc is free to unroll the loop despite disable_unroll.
   std::string begin_str = PrintExpr(op->min);
-  PrimExpr end = is_zero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
+  PrimExpr end = IsZero(op->min) ? op->extent : sym::Analyzer()->Simplify(op->min + op->extent);
   std::string end_str = PrintExpr(end);
   std::string step_str = op->step.has_value() ? PrintExpr(*op->step) : "";
   if (op->annotations.count("disable_unroll")) {
@@ -1709,7 +1709,7 @@ void CodeGenCUDA::Dispatch_(const EvaluateNode* op) {
       return;
     }
   }
-  if (auto value = op->value.as<PrimExpr>(); value && is_const_int(value.value())) return;
+  if (auto value = op->value.as<PrimExpr>(); value && IsConstInt(value.value())) return;
   CodeGenC::Dispatch_(op);
 }
 

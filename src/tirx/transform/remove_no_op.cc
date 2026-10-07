@@ -129,7 +129,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     Stmt stmt = Parent::Mutate_(op, inplace_mode).ValueOrUnchanged(ffi::GetRef<Stmt>(op));
     var_range_map_.erase(op->loop_var.get());
     op = stmt.as<ForNode>();
-    if (is_zero(op->extent)) {
+    if (IsZero(op->extent)) {
       return Evaluate(0);
     }
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
@@ -172,7 +172,7 @@ class NoOpRemover : public IRMutatorWithAnalyzer {
     PrimExpr stores_existing_value =
         store->value - MakeTensorLoad(store->buffer, store->indices) == 0;
     stores_existing_value = analyzer_->Simplify(stores_existing_value);
-    if (is_one(stores_existing_value)) {
+    if (IsOne(stores_existing_value)) {
       return only_side_effects();
     }
 

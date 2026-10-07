@@ -170,7 +170,7 @@ class LoopHeightError : public ScheduleErrorContextObj {
 
 PrimExpr RewriteInitPredicate(PrimExpr pred,
                               const std::unordered_set<const VarNode*>& discarded_loops) {
-  if (is_one(pred)) return IntImm::Bool(true);
+  if (IsOne(pred)) return IntImm::Bool(true);
   if (const auto* and_node = pred.as<AndNode>()) {
     return RewriteInitPredicate(and_node->a, discarded_loops) &&
            RewriteInitPredicate(and_node->b, discarded_loops);
@@ -706,7 +706,7 @@ class LoopPropertyError : public ScheduleErrorContextObj {
           meet_reduction_loop = true;
         }
         continue;
-      } else if (meet_reduction_loop && !is_one(loop->extent)) {
+      } else if (meet_reduction_loop && !IsOne(loop->extent)) {
         throw MakeScheduleError<LoopPropertyError>(self->mod, loop, kUnboundLoopUnderReductionLoop);
       }
     }
