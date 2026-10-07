@@ -27,12 +27,23 @@ import tvm_ffi
 from . import _ffi_api
 from .expr import Expr
 
+_RESULT_TYPE_UNSET = object()
+
 
 def _make_op_api(op, module_name):
     """Build a callable whose operands and result are governed by its Op."""
+    from .attrs import make_node  # pylint: disable=import-outside-toplevel
     from .expr import Call, reinfer_type  # pylint: disable=import-outside-toplevel
 
-    def call(*args, attrs=None, ty_args=None, span=None, ret_ty=None, **kwargs):
+    def call(
+        *args,
+        attrs=None,
+        ty_args=None,
+        span=None,
+        ty=_RESULT_TYPE_UNSET,
+        ret_ty=_RESULT_TYPE_UNSET,
+        **kwargs,
+    ):
         # Bind named operands using the registered signature, without inventing
         # defaults or interpreting arbitrary Python wrapper signatures.
         operands = list(args)
@@ -45,18 +56,29 @@ def _make_op_api(op, module_name):
             else:
                 raise TypeError(f"{op.name}: missing operand {info.name!r}")
         if kwargs:
-            raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
-        if ret_ty is None and (
+            if not op.attrs_type_key:
+                raise TypeError(f"{op.name}: unexpected keyword operands {tuple(kwargs)}")
+            if attrs is not None:
+                raise TypeError(f"{op.name}: cannot mix attrs with attribute keywords")
+            attrs = make_node(op.attrs_type_key, **kwargs)
+        if ty is not _RESULT_TYPE_UNSET:
+            if ret_ty is not _RESULT_TYPE_UNSET:
+                raise TypeError(f"{op.name}: ty and ret_ty cannot both be specified")
+            ret_ty = ty
+        elif (ret_ty is _RESULT_TYPE_UNSET or ret_ty is None) and (
             op.get_attr("TFixedReturnType") is not None or op.get_attr("FInferType") is not None
         ):
             provisional = Call.unchecked(op, operands, attrs=attrs, ty_args=ty_args, span=span)
             ret_ty = reinfer_type(provisional)
+        if ret_ty is _RESULT_TYPE_UNSET:
+            ret_ty = None
         return Call(op, operands, attrs=attrs, ty_args=ty_args, span=span, ty=ret_ty)
 
     call.__name__ = op.name.rsplit(".", 1)[-1]
     call.__module__ = module_name
     call.__doc__ = op.doc or f"Construct a call to {op.name}."
     call.__tvm_op__ = op
+    call.__tvm_standard_call__ = True
     return call
 
 
@@ -69,9 +91,11 @@ def _init_op_api(namespace, target_module_name=None):
     module or SimpleNamespace containers; underscores are ordinary name parts.
 
     Generated functions accept registered positional/named operands plus
-    ``attrs``, ``ty_args``, ``span`` and ``ret_ty``. Omitting the result invokes
-    an available Op inference hook; without one, Call retains a missing type.
-    Explicit results and inference/validation errors are preserved.
+    ``attrs``, ``ty_args``, ``span`` and ``ty`` (also spelled ``ret_ty``).
+    Omitting the result invokes an available Op inference hook; without one,
+    Call retains a missing type.
+    Explicit results and inference/validation errors are preserved. Attribute
+    keywords construct the registered attrs schema, when one is declared.
 
     Existing generated functions are reused. A deliberate wrapper may declare
     ``__tvm_op__ = Op.get(name)`` to retain ownership of that name. This declares

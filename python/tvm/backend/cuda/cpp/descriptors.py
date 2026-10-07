@@ -30,7 +30,7 @@ same constraints into its dispatch.
 from ..codegen.registry import CODEGEN_REGISTRY, register_codegen
 from ..codegen.schema import device_intrinsic
 from ..codegen.types import PTXDataType
-from ..codegen.utils import parse_str, validate_cta_group
+from ..codegen.utils import validate_cta_group
 
 # =============================================================================
 # wgmma_encode_matrix_descriptor — pure-C bitfield struct fill (no asm).
@@ -321,37 +321,21 @@ device_intrinsic(
 
 
 @register_codegen("cuda_tcgen05_encode_instr_descriptor")
-def codegen_cuda_tcgen05_encode_instr_descriptor(
-    desc,
-    d_dtype,
-    a_dtype,
-    b_dtype,
-    M,
-    N,
-    K,
-    trans_a,
-    trans_b,
-    n_cta_group,
-    neg_a,
-    neg_b,
-    sat_d,
-    is_sparse,
-):
-    """Validate dtype combinations and shape, translate dtypes to PTX format
-    integers, then forward to the schema-driven impl."""
-    a_dtype = parse_str(a_dtype)
-    b_dtype = parse_str(b_dtype)
-    d_dtype = parse_str(d_dtype)
-    M = int(M)
-    N = int(N)
-    K = int(K)
-    n_cta_group = validate_cta_group(n_cta_group)
-    trans_a = bool(trans_a)
-    trans_b = bool(trans_b)
-    neg_a = bool(neg_a)
-    neg_b = bool(neg_b)
-    sat_d = bool(sat_d)
-    is_sparse = bool(is_sparse)
+def codegen_cuda_tcgen05_encode_instr_descriptor(desc, *, attrs):
+    """Validate static Call.attrs and lower the in-place descriptor fill."""
+    d_dtype = attrs.d_dtype
+    a_dtype = attrs.a_dtype
+    b_dtype = attrs.b_dtype
+    M = attrs.M
+    N = attrs.N
+    K = attrs.K
+    trans_a = attrs.trans_a
+    trans_b = attrs.trans_b
+    n_cta_group = validate_cta_group(attrs.n_cta_groups)
+    neg_a = attrs.neg_a
+    neg_b = attrs.neg_b
+    sat_d = attrs.sat_d
+    is_sparse = attrs.is_sparse
 
     kind = _get_tcgen05_mma_kind(d_dtype, a_dtype, b_dtype)
     if kind not in ["f16", "tf32", "f8f6f4", "i8"]:
@@ -436,39 +420,22 @@ device_intrinsic(
 
 
 @register_codegen("cuda_tcgen05_encode_instr_descriptor_block_scaled")
-def codegen_cuda_tcgen05_encode_instr_descriptor_block_scaled(
-    desc,
-    d_dtype,
-    a_dtype,
-    b_dtype,
-    sfa_dtype,
-    sfb_dtype,
-    sfa_tmem_addr,
-    sfb_tmem_addr,
-    M,
-    N,
-    K,
-    trans_a,
-    trans_b,
-    n_cta_group,
-    neg_a,
-    neg_b,
-    is_sparse,
-):
-    a_dtype = parse_str(a_dtype)
-    b_dtype = parse_str(b_dtype)
-    d_dtype = parse_str(d_dtype)
-    sfa_dtype = parse_str(sfa_dtype)
-    sfb_dtype = parse_str(sfb_dtype)
-    M = int(M)
-    N = int(N)
-    K = int(K)
-    n_cta_group = validate_cta_group(n_cta_group)
-    trans_a = bool(trans_a)
-    trans_b = bool(trans_b)
-    neg_a = bool(neg_a)
-    neg_b = bool(neg_b)
-    is_sparse = bool(is_sparse)
+def codegen_cuda_tcgen05_encode_instr_descriptor_block_scaled(desc, *, attrs):
+    """Validate static Call.attrs and lower the in-place descriptor fill."""
+    d_dtype = attrs.d_dtype
+    a_dtype = attrs.a_dtype
+    b_dtype = attrs.b_dtype
+    sfa_dtype = attrs.sfa_dtype
+    sfb_dtype = attrs.sfb_dtype
+    M = attrs.M
+    N = attrs.N
+    K = attrs.K
+    trans_a = attrs.trans_a
+    trans_b = attrs.trans_b
+    n_cta_group = validate_cta_group(attrs.n_cta_groups)
+    neg_a = attrs.neg_a
+    neg_b = attrs.neg_b
+    is_sparse = attrs.is_sparse
 
     kind = _get_tcgen05_mma_kind(d_dtype, a_dtype, b_dtype, sfa_dtype, sfb_dtype)
     valid_kinds = {"mxf8f6f4", "mxf4", "mxf4nvf4"}
