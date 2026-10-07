@@ -418,6 +418,8 @@ Var Bind(Expr value, ffi::Optional<Type> type_annotation, ffi::Optional<Var> var
 
 RegionFrame Region(Op op, ffi::Array<Expr> args, ffi::Optional<ffi::Array<Var>> body_params,
                    DictAttrs attrs) {
+  TVM_FFI_CHECK(tvm::tirx::IsRegionOp(op), ValueError)
+      << op->name << " does not support region construction: FRegionGetBodyParams is required";
   auto params = body_params.has_value() ? body_params.value()
                                         : tvm::tirx::GetRegionBodyParams(op, args, attrs);
   auto n = ffi::make_object<RegionFrameNode>(std::move(op));

@@ -285,6 +285,8 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 
   OpDef("tirx.device_entry", "Mark a device entry containing scope definitions.")
       .signature()
+      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
 
   OpDef("tirx.launch_thread", "Bind a thread index within a body with a launch extent.")
@@ -294,12 +296,18 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
   OpDef("tirx.device_context", "Supply the device type and ID within a region.")
       .signature(sig::arg<IntExpr>("device_type"), sig::arg<IntExpr>("device_id"))
+      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
   OpDef("tirx.compute_scope", "Outline a named CPU compute region.")
       .signature(sig::arg<StringImm>("name"))
+      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
   OpDef("tirx.parallel_launch", "Launch a CPU worker team around a region.")
       .signature()
+      .set_attr<FRegionGetBodyParams>("FRegionGetBodyParams",
+                                      FRegionGetBodyParams::FromNative<&RegionNoBodyParams>())
       .set_attr<TIRxOpCategory>("TIRxOpCategory", ffi::String("builtin"));
   OpDef("tirx.thread_return")
       .set_attr<TScriptPrinterName>("TScriptPrinterName", ffi::String("tirx.thread_return"))

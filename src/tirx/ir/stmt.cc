@@ -722,14 +722,20 @@ TVM_FFI_STATIC_INIT_BLOCK() {
 }
 
 // RegionStmt
+bool IsRegionOp(const Op& op) {
+  if (!Op::HasAttrMap("FRegionGetBodyParams")) return false;
+  static auto get_body_params = Op::GetAttrMap<FRegionGetBodyParams>("FRegionGetBodyParams");
+  return get_body_params.count(op);
+}
+
 ffi::Array<Var> GetRegionBodyParams(Op op, ffi::Array<Expr> args, DictAttrs attrs) {
+  TVM_FFI_CHECK(IsRegionOp(op), ValueError)
+      << op->name << " does not support region construction: FRegionGetBodyParams is required";
   CallNode signature(op);
   signature.args = std::move(args);
   signature.attrs = std::move(attrs);
   op.Validate(&signature);
-  if (!Op::HasAttrMap("FRegionGetBodyParams")) return {};
   static auto get_body_params = Op::GetAttrMap<FRegionGetBodyParams>("FRegionGetBodyParams");
-  if (!get_body_params.count(op)) return {};
   ffi::Array<Var> params = get_body_params[op].CallExpected(&signature).value();
   std::unordered_set<const VarNode*> definitions;
   for (const Var& param : params) {

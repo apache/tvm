@@ -919,9 +919,10 @@ def region(
     """Construct a result-free region with operation-defined body parameters.
 
     When ``body_params`` is omitted, the operation's ``FRegionGetBodyParams``
-    hook creates fresh typed variables. An operation without a hook has no body
-    parameters. Explicit parameters must match the hook's count and types and
-    retain their identities.
+    hook creates fresh typed variables. Every region operation must register
+    the hook, returning an empty array for no body parameters. Missing hooks
+    reject construction even with explicit parameters. Explicit parameters must
+    match the hook's count and types and retain their identities.
 
     Operands and attributes belong to the enclosing scope. Entering the frame
     returns one parameter directly, or a sequence for zero or multiple parameters.
