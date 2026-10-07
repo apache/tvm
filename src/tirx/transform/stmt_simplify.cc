@@ -210,10 +210,10 @@ UnchangedOr<Stmt> StmtSimplifier::Mutate_(const IfThenElseNode* op, InplaceMode 
   }
 }
 
-UnchangedOr<Stmt> StmtSimplifier::Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {
-  BufferStore store = Parent::Mutate_(op, inplace_mode)
+UnchangedOr<Stmt> StmtSimplifier::Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
+  TensorStore store = Parent::Mutate_(op, inplace_mode)
                           .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                          .as_or_throw<BufferStore>();
+                          .as_or_throw<TensorStore>();
   if (const TensorLoadNode* load = store->value.as<TensorLoadNode>()) {
     TensorVar buffer = load->source.as_or_throw<tvm::tirx::TensorVar>();
     if (buffer.same_as(store->buffer) && ArrayDeepEqual(load->indices, store->indices) &&

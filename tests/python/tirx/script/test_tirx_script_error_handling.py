@@ -56,15 +56,15 @@ def test_optional_annotation_requires_jit_at_the_source_parameter():
 
 
 def test_scalar_assign_error_not_swallowed():
-    """Regression: genuine errors (non-TypeError) from buffer_store during
+    """Regression: genuine errors (non-TypeError) from tensor_store during
     scalar-assignment sugar must propagate, not be silently swallowed.
 
-    Before the fix, both eval_expr and buffer_store were wrapped in a single
-    broad ``except Exception: pass``, so any error from buffer_store would be
+    Before the fix, both eval_expr and tensor_store were wrapped in a single
+    broad ``except Exception: pass``, so any error from tensor_store would be
     swallowed and the assignment would silently fall through to eval_assign."""
     from unittest.mock import patch
 
-    original = tvm.tirx.script.ir_builder.parser_protocol.buffer_store
+    original = tvm.tirx.script.ir_builder.parser_protocol.tensor_store
 
     def bomb(*args, **kwargs):
         # Intercept only the scalar-assignment path (indices == [0])
@@ -74,7 +74,7 @@ def test_scalar_assign_error_not_swallowed():
 
     # The ValueError propagates unchanged. A broad ``except Exception`` here
     # previously swallowed it and fell through to eval_assign.
-    with patch("tvm.tirx.script.ir_builder.parser_protocol.buffer_store", side_effect=bomb):
+    with patch("tvm.tirx.script.ir_builder.parser_protocol.tensor_store", side_effect=bomb):
         try:
 
             @T.prim_func
@@ -86,4 +86,4 @@ def test_scalar_assign_error_not_swallowed():
         except ValueError as error:
             assert str(error) == "boom"
         else:
-            pytest.fail("buffer_store error was swallowed")
+            pytest.fail("tensor_store error was swallowed")

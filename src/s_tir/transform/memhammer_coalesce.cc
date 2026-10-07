@@ -168,7 +168,7 @@ ffi::Array<PrimExpr> GetMapping(const Stmt& stmt, const ConstraintSet& constrain
   while (const ForNode* loop = body.as<ForNode>()) {
     body = loop->body;
   }
-  const BufferStoreNode* buf_store = TVM_TYPE_AS(body, BufferStoreNode);
+  const TensorStoreNode* buf_store = TVM_TYPE_AS(body, TensorStoreNode);
   TensorRegion write_region = constraints.write_region;
   const ffi::Array<PrimExpr>& write_index = buf_store->indices;
   TVM_FFI_ICHECK(
@@ -239,7 +239,7 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
   }
   TensorLoad new_buf_load =
       MakeTensorLoad(read_region->source.as_or_throw<tvm::tirx::TensorVar>(), read_index);
-  BufferStore new_buf_store = BufferStore(write_region->source.as_or_throw<tvm::tirx::TensorVar>(),
+  TensorStore new_buf_store = TensorStore(write_region->source.as_or_throw<tvm::tirx::TensorVar>(),
                                           new_buf_load, write_index);
   Stmt ret = new_buf_store;
   // Step 3.3 construct loop body

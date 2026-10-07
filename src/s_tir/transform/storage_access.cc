@@ -71,7 +71,7 @@ ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorLoadNode*
   return StmtExprVisitor::Visit_(op);
 }
 
-ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const BufferStoreNode* op) {
+ffi::Optional<VisitInterrupt> StorageAccessVisitor::Visit_(const TensorStoreNode* op) {
   allow_append_ = true;
   TVM_FFI_ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;

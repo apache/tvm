@@ -318,18 +318,18 @@ class PatternMatcher : public StmtExprVisitor {
 
 static const char* kRFactorCrossThreadReductionApplicableBlockDef =
     R"(Definition of a reduction block that is applicable by RFactor and Cross-Thread Reduction:
-1) The block init should be a single BufferStore or a SeqStmt of BufferStores
+1) The block init should be a single TensorStore or a SeqStmt of TensorStores
 2) The buffers initialized in the block init should be all different
-3) The number of consecutive Binds in the block body (if any) should equal the number of BufferStores in the block init
+3) The number of consecutive Binds in the block body (if any) should equal the number of TensorStores in the block init
 4) The variables of the Binds in the block body should be all different
-5) The statement after the innermost Bind should be a single BufferStore or a SeqStmt of BufferStores
-6) The number of BufferStores under the block body should equal the number of BufferStores in the block init, and thereby equal the number of Binds above
-7) The variables bound by the Binds in the block body must all directly serve as values of the BufferStores inside, and the stored values of the BufferStores can only be those variables
-8) The variables stored by the BufferStores in the block body should be all different
-9) The buffers written by the BufferStores in the block body should be all different
+5) The statement after the innermost Bind should be a single TensorStore or a SeqStmt of TensorStores
+6) The number of TensorStores under the block body should equal the number of TensorStores in the block init, and thereby equal the number of Binds above
+7) The variables bound by the Binds in the block body must all directly serve as values of the TensorStores inside, and the stored values of the TensorStores can only be those variables
+8) The variables stored by the TensorStores in the block body should be all different
+9) The buffers written by the TensorStores in the block body should be all different
 10) The buffers initialized in the block init and written in the block body should match
 11) The buffers written by the block should have same shape
-12) The indices of all BufferStores in the reduction block should be the same)";
+12) The indices of all TensorStores in the reduction block should be the same)";
 
 void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleState>& self,
                                                    SBlock block, int violated_cond) {
@@ -371,8 +371,8 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
 }
 
 /*!
- * \brief Extract the BufferStores, which serve as the reduction updates, from the given Bind nodes
- * and the BufferStores inside. And meanwhile set the buffer order of the reduction
+ * \brief Extract the TensorStores, which serve as the reduction updates, from the given Bind nodes
+ * and the TensorStores inside. And meanwhile set the buffer order of the reduction
  * \param self The schedule state, used for error reporting
  * \param block The reduction block, used for error reporting
  * \param let The Bind nodes from which the reduction updates are extracted
@@ -383,7 +383,7 @@ void ErrorRFactorCrossThreadReductionNotApplicable(const ffi::Optional<ScheduleS
  */
 void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock block,
                              const ffi::Array<Stmt>& stmts, int n_buffers,
-                             ffi::Array<BufferStore>* updates,
+                             ffi::Array<TensorStore>* updates,
                              std::unordered_map<const VarNode*, int>* buf2index) {
   std::unordered_map<const VarNode*, int> var2index;
   ffi::Array<PrimExpr> let_values;
@@ -414,7 +414,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/3);
   }
 
-  // The remaining stmts after the Bind nodes should be BufferStores.
+  // The remaining stmts after the Bind nodes should be TensorStores.
   // Collect them into a sequence.
   ffi::Array<Stmt> seq;
   for (int i = n_buffers; i < static_cast<int>(stmts.size()); ++i) {
@@ -425,10 +425,10 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
   }
 
   // Step 2.
-  // - Create BufferStores according to the variables being stored.
+  // - Create TensorStores according to the variables being stored.
   // - Construct the mapping from reduction buffers to the index.
   for (const Stmt& stmt : seq) {
-    const auto* buf_store = stmt.as<BufferStoreNode>();
+    const auto* buf_store = stmt.as<TensorStoreNode>();
     if (buf_store == nullptr) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/5);
     }
@@ -445,7 +445,7 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
     if ((*updates)[idx].defined()) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/8);
     }
-    updates->Set(idx, BufferStore(buf_store->buffer, let_values[idx], buf_store->indices));
+    updates->Set(idx, TensorStore(buf_store->buffer, let_values[idx], buf_store->indices));
     auto insert_result = buf2index->insert(std::make_pair(buf_store->buffer.get(), idx));
     if (!insert_result.second) {
       ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/9);
@@ -456,18 +456,18 @@ void ExtractReductionUpdates(const ffi::Optional<ScheduleState>& self, SBlock bl
   }
 }
 
-std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdatesFromReductionBlock(
+std::pair<ffi::Array<PrimExpr>, ffi::Array<TensorStore>> GetInitValuesAndUpdatesFromReductionBlock(
     const ffi::Optional<ScheduleState>& self, SBlock block) {
-  ffi::Array<BufferStore> inits;
-  ffi::Array<BufferStore> updates;
+  ffi::Array<TensorStore> inits;
+  ffi::Array<TensorStore> updates;
 
-  // Step 1. Extract the BufferStores serving as block inits.
-  if (auto init = block->init.as<BufferStore>()) {
+  // Step 1. Extract the TensorStores serving as block inits.
+  if (auto init = block->init.as<TensorStore>()) {
     inits.push_back(init.value());
   } else if (const auto* seq_init = block->init.as<SeqStmtNode>()) {
     std::unordered_set<const VarNode*> init_buffers;
     for (const Stmt& stmt : seq_init->seq) {
-      auto init = stmt.as<BufferStore>();
+      auto init = stmt.as<TensorStore>();
       if (!init) {
         ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/1);
       }
@@ -481,11 +481,11 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
     ErrorRFactorCrossThreadReductionNotApplicable(self, std::move(block), /*violated_cond=*/1);
   }
 
-  // Step 2. Extract the block updates, in the form of BufferStores.
+  // Step 2. Extract the block updates, in the form of TensorStores.
   int n_buffers = inits.size();
   std::unordered_map<const VarNode*, int> buf2index;
-  if (const auto* update = block->body.as<BufferStoreNode>()) {
-    updates.push_back(ffi::GetRef<BufferStore>(update));
+  if (const auto* update = block->body.as<TensorStoreNode>()) {
+    updates.push_back(ffi::GetRef<TensorStore>(update));
     buf2index[update->buffer.get()] = 0;
   } else if (const auto* seq = block->body.as<SeqStmtNode>()) {
     ExtractReductionUpdates(self, block, seq->seq, n_buffers, &updates, &buf2index);
@@ -500,7 +500,7 @@ std::pair<ffi::Array<PrimExpr>, ffi::Array<BufferStore>> GetInitValuesAndUpdates
   init_values.resize(n_buffers);
 
   // - Check all buffers have the same shape
-  // - Check all indices of the BufferStores are the same
+  // - Check all indices of the TensorStores are the same
   // - Check buffers written in the block init and the block body can match
   // - Check buffers do not duplicate
   const ffi::Array<PrimExpr>& expected_shape = updates[0]->buffer->shape;
@@ -605,7 +605,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
     }
     return ffi::WalkResult::Advance();
   };
-  auto visit_store = [&](const BufferStore& store) -> ffi::Expected<ffi::WalkResult> {
+  auto visit_store = [&](const TensorStore& store) -> ffi::Expected<ffi::WalkResult> {
     bool write_is_covered_by_match_buffer =
         match_buffer_sources.count(store->buffer.get()) &&
         buffer_written.count(match_buffer_sources.find(store->buffer.get())->second);
@@ -630,7 +630,7 @@ bool ReductionIterNotIndexOutputBuffer(const SBlock& block) {
 class NoMatchedReducerError : public ScheduleErrorContextObj {
  public:
   explicit NoMatchedReducerError(IRModule mod, ffi::Array<PrimExpr> identities,
-                                 ffi::Array<BufferStore> combiners)
+                                 ffi::Array<TensorStore> combiners)
       : mod_(std::move(mod)),
         identities_(std::move(identities)),
         combiners_(std::move(combiners)) {}
@@ -653,12 +653,12 @@ class NoMatchedReducerError : public ScheduleErrorContextObj {
 
   IRModule mod_;
   ffi::Array<PrimExpr> identities_;
-  ffi::Array<BufferStore> combiners_;
+  ffi::Array<TensorStore> combiners_;
 };
 
 std::tuple<te::CommReducer, ffi::Array<PrimExpr>, ffi::Array<PrimExpr>> GetReducerAndCombinerLhsRhs(
     const ffi::Optional<ScheduleState>& self, const ffi::Array<PrimExpr>& identities,
-    const ffi::Array<BufferStore>& combiners) {
+    const ffi::Array<TensorStore>& combiners) {
   te::CommReducer reducer{nullptr};
   ffi::Array<PrimExpr> combiner_lhs, combiner_rhs;
   bool matched =
@@ -714,7 +714,7 @@ bool MatchReducer(const te::CommReducer& reducer, const ffi::Array<PrimExpr>& id
 }
 
 bool FromIdentityCombiner(const ffi::Array<PrimExpr>& identities,
-                          const ffi::Array<BufferStore>& combiners, te::CommReducer* result_reducer,
+                          const ffi::Array<TensorStore>& combiners, te::CommReducer* result_reducer,
                           ffi::Array<PrimExpr>* lhs, ffi::Array<PrimExpr>* rhs) {
   int n = identities.size();
   ffi::Array<TensorLoad> buf_loads;

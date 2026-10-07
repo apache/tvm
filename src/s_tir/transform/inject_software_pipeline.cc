@@ -301,11 +301,11 @@ class PipelineBodyRewriter : public StmtExprMutator {
     return StmtExprMutator::Mutate_(region.get(), InplaceMode::kDisallow).ValueOrUnchanged(region);
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     auto replacement = VarRemapGet(op->buffer).as<TensorVar>();
-    BufferStore store = StmtExprMutator::Mutate_(op, inplace_mode)
+    TensorStore store = StmtExprMutator::Mutate_(op, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                            .as_or_throw<BufferStore>();
+                            .as_or_throw<TensorStore>();
     if (!replacement) {
       return store;
     }

@@ -171,7 +171,7 @@ class FlopEstimator : private tirx::ExprFunctor<TResult(const Expr& n)>,
     for (const Expr& arg : op->args) result += Dispatch(arg);
     return result;
   }
-  TResult Dispatch_(const BufferStoreNode* store) override { return Dispatch(store->value); }
+  TResult Dispatch_(const TensorStoreNode* store) override { return Dispatch(store->value); }
   TResult Dispatch_(const SBlockRealizeNode* block) override {
     return Dispatch(block->block->body);
   }

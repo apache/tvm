@@ -151,7 +151,7 @@ backend (x86, ARM, NVPTX, AMDGPU, etc.).
   arithmetic ops → LLVM binary instructions, ``TensorLoad`` → load with pointer arithmetic,
   ``Cast`` → LLVM type conversions, ``Call`` → intrinsic or extern function calls.
 - **Statements** (``VisitStmt_``) emit LLVM IR side effects:
-  ``BufferStore`` → store instructions, ``For`` → loop basic blocks with branches,
+  ``TensorStore`` → store instructions, ``For`` → loop basic blocks with branches,
   ``IfThenElse`` → conditional branches, ``tirx.alloc_tensor`` calls → stack or heap allocation.
 
 The key methods on ``CodeGenLLVM`` are:

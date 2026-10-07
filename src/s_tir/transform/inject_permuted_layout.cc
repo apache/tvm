@@ -205,13 +205,13 @@ class PermutedLayoutInjector : public IRMutatorWithAnalyzer {
     return indices;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
     // Rewrite write from global to shared.dyn or shared
     // We assume the shape of the shared memory is [..., row_size, col_size],
     // where row_size is divisible by 64, or divisible by 32 and col_size is divisible by 2.
     auto store = IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                      .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                     .as_or_throw<BufferStore>();
+                     .as_or_throw<TensorStore>();
 
     if (!permute_ || store->buffer->shape.size() < 2) {
       return store;

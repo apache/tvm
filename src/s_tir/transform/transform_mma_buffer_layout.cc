@@ -129,12 +129,12 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     return block;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) {
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) {
     TensorVar original_buffer = op->buffer;
     auto value = Mutate(op->value, inplace_mode);
     auto indices =
         Mutate(op->indices, inplace_mode).as_or_throw<UnchangedOr<ffi::Array<PrimExpr>>>();
-    BufferStore store = ffi::GetRef<BufferStore>(op);
+    TensorStore store = ffi::GetRef<TensorStore>(op);
     if (!value.UnchangedOrSameAs(op->value) || !indices.UnchangedOrSameAs(op->indices)) {
       auto* n = store.CopyOnWrite();
       n->value = std::move(value).ValueOrUnchanged(op->value);
@@ -154,7 +154,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         TVM_FFI_ICHECK(false)
             << "TransformMmaBufferLayout requires " << original_buffer.scope()
             << " buffers to be accessed through opaque ldmatrix/mma_sync operations, but found "
-               "an explicit BufferStore.";
+               "an explicit TensorStore.";
       }
     }
     return store;

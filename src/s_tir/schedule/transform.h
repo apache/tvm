@@ -235,7 +235,7 @@ class BlockBufferAccessSimplifier : public s_tir::IRMutatorWithAnalyzer {
   void SimplifyBufferIndices(ffi::Array<PrimExpr>* indices);
 
   UnchangedOr<Stmt> Mutate_(const SBlockNode* op, InplaceMode inplace_mode) final;
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final;
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final;
   UnchangedOr<PrimExpr> Mutate_(const TensorLoadNode* op, InplaceMode inplace_mode) final;
 };
 

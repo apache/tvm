@@ -86,8 +86,8 @@ class RemoveLayoutRewriteBlock : public StmtExprMutator {
     TVM_FFI_ICHECK(block->alloc_buffers.empty());
     TVM_FFI_ICHECK(block->match_buffers.empty());
 
-    // Step 1. Checking the body is a BufferStore
-    const auto* store = block->body.as<BufferStoreNode>();
+    // Step 1. Checking the body is a TensorStore
+    const auto* store = block->body.as<TensorStoreNode>();
     TVM_FFI_ICHECK(store);
 
     // Step 2. Checking the rhs of buffer store is a TensorLoad

@@ -88,13 +88,13 @@ def test_buffer_replacer_no_shared_default():
 
 def test_buffer_replacer_replaces_strides_and_elem_offset():
     """Vars in buffer strides/elem_offset must be replaced, not passed through."""
-    from tvm.tirx import BufferStore, Var
+    from tvm.tirx import TensorStore, Var
     from tvm.tirx.transform.common import BufferReplacer
 
     n = Var("n", "int32")
     m = Var("m", "int32")
     A = decl_tensor((64,), "float32", strides=[n], elem_offset=n)
-    store = BufferStore(A, 1.0, [0])
+    store = TensorStore(A, 1.0, [0])
 
     new = BufferReplacer(var_map={n: m})(store)
     assert new.buffer.strides[0].same_as(m)

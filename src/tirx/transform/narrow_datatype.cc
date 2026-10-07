@@ -38,7 +38,7 @@ namespace tvm {
 namespace tirx {
 using namespace tvm::prim;
 
-// This pass narrows indexing expressions (like BufferStoreNode::indices)
+// This pass narrows indexing expressions (like TensorStoreNode::indices)
 // that trivially fit into i32/i16 (denoted by `target_bits_`) to
 // i32/i16. Considering that i32/i16 indices may be more
 // efficient on some backends (while i64 may be more efficient

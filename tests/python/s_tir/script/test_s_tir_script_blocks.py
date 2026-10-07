@@ -721,8 +721,8 @@ def test_block_elements():
     assert isinstance(rt_func.body.block.body, s_tir.SBlockRealize)
     assert isinstance(rt_func.body.block.body.block, s_tir.SBlock)
     block = rt_func.body.block.body.block
-    assert isinstance(block.body, tirx.stmt.BufferStore)
-    assert isinstance(block.init, tirx.stmt.BufferStore)
+    assert isinstance(block.body, tirx.stmt.TensorStore)
+    assert isinstance(block.init, tirx.stmt.TensorStore)
     assert len(block.annotations) == 1
     assert block.annotations["attr_key"] == "attr_value"
 

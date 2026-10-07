@@ -248,8 +248,8 @@ bool TensorizeComparator::Dispatch_(const SeqStmtNode* op, const Stmt& other) {
                           &TensorizeComparator::Dispatch));
 }
 
-bool TensorizeComparator::Dispatch_(const BufferStoreNode* op, const Stmt& other) {
-  const auto* rhs = other.as<BufferStoreNode>();
+bool TensorizeComparator::Dispatch_(const TensorStoreNode* op, const Stmt& other) {
+  const auto* rhs = other.as<TensorStoreNode>();
   return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
 }
 
@@ -654,8 +654,8 @@ bool TensorizeComparator::CompareBufferRegion(const TensorRegion& lhs, const Ten
   return true;
 }
 
-// Comparator for BufferStoreNode and TensorLoadNode
-inline TensorVar GetBufferAccessBuffer(const BufferStoreNode* op) { return op->buffer; }
+// Comparator for TensorStoreNode and TensorLoadNode
+inline TensorVar GetBufferAccessBuffer(const TensorStoreNode* op) { return op->buffer; }
 inline TensorVar GetBufferAccessBuffer(const TensorLoadNode* op) {
   return op->source.as_or_throw<tvm::tirx::TensorVar>();
 }
@@ -806,8 +806,8 @@ bool AutoTensorizeComparator::CompareBuffer(const TensorVar& lhs, const TensorVa
   return equal;
 }
 
-bool AutoTensorizeComparator::Dispatch_(const BufferStoreNode* op, const Stmt& other) {
-  const auto* rhs = other.as<BufferStoreNode>();
+bool AutoTensorizeComparator::Dispatch_(const TensorStoreNode* op, const Stmt& other) {
+  const auto* rhs = other.as<TensorStoreNode>();
   return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
 }
 

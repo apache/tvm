@@ -119,7 +119,7 @@ class BufferAxisGraphExtractor : public s_tir::StmtExprVisitor {
   }
 
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
     buffer_access_indices_.push_back({op->buffer, op->indices});
 

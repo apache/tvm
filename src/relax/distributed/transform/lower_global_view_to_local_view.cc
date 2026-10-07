@@ -55,7 +55,7 @@ class DistBufferReplacer : public s_tir::StmtExprMutator {
 
 class DistSBlockInfoCollector : public s_tir::StmtExprVisitor {
  private:
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     buffer_access_indices[op->buffer].push_back(op->indices);
     return s_tir::StmtExprVisitor::Visit_(op);
   }

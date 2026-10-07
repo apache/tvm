@@ -490,7 +490,7 @@ class BlockAnalyzer : public s_tir::StmtExprVisitor {
 
     return std::nullopt;
   }
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) final {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) final {
     TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(s_tir::StmtExprVisitor::Visit_(op));
 
     BufferAccessInfo& access_info = buffer_access_info_[op->buffer];

@@ -448,7 +448,7 @@ def test_cpu_fusion():
     )
     feature = feature.numpy()
     assert feature.shape == (2, N_FEATURES)
-    ## Features for BufferStore(B)
+    ## Features for TensorStore(B)
     f = feature[0]
     # Group 1.1: arith
     assert_allclose(
@@ -580,7 +580,7 @@ def test_cpu_fusion():
         rtol=1e-5,
         atol=1e-5,
     )
-    ## Features for BufferStore(C)
+    ## Features for TensorStore(C)
     f = feature[1]
     # Group 1.1: arith
     assert_allclose(
@@ -795,7 +795,7 @@ def test_gpu():
     )
     feature = feature.numpy()
     assert feature.shape == (4, N_FEATURES)
-    ### Check feature[0]: BufferStore(A_shared) <= A[...]
+    ### Check feature[0]: TensorStore(A_shared) <= A[...]
     f = feature[0]
     # Group 1.1: arith
     assert_allclose(
@@ -1001,7 +1001,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    ### Check feature[1]: BufferStore(B_shared) <= B[...]
+    ### Check feature[1]: TensorStore(B_shared) <= B[...]
     f = feature[1]
     # Group 1.1: arith
     assert_allclose(
@@ -1207,7 +1207,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    ### Check feature[2]: BufferStore(C_local) <= C_local[...] + A_shared[...] * B_shared[...]
+    ### Check feature[2]: TensorStore(C_local) <= C_local[...] + A_shared[...] * B_shared[...]
     f = feature[2]
     # Group 1.1: arith
     assert_allclose(
@@ -1427,7 +1427,7 @@ def test_gpu():
         rtol=1e-5,
         atol=1e-5,
     )
-    ### Check feature[3]: BufferStore(C) <= C_local[...]
+    ### Check feature[3]: TensorStore(C) <= C_local[...]
     f = feature[3]
     # Group 1.1: arith
     assert_allclose(

@@ -62,7 +62,7 @@ class PurityChecker : TIRVisitorWithPath {
     TIRVisitorWithPath::Dispatch_(op, path);
   }
 
-  void Dispatch_(const BufferStoreNode* op, ffi::reflection::AccessPath path) override {
+  void Dispatch_(const TensorStoreNode* op, ffi::reflection::AccessPath path) override {
     TIRVisitorWithPath::Dispatch_(op, path);
 
     if (!internal_allocations_.count(op->buffer.var())) {

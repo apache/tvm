@@ -70,7 +70,7 @@ def _assert_loads_reference_defined_buffers(func):
         tvm_ffi.structural_walk(expr, visit)
 
     def visit(node):
-        if isinstance(node, tvm.ir.TensorLoad | tvm.tirx.BufferStore):
+        if isinstance(node, tvm.ir.TensorLoad | tvm.tirx.TensorStore):
             buffer = node.source if isinstance(node, tvm.ir.TensorLoad) else node.buffer
             if not is_defined(buffer):
                 stale.append(f"access of {buffer.name}")
@@ -127,7 +127,7 @@ def test_flatten_remaps_loads_in_folded_elem_offset():
     found = []
 
     def visit(node):
-        if isinstance(node, tvm.tirx.BufferStore) and node.buffer.name.startswith("mbar"):
+        if isinstance(node, tvm.tirx.TensorStore) and node.buffer.name.startswith("mbar"):
 
             def inner(sub):
                 if isinstance(sub, tvm.ir.TensorLoad):

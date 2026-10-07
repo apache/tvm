@@ -59,7 +59,7 @@ def test_dso_module_load():
             0,
             n - 1,
             tvm.tirx.ForKind.SERIAL,
-            tvm.tirx.BufferStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1]),
+            tvm.tirx.TensorStore(Ab, tvm.tirx.TensorLoad(Ab, [i]) + 1, [i + 1]),
         )
         mod = tvm.IRModule.from_expr(
             tvm.tirx.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")

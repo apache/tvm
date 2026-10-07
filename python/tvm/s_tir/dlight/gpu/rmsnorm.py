@@ -22,7 +22,7 @@ from tvm import tirx
 from tvm.ir import Call, TensorLoad
 from tvm.s_tir import SBlock
 from tvm.target import Target
-from tvm.tirx import BufferStore
+from tvm.tirx import TensorStore
 from tvm.tirx.expr import Cast
 
 from ..base import ScheduleRule
@@ -32,7 +32,7 @@ def identify_cast_or_load_block(block: SBlock) -> bool:
     if len(block.reads) != 1 or len(block.writes) != 1:
         return False
 
-    if not isinstance(block.body, BufferStore):
+    if not isinstance(block.body, TensorStore):
         return False
     store = block.body
 
@@ -61,7 +61,7 @@ def identify_rsqrt_block(block: SBlock) -> bool:
     if len(block.reads) != 1 or len(block.writes) != 1:
         return False
 
-    if not isinstance(block.body, BufferStore):
+    if not isinstance(block.body, TensorStore):
         return False
     store = block.body
 

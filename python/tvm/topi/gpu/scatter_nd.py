@@ -68,7 +68,7 @@ def scatter_nd(data, indices, updates, mode):
                 tid = bx_init * max_threads + tx_init
                 with T.if_(tid < fused_shape):
                     with T.then_():
-                        T.buffer_store(
+                        T.tensor_store(
                             out,
                             data[T.tensor_indices(data, tid)],
                             T.tensor_indices(out, tid),
@@ -100,7 +100,7 @@ def scatter_nd(data, indices, updates, mode):
                                 )
                                 offset *= data_ptr.shape[l]
                             if mode == "update":
-                                T.buffer_store(
+                                T.tensor_store(
                                     out,
                                     updates[
                                         T.tensor_indices(updates, (i * fused_updates_dimension + j))
@@ -108,7 +108,7 @@ def scatter_nd(data, indices, updates, mode):
                                     T.tensor_indices(out, index),
                                 )
                             elif mode == "add":
-                                T.buffer_store(
+                                T.tensor_store(
                                     out,
                                     out[T.tensor_indices(out, index)]
                                     + (
@@ -121,7 +121,7 @@ def scatter_nd(data, indices, updates, mode):
                                     T.tensor_indices(out, index),
                                 )
                             elif mode == "mul":
-                                T.buffer_store(
+                                T.tensor_store(
                                     out,
                                     out[T.tensor_indices(out, index)]
                                     * (
@@ -134,7 +134,7 @@ def scatter_nd(data, indices, updates, mode):
                                     T.tensor_indices(out, index),
                                 )
                             elif mode == "min":
-                                T.buffer_store(
+                                T.tensor_store(
                                     out,
                                     tirx.min(
                                         out[T.tensor_indices(out, index)],
@@ -147,7 +147,7 @@ def scatter_nd(data, indices, updates, mode):
                                     T.tensor_indices(out, index),
                                 )
                             elif mode == "max":
-                                T.buffer_store(
+                                T.tensor_store(
                                     out,
                                     tirx.max(
                                         out[T.tensor_indices(out, index)],

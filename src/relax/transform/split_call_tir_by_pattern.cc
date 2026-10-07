@@ -294,8 +294,8 @@ class ForMatcher : public TensorizeComparator {
     if (!CompareArray(op->reads, rhs->reads, &ForMatcher::CompareBufferRegion)) {
       return false;
     }
-    // The body of the block has to be BufferStore
-    if (!op->body->IsInstance<BufferStoreNode>() || !rhs->body->IsInstance<BufferStoreNode>()) {
+    // The body of the block has to be TensorStore
+    if (!op->body->IsInstance<TensorStoreNode>() || !rhs->body->IsInstance<TensorStoreNode>()) {
       return false;
     }
     // Handle init block
@@ -321,8 +321,8 @@ class ForMatcher : public TensorizeComparator {
     return Dispatch(op->block, rhs->block);
   }
 
-  bool Dispatch_(const BufferStoreNode* op, const Stmt& other) {
-    const auto* rhs = other.as<BufferStoreNode>();
+  bool Dispatch_(const TensorStoreNode* op, const Stmt& other) {
+    const auto* rhs = other.as<TensorStoreNode>();
     return CompareBufferAccess(op, rhs) && Dispatch(op->value, rhs->value);
   }
 

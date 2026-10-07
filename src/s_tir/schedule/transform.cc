@@ -479,11 +479,11 @@ UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const SBlockNode* op,
   return block;
 }
 
-UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const BufferStoreNode* op,
+UnchangedOr<Stmt> BlockBufferAccessSimplifier::Mutate_(const TensorStoreNode* op,
                                                        InplaceMode inplace_mode) {
-  BufferStore node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
+  TensorStore node = s_tir::IRMutatorWithAnalyzer::Mutate_(op, inplace_mode)
                          .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                         .as_or_throw<BufferStore>();
+                         .as_or_throw<TensorStore>();
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return node;
 }

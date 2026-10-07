@@ -305,10 +305,10 @@ TVM_FFI_STATIC_INIT_BLOCK() {
       kDocTranslate, FDocTranslate::FromNative<&TensorRegionDocTranslate>());
 }
 
-ffi::Optional<ExprDoc> BufferStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+ffi::Optional<ExprDoc> TensorStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
                                                const ffi::Object* destination) {
   const auto* store =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::BufferStoreNode>(
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::TensorStoreNode>(
           input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
@@ -322,8 +322,8 @@ ffi::Optional<ExprDoc> BufferStoreDocTranslate(DocTranslatorObj* d, ffi::AnyView
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
-  ffi::reflection::TypeAttrDef<tirx::BufferStoreNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&BufferStoreDocTranslate>());
+  ffi::reflection::TypeAttrDef<tirx::TensorStoreNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TensorStoreDocTranslate>());
 }
 
 ffi::Optional<ExprDoc> TIRxTensorLoadDocTranslate(DocTranslatorObj* d, ffi::AnyView input,

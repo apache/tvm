@@ -422,7 +422,7 @@ def rowsum_wrong_reduce_pattern2(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -
 
 
 @Ts.prim_func
-def rowsum_init_not_bufferstore(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
+def rowsum_init_not_tensorstore(A: T.Tensor((128, 128)), B: T.Tensor((128,))) -> None:
     for i, k in T.grid(128, 128):
         with Ts.sblock("B"):
             vi, vk = Ts.axis.remap("SR", [i, k])
@@ -744,7 +744,7 @@ def argmax_split_different_indices(
 
 
 @Ts.prim_func
-def argmax_split_init_not_bufferstore(
+def argmax_split_init_not_tensorstore(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -845,7 +845,7 @@ def argmax_split_bind_more_than_init(
 
 
 @Ts.prim_func
-def argmax_split_let_body_neither_seqstmt_nor_bufferstore(
+def argmax_split_let_body_neither_seqstmt_nor_tensorstore(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -870,7 +870,7 @@ def argmax_split_let_body_neither_seqstmt_nor_bufferstore(
 
 
 @Ts.prim_func
-def argmax_split_init_update_inconsistent_bufferstore_number(
+def argmax_split_init_update_inconsistent_tensorstore_number(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -897,7 +897,7 @@ def argmax_split_init_update_inconsistent_bufferstore_number(
 
 
 @Ts.prim_func
-def argmax_split_body_seq_not_bufferstore(
+def argmax_split_body_seq_not_tensorstore(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -923,7 +923,7 @@ def argmax_split_body_seq_not_bufferstore(
 
 
 @Ts.prim_func
-def argmax_split_body_bufferstore_value_not_var(
+def argmax_split_body_tensorstore_value_not_var(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -953,7 +953,7 @@ v_unbound = T.dynamic("v_unbound", "int32")
 
 
 @Ts.prim_func(check_well_formed=False)
-def argmax_split_body_bufferstore_value_unbound_var(
+def argmax_split_body_tensorstore_value_unbound_var(
     idx: T.Tensor((128, 128), "int32"),
     val: T.Tensor((128, 128), "float32"),
     argmax_v0: T.Tensor((128,), "int32"),
@@ -1549,8 +1549,8 @@ def test_reduction_rfactor_wrong_reduce_pattern2():
         s.rfactor(k, 0)
 
 
-def test_reduction_rfactor_init_not_bufferstore():
-    s = tvm.s_tir.Schedule(rowsum_init_not_bufferstore, debug_mask="all")
+def test_reduction_rfactor_init_not_tensorstore():
+    s = tvm.s_tir.Schedule(rowsum_init_not_tensorstore, debug_mask="all")
     _, k = s.get_loops(s.get_sblock("B"))
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(k, 0)
@@ -1680,8 +1680,8 @@ def test_reduction_rfactor_argmax_different_access_indices():
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_init_not_bufferstore():
-    s = tvm.s_tir.Schedule(argmax_split_init_not_bufferstore, debug_mask="all")
+def test_reduction_rfactor_argmax_init_not_tensorstore():
+    s = tvm.s_tir.Schedule(argmax_split_init_not_tensorstore, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
@@ -1712,17 +1712,17 @@ def test_reduction_rfactor_argmax_bind_more_than_init():
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_let_body_neither_seqstmt_nor_bufferstore():
-    s = tvm.s_tir.Schedule(argmax_split_let_body_neither_seqstmt_nor_bufferstore, debug_mask="all")
+def test_reduction_rfactor_argmax_let_body_neither_seqstmt_nor_tensorstore():
+    s = tvm.s_tir.Schedule(argmax_split_let_body_neither_seqstmt_nor_tensorstore, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_init_update_inconsistent_bufferstore_number():
+def test_reduction_rfactor_argmax_init_update_inconsistent_tensorstore_number():
     s = tvm.s_tir.Schedule(
-        argmax_split_init_update_inconsistent_bufferstore_number, debug_mask="all"
+        argmax_split_init_update_inconsistent_tensorstore_number, debug_mask="all"
     )
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
@@ -1730,16 +1730,16 @@ def test_reduction_rfactor_argmax_init_update_inconsistent_bufferstore_number():
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_body_seq_not_bufferstore():
-    s = tvm.s_tir.Schedule(argmax_split_body_seq_not_bufferstore, debug_mask="all")
+def test_reduction_rfactor_argmax_body_seq_not_tensorstore():
+    s = tvm.s_tir.Schedule(argmax_split_body_seq_not_tensorstore, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
         s.rfactor(ki, 1)
 
 
-def test_reduction_rfactor_argmax_body_bufferstore_value_not_var():
-    s = tvm.s_tir.Schedule(argmax_split_body_bufferstore_value_not_var, debug_mask="all")
+def test_reduction_rfactor_argmax_body_tensorstore_value_not_var():
+    s = tvm.s_tir.Schedule(argmax_split_body_tensorstore_value_not_var, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):
@@ -1747,8 +1747,8 @@ def test_reduction_rfactor_argmax_body_bufferstore_value_not_var():
 
 
 @pytest.mark.xfail(reason="The input IR is not well-formed")
-def test_reduction_rfactor_argmax_body_bufferstore_value_unbound_var():
-    s = tvm.s_tir.Schedule(argmax_split_body_bufferstore_value_unbound_var, debug_mask="all")
+def test_reduction_rfactor_argmax_body_tensorstore_value_unbound_var():
+    s = tvm.s_tir.Schedule(argmax_split_body_tensorstore_value_unbound_var, debug_mask="all")
     argmax = s.get_sblock("argmax")
     _, _, ki = s.get_loops(argmax)
     with pytest.raises(tvm.s_tir.ScheduleError):

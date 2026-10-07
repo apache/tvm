@@ -62,13 +62,13 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
     stmt = for_node->body;
   }
 
-  BufferStore store{ffi::UnsafeInit{}};
-  if (auto opt = stmt.as<BufferStore>()) {
+  TensorStore store{ffi::UnsafeInit{}};
+  if (auto opt = stmt.as<TensorStore>()) {
     store = opt.value();
   } else {
     return static_cast<const std::stringstream&>(
                std::stringstream()
-               << "Expected innermost loop to have BufferStore body, but instead found " << stmt)
+               << "Expected innermost loop to have TensorStore body, but instead found " << stmt)
         .str();
   }
 
@@ -78,12 +78,12 @@ std::variant<MemCpyDetails, std::string> IdentifyMemCpyImpl(const For& loop,
   } else {
     return static_cast<const std::stringstream&>(
                std::stringstream()
-               << "Expected BufferStore's value to be TensorLoad, but instead found "
+               << "Expected TensorStore's value to be TensorLoad, but instead found "
                << store->value)
         .str();
   }
 
-  // Now, we have a BufferStore whose value is a TensorLoad.  Because
+  // Now, we have a TensorStore whose value is a TensorLoad.  Because
   // non-flat physical indices are target-dependent, only handle cases
   // where the buffer will be flattened to a 1-d physical buffer.
   ffi::Array<PrimExpr> flattened_dst = store->buffer.OffsetOf(store->indices);

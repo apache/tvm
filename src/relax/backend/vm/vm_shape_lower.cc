@@ -735,7 +735,7 @@ class VMShapeLowerMutator
       PrimExpr value = ffi::StructuralMap<ffi::WalkOrder::kPreOrder>(slot->expr, f_substitute)
                            .as_or_throw<PrimExpr>();
       seq.push_back(
-          tirx::BufferStore(buffer, value, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
+          tirx::TensorStore(buffer, value, {IntImm(tvm::PrimType(ShapeDType()), slot->index)}));
     }
 
     tirx::Stmt body = tirx::SeqStmt::Flatten(seq);

@@ -344,9 +344,9 @@ UnchangedOr<ffi::Any> IndexDataTypeRewriter::Mutate(ffi::AnyView value, InplaceM
   return result;
 }
 
-UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const BufferStoreNode* op,
+UnchangedOr<Stmt> IndexDataTypeRewriter::Mutate_(const TensorStoreNode* op,
                                                  InplaceMode inplace_mode) {
-  BufferStore store = ffi::GetRef<BufferStore>(op);
+  TensorStore store = ffi::GetRef<TensorStore>(op);
 
   TensorVar new_buffer = Mutate(op->buffer, inplace_mode)
                              .as_or_throw<UnchangedOr<TensorVar>>()

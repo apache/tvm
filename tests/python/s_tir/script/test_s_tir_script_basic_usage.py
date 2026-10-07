@@ -891,7 +891,7 @@ def test_implicit_evaluate_call_extern():
 def test_preserve_trivial_let_binding():
     """Trivial `T.let[...]` annotations survive the parser as LetStmt and are not inlined.
 
-    In fork, bare `j = i` lowers to a local_scalar (AllocTensor + BufferStore); the
+    In fork, bare `j = i` lowers to a local_scalar (AllocTensor + TensorStore); the
     LetStmt form is opt-in via `T.let[T.dtype]`. Both the explicit `T.bind(..., var=j)`
     builder API and the `j: T.let[T.dtype]` annotation produce the same LetStmt IR.
     """

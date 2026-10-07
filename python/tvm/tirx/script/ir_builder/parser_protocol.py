@@ -325,14 +325,14 @@ def set_mutable_cell_(
     Updates emit a scalar buffer store. Targets must denote scalar storage.
     """
     if isinstance(target, _ir.TensorLoad):
-        return _base.at_(span, buffer_store(target.source, value, list(target.indices)))
+        return _base.at_(span, tensor_store(target.source, value, list(target.indices)))
     elif (
         _tir.is_tensor_var(target)
         and len(target.ty.shape) == 1
         and isinstance(target.ty.shape[0], _tir.IntImm)
         and target.ty.shape[0].value == 1
     ):
-        return _base.at_(span, buffer_store(target, value, [0]))
+        return _base.at_(span, tensor_store(target, value, [0]))
     else:
         raise TypeError("A mutable assignment requires scalar storage")
 
@@ -386,7 +386,7 @@ def setitem_(
     target: Any, key: Any, value: Any, *, span: _Span = None
 ) -> _base.AlreadyEmitted[_tir.Stmt]:
     """Implements :func:`tvm.script.ir_builder.parser_protocol.setitem_`."""
-    return _base.at_(span, buffer_store(target, value, key))
+    return _base.at_(span, tensor_store(target, value, key))
 
 
 def setattr_(
@@ -437,7 +437,7 @@ def bind(  # pylint: disable=invalid-name
     return _ffi_api.Bind(value, type_annotation, var)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def buffer_store(
+def tensor_store(
     buffer: Var,  # pylint: disable=redefined-outer-name
     value: Expr,
     indices: list[Expr | slice],
@@ -481,7 +481,7 @@ def buffer_store(
             expr_indices.append(index)
     if isinstance(value, bool) and buffer.ty.dtype == "bool":
         value = IntImm("bool", value)
-    return AlreadyEmitted(_ffi_api.BufferStore(buffer, value, expr_indices))
+    return AlreadyEmitted(_ffi_api.TensorStore(buffer, value, expr_indices))
 
 
 def evaluate(value: Expr) -> AlreadyEmitted[_tir.Stmt]:
@@ -987,7 +987,7 @@ __all__ = [
     "bind",
     "bind_",
     "break_",
-    "buffer_store",
+    "tensor_store",
     "call_global_var_",
     "check_well_formed_",
     "compute_scope",

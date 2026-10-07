@@ -41,13 +41,13 @@ using namespace tvm::tirx;
  *
  * There are four ways that transformation may be handled.  Each
  * updates the buffer shape and the indices used to acces the buffer
- * in BufferStore/TensorLoad nodes, but differ in how they handle the
+ * in TensorStore/TensorLoad nodes, but differ in how they handle the
  * `pad_value`.  In order of preference, the different strategies are
  * as follows:
  *
  * 1. NoPaddingRequired.  The transformation does not introduce
  * padding, so only local changes to update the indices of
- * TensorLoad/BufferStore nodes are required.  No blocks are added,
+ * TensorLoad/TensorStore nodes are required.  No blocks are added,
  * removed, or replaced.
  *
  * 2. ProloguePlan.  The transformation introduces padding, but the
@@ -115,8 +115,8 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
  private:
   struct WriteInfo {
-    // The BufferStore object
-    BufferStore store;
+    // The TensorStore object
+    TensorStore store;
 
     // The block realize that contains the store, if any.
     ffi::Optional<SBlockRealize> innermost_block_realize;
@@ -152,7 +152,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     return StmtExprVisitor::Visit_(op);
   }
 
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) override {
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) override {
     if (!op->buffer.same_as(old_buffer_)) {
       return std::nullopt;
     }
@@ -170,7 +170,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       }
     }
 
-    WriteInfo write_info{ffi::GetRef<BufferStore>(op)};
+    WriteInfo write_info{ffi::GetRef<TensorStore>(op)};
     if (loop_dependency_range) {
       size_t i = loop_dependency_range.value().first;
       size_t j = loop_dependency_range.value().second;
@@ -216,7 +216,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     write_info_.push_back(write_info);
 
     // Don't need to continue recursing, as the entire goal was to
-    // find the BufferStore.
+    // find the TensorStore.
     return std::nullopt;
   }
 
@@ -237,12 +237,12 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     return prev;
   }
 
-  class BufferStoreReplacer : public StmtExprMutator {
+  class TensorStoreReplacer : public StmtExprMutator {
    public:
     using StmtExprMutator::Mutate;
     using StmtExprMutator::Mutate_;
 
-    BufferStoreReplacer(const WriteInfo& info, const TensorVar& new_buffer,
+    TensorStoreReplacer(const WriteInfo& info, const TensorVar& new_buffer,
                         PrimExpr padding_predicate, const IndexMap& inverse,
                         const ffi::Optional<IndexMap>& pad_value,
                         ffi::Map<SBlock, SBlock>* new_block_to_old, sym::AnalyzerObj* analyzer)
@@ -367,7 +367,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
       this->new_iter_values = new_iter_values;
     }
 
-    UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
+    UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
       bool can_replace = [&]() -> bool {
         if (!op->buffer.same_as(info.store->buffer)) {
           return false;
@@ -385,14 +385,14 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         return true;
       }();
 
-      BufferStore store = ffi::GetRef<BufferStore>(op);
+      TensorStore store = ffi::GetRef<TensorStore>(op);
       if (can_replace) {
         ffi::Array<PrimExpr> new_index_exprs =
             new_indices.Map([](const Var& var) { return var.as_or_throw<PrimExpr>(); });
         PrimExpr pad_value_at_index =
             pad_value.value()->MapIndices(new_index_exprs, ffi::GetRef<sym::Analyzer>(analyzer))[0];
         store =
-            BufferStore(new_buffer, if_then_else(padding_predicate, pad_value_at_index, op->value),
+            TensorStore(new_buffer, if_then_else(padding_predicate, pad_value_at_index, op->value),
                         new_index_exprs);
       } else {
         all_stores_replaced = false;
@@ -562,7 +562,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
         return std::nullopt;
       }
 
-      auto replacer = ffi::make_object<BufferStoreReplacer>(
+      auto replacer = ffi::make_object<TensorStoreReplacer>(
           info, new_buffer, padding_predicate, inverse, pad_value, &new_block_to_old, analyzer);
       Stmt stmt = replacer->Mutate(info.dependent_loopnest.back()->body)
                       .ValueOrUnchanged(info.dependent_loopnest.back()->body);
@@ -622,7 +622,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
     PrimExpr pad_value_at_index =
         pad_value.value()->MapIndices(indices, ffi::GetRef<sym::Analyzer>(analyzer))[0];
-    Stmt stmt = BufferStore(new_buffer, pad_value_at_index, indices);
+    Stmt stmt = TensorStore(new_buffer, pad_value_at_index, indices);
 
     std::stringstream block_name;
     block_name << "buffer_" << new_buffer.name() << "_padding";
@@ -723,7 +723,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
     std::vector<BindVariableDefinition> bound_vars_;
   };
 
-  /*! \brief Collected information about each BufferStore */
+  /*! \brief Collected information about each TensorStore */
   std::vector<WriteInfo> write_info_;
 
   /*! \brief The loop iterators surrounding the current node
@@ -743,7 +743,7 @@ class TransformLayoutPlanner : public StmtExprVisitor {
 
   /*! \brief The variable mappings that are currently in-scope
    *
-   * Used to determine whether the indices of a BufferStore are a
+   * Used to determine whether the indices of a TensorStore are a
    * row-major traversal, even if they are rebound in let/block
    * mappings.
    */
@@ -906,15 +906,15 @@ class TransformLayoutRewriter : public s_tir::IRMutatorWithAnalyzer {
     return buffer_load;
   }
 
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* op, InplaceMode inplace_mode) final {
-    BufferStore buffer_store = Parent::Mutate_(op, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* op, InplaceMode inplace_mode) final {
+    TensorStore tensor_store = Parent::Mutate_(op, inplace_mode)
                                    .ValueOrUnchanged(ffi::GetRef<Stmt>(op))
-                                   .as_or_throw<BufferStore>();
-    if (buffer_store->buffer.same_as(old_buffer_)) {
-      auto* n = buffer_store.CopyOnWrite();
+                                   .as_or_throw<TensorStore>();
+    if (tensor_store->buffer.same_as(old_buffer_)) {
+      auto* n = tensor_store.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
     }
-    return buffer_store;
+    return tensor_store;
   }
 
   void RewriteAccessRegion(ffi::Array<TensorRegion>* old_access_regions,
@@ -1297,7 +1297,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   new_buffer_type->shape = index_map->MapShape(old_buffer->shape, analyzer);
   TensorVar new_buffer = RebuildTensorVar(old_buffer, std::move(new_buffer_type));
 
-  // Step 3: Rewrite TensorLoad/BufferStore access indices, block read/write regions, and block
+  // Step 3: Rewrite TensorLoad/TensorStore access indices, block read/write regions, and block
   // alloc_buffers.
   auto [new_stmt, block_sref_reuse] =
       TransformLayoutRewriter::Rewrite(ffi::GetRef<SBlock>(scope_block), old_buffer, new_buffer,

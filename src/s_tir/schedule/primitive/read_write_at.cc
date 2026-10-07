@@ -116,14 +116,14 @@ class ReadWriteAtBufferReplacer : public StmtExprMutator {
       : src_(src), dst_(dst), block_sref_reuse_(block_sref_reuse) {}
 
  private:
-  UnchangedOr<Stmt> Mutate_(const BufferStoreNode* _store, InplaceMode inplace_mode) final {
-    BufferStore store = StmtExprMutator::Mutate_(_store, inplace_mode)
+  UnchangedOr<Stmt> Mutate_(const TensorStoreNode* _store, InplaceMode inplace_mode) final {
+    TensorStore store = StmtExprMutator::Mutate_(_store, inplace_mode)
                             .ValueOrUnchanged(ffi::GetRef<Stmt>(_store))
-                            .as_or_throw<BufferStore>();
+                            .as_or_throw<TensorStore>();
     if (store->buffer.same_as(src_)) {
-      ffi::ObjectPtr<BufferStoreNode> new_store = ffi::make_object<BufferStoreNode>(*store.get());
+      ffi::ObjectPtr<TensorStoreNode> new_store = ffi::make_object<TensorStoreNode>(*store.get());
       new_store->buffer = dst_;
-      return BufferStore(new_store);
+      return TensorStore(new_store);
     }
     return store;
   }
@@ -334,7 +334,7 @@ struct ReadWriteAtImpl {
       indices.push_back(domain[i]->min + loop_vars[i].as_or_throw<PrimExpr>());
     }
     Stmt stmt =
-        BufferStore(copy_to, /*value=*/MakeTensorLoad(copy_from, indices), /*indices=*/indices);
+        TensorStore(copy_to, /*value=*/MakeTensorLoad(copy_from, indices), /*indices=*/indices);
     for (int i = n - 1; i >= 0; --i) {
       stmt = For(loop_vars[i].as_or_throw<PrimVar>(), IntImm::Int32(0), domain[i]->extent,
                  ForKind::kSerial, stmt);

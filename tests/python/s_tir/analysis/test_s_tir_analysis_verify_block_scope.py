@@ -114,7 +114,7 @@ def test_match_buffer_in_block_is_well_formed():
 
 def test_error_undeclared_buffer_in_schedulable_tir():
     """In schedule-level TIR (with SBlock nodes), all buffers must be declared."""
-    # Manually construct a BufferStore that uses a buffer without any declaration
+    # Manually construct a TensorStore that uses a buffer without any declaration
     # inside a block context.
     n = tvm.tirx.Var("n", "int32")
     A = tvm.tirx.decl_tensor([n], "float32", name="A")
@@ -131,7 +131,7 @@ def test_error_undeclared_buffer_in_schedulable_tir():
         iter_vars=[tvm.tirx.IterVar(tvm.ir.Range(0, n), bi, 0)],  # 0 = kDataPar
         reads=[tvm.tirx.BufferRegion(A, [tvm.ir.Range(bi, bi + 1)])],
         writes=[tvm.tirx.BufferRegion(B, [tvm.ir.Range(bi, bi + 1)])],
-        body=tvm.tirx.BufferStore(B, tvm.tirx.TensorLoad(A, [bi]), [bi]),
+        body=tvm.tirx.TensorStore(B, tvm.tirx.TensorLoad(A, [bi]), [bi]),
         name_hint="write_B",
     )
     block_realize = tvm.s_tir.SBlockRealize(

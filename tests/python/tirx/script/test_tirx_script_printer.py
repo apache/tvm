@@ -173,10 +173,10 @@ A[128, 128]
     )
 
 
-def test_buffer_store():
+def test_tensor_store():
     a = tirx.decl_tensor((128, 128), "float16", name="A")
     with IRBuilder() as ib:
-        TB.buffer_store(a, a[128, 128] + 1, [128, 128])
+        TB.tensor_store(a, a[128, 128] + 1, [128, 128])
     obj = ib.get()
     _assert_print(
         obj,

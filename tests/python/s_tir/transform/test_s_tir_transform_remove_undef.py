@@ -114,7 +114,7 @@ def test_raise_error_for_undef_as_store_indices():
 def test_raise_error_for_undef_as_load_indices():
     """Use of T.undef() as buffer indices is an error
 
-    Even though this occurs as part of the BufferStore's value, the
+    Even though this occurs as part of the TensorStore's value, the
     T.undef() may not appear in a buffer's indices.
     """
 

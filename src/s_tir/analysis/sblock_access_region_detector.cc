@@ -140,7 +140,7 @@ class BlockReadWriteDetector : public s_tir::StmtExprVisitor {
   ffi::Optional<VisitInterrupt> Visit_(const ForNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const IfThenElseNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const s_tir::SBlockRealizeNode* op) override;
-  ffi::Optional<VisitInterrupt> Visit_(const BufferStoreNode* op) override;
+  ffi::Optional<VisitInterrupt> Visit_(const TensorStoreNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const BindNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const TensorLoadNode* op) override;
   ffi::Optional<VisitInterrupt> Visit_(const VarNode* op) override;
@@ -338,7 +338,7 @@ ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const CallNode* op)
   return s_tir::StmtExprVisitor::Visit_(op);
 }
 
-ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const BufferStoreNode* op) {
+ffi::Optional<VisitInterrupt> BlockReadWriteDetector::Visit_(const TensorStoreNode* op) {
   auto f_substitute = [this](const Var& var) -> ffi::Expected<ffi::UnchangedOr<ffi::Any>> {
     if (auto it = let_bindings_.find(var.get()); it != let_bindings_.end()) {
       return ffi::Any(it->second);
