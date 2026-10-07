@@ -29,7 +29,7 @@ from tvm.script import tirx as T
 
 
 def test_pass_simple():
-    @T.prim_func
+    @T.function
     def element_wise(
         A: T.Tensor((128, 128), "float32"),
         C: T.Tensor((128, 128), "float32"),
@@ -63,7 +63,7 @@ def test_error_for_out_of_scope_usage():
     )
     # Use i outside the For loop — this is out of scope
     body = tvm.tirx.SeqStmt([for_stmt, tvm.tirx.Evaluate(i)])
-    func = tvm.tirx.PrimFunc([], body)
+    func = tvm.tirx.Function([], body)
 
     with pytest.raises(
         (ValueError, tvm.error.InternalError),
@@ -77,7 +77,7 @@ def test_error_for_nested_rebind_usage():
 
     i = T.dynamic("i", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(42, var=i)
         T.bind(42, var=i)
@@ -100,7 +100,7 @@ def test_error_for_repeated_binding():
 
     i = T.dynamic("i", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(42, var=i)
         T.evaluate(i)
@@ -120,12 +120,12 @@ def test_error_for_cross_function_reuse():
 
     @I.ir_module(check_well_formed=False)
     class mod:
-        @T.prim_func
+        @T.function
         def func1():
             T.bind(42, var=i)
             T.evaluate(i)
 
-        @T.prim_func
+        @T.function
         def func2():
             T.bind(42, var=i)
             T.evaluate(i)
@@ -139,7 +139,7 @@ def test_error_for_cross_function_reuse():
 def test_sibling_launch_bindings_are_well_formed():
     """Sibling launch regions each introduce a fresh lexical binding."""
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor([256], "float32")):
         with T.launch_thread("threadIdx.x", 256) as threadIdx_x:
             A[threadIdx_x] = A[threadIdx_x] + 1.0
@@ -157,7 +157,7 @@ def test_reuse_of_region_parameter_across_functions_is_ill_formed():
 
     @I.ir_module(check_well_formed=False)
     class mod:
-        @T.prim_func
+        @T.function
         def kernel_1(A: T.Tensor([256], "float32")):
             T.region(
                 "tirx.launch_thread",
@@ -166,7 +166,7 @@ def test_reuse_of_region_parameter_across_functions_is_ill_formed():
             )
             A[threadIdx_x] = A[threadIdx_x] + T.float32(1)
 
-        @T.prim_func
+        @T.function
         def kernel_2(A: T.Tensor([256], "float32")):
             T.region(
                 "tirx.launch_thread",
@@ -191,7 +191,7 @@ def test_multiple_buffer_arguments_may_share_allocation():
 
     @I.ir_module
     class mod:
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor([256], "float32"), B: T.Tensor([256], "float32", data=A.data)):  # noqa: F821
             pass
 
@@ -212,7 +212,7 @@ def test_error_message_without_previous_definition_location():
 
     x = T.dynamic("x", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(42, var=x)
         T.evaluate(x)
@@ -239,7 +239,7 @@ def test_error_message_with_previous_definition_location():
 
     x = T.dynamic("x", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(42, var=x)
         T.bind(99, var=x)  # This should trigger the error
@@ -268,7 +268,7 @@ def test_sequential_redefinition_with_location():
 
     x = T.dynamic("x", "int32")
 
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def func():
         T.bind(1, var=x)
         T.evaluate(x)
@@ -290,7 +290,7 @@ def test_sequential_redefinition_with_location():
 def test_buffer_param_is_well_formed():
     """TensorType-annotated parameters are in scope for the body."""
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), "float32"), B: T.Tensor((128,), "float32")):
         for i in T.grid(128):
             B[i] = A[i] * 2.0
@@ -301,7 +301,7 @@ def test_buffer_param_is_well_formed():
 def test_decl_buffer_is_well_formed():
     """A DeclTensor statement introduces a buffer into scope for its body."""
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((128,), "float32")):
         B = T.alloc_tensor((128,), "float32")
         for i in T.grid(128):
@@ -315,7 +315,7 @@ def test_alloc_buffer_is_well_formed():
 
     @I.ir_module
     class mod:
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor((128,), "float32")):
             B = T.alloc_tensor([128], "float32")
             for i in T.grid(128):
@@ -325,7 +325,7 @@ def test_alloc_buffer_is_well_formed():
 
 
 def test_tensor_load_asserted_type_matches_source_and_indices():
-    @T.prim_func
+    @T.function
     def func():
         buffer = T.alloc_tensor((4,), "float32")
         T.evaluate(buffer[0])
@@ -355,7 +355,7 @@ def test_tensor_load_malformed_indices_return_false_without_asserting():
     buffer = tvm.tirx.decl_tensor((4, 4), "float32")
     vector_index = tvm.tirx.Ramp(0, 1, 4)
     load = tvm.tirx.TensorLoad(buffer, [0, vector_index])
-    func = tvm.tirx.PrimFunc([buffer], tvm.tirx.Evaluate(load))
+    func = tvm.tirx.Function([buffer], tvm.tirx.Evaluate(load))
 
     graph = json.loads(tvm.ir.save_json(func))
     load_node = next(node for node in graph["nodes"] if node["type"] == "ir.TensorLoad")

@@ -142,7 +142,7 @@ class IndexDataTypeNormalizer : public IndexDataTypeRewriter {
   using IndexDataTypeRewriter::Mutate;
   using IndexDataTypeRewriter::Mutate_;
   explicit IndexDataTypeNormalizer(PrimType target_data_type);
-  PrimFunc Rewrite(PrimFunc func);
+  Function Rewrite(Function func);
 
  protected:
   IndexDataTypeNormalizer(PrimType target_data_type, const VTable* vtable);

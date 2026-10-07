@@ -66,7 +66,7 @@ def test_cuda_host_bundle(tmp_path):
     if which("nvcc") is None:
         pytest.skip("CUDA-host compilation requires NVCC")
 
-    @T.prim_func
+    @T.function
     def add_one(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
         for tx in T.thread_binding(32, "threadIdx.x"):
             B[tx] = A[tx] + T.float32(1)
@@ -111,7 +111,7 @@ def test_cuda_host_bundle_bf16_cluster(tmp_path):
     if int(tvm.cuda(0).compute_version.split(".")[0]) < 9:
         pytest.skip("thread block clusters require SM90 or newer")
 
-    @T.prim_func
+    @T.function
     def main(
         A: T.Tensor((128,), "bfloat16"),
         B: T.Tensor((128,), "bfloat16"),
@@ -169,7 +169,7 @@ def test_cuda_host_bundle_programmatic_dependent_launch(tmp_path):
     if int(tvm.cuda(0).compute_version.split(".")[0]) < 9:
         pytest.skip("programmatic dependent launch requires SM90 or newer")
 
-    @T.prim_func
+    @T.function
     def add_one(A: T.Tensor((32,), "float32"), B: T.Tensor((32,), "float32")):
         T.func_attr({"tirx.kernel_launch_params": ["tirx.use_programtic_dependent_launch"]})
         for tx in T.thread_binding(32, "threadIdx.x"):
@@ -211,7 +211,7 @@ def test_cuda_host_bundle_tensor_map_parameter(tmp_path, monkeypatch):
     if which("nvcc") is None:
         pytest.skip("CUDA-host compilation requires NVCC")
 
-    @T.prim_func
+    @T.function
     def main(A_map: T.TensorMap()):
         T.device_entry()
         tx = T.thread_id([32])
@@ -250,7 +250,7 @@ def test_cuda_vectorize_add():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
@@ -312,7 +312,7 @@ def test_cuda_bf16_vectorize_add():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
@@ -356,7 +356,7 @@ def test_cuda_multiply_add():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((n,), vec_dtype),
                 B: T.Tensor((n,), vec_dtype),
@@ -406,7 +406,7 @@ def test_cuda_vectorize_load():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((n,), vec_dtype), B: T.Tensor((n,), vec_dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(num_blocks, thread="blockIdx.x"):
@@ -441,7 +441,7 @@ def test_cuda_make_int8():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((n, lanes), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(n, thread="blockIdx.x"):
@@ -478,7 +478,7 @@ def test_cuda_inf_nan():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((n,), dtype), C: T.Tensor((n,), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -521,7 +521,7 @@ def test_crossthread_reduction1(target):
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((n, m)), B: T.Tensor((n,))):
                 T.func_attr({"tirx.noalias": True})
 
@@ -587,7 +587,7 @@ def test_crossthread_reduction2(target):
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((n, k0, k1)), B: T.Tensor((n,))):
                 T.func_attr({"tirx.noalias": True})
 
@@ -655,7 +655,7 @@ def test_crossthread_reduction2(target):
 def test_cuda_reduction_binding():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((96, 32), "float32"), B: T.Tensor((96,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for k in range(32):
@@ -678,7 +678,7 @@ def test_cuda_const_float_to_half():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(a: T.Tensor((2, 3, 4), "float16"), C: T.Tensor((2, 3, 4), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i_j_k_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -723,7 +723,7 @@ def test_cuda_floordiv_with_vectorization():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((256,), "float32"), B: T.Tensor((256,), "float32")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -757,7 +757,7 @@ def test_cuda_floormod_with_vectorization():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((256,), "float32"), B: T.Tensor((256,), "float32")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -841,7 +841,7 @@ def test_vectorized_casts(t0, t1, factor):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), t0), B: T.Tensor((n,), t1), C: T.Tensor((n,), t0)):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(num_thread, thread="threadIdx.x"):
@@ -878,7 +878,7 @@ def sched(compute_fn, dtype, n=128):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), dtype), B: T.Tensor((n,), dtype)):
             T.func_attr({"tirx.noalias": True})
             for i0_0 in T.thread_binding(1, thread="blockIdx.x"):
@@ -1048,7 +1048,7 @@ def test_cuda_vectorize_load_permute_pad():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((n, l), dtype), B: T.Tensor((dim0, dim1, lanes), dtype)):
                 T.func_attr({"tirx.noalias": True})
                 for i in T.thread_binding(dim0, thread="blockIdx.x"):
@@ -1090,7 +1090,7 @@ def test_try_unaligned_vector_load():
     def build(N, C_N, offset):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((N,), "float16"), C: T.Tensor((C_N,), "float16")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.thread_binding(C_N // 2, thread="threadIdx.x"):
@@ -1132,7 +1132,7 @@ def test_try_unaligned_vector_load():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_thread_sync_inside_condition():
-    @T.prim_func
+    @T.function
     def func2(A: T.Tensor((4, 4), "float32")) -> None:
         A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
@@ -1144,7 +1144,7 @@ def test_cuda_thread_sync_inside_condition():
                     for i, j in T.grid(4, 4):
                         A[i, j] = A_shared[i, j] + 1.0
 
-    @T.prim_func
+    @T.function
     def func3(A: T.Tensor((4, 4), "float32")) -> None:
         A_shared = T.alloc_tensor((4, 4), "float32", scope="shared")
         for bx in T.thread_binding(1, "blockIdx.x"):
@@ -1165,7 +1165,7 @@ def test_cuda_thread_sync_inside_condition():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_invalid_reinterpret():
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((4,), "uint32"), B: T.Tensor((4,), "uint8")) -> None:
         for tx in T.thread_binding(4, "threadIdx.x"):
             B[tx] = T.call_intrin("uint8", "tirx.reinterpret", A[tx])
@@ -1178,7 +1178,7 @@ def test_invalid_reinterpret():
 @pytest.mark.skipif(not env.has_cuda_compute(9), reason="need cuda compute >= 9.0")
 def test_cuda_tensormap():
     # fmt: off
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor((16, 16), dtype='float32', align=16)):
 
         A_map: T.let[T.handle("tensormap")] = T.tvm_stack_alloca("tensormap", 1)
@@ -1209,11 +1209,11 @@ extern "C" __global__ void __launch_bounds__(128) main_kernel(float* __restrict_
 def test_cuda_device_func_call():
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def add(a: T.float32, b: T.float32) -> T.float32:
             return a + b
 
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((1024, 1024), "float32"),
             B: T.Tensor((1024, 1024), "float32"),
@@ -1235,7 +1235,7 @@ def test_cuda_float_const_hex_format():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((1024, 1024), "float32"),
         ):
@@ -1253,11 +1253,11 @@ def test_cuda_float_const_hex_format():
 def test_device_host_call_same_func():
     @I.ir_module
     class Module:
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def add(a: T.int32, b: T.int32) -> T.int32:
             return a + b
 
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((128, 128), "int32"),
             B: T.Tensor((128, 128), "int32"),
@@ -1296,7 +1296,7 @@ def test_device_host_call_same_func():
 def test_thread_return():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16, 16), "float32"), B: T.Tensor((16, 16), "float32")):
             for bx in T.thread_binding(32, "blockIdx.x"):
                 for tx in T.thread_binding(32, "threadIdx.x"):
@@ -1313,7 +1313,7 @@ def test_thread_return():
 @pytest.mark.gpu
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_cuda_loop_step():
-    @T.prim_func
+    @T.function
     def cuda_loop_step(
         A: T.Tensor((1024,), "float32"),
         B: T.Tensor((1024,), "float32"),
@@ -1353,7 +1353,7 @@ def test_export_load_with_fallback(monkeypatch, tmp_path):
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,), "float32"), B: T.Tensor((n,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in T.thread_binding(n // 32, thread="blockIdx.x"):

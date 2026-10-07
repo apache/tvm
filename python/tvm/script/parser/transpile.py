@@ -1596,7 +1596,7 @@ class IRBuilderTranspiler(ast.NodeTransformer):
         self._raise_error(
             node,
             f"Function {node.name!r} requires a qualified construction decorator "
-            "such as @T.prim_func; bare and preconfigured decorator aliases are unsupported",
+            "such as @T.function; bare and preconfigured decorator aliases are unsupported",
         )
 
     def _function_namespace(self, node: ast.FunctionDef, namespace: object) -> str:

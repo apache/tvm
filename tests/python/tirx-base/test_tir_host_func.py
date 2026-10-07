@@ -24,7 +24,7 @@ from tvm.script import tirx as T
 
 @I.ir_module
 class Module:
-    @T.prim_func
+    @T.function
     def main(
         A: T.Tensor((729, 729), "float32"),
         B: T.Tensor((729, 729), "float32"),

@@ -41,9 +41,9 @@ def _strip_exec_scope_stmt(stmt):
 
 
 def assert_structural_equal(lhs, rhs, *args, **kwargs):
-    if isinstance(lhs, tvm.tirx.PrimFunc):
+    if isinstance(lhs, tvm.tirx.Function):
         lhs = lhs.with_body(_strip_exec_scope_stmt(lhs.body))
-    if isinstance(rhs, tvm.tirx.PrimFunc):
+    if isinstance(rhs, tvm.tirx.Function):
         rhs = rhs.with_body(_strip_exec_scope_stmt(rhs.body))
     _assert_structural_equal(lhs, rhs, *args, **kwargs)
 
@@ -54,13 +54,13 @@ def test_simple_copy():
     dst_shape = [128, 512]
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, A)
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -85,13 +85,13 @@ def test_simple_copy_2():
     dst_shape = [128, 512]
     dst_layout = TileLayout(S[(128, 4, 128) : (4 @ F, 1 @ F, 1 @ P)])
 
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, A)
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -115,14 +115,14 @@ def test_copy_in_a_loop():
     dst_shape = [512, 512]
     dst_layout = TileLayout(S[(4, 128, 512) : (512 @ F, 1 @ P, 1 @ F)])
 
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -148,7 +148,7 @@ def test_copy_in_a_loop_2():
     dst_shape = [512, 512]
     dst_layout = TileLayout(S[(128, 2048) : (1 @ P, 1 @ F)])
 
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
@@ -157,7 +157,7 @@ def test_copy_in_a_loop_2():
         for i in range(4):
             Tx.copy(A_sbuf_view[:, i, :], A_view[:, i, :])
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -188,14 +188,14 @@ def test_copy_transpose():
     dst_layout = TileLayout(S[(2048, 128) : (1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(B_sbuf, A_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "copy"})
         identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
@@ -234,7 +234,7 @@ def test_copy_transpose_2():
     dst_layout = TileLayout(S[(4, 128, 128, 4) : (4 @ F, 16 @ F, 1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -242,7 +242,7 @@ def test_copy_transpose_2():
         for i in range(4):
             Tx.copy(B_sbuf[i, :], A_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "copy"})
         identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
@@ -280,14 +280,14 @@ def test_copy_different_f():
     dst_shape = [512, 64]
     dst_layout = TileLayout(S[(4, 128, 4, 4, 4) : (64 @ F, 1 @ P, 4 @ F, 16 @ F, 1 @ F)])
 
-    @T.prim_func
+    @T.function
     def copy() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(B_sbuf, A_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "copy"})
         A_sbuf = T.alloc_tensor((128, 256), scope="trn.sbuf")
@@ -316,7 +316,7 @@ def test_copy_different_shape():
     dst_shape = [4, 128, 4]
     dst_layout = TileLayout(S[(4, 128, 4) : (4 @ F, 1 @ P, 1 @ F)])
 
-    @T.prim_func
+    @T.function
     def copy() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -324,7 +324,7 @@ def test_copy_different_shape():
         B_sbuf_view = B_sbuf.view(512, 4)
         Tx.copy(B_sbuf_view, A_sbuf[:, 0:4])
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "copy"})
         A_sbuf = T.alloc_tensor((128, 256), scope="trn.sbuf")
@@ -351,14 +351,14 @@ def test_copy_irregular_shape():
     dst_shape = [128, 512]
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A[:, i * 512 : i * 512 + 512], A_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((128, 10000), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -383,7 +383,7 @@ def test_copy_different_shape_dim():
     dst_layout = TileLayout(S[(128, 512) : (1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, 'float32', layout=src_layout)) -> None:
 
         T.device_entry()
@@ -391,7 +391,7 @@ def test_copy_different_shape_dim():
         for i in range(32):
             Tx.copy(A_sbuf, A[i, :, :])
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((32, 128, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -415,14 +415,14 @@ def test_copy_with_offset():
     dst_shape = [512, 512]
     dst_layout = TileLayout(S[(4, 128, 512) : (512 @ F, 1 @ P, 1 @ F)])
 
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(2):
             Tx.copy(A_sbuf[i * 256 : i * 256 + 256, :], A)
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((256, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -449,14 +449,14 @@ def test_large_dma_copy():
     dst_shape = [512, 4096]
     dst_layout = TileLayout(S[(4, 128, 4096) : (4096 @ F, 1 @ P, 1 @ F)])
 
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, "float32", layout=src_layout)) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         for i in range(4):
             Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], A[i * 128 : i * 128 + 128, :])
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((512, 4096), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -483,7 +483,7 @@ def test_copy_with_inst_size_limit():
     dst_shape = src_shape
     dst_layout = src_layout
 
-    @T.prim_func
+    @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
         B_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -491,7 +491,7 @@ def test_copy_with_inst_size_limit():
         for i in range(4):
             Tx.copy(A_sbuf[i * 128 : i * 128 + 128, :], B_sbuf[i * 128 : i * 128 + 128, :])
 
-    @T.prim_func
+    @T.function
     def expected(A_ptr: T.handle):
         T.func_attr({"global_symbol": "copy"})
         B_sbuf = T.alloc_tensor((128, 16384), scope="trn.sbuf")
@@ -518,14 +518,14 @@ def test_copy_with_complex_index():
     A_sbuf_layout = TileLayout(S[(2, 2048, 8, 128) : (16384 @ F, 1 @ F, 2048 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(A_shape, 'float32', layout=A_layout), ) -> None:
 
         T.device_entry()
         A_sbuf = T.alloc_tensor(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
         Tx.copy(A_sbuf[1, 0:2048, 0:1024], A[2048: 4096, 3072:4096])
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((4096, 4096), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -550,14 +550,14 @@ def test_copy_with_complex_index_2():
     A_layout = T.TileLayout(T.S[(2, 2048, 1024) : (2048 * 1024, 1, 2048)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(A_shape, 'float32', layout=A_layout), ) -> None:
 
         T.device_entry()
         A_sbuf = T.alloc_tensor(A_sbuf_shape, "float32", scope="trn.sbuf", layout=A_sbuf_layout)
         Tx.copy(A_sbuf[2048: 4096, 3072:4096], A[1, 0:2048, 0:1024])
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((2, 2048, 1024), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -583,7 +583,7 @@ def test_copy_transpose_with_workspace():
     dst_layout = TileLayout(S[(2048, 128) : (1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -596,7 +596,7 @@ def test_copy_transpose_with_workspace():
                     T.nki.identity(identity[p_loop, rhs_f_loop], 128)
         Tx.copy(B_sbuf, A_sbuf, workspace={"identity": identity, "acc_psum": acc_psum})
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "copy"})
         A_sbuf = T.alloc_tensor((128, 2048), scope="trn.sbuf")
@@ -632,7 +632,7 @@ def test_copy_with_guard():
     dst_layout = TileLayout(S[(4, 128, 512) : (512 @ F, 1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, 'float32', layout=src_layout)) -> None:
 
         T.device_entry()
@@ -641,7 +641,7 @@ def test_copy_with_guard():
             for i in range(4):
                 Tx.copy(A_sbuf[i * 128 : i * 128 + 128, 0:128*j], A[i * 128 : i * 128 + 128, 0:128*j])  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -668,7 +668,7 @@ def test_copy_with_guard_2():
     dst_layout = TileLayout(S[(4, 128, 512) : (512 @ F, 1 @ P, 1 @ F)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A: T.Tensor(src_shape, 'float32', layout=src_layout)) -> None:
 
         T.device_entry()
@@ -677,7 +677,7 @@ def test_copy_with_guard_2():
             for i in range(4):
                 Tx.copy(A_sbuf[0:128*j, 0:128*i], A[0:128*j, 0:128*i])
 
-    @T.prim_func
+    @T.function
     def expected(A: T.Tensor((512, 512), layout=None)):
         T.func_attr({"global_symbol": "copy"})
 
@@ -704,7 +704,7 @@ def test_copy_transpose_with_guard():
     dst_layout = TileLayout(S[(2048, 128) : (1 @ F, 1 @ P)])
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy() -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(src_shape, "float32", scope="trn.sbuf", layout=src_layout)
@@ -713,7 +713,7 @@ def test_copy_transpose_with_guard():
             for j in range(4):
                 Tx.copy(B_sbuf[i * 128 : i * 128 + 128, 0:128*j], A_sbuf[i * 128 : i * 128 + 128, 0:128*j])  # noqa: E501
 
-    @T.prim_func
+    @T.function
     def expected():
         T.func_attr({"global_symbol": "copy"})
         identity = T.alloc_tensor((128, 128), scope="trn.sbuf")
@@ -753,14 +753,14 @@ def test_copy_with_specified_max_inst_size():
     dst_layout = src_layout
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         B_sbuf = T.alloc_tensor(dst_shape, "float32", scope="trn.sbuf", layout=dst_layout)
         Tx.copy(A_sbuf, B_sbuf, max_inst_size=128)
 
-    @T.prim_func
+    @T.function
     def expected(A_ptr: T.handle):
         T.func_attr({"global_symbol": "copy"})
         A_sbuf = T.alloc_tensor((128, 512), scope="trn.sbuf", layout=None)
@@ -779,14 +779,14 @@ def test_copy_with_specified_max_inst_size():
 
 def test_copy_transpose_with_extended_f():
     # fmt: off
-    @T.prim_func
+    @T.function
     def copy(A_ptr: T.handle) -> None:
         T.device_entry()
         A_sbuf = T.alloc_tensor((128, 2048), "float32", scope="trn.sbuf", layout="PF")
         B_sbuf = T.alloc_tensor((128, 2048), "float32", scope="trn.sbuf", layout="FP")
         Tx.copy(B_sbuf, A_sbuf)
 
-    @T.prim_func
+    @T.function
     def expected(A_ptr: T.handle):
         T.func_attr({"global_symbol": "copy"})
         identity = T.alloc_tensor((128, 128), scope="trn.sbuf")

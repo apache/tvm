@@ -32,7 +32,7 @@ def test_large_uint_imm():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((12,), "uint64")):
             T.func_attr({"tirx.noalias": True})
             for i0_0 in T.thread_binding(6, thread="blockIdx.x"):
@@ -64,7 +64,7 @@ def test_add_pipeline():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,)), B: T.Tensor((), "float32"), D: T.Tensor((n,))):
             T.func_attr({"tirx.noalias": True})
 

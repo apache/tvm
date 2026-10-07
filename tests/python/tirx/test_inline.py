@@ -26,7 +26,7 @@ MODULE_CONST = 42
 def test_local_shadows_enclosing():
     """A local parameter in the inline shadows a variable from the enclosing scope."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((128,), "int32")) -> None:
         T.int32(10)
 
@@ -37,7 +37,7 @@ def test_local_shadows_enclosing():
 
         write(T.int32(20))
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(A: T.Tensor((128,), "int32")) -> None:
         T.int32(10)
         A[0] = T.int32(20)
@@ -53,11 +53,11 @@ def test_enclosing_variable_capture():
     def write_val(A):
         A[0] = val
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((128,), "int32")) -> None:
         write_val(A)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = 64
 
@@ -76,11 +76,11 @@ def test_nested_inline():
         add_one(A)
         add_one(A)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((128,), "int32")) -> None:
         add_two(A)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = A[0] + 1
         A[0] = A[0] + 1
@@ -95,11 +95,11 @@ def test_module_globals_visible():
     def write_const(A):
         A[0] = MODULE_CONST
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((128,), "int32")) -> None:
         write_const(A)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = 42
 
@@ -109,7 +109,7 @@ def test_module_globals_visible():
 def test_shadowing_in_inner_scope():
     """An inline defined inside a for-loop captures the loop variable."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((10,), "int32")) -> None:
         for i in T.serial(10):
 
@@ -119,7 +119,7 @@ def test_shadowing_in_inner_scope():
 
             write_i(A)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(A: T.Tensor((10,), "int32")) -> None:
         for i in range(10):
             A[i] = i
@@ -128,7 +128,7 @@ def test_shadowing_in_inner_scope():
 
 
 def test_lexical_not_dynamic():
-    """An inline defined outside prim_func does NOT see the caller's locals.
+    """An inline defined outside function does NOT see the caller's locals.
     Specifically, x_value captured at definition time (128) is used,
     not the loop variable x_value from the caller."""
     x_value = 128
@@ -137,12 +137,12 @@ def test_lexical_not_dynamic():
     def static_capture(A, B):
         B[()] = A[x_value]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
         for x_value in T.serial(10):
             static_capture(A, B)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(A: T.Tensor((1024,), "int32"), B: T.Tensor((), "int32")) -> None:
         for x_value in range(10):
             B[()] = A[128]
@@ -161,11 +161,11 @@ def test_callback_pattern():
     def inc(A):
         A[0] = A[0] + 1
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((128,), "int32")) -> None:
         apply_fn(inc, A)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = A[0] + 1
 
@@ -183,12 +183,12 @@ def test_sibling_calls():
     def write_b(A):
         A[1] = 2
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((128,), "int32")) -> None:
         write_a(A)
         write_b(A)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(A: T.Tensor((128,), "int32")) -> None:
         A[0] = 1
         A[1] = 2
@@ -197,10 +197,10 @@ def test_sibling_calls():
 
 
 def test_recursive_inline():
-    """Recursive inline (defined inside prim_func)."""
+    """Recursive inline (defined inside function)."""
 
     # fmt: off
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func():
         T.device_entry()
         for x in T.serial(10):
@@ -213,7 +213,7 @@ def test_recursive_inline():
 
             add(x, 3)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected():
         T.device_entry()
         for x in range(10):
@@ -227,9 +227,9 @@ def test_recursive_inline():
 
 
 def test_late_binding():
-    """Variable defined after inline but before call (inside prim_func)."""
+    """Variable defined after inline but before call (inside function)."""
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def func(A: T.Tensor((128,), "int32")) -> None:
         @T.inline
         def write(A):
@@ -238,7 +238,7 @@ def test_late_binding():
         val = T.int32(99)
         write(A)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(A: T.Tensor((128,), "int32")) -> None:
         val = T.int32(99)
         A[0] = val

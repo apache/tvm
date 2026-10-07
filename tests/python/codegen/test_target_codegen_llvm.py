@@ -33,21 +33,21 @@ from tvm.testing import env
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-def test_duplicate_primfunc_global_symbol_diagnostic():
+def test_duplicate_function_global_symbol_diagnostic():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def first_unique_key(A: T.Tensor((1,), "float32")):
             T.func_attr({"global_symbol": "dup_symbol", "tirx.noalias": True})
             A[0] = T.float32(1)
 
-        @T.prim_func
+        @T.function
         def second_unique_key(A: T.Tensor((1,), "float32")):
             T.func_attr({"global_symbol": "dup_symbol", "tirx.noalias": True})
             A[0] = T.float32(2)
 
     with pytest.raises(
-        tvm.error.InternalError, match="Duplicate PrimFunc global_symbol 'dup_symbol'"
+        tvm.error.InternalError, match="Duplicate Function global_symbol 'dup_symbol'"
     ) as err:
         tvm.compile(Module, target="llvm")
     assert "first_unique_key" in str(err.value)
@@ -55,15 +55,15 @@ def test_duplicate_primfunc_global_symbol_diagnostic():
 
 
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
-def test_unique_primfunc_global_symbols_compile():
+def test_unique_function_global_symbols_compile():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def first_unique_key(A: T.Tensor((1,), "float32")):
             T.func_attr({"global_symbol": "dup_symbol_a", "tirx.noalias": True})
             A[0] = T.float32(1)
 
-        @T.prim_func
+        @T.function
         def second_unique_key(A: T.Tensor((1,), "float32")):
             T.func_attr({"global_symbol": "dup_symbol_b", "tirx.noalias": True})
             A[0] = T.float32(2)
@@ -75,7 +75,7 @@ def test_unique_primfunc_global_symbols_compile():
 def test_llvm_intrin():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.handle("float32")):
             A_buf = T.decl_tensor((4,), "float32", data=A)
             T.evaluate(T.Call("tirx.prefetch", [T.address_of(A_buf[0]), 0, 3, 1], ty="void"))
@@ -87,7 +87,7 @@ def test_llvm_intrin():
 def test_llvm_void_intrin():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.handle("uint8")):
             # Create an intrinsic that returns void.
             T.call_llvm_intrin("", "llvm.assume", T.bool(True))
@@ -115,7 +115,7 @@ def test_llvm_overloaded_intrin():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1, 1), "int32"), C: T.Tensor((1, 1), "int32")):
             C[0, 0] = T.call_llvm_pure_intrin("int32", "llvm.ctlz", A[0, 0], int1_zero)
 
@@ -126,7 +126,7 @@ def test_llvm_overloaded_intrin():
 def test_llvm_lookup_intrin():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.handle("uint8x8")):
             A_buf = T.decl_tensor((1,), "uint8x8", data=A)
             T.evaluate(T.call_llvm_pure_intrin("uint8x8", "llvm.ctpop.v8i8", A_buf[0]))
@@ -141,7 +141,7 @@ def test_llvm_large_uintimm():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((), "uint64")):
             T.func_attr({"tirx.noalias": True})
             A[()] = large_val + T.uint64(3)
@@ -157,7 +157,7 @@ def test_llvm_large_uintimm():
 def test_llvm_multi_parallel():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((128,), "float32"), C: T.Tensor((128,), "float32")):
             T.func_attr({"tirx.noalias": True})
             B = T.alloc_tensor((128,))
@@ -184,7 +184,7 @@ def test_llvm_flip_pipeline():
     def check_llvm(nn, base):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((nn + base,), "float32"), C: T.Tensor((nn,), "float32")):
                 T.func_attr({"tirx.noalias": True})
                 for i_0 in T.parallel((nn + 3) // 4):
@@ -211,7 +211,7 @@ def test_llvm_vadd_pipeline():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,)), B: T.Tensor((n,)), C: T.Tensor((n,))):
             T.func_attr({"tirx.noalias": True})
 
@@ -235,7 +235,7 @@ def test_llvm_madd_pipeline():
     def check_llvm(nn, base, stride):
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((nn + base, stride), "float32"),
                 C: T.Tensor((nn, stride), "float32"),
@@ -265,7 +265,7 @@ def test_llvm_madd_pipeline():
 def test_llvm_temp_space():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((1024,), "float32"), C: T.Tensor((1024,), "float32")):
             T.func_attr({"tirx.noalias": True})
             B = T.alloc_tensor((1024,))
@@ -290,14 +290,14 @@ def test_multiple_func():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def fadd1(A: T.Tensor((fadd1_n,)), B: T.Tensor((fadd1_n,)), C: T.Tensor((fadd1_n,))):
             T.func_attr({"tirx.noalias": True})
 
             for i in range(fadd1_n):
                 C[i] = A[i] + B[i]
 
-        @T.prim_func
+        @T.function
         def fadd2(A: T.Tensor((fadd2_n,)), B: T.Tensor((fadd2_n,)), C: T.Tensor((fadd2_n,))):
             T.func_attr({"tirx.noalias": True})
 
@@ -321,7 +321,7 @@ def test_multiple_func():
 def test_llvm_condition():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((64,), "float32"), C: T.Tensor((64,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i in range(64):
@@ -343,7 +343,7 @@ def test_llvm_condition():
 def test_llvm_bool():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((64,), "int32"), C: T.Tensor((64,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i in range(64):
@@ -363,7 +363,7 @@ def test_llvm_bool():
 def test_llvm_cast_float_to_bool():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((4,), "float32"), C: T.Tensor((4,), "bool")):
             T.func_attr({"tirx.noalias": True})
             for i in range(4):
@@ -383,7 +383,7 @@ def test_llvm_cast_float_to_bool():
 def test_rank_zero():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((64,), "float32"),
             scale: T.Tensor((), "float32"),
@@ -411,7 +411,7 @@ def test_rank_zero():
 def test_alignment():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def test_alignment(A: T.Tensor((1024,), "float32"), B: T.Tensor((1024,), "float32")):
             T.func_attr({"tirx.noalias": True})
             for i_0 in range(128):
@@ -546,7 +546,7 @@ def test_llvm_div(start, end, dstart, dend, dtype, floor_div):
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((a_size,), dtype),
                 B: T.Tensor((b_size,), dtype),
@@ -618,7 +618,7 @@ def test_llvm_fp_math():
 
     @I.ir_module
     class RecipModule:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,)), B: T.Tensor((n,))):
             T.func_attr({"tirx.noalias": True})
 
@@ -637,7 +637,7 @@ def test_llvm_fp_math():
 
     @I.ir_module
     class SigmoidModule:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((n,)), B: T.Tensor((n,))):
             T.func_attr({"tirx.noalias": True})
 
@@ -657,7 +657,7 @@ def test_llvm_fp_math():
 def test_dwarf_debug_information():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((1024,), "float32"),
             B: T.Tensor((1024,), "float32"),
@@ -744,7 +744,7 @@ def test_llvm_bf16():
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((32,), "bfloat16"),
                 B: T.Tensor((32,), "bfloat16"),
@@ -775,7 +775,7 @@ def test_llvm_bf16():
 def test_llvm_crt_static_lib():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(
             A: T.Tensor((32,), "bfloat16"),
             B: T.Tensor((32,), "bfloat16"),
@@ -802,15 +802,15 @@ def test_llvm_order_functions():
     # ordering will work fine, but if the ordering changes, this test will need to be updated.
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def Danny(v: T.float32) -> T.float32:
             return T.call_extern("float32", "Dave", v)
 
-        @T.prim_func
+        @T.function
         def Sammy(v: T.float32) -> T.float32:
             return T.call_extern("float32", "Eve", v)
 
-        @T.prim_func
+        @T.function
         def Kirby(v: T.float32) -> T.float32:
             return T.call_extern("float32", "Fred", v)
 
@@ -823,7 +823,7 @@ def test_llvm_order_functions():
 @pytest.mark.skipif(not env.has_llvm(), reason="need llvm")
 @pytest.mark.parametrize("extent", [2**32 + 1, 2**32 + 4])
 def test_llvm_large_stack_allocation_uses_64bit_extent(extent):
-    @T.prim_func
+    @T.function
     def main(A: T.Tensor((1,), "float32")):
         B = T.alloc_tensor(
             (extent,),
@@ -847,7 +847,7 @@ def test_llvm_large_stack_allocation_uses_64bit_extent(extent):
 def test_llvm_scalar_concat():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(x: T.int32, y: T.int32, buffer: T.Tensor((1,), "int32x2")):
             buffer[0] = T.Shuffle([x, y], [0, 1])
 
@@ -861,7 +861,7 @@ def test_llvm_scalar_concat():
 def test_raise_exception_during_codegen():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((4, 4), "float32"), B: T.Tensor((4, 4), "float32")) -> None:
             T.func_attr({"tirx.noalias": True})
             for i in T.parallel(4):
@@ -882,7 +882,7 @@ def test_llvm_target_attributes():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def test_func(
             A: T.Tensor((tindex,)),  # noqa: F821
             B: T.Tensor((tindex,)),  # noqa: F821
@@ -947,7 +947,7 @@ def test_llvm_assume():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((4, 4), "int32"), B: T.Tensor((14,), "int32")):
             T.func_attr({"tirx.noalias": True})
             A_1 = T.decl_tensor((16,), "int32", data=A.data)
@@ -971,7 +971,7 @@ def test_debug_symbol_for_float64():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(a: T.handle("float64"), b: T.handle("float64"), n: T.int64):
             T.func_attr({"calling_conv": 2})
             A = T.decl_tensor(16, "float64", data=a)
@@ -988,7 +988,7 @@ def test_debug_symbol_for_buffer_var():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor((16,), "float32"), B: T.Tensor((16,), "float32")):
             C = T.alloc_tensor((16,), "float32")
             for i in T.parallel(16):
@@ -1002,11 +1002,11 @@ def test_debug_symbol_for_buffer_var():
 def test_subroutine_call():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, dtype="float32")):
             Module.subroutine(A.data)
 
-        @T.prim_func
+        @T.function
         def subroutine(A_data: T.handle("float32")):
             # The calling_conv parameter is to prevent MakePackedAPI
             # from changing the call signature of the subroutine.
@@ -1042,7 +1042,7 @@ def test_call_packed_returning_void():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.Call(
                 tvm.ir.Op.get("tirx.tvm_call_packed"),
@@ -1067,7 +1067,7 @@ def test_call_packed_without_string_arg():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(A: T.Tensor(1, "float32")):
             T.Call(tvm.ir.Op.get("tirx.tvm_call_packed"), [A.data], ty="int32")
 
@@ -1081,7 +1081,7 @@ def test_call_extern_returning_void():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             T.Call(tvm.ir.Op.get("tirx.call_extern"), ["dummy_function_name"], ty="void")
 
@@ -1091,7 +1091,7 @@ def test_call_extern_returning_void():
 def test_invalid_volatile_masked_buffer_load():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(B: T.Tensor([4])):
             A = T.alloc_tensor((4,), annotations={"tirx.volatile": True})
             B[0:4] = T.call_intrin(
@@ -1111,7 +1111,7 @@ def test_invalid_volatile_masked_buffer_load():
 def test_invalid_volatile_masked_decl_buffer_load():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(B: T.Tensor([4])):
             A = T.alloc_tensor((4,), annotations={"tirx.volatile": True})
             A_alias = T.decl_tensor((4,), data=A.data)
@@ -1132,7 +1132,7 @@ def test_invalid_volatile_masked_decl_buffer_load():
 def test_invalid_volatile_masked_tensor_store():
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main():
             A = T.alloc_tensor((4,), annotations={"tirx.volatile": True})
             T.evaluate(
@@ -1157,7 +1157,7 @@ def test_int_parameter():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(arg: T.int32) -> T.int32:
             T.func_attr({"target": T.target("llvm")})
             if arg > 0:
@@ -1178,7 +1178,7 @@ def test_bool_parameter():
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(arg: T.bool) -> T.int32:
             T.func_attr({"target": T.target("llvm")})
             if arg:
@@ -1198,11 +1198,11 @@ def test_bool_parameter():
 
 
 def test_bool_return_value():
-    """Booleans may be returned from a PrimFunc"""
+    """Booleans may be returned from a Function"""
 
     @I.ir_module
     class Module:
-        @T.prim_func
+        @T.function
         def main(value: T.int32) -> T.bool:
             T.func_attr({"target": T.target("llvm")})
             return value < 10

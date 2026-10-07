@@ -128,7 +128,7 @@ def function_(*, decl: bool = False, span: _Span = None, **options: Any) -> IRBu
     .. code:: python
 
         # Source
-        @T.prim_func
+        @T.function
         def f(a: T.int32):
             T.evaluate(a)
         # Generated builder

@@ -42,7 +42,7 @@ def run_test_break_continue(func, shape, expected):
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue1():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()
@@ -64,7 +64,7 @@ def test_break_continue1():
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue2():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((9,), 'int32')):
 
         T.device_entry()
@@ -91,7 +91,7 @@ def test_break_continue2():
 @pytest.mark.skipif(not env.has_cuda(), reason="need cuda")
 def test_break_continue3():
     # fmt: off
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((10,), 'int32')):
 
         T.device_entry()

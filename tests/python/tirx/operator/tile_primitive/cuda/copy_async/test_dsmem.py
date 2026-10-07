@@ -159,7 +159,7 @@ def test_dsmem(shape, dtype, src_spec, dst_spec, expected):
     r = tuple(slice(0, s) for s in shape)
 
     # fmt: off
-    @T.prim_func
+    @T.function
     def dsmem_copy(A: T.Tensor(shape, dtype), B: T.Tensor(shape, dtype)) -> None:
 
         T.device_entry()

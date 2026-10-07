@@ -18,7 +18,7 @@
 """Implementation of binary operator dispatches."""
 
 from tvm.script import tirx as T
-from tvm.tirx import FloatImm, PrimFunc
+from tvm.tirx import FloatImm, Function
 from tvm.tirx.operator.tile_primitive import DispatchContext, fail
 from tvm.tirx.operator.tile_primitive.common import MapOpType
 from tvm.tirx.tile_primitive import TilePrimitiveCall
@@ -30,7 +30,7 @@ from .utils import InstType, binary_map_ops, try_find_inst_nary
 
 def binary_trn(
     op: TilePrimitiveCall, binary_op: MapOpType, sctx: DispatchContext
-) -> PrimFunc | None:
+) -> Function | None:
     """Generate a binary operation schedule for Trainium."""
     if not (sctx.is_target("trn") and sctx.scope_kind == "thread"):
         fail("requires Trainium target and thread exec_scope")
@@ -73,7 +73,7 @@ def binary_trn(
 
     # Define the implementation function
     # This fragment captures buffers and indices from its insertion scope.
-    @T.prim_func(check_well_formed=False)
+    @T.function(check_well_formed=False)
     def impl():
         for b_loop in T.serial(0, b_extent):
             with T.nki.tensorized_instruction():

@@ -42,7 +42,7 @@ def test_int_constexpr_specializes_loop_bound():
         for i in range(N):
             C[i] = A[i] + B[i]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((128,), "int32"),
         B: T.Tensor((128,), "int32"),
@@ -68,7 +68,7 @@ def test_constexpr_in_2d_buffer_shape():
             for k in range(K):
                 C[m, k] = A[m, k] + B[m, k]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((4, 8), "int32"),
         B: T.Tensor((4, 8), "int32"),
@@ -93,7 +93,7 @@ def test_constexpr_in_body_expression():
         for i in range(N):
             B[i] = A[i] * SCALE
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((16,), "int32"),
         B: T.Tensor((16,), "int32"),
@@ -175,7 +175,7 @@ def test_jit_kernel_with_nested_inline_helper():
         for i in range(N):
             double(i)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((4,), "int32"),
     ):
@@ -196,7 +196,7 @@ def test_constexpr_default_value():
         for i in range(N):
             A[i] = SCALE
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected(
         A: T.Tensor((8,), "int32"),
     ):
@@ -209,7 +209,7 @@ def test_constexpr_default_value():
     assert k.specialize(N=8) is not overridden
 
 
-def test_specialize_returns_primfunc():
+def test_specialize_returns_function():
     @T.jit(private=True)
     def k(
         A: T.Tensor((N,), "int32"),
@@ -220,8 +220,8 @@ def test_specialize_returns_primfunc():
             A[i] = 0
 
     spec = k.specialize(N=8)
-    assert isinstance(spec, tvm.tirx.PrimFunc)
-    # Specialized PrimFunc has only the runtime params (constexpr stripped).
+    assert isinstance(spec, tvm.tirx.Function)
+    # Specialized Function has only the runtime params (constexpr stripped).
     assert len(spec.params) == 1
 
 
@@ -259,11 +259,11 @@ def test_optional_param_present_and_absent_ir():
         else:
             out[0] = -1
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected_present(A: T.Tensor((1,), "int32"), out: T.Tensor((1,), "int32")):
         out[0] = A[0]
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected_absent(out: T.Tensor((1,), "int32")):
         out[0] = -1
 
@@ -356,7 +356,7 @@ def test_only_explicit_t_optional_is_specializable():
 def test_t_optional_is_restricted_to_jit():
     with pytest.raises(TypeError, match="only supported by @T.jit"):
 
-        @T.prim_func(private=True)
+        @T.function(private=True)
         def invalid(a: T.Optional(T.handle)):
             T.evaluate(0)
 

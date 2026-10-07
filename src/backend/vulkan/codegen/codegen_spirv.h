@@ -70,7 +70,7 @@ class CodeGenSPIRV : public tirx::ExprFunctor<spirv::Value(const Expr&)>,
    * \param name The name of the target function.
    * \return The final spirv module.
    */
-  virtual runtime::SPIRVShader BuildFunction(const PrimFunc& f, const std::string& name);
+  virtual runtime::SPIRVShader BuildFunction(const Function& f, const std::string& name);
   /*!
    * \brief Create Value for expression e
    * \param e The expression to be created value for.

@@ -39,7 +39,7 @@ namespace script {
 namespace printer {
 namespace details {
 
-void PrintPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func, ExprDoc decorator,
+void PrintFunction(DocTranslatorObj* d, const tirx::FunctionNode* func, ExprDoc decorator,
                    const ffi::String& dialect_attr) {
   VarScope vars(d);
 
@@ -120,24 +120,24 @@ void PrintPrimFunc(DocTranslatorObj* d, const tirx::PrimFuncNode* func, ExprDoc 
 
 namespace {
 
-ffi::Optional<ExprDoc> PrimFuncDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
-                                            const ffi::Object* destination) {
+ffi::Optional<ExprDoc> TirxFunctionDocTranslate(DocTranslatorObj* d, ffi::AnyView input,
+                                                const ffi::Object* destination) {
   const auto* func =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::PrimFuncNode>(input);
+      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const tirx::FunctionNode>(input);
   TVM_FFI_CHECK(destination == nullptr, TypeError)
       << "printer statement-only node cannot fulfill a destination";
   if (func->attrs->dict.count(tvm::attr::kSTir)) {
-    PrintSTirPrimFunc(d, func);
+    PrintSTirFunction(d, func);
   } else {
-    PrintPrimFunc(d, func, NamespaceDoc("tirx")->Attr("prim_func"), "");
+    PrintFunction(d, func, NamespaceDoc("tirx")->Attr("function"), "");
   }
   return std::nullopt;
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   RegisterNamespaceAlias("tirx.prefix", "T");
-  ffi::reflection::TypeAttrDef<tirx::PrimFuncNode>().attr(
-      kDocTranslate, FDocTranslate::FromNative<&PrimFuncDocTranslate>());
+  ffi::reflection::TypeAttrDef<tirx::FunctionNode>().attr(
+      kDocTranslate, FDocTranslate::FromNative<&TirxFunctionDocTranslate>());
 }
 
 }  // namespace

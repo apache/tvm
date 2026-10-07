@@ -84,7 +84,7 @@ class CodeGenCUDAHost : public CodeGenCHost {
     }
   }
 
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& func) override {
+  void AddFunction(const GlobalVar& gvar, const Function& func) override {
     if (!func->body.has_value()) {
       DeclareFunction(gvar, func);
       return;
@@ -480,9 +480,9 @@ class CodeGenCUDAHost : public CodeGenCHost {
 ffi::Module BuildCUDAHost(IRModule mod, Target target) {
   CodeGenCUDAHost cg;
   cg.Init(target);
-  std::vector<std::pair<GlobalVar, PrimFunc>> functions;
+  std::vector<std::pair<GlobalVar, Function>> functions;
   for (auto [gvar, base_func] : mod->functions) {
-    functions.emplace_back(gvar, base_func.as_or_throw<PrimFunc>());
+    functions.emplace_back(gvar, base_func.as_or_throw<Function>());
   }
   std::sort(functions.begin(), functions.end(), [](const auto& lhs, const auto& rhs) {
     return lhs.first->name_hint < rhs.first->name_hint;

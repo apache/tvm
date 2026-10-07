@@ -36,7 +36,7 @@ namespace tirx {
 
 class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer> {
  public:
-  static PrimFunc RewriteDataType(PrimFunc func) {
+  static Function RewriteDataType(Function func) {
     // The TIRX normalizer does not rewrite S-TIR block iterators, regions, or match buffers, so
     // narrowing a function that still contains blocks would leave their index types inconsistent.
     if (func->body.has_value() && ContainsNode<s_tir::SBlockRealizeNode>(func->body.value())) {
@@ -49,20 +49,20 @@ class Int32DTypeNarrower : public Int32DTypeNarrowerBase<IndexDataTypeNormalizer
     return narrower->Rewrite(func);
   }
 
-  explicit Int32DTypeNarrower(PrimFunc func) : Int32DTypeNarrowerBase(std::move(func)) {}
+  explicit Int32DTypeNarrower(Function func) : Int32DTypeNarrowerBase(std::move(func)) {}
 };
 
-PrimFunc ForceNarrowIndexToInt32(PrimFunc func) {
+Function ForceNarrowIndexToInt32(Function func) {
   return Int32DTypeNarrower::RewriteDataType(func);
 }
 
 namespace transform {
 
 Pass ForceNarrowIndexToInt32() {
-  auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [](Function f, IRModule m, PassContext ctx) {
     return ForceNarrowIndexToInt32(f);
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.NarrowDataType", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.NarrowDataType", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

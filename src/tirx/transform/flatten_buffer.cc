@@ -48,7 +48,7 @@ using namespace tvm::prim;
  *  same data origin, dtype, alignment and scope; no layout, no elem_offset.
  *
  *  The pass walks the AST top-down. At each buffer definition point
- *  (AllocTensor/DeclTensor; PrimFunc params are seeded up front) it derives,
+ *  (AllocTensor/DeclTensor; Function params are seeded up front) it derives,
  *  exactly once:
  *    - the fold view: the original geometry with its expression fields
  *      (runtime elem_offset, symbolic shapes/strides, layout iters) rewritten
@@ -62,7 +62,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::Mutate;
   using IRMutatorWithAnalyzer::Mutate_;
-  static PrimFunc Flatten(PrimFunc func) {
+  static Function Flatten(Function func) {
     if (!func->body.has_value()) return func;
     sym::Analyzer ana;
     auto pass = ffi::make_object<BufferFlattener>(ana);
@@ -162,7 +162,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
       type->elem_offset = IntImm(type->elem_offset.ty().as_or_throw<PrimType>(), 0);
     }
     // Body-local buffers keep their identity when flattening changes nothing.
-    // PrimFunc-parameter buffers always rebuild: the epilogue aliases the
+    // Function-parameter buffers always rebuild: the epilogue aliases the
     // rebuilt view onto the argument buffer with an explicit DeclTensor, and
     // downstream s_tir passes pin that shape.
     TensorVar flattened =
@@ -180,7 +180,7 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
     auto it = flat_map_.find(buf.var());
     TVM_FFI_ICHECK(it != flat_map_.end())
         << "Buffer " << buf.name()
-        << " is used before its definition (AllocTensor/DeclTensor/PrimFunc param)";
+        << " is used before its definition (AllocTensor/DeclTensor/Function param)";
     return it->second;
   }
 
@@ -319,22 +319,22 @@ class BufferFlattener : public IRMutatorWithAnalyzer {
    */
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> buffers_used_;
 
-  /*! \brief Buffers whose storage is supplied by a PrimFunc parameter. */
+  /*! \brief Buffers whose storage is supplied by a Function parameter. */
   std::unordered_set<TensorVar, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> extern_buffers_;
 
   /*! \brief Per-buffer {fold view, flattened husk}, derived at definition points. */
   std::unordered_map<Var, FlatInfo, ffi::ObjectPtrHash, ffi::ObjectPtrEqual> flat_map_;
 };
 
-PrimFunc FlattenBuffer(PrimFunc f) { return BufferFlattener::Flatten(f); }
+Function FlattenBuffer(Function f) { return BufferFlattener::Flatten(f); }
 
 namespace transform {
 
 Pass FlattenBuffer() {
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](Function f, IRModule m, PassContext ctx) {
     return FlattenBuffer(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "tirx.FlattenBuffer", {});
+  return CreateFunctionPass(pass_func, 0, "tirx.FlattenBuffer", {});
 }
 
 TVM_FFI_STATIC_INIT_BLOCK() {

@@ -128,7 +128,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
    */
   void SetFastMathFlags(llvm::FastMathFlags fmf);
 
-  virtual llvm::Function* DeclareFunction(const GlobalVar& gvar, const PrimFunc& f);
+  virtual llvm::Function* DeclareFunction(const GlobalVar& gvar, const Function& f);
 
   /*!
    * \brief Compile and add function f to the current module.
@@ -138,7 +138,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
    *
    * \param f The function to be added.
    */
-  virtual void AddFunction(const GlobalVar& gvar, const PrimFunc& f);
+  virtual void AddFunction(const GlobalVar& gvar, const Function& f);
   /*!
    * \brief Add main function as the entry name
    * \param entry_func_name The name of entry function to be added.
@@ -157,15 +157,15 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
 
   /*!
    * \brief Add functions from the (unordered) range to the current module in a deterministic order.
-   *        The range consists of objects convertible to PrimFunc.
+   *        The range consists of objects convertible to Function.
    * \param begin The beginning of the range.
    * \param end The end of the range.
-   * \param pfunc Converter function from the range element type to PrimFunc.
+   * \param pfunc Converter function from the range element type to Function.
    */
   template <typename IterType, typename ConvType>
   void AddFunctionsOrdered(IterType begin, IterType end, ConvType pfunc);
   /*!
-   * \brief Add functions from the (unordered) range of elements of type PrimFunc to the current
+   * \brief Add functions from the (unordered) range of elements of type Function to the current
    *        module in a deterministic order.
    * \param begin The beginning of the range.
    * \param end The end of the range.
@@ -396,7 +396,7 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
    * (e.g. llvm::Function::ExternalLinkage or
    * llvm::Function::PrivateLinkage)
    *
-   * \param func The PrimFunc whose symbol name and linkage type
+   * \param func The Function whose symbol name and linkage type
    * should be returned
    *
    * \param gvar The GlobalVar to be used when generating the symbol
@@ -404,11 +404,11 @@ class CodeGenLLVM : public tirx::ExprFunctor<llvm::Value*(const Expr&)>,
    * kGlobalSymbol attribute is not defined.
    */
   std::tuple<std::string, llvm::Function::LinkageTypes> GetLinkage(const GlobalVar& gvar,
-                                                                   const PrimFunc& func);
+                                                                   const Function& func);
 
-  llvm::Function* DeclareFunctionInternal(const GlobalVar& gvar, const PrimFunc& f);
+  llvm::Function* DeclareFunctionInternal(const GlobalVar& gvar, const Function& f);
 
-  void AddFunctionInternal(const GlobalVar& gvar, const PrimFunc& f);
+  void AddFunctionInternal(const GlobalVar& gvar, const Function& f);
 
   // Create extern call
   llvm::CallInst* CreateCallExtern(llvm::Type* ret, const std::string& name,
@@ -644,11 +644,11 @@ inline int CodeGenLLVM::GetVectorNumElements(llvm::Value* vec) {
 
 template <typename IterType, typename ConvType>
 void CodeGenLLVM::AddFunctionsOrdered(IterType begin, IterType end, ConvType pfunc) {
-  std::vector<std::tuple<GlobalVar, PrimFunc>> funcs;
+  std::vector<std::tuple<GlobalVar, Function>> funcs;
   for (auto it = begin; it != end; ++it) {
     auto [gvar, func] = *it;
     auto converted = pfunc(func);
-    funcs.push_back({gvar, converted.template as_or_throw<PrimFunc>()});
+    funcs.push_back({gvar, converted.template as_or_throw<Function>()});
   }
   std::sort(funcs.begin(), funcs.end(), [this](const auto& pair_a, const auto& pair_b) {
     const auto& [gvar_a, func_a] = pair_a;

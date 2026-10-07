@@ -44,12 +44,12 @@ def test_prim_type_hidden_path_exact_message():
     )
 
 
-def test_prim_func_buffer_param():
-    @T.prim_func
+def test_function_buffer_param():
+    @T.function
     def func1(A: T.Tensor((128, 128)), B: T.Tensor((128, 128))):
         pass
 
-    @T.prim_func
+    @T.function
     def func2(A: T.Tensor((128, 128)), B: T.Tensor((128, 256))):
         pass
 
@@ -92,13 +92,13 @@ def _error_message(exception):
 def test_evaluate():
     @I.ir_module
     class module1:
-        @T.prim_func
+        @T.function
         def func():
             T.evaluate(0)
 
     @I.ir_module
     class module2:
-        @T.prim_func
+        @T.function
         def func():
             T.evaluate(1)
 
@@ -123,11 +123,11 @@ def test_evaluate():
 
 
 def test_allocate():
-    @T.prim_func
+    @T.function
     def func1():
         a = T.alloc_tensor((128, 128), dtype="float32")
 
-    @T.prim_func
+    @T.function
     def func2():
         a = T.alloc_tensor((256, 128), dtype="float32")
 
@@ -158,12 +158,12 @@ def test_allocate():
 
 
 def test_for():
-    @T.prim_func
+    @T.function
     def func1():
         for i, j in T.grid(128, 128):
             T.evaluate(0)
 
-    @T.prim_func
+    @T.function
     def func2():
         for i, j, k in T.grid(128, 128, 128):
             T.evaluate(0)

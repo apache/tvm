@@ -32,7 +32,7 @@ def test_optional_annotation_requires_jit_at_the_source_parameter():
     # Ordinary argument validation must reject Optional at its original parameter location.
     with pytest.raises(TypeError, match="^T.Optional is only supported by @T.jit$") as caught:
 
-        @T.prim_func
+        @T.function
         def invalid(value: T.Optional(T.handle)):
             T.evaluate(0)
 
@@ -77,7 +77,7 @@ def test_scalar_assign_error_not_swallowed():
     with patch("tvm.tirx.script.ir_builder.parser_protocol.tensor_store", side_effect=bomb):
         try:
 
-            @T.prim_func
+            @T.function
             def func():
                 T.device_entry()
                 v: T.int32

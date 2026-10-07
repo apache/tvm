@@ -68,7 +68,7 @@ class CodeGenCPU : public CodeGenLLVM {
   void Init(const std::string& module_name, LLVMTarget* llvm_target,
             ffi::Optional<ffi::String> system_lib_prefix, bool dynamic_lookup,
             bool target_c_runtime) override;
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
+  void AddFunction(const GlobalVar& gvar, const Function& f) override;
   void AddMainFunction(const std::string& entry_func_name) override;
   std::unique_ptr<llvm::Module> Finish() override;
   void Dispatch_(const AssertStmtNode* op) override;
@@ -153,7 +153,7 @@ class CodeGenCPU : public CodeGenLLVM {
   // return the end block after the check
   llvm::BasicBlock* CheckCallSuccess(llvm::Value* retcode);
 
-  llvm::DISubprogram* CreateDebugFunction(const GlobalVar& gvar, const PrimFunc& f);
+  llvm::DISubprogram* CreateDebugFunction(const GlobalVar& gvar, const Function& f);
   llvm::DISubprogram* CreateDebugFunction(llvm::StringRef name, const ffi::Array<Type>& param_types,
                                           const Type& return_type);
 

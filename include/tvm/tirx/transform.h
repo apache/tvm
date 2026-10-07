@@ -46,7 +46,7 @@ using tvm::transform::PassNode;
 using tvm::transform::Sequential;
 
 /*
- * \brief Create a function pass that optimizes PrimFuncs.
+ * \brief Create a function pass that optimizes Functions.
  *
  * \param pass_func The packed function that contains the optimization.
  * \param opt_level The optimization level of the function pass.
@@ -55,14 +55,14 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(
-    std::function<ffi::Optional<PrimFunc>(PrimFunc, IRModule, PassContext)> pass_func,
+TVM_DLL Pass CreateFunctionPass(
+    std::function<ffi::Optional<Function>(Function, IRModule, PassContext)> pass_func,
     int opt_level, ffi::String name, tvm::ffi::Array<ffi::String> required, bool traceable = false);
 
 /*!
  * \brief Lower vectorization loops.
  *
- * Target-dependent vectorization uses the PrimFunc's target attribute, not an
+ * Target-dependent vectorization uses the Function's target attribute, not an
  * ambient target context or nested target attributes. Target-independent
  * fixed-width loops do not require a target. Code needing different vectorization
  * targets must be separated into functions before this pass.
@@ -99,7 +99,7 @@ TVM_DLL Pass UnrollLoop();
 TVM_DLL Pass RemoveNoOp();
 
 /*!
- * \brief Run statement-level arithmetic simplifications on the TIR PrimFunc.
+ * \brief Run statement-level arithmetic simplifications on the TIR Function.
  *
  * \return The pass.
  */
@@ -122,7 +122,7 @@ TVM_DLL Pass ConvertSSA();
 TVM_DLL Pass LowerThreadAllreduce();
 
 /*!
- * \brief Transform the high-level PrimFunc to a low-level version
+ * \brief Transform the high-level Function to a low-level version
  *        that can be used as an API function.
  *
  *
@@ -165,7 +165,7 @@ TVM_DLL Pass RemapThreadAxis(ffi::Map<ffi::String, ffi::String> axis_map);
  * \brief Annotate, split, and lower host/device functions.
  *
  * This pass first annotates device regions within host functions,
- * then splits them into host and device-side PrimFuncs, and finally
+ * then splits them into host and device-side Functions, and finally
  * lowers host-to-device calls into the device kernel launch ABI.
  *
  * The resulting host-side function will keep the same
@@ -244,7 +244,7 @@ TVM_DLL Pass BF16ComputeLegalize();
  * \brief Legalize fp8 compute Ops. Add a cast to fp16/fp32
  *   before Ops, then add a cast back to fp8.
  * \param promote_dtype The data type used for type promotion, defaults to float16
- * \note Must be run after BindTarget, as it relies on target attributes for PrimFuncs
+ * \note Must be run after BindTarget, as it relies on target attributes for Functions
  * \return The pass.
  */
 TVM_DLL Pass FP8ComputeLegalize(ffi::String promote_dtype = "float16");
@@ -257,7 +257,7 @@ TVM_DLL Pass BF16StorageLegalize();
 
 /*!
  * \brief Legalize fp8 storage types to u8.
- * \note Must be run after BindTarget, as it relies on target attributes for PrimFuncs
+ * \note Must be run after BindTarget, as it relies on target attributes for Functions
  * \return The pass.
  */
 TVM_DLL Pass FP8StorageLegalize();
@@ -295,29 +295,29 @@ TVM_DLL Pass CommonSubexprElim();
 
 /*!
  * \brief This is the unified static memory planner pass that will
- * plan for memory intra- and inter- PrimFuncs together. The pass
- * requires all the function to be PrimFuncs including the main.
+ * plan for memory intra- and inter- Functions together. The pass
+ * requires all the function to be Functions including the main.
  * \return The pass.
  */
 TVM_DLL Pass UnifiedStaticMemoryPlanner();
 
 /*!
- * \brief Annotate a PrimFunc with a given target.
+ * \brief Annotate a Function with a given target.
  * \return The pass.
  */
 TVM_DLL Pass BindTarget(Target target);
 
 /*!
- * \brief Set a PrimFunc as the entry point if it is only function in IRModule.
+ * \brief Set a Function as the entry point if it is only function in IRModule.
  * \return The pass.
  */
 TVM_DLL Pass AnnotateEntryFunc();
 
 /*!
- * \brief Filter PrimFuncs with a given condition.
+ * \brief Filter Functions with a given condition.
  * \return The pass.
  */
-TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
+TVM_DLL Pass Filter(ffi::TypedFunction<bool(Function)> fcond);
 
 /*!
  * \brief Lower TIRx op calls using registered op dispatchers for the given target.

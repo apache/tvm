@@ -38,7 +38,7 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
 
     n = T.int32()
 
-    @T.prim_func
+    @T.function
     def kernel(A: T.Tensor((n,), dtype), B: T.Tensor((n,), out_dtype)):
         if I.constexpr(gpu):
             for bx in T.thread_binding(T.ceildiv(n, 64), thread="blockIdx.x"):
@@ -55,7 +55,7 @@ def _unary_kernel(op, dtype="float32", out_dtype=None, gpu=False):
 def _binary_kernel(op, rhs_dtype="float32"):
     n = T.int32()
 
-    @T.prim_func
+    @T.function
     def kernel(
         A: T.Tensor((n,), "float32"), B: T.Tensor((n,), rhs_dtype), C: T.Tensor((n,), "float32")
     ):
@@ -316,7 +316,7 @@ stride_3 = T.dynamic("stride_3", "int32")
 
 @tvm.script.ir_module
 class Module:
-    @T.prim_func
+    @T.function
     def test_tir_fma(
         A_1: T.Tensor([n], strides=[stride], elem_offset=0, align=64, offset_factor=1),
         B_1: T.Tensor([n], strides=[stride_1], elem_offset=0, align=64, offset_factor=1),

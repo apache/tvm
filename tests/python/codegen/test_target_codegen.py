@@ -26,7 +26,7 @@ from tvm.script import tirx as T
 def test_tensor_store_predicate_not_supported():
     target = "c"
 
-    @T.prim_func
+    @T.function
     def func(B: T.Tensor((8,), "float32")):
         T.evaluate(
             T.call_intrin(
@@ -59,7 +59,7 @@ def test_tensor_store_predicate_not_supported_gpu(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((2, 3), "float32"), B: T.Tensor((6,), "float32")):
         T.func_attr({"global_symbol": "main"})
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
@@ -83,7 +83,7 @@ def test_tensor_store_predicate_not_supported_gpu(target):
 def test_buffer_load_predicate_not_supported():
     target = "c"
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in range(4):
             B.vstore(
@@ -117,7 +117,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
     if not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func
+    @T.function
     def func(A: T.Tensor((8,), "float32"), B: T.Tensor((8,), "float32")):
         for i_0 in T.thread_binding(3, thread="threadIdx.x"):
             B.vstore(
@@ -142,7 +142,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
     [("opencl", "__global "), ("metal", "device ")],
 )
 def test_decl_buffer_offset_preserves_storage_scope(target, qualifier):
-    @T.prim_func
+    @T.function
     def kernel(A_ptr: T.handle("float32", "global")):
         T.func_attr(
             {
@@ -168,7 +168,7 @@ def test_codegen_loop_step(target):
     if target != "c" and not tvm.testing.device_enabled(target):
         pytest.skip(f"{target} not enabled")
 
-    @T.prim_func
+    @T.function
     def test_loop_step(
         A: T.Tensor((1024,), "float32"),
         B: T.Tensor((1024,), "float32"),

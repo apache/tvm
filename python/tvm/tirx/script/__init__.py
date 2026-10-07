@@ -43,7 +43,7 @@ def _initialize() -> None:
         )
         globals().update(
             bind=builder.bind,
-            prim_func=entry.make_decorator(builder, namespace_path="tirx.prim_func"),
+            function=entry.make_decorator(builder, namespace_path="tirx.function"),
             inline=entry.make_macro_decorator(
                 builder, namespace_path="tirx.inline", preserve_return=True, late_binding=True
             ),

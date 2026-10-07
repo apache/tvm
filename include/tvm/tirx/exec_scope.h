@@ -160,7 +160,7 @@ class ScopeIdDefVerifier {
    * \brief Verification mode.
    *
    * - kRelaxed: tolerate deferred (extent=None) ScopeIdDefs. Used for partial
-   *   programs in the well-formedness check at PrimFunc construction time.
+   *   programs in the well-formedness check at Function construction time.
    * - kStrict: every original ScopeIdDef must end with a resolved extent
    *   (either explicit at construction, or inferred via closure). Used at
    *   LowerTIRx entry where downstream resolve/codegen needs concrete values.

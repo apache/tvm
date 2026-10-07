@@ -37,7 +37,7 @@ def test_meta_class_constructor_rejects_unowned_resource():
 
     with pytest.raises(ValueError):
 
-        @T.prim_func
+        @T.function
         def test():
             T.device_entry()
             bad = Bad()
@@ -54,7 +54,7 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
             self.scalar = T.local_scalar("int32")
             instances.append(self)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test():
         T.device_entry()
         external = T.alloc_tensor((2,), "int32", scope="local")
@@ -69,7 +69,7 @@ def test_meta_class_multiple_instances_preserve_owned_resources():
             + second.external[1]
         )
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected():
         T.device_entry()
         external = T.alloc_local((2,), "int32")
@@ -96,7 +96,7 @@ def test_macro():
     def mul(x, c):
         T.evaluate(x * c)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test():
         T.device_entry()
         for x in range(10):
@@ -114,7 +114,7 @@ def test_macro():
             two_add_and_mul(1)
             two_add_and_mul(2)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected():
         T.device_entry()
         for x in range(10):
@@ -131,7 +131,7 @@ def test_macro():
 
 def test_macro_recursive():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test():
         T.device_entry()
         for x in T.serial(10):
@@ -144,7 +144,7 @@ def test_macro_recursive():
 
             add(x, 5)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected():
         T.device_entry()
         for x in range(10):
@@ -161,7 +161,7 @@ def test_macro_recursive():
 
 def test_list_comprehension():
     # fmt: off
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test():
         T.device_entry()
         acc = T.alloc_local([10], "bool")
@@ -171,7 +171,7 @@ def test_list_comprehension():
         T.evaluate(tvm.tirx.all(*[acc[_] for _ in range(10)]))
         T.evaluate(tvm.tirx.all(*([acc[_] for _ in range(2, 4)] + [acc[_] for _ in range(6, 8)])))
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected():
         T.device_entry()
         acc = T.alloc_local((10,), "bool")
@@ -194,12 +194,12 @@ def test_list_comprehension():
 def test_shared_meta_var_alias():
     assert I.meta_var is T.meta_var
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def via_ir_namespace():
         value = I.meta_var(T.int32(1))
         T.evaluate(value)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def via_tirx_alias():
         value = T.meta_var(T.int32(1))
         T.evaluate(value)
@@ -230,7 +230,7 @@ def test_scalar_assign_in_macro():
             # Expr assigned to scalar via self.attr → tensor_store succeeds
             self.counter = self.counter + T.int32(1)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def test():
         T.device_entry()
         counter: T.int32
@@ -238,7 +238,7 @@ def test_scalar_assign_in_macro():
         state.add_one()
         T.evaluate(state.counter)
 
-    @T.prim_func(private=True)
+    @T.function(private=True)
     def expected():
         T.device_entry()
         counter: T.int32
@@ -250,21 +250,21 @@ def test_scalar_assign_in_macro():
     assert_structural_equal(test, expected)
 
 
-def test_prim_func_closure_shape():
+def test_function_closure_shape():
     """Closure variable used in Buffer shape annotation."""
 
     def f(M=16):
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor((M,), "float32")):
             T.evaluate(0)
 
         return func
 
-    @T.prim_func
+    @T.function
     def expected_16(A: T.Tensor((16,), "float32")):
         T.evaluate(0)
 
-    @T.prim_func
+    @T.function
     def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(0)
 
@@ -277,21 +277,21 @@ def _normalize(func):
     return func.with_attr("global_symbol", "")
 
 
-def test_prim_func_closure_dtype():
+def test_function_closure_dtype():
     """Closure variable used as Buffer dtype."""
 
     def f(dtype="float32"):
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor((16,), dtype)):
             T.evaluate(0)
 
         return func
 
-    @T.prim_func
+    @T.function
     def expected_f32(A: T.Tensor((16,), "float32")):
         T.evaluate(0)
 
-    @T.prim_func
+    @T.function
     def expected_f16(A: T.Tensor((16,), "float16")):
         T.evaluate(0)
 
@@ -299,7 +299,7 @@ def test_prim_func_closure_dtype():
     tvm.ir.assert_structural_equal(_normalize(f("float16")), _normalize(expected_f16))
 
 
-def test_prim_func_nested_closure():
+def test_function_nested_closure():
     """Variables from enclosing scope active on the call stack (grandparent frame fallback).
 
     With PEP 563, closure-only variables are missing from __closure__ unless they
@@ -310,7 +310,7 @@ def test_prim_func_nested_closure():
 
     def outer(M=16):
         def middle(N=8):
-            @T.prim_func
+            @T.function
             def func(A: T.Tensor((M, N), "float32")):
                 T.evaluate(0)
 
@@ -318,11 +318,11 @@ def test_prim_func_nested_closure():
 
         return middle()
 
-    @T.prim_func
+    @T.function
     def expected_16_8(A: T.Tensor((16, 8), "float32")):
         T.evaluate(0)
 
-    @T.prim_func
+    @T.function
     def expected_32_8(A: T.Tensor((32, 8), "float32")):
         T.evaluate(0)
 
@@ -336,17 +336,17 @@ def test_ir_module_closure():
     def f(M=16):
         @I.ir_module
         class Mod:
-            @T.prim_func
+            @T.function
             def main(A: T.Tensor((M,), "float32")):
                 T.evaluate(0)
 
         return Mod
 
-    @T.prim_func
+    @T.function
     def expected_16(A: T.Tensor((16,), "float32")):
         T.evaluate(0)
 
-    @T.prim_func
+    @T.function
     def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(0)
 
@@ -358,17 +358,17 @@ def test_mixed_closure_usage():
     """Closure var used in both annotation AND body -- regression check."""
 
     def f(M=16):
-        @T.prim_func
+        @T.function
         def func(A: T.Tensor((M,), "float32")):
             T.evaluate(M)
 
         return func
 
-    @T.prim_func
+    @T.function
     def expected_16(A: T.Tensor((16,), "float32")):
         T.evaluate(16)
 
-    @T.prim_func
+    @T.function
     def expected_32(A: T.Tensor((32,), "float32")):
         T.evaluate(32)
 

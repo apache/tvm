@@ -50,7 +50,7 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
  public:
   /// Special member functions
   //@{
-  explicit MemoryAccessVerifier(PrimFunc f, int device_type) : func_(f), dev_type_(device_type) {}
+  explicit MemoryAccessVerifier(Function f, int device_type) : func_(f), dev_type_(device_type) {}
   virtual ~MemoryAccessVerifier() = default;
   MemoryAccessVerifier(const MemoryAccessVerifier&) = delete;
   MemoryAccessVerifier(MemoryAccessVerifier&&) = delete;
@@ -172,14 +172,14 @@ class MemoryAccessVerifier final : public StmtExprVisitor {
   bool in_thread_env_{false};
   std::vector<ffi::String> errs_;
   //@}
-  tirx::PrimFunc func_;                            ///< Function to be verified.
+  tirx::Function func_;                            ///< Function to be verified.
   int dev_type_{kDLCPU};                           ///< Device type
   std::unordered_map<const VarNode*, Expr> defs_;  ///< Variable definitions
 };
 }  // namespace
 
 /// Interface of VerifyMemory pass
-std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
+std::vector<ffi::String> VerifyMemory_(const Function& func) {
   auto target = func->GetAttr<Target>(tvm::attr::kTarget);
   // Skip verification for functions without a target attribute, as they are
   // typically host-only helper functions that do not have device-memory constraints.
@@ -199,7 +199,7 @@ std::vector<ffi::String> VerifyMemory_(const PrimFunc& func) {
   }
 }
 
-bool VerifyMemory(const PrimFunc& func) { return VerifyMemory_(func).size() == 0; }
+bool VerifyMemory(const Function& func) { return VerifyMemory_(func).size() == 0; }
 
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
@@ -211,7 +211,7 @@ namespace transform {
 Pass VerifyMemory() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto func = kv.second.as<PrimFunc>()) {
+      if (auto func = kv.second.as<Function>()) {
         auto errs = VerifyMemory_(func.value());
         if (errs.size() > 0) {
           std::stringstream s;

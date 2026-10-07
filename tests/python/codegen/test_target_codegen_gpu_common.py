@@ -50,7 +50,7 @@ def test_int_intrin(target, dtype):
 
         @I.ir_module
         class Module:
-            @T.prim_func
+            @T.function
             def main(
                 A: T.Tensor((n,), dtype),
                 B: T.Tensor((n,), dtype),
