@@ -77,6 +77,23 @@ def test_has_gpu_is_raw_any_device():
     assert env.has_gpu() == any_device
 
 
+def test_build_flag_enabled_matches_use_cutlass_registration():
+    """build_flag_enabled("USE_CUTLASS") mirrors the native codegen registration.
+
+    Regression test: this used to always report False because
+    ``tvm.support.libinfo()`` hardcoded USE_CUTLASS to "OFF", silently
+    skipping the CUTLASS test suite even on builds configured with
+    USE_CUTLASS=ON.
+    """
+    from tvm.contrib.cutlass import has_cutlass  # pylint: disable=import-outside-toplevel
+
+    env.build_flag_enabled.cache_clear()
+    try:
+        assert env.build_flag_enabled("USE_CUTLASS") == has_cutlass()
+    finally:
+        env.build_flag_enabled.cache_clear()
+
+
 def test_target_enabled_respects_tvm_test_targets(monkeypatch):
     """A device kind excluded from TVM_TEST_TARGETS is reported as not enabled."""
     env._target_enabled.cache_clear()  # pylint: disable=protected-access
