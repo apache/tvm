@@ -58,13 +58,12 @@ def test_inferred_ty_with_dynamic_buffer():
 
     M = tvm.tirx.Var("M", "int64")
     N = tvm.tirx.Var("N", "int64")
-    expected = tvm.relax.FuncType(
+    expected = tvm.ir.FuncType(
         [
-            tvm.relax.TensorType([M, N], "float32"),
-            tvm.relax.TensorType([M * N], "float32"),
+            tvm.tirx.decl_tensor([M, N], "float32", layout=None).ty,
+            tvm.tirx.decl_tensor([M * N], "float32", layout=None).ty,
         ],
-        tvm.relax.TupleType([]),
-        purity=False,
+        tvm.ir.TupleType([]),
     )
     tvm.ir.assert_structural_equal(func.ty, expected)
 
