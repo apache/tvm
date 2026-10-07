@@ -18,7 +18,6 @@
  */
 #include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/extra/structural_visit.h>
-#include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/prim/op.h>
 #include <tvm/te/operation.h>
@@ -32,8 +31,6 @@
 #include <limits>
 #include <optional>
 #include <string>
-#include <utility>
-#include <vector>
 
 #include "../../../script/printer/ir/utils.h"
 #include "utils.h"

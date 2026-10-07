@@ -281,15 +281,33 @@ def test_instr_descriptor_typed_attrs_and_roundtrip(block_scaled):
 
 
 @pytest.mark.parametrize("block_scaled", [False, True])
-def test_instr_descriptor_preserves_explicit_result(block_scaled):
+@pytest.mark.parametrize("result_type", ["uint32", None])
+def test_instr_descriptor_preserves_explicit_result(block_scaled, result_type):
     call = _descriptor_call(block_scaled)
-    explicit = tvm.ir.Call.unchecked(
-        call.op, call.args, attrs=call.attrs, ty=tvm.ir.PrimType("uint32")
-    )
+    explicit = tvm.ir.Call.unchecked(call.op, call.args, attrs=call.attrs, ty=result_type)
     func = tvm.tirx.PrimFunc([call.args[0]], tvm.tirx.Evaluate(explicit))
     source = func.script()
     assert "T.cuda.tcgen05_encode_instr_descriptor" in source
-    assert 'ty="uint32"' in source
+    assert 'ty="uint32"' in source if result_type else "ty=" in source
+    tvm.ir.assert_structural_equal(
+        func, tvm.script.from_source(source, extra_vars={"T": T, "I": tvm.script.ir})
+    )
+
+
+@pytest.mark.parametrize("block_scaled", [False, True])
+@pytest.mark.parametrize("invalid", ["arity", "missing_attrs", "wrong_schema"])
+def test_instr_descriptor_invalid_call_roundtrip(block_scaled, invalid):
+    call = _descriptor_call(block_scaled)
+    args = [] if invalid == "arity" else call.args
+    attrs = call.attrs
+    if invalid == "missing_attrs":
+        attrs = None
+    elif invalid == "wrong_schema":
+        attrs = _descriptor_call(not block_scaled).attrs
+    invalid_call = tvm.ir.Call.unchecked(call.op, args, attrs=attrs, ty=call.ty)
+    func = tvm.tirx.PrimFunc([call.args[0]], tvm.tirx.Evaluate(invalid_call))
+    source = func.script()
+    assert "Call.unchecked" in source
     tvm.ir.assert_structural_equal(
         func, tvm.script.from_source(source, extra_vars={"T": T, "I": tvm.script.ir})
     )
@@ -299,6 +317,9 @@ def test_instr_descriptor_preserves_explicit_result(block_scaled):
 def test_instr_descriptor_schema_validation(block_scaled):
     call = _descriptor_call(block_scaled)
     api = getattr(cuda_op, call.op.name.removeprefix("tirx.cuda."))
+    assert api(call.args[0], attrs=call.attrs, ty=None).ty == tvm.ir.Type.missing()
+    with pytest.raises(TypeError, match="ty and ret_ty"):
+        api(call.args[0], attrs=call.attrs, ty="uint32", ret_ty=None)
     with pytest.raises(TypeError, match="cannot mix attrs"):
         api(call.args[0], attrs=call.attrs, M=128)
     with pytest.raises(TypeError, match="multiple values"):
