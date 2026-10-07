@@ -26,19 +26,21 @@
 
 #include <tvm/ffi/big_int.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/dataclass.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/base_expr.h>
 #include <tvm/ir/cow.h>
-#include <tvm/ir/op_attr_types.h>
 #include <tvm/ir/source_map.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <limits>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
 
@@ -530,6 +532,75 @@ class GlobalVar : public Expr {
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NOTNULLABLE(GlobalVar, Expr, GlobalVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
+
+/*!
+ * \brief The effect type of the call.
+ */
+enum class CallEffectKind : int {
+  /*! \brief Function corresponds to an annotation(e.g. likely) and can translate to identity. */
+  kExprAnnotation = 0,
+  /*!
+   * \brief Pure function that do not interacts
+   *        with any external state.
+   */
+  kPure = 1,
+  /*!
+   * \brief Function's that may read from states(e.g. RAM)
+   */
+  kReadState = 2,
+  /*!
+   * \brief Function that may read/write from states(e.g. RAM).
+   */
+  kUpdateState = 3,
+  /*!
+   * \brief Opaque function, cannot make any assumption
+   */
+  kOpaque = kUpdateState,
+  /*!
+   * \brief Special intrinsic to annotate call arguments info
+   *        only valid as a direct argument to a call.
+   */
+  kSpecialCallArg = 4,
+  /*!
+   * \brief Embed opaque information in the Expr, cannot be codegen.
+   */
+  kEmbedInfo = 5,
+  /*!
+   * \brief Function that changes control flow
+   */
+  kControlJump = 6,
+};
+
+inline std::ostream& operator<<(std::ostream& os, CallEffectKind side_effect) {
+  switch (side_effect) {
+    case CallEffectKind::kExprAnnotation:
+      return os << "kExprAnnotation";
+
+    case CallEffectKind::kPure:
+      return os << "kPure";
+
+    case CallEffectKind::kReadState:
+      return os << "kReadState";
+
+    case CallEffectKind::kUpdateState:
+      return os << "kUpdateState";
+
+    case CallEffectKind::kSpecialCallArg:
+      return os << "kSpecialCallArg";
+
+    case CallEffectKind::kEmbedInfo:
+      return os << "kEmbedInfo";
+
+    case CallEffectKind::kControlJump:
+      return os << "kControlJump";
+
+    default:
+      TVM_FFI_THROW(InternalError) << "Unknown CallEffectKind: " << static_cast<int>(side_effect);
+  }
+}
+
+/*! \brief Use integer to record the kind. */
+using TCallEffectKind = int64_t;
 
 /*!
  * \brief Call corresponds to callable invocation.
