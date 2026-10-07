@@ -115,13 +115,10 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
   void UpdateFunction(const GlobalVar& gv, BaseFunc function) final {
     context_mod_.CopyOnWrite();
-    GlobalVar canonical = context_mod_->ContainGlobalVar(gv->name_hint)
-                              ? context_mod_->GetGlobalVar(gv->name_hint)
-                              : gv;
 
     // Remove function from the de-duplication map.
     if (ctx_func_dedup_map_ != nullptr) {
-      auto it = context_mod_->functions.find(canonical);
+      auto it = context_mod_->functions.find(gv);
       if (it != context_mod_->functions.end()) {
         BaseFunc old_func = (*it).second;
         auto ptr = ctx_func_dedup_map_->find(old_func);
@@ -129,27 +126,22 @@ class BlockBuilderImpl : public BlockBuilderNode {
             << "BlockBuilder::UpdateFunction is updating " << gv
             << ", which appears in the BlockBuilder's context_mod_, "
             << "but does not appear in the de-duplication map";
-        TVM_FFI_ICHECK(ptr->second.count(canonical))
+        TVM_FFI_ICHECK(ptr->second.count(gv))
             << "BlockBuilder::UpdateFunction is updating " << gv
             << ", but the de-duplication map for the previous value of this function "
             << "does not include " << gv;
-        ptr->second.erase(canonical);
+        ptr->second.erase(gv);
         if (ptr->second.empty()) {
           ctx_func_dedup_map_->erase(ptr);
         }
       }
     }
 
-    context_mod_->Update(canonical, function);
-    if (!context_mod_->GetGlobalVar(gv->name_hint).same_as(canonical)) {
-      // A changed signature remaps callers as well as the updated function.
-      ctx_func_dedup_map_.reset();
-      return;
-    }
+    context_mod_->Update(gv, function);
 
     // add new dedup map item.
     if (ctx_func_dedup_map_ != nullptr) {
-      (*ctx_func_dedup_map_)[context_mod_->Lookup(canonical)].insert(canonical);
+      (*ctx_func_dedup_map_)[function].insert(gv);
     }
   }
 

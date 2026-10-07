@@ -33,7 +33,7 @@ namespace {
 
 TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> FunctionVisit(
     ffi::StructuralVisitorObj* visitor, ffi::AnyView value) noexcept {
-  // skips: attrs (metadata), ty (derived by RefreshType)
+  // skips: attrs (metadata), ty (derived from the function signature)
   const FunctionNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value);
   TVM_FFI_S_VISIT_MAYBE_EARLY_RETURN(visitor->WithDefRegionKind(
@@ -45,7 +45,7 @@ TVM_FFI_INLINE ffi::Expected<ffi::Optional<ffi::VisitInterrupt>> FunctionVisit(
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: attrs (metadata), ty (derived by RefreshType)
+  // skips: attrs (metadata), ty (derived from the function signature)
   const FunctionNode* self =
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value);
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
@@ -65,13 +65,12 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMutate(
   copy->params = std::move(mapped_params).ValueOrUnchanged(std::move(copy->params));
   copy->ret_type = std::move(mapped_ret_type).ValueOrUnchanged(std::move(copy->ret_type));
   copy->body = std::move(mapped_body).ValueOrUnchanged(std::move(copy->body));
-  copy->RefreshType();
   return ffi::Any(std::move(copy));
 }
 
 TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMutate(
     ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  // skips: attrs (metadata), ty (derived by RefreshType)
+  // skips: attrs (metadata), ty (derived from the function signature)
   FunctionNode* self = const_cast<FunctionNode*>(
       ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const FunctionNode>(value));
   TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<ffi::Array<Var>>, mapped_params,
@@ -93,8 +92,6 @@ TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> FunctionMaybeInplaceMut
   if (!mapped_body.UnchangedOrSameAs(self->body)) {
     self->body = std::move(mapped_body).ValueUnchecked();
   }
-  // A parameter's type may change in place while the parameter and array keep their identities.
-  self->RefreshType();
   return ffi::Unchanged();
 }
 
@@ -114,7 +111,7 @@ Function::Function(ffi::Array<tirx::Var> params, ffi::Optional<Stmt> body, Type 
   n->ret_type = std::move(ret_type);
   n->attrs = std::move(attrs);
   n->span = std::move(span);
-  n->RefreshType();
+  n->ty = n->func_type_annotation();
   data_ = std::move(n);
 }
 
@@ -140,18 +137,6 @@ FuncType FunctionNode::func_type_annotation() const {
     param_types.push_back(param->ty);
   }
   return FuncType(param_types, ret_type);
-}
-
-void FunctionNode::RefreshType() const {
-  const auto* signature = ty.as<FuncTypeNode>();
-  bool current = signature && signature->ret_type.same_as(ret_type) &&
-                 signature->arg_types.size() == params.size();
-  for (size_t i = 0; current && i < params.size(); ++i) {
-    current = signature->arg_types[i].same_as(params[i]->ty);
-  }
-  if (!current) {
-    ty = func_type_annotation();
-  }
 }
 
 }  // namespace tirx

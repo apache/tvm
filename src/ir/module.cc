@@ -23,7 +23,6 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/extra/structural_equal.h>
-#include <tvm/ffi/extra/structural_mutate.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
@@ -37,64 +36,6 @@
 
 namespace tvm {
 
-namespace {
-
-BaseFunc RemapModuleGlobals(const BaseFunc& function,
-                            const ffi::Map<ffi::String, GlobalVar>& globals) {
-  auto remap = [&globals](const GlobalVar& var) {
-    auto it = globals.find(var->name_hint);
-    return it == globals.end() ? var : (*it).second;
-  };
-  return ffi::StructuralMap<ffi::WalkOrder::kPostOrder>(function, remap).as_or_throw<BaseFunc>();
-}
-
-template <ffi::InplaceMode mode>
-TVM_FFI_INLINE ffi::Expected<ffi::UnchangedOr<ffi::Any>> IRModuleMutate(
-    ffi::StructuralMutatorObj* mutator, ffi::AnyView value) noexcept {
-  const IRModuleNode* self =
-      ffi::details::AnyUnsafe::RawObjectPtrFromAnyViewAfterCheck<const IRModuleNode>(value);
-  using FunctionMap = ffi::Map<GlobalVar, BaseFunc>;
-  using GlobalInfoMap = ffi::Map<ffi::String, ffi::Array<GlobalInfo>>;
-  // The name map and symbol types are derived from the resulting function map.
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<FunctionMap>, functions,
-                                    mutator->MutateExpected(self->functions, mode));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<SourceMap>, source_map,
-                                    mutator->MutateExpected(self->source_map, mode));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<DictAttrs>, attrs,
-                                    mutator->MutateExpected(self->attrs, mode));
-  TVM_FFI_S_MUTATE_ASSIGN_OR_RETURN(ffi::UnchangedOr<GlobalInfoMap>, global_infos,
-                                    mutator->MutateExpected(self->global_infos, mode));
-  ffi::ObjectPtr<IRModuleNode> copy;
-  IRModuleNode* result;
-  if constexpr (mode == ffi::InplaceMode::kDisallow) {
-    if (functions.UnchangedOrSameAs(self->functions) &&
-        source_map.UnchangedOrSameAs(self->source_map) && attrs.UnchangedOrSameAs(self->attrs) &&
-        global_infos.UnchangedOrSameAs(self->global_infos)) {
-      return ffi::Unchanged();
-    }
-    copy = ffi::make_object<IRModuleNode>(*self);
-    result = copy.get();
-  } else {
-    result = const_cast<IRModuleNode*>(self);
-  }
-  result->functions = std::move(functions).ValueOrUnchanged(std::move(result->functions));
-  result->source_map = std::move(source_map).ValueOrUnchanged(std::move(result->source_map));
-  result->attrs = std::move(attrs).ValueOrUnchanged(std::move(result->attrs));
-  result->global_infos = std::move(global_infos).ValueOrUnchanged(std::move(result->global_infos));
-  try {
-    result->UpdateGlobalVarTypes();
-  } catch (const ffi::Error& error) {
-    return ffi::Unexpected(error);
-  }
-  if constexpr (mode == ffi::InplaceMode::kDisallow) {
-    return ffi::Any(std::move(copy));
-  } else {
-    return ffi::Unchanged();
-  }
-}
-
-}  // namespace
-
 IRModule::IRModule(tvm::ffi::Map<GlobalVar, BaseFunc> functions, SourceMap source_map,
                    DictAttrs attrs, ffi::Map<ffi::String, ffi::Array<GlobalInfo>> global_infos) {
   auto n = ffi::make_object<IRModuleNode>();
@@ -104,7 +45,12 @@ IRModule::IRModule(tvm::ffi::Map<GlobalVar, BaseFunc> functions, SourceMap sourc
   n->attrs = std::move(attrs);
   n->global_infos = std::move(global_infos);
 
-  n->UpdateGlobalVarTypes();
+  for (const auto& kv : n->functions) {
+    // set global var map
+    TVM_FFI_ICHECK(n->global_var_map_.count(kv.first->name_hint) == 0)
+        << "Duplicate global function name " << kv.first->name_hint;
+    n->global_var_map_.Set(kv.first->name_hint, kv.first);
+  }
 
   data_ = std::move(n);
 }
@@ -165,11 +111,6 @@ int64_t IRModuleNode::SHash(int64_t init_hash,
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   IRModuleNode::RegisterReflection();
-  refl::TypeAttrDef<IRModuleNode>()
-      .attr(refl::type_attr::kStructuralMutate,
-            ffi::FStructuralMutate::FromNative<&IRModuleMutate<ffi::InplaceMode::kDisallow>>())
-      .attr(refl::type_attr::kStructuralMaybeInplaceMutate,
-            ffi::FStructuralMutate::FromNative<&IRModuleMutate<ffi::InplaceMode::kAllow>>());
 
   refl::GlobalDef().def(
       "ir.IRModule", [](tvm::ffi::Map<GlobalVar, BaseFunc> funcs, tvm::ffi::ObjectRef attrs,
@@ -231,55 +172,17 @@ void IRModuleNode::Add(const GlobalVar& var, const BaseFunc& f, bool update) {
 }
 
 void IRModuleNode::AddUnchecked(const GlobalVar& var, const BaseFunc& func) {
-  auto it = global_var_map_.find(var->name_hint);
-  TVM_FFI_ICHECK(it == global_var_map_.end() || (*it).second.same_as(var))
-      << "Duplicate global function name " << var->name_hint;
-  // Replacements may reuse a caller from before a callee signature changed.
-  // New definitions can deliberately retain old callees until a pass rewrites
-  // their call arguments or results, so preserve those staged references.
-  BaseFunc canonical_func =
-      it == global_var_map_.end() ? func : RemapModuleGlobals(func, global_var_map_);
-  this->functions.Set(var, canonical_func);
-  if (var->ty.as<MissingType>().has_value()) var->ty = canonical_func->ty;
-  if (canonical_func->ty.as<MissingType>().has_value() || var->ty.same_as(canonical_func->ty)) {
-    global_var_map_.Set(var->name_hint, var);
-    return;
-  }
-  UpdateGlobalVarTypes();
-}
+  this->functions.Set(var, func);
 
-void IRModuleNode::UpdateGlobalVarTypes() {
-  ffi::Map<ffi::String, GlobalVar> globals;
-  bool remap = false;
-  bool names_changed = global_var_map_.size() != functions.size();
-  for (const auto& [var, function] : functions) {
-    TVM_FFI_ICHECK_EQ(globals.count(var->name_hint), 0)
-        << "Duplicate global function name " << var->name_hint;
-    GlobalVar canonical = var;
-    if (!function->ty.as<MissingType>().has_value()) {
-      if (var->ty.as<MissingType>().has_value()) {
-        var->ty = function->ty;
-      } else if (!var->ty.same_as(function->ty)) {
-        canonical = GlobalVar(var->name_hint, var->span);
-        canonical->ty = function->ty;
-        remap = true;
-      }
-    }
-    auto previous = global_var_map_.find(var->name_hint);
-    names_changed |= previous == global_var_map_.end() || !(*previous).second.same_as(canonical);
-    if (previous != global_var_map_.end() && !(*previous).second.same_as(canonical)) {
-      remap = true;
-    }
-    globals.Set(canonical->name_hint, canonical);
+  auto it = global_var_map_.find(var->name_hint);
+  if (it != global_var_map_.end()) {
+    TVM_FFI_ICHECK((*it).second.same_as(var));
+  } else {
+    TVM_FFI_ICHECK(global_var_map_.count(var->name_hint) == 0)
+        << "Duplicate global function name " << var;
   }
-  if (remap) {
-    ffi::Map<GlobalVar, BaseFunc> updated;
-    for (const auto& [var, function] : functions) {
-      updated.Set(globals[var->name_hint], RemapModuleGlobals(function, globals));
-    }
-    functions = std::move(updated);
-  }
-  if (names_changed) global_var_map_ = std::move(globals);
+
+  global_var_map_.Set(var->name_hint, var);
 }
 
 void IRModuleNode::Update(const GlobalVar& var, const BaseFunc& func) {
@@ -310,9 +213,8 @@ BaseFunc IRModuleNode::Lookup(const ffi::String& name) const {
 
 void IRModuleNode::Update(const IRModule& mod) {
   for (auto pair : mod->functions) {
-    auto it = global_var_map_.find(pair.first->name_hint);
-    GlobalVar canonical = it == global_var_map_.end() ? pair.first : (*it).second;
-    this->AddUnchecked(canonical, pair.second);
+    // TODO(@jroesch): rename into IRModule.
+    this->AddUnchecked(pair.first, pair.second);
   }
 }
 
@@ -322,6 +224,7 @@ IRModule IRModuleNode::ShallowCopy() {
 
 IRModule IRModule::FromExpr(const Expr& expr,
                             const tvm::ffi::Map<GlobalVar, BaseFunc>& global_funcs) {
+  auto mod = IRModule(global_funcs);
   ffi::String gv_name;
 
   // All global definitions must be functions.
@@ -332,19 +235,6 @@ IRModule IRModule::FromExpr(const Expr& expr,
       gv_name = opt.value();
     }
   }
-
-  // Replace a named definition before populating any initially untyped symbol,
-  // so a temporary definition does not introduce an artificial signature change.
-  if (!gv_name.empty()) {
-    for (const auto& [var, function] : global_funcs) {
-      if (var->name_hint == gv_name) {
-        auto functions = global_funcs;
-        functions.Set(var, func);
-        return IRModule(std::move(functions));
-      }
-    }
-  }
-  auto mod = IRModule(global_funcs);
 
   UniqueNameSupply global_names(mod->functions.begin(), mod->functions.end(),
                                 [](const auto& kv) { return kv.first->name_hint; });

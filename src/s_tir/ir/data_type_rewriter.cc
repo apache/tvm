@@ -74,11 +74,7 @@ Function IndexDataTypeNormalizer::Rewrite(Function func) {
   });
   FunctionNode* new_func = func.CopyOnWrite();
   new_func->params = std::move(params);
-  new_func->ret_type = Mutate(new_func->ret_type, InplaceMode::kDisallow)
-                           .as_or_throw<UnchangedOr<Type>>()
-                           .ValueOrUnchanged(new_func->ret_type);
   new_func->body = Mutate(new_func->body).ValueOrUnchanged(new_func->body);
-  new_func->RefreshType();
   return func;
 }
 

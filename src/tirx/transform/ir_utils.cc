@@ -136,14 +136,10 @@ Function IRConvertSSA::VisitFunction(Function func) {
   auto body_result = Mutate(func->body, InplaceMode::kDisallow);
   bool body_unchanged = body_result.UnchangedOrSameAs(func->body);
   auto body = std::move(body_result).ValueOrUnchanged(func->body);
-  Type ret_type = Mutate(func->ret_type, InplaceMode::kDisallow)
-                      .as_or_throw<UnchangedOr<Type>>()
-                      .ValueOrUnchanged(func->ret_type);
 
   // If anything changed, update the returned function
-  if (!params.same_as(func->params) || !attrs.same_as(func->attrs) || !body_unchanged ||
-      !ret_type.same_as(func->ret_type)) {
-    func = Function(params, body, ret_type, attrs);
+  if (!params.same_as(func->params) || !attrs.same_as(func->attrs) || !body_unchanged) {
+    func = Function(params, body, func->ret_type, attrs);
   }
 
   // Pop function-scope remaps in reverse order
@@ -377,9 +373,7 @@ IRModule IRConvertSSA::VisitIRModule(IRModule mod) {
     functions.Set(gvar, base_func);
   }
   if (made_change) {
-    auto* node = mod.CopyOnWrite();
-    node->functions = std::move(functions);
-    node->UpdateGlobalVarTypes();
+    mod.CopyOnWrite()->functions = std::move(functions);
   }
   return mod;
 }

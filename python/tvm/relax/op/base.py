@@ -165,7 +165,7 @@ def call_tir_packed(gvar: GlobalVar, args: Expr, *, pure: bool = False) -> Call:
         signed or unsigned integers up to 64 bits, or float16/32/64.  These
         same scalar types are supported as direct results.  The existing packed
         integer carrier is signed 64-bit: ``uint64`` values must be in
-        ``[0, 2**63 - 1]`` and larger native results raise an error.
+        ``[0, 2**63 - 1]``; larger unsigned values are not representable.
 
         Pointer parameters accept ``Any`` or a handle-compatible object,
         including a runtime tensor.  A tensor passed to a pointer parameter

@@ -120,9 +120,6 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
       kv.second.reset();
       Function func = *std::move(opt_func);
       auto updated = pass_func(std::move(func), mod, pass_ctx);
-      if (updated.has_value()) {
-        updated.value()->RefreshType();
-      }
       kv.second = Any(std::move(updated));
       if (kv.second == nullptr) {
         deleted_list.push_back(kv.first.as_or_throw<GlobalVar>());
@@ -136,7 +133,6 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   for (const auto& gv : deleted_list) {
     mod_ptr->Remove(gv);
   }
-  mod_ptr->UpdateGlobalVarTypes();
   return mod;
 }
 

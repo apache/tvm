@@ -231,14 +231,6 @@ class IRModuleNode : public ffi::Object {
   TVM_DLL void Update(const IRModule& other);
 
   /*!
-   * \brief Synchronize global signatures with the function map.
-   *
-   * Globals whose populated signatures change are replaced, along with their uses,
-   * to preserve symbols shared with other modules.
-   */
-  TVM_DLL void UpdateGlobalVarTypes();
-
-  /*!
    * \brief Create a shallow copy of this IRModule.
    * \returns The shallow copy of the IRModule.
    */

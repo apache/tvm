@@ -35,7 +35,6 @@
 #include <tvm/tirx/stmt_functor.h>
 #include <tvm/tirx/transform.h>
 
-#include <limits>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -108,18 +107,6 @@ class ReturnRewriter : public StmtExprMutator {
   }
 
   Stmt WriteToOut(Expr val) {
-    ffi::Array<Stmt> prelude;
-    if (auto dtype = val->ty.as<PrimType>(); dtype && dtype.value() == PrimType::UInt(64)) {
-      // The packed integer carrier is signed.  Evaluate the result once before
-      // checking its range so that a side-effecting return expression is not repeated.
-      PrimVar result("packed_uint64_result", PrimType::UInt(64));
-      prelude.push_back(Bind(result, val));
-      prelude.push_back(AssertStmt(
-          prim::LE(result, IntImm(PrimType::UInt(64), std::numeric_limits<int64_t>::max())),
-          StringImm("ValueError"),
-          {StringImm("uint64 packed return value exceeds the signed 64-bit integer range")}));
-      val = result;
-    }
     auto info = ConvertForFFI(val);
     Stmt store_tindex = tirx::Evaluate(
         Call(PrimType::Int(32), tirx::builtin::tvm_struct_set(),
@@ -137,7 +124,7 @@ class ReturnRewriter : public StmtExprMutator {
                              IntImm::Int32(tirx::builtin::kTVMFFIAnyUnionValue), info.expr})
                            .as_or_throw<PrimExpr>());
     Stmt ret_zero = Return(IntImm::Int32(0));
-    return SeqStmt::Flatten(prelude, store_tindex, store_zero_padding, store_val, ret_zero);
+    return SeqStmt({store_tindex, store_zero_padding, store_val, ret_zero});
   }
 
   Var ret_var_;
@@ -308,7 +295,6 @@ Function MakePackedAPI(Function func) {
       << " are used, but are not passed in as API arguments";
 
   func_ptr->ret_type = PrimType::Int(32);
-  func_ptr->RefreshType();
 
   // return the function.
   return func;
