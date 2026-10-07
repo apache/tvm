@@ -8576,6 +8576,120 @@ def test_exponential():
     verify_model(Exponential(), example_args, {}, Expected)
 
 
+def test_amax_amin():
+    class Amax(Module):
+        def forward(self, x):
+            return torch.amax(x, dim=1)
+
+    class AminKeep(Module):
+        def forward(self, x):
+            return torch.amin(x, dim=(0, 2), keepdim=True)
+
+    class AmaxAll(Module):
+        def forward(self, x):
+            return torch.amax(x)
+
+    @I.ir_module
+    class expected_amax:
+        @R.function
+        def main(x: R.Tensor((4, 8, 16), dtype="float32")) -> R.Tuple(
+            R.Tensor((4, 16), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((4, 16), dtype="float32") = R.max(x, axis=[1], keepdims=False)
+                gv: R.Tuple(R.Tensor((4, 16), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class expected_amin_keep:
+        @R.function
+        def main(x: R.Tensor((4, 8, 16), dtype="float32")) -> R.Tuple(
+            R.Tensor((1, 8, 1), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((1, 8, 1), dtype="float32") = R.min(x, axis=[0, 2], keepdims=True)
+                gv: R.Tuple(R.Tensor((1, 8, 1), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class expected_amax_all:
+        @R.function
+        def main(x: R.Tensor((4, 8, 16), dtype="float32")) -> R.Tuple(
+            R.Tensor((), dtype="float32")
+        ):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.max(x, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(4, 8, 16, dtype=torch.float32),)
+    verify_model(Amax(), example_args, {}, expected_amax)
+    verify_model(AminKeep(), example_args, {}, expected_amin_keep)
+    verify_model(AmaxAll(), example_args, {}, expected_amax_all)
+    for model in (Amax(), AminKeep(), AmaxAll()):
+        verify_model_numerically(model, example_args)
+    # logsumexp decomposes through amax, so it is covered by the same converter.
+    verify_model_numerically(
+        type("LogSumExp", (Module,), {"forward": lambda self, x: torch.logsumexp(x, dim=1)})(),
+        example_args,
+        rtol=1e-5,
+        atol=1e-5,
+    )
+
+
+def test_min_dim():
+    class MinDim(Module):
+        def forward(self, x):
+            return torch.min(x, dim=1)
+
+    class MinDimKeep(Module):
+        def forward(self, x):
+            return torch.min(x, dim=1, keepdim=True)
+
+    @I.ir_module
+    class expected1:
+        @R.function
+        def main(x: R.Tensor((4, 8, 16), dtype="float32")) -> R.Tuple(
+            R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")
+        ):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((4, 1, 16), dtype="float32"), R.Tensor((4, 1, 16), dtype="int64")
+                ) = R.topk(x, k=1, axis=1, ret_type="both", largest=False, dtype="int64")
+                lv1: R.Tensor((4, 1, 16), dtype="float32") = lv[0]
+                lv2: R.Tensor((4, 16), dtype="float32") = R.squeeze(lv1, axis=[1])
+                lv3: R.Tensor((4, 1, 16), dtype="int64") = lv[1]
+                lv4: R.Tensor((4, 16), dtype="int64") = R.squeeze(lv3, axis=[1])
+                lv5: R.Tuple(
+                    R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")
+                ) = (lv2, lv4)
+                lv6: R.Tensor((4, 16), dtype="float32") = lv5[0]
+                lv7: R.Tensor((4, 16), dtype="int64") = lv5[1]
+                gv: R.Tuple(
+                    R.Tensor((4, 16), dtype="float32"), R.Tensor((4, 16), dtype="int64")
+                ) = (lv6, lv7)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(4, 8, 16, dtype=torch.float32),)
+    verify_model(MinDim(), example_args, {}, expected1)
+    # Values and indices, both branches, against torch. Distinct values keep the
+    # argmin unambiguous.
+    x = torch.randperm(4 * 8 * 16).reshape(4, 8, 16).to(torch.float32)
+    for model in (MinDim(), MinDimKeep()):
+        with torch.no_grad():
+            want_v, want_i = model(x)
+        mod = from_exported_program(export(model, (x,)))
+        ex = relax.build(mod, tvm.target.Target("llvm"))
+        vm = relax.VirtualMachine(ex, tvm.cpu())
+        got = vm["main"](tvm.runtime.tensor(x.numpy()))
+        tvm.testing.assert_allclose(got[0].numpy(), want_v.numpy())
+        tvm.testing.assert_allclose(got[1].numpy(), want_i.numpy())
+
+
 def test_max_dim():
     class MaxDim1(Module):
         def forward(self, x):
